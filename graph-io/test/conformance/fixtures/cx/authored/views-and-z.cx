@@ -1,0 +1,8 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1},{"@id":2}]},
+{"cySubNetworks":[{"@id":10,"nodes":"all","edges":"all"}]},
+{"cyViews":[{"@id":20,"s":10},{"@id":21,"s":10}]},
+{"cartesianLayout":[{"node":1,"x":5,"y":6,"z":32775,"view":20},{"node":2,"x":0,"y":0,"view":20},{"node":1,"x":50,"y":60,"view":21},{"node":2,"x":1,"y":1,"view":22}]},
+{"status":[{"error":"","success":true}]}
+]

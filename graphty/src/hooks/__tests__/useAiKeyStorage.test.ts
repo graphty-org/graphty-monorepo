@@ -1,8 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ENCRYPTION_KEY_STORAGE } from "../../utils/ai-storage";
-
 // Create mock ApiKeyManager instance
 const createMockApiKeyManager = () => ({
     enablePersistence: vi.fn(),
@@ -14,6 +12,8 @@ const createMockApiKeyManager = () => ({
     removeKey: vi.fn(),
     getConfiguredProviders: vi.fn().mockReturnValue([]),
     clear: vi.fn(),
+    getDefaultProvider: vi.fn().mockReturnValue(null),
+    setDefaultProvider: vi.fn(),
 });
 
 let mockApiKeyManagerInstance = createMockApiKeyManager();
@@ -158,7 +158,7 @@ describe("useAiKeyStorage", () => {
         expect(mockApiKeyManagerInstance.clear).toHaveBeenCalled();
     });
 
-    it("enablePersistence with custom password stores in sessionStorage", async () => {
+    it("enablePersistence passes a custom encryption key to the element", async () => {
         const { useAiKeyStorage } = await import("../useAiKeyStorage");
         const { result } = renderHook(() => useAiKeyStorage());
 
@@ -166,16 +166,19 @@ describe("useAiKeyStorage", () => {
             expect(result.current.isReady).toBe(true);
         });
 
+        mockApiKeyManagerInstance.isPersistenceEnabled.mockReturnValue(true);
         act(() => {
-            result.current.enablePersistence("my-custom-password");
+            result.current.enablePersistence("  my-custom-password ");
         });
 
-        expect(mockApiKeyManagerInstance.enablePersistence).toHaveBeenCalled();
-        expect(sessionStorage.getItem(ENCRYPTION_KEY_STORAGE)).toBe("my-custom-password");
+        expect(mockApiKeyManagerInstance.enablePersistence).toHaveBeenCalledWith({
+            encryptionKey: "my-custom-password",
+        });
+        expect(sessionStorage.length).toBe(0);
         expect(result.current.isPersistenceEnabled).toBe(true);
     });
 
-    it("enablePersistence with empty password uses default and does not store", async () => {
+    it("enablePersistence with no or empty key leaves the default to the element", async () => {
         const { useAiKeyStorage } = await import("../useAiKeyStorage");
         const { result } = renderHook(() => useAiKeyStorage());
 
@@ -185,69 +188,63 @@ describe("useAiKeyStorage", () => {
 
         act(() => {
             result.current.enablePersistence("");
-        });
-
-        expect(mockApiKeyManagerInstance.enablePersistence).toHaveBeenCalled();
-        expect(sessionStorage.getItem(ENCRYPTION_KEY_STORAGE)).toBeNull();
-        expect(result.current.isPersistenceEnabled).toBe(true);
-    });
-
-    it("enablePersistence with undefined uses default password", async () => {
-        const { useAiKeyStorage } = await import("../useAiKeyStorage");
-        const { result } = renderHook(() => useAiKeyStorage());
-
-        await waitFor(() => {
-            expect(result.current.isReady).toBe(true);
-        });
-
-        act(() => {
             result.current.enablePersistence();
         });
 
-        expect(mockApiKeyManagerInstance.enablePersistence).toHaveBeenCalled();
-        expect(sessionStorage.getItem(ENCRYPTION_KEY_STORAGE)).toBeNull();
+        expect(mockApiKeyManagerInstance.enablePersistence).toHaveBeenNthCalledWith(1, { encryptionKey: undefined });
+        expect(mockApiKeyManagerInstance.enablePersistence).toHaveBeenNthCalledWith(2, { encryptionKey: undefined });
     });
 
-    it("disablePersistence clears sessionStorage and updates state", async () => {
-        sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, "stored-key");
+    it("disablePersistence passes through and updates state", async () => {
+        mockApiKeyManagerInstance.isPersistenceEnabled.mockReturnValue(true);
 
         const { useAiKeyStorage } = await import("../useAiKeyStorage");
         const { result } = renderHook(() => useAiKeyStorage());
 
         await waitFor(() => {
-            expect(result.current.isReady).toBe(true);
+            expect(result.current.isPersistenceEnabled).toBe(true);
         });
 
-        // First enable
-        act(() => {
-            result.current.enablePersistence("test");
-        });
-
-        expect(result.current.isPersistenceEnabled).toBe(true);
-
-        // Then disable
-        act(() => {
-            result.current.disablePersistence(true);
-        });
-
-        expect(mockApiKeyManagerInstance.disablePersistence).toHaveBeenCalledWith(true);
-        expect(sessionStorage.getItem(ENCRYPTION_KEY_STORAGE)).toBeNull();
-        expect(result.current.isPersistenceEnabled).toBe(false);
-    });
-
-    it("disablePersistence defaults clearStorage to false", async () => {
-        const { useAiKeyStorage } = await import("../useAiKeyStorage");
-        const { result } = renderHook(() => useAiKeyStorage());
-
-        await waitFor(() => {
-            expect(result.current.isReady).toBe(true);
-        });
-
+        mockApiKeyManagerInstance.isPersistenceEnabled.mockReturnValue(false);
         act(() => {
             result.current.disablePersistence();
         });
 
-        expect(mockApiKeyManagerInstance.disablePersistence).toHaveBeenCalledWith(false);
+        expect(mockApiKeyManagerInstance.disablePersistence).toHaveBeenCalledWith(undefined);
+        expect(result.current.isPersistenceEnabled).toBe(false);
+    });
+
+    it("reads the persistence and default provider the element restored", async () => {
+        mockApiKeyManagerInstance.isPersistenceEnabled.mockReturnValue(true);
+        mockApiKeyManagerInstance.getDefaultProvider.mockReturnValue("anthropic");
+
+        const { useAiKeyStorage } = await import("../useAiKeyStorage");
+        const { result } = renderHook(() => useAiKeyStorage());
+
+        await waitFor(() => {
+            expect(result.current.isReady).toBe(true);
+        });
+
+        expect(result.current.isPersistenceEnabled).toBe(true);
+        expect(result.current.defaultProvider).toBe("anthropic");
+        expect(mockApiKeyManagerInstance.enablePersistence).not.toHaveBeenCalled();
+    });
+
+    it("setDefaultProvider writes through the element", async () => {
+        const { useAiKeyStorage } = await import("../useAiKeyStorage");
+        const { result } = renderHook(() => useAiKeyStorage());
+
+        await waitFor(() => {
+            expect(result.current.isReady).toBe(true);
+        });
+
+        mockApiKeyManagerInstance.getDefaultProvider.mockReturnValue("google");
+        act(() => {
+            result.current.setDefaultProvider("google");
+        });
+
+        expect(mockApiKeyManagerInstance.setDefaultProvider).toHaveBeenCalledWith("google");
+        expect(result.current.defaultProvider).toBe("google");
     });
 
     it("hasAnyProvider returns true when providers are configured", async () => {
@@ -262,58 +259,5 @@ describe("useAiKeyStorage", () => {
 
         expect(result.current.hasAnyProvider).toBe(true);
         expect(result.current.configuredProviders).toEqual(["openai", "anthropic"]);
-    });
-
-    it("restores persistence from sessionStorage on init", async () => {
-        // Simulate stored encryption key
-        sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, "stored-password");
-
-        // First call with default password fails (no keys)
-        mockApiKeyManagerInstance.getConfiguredProviders.mockReturnValueOnce([]);
-        // After trying stored password, we have keys
-        mockApiKeyManagerInstance.getConfiguredProviders.mockReturnValue(["openai"]);
-
-        const { useAiKeyStorage } = await import("../useAiKeyStorage");
-        const { result } = renderHook(() => useAiKeyStorage());
-
-        await waitFor(() => {
-            expect(result.current.isReady).toBe(true);
-        });
-
-        // Should have tried to enable persistence with stored key
-        expect(mockApiKeyManagerInstance.enablePersistence).toHaveBeenCalled();
-    });
-
-    it("clears stale encryption key when decryption fails", async () => {
-        sessionStorage.setItem(ENCRYPTION_KEY_STORAGE, "bad-password");
-
-        // Default password returns no keys
-        mockApiKeyManagerInstance.getConfiguredProviders.mockReturnValue([]);
-
-        // Second enablePersistence call throws (bad stored password)
-        mockApiKeyManagerInstance.enablePersistence
-            .mockImplementationOnce(() => {}) // Default password call
-            .mockImplementationOnce(() => {
-                throw new Error("Decryption failed");
-            });
-
-        const { useAiKeyStorage } = await import("../useAiKeyStorage");
-        renderHook(() => useAiKeyStorage());
-
-        await waitFor(() => {
-            // Session storage should be cleared
-            expect(sessionStorage.getItem(ENCRYPTION_KEY_STORAGE)).toBeNull();
-        });
-    });
-
-    it("returns keyManager instance", async () => {
-        const { useAiKeyStorage } = await import("../useAiKeyStorage");
-        const { result } = renderHook(() => useAiKeyStorage());
-
-        await waitFor(() => {
-            expect(result.current.isReady).toBe(true);
-        });
-
-        expect(result.current.keyManager).toBe(mockApiKeyManagerInstance);
     });
 });

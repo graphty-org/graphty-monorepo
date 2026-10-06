@@ -19,12 +19,26 @@
  * 7. one `More in Analyze` link.
  */
 
-import { ActionRow, AdvancedButton, ControlSection, DataRow, DataRowHeader, type HistogramBin, HistogramRow, PANEL_GRID, PANEL_INK, PanelField, Popout, ProseBlock, UiGlyph, useNumberFormatter } from "@graphty/compact-mantine";
+import {
+    ActionRow,
+    AdvancedButton,
+    ControlSection,
+    DataRow,
+    DataRowHeader,
+    type HistogramBin,
+    HistogramRow,
+    PANEL_GRID,
+    PANEL_INK,
+    PanelField,
+    Popout,
+    ProseBlock,
+    UiGlyph,
+    useNumberFormatter,
+} from "@graphty/compact-mantine";
 import { Box, Menu, Tabs, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useMemo, useState } from "react";
 
 import { keyChipFor } from "../bindings";
-import { TOOLTIP_DELAY_MS } from "../constants";
 import {
     ATTRIBUTE_ROW_CAP,
     COUNTS_ROW_LABELS,
@@ -172,7 +186,7 @@ export interface GraphSummaryProps {
     readonly schema: GraphSummarySchema;
     /** The Attributes section's content. */
     readonly attributes: GraphSummaryAttributes;
-    /** How many case notes the graph carries. */
+    /** How many case notes the graph carries: graphty-element's notes about the whole graph. */
     readonly caseNoteCount: number;
     /** Opens the Data table drawer on the ranked list. */
     readonly onShowInTable: () => void;
@@ -308,7 +322,6 @@ function VerbButton(props: VerbButtonProps): React.JSX.Element {
 
     return (
         <Tooltip
-            openDelay={TOOLTIP_DELAY_MS}
             position="top"
             withinPortal
             label={
@@ -385,7 +398,7 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
     const caseNoteWords =
         caseNoteCount === 0
             ? GRAPH_SUMMARY_LABELS.addCaseNote
-            : `${formatter.format(caseNoteCount)} case notes`;
+            : `${formatter.format(caseNoteCount)} ${caseNoteCount === 1 ? "case note" : "case notes"}`;
     const addNoteChip = keyChipFor("addNote");
     const caseNoteTitle =
         caseNoteCount === 0 && addNoteChip !== null
@@ -462,9 +475,7 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
                                         </UnstyledButton>
                                     </Menu.Target>
                                     <Menu.Dropdown>
-                                        <Menu.Item onClick={onExportTop}>
-                                            {GRAPH_SUMMARY_LABELS.exportTopCsv}
-                                        </Menu.Item>
+                                        <Menu.Item onClick={onExportTop}>{GRAPH_SUMMARY_LABELS.exportTopCsv}</Menu.Item>
                                         <Menu.Item onClick={onExportRanked}>
                                             {GRAPH_SUMMARY_LABELS.exportRankedCsv}
                                         </Menu.Item>

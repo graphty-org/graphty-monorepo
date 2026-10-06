@@ -12,7 +12,16 @@
  * @module
  */
 
-import type { AdjacencyView, F64, GraphSnapshot, U32 } from "@graphty/graph-format";
+import {
+    type AdjacencyView,
+    type F64,
+    type GraphSnapshot,
+    type NodeRef,
+    type NodeSet,
+    resolveNode,
+    resolveNodeSet,
+    type U32,
+} from "@graphty/graph-format";
 
 import { type CommonNeighborsOptions, sortedRowMerge } from "./common-neighbors.js";
 
@@ -30,8 +39,8 @@ export interface LinkPredictionOptions extends CommonNeighborsOptions {
 
 /** Options of the per-node candidate functions. @public */
 export interface CandidateOptions extends LinkPredictionOptions {
-    /** The node indices to consider, in this order; default every node in index order. */
-    readonly candidates?: ArrayLike<number> | undefined;
+    /** The nodes to consider (indices, `{ mask }` or `{ ids }`), in this order; default every node in index order. */
+    readonly candidates?: NodeSet | undefined;
 }
 
 /** Node pairs as two parallel index lists: pair k is (sources[k], targets[k]). @public */
@@ -197,7 +206,8 @@ function candidatesOf(s: GraphSnapshot, u: number, o: CandidateOptions, score: P
     const targets: number[] = [];
     const scores: number[] = [];
     if (u < n) {
-        const list = o.candidates ?? Array.from({ length: n }, (_, i) => i);
+        const list =
+            o.candidates === undefined ? Array.from({ length: n }, (_, i) => i) : resolveNodeSet(s, o.candidates);
         for (let k = 0; k < list.length; k++) {
             const v = list[k];
             if (v === u || (o.includeExisting !== true && v < n && s.hasArc(u, v))) {
@@ -276,12 +286,17 @@ export function commonNeighborsForPairs(s: GraphSnapshot, pairs: NodePairs, o: C
 /**
  * One node's best common-neighbour candidates, ranked.
  * @param s - The snapshot
- * @param u - The node index
+ * @param uNode - The node: its index, or `{ id }`
  * @param o - Options
  * @returns (u, v) pairs with a positive score, highest first
  * @public
  */
-export function getTopCandidatesForNode(s: GraphSnapshot, u: number, o: CandidateOptions = {}): LinkPredictionResult {
+export function getTopCandidatesForNode(
+    s: GraphSnapshot,
+    uNode: NodeRef,
+    o: CandidateOptions = {},
+): LinkPredictionResult {
+    const u = resolveNode(s, uNode);
     return candidatesOf(s, u, o, scorer(s, o));
 }
 
@@ -307,13 +322,20 @@ export function evaluateCommonNeighbors(
 /**
  * The Adamic-Adar index of two nodes: the sum over distinct common neighbours z of 1 / ln(degree(z)).
  * @param s - The snapshot
- * @param u - A node index
- * @param v - A node index
+ * @param uNode - A node: its index, or `{ id }`
+ * @param vNode - A node: its index, or `{ id }`
  * @param o - Options
  * @returns The score
  * @public
  */
-export function adamicAdarScore(s: GraphSnapshot, u: number, v: number, o: CommonNeighborsOptions = {}): number {
+export function adamicAdarScore(
+    s: GraphSnapshot,
+    uNode: NodeRef,
+    vNode: NodeRef,
+    o: CommonNeighborsOptions = {},
+): number {
+    const u = resolveNode(s, uNode);
+    const v = resolveNode(s, vNode);
     return scorer(s, o, adamicAdarWeightOf(s, o.directed === true))(u, v);
 }
 
@@ -343,16 +365,17 @@ export function adamicAdarForPairs(s: GraphSnapshot, pairs: NodePairs, o: Common
 /**
  * One node's best Adamic-Adar candidates, ranked.
  * @param s - The snapshot
- * @param u - The node index
+ * @param uNode - The node: its index, or `{ id }`
  * @param o - Options
  * @returns (u, v) pairs with a positive score, highest first
  * @public
  */
 export function getTopAdamicAdarCandidatesForNode(
     s: GraphSnapshot,
-    u: number,
+    uNode: NodeRef,
     o: CandidateOptions = {},
 ): LinkPredictionResult {
+    const u = resolveNode(s, uNode);
     return candidatesOf(s, u, o, adamicAdarScorer(s, o));
 }
 

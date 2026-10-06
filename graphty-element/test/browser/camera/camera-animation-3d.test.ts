@@ -103,6 +103,38 @@ test("camera animation can be interrupted", async () => {
     );
 });
 
+test("an interrupted animation stops moving the camera", async () => {
+    graph = await createTestGraph();
+
+    // Interrupted at 300 ms; its own 1000 ms run would end at (100, 100, 100).
+    void graph
+        .setCameraState(
+            { position: { x: 100, y: 100, z: 100 }, target: { x: 0, y: 0, z: 0 } },
+            { animate: true, duration: 1000 },
+        )
+        .catch(() => {
+            /* Expected to be cancelled */
+        });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await graph.setCameraState(
+        { position: { x: 50, y: 50, z: 50 }, target: { x: 0, y: 0, z: 0 } },
+        { animate: true, duration: 200 },
+    );
+
+    // Past the end of the cancelled run: nothing it started may still be writing the camera.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    const { position } = graph.getCameraState();
+    assert.ok(position);
+    const fromSecond = Math.hypot(position.x - 50, position.y - 50, position.z - 50);
+    assert.isBelow(
+        fromSecond,
+        1,
+        `The camera ended at (${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}), ` +
+            "not where the animation that replaced the cancelled one left it",
+    );
+});
+
 test("emits camera-state-changed event after animation", async () => {
     graph = await createTestGraph();
 

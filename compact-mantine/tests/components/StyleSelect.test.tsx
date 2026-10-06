@@ -1,7 +1,7 @@
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import React, { type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { compactTheme, StyleSelect } from "../../src";
@@ -33,16 +33,28 @@ beforeAll(() => {
 describe("StyleSelect", () => {
     it("renders label", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
         expect(screen.getByText("Select")).toBeInTheDocument();
     });
 
     it("shows default value when value is undefined", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
-        const select = screen.getByRole("textbox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: "Select" });
         expect(select).toHaveAttribute("value", "Option 1");
     });
 
@@ -50,21 +62,55 @@ describe("StyleSelect", () => {
         renderSelect(
             <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
         );
-        const select = screen.getByRole("textbox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: "Select" });
         expect(select).toHaveAttribute("value", "Option 2");
     });
 
-    it("shows italic styling for default value", () => {
+    it("draws a default value like any other value (Figma has no default state)", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
-        const select = screen.getByRole("textbox", { name: "Select" });
-        expect(getComputedStyle(select).fontStyle).toBe("italic");
+        const select = screen.getByRole("combobox", { name: "Select" });
+        expect(getComputedStyle(select).fontStyle).not.toBe("italic");
+        expect(select.getAttribute("style") ?? "").not.toMatch(/italic|color/);
+    });
+
+    it("is an APG combobox: role, aria-expanded and aria-activedescendant follow the list", async () => {
+        const user = userEvent.setup();
+        renderSelect(
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
+        );
+        const select = screen.getByRole("combobox", { name: "Select" });
+        expect(select).toHaveAttribute("aria-expanded", "false");
+        await user.click(select);
+        expect(select).toHaveAttribute("aria-expanded", "true");
+        await user.keyboard("{ArrowDown}");
+        const active = select.getAttribute("aria-activedescendant");
+        expect(active).toBeTruthy();
+        expect(document.getElementById(active ?? "")).toHaveAttribute("role", "option");
     });
 
     it("hides reset button when using default", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
         expect(screen.queryByRole("button", { name: /reset/i })).not.toBeInTheDocument();
     });
@@ -78,9 +124,15 @@ describe("StyleSelect", () => {
 
     it("has data-is-default attribute when using default", () => {
         renderSelect(
-            <StyleSelect label="Select" value={undefined} defaultValue="option1" options={options} onChange={vi.fn()} />,
+            <StyleSelect
+                label="Select"
+                value={undefined}
+                defaultValue="option1"
+                options={options}
+                onChange={vi.fn()}
+            />,
         );
-        const select = screen.getByRole("textbox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: "Select" });
         expect(select).toHaveAttribute("data-is-default", "true");
     });
 
@@ -88,7 +140,7 @@ describe("StyleSelect", () => {
         renderSelect(
             <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
         );
-        const select = screen.getByRole("textbox", { name: "Select" });
+        const select = screen.getByRole("combobox", { name: "Select" });
         expect(select).toHaveAttribute("data-is-default", "false");
     });
 
@@ -106,13 +158,19 @@ describe("StyleSelect", () => {
                     onChange={vi.fn()}
                 />,
             );
-            const select = screen.getByRole("textbox", { name: "Select" });
+            const select = screen.getByRole("combobox", { name: "Select" });
             expect(select).not.toHaveAttribute("aria-label");
         });
 
         it("names the reset button from the labels", () => {
             renderSelect(
-                <StyleSelect label="Shape" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Shape"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
             );
             expect(screen.getByRole("button", { name: "Reset Shape to default" })).toBeInTheDocument();
         });
@@ -138,7 +196,13 @@ describe("StyleSelect", () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={onChange} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={onChange}
+                />,
             );
 
             await user.click(screen.getByRole("button", { name: /reset/i }));
@@ -153,7 +217,13 @@ describe("StyleSelect", () => {
             const user = userEvent.setup();
             const onChange = vi.fn();
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={onChange} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={onChange}
+                />,
             );
 
             const reset = screen.getByRole("button", { name: /reset/i });
@@ -172,7 +242,7 @@ describe("StyleSelect", () => {
             const onChange = vi.fn();
             renderSelect(<StyleSelect label="Select" defaultValue="option1" options={options} onChange={onChange} />);
 
-            await user.click(screen.getByRole("textbox", { name: "Select" }));
+            await user.click(screen.getByRole("combobox", { name: "Select" }));
             // Mantine's dropdown is a Popover whose transition never completes
             // in jsdom, so the option is in the tree but painted `display:
             // none`; it is found with `hidden` and clicked directly.
@@ -199,7 +269,7 @@ describe("StyleSelect", () => {
                 </>,
             );
 
-            await user.click(screen.getByRole("textbox", { name: "Select" }));
+            await user.click(screen.getByRole("combobox", { name: "Select" }));
             expect(onFocus).toHaveBeenCalled();
 
             await user.click(screen.getByRole("button", { name: "elsewhere" }));
@@ -212,27 +282,47 @@ describe("StyleSelect", () => {
         // 18px "xs" ActionIcon.
         it("draws the reset button at the 24px target size", () => {
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
             );
             const reset = screen.getByRole("button", { name: /reset/i });
             expect(reset.style.getPropertyValue("--ai-size")).toContain("24");
         });
 
-        it("offsets the reset button along the block axis, not a physical one", () => {
+        // The reset is the trigger's height, so bottom alignment puts the two
+        // level; no margin in either axis (the old 2px lift is gone).
+        it("sets no physical or logical offset on the reset button", () => {
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
             );
             const reset = screen.getByRole("button", { name: /reset/i });
-            expect(reset.style.getPropertyValue("margin-block-end")).toBe("2px");
+            expect(reset.style.getPropertyValue("margin-block-end")).toBe("");
             expect(reset.style.getPropertyValue("margin-bottom")).toBe("");
         });
 
         it("renders under a right-to-left direction provider", () => {
             renderSelect(
-                <StyleSelect label="Select" value="option2" defaultValue="option1" options={options} onChange={vi.fn()} />,
+                <StyleSelect
+                    label="Select"
+                    value="option2"
+                    defaultValue="option1"
+                    options={options}
+                    onChange={vi.fn()}
+                />,
                 "rtl",
             );
-            expect(screen.getByRole("textbox", { name: "Select" })).toBeInTheDocument();
+            expect(screen.getByRole("combobox", { name: "Select" })).toBeInTheDocument();
             expect(screen.getByRole("button", { name: /reset/i })).toBeInTheDocument();
         });
     });
@@ -247,7 +337,7 @@ describe("StyleSelect", () => {
                 </MantineProvider>,
             );
 
-            expect(screen.getByRole("textbox", { name: "Select" })).toBeDisabled();
+            expect(screen.getByRole("combobox", { name: "Select" })).toBeDisabled();
             expect(screen.getByTestId("style-select-reset")).toBeDisabled();
         });
     });

@@ -56,3 +56,12 @@ export const indexed = layouts;
 
 // Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
 export * from "./simulation";
+
+// The machine-readable catalog of the layouts and simulations above.
+export {
+    type LayoutAcceleratorMethod,
+    type LayoutEntry,
+    type LayoutName,
+    LAYOUTS,
+    type LayoutWeightUse,
+} from "./catalog";

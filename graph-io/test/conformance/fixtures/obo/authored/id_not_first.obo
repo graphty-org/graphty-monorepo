@@ -1,0 +1,6 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+name: a
+id: X:1

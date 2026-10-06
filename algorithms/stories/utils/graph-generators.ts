@@ -1,6 +1,9 @@
 /**
  * Seeded random number generator and graph generation utilities for Storybook stories.
  * Uses Mulberry32 PRNG for deterministic, reproducible graph generation.
+ *
+ * The layout package's stories use these generators too (layout/stories/utils/graph-generators.ts),
+ * so a change here changes both Storybooks.
  */
 
 /**
@@ -70,7 +73,24 @@ export interface GeneratedGraph {
 /**
  * Available graph types for generation.
  */
-export type GraphType = "tree" | "random" | "grid" | "cycle" | "complete" | "star" | "path" | "clusters";
+export type GraphType =
+    | "tree"
+    | "random"
+    | "grid"
+    | "cycle"
+    | "complete"
+    | "star"
+    | "path"
+    | "clusters"
+    | "bipartite"
+    | "multipartite";
+
+/**
+ * How the "random" graph places its nodes: "force-directed" runs a short force simulation after
+ * the edges are drawn (the algorithms stories); "scattered" draws each node at a random point
+ * before the edges (the layout stories, which lay the graph out themselves).
+ */
+export type RandomPlacement = "force-directed" | "scattered";
 
 /**
  * Generate a graph of the specified type with deterministic layout.
@@ -81,6 +101,7 @@ export function generateGraph(
     seed: number = 42,
     width: number = 500,
     height: number = 500,
+    randomPlacement: RandomPlacement = "force-directed",
 ): GeneratedGraph {
     const rng = new SeededRandom(seed);
 
@@ -88,7 +109,7 @@ export function generateGraph(
         case "tree":
             return generateTree(nodeCount, rng, width, height);
         case "random":
-            return generateRandom(nodeCount, 0.3, rng, width, height);
+            return generateRandom(nodeCount, 0.3, rng, width, height, randomPlacement);
         case "grid":
             return generateGrid(nodeCount, width, height);
         case "cycle":
@@ -101,6 +122,10 @@ export function generateGraph(
             return generatePath(nodeCount, width, height);
         case "clusters":
             return generateClusters(nodeCount, rng, width, height);
+        case "bipartite":
+            return generateBipartite(nodeCount, width, height);
+        case "multipartite":
+            return generateMultipartite(nodeCount, width, height);
         default:
             return generateTree(nodeCount, rng, width, height);
     }
@@ -109,12 +134,7 @@ export function generateGraph(
 /**
  * Generate a tree graph using BFS-tree structure (good for traversal demos).
  */
-function generateTree(
-    nodeCount: number,
-    rng: SeededRandom,
-    width: number,
-    height: number,
-): GeneratedGraph {
+function generateTree(nodeCount: number, rng: SeededRandom, width: number, height: number): GeneratedGraph {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
 
@@ -156,7 +176,7 @@ function generateTree(
 }
 
 /**
- * Generate a random Erdős-Rényi graph with force-directed layout.
+ * Generate a random Erdős-Rényi graph, placed as `placement` says.
  */
 function generateRandom(
     nodeCount: number,
@@ -164,17 +184,19 @@ function generateRandom(
     rng: SeededRandom,
     width: number,
     height: number,
+    placement: RandomPlacement,
 ): GeneratedGraph {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
+    const scattered = placement === "scattered";
 
-    // Create nodes with placeholder positions (will be set by force-directed layout)
+    // Scattered nodes draw their positions now; force-directed ones get placeholders set below
     for (let i = 0; i < nodeCount; i++) {
         nodes.push({
             id: i,
             label: String(i),
-            x: 0,
-            y: 0,
+            x: scattered ? rng.next() * (width - 80) + 40 : 0,
+            y: scattered ? rng.next() * (height - 80) + 40 : 0,
         });
     }
 
@@ -223,7 +245,9 @@ function generateRandom(
     const graph = { nodes, edges };
 
     // Apply force-directed layout for optimal node positioning
-    applyForceDirectedLayout(graph, width, height, 50, rng.nextInt(0, 10000));
+    if (!scattered) {
+        applyForceDirectedLayout(graph, width, height, 50, rng.nextInt(0, 10000));
+    }
 
     return graph;
 }
@@ -299,12 +323,7 @@ function generateCycle(nodeCount: number, width: number, height: number): Genera
 /**
  * Generate a complete graph.
  */
-function generateComplete(
-    nodeCount: number,
-    rng: SeededRandom,
-    width: number,
-    height: number,
-): GeneratedGraph {
+function generateComplete(nodeCount: number, rng: SeededRandom, width: number, height: number): GeneratedGraph {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
 
@@ -405,12 +424,7 @@ function generatePath(nodeCount: number, width: number, height: number): Generat
  * Creates 2-4 clusters arranged in a visually clear layout, where nodes
  * within clusters are densely connected but clusters have only 1-2 bridge edges.
  */
-function generateClusters(
-    nodeCount: number,
-    rng: SeededRandom,
-    width: number,
-    height: number,
-): GeneratedGraph {
+function generateClusters(nodeCount: number, rng: SeededRandom, width: number, height: number): GeneratedGraph {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
 
@@ -519,6 +533,110 @@ function generateClusters(
             target: targetNode,
             weight: rng.nextInt(1, 3),
         });
+    }
+
+    return { nodes, edges };
+}
+
+/**
+ * Generate a bipartite graph with two sets of nodes.
+ */
+function generateBipartite(nodeCount: number, width: number, height: number): GeneratedGraph {
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+
+    // Split nodes into two roughly equal sets
+    const setACount = Math.ceil(nodeCount / 2);
+    const setBCount = nodeCount - setACount;
+
+    const leftX = width * 0.25;
+    const rightX = width * 0.75;
+
+    // Create set A nodes (left side)
+    for (let i = 0; i < setACount; i++) {
+        const spacing = height / (setACount + 1);
+        nodes.push({
+            id: i,
+            label: String(i),
+            x: leftX,
+            y: (i + 1) * spacing,
+        });
+    }
+
+    // Create set B nodes (right side)
+    for (let i = 0; i < setBCount; i++) {
+        const spacing = height / (setBCount + 1);
+        nodes.push({
+            id: setACount + i,
+            label: String(setACount + i),
+            x: rightX,
+            y: (i + 1) * spacing,
+        });
+    }
+
+    // Create edges between sets (connect each node in A to some nodes in B)
+    for (let i = 0; i < setACount; i++) {
+        // Connect each A node to a few B nodes
+        const connectionCount = Math.min(setBCount, Math.max(1, Math.floor(setBCount / 2)));
+        for (let j = 0; j < connectionCount; j++) {
+            const bIndex = (i + j) % setBCount;
+            edges.push({
+                source: i,
+                target: setACount + bIndex,
+            });
+        }
+    }
+
+    return { nodes, edges };
+}
+
+/**
+ * Generate a multipartite graph with 3-4 sets of nodes.
+ */
+function generateMultipartite(nodeCount: number, width: number, height: number): GeneratedGraph {
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+
+    // Create 3 partitions
+    const partitionCount = 3;
+    const nodesPerPartition = Math.floor(nodeCount / partitionCount);
+    const remainder = nodeCount % partitionCount;
+
+    const partitions: number[][] = [];
+    let nodeId = 0;
+
+    for (let p = 0; p < partitionCount; p++) {
+        const count = nodesPerPartition + (p < remainder ? 1 : 0);
+        const partition: number[] = [];
+        const x = (width / (partitionCount + 1)) * (p + 1);
+
+        for (let i = 0; i < count; i++) {
+            const spacing = height / (count + 1);
+            nodes.push({
+                id: nodeId,
+                label: String(nodeId),
+                x,
+                y: (i + 1) * spacing,
+            });
+            partition.push(nodeId);
+            nodeId++;
+        }
+        partitions.push(partition);
+    }
+
+    // Create edges between adjacent partitions
+    for (let p = 0; p < partitionCount - 1; p++) {
+        const currPartition = partitions[p];
+        const nextPartition = partitions[p + 1];
+
+        for (const source of currPartition) {
+            // Connect to 1-2 nodes in next partition
+            const connections = Math.min(nextPartition.length, 2);
+            for (let c = 0; c < connections; c++) {
+                const target = nextPartition[(source + c) % nextPartition.length];
+                edges.push({ source, target });
+            }
+        }
     }
 
     return { nodes, edges };

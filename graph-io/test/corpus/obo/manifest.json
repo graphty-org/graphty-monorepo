@@ -1,0 +1,30 @@
+{
+    "format": "obo",
+    "description": "Small OBO flat files: a clean real ontology (header idspace and property_value clauses) and the OBO Graphs project's OBO examples (Typedefs, part_of relationships). The conformance suite (test/conformance/fixtures/obo) holds the wider set.",
+    "files": [
+        {
+            "path": "taxrank.obo",
+            "source": "https://purl.obolibrary.org/obo/taxrank.obo (data-version releases/2025-09-24, retrieved 2026-10-02)",
+            "license": "CC0-1.0 (in-file remark)",
+            "expectedNodes": 77,
+            "expectedEdges": 75,
+            "features": ["header", "idspace", "property_value", "default-namespace", "is_a"]
+        },
+        {
+            "path": "basic.obo",
+            "source": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/basic.obo",
+            "license": "BSD-3-Clause (obographs pom.xml)",
+            "expectedNodes": 4,
+            "expectedEdges": 4,
+            "features": ["is_a", "relationship", "typedef"]
+        },
+        {
+            "path": "nucleus.obo",
+            "source": "https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/nucleus.obo",
+            "license": "BSD-3-Clause (obographs pom.xml)",
+            "expectedNodes": 10,
+            "expectedEdges": 13,
+            "features": ["is_a", "relationship", "typedef", "def", "synonym", "subset"]
+        }
+    ]
+}

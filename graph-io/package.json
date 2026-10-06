@@ -1,7 +1,7 @@
 {
     "name": "@graphty/graph-io",
-    "version": "0.3.14",
-    "description": "Importers and exporters (GEXF, GraphML, GML, DOT, Pajek, CSV, JSON, Neo4j) for the @graphty/graph-format snapshot",
+    "version": "0.3.25",
+    "description": "Read and write 13 graph file formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) as @graphty/graph-format snapshots",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "main": "dist/graph-io.js",
@@ -51,6 +51,31 @@
             "types": "./dist/neo4j.d.ts",
             "import": "./dist/neo4j.js",
             "default": "./dist/neo4j.js"
+        },
+        "./xgmml": {
+            "types": "./dist/xgmml.d.ts",
+            "import": "./dist/xgmml.js",
+            "default": "./dist/xgmml.js"
+        },
+        "./cx2": {
+            "types": "./dist/cx2.d.ts",
+            "import": "./dist/cx2.js",
+            "default": "./dist/cx2.js"
+        },
+        "./cx": {
+            "types": "./dist/cx.d.ts",
+            "import": "./dist/cx.js",
+            "default": "./dist/cx.js"
+        },
+        "./obo": {
+            "types": "./dist/obo.d.ts",
+            "import": "./dist/obo.js",
+            "default": "./dist/obo.js"
+        },
+        "./cys": {
+            "types": "./dist/cys.d.ts",
+            "import": "./dist/cys.js",
+            "default": "./dist/cys.js"
         }
     },
     "sideEffects": false,
@@ -58,6 +83,7 @@
         "dist/",
         "!dist/*.tsbuildinfo",
         "src/",
+        "docs/samples/",
         "README.md",
         "LICENSE"
     ],
@@ -82,6 +108,8 @@
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "benchmark": "tsx benchmarks/run.ts",
+        "docs:reference": "tsx scripts/docs-reference.ts",
+        "docs:api": "tsx scripts/docs-reference.ts --check && typedoc && node ../tools/sanitize-api-docs.js docs/api/generated",
         "ready:commit": "npm run build:all && npm run lint && npm run typecheck:strict-consumer && npm run test:run"
     },
     "repository": {
@@ -100,13 +128,16 @@
         "csv",
         "json",
         "neo4j",
+        "xgmml",
+        "cys",
+        "cytoscape",
         "graph-format"
     ],
     "license": "MIT",
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graph-io#readme",
+    "homepage": "https://graphty.app/docs/graph-io/",
     "dependencies": {
         "@graphty/graph-format": "workspace:^"
     },
@@ -119,7 +150,9 @@
         "eslint": "^9.29.0",
         "fast-check": "^4.2.0",
         "fast-xml-parser": "^5.11.1",
+        "prettier": "^3.4.2",
         "tsx": "^4.20.3",
+        "typedoc": "^0.28.15",
         "typescript": "^5.9.3",
         "vite": "^7.0.5",
         "vitest": "catalog:"

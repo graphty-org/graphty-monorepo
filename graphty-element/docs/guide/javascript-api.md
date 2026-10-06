@@ -151,6 +151,56 @@ const everyEdge = session.data.edges(); // [{ id, source, target, ... }, ...]
 rather than every frame. Every record is read-only; change the graph through `session.data`'s
 verbs, each of which is one undoable step.
 
+### Reading records a page at a time
+
+A table that shows thirty rows of a 100,000-node graph should read thirty records, not copy the
+graph. `nodePage` and `edgePage` answer one window of the records, the total, and a revision:
+
+```typescript
+const page = session.data.nodePage({ offset: 0, limit: 30 });
+page.records; // the 30 records, read-only
+page.total; // how many there are in all, for the scrollbar
+page.revision; // changes whenever any record, the selection or a set changes
+
+// Sorted by an attribute, over any scope:
+session.data.nodePage({ offset: 30, limit: 30, sort: { key: "weight", descending: true } });
+session.data.nodePage({ scope: "selection" });
+
+// The edges at one node:
+session.data.edgePage({ touching: "alice", limit: Infinity });
+
+// Only the records matching typed text, as a table's search box narrows it (selects nothing):
+session.data.nodePage({ matching: { text: "jav" }, sort: { key: "name" } });
+session.data.edgePage({ matching: { text: "kind:robs" } }); // the same modes as selection.apply({ text })
+
+// The nodes joined to one node, one row each, strongest first (see the Neighbors guide):
+session.data.neighbors("alice");
+
+// Read the page again when the graph changes (and, for a "selection" scope, the selection;
+// for result columns, the runs -- run:changed also fires on progress ticks, which the
+// revision check skips). The revision is the session's, so a { limit: 0 } read compares with
+// any page, and session.on() returns the function that removes the listener:
+const reread = () => {
+    if (session.data.nodePage({ limit: 0 }).revision !== page.revision) {
+        // read the page again and redraw
+    }
+};
+session.on("project:changed", reread);
+session.on("selection:changed", reread);
+session.on("run:changed", reread);
+```
+
+Every option is optional: `offset` defaults to 0, `limit` to 100 (`Infinity` reads to the end),
+`scope` to `"graph"`. `matching` keeps the records whose id or a value contains the text, ignoring
+case -- an edge also matches by its endpoints' ids -- or, with a `mode` or an `exact:`, `regex:` or
+`<attribute>:` prefix, matches it the way `selection.apply({ text, mode })` does; `total` then
+counts the matches. Without `sort`, records come in the order they were added, and an edit
+never reorders them: an updated record stays where it was, a removed one leaves a gap that
+closes, an added one goes last. With `sort`, numbers come before text, text sorts naturally
+("2" before "10"), a record without the key comes last either way, and records that sort equal
+keep the order they were added in. The order is computed once per revision, so paging through
+it costs only the records on each page.
+
 "The edge between two nodes" is plural, because a graph may hold more than one:
 
 ```typescript
@@ -160,6 +210,72 @@ const between = graph.getDataManager().getEdgesBetween("node1", "node2"); // rea
 In 1.x this was `getEdgeBetween`, singular, and an edge's id was its two endpoints joined with a
 colon. Neither could represent a graph that holds two edges between one pair -- see
 [Data Sources](./data-sources#two-edges-between-the-same-pair).
+
+### Describing the data
+
+`session.data.statistics()` answers the graph's shape -- counts, density, direction, components --
+and the distribution of the node degrees, ready to draw as a histogram. It is computed once per
+change to the graph, so reading it on every render costs nothing:
+
+```typescript
+const stats = session.data.statistics();
+stats.degreeRange; // [smallest, largest]
+stats.meanDegree;
+for (const bin of stats.degreeHistogram?.bins ?? []) {
+    // one bar: degrees bin.from to bin.to, bin.count nodes
+}
+```
+
+`degreeHistogram` has the shape `RunResult.histogram()` returns: one bar per degree when there are
+few distinct degrees (`binning: "per-value"`), whole-number bands otherwise (`"banded"`). The bars
+add up to `stats.nodeCount`.
+
+One attribute's distribution comes from `session.data.histogram(column)`. A column of amounts is
+binned the same way; any other column is counted by value, commonest first:
+
+```typescript
+const age = session.data.histogram({ kind: "node", name: "age" });
+if (age.kind === "numeric") {
+    age.bins; // [{ from, to, count }, ...]
+} else {
+    age.values; // [{ value: "red", count: 40 }, ...], at most 20 unless you pass { bins }
+    age.otherCount; // elements whose value did not make the list
+}
+```
+
+`session.data.attributes()` lists every column with its type, what it measures, how complete it is
+and a few sample values. A column that does a job for the graph says so in `roles`:
+
+```typescript
+const columns = session.data.attributes();
+columns.find((a) => a.roles?.includes("key")); // the node ids were read from it
+columns.find((a) => a.roles?.includes("label")); // nodes are named by it
+columns.find((a) => a.roles?.includes("weight")); // edge weights were read from it
+```
+
+The roles are `"key"`, `"label"`, `"weight"`, `"source"`, `"target"`, `"time"` and `"edgeId"`, read
+from `data.knownFields` and the last load, and `roles` is absent on a column that plays none.
+`usedBy` says what reads a column now: each style layer whose selector or bindings read it
+(`{ kind: "layer", id }`), then each finished run that weighed its edges by it
+(`{ kind: "run", id }`). It is absent when nothing does. A table that opens on "the attributes in
+use" shows the columns with a role or a use:
+
+```typescript
+const inUse = session.data.attributes().filter((a) => a.roles !== undefined || a.usedBy !== undefined);
+```
+
+`attributes()` hands back the same array until a column, a declaration, a role or a use changes, so
+it is safe to compare by identity.
+
+Which way a column is read follows what it measures (`attributes()`'s `measurement`): declare a
+column of number codes categorical with `session.data.declare` and it is counted by value.
+Elements with no value in the column are not counted. An unknown column throws
+`E_UNKNOWN_ATTRIBUTE`.
+
+### Result values as table columns
+
+A page can carry an algorithm run's values as a column and sort by them -- see
+[Result Columns](./result-columns).
 
 ### Selection
 
@@ -174,6 +290,22 @@ graph.deselectNode();
 const selected = graph.getSelectedNode();
 if (selected) {
     console.log("Selected:", selected.id);
+}
+```
+
+`session.selection.origin` says what the selection was made from, so a panel that did not make the
+call can still tell what it is looking at. It holds a frozen copy of the target passed to `apply`
+while the selection is exactly that target. It is `null` after an `apply` that adds, removes,
+toggles or intersects, after a replace the selection cap cut short, and once anything else changes
+the selection or the graph: a click, an undo or redo, `clear()`, or any edit to nodes, edges or
+data, since the same target could name something different in the edited graph.
+
+```typescript
+await session.selection.apply({ neighborsOf: ["Javert"] }); // say, from a toolbar
+// ... elsewhere, on selection:changed:
+const origin = session.selection.origin; // { neighborsOf: ["Javert"] }
+if (origin !== null && "neighborsOf" in origin && origin.neighborsOf?.length === 1) {
+    session.data.neighbors(origin.neighborsOf[0]); // list the center's connections
 }
 ```
 
@@ -203,7 +335,7 @@ await graph.waitForStableFrame();
 const run = await graph.run("degree");
 
 // One element's value
-const degree = run.result.node("node1")?.value;
+const degree = run.node("node1")?.value;
 
 // Put the algorithm's own suggested picture back, after a reader cleared it
 graph.applySuggestedStyles("degree");
@@ -271,6 +403,9 @@ const statsManager = graph.getStatsManager();
 ### Selecting by search or by expression
 
 `element.session.selection.apply()` takes a target. Two of them search the graph:
+
+To list what text matches as the reader types, without selecting anything, use
+`session.find(text)`; see [Finding](./find). The text target below searches nodes only.
 
 ```typescript
 const { selection } = element.session;
@@ -349,6 +484,34 @@ One message is one undoable step. A command you register with
 `graph.getAiManager()?.registerCommand(...)` joins that step only through `ctx.tx`; see
 [Undo and History](./undo#commands-you-register-with-the-ai-assistant).
 
+### Remembering API Keys
+
+`ApiKeyManager` from `@graphty/graphty-element/ai` holds the reader's provider keys. It
+restores itself after a reload: a new manager finds the keys an earlier page saved and turns
+remembering back on, so the host only enables, disables and sets keys.
+
+```typescript
+import { ApiKeyManager } from "@graphty/graphty-element/ai";
+
+const keys = new ApiKeyManager(); // restores keys saved by an earlier page
+
+keys.enablePersistence(); // save keys in localStorage, encrypted, from now on
+keys.setKey("anthropic", apiKey);
+keys.setDefaultProvider("anthropic"); // saved with the keys
+
+const provider = keys.getDefaultProvider() ?? keys.getConfiguredProviders()[0];
+
+keys.disablePersistence(); // forget them on the next load (they stay in memory)
+```
+
+With no argument, `enablePersistence()` encrypts with a built-in key: the keys are not stored
+in plain text, but anyone who can run script on the page can read them. Pass
+`{ encryptionKey }` (at least 10 characters) to use the reader's own password instead. The
+manager remembers that password in `sessionStorage`, so a reload in the same tab restores the
+keys and closing the tab ends it; after that, call `enablePersistence({ encryptionKey })` again
+to unlock them. `new ApiKeyManager({ storage, prefix })` changes where the keys are kept
+(default `localStorage` and `"@graphty-ai-keys"`).
+
 ### Voice Input
 
 Enable voice commands:
@@ -413,7 +576,7 @@ session.canUndo; // whether undo() would do anything
 session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
 
 // Several changes as one step, through the tx the callback receives
-await session.transaction("Recolour", async (tx) => {
+await session.transaction("Recolor", async (tx) => {
     await tx.styles.add(spec);
     await tx.layout.set("circular");
 });
@@ -499,7 +662,7 @@ async function initGraph() {
 
     // Set up interaction
     graph.on("node-click", ({ node }) => {
-        console.log(`Clicked ${node.id} (degree: ${String(run.result.node(node.id)?.value)})`);
+        console.log(`Clicked ${node.id} (degree: ${String(run.node(node.id)?.value)})`);
         graph.selectNode(node.id);
     });
 }

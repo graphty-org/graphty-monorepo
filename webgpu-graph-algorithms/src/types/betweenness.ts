@@ -18,8 +18,11 @@ export interface GpuBetweennessResult extends GpuScoresResult {
     /** How many sources the scores sum over: `n` for an exact run, the sample size for a sampled one. */
     readonly sourcesUsed: number;
     /**
-     * True when some pair of vertices is joined by more than 2^32 shortest paths: the u32 path counts wrapped and the
-     * scores are WRONG, not approximate. Never clamped, never silent.
+     * True when the scores are WRONG, not approximate: the shortest-path counts at one depth from one batch of sources
+     * spread wider than f32's exponent range (about 2^226 between the smallest and the largest), so even the rescaled
+     * counts could not hold them. Counts past 2^32 alone do not raise it; they are recounted rescaled per depth (a 40 x
+     * 40 grid's 2.6e22 paths are exact). Measured from a corner of a grid: 235 x 235 raises it, 230 x 230 does not.
+     * Never clamped, never silent; the `@graphty/algorithms` dispatcher throws `PathCountOverflowError` on it.
      */
     readonly sigmaOverflow: boolean;
 }

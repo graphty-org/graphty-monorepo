@@ -4,7 +4,7 @@
  * check that passes on the real kernel (pyramidReport: every level against gridOraclePyramid within the oracle's
  * bound, in 2D and 3D) fails on the mutant by at least minFactor. The `grid-centroid` rows are measured on
  * random20k + outside5 (the pseudo-cell) + hubcell (whose hub cell goes stale when G4 fails to append it), the `grid-centroid-hub` rows on hubcell-shifted (a hub cell whose sorted
- * range starts above 0) + hubcell-two (two hub cells: the pristine check fails when G4a plans fewer G4b workgroups
+ * range starts above 0) + hubcell-two (two hub cells: the pristine check fails when G4b runs fewer workgroups
  * than hub cells) and the `grid-downsample` rows on random20k's levels >= 1. The first block is the coverage
  * loop of test/sabotage/coverage.test.ts applied to these rows (P4 is not in SABOTAGE_PHASES until T12, PD-1).
  */
@@ -16,7 +16,14 @@ import { fileURLToPath } from "node:url";
 import { type GpuContext } from "../../src/context.js";
 import { type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
 import { pyramidReport } from "../helpers/grid-pyramid.js";
-import { assertCheckPasses, type CheckReport, mergeReports, SABOTAGE, sabotagedBody, withSabotage } from "../helpers/sabotage.js";
+import {
+    assertCheckPasses,
+    type CheckReport,
+    mergeReports,
+    SABOTAGE,
+    sabotagedBody,
+    withSabotage,
+} from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -24,10 +31,30 @@ const PYRAMID_TEST = "test/primitives/grid-pyramid.test.ts";
 const CASE_TIMEOUT = 300_000;
 
 /** The fixtures and the first compared level of each id's check. */
-const CHECKS: readonly { readonly id: KernelId; readonly names: readonly string[]; readonly minLevel: number; readonly rows: readonly string[] }[] = [
-    { id: "grid-centroid", names: ["random20k", "outside5", "hubcell"], minLevel: 0, rows: ["mass-lane-x", "pseudo-cell-skipped", "hub-not-appended"] },
-    { id: "grid-centroid-hub", names: ["hubcell-shifted", "hubcell-two"], minLevel: 0, rows: ["hub-stride-off-by-one", "hub-lane-partial-written", "hub-range-start-ignored"] },
-    { id: "grid-downsample", names: ["random20k"], minLevel: 1, rows: ["wrong-level-offset", "three-children", "parent-index-shifted"] },
+const CHECKS: readonly {
+    readonly id: KernelId;
+    readonly names: readonly string[];
+    readonly minLevel: number;
+    readonly rows: readonly string[];
+}[] = [
+    {
+        id: "grid-centroid",
+        names: ["random20k", "outside5", "hubcell"],
+        minLevel: 0,
+        rows: ["mass-lane-x", "pseudo-cell-skipped", "hub-not-appended"],
+    },
+    {
+        id: "grid-centroid-hub",
+        names: ["hubcell-shifted", "hubcell-two"],
+        minLevel: 0,
+        rows: ["hub-stride-off-by-one", "hub-lane-partial-written", "hub-range-start-ignored"],
+    },
+    {
+        id: "grid-downsample",
+        names: ["random20k"],
+        minLevel: 1,
+        rows: ["wrong-level-offset", "three-children", "parent-index-shifted"],
+    },
 ];
 
 /**

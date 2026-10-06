@@ -2,6 +2,7 @@ import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { DeltaPageRank, deltaPageRank, PriorityDeltaPageRank } from "../../../src/indexed/delta-pagerank.js";
+import { pageRank } from "../../../src/indexed/pagerank.js";
 import { exactArcWeights } from "../../helpers/facade.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
@@ -294,49 +295,6 @@ describe("indexed.DeltaPageRank", () => {
 });
 
 describe("indexed.PriorityDeltaPageRank", () => {
-    const cases = [
-        { name: "defaults", options: {} },
-        { name: "weighted", options: { weight: "weight" } },
-        // The 150- and 240-node fixtures stop at the every-1000-nodes convergence check (after 5000
-        // and 7000 processed nodes), not at the cap or an empty queue.
-        {
-            name: "tolerance 1e-4 and no practical cap, stopping at the periodic check",
-            options: { maxIterations: 100_000, tolerance: 1e-4 },
-        },
-        { name: "delta threshold 1e-4, damping 0.5", options: { deltaThreshold: 1e-4, dampingFactor: 0.5 } },
-    ] as const;
-
-    for (const { name, options } of cases) {
-        it(`${name}: two computeWithPriority() calls equal legacy`, () => {
-            const legacyOptions = {
-                dampingFactor: "dampingFactor" in options ? options.dampingFactor : undefined,
-                tolerance: "tolerance" in options ? options.tolerance : undefined,
-                maxIterations: "maxIterations" in options ? options.maxIterations : undefined,
-                deltaThreshold: "deltaThreshold" in options ? options.deltaThreshold : undefined,
-                weight: "weight" in options ? options.weight : undefined,
-            };
-            const portOptions = {
-                dampingFactor: legacyOptions.dampingFactor,
-                tolerance: legacyOptions.tolerance,
-                maxIterations: legacyOptions.maxIterations,
-                deltaThreshold: legacyOptions.deltaThreshold,
-                weighted: "weight" in options,
-            };
-            expectFacadeMatchesLegacy(
-                fixtures(),
-                (g) => {
-                    const s = snapshotOf(g);
-                    const engine = new PriorityDeltaPageRank(s, { weights: exactArcWeights(s) });
-                    return [
-                        toMap(s, engine.computeWithPriority(portOptions)),
-                        toMap(s, engine.computeWithPriority(portOptions)),
-                    ];
-                },
-                { tolerance: 1e-9 },
-            );
-        });
-    }
-
     it("throws on an undirected snapshot", () => {
         const u = new Graph({ directed: false });
         u.addEdge("a", "b");
@@ -349,4 +307,22 @@ describe("indexed.PriorityDeltaPageRank", () => {
         const s = new GraphBuilder({ directed: true }).freeze({ label: "empty" });
         expect(new PriorityDeltaPageRank(s).computeWithPriority().length).toBe(0);
     });
+
+    for (const weighted of [false, true]) {
+        it(`converges to pageRank (weighted: ${String(weighted)})`, () => {
+            for (const { name, graph } of fixtures()) {
+                const s = snapshotOf(graph);
+                const expected = pageRank(s, { weighted, tolerance: 1e-14, maxIterations: 10_000 }).scores;
+                const actual = new PriorityDeltaPageRank(s, { weights: exactArcWeights(s) }).computeWithPriority({
+                    weighted,
+                    tolerance: 1e-14,
+                    deltaThreshold: 0,
+                    maxIterations: 10_000_000,
+                });
+                for (let i = 0; i < s.nodeCount; i++) {
+                    expect(actual[i], `${name}, node ${String(i)}`).toBeCloseTo(expected[i], 9);
+                }
+            }
+        });
+    }
 });

@@ -1,4 +1,4 @@
-import type { F64, GraphSnapshot } from "@graphty/graph-format";
+import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions";
 import { np } from "../utils/numpy";
@@ -8,11 +8,12 @@ import { groupsOfColumn } from "./multipartite";
 /** Options of the index-based shell layout. */
 export interface ShellLayoutOptions extends CommonLayoutOptions {
     /**
-     * The shells, innermost first: either lists of node indices, or the name of a `u32` or `dict` node column whose
+     * The shells, innermost first: either node sets (index arrays, `{ mask }` or `{ ids }`), or the name of a `u32` or
+     * `dict` node column whose
      * equal values form one shell, in ascending value (for `dict`, dictionary) order. A node in no shell, or with an
      * unset value, is not placed: its row is NaN. Default one shell of every node.
      */
-    readonly nlist?: readonly ArrayLike<number>[] | string | undefined;
+    readonly nlist?: readonly NodeSet[] | string | undefined;
 }
 
 /**
@@ -68,7 +69,7 @@ export function shell(s: GraphSnapshot, options: ShellLayoutOptions = {}): Layou
     const shells =
         typeof nlist === "string"
             ? groupsOfColumn(s, nlist, "shell")
-            : (nlist ?? [Array.from({ length: n }, (_, i) => i)]);
+            : (nlist?.map((set) => resolveNodeSet(s, set)) ?? [Array.from({ length: n }, (_, i) => i)]);
     for (const list of shells) {
         for (let j = 0; j < list.length; j++) {
             if (!Number.isInteger(list[j]) || list[j] < 0 || list[j] >= n) {

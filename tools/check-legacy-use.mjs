@@ -29,11 +29,13 @@
  * Usage: node tools/check-legacy-use.mjs              (exit 1 on any use)
  *        node tools/check-legacy-use.mjs --self-test  (prove each rule fires on a seeded fixture)
  */
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+
+import { scratchWorkspace } from "./scratch-workspace.mjs";
+import { sourceFiles, workspaceDirs } from "./workspace-files.mjs";
 
 const ALGORITHMS = "@graphty/algorithms";
 const LAYOUT = "@graphty/layout";
@@ -122,20 +124,6 @@ function legacyExports(rootDir) {
         result.set(pkg, names);
     }
     return result;
-}
-
-/**
- * Every source file under a directory, skipping declaration files.
- * @param dir - the directory
- * @returns absolute paths
- */
-function sourceFiles(dir) {
-    if (!existsSync(dir)) {
-        return [];
-    }
-    return readdirSync(dir, { recursive: true, withFileTypes: true })
-        .filter((e) => e.isFile() && /\.(m?[jt]sx?)$/.test(e.name) && !e.name.endsWith(".d.ts"))
-        .map((e) => join(e.parentPath, e.name));
 }
 
 /**
@@ -314,9 +302,7 @@ function checkFile(file, text, legacy) {
  */
 function check(rootDir) {
     const legacy = legacyExports(rootDir);
-    const workspaceYaml = readFileSync(join(rootDir, "pnpm-workspace.yaml"), "utf8");
-    const packagesBlock = workspaceYaml.split(/^packages:\s*$/m)[1]?.split(/^\S/m)[0] ?? "";
-    const dirs = [...packagesBlock.matchAll(/^\s*-\s*["']?([^"'\s]+)["']?/gm)].map((m) => m[1]);
+    const dirs = workspaceDirs(rootDir);
     const findings = [];
     for (const dir of dirs) {
         for (const abs of sourceFiles(join(rootDir, dir, "src"))) {
@@ -332,11 +318,7 @@ function check(rootDir) {
  * replacement API is not.
  */
 function selfTest() {
-    const dir = mkdtempSync(join(tmpdir(), "legacy-use-"));
-    const write = (file, body) => {
-        mkdirSync(dirname(join(dir, file)), { recursive: true });
-        writeFileSync(join(dir, file), body);
-    };
+    const { dir, write } = scratchWorkspace("legacy-use-");
     try {
         write(
             "pnpm-workspace.yaml",

@@ -7,6 +7,8 @@ coverage/
 storybook-static/
 
 # Generated files
+# API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
+*/api/*.api.md
 *.min.js
 *.bundle.js
 

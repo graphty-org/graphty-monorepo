@@ -62,7 +62,7 @@ export class PajekDataSource extends DataSource {
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
         const imported = await importWhole(
             pajekImporter,
-            await this.getContent(),
+            await this.getInput(),
             // Vertex numbers stay the strings they have always been, and the line's value stays an
             // attribute: the element reads its weight from the record.
             { ids: "keep", weightFrom: null },

@@ -1,0 +1,38 @@
+{
+    "format": "cx",
+    "description": "CX version 1 files from ndex2-client, cx2js and RCX",
+    "files": [
+        {
+            "path": "SimpleNetwork.cx",
+            "source": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/SimpleNetwork.cx",
+            "license": "BSD-3-Clause",
+            "expectedNodes": 2,
+            "expectedEdges": 1,
+            "features": ["minimal", "number-verification", "status"]
+        },
+        {
+            "path": "my_cx.cx",
+            "source": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/my_cx.cx",
+            "license": "BSD-3-Clause",
+            "expectedNodes": 2,
+            "expectedEdges": 1,
+            "features": ["native-values", "context-aspect"]
+        },
+        {
+            "path": "primitive_attributes.cx",
+            "source": "https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/primitive_attributes.cx",
+            "license": "MIT",
+            "expectedNodes": 2,
+            "expectedEdges": 1,
+            "features": ["typed-attributes", "table-columns", "layout", "visual-properties"]
+        },
+        {
+            "path": "Direct-p53-effectors.cx",
+            "source": "https://raw.githubusercontent.com/frankkramer-lab/RCX/f6571e01164625f94c2ec6eabba2cc8ecaf5ceaf/inst/extdata/Direct-p53-effectors-67c3b75d-6191-11e5-8ac5-06603eb7f303.cx",
+            "license": "MIT",
+            "expectedNodes": 145,
+            "expectedEdges": 213,
+            "features": ["empty-lists", "discrete-mappings", "layout"]
+        }
+    ]
+}

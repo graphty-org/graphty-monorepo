@@ -3,5 +3,5 @@
  * @module ai/keys
  */
 
-export type { PersistenceConfig } from "./ApiKeyManager";
+export type { ApiKeyManagerOptions, PersistenceConfig } from "./ApiKeyManager";
 export { ApiKeyManager } from "./ApiKeyManager";

@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { DirectionResolver } from "../../../src/common/direction.js";
 import { LOSS } from "../../../src/common/export.js";
+import { formatGmlReal } from "../../../src/common/format.js";
 import { ImportReportBuilder } from "../../../src/common/report.js";
 import { decodeChunks } from "../../../src/common/writer.js";
 import {
     DEFAULT_WEIGHT_KEY,
     gmlExporter,
-    gmlRealText,
     GRAPHICS_CONFLICT_CODE,
     GRAPHICS_OVERRIDDEN_CODE,
     INVALID_KEY_CODE,
@@ -96,14 +96,14 @@ describe("gmlExporter: plugin shape", () => {
     });
 
     it("formats reals with a decimal point and the NetworkX non-finite spellings", () => {
-        expect(gmlRealText(2)).toBe("2.0");
-        expect(gmlRealText(0.1)).toBe("0.1");
-        expect(gmlRealText(1e-7)).toBe("1.0e-7");
-        expect(gmlRealText(1e21)).toBe("1.0e+21");
-        expect(gmlRealText(Math.fround(0.1), "f32")).toBe("0.1");
-        expect(gmlRealText(Infinity)).toBe("+INF");
-        expect(gmlRealText(-Infinity)).toBe("-INF");
-        expect(gmlRealText(NaN)).toBe("NAN");
+        expect(formatGmlReal(2)).toBe("2.0");
+        expect(formatGmlReal(0.1)).toBe("0.1");
+        expect(formatGmlReal(1e-7)).toBe("1.0e-7");
+        expect(formatGmlReal(1e21)).toBe("1.0e+21");
+        expect(formatGmlReal(Math.fround(0.1), "f32")).toBe("0.1");
+        expect(formatGmlReal(Infinity)).toBe("+INF");
+        expect(formatGmlReal(-Infinity)).toBe("-INF");
+        expect(formatGmlReal(NaN)).toBe("NAN");
     });
 });
 
@@ -484,6 +484,20 @@ describe("gmlExporter: keys", () => {
         );
     });
 
+    it("refuses an edge column named directed, which the importer reads as the edge's direction", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        const e = builder.addEdge(1, 2);
+        builder.setEdgeValue("directed", e, false);
+        const snapshot = builder.freeze();
+        const notes = gmlExporter.check(snapshot);
+        expect(codes(notes)).toContain(RESERVED_KEY_CODE);
+        await expectExportError(snapshot, undefined, "E_UNSUPPORTED");
+        const text = await gmlExporter.exportToString(snapshot, { sanitizeKeys: "mangle" });
+        const back = await importGml(text);
+        expect(back.edgeCount).toBe(1);
+        expect(back.edges.get("directed_2")?.value(0)).toBe(0);
+    });
+
     it("refuses column names that collide with structural keys", async () => {
         const builder = new GraphBuilder({ directed: false });
         const a = builder.addNode(1);
@@ -745,5 +759,25 @@ describe("gmlExporter: dropped columns", () => {
         expect(rt.text).toContain('node [\n    id 1\n  ]\n  node [\n    id 2\n    s "two"\n  ]');
         const diffs = compareSnapshots(snapshot, rt.snapshot, { allowExtraColumns: false });
         expect(diffs, describeDiffs(diffs)).toEqual([]);
+    });
+});
+
+describe("gmlExporter: a column renamed after it was read from GML", () => {
+    it("is written under its new name, so an invalid new name is checked like any other", async () => {
+        for (const domain of ["nodes", "edges"] as const) {
+            const s = await importGml(
+                "graph [ node [ id 1 my_score 2 ] node [ id 2 my_score 3 ] edge [ source 1 target 2 my_score 4 ] ]",
+            );
+            s[domain].rename("my_score", "my score");
+            expect(codes(gmlExporter.check(s))).toContain(INVALID_KEY_CODE);
+            await expectExportError(s, undefined, "E_UNSUPPORTED");
+            expect(codes(gmlExporter.check(s, { sanitizeKeys: "mangle" }))).toContain(KEY_MANGLED_CODE);
+        }
+    });
+
+    it("writes a column read from GML under the key it was read from", async () => {
+        const s = await importGml('graph [ node [ id 1 label "a" ] edge [ source 1 target 1 my_key 1 ] ]');
+        const text = await gmlExporter.exportToString(s);
+        expect(lines(text)).toContain("my_key 1");
     });
 });

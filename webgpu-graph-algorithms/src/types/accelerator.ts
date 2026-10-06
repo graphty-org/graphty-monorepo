@@ -20,6 +20,7 @@ import type {
     HitsOptionsLike,
     HitsResultLike,
     LabelResultLike,
+    MstOptions,
     MstResultLike,
     PageRankResultLike,
     ScoresResultLike,
@@ -52,7 +53,7 @@ import type {
     SpringElectricalStats,
 } from "./layout.js";
 import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOptions } from "./options.js";
-import type { GpuTriangleResult } from "./structure.js";
+import type { GpuMstResult, GpuTriangleResult } from "./structure.js";
 import type { GpuBellmanFordResult, GpuBfsResult, GpuSsspResult } from "./traversal.js";
 
 // ---- the real @graphty/layout interfaces (spec 9.3, D27): imported at W1b, re-exported so the package's public
@@ -80,6 +81,7 @@ export type {
     HitsOptionsLike,
     HitsResultLike,
     LabelResultLike,
+    MstOptions,
     MstResultLike,
     PageRankResultLike,
     ScoresResultLike,
@@ -120,13 +122,16 @@ export interface AcceleratorOptions {
  * betweenness members take the seam's `BetweennessAcceleratorOptions`. `allPairsShortestPath` (design 8.7) takes the
  * seam's `SsspOptions` too and refuses both of its keys. P11 adds `triangleCount` (its result carries `coefficient`
  * and `transitivity` beyond the seam's `{ perNode, total }`, which a wider object satisfies) and `labelPropagation`
- * (the seam's `HitsOptionsLike`: `maxIterations` and `weighted` honoured, `tolerance` refused). Later phases add one
- * member per shipped algorithm.
+ * (the seam's `HitsOptionsLike`: `maxIterations` and `weighted` honoured, `tolerance` refused), and
+ * `minimumSpanningTree` (Boruvka; the seam's `MstOptions`, whose per-arc `weights` override is refused). Later phases
+ * add one member per shipped algorithm.
  * Exported: implemented by src/accelerator.ts (P3-T3); re-exported from src/index.ts at P3-T3.
  * @public
  */
 export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator {
     readonly kind: "webgpu";
+    /** `closenessCentrality` honours `harmonic` on an exact run, so the CPU dispatcher sends harmonic closeness here. */
+    readonly harmonicCloseness: true;
     readonly ctx: GpuContext;
     readonly options: Readonly<AcceleratorOptions>;
     forceAtlas2(options?: ForceAtlas2Options): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
@@ -156,6 +161,7 @@ export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator 
     allPairsShortestPath(s: GraphSnapshot, options?: SsspOptions): Promise<GpuApspResult>;
     triangleCount(s: GraphSnapshot): Promise<GpuTriangleResult>;
     labelPropagation(s: GraphSnapshot, options?: HitsOptionsLike): Promise<GpuLabelResult>;
+    minimumSpanningTree(s: GraphSnapshot, options?: MstOptions): Promise<GpuMstResult>;
     release(s: GraphSnapshot): void;
     dispose(): void;
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph label="Network 0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML" directed="1">
+  <att name="documentVersion" value="1.1"/>
+  <node label="node0" id="-1"><att type="string" name="canonicalName" value="node0"/></node>
+  <node label="node1" id="-2"><att type="string" name="canonicalName" value="node1"/></node>
+  <node label="node2" id="-3"><att type="string" name="canonicalName" value="node2"/></node>
+  <node label="metanode 1" id="-4"><att type="integer" name="__groupState" value="1" cy:hidden="true"/>
+    <att><graph><att type="string" name="gr_att_1" value="Lorem Ipsum"/>
+      <node xlink:href="#-2"/><node xlink:href="#-1"/>
+      <edge label="node0 (DirectedEdge) node1" source="-1" target="-2"/>
+    </graph></att>
+  </node>
+  <edge label="node0 (DirectedEdge) node1" source="-1" target="-2"><att type="string" name="interaction" value="DirectedEdge"/></edge>
+  <edge label="node1 (DirectedEdge) node2" source="-2" target="-3"><att type="string" name="interaction" value="DirectedEdge"/></edge>
+</graph>

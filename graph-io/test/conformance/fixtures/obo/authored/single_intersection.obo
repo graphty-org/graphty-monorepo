@@ -1,0 +1,9 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+intersection_of: X:2
+
+[Term]
+id: X:2

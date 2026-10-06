@@ -139,7 +139,10 @@ describe("PopoutPanel positioning", () => {
         // 200px down it.
         setRect(screen.getByTestId("sidebar"), { left: 800, top: 0, right: 1000, bottom: 600 });
         setRect(screen.getByRole("button", { name: "Open" }), {
-            left: 960, top: 200, right: 980, bottom: 220,
+            left: 960,
+            top: 200,
+            right: 980,
+            bottom: 220,
         });
 
         await user.click(screen.getByRole("button", { name: "Open" }));
@@ -170,10 +173,7 @@ describe("PopoutPanel positioning", () => {
                                     <Popout.Trigger>
                                         <button>Open Child</button>
                                     </Popout.Trigger>
-                                    <Popout.Panel
-                                        width={200}
-                                        header={{ variant: "title", title: "Child" }}
-                                    >
+                                    <Popout.Panel width={200} header={{ variant: "title", title: "Child" }}>
                                         <Popout.Content>
                                             <span data-testid="child-content">Child</span>
                                         </Popout.Content>
@@ -188,7 +188,10 @@ describe("PopoutPanel positioning", () => {
 
         setRect(screen.getByTestId("sidebar"), { left: 800, top: 0, right: 1000, bottom: 600 });
         setRect(screen.getByRole("button", { name: "Open Parent" }), {
-            left: 960, top: 100, right: 980, bottom: 120,
+            left: 960,
+            top: 100,
+            right: 980,
+            bottom: 120,
         });
 
         await user.click(screen.getByRole("button", { name: "Open Parent" }));
@@ -198,7 +201,10 @@ describe("PopoutPanel positioning", () => {
         // The parent panel's own box, which the child must line up with.
         setRect(parentPanel, { left: 520, top: 100, right: 800, bottom: 400 });
         setRect(screen.getByRole("button", { name: "Open Child" }), {
-            left: 540, top: 260, right: 700, bottom: 280,
+            left: 540,
+            top: 260,
+            right: 700,
+            bottom: 280,
         });
 
         await user.click(screen.getByRole("button", { name: "Open Child" }));
@@ -226,12 +232,26 @@ describe("PopoutPanel positioning", () => {
         Element.prototype.getBoundingClientRect = function (this: Element): DOMRect {
             if (this.getAttribute("role") === "dialog") {
                 return {
-                    x: 0, y: 0, left: 0, top: 0, right: 337, bottom: 200, width: 337, height: 200,
+                    x: 0,
+                    y: 0,
+                    left: 0,
+                    top: 0,
+                    right: 337,
+                    bottom: 200,
+                    width: 337,
+                    height: 200,
                     toJSON: () => ({}),
                 } as DOMRect;
             }
             return {
-                x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0,
+                x: 0,
+                y: 0,
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: 0,
+                height: 0,
                 toJSON: () => ({}),
             } as DOMRect;
         };
@@ -491,7 +511,7 @@ describe("Popout controlled mode", () => {
         });
         // Read the recorded arguments rather than matching on them: the second
         // one is a React event, and a failed deep match on it would try to
-        // serialise half the DOM.
+        // serialize half the DOM.
         expect(onOpenChange.mock.calls.at(-1)?.[0]).toBe(true);
         expect(onOpenChange.mock.calls.at(-1)?.[1]).toBeDefined();
 

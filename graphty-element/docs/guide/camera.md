@@ -50,6 +50,49 @@ With padding:
 graph.zoomToFit({ padding: 1.2 }); // 20% extra space
 ```
 
+### Framing after a load
+
+The element frames the graph on its own after every data load and layout change. To leave the
+camera where the reader put it, switch that off:
+
+```typescript
+element.autoFrame = false; // a load or layout change no longer moves the camera
+element.autoFrame = true; // back to framing each load (the default)
+```
+
+```html
+<graphty-element auto-frame="false"></graphty-element>
+```
+
+`zoomToFit()` still frames the graph while it is off. The switch is a preference of the view: it
+records no undo step and is not saved in a project file. It is independent of
+`startingCameraDistance`, which also stops automatic framing but places the camera at a distance.
+
+### Zoom In and Out
+
+Move the camera one step nearer or further, the way a zoom button does. The same call works on
+the 2D and the 3D camera:
+
+```typescript
+await graph.zoomStep("in");
+await graph.zoomStep("out");
+```
+
+### Zoom to Nodes
+
+Frame one node or several, in 2D or 3D. Ids that name no node are skipped, and when none of them
+names a node the camera stays where it is:
+
+```typescript
+await graph.zoomToNodes(["alice", "bob"], { animate: true });
+```
+
+`zoomToSelection()` turns the camera to look at the middle of the selection, keeping where it
+stands. A selected edge counts by its two ends, so selecting only an edge frames that edge. With
+nothing selected the camera does not move.
+
+None of these is an undoable step: the camera is view state, not part of a project.
+
 ### Set Complete State
 
 ```typescript
@@ -201,31 +244,10 @@ graph.on("camera-state-changed", ({ state }) => {
 
 ## Focus on Node
 
-Animate camera to focus on a specific node:
+Animate the camera to frame a single node:
 
 ```typescript
-async function focusNode(nodeId) {
-    const node = graph.getNode(nodeId);
-    if (!node) return;
-
-    const position = node.position;
-
-    graph.setCameraState(
-        {
-            position: {
-                x: position.x,
-                y: position.y,
-                z: position.z + 50, // Back away a bit
-            },
-            target: position,
-            up: { x: 0, y: 1, z: 0 },
-        },
-        {
-            animate: true,
-            duration: 500,
-        },
-    );
-}
+await graph.zoomToNodes(nodeId, { animate: true, duration: 500 });
 ```
 
 ## Orbit Animation

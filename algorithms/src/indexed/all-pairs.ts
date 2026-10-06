@@ -1,6 +1,14 @@
-import { type F64, type GraphSnapshot, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
+import {
+    type F64,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type NodeRef,
+    type NumericVector,
+    resolveNode,
+    type U32,
+} from "@graphty/graph-format";
 
-import { PathWalkError } from "../errors.js";
+import { PathWalkError, withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -44,16 +52,16 @@ export interface ApspResult {
     readonly predArc: U32 | null;
     /**
      * Node indices from `source` to `target` inclusive; empty when unreachable.
-     * @param source - The row's node index
-     * @param target - The column's node index
+     * @param source - The row's node: its index, or `{ id }`
+     * @param target - The column's node: its index, or `{ id }`
      */
-    pathTo(source: number, target: number): U32;
+    pathTo(source: NodeRef, target: NodeRef): U32;
     /**
      * Logical edge indices along that path; empty when unreachable or when source === target.
-     * @param source - The row's node index
-     * @param target - The column's node index
+     * @param source - The row's node: its index, or `{ id }`
+     * @param target - The column's node: its index, or `{ id }`
      */
-    pathEdges(source: number, target: number): U32;
+    pathEdges(source: NodeRef, target: NodeRef): U32;
 }
 
 /**
@@ -67,8 +75,11 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
         return { w: null, negative: false };
     }
     if (options.weights !== undefined && options.weights.length !== s.arcCount) {
-        throw new RangeError(
-            `allPairsShortestPath: the weights override has ${String(options.weights.length)} entries; the snapshot has ${String(s.arcCount)} arcs`,
+        throw withCode(
+            new RangeError(
+                `allPairsShortestPath: the weights override has ${String(options.weights.length)} entries; the snapshot has ${String(s.arcCount)} arcs`,
+            ),
+            "E_BAD_OPTION",
         );
     }
     const w = options.weights ?? s.weights;
@@ -85,8 +96,11 @@ function weightsInUse(s: GraphSnapshot, options: ApspOptions): { w: NumericVecto
                 options.weights === undefined && !Number.isNaN(x)
                     ? "; a finite weight above the f32 range (3.4e38) becomes Infinity in the snapshot's f32 arc weights -- pass the exact f64 weights through the weights override"
                     : "";
-            throw new RangeError(
-                `allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite${hint}`,
+            throw withCode(
+                new RangeError(
+                    `allPairsShortestPath: arc ${String(a)} has weight ${String(x)}; weights must be finite${hint}`,
+                ),
+                "E_BAD_WEIGHT",
             );
         }
         unit &&= x === 1;
@@ -276,8 +290,11 @@ function pickStrategy(
     }
     if (negative) {
         if (method === "per-source") {
-            throw new Error(
-                'allPairsShortestPath: method "per-source" runs Dijkstra, which is incorrect with a negative weight; use "auto" or "floyd-warshall"',
+            throw withCode(
+                new Error(
+                    'allPairsShortestPath: method "per-source" runs Dijkstra, which is incorrect with a negative weight; use "auto" or "floyd-warshall"',
+                ),
+                "E_BAD_OPTION",
             );
         }
         return "floyd-warshall";
@@ -300,8 +317,11 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
     // Written negated so a NaN maxNodes refuses rather than switching the bound off.
     if (!(n <= maxNodes)) {
         const bytes = (options.paths === true ? 12 : 8) * n * n;
-        throw new RangeError(
-            `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,
+        throw withCode(
+            new RangeError(
+                `allPairsShortestPath: ${String(n)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`,
+            ),
+            "E_TOO_LARGE",
         );
     }
     const { w, negative } = weightsInUse(s, options);
@@ -321,9 +341,11 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
         dist.fill(NaN);
     }
     // Row i of predArc is a single-source predecessor-arc array, so the SSSP walkers apply to it.
-    const row = (source: number, target: number): U32 => {
+    const row = (sourceNode: NodeRef, targetNode: NodeRef): U32 => {
+        const source = resolveNode(s, sourceNode);
+        const target = resolveNode(s, targetNode);
         if (predArc === null) {
-            throw new Error("allPairsShortestPath: pass paths: true to walk shortest paths");
+            throw withCode(new Error("allPairsShortestPath: pass paths: true to walk shortest paths"), "E_BAD_OPTION");
         }
         if (hasNegativeCycle) {
             throw new PathWalkError(source, target, "cycle");
@@ -336,7 +358,7 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
         hasNegativeCycle,
         method,
         predArc,
-        pathTo: (source, target) => walkPredArcs(s, row(source, target), source, target),
-        pathEdges: (source, target) => walkPredEdges(s, row(source, target), source, target),
+        pathTo: (source, target) => walkPredArcs(s, row(source, target), resolveNode(s, source), target),
+        pathEdges: (source, target) => walkPredEdges(s, row(source, target), resolveNode(s, source), target),
     };
 }

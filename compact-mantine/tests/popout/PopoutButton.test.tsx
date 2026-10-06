@@ -36,7 +36,7 @@ describe("PopoutButton", () => {
             expect(screen.getByTestId("icon")).toBeInTheDocument();
         });
 
-        it("renders with default size xs", () => {
+        it("renders with default size sm (Figma 24px ghost button)", () => {
             renderWithProviders(
                 <Popout>
                     <Popout.Trigger>
@@ -49,7 +49,7 @@ describe("PopoutButton", () => {
             );
 
             const button = screen.getByRole("button", { name: "Test" });
-            expect(button).toHaveAttribute("data-size", "xs");
+            expect(button).toHaveAttribute("data-size", "sm");
         });
 
         it("renders with custom size", () => {
@@ -86,7 +86,7 @@ describe("PopoutButton", () => {
             expect(button).toHaveAttribute("data-variant", "subtle");
         });
 
-        it("uses light variant when popout is open", async () => {
+        it("shows the open state (aria-expanded) while the popout is open, staying the ghost button", async () => {
             const user = userEvent.setup();
 
             renderWithProviders(
@@ -106,11 +106,13 @@ describe("PopoutButton", () => {
             await user.click(button);
 
             await waitFor(() => {
-                expect(button).toHaveAttribute("data-variant", "light");
+                expect(button).toHaveAttribute("aria-expanded", "true");
             });
+            // The open look is the ghost button's own aria-expanded state, not a variant swap.
+            expect(button).toHaveAttribute("data-variant", "subtle");
         });
 
-        it("returns to subtle variant when popout is closed via close button", async () => {
+        it("drops the open state when closed via close button", async () => {
             const user = userEvent.setup();
 
             renderWithProviders(
@@ -129,18 +131,18 @@ describe("PopoutButton", () => {
             // Open popout
             await user.click(button);
             await waitFor(() => {
-                expect(button).toHaveAttribute("data-variant", "light");
+                expect(button).toHaveAttribute("aria-expanded", "true");
             });
 
             // Close via close button
             await user.click(screen.getByLabelText("Close panel"));
 
             await waitFor(() => {
-                expect(button).toHaveAttribute("data-variant", "subtle");
+                expect(button).toHaveAttribute("aria-expanded", "false");
             });
         });
 
-        it("returns to subtle variant when popout is closed via Escape", async () => {
+        it("drops the open state when closed via Escape", async () => {
             const user = userEvent.setup();
 
             renderWithProviders(
@@ -159,18 +161,18 @@ describe("PopoutButton", () => {
             // Open popout
             await user.click(button);
             await waitFor(() => {
-                expect(button).toHaveAttribute("data-variant", "light");
+                expect(button).toHaveAttribute("aria-expanded", "true");
             });
 
             // Close via Escape
             await user.keyboard("{Escape}");
 
             await waitFor(() => {
-                expect(button).toHaveAttribute("data-variant", "subtle");
+                expect(button).toHaveAttribute("aria-expanded", "false");
             });
         });
 
-        it("returns to subtle variant when popout is closed via toggle", async () => {
+        it("drops the open state when closed via toggle", async () => {
             const user = userEvent.setup();
 
             renderWithProviders(
@@ -189,14 +191,14 @@ describe("PopoutButton", () => {
             // Open popout
             await user.click(button);
             await waitFor(() => {
-                expect(button).toHaveAttribute("data-variant", "light");
+                expect(button).toHaveAttribute("aria-expanded", "true");
             });
 
             // Close via clicking trigger again (toggle)
             await user.click(button);
 
             await waitFor(() => {
-                expect(button).toHaveAttribute("data-variant", "subtle");
+                expect(button).toHaveAttribute("aria-expanded", "false");
             });
         });
     });
@@ -279,7 +281,7 @@ describe("PopoutButton", () => {
     });
 
     describe("multiple buttons", () => {
-        it("only one button is highlighted at a time (exclusive siblings)", async () => {
+        it("only one button shows the open state at a time (one popover at a time)", async () => {
             const user = userEvent.setup();
 
             renderWithProviders(
@@ -306,24 +308,24 @@ describe("PopoutButton", () => {
             const buttonA = screen.getByRole("button", { name: "Button A" });
             const buttonB = screen.getByRole("button", { name: "Button B" });
 
-            // Both start as subtle
-            expect(buttonA).toHaveAttribute("data-variant", "subtle");
-            expect(buttonB).toHaveAttribute("data-variant", "subtle");
+            // Both start closed
+            expect(buttonA).toHaveAttribute("aria-expanded", "false");
+            expect(buttonB).toHaveAttribute("aria-expanded", "false");
 
             // Open A
             await user.click(buttonA);
             await waitFor(() => {
-                expect(buttonA).toHaveAttribute("data-variant", "light");
+                expect(buttonA).toHaveAttribute("aria-expanded", "true");
             });
-            expect(buttonB).toHaveAttribute("data-variant", "subtle");
+            expect(buttonB).toHaveAttribute("aria-expanded", "false");
 
             // Open B - should close A
             await user.click(buttonB);
             await waitFor(() => {
-                expect(buttonB).toHaveAttribute("data-variant", "light");
+                expect(buttonB).toHaveAttribute("aria-expanded", "true");
             });
             await waitFor(() => {
-                expect(buttonA).toHaveAttribute("data-variant", "subtle");
+                expect(buttonA).toHaveAttribute("aria-expanded", "false");
             });
         });
     });

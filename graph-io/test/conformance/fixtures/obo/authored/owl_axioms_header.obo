@@ -1,0 +1,6 @@
+format-version: 1.4
+ontology: t
+owl-axioms: Prefix(:=<http://x/>)
+
+[Term]
+id: X:1

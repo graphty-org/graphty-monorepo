@@ -1,0 +1,6 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1},{"@id":2},{"@id":3},{"@id":4},{"@id":5},{"@id":6},{"@id":7},{"@id":8},{"@id":9}]},
+{"nodeAttributes":[{"po":1,"n":"d","v":"","d":"double"},{"po":2,"n":"d","v":"null","d":"double"},{"po":3,"n":"d","v":"Null","d":"double"},{"po":4,"n":"d","v":"NaN","d":"double"},{"po":5,"n":"d","v":"1.0d","d":"double"},{"po":6,"n":"d","v":"8.5","d":"double"},{"po":1,"n":"b","v":"True","d":"boolean"},{"po":2,"n":"b","v":"1","d":"boolean"},{"po":1,"n":"i","v":"2147483648","d":"integer"},{"po":2,"n":"i","v":"","d":"integer"},{"po":3,"n":"i","v":"42","d":"integer"},{"po":1,"n":"u","v":"x","d":"date"},{"po":1,"n":"ls","v":"not a list","d":"list_of_string"},{"po":2,"n":"sc","v":["a list"],"d":"string"},{"po":1,"n":"ld","v":["8.0","null","","NaN"],"d":"list_of_double"},{"po":1,"n":"w","v":"1","d":"integer"},{"po":2,"n":"w","v":"2.5","d":"double"},{"po":7,"n":"native","v":3,"d":"integer"},{"po":8,"n":"native","v":4.0,"d":"integer"},{"po":9,"n":"nb","v":true,"d":"boolean"}]},
+{"status":[{"error":"","success":true}]}
+]

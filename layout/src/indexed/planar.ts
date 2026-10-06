@@ -5,6 +5,9 @@ import { toLayoutSnapshot } from "../simulation/snapshot";
 import { RandomNumberGenerator } from "../utils/random";
 import { type CommonLayoutOptions, planar as inPlane, resolve, result } from "./common";
 
+/** The golden angle in radians, which spreads the steps of a spiral evenly around it. */
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
 /**
  * The distinct neighbours of every node other than itself, in ascending index.
  * @param g - an undirected snapshot
@@ -142,7 +145,10 @@ function outerFace(adj: readonly number[][]): number[] {
 /**
  * Planar-layout rows before rescaling: the outer face on the unit circle, then every other node, in index order, at
  * the mean of its already placed neighbours plus a seeded jitter of up to 0.05 per component (a node with no placed
- * neighbour at a random point within 0.5 of the origin, an isolated node on the origin).
+ * neighbour at a random point within 0.5 of the origin, an isolated node on the origin). An interior node that lands
+ * within `min(0.02, 0.5 / sqrt(n))` of a node already placed steps outward along a spiral until it is that far from
+ * every one: the jitter alone can be arbitrarily small (the first draw of seed 1 is about 5e-6), and nodes that share
+ * their placed neighbours share a mean, so without the step two nodes can land on the same point.
  * @param adj - the neighbour lists
  * @param seed - the jitter's seed, or null for a random one
  * @returns `2 * n` values
@@ -152,12 +158,41 @@ function embeddingRows(adj: readonly number[][], seed: number | null): F64 {
     const rng = new RandomNumberGenerator(seed ?? undefined);
     const rows = new Float64Array(2 * n);
     const placed = new Uint8Array(n);
+    // placed nodes bucketed by a grid of cell size `gap`, so a near neighbour is found in the 3x3 cells around a point
+    const gap = Math.min(0.02, 0.5 / Math.sqrt(n));
+    const cells = new Map<number, number[]>();
+    // one number per cell; exact while a coordinate stays within 2^20 cells of the origin
+    const cellKey = (cx: number, cy: number): number => cx * 2 ** 21 + cy;
+    const occupy = (u: number): void => {
+        const key = cellKey(Math.floor(rows[2 * u] / gap), Math.floor(rows[2 * u + 1] / gap));
+        const cell = cells.get(key);
+        if (cell === undefined) {
+            cells.set(key, [u]);
+        } else {
+            cell.push(u);
+        }
+    };
+    const crowded = (x: number, y: number): boolean => {
+        const cx = Math.floor(x / gap);
+        const cy = Math.floor(y / gap);
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (const v of cells.get(cellKey(cx + dx, cy + dy)) ?? []) {
+                    if (Math.hypot(rows[2 * v] - x, rows[2 * v + 1] - y) < gap) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    };
     const face = outerFace(adj);
     face.forEach((u, i) => {
         const angle = (2 * Math.PI * i) / face.length;
         rows[2 * u] = Math.cos(angle);
         rows[2 * u + 1] = Math.sin(angle);
         placed[u] = 1;
+        occupy(u);
     });
     const interior = Array.from({ length: n }, (_, i) => i).filter((u) => placed[u] === 0);
     for (const u of interior) {
@@ -184,7 +219,16 @@ function embeddingRows(adj: readonly number[][], seed: number | null): F64 {
             rows[2 * u] = r * Math.cos(angle);
             rows[2 * u + 1] = r * Math.sin(angle);
         }
+        // a sunflower spiral around the chosen point: point k is gap * sqrt(k) out, at k golden angles; k grows by an
+        // eighth each step, so getting past a crowd of m nodes takes about 8 ln(m) steps rather than m
+        const x0 = rows[2 * u];
+        const y0 = rows[2 * u + 1];
+        for (let k = 1; crowded(rows[2 * u], rows[2 * u + 1]); k += 1 + (k >> 3)) {
+            rows[2 * u] = x0 + gap * Math.sqrt(k) * Math.cos(k * GOLDEN_ANGLE);
+            rows[2 * u + 1] = y0 + gap * Math.sqrt(k) * Math.sin(k * GOLDEN_ANGLE);
+        }
         placed[u] = 1;
+        occupy(u);
     }
     return rows;
 }

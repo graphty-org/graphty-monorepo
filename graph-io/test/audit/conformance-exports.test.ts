@@ -2,7 +2,7 @@
  * Audit (design sections 12.4, 8.2 and 13.1): the public surface of @graphty/graph-io.
  *
  * Pins, without the design document at hand:
- * - the eleven io contract names of section 12.4 (their shapes transcribed verbatim into local
+ * - the thirteen io contract names of section 12.4 (their shapes transcribed verbatim into local
  *   types and compared with expectTypeOf, so a drift in either direction fails `tsc` in lint);
  * - the registry, sniffing and children surfaces of section 8.2 / 13.1;
  * - the eight per-format subpath exports of section 8.2 with `types` first (13.2) and the
@@ -29,20 +29,27 @@ import {
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import * as csv from "../../src/formats/csv/index.js";
+import * as cx from "../../src/formats/cx/index.js";
+import * as cx2 from "../../src/formats/cx2/index.js";
+import * as cys from "../../src/formats/cys/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
 import * as gml from "../../src/formats/gml/index.js";
 import * as graphml from "../../src/formats/graphml/index.js";
 import * as json from "../../src/formats/json/index.js";
 import * as neo4j from "../../src/formats/neo4j/index.js";
+import * as obo from "../../src/formats/obo/index.js";
 import * as pajek from "../../src/formats/pajek/index.js";
+import * as xgmml from "../../src/formats/xgmml/index.js";
 import * as root from "../../src/index.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
     type ExportCapabilities,
+    type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
+    type GraphListing,
     ImportError,
     type ImportInput,
     type ImportIssue,
@@ -72,10 +79,22 @@ interface DesignCommonImportOptions {
     onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
     encoding?: string | undefined;
 }
+interface DesignGraphChoiceOptions {
+    graphIndex?: number | undefined;
+    graphName?: string | undefined;
+}
+interface DesignGraphListing {
+    readonly index: number;
+    readonly name: string | null;
+    readonly nodes: number | null;
+    readonly edges: number | null;
+}
 interface DesignGraphImporter<Opts = unknown> {
     readonly format: string;
     readonly extensions: readonly string[];
     readonly mimeTypes: readonly string[];
+    // added after the design: the format's own option names, for W_UNKNOWN_OPTION
+    readonly options?: readonly string[] | undefined;
     sniff?(head: Uint8Array): number;
     import(input: ImportInput, sink: GraphSink, options?: Opts & CommonImportOptions): Promise<ImportReport>;
     importAll?(
@@ -83,6 +102,7 @@ interface DesignGraphImporter<Opts = unknown> {
         sinkFor: (index: number) => GraphSink,
         options?: Opts & CommonImportOptions,
     ): Promise<ImportReport[]>;
+    listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly DesignGraphListing[]>;
 }
 interface DesignExportCapabilities {
     readonly mixedDirection: boolean;
@@ -115,12 +135,22 @@ interface DesignCommonExportOptions {
 interface DesignGraphExporter<Opts = unknown> {
     readonly format: string;
     readonly capabilities: ExportCapabilities;
+    readonly extensions?: readonly string[] | undefined;
+    readonly mimeTypes?: readonly string[] | undefined;
+    // added after the design: the format's own option names, for W_UNKNOWN_OPTION
+    readonly options?: readonly string[] | undefined;
     check(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): readonly LossNote[];
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
 }
 type DesignIssueCategory =
-    "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
+    | "parse-error"
+    | "missing-value"
+    | "validation-error"
+    | "unsupported"
+    | "precision"
+    | "coercion"
+    | "merged";
 interface DesignImportIssue {
     readonly category: IssueCategory;
     readonly severity: "error" | "warning";
@@ -154,6 +184,8 @@ describe("design 12.4: the io contract types are exported with the listed shapes
         expectTypeOf<GraphImporter<{ delimiter?: string }>>().toEqualTypeOf<
             DesignGraphImporter<{ delimiter?: string }>
         >();
+        expectTypeOf<GraphListing>().toEqualTypeOf<DesignGraphListing>();
+        expectTypeOf<GraphChoiceOptions>().toEqualTypeOf<DesignGraphChoiceOptions>();
         expectTypeOf<ExportCapabilities>().toEqualTypeOf<DesignExportCapabilities>();
         expectTypeOf<LossNote>().toEqualTypeOf<DesignLossNote>();
         expectTypeOf<CommonExportOptions>().toEqualTypeOf<DesignCommonExportOptions>();
@@ -200,7 +232,21 @@ describe("design 12.4: the io contract types are exported with the listed shapes
 
 // ============================================================ 8.2 / 13.1 surfaces
 
-const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j"] as const;
+const FORMATS = [
+    "gexf",
+    "graphml",
+    "gml",
+    "dot",
+    "pajek",
+    "csv",
+    "json",
+    "neo4j",
+    "xgmml",
+    "cx2",
+    "obo",
+    "cx",
+    "cys",
+] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
     graphml,
@@ -210,6 +256,11 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     csv,
     json,
     neo4j,
+    xgmml,
+    cx2,
+    obo,
+    cx,
+    cys,
 };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
@@ -248,7 +299,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        expect(Object.keys(pkg.exports)).toEqual([".", ...FORMATS.map((f) => `./${f}`)]);
+        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`)].sort());
         for (const [key, entry] of Object.entries(pkg.exports)) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");

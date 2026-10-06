@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { ActionRow } from "../../../src/components/rows/ActionRow";
-import { PANEL_GRID, PANEL_INK } from "../../../src/constants/panel";
+import { PANEL_GRID } from "../../../src/constants/panel";
 import { UiGlyph } from "../../../src/icons";
 
 /**
@@ -81,10 +81,11 @@ describe("ActionRow", () => {
             expect(screen.getByTestId("action-row-state")).toHaveTextContent("20 nodes");
         });
 
-        it("draws the state at the secondary text colour", () => {
+        it("draws the state in the reading style: 11/16 450, secondary ink (cm-row-reading)", () => {
             renderRow(<ActionRow state="20 nodes" />);
 
-            expect(screen.getByTestId("action-row-state").style.color).toBe(PANEL_INK.CHROME);
+            expect(screen.getByTestId("action-row-state")).toHaveClass("cm-row-reading");
+            expect(screen.getByTestId("action-row-state").style.color).toBe("");
         });
 
         it("truncates a state longer than the row rather than wrapping", () => {
@@ -168,10 +169,7 @@ describe("ActionRow", () => {
         it("lets stateTitle override a plain-text reading", () => {
             renderRow(<ActionRow state="20 nodes" stateTitle="20 nodes, 34 edges, 2 components" />);
 
-            expect(screen.getByTestId("action-row-state")).toHaveAttribute(
-                "title",
-                "20 nodes, 34 edges, 2 components",
-            );
+            expect(screen.getByTestId("action-row-state")).toHaveAttribute("title", "20 nodes, 34 edges, 2 components");
         });
 
         it("offers no tooltip for markup with no stateTitle, rather than an invented one", () => {
@@ -348,27 +346,51 @@ describe("ActionRow", () => {
         });
     });
 
-    describe("the hover split", () => {
-        it("hides what acts until the row is reached", () => {
+    describe("always visible by default, as on Figma's property rows", () => {
+        it("draws what acts with no hover at all", () => {
             renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             const actions = screen.getByTestId("action-row-actions");
+            expect(actions).toHaveAttribute("data-visible", "true");
+            expect(actions).toHaveStyle({ opacity: "1" });
+        });
+
+        it("still lets a caller force the actions hidden", () => {
+            renderRow(
+                <ActionRow state="20 nodes" actionsVisible={false} actions={<GlyphAction label="Copy reading" />} />,
+            );
+
+            expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "false");
+        });
+
+        it("fades a hover reveal over 100ms (the cm-row-actions class)", () => {
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+
+            expect(screen.getByTestId("action-row-actions")).toHaveClass("cm-row-actions");
+        });
+    });
+
+    describe("the hover split", () => {
+        it("hides what acts until the row is reached", () => {
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+
+            const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "false");
-            expect(actions).toHaveStyle({ opacity: 0 });
+            expect(actions).toHaveStyle({ opacity: "0" });
         });
 
         it("reveals what acts on hover", () => {
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             fireEvent.mouseEnter(screen.getByTestId("action-row"));
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("hides them again when the pointer leaves", () => {
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             const row = screen.getByTestId("action-row");
             fireEvent.mouseEnter(row);
@@ -378,13 +400,13 @@ describe("ActionRow", () => {
         });
 
         it("keeps a hidden action mounted, so it keeps its place in the tab order", () => {
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toBeInTheDocument();
         });
 
         it("withdraws pointer events with the ink, so an invisible button cannot be clicked", () => {
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             expect(screen.getByTestId("action-row-actions")).toHaveStyle({ pointerEvents: "none" });
 
@@ -396,7 +418,13 @@ describe("ActionRow", () => {
         it("runs the action when it has been revealed and pressed", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" onClick={onClick} />} />);
+            renderRow(
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actions={<GlyphAction label="Copy reading" onClick={onClick} />}
+                />,
+            );
 
             await user.hover(screen.getByTestId("action-row"));
             await user.click(screen.getByRole("button", { name: "Copy reading" }));
@@ -407,6 +435,7 @@ describe("ActionRow", () => {
         it("never hides what reports state", () => {
             renderRow(
                 <ActionRow
+                    reveal="hover"
                     state="Chonky_Boy"
                     actions={<GlyphAction label="Copy reading" />}
                     residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" />}
@@ -421,7 +450,11 @@ describe("ActionRow", () => {
 
         it("leaves what reports state resident while the row is hovered", () => {
             renderRow(
-                <ActionRow state="Chonky_Boy" residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="Chonky_Boy"
+                    residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" />}
+                />,
             );
 
             fireEvent.mouseEnter(screen.getByTestId("action-row"));
@@ -434,6 +467,7 @@ describe("ActionRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <ActionRow
+                    reveal="hover"
                     state="Chonky_Boy"
                     residentActions={<GlyphAction label="Hidden. Show Chonky_Boy" onClick={onClick} />}
                 />,
@@ -447,6 +481,7 @@ describe("ActionRow", () => {
         it("draws both clusters when the row has each kind", () => {
             renderRow(
                 <ActionRow
+                    reveal="hover"
                     state="Mrs_Henderson"
                     actions={<GlyphAction label="Copy reading" />}
                     residentActions={<GlyphAction label="Hidden. Show Mrs_Henderson" />}
@@ -461,19 +496,29 @@ describe("ActionRow", () => {
     describe("holding the actions open", () => {
         it("draws them with no hover and no focus when the caller asks", () => {
             renderRow(
-                <ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible
+                    actions={<GlyphAction label="Node options" />}
+                />,
             );
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("lets them be pressed while held open, which is the point of holding them", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
             renderRow(
-                <ActionRow state="20 nodes" actionsVisible actions={<GlyphAction label="Node options" onClick={onClick} />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible
+                    actions={<GlyphAction label="Node options" onClick={onClick} />}
+                />,
             );
 
             await user.click(screen.getByRole("button", { name: "Node options" }));
@@ -483,7 +528,12 @@ describe("ActionRow", () => {
 
         it("outranks the hover when the caller holds them shut", () => {
             renderRow(
-                <ActionRow state="20 nodes" actionsVisible={false} actions={<GlyphAction label="Copy reading" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible={false}
+                    actions={<GlyphAction label="Copy reading" />}
+                />,
             );
 
             fireEvent.mouseEnter(screen.getByTestId("action-row"));
@@ -494,20 +544,30 @@ describe("ActionRow", () => {
         it("does not outrank focus, because a focus ring nobody can see is a failure", async () => {
             const user = userEvent.setup();
             renderRow(
-                <ActionRow state="20 nodes" actionsVisible={false} actions={<GlyphAction label="Copy reading" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible={false}
+                    actions={<GlyphAction label="Copy reading" />}
+                />,
             );
 
             await user.tab();
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toHaveFocus();
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
-            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: 1 });
+            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: "1" });
         });
 
         it("holds them shut again once focus has left", async () => {
             const user = userEvent.setup();
             renderRow(
-                <ActionRow state="20 nodes" actionsVisible={false} actions={<GlyphAction label="Copy reading" />} />,
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actionsVisible={false}
+                    actions={<GlyphAction label="Copy reading" />}
+                />,
             );
 
             await user.tab();
@@ -520,18 +580,24 @@ describe("ActionRow", () => {
     describe("a pointer that cannot hover", () => {
         it("makes every hidden action resident", () => {
             setMatchMedia(true);
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             const actions = screen.getByTestId("action-row-actions");
             expect(actions).toHaveAttribute("data-visible", "true");
-            expect(actions).toHaveStyle({ opacity: 1 });
+            expect(actions).toHaveStyle({ opacity: "1" });
         });
 
         it("lets a hidden action be pressed with no hover first", async () => {
             setMatchMedia(true);
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" onClick={onClick} />} />);
+            renderRow(
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actions={<GlyphAction label="Copy reading" onClick={onClick} />}
+                />,
+            );
 
             await user.click(screen.getByRole("button", { name: "Copy reading" }));
 
@@ -540,7 +606,7 @@ describe("ActionRow", () => {
 
         it("keeps the split on a pointer that can hover", () => {
             setMatchMedia(false);
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "false");
         });
@@ -549,19 +615,25 @@ describe("ActionRow", () => {
     describe("the keyboard route", () => {
         it("reveals a hidden action when focus reaches it", async () => {
             const user = userEvent.setup();
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             await user.tab();
 
             expect(screen.getByRole("button", { name: "Copy reading" })).toHaveFocus();
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
-            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: 1 });
+            expect(screen.getByTestId("action-row-actions")).toHaveStyle({ opacity: "1" });
         });
 
         it("runs a hidden action from the keyboard", async () => {
             const onClick = vi.fn();
             const user = userEvent.setup();
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" onClick={onClick} />} />);
+            renderRow(
+                <ActionRow
+                    reveal="hover"
+                    state="20 nodes"
+                    actions={<GlyphAction label="Copy reading" onClick={onClick} />}
+                />,
+            );
 
             await user.tab();
             await user.keyboard("{Enter}");
@@ -573,6 +645,7 @@ describe("ActionRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <ActionRow
+                    reveal="hover"
                     state="20 nodes"
                     actions={
                         <>
@@ -592,7 +665,7 @@ describe("ActionRow", () => {
 
         it("hides them again when focus leaves the row", async () => {
             const user = userEvent.setup();
-            renderRow(<ActionRow state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
+            renderRow(<ActionRow reveal="hover" state="20 nodes" actions={<GlyphAction label="Copy reading" />} />);
 
             await user.tab();
             expect(screen.getByTestId("action-row-actions")).toHaveAttribute("data-visible", "true");
@@ -617,6 +690,7 @@ describe("ActionRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <ActionRow
+                    reveal="hover"
                     state="20 nodes"
                     actions={<GlyphAction label="Copy reading" />}
                     onFocus={onFocus}
@@ -646,6 +720,7 @@ describe("ActionRow", () => {
             const user = userEvent.setup();
             renderRow(
                 <ActionRow
+                    reveal="hover"
                     state="20 nodes"
                     actions={
                         <>

@@ -1,0 +1,8 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"metaData":[{"name":"nodes","elementCount":5},{"name":"edges","elementCount":0}]},
+{"nodes":[{"id":1},{"id":2}]},
+{"metaData":[{"name":"nodes","elementCount":2}]},
+{"edges":[{"id":1,"s":1,"t":2}]},
+{"status":[{"error":"","success":true}]}
+]

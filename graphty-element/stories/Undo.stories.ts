@@ -32,13 +32,14 @@ const PAPER = "#f5f5f5";
  *
  * Every story except the baseline does one thing a reader does -- an import, a run, a style edit,
  * a filter, a drag, a layout or dimension switch, a background, a saved view -- and then undoes it,
- * so its snapshot is the picture a reader sees after pressing Undo. Each play function checks that
- * the undo returned the project to exactly the state it started from, then waits for the finished
- * frame. Two things on screen are the reader's and not the project's, and an undo leaves them as
- * they are: the camera, which an import or a layout switch framed, and the selection, which an undo
- * sets to what it changed. The pixel comparison with the untouched picture is
- * `test/browser/history-picture.test.ts`, because Chromatic compares a story only with its own last
- * snapshot.
+ * so its snapshot is the picture after pressing Undo. Each play function checks that the undo
+ * returned the project to exactly the state it started from, and that the canvas after the undo is,
+ * pixel for pixel, the canvas the story drew before the action. Two things on screen are the
+ * reader's and not the project's, and are put back by hand before that comparison: the camera,
+ * which an import or a layout switch frames and an undo leaves where it is, and the selection,
+ * which an undo sets to what it changed (undoing a drag selects the dragged node, drawn gold). So
+ * every snapshot here is the Baseline picture -- except the 2D-to-3D story's, which starts in 2D
+ * and so returns to the flat circle rather than the 3D one.
  */
 const meta: Meta = {
     title: "Undo",
@@ -71,8 +72,50 @@ function projectState(scene: Drawn): string {
     return stateDigest(dispatcherOf(scene.session).state);
 }
 
+/** How far a colour channel may move before a pixel counts as changed: rounding, not a repaint. */
+const CHANNEL_TOLERANCE = 2;
+
 /**
- * Draw the graph, do something, undo it, and check the project is back where it started.
+ * The finished picture on the canvas.
+ * @param scene - What the story drew.
+ * @returns Its pixels, four bytes each.
+ */
+async function picture(scene: Drawn): Promise<Uint8Array> {
+    const { graph } = scene;
+    await scene.session.styles.settled();
+    await graph.waitForStableFrame();
+    graph.getUpdateManager().renderFrames(1);
+    const { engine } = graph;
+    return (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())) as unknown as Uint8Array;
+}
+
+/**
+ * How many pixels differ between two pictures by more than rounding.
+ * @param one - One picture.
+ * @param other - The other.
+ * @returns The changed pixels.
+ */
+function changedPixels(one: Uint8Array, other: Uint8Array): number {
+    if (one.length !== other.length) {
+        return Math.max(one.length, other.length) / 4;
+    }
+
+    let count = 0;
+    for (let at = 0; at < one.length; at += 4) {
+        for (let channel = 0; channel < 3; channel++) {
+            if (Math.abs(one[at + channel] - other[at + channel]) > CHANNEL_TOLERANCE) {
+                count++;
+                break;
+            }
+        }
+    }
+
+    return count;
+}
+
+/**
+ * Draw the graph, do something, undo it, and check the project and the picture are back where they
+ * started.
  * @param canvasElement - Where the story was rendered.
  * @param story - How to name the story in a failure message.
  * @param act - The thing a reader does; it records `steps` steps.
@@ -89,6 +132,8 @@ async function actThenUndo(
     const { session } = scene;
     const before = projectState(scene);
     const depth = session.history.steps.length;
+    const camera = scene.graph.getCameraState();
+    const untouched = await picture(scene);
 
     await act(scene);
     await holds(
@@ -107,7 +152,12 @@ async function actThenUndo(
         `${story}: after the undo the project is not the one the story started from`,
     );
     await holds(session.canRedo, `${story}: after the undo there is nothing to redo`);
-    await scene.graph.waitForStableFrame();
+
+    // The camera and the selection are the reader's, not the project's: put them back by hand.
+    await scene.graph.setCameraState(camera);
+    session.selection.clear();
+    const changed = changedPixels(untouched, await picture(scene));
+    await holds(changed === 0, `${story}: after the undo ${String(changed)} pixel(s) differ from the picture before`);
     return scene;
 }
 

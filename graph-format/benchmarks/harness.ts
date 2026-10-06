@@ -1,20 +1,21 @@
 /**
- * The measurement harness of the @graphty/graph-format benchmarks (design section 15.5): every
- * benchmark runs its body several times (default 5) after one warm-up and reports the MEDIAN wall
- * time plus the median `process.memoryUsage()` heap-and-buffer delta of one run; with `--expose-gc`
- * the garbage collector runs before every measured iteration so the deltas are of the run, not of
- * leftovers. Results are appended to `benchmarks/results/<host>-<node>.json` with the Node version
- * and CPU model, the pattern of algorithms/benchmarks/benchmark-sessions.json.
+ * The measurement harness of the @graphty/graph-format benchmarks (design section 15.5), also used
+ * by graphty-element's Node benchmarks (graphty-element/benchmarks/run.ts): every benchmark runs its
+ * body several times (default 5) after one warm-up and reports the MEDIAN wall time plus the median
+ * `process.memoryUsage()` heap-and-buffer delta of one run; with `--expose-gc` the garbage collector
+ * runs before every measured iteration so the deltas are of the run, not of leftovers. Results are
+ * appended to `<package>/benchmarks/results/<host>-<node>.json` with the Node version and CPU model,
+ * the pattern of algorithms/benchmarks/benchmark-sessions.json. Timings are recorded, never asserted.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { cpus, hostname } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** One measured benchmark. */
 export interface BenchResult {
-    /** The benchmark group (freeze, ids, views). */
+    /** The benchmark group (freeze, ids, views; sets in graphty-element). */
     readonly group: string;
     /** The benchmark name. */
     readonly name: string;
@@ -135,6 +136,44 @@ export function bench<T>(
 }
 
 /**
+ * Measure an asynchronous benchmark: one warm-up run, then `runs` measured runs. The body builds
+ * its own input and returns the milliseconds it measured, so it can time a part of an
+ * asynchronous call (the synchronous commit of a door, say) as well as the whole.
+ * @param group - the benchmark group
+ * @param name - the benchmark name
+ * @param measure - one run; resolves to the milliseconds it measured
+ * @param runs - measured runs (default 5)
+ * @returns the result, with no memory delta
+ */
+export async function benchTimed(
+    group: string,
+    name: string,
+    measure: () => Promise<number>,
+    runs = 5,
+): Promise<BenchResult> {
+    const times: number[] = [];
+    for (let i = 0; i <= runs; i++) {
+        collectGarbage();
+        const elapsed = await measure();
+        if (i > 0) {
+            times.push(elapsed);
+        }
+    }
+
+    return {
+        group,
+        name,
+        medianMs: median(times),
+        minMs: Math.min(...times),
+        maxMs: Math.max(...times),
+        runs,
+        memoryDeltaBytes: 0,
+        rate: null,
+        rateUnit: null,
+    };
+}
+
+/**
  * Format a byte count for the table.
  * @param bytes - the byte count
  * @returns "12.3 MB"-style text
@@ -202,13 +241,15 @@ interface BenchSession {
 }
 
 /**
- * Append a session to `benchmarks/results/<host>-<node>.json` (a JSON array of sessions, created
- * when absent).
+ * Append a session to `<dir>/<host>-<node>.json` (a JSON array of sessions, created when absent).
  * @param results - every result of the session
+ * @param dir - the results directory (default graph-format/benchmarks/results)
  * @returns the path written
  */
-export function appendSession(results: readonly BenchResult[]): string {
-    const dir = join(dirname(fileURLToPath(import.meta.url)), "results");
+export function appendSession(
+    results: readonly BenchResult[],
+    dir = join(dirname(fileURLToPath(import.meta.url)), "results"),
+): string {
     mkdirSync(dir, { recursive: true });
     const host = hostname().replace(/[^A-Za-z0-9_.-]/g, "_");
     const node = process.version.replace(/^v/, "");
@@ -227,7 +268,6 @@ export function appendSession(results: readonly BenchResult[]): string {
     }
     sessions.push(session);
     writeFileSync(file, `${JSON.stringify(sessions, null, 4)}\n`);
-    appendFileSync(file, "");
     return file;
 }
 

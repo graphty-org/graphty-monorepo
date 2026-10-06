@@ -203,8 +203,8 @@ await session.config.set({ author: null }); // and from now on, no name
 ```
 
 The author is a project setting like the others: one undoable step to change. Neither
-`notes.toDocument()` nor `styles.toDocument()` carries it; the project file
-([#301](https://github.com/graphty-org/graphty-monorepo/issues/301)) will save it once it lands. Empty or white space means no name; at most 256 characters. It is a claim, never a
+`notes.toDocument()` nor `styles.toDocument()` carries it, and neither does a
+[project file](./project-file): it belongs to the person writing, not the project. Empty or white space means no name; at most 256 characters. It is a claim, never a
 verified identity, and the element never makes one up.
 
 ## What a note points at now
@@ -319,13 +319,9 @@ console.log(`${report.added.length} added, ${report.missing} about things not in
 ```
 
 To keep notes in a file, write `toDocument()`'s JSON to a file named `*.graphty.json`: a bare notes
-document is a valid `.graphty.json` file. The element has no call yet that saves or opens a whole
-project file; until the project file
-([#301](https://github.com/graphty-org/graphty-monorepo/issues/301)) lands, save style layers in a
-separate file with `session.styles.toDocument()` and put them back with
-`session.styles.applyTemplate(document)`, typing the parsed JSON with
-`import type { StyleDocument } from "@graphty/graphty-element/schema"`. The data stays wherever it
-came from.
+document is a valid `.graphty.json` file, and `session.project.open` adds it to a session. To keep
+the notes together with the data, the runs and the styles, save a
+[project file](./project-file) with `session.project.save()`.
 
 **Opening always merges; it never deletes a note.** On a fresh session it restores the notes
 exactly, with their ids and times, and merging the same document twice changes nothing. When a

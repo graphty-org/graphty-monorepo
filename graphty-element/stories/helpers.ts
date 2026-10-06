@@ -476,22 +476,26 @@ function applyConfiguration(element: Graphty, setup: StorySetup): void {
         element.startingCameraDistance = setup.startingCameraDistance;
     }
 
-    if (setup.preSteps !== undefined || setup.stepMultiplier !== undefined) {
-        const { preSteps, stepMultiplier } = setup;
+    // One document, written once: two assignments would leave only the second, and a story that
+    // declutters its labels used to lose its pre-steps that way.
+    const { preSteps, stepMultiplier, declutterLabels } = setup;
+
+    if (preSteps !== undefined || stepMultiplier !== undefined || declutterLabels !== undefined) {
         element.layoutBehavior = {
-            layout: {
-                ...(preSteps === undefined ? {} : { preSteps }),
-                ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
-            },
+            ...(preSteps === undefined && stepMultiplier === undefined
+                ? {}
+                : {
+                      layout: {
+                          ...(preSteps === undefined ? {} : { preSteps }),
+                          ...(stepMultiplier === undefined ? {} : { stepMultiplier }),
+                      },
+                  }),
+            ...(declutterLabels === undefined ? {} : { labels: { declutter: declutterLabels } }),
         };
     }
 
     if (setup.algorithms !== undefined) {
         element.algorithmsOnLoad = setup.algorithms;
-    }
-
-    if (setup.declutterLabels !== undefined) {
-        element.layoutBehavior = { labels: { declutter: setup.declutterLabels } };
     }
 }
 
@@ -581,6 +585,7 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
                 "onGraphSettled",
                 "onSkyboxLoaded",
                 "xr",
+                "positionScale",
             ].includes(arg)
         ) {
             deepSet(setup, name, value);
@@ -598,6 +603,11 @@ export const renderFn = (args: RenderArg1, storyConfig: RenderArg2): Element => 
         if (typeof value === "string") {
             g[property] = value;
         }
+    }
+
+    // How a file's saved coordinates map to scene units, also read as the rows arrive.
+    if (typeof args.positionScale === "number") {
+        g.positionScale = args.positionScale;
     }
 
     // Now add data - this will trigger data-add, which runs the algorithms the setup named

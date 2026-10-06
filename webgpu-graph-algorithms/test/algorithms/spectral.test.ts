@@ -399,6 +399,18 @@ describe("hits / eigenvectorCentrality / katzCentrality (GPU, spec 8.2 / 9.7)", 
         ctx.release(karate);
     });
 
+    it("after release(s) every entry point uploads the snapshot again and returns the same scores bitwise (issue #623: Katz, which binds only the reverse view, threw E_RELEASED)", async (t) => {
+        const ctx = await context(t);
+        const s = snapshotOf(randomEdges(60, 200, 13), { directed: true, label: "released-again" });
+        for (const leg of LEGS) {
+            const warm = await leg.gpu(ctx, s, 8);
+            ctx.release(s);
+            const cold = await leg.gpu(ctx, s, 8);
+            expectBitwiseEqual(cold, warm, `${leg.name}: scores after release(s)`);
+            ctx.release(s);
+        }
+    });
+
     it("HITS whose two chains stop after a different number of iterations (an odd maxIterations, one chain converging in the first batch) returns the latest hub vector AND the latest authority vector, never two of one kind", async (t) => {
         const ctx = await context(t);
         const s = snapshotOf(randomEdges(60, 200, 11), { directed: true, label: "odd-chains" });

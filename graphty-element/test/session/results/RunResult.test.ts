@@ -443,12 +443,69 @@ describe("a community result", () => {
             { group: 1, size: 2 },
         ]);
         assert.deepStrictEqual(result.summary().groups, [
-            { group: 0, size: 3, name: "Group 1" },
-            { group: 1, size: 2, name: "Group 2" },
+            { group: 0, size: 3, rank: 1, name: "Group 1" },
+            { group: 1, size: 2, rank: 2, name: "Group 2" },
         ]);
         assert.strictEqual(result.summary().count, 5);
         assert.strictEqual(result.summary().measured, 5);
         assert.strictEqual(result.summary().min, null);
+    });
+
+    it("bins its groups by size, counting groups rather than elements (#932)", () => {
+        /**
+         * A community result whose groups have the given sizes.
+         * @param sizes - one size per group
+         * @returns the result
+         */
+        const partition = (sizes: readonly number[]): RunResult =>
+            createRunResult({
+                runId: "louvain",
+                shape: "community",
+                fields: [
+                    field({ name: "group", plainName: "Group", technicalName: "group", kind: "node", type: "integer" }),
+                ],
+                measured: { nodes: sizes.reduce((sum, size) => sum + size, 0), edges: 0 },
+                nodes: sizes.flatMap((size, group) =>
+                    Array.from({ length: size }, (_unused, index) => ({ id: `g${group}-${index}`, values: { group } })),
+                ),
+                caveats: CAVEATS,
+                durationMs: 1,
+            });
+        const total = (bins: readonly { readonly count: number }[]): number =>
+            bins.reduce((sum, bin) => sum + bin.count, 0);
+
+        const few = partition([3, 3, 2, 1, 1, 1]).groupSizes();
+        assert.strictEqual(few.binning, "per-value");
+        assert.deepStrictEqual(
+            few.bins.map((bin) => [bin.from, bin.count]),
+            [
+                [1, 3],
+                [2, 1],
+                [3, 2],
+            ],
+        );
+
+        const many = partition(Array.from({ length: 400 }, (_unused, index) => index + 1)).groupSizes();
+        assert.strictEqual(many.binning, "banded", "400 distinct sizes are banded");
+        assert.strictEqual(total(many.bins), 400, "every group is counted once");
+
+        const metric = createRunResult({
+            runId: "degree",
+            shape: "node-metric",
+            fields: [
+                field({ name: "value", plainName: "Value", technicalName: "value", kind: "node", type: "number" }),
+            ],
+            measured: { nodes: 1, edges: 0 },
+            nodes: [{ id: "a", values: { value: 1 } }],
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+        try {
+            metric.groupSizes();
+            assert.fail("a measurement has no groups to count");
+        } catch (error) {
+            assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_BAD_COMMAND");
+        }
     });
 
     it("bounds the groups a summary carries", () => {
@@ -553,9 +610,21 @@ describe("a path result", () => {
             runId: "shortest-path",
             shape: "path",
             fields: [
-                field({ name: "onPath", plainName: "On route", technicalName: "onPath", kind: "node", type: "boolean" }),
+                field({
+                    name: "onPath",
+                    plainName: "On route",
+                    technicalName: "onPath",
+                    kind: "node",
+                    type: "boolean",
+                }),
                 field({ name: "order", plainName: "Step", technicalName: "order", kind: "node", type: "integer" }),
-                field({ name: "onPath", plainName: "On route", technicalName: "onPath", kind: "edge", type: "boolean" }),
+                field({
+                    name: "onPath",
+                    plainName: "On route",
+                    technicalName: "onPath",
+                    kind: "edge",
+                    type: "boolean",
+                }),
             ],
             measured: { nodes: 4, edges: 3 },
             nodes: [
@@ -698,7 +767,11 @@ describe("the fields a shape declares", () => {
 
 describe("the top of a ranking, cut only between tie groups", () => {
     /** The cat fixture's degrees: 3 nodes of degree 4, 12 of degree 3 and 5 of degree 2. */
-    const CAT_DEGREES = [...Array.from({ length: 3 }, () => 4), ...Array.from({ length: 12 }, () => 3), ...Array.from({ length: 5 }, () => 2)];
+    const CAT_DEGREES = [
+        ...Array.from({ length: 3 }, () => 4),
+        ...Array.from({ length: 12 }, () => 3),
+        ...Array.from({ length: 5 }, () => 2),
+    ];
 
     it("takes a tie group only when the whole group fits inside n", () => {
         const top = metricResult(CAT_DEGREES).top("value", 5);
@@ -736,5 +809,71 @@ describe("the top of a ranking, cut only between tie groups", () => {
                 assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_OPTION_RANGE");
             }
         }
+    });
+});
+
+describe("a quality score's band", () => {
+    const louvain = BUILT_IN_ALGORITHMS.find((entry) => entry.key === "louvain");
+
+    /** A Louvain result carrying the catalogue's own fields and the given modularity. */
+    function louvainResult(modularity: unknown): RunResult {
+        assert.isDefined(louvain);
+
+        return createRunResult({
+            runId: "louvain",
+            shape: "community",
+            fields: louvain.fields,
+            measured: { nodes: 2, edges: 1 },
+            nodes: [
+                { id: "a", values: { group: 0 } },
+                { id: "b", values: { group: 1 } },
+            ],
+            graph: { modularity },
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+    }
+
+    it("reads modularity above 0.3 as clear, 0.1 to 0.3 as weak and below 0.1 as barely", () => {
+        const bands: [number, string][] = [
+            [0.54, "clear"],
+            [0.3001, "clear"],
+            [0.3, "weak"],
+            [0.2, "weak"],
+            [0.1, "weak"],
+            [0.0999, "barely"],
+            [0, "barely"],
+            [-0.2, "barely"],
+        ];
+
+        for (const [modularity, id] of bands) {
+            assert.strictEqual(louvainResult(modularity).band("modularity")?.id, id, `modularity ${modularity}`);
+        }
+    });
+
+    it("has no band for a missing or non-finite value, or a field without a scale", () => {
+        assert.isUndefined(louvainResult(undefined).band("modularity"));
+        assert.isUndefined(louvainResult(Number.NaN).band("modularity"));
+        assert.isUndefined(louvainResult(0.5).band("groupCount"));
+        assert.isUndefined(louvainResult(0.5).band("nope"));
+    });
+
+    it("says the band in the result's own reading, so a consumer of reading() gets it too", () => {
+        assert.include(louvainResult(0.447).reading(), "Modularity is 0.447 (clearly separated).");
+        assert.include(louvainResult(0.05).reading(), "(barely separated).");
+    });
+
+    it("publishes the scale in the catalogue as plain JSON with its source", () => {
+        const interpretation = louvain?.fields.find((entry) => entry.name === "modularity")?.interpretation;
+
+        assert.isDefined(interpretation);
+        assert.deepStrictEqual(JSON.parse(JSON.stringify(interpretation)), interpretation);
+        assert.include(interpretation.source, "Newman");
+        assert.deepStrictEqual(
+            interpretation.bands.map((band) => band.id),
+            ["clear", "weak", "barely"],
+        );
+        assert.isUndefined(interpretation.bands.at(-1)?.above);
+        assert.isUndefined(interpretation.bands.at(-1)?.atLeast);
     });
 });

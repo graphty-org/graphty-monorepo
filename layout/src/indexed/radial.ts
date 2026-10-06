@@ -1,4 +1,4 @@
-import type { GraphSnapshot } from "@graphty/graph-format";
+import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions";
 import { toLayoutSnapshot } from "../simulation/snapshot";
@@ -7,8 +7,11 @@ import { shellRows } from "./shell";
 
 /** Options of the index-based radial layout. */
 export interface RadialLayoutOptions extends CommonLayoutOptions {
-    /** Index of the node at the centre; default the node with the most distinct neighbours (the lowest index on a tie). */
-    readonly root?: number | null | undefined;
+    /**
+     * The node at the centre: its index, or `{ id }`; default the node with the most distinct neighbours (the lowest
+     * index on a tie).
+     */
+    readonly root?: NodeRef | null | undefined;
 }
 
 /**
@@ -100,7 +103,8 @@ function radialRings(g: GraphSnapshot, root: number | null): number[][] {
  */
 export function radial(s: GraphSnapshot, options: RadialLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
-    const rings = radialRings(toLayoutSnapshot(s), options.root ?? null);
+    const root = options.root ?? null;
+    const rings = radialRings(toLayoutSnapshot(s), root === null ? null : resolveNode(s, root));
     // shells space m rings scale / m apart with the root at 0; stretch so the outermost lands on scale
     const stretch = rings.length > 1 ? rings.length / (rings.length - 1) : 1;
     return result(planar(shellRows(n, rings, scale * stretch, center), dim, center), dim, n);

@@ -486,8 +486,15 @@ describe("check() notes", () => {
         expect(note(cyto, JSON_LOSS.POSITION_Z_DROPPED)?.count).toBe(1);
         const doc = (await exported(s, { dialect: "cytoscape" })).elements as { nodes: Record<string, unknown>[] };
         expect(doc.nodes).toEqual([
-            { data: { id: "a" }, position: { x: 0.1, y: 2 } },
-            { data: { id: "c" }, position: { x: 1, y: 1 } },
+            // stored y-up, written as Cytoscape's downward screen y
+            { data: { id: "a" }, position: { x: 0.1, y: -2 } },
+            { data: { id: "c" }, position: { x: 1, y: -1 } },
+        ]);
+        const back = await imported(JSON.stringify({ elements: doc }));
+        expect(Array.from(back.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([
+            Math.fround(0.1),
+            2,
+            0,
         ]);
         const plain = jsonExporter.check(s);
         expect(codes(plain)).toEqual([JSON_LOSS.POSITIONS_DROPPED]);

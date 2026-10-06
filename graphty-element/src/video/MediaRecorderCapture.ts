@@ -209,13 +209,69 @@ export class MediaRecorderCapture {
                 return;
             }
 
+            let progressInterval: ReturnType<typeof setInterval> | undefined;
+            let durationTimer: ReturnType<typeof setTimeout> | undefined;
+            let started = false;
+
+            // Ended with the recording: a canvas capture track left live keeps the browser copying
+            // every frame of the canvas for a recorder that is gone.
+            const finish = (): void => {
+                clearInterval(progressInterval);
+                clearTimeout(durationTimer);
+                clearTimeout(startTimer);
+                stream.getTracks().forEach((track) => {
+                    track.stop();
+                });
+            };
+
+            // THE DURATION IS COUNTED FROM THE RECORDER'S FIRST DATA, NOT FROM start(). The
+            // browser's encoder takes hundreds of milliseconds to start on a slow machine, and a
+            // frame drawn before it has is never recorded: a half-second recording counted from
+            // start() was a 110-byte file holding no frame at all on a two-core CI runner.
+            const startClock = (): void => {
+                if (started) {
+                    return;
+                }
+
+                started = true;
+                clearTimeout(startTimer);
+
+                const startTime = Date.now();
+                progressInterval = setInterval(() => {
+                    // Stop progress tracking if cancelled
+                    if (this.isCancelled) {
+                        clearInterval(progressInterval);
+                        return;
+                    }
+
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(100, (elapsed / options.duration) * 100);
+                    onProgress?.(progress);
+
+                    if (elapsed >= options.duration) {
+                        clearInterval(progressInterval);
+                    }
+                }, VIDEO_CONSTANTS.PROGRESS_INTERVAL_MS);
+
+                durationTimer = setTimeout(() => {
+                    clearInterval(progressInterval);
+                    // Only stop if not already cancelled
+                    if (!this.isCancelled && recorder.state !== "inactive") {
+                        recorder.stop();
+                        onProgress?.(100);
+                    }
+                }, options.duration);
+            };
+
             recorder.ondataavailable = (e) => {
                 if (e.data.size > 0) {
                     chunks.push(e.data);
+                    startClock();
                 }
             };
 
             recorder.onstop = () => {
+                finish();
                 this.activeRecorder = null;
                 this.cancelReject = null;
 
@@ -262,6 +318,7 @@ export class MediaRecorderCapture {
             };
 
             recorder.onerror = (e: Event) => {
+                finish();
                 this.activeRecorder = null;
                 this.cancelReject = null;
                 const errorMsg = e instanceof ErrorEvent ? e.message : "Unknown error";
@@ -270,36 +327,28 @@ export class MediaRecorderCapture {
                 );
             };
 
-            // Start recording
-            recorder.start();
-
-            // Track progress
-            const startTime = Date.now();
-            const progressInterval = setInterval(() => {
-                // Stop progress tracking if cancelled
-                if (this.isCancelled) {
-                    clearInterval(progressInterval);
+            const startTimer = setTimeout(() => {
+                if (started || this.isCancelled) {
                     return;
                 }
 
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(100, (elapsed / options.duration) * 100);
-                onProgress?.(progress);
-
-                if (elapsed >= options.duration) {
-                    clearInterval(progressInterval);
-                }
-            }, VIDEO_CONSTANTS.PROGRESS_INTERVAL_MS);
-
-            // Stop after duration
-            setTimeout(() => {
-                clearInterval(progressInterval);
-                // Only stop if not already cancelled
-                if (!this.isCancelled && recorder.state !== "inactive") {
+                // Rejected before stop(), so the onstop that follows finds the promise settled.
+                this.isCancelled = true;
+                finish();
+                reject(
+                    new ScreenshotError(
+                        `MediaRecorder produced no data in ${String(VIDEO_CONSTANTS.RECORDER_START_TIMEOUT_MS)} ms`,
+                        ScreenshotErrorCode.VIDEO_CAPTURE_FAILED,
+                    ),
+                );
+                if (recorder.state !== "inactive") {
                     recorder.stop();
-                    onProgress?.(100);
                 }
-            }, options.duration);
+            }, VIDEO_CONSTANTS.RECORDER_START_TIMEOUT_MS);
+
+            // A timeslice, so the recorder reports its first data as soon as the encoder runs
+            // rather than only at stop(); that first data starts the clock.
+            recorder.start(VIDEO_CONSTANTS.PROGRESS_INTERVAL_MS);
         });
     }
 

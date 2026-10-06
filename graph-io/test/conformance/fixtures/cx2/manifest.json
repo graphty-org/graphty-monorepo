@@ -1,0 +1,3049 @@
+{
+  "format": "cx2",
+  "description": "CX2 (the JSON exchange format of NDEx, Cytoscape 3.10+ and Cytoscape Web): real files from ndex2-client, ndex-object-model, Cytoscape Web and NDEx, and the authored feature and error set of research-cx2.md",
+  "fixtures": [
+    {
+      "file": "ndex2-client/demo.cx2",
+      "exercises": "a real Cytoscape export: aliases n / i, x / y, node bypasses with NODE_LABEL_POSITION objects, an EDGE_CONTROL_POINTS edge bypass, DISCRETE / PASSTHROUGH / CONTINUOUS mappings with open-ended intervals, visualEditorProperties in the properties wrapper, opaque cyHiddenAttributes and cyTableColumn",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 6,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          103,
+          115,
+          119,
+          123,
+          124
+        ],
+        "labels": [
+          "764",
+          "753",
+          "751",
+          "721",
+          "747"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 103,
+            "role": "position",
+            "value": [
+              123.14439668294953,
+              297.131767510978,
+              0
+            ]
+          },
+          {
+            "id": 103,
+            "column": "Size",
+            "value": 19
+          },
+          {
+            "id": 103,
+            "column": "align_fdr",
+            "value": -1.0
+          },
+          {
+            "id": 103,
+            "column": "align_score",
+            "value": -1.0
+          },
+          {
+            "id": 103,
+            "column": "annot",
+            "value": "COMP:764"
+          },
+          {
+            "id": 115,
+            "role": "position",
+            "value": [
+              193.35932771937667,
+              287.25515529706604,
+              0
+            ]
+          },
+          {
+            "id": 115,
+            "column": "Size",
+            "value": 11
+          },
+          {
+            "id": 115,
+            "column": "align_fdr",
+            "value": -1.0
+          },
+          {
+            "id": 115,
+            "column": "align_score",
+            "value": -1.0
+          },
+          {
+            "id": 115,
+            "column": "annot",
+            "value": "COMP:753"
+          },
+          {
+            "id": 119,
+            "role": "position",
+            "value": [
+              256.8421551008104,
+              292.45574205548394,
+              0
+            ]
+          },
+          {
+            "id": 119,
+            "column": "Size",
+            "value": 9
+          },
+          {
+            "id": 119,
+            "column": "align_fdr",
+            "value": -1.0
+          },
+          {
+            "id": 119,
+            "column": "align_score",
+            "value": -1.0
+          },
+          {
+            "id": 119,
+            "column": "annot",
+            "value": "COMP:751"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 115,
+            "target": 119
+          },
+          {
+            "source": 124,
+            "target": 123
+          },
+          {
+            "source": 119,
+            "target": 123
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 115,
+            "target": 119,
+            "column": "Is_Tree_Edge",
+            "value": "Tree"
+          },
+          {
+            "source": 115,
+            "target": 119,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 124,
+            "target": 123,
+            "column": "Is_Tree_Edge",
+            "value": "Tree"
+          },
+          {
+            "source": 124,
+            "target": 123,
+            "column": "interaction",
+            "value": "interacts with"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/demo.cx2",
+      "license": "BSD-3-Clause (ndex2-client LICENSE.txt)",
+      "version": "commit e6467d8"
+    },
+    {
+      "file": "ndex2-client/glypican2.cx2",
+      "exercises": "three aliases, a list_of_string alias attribute, a boolean column, 11 DISCRETE mappings",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "labels": [
+          "MDK",
+          "GPC2"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "role": "position",
+            "value": [
+              -398.3511334928659,
+              -70.71067799518471,
+              0
+            ]
+          },
+          {
+            "id": 0,
+            "column": "name",
+            "value": "MDK"
+          },
+          {
+            "id": 0,
+            "column": "represents",
+            "value": "uniprot knowledgebase:P21741"
+          },
+          {
+            "id": 0,
+            "column": "type",
+            "value": "Protein"
+          },
+          {
+            "id": 0,
+            "column": "alias",
+            "value": [
+              "uniprot knowledgebase:Q2LEK4",
+              "uniprot knowledgebase:Q9UCC7"
+            ]
+          },
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              -353.49370090105185,
+              -70.71067822788493,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "name",
+            "value": "GPC2"
+          },
+          {
+            "id": 1,
+            "column": "represents",
+            "value": "uniprot knowledgebase:A4D2A7"
+          },
+          {
+            "id": 1,
+            "column": "type",
+            "value": "Protein"
+          },
+          {
+            "id": 1,
+            "column": "alias",
+            "value": [
+              "uniprot knowledgebase:Q8N158"
+            ]
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 0
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 0,
+            "column": "directed",
+            "value": false
+          },
+          {
+            "source": 1,
+            "target": 0,
+            "column": "interaction",
+            "value": "in-complex-with"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/glypican2.cx2",
+      "license": "BSD-3-Clause (ndex2-client LICENSE.txt)",
+      "version": "commit e6467d8"
+    },
+    {
+      "file": "ndex2-client/no_edge_style2.cx2",
+      "exercises": "visualEditorProperties before visualProperties, nine metadata entries, a minimal style",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          437,
+          432
+        ],
+        "labels": [
+          "Node 2",
+          "Node 1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 437,
+            "role": "position",
+            "value": [
+              -34.0,
+              105.0,
+              0
+            ]
+          },
+          {
+            "id": 437,
+            "column": "name",
+            "value": "Node 2"
+          },
+          {
+            "id": 432,
+            "role": "position",
+            "value": [
+              -228.0,
+              119.0,
+              0
+            ]
+          },
+          {
+            "id": 432,
+            "column": "name",
+            "value": "Node 1"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 432,
+            "target": 437
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 432,
+            "target": 437,
+            "column": "interaction",
+            "value": "interacts with"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/no_edge_style2.cx2",
+      "license": "BSD-3-Clause (ndex2-client LICENSE.txt)",
+      "version": "commit e6467d8"
+    },
+    {
+      "file": "ndex-object-model/cx2_tiny.cx2",
+      "exercises": "declarations without d (read as string), edge defaults, an alias, an undeclared edge attribute name, hasFragments before CXVersion; the declared-string score p holds numbers",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          94913,
+          94915,
+          94917
+        ],
+        "labels": [
+          "WDR4",
+          "WDR48",
+          "WRAP53"
+        ],
+        "edgeAttrs": [
+          {
+            "source": 94915,
+            "target": 94913,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 94915,
+            "target": 94913,
+            "column": "evtype",
+            "value": "co-essentialty"
+          }
+        ],
+        "warnings": [
+          "W_UNKNOWN_ATTR_TYPE",
+          "W_CX2_UNDECLARED_ATTRIBUTE",
+          "E_BAD_VALUE",
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny.cx2",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96",
+      "oracleDisagrees": "ndex2 types an attribute declared without d from its values, so the percentile scores read as numbers; the specification requires d and the Java reader (which NDEx runs) reads such a declaration as string, so a number there is a value of the wrong type (E_BAD_VALUE) and the cell is unset"
+    },
+    {
+      "file": "ndex-object-model/cx2_tiny_double_and_longattribute.cx",
+      "exercises": "long and double declarations next to declarations without d; CX2 content under a .cx name (sniffed by content)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "warnings": [
+          "W_UNKNOWN_ATTR_TYPE",
+          "W_CX2_UNDECLARED_ATTRIBUTE",
+          "E_BAD_VALUE",
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny_double_and_longattribute.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96",
+      "oracleDisagrees": "as cx2_tiny.cx2: ndex2 infers a type for declarations without d where the Java reader reads string"
+    },
+    {
+      "file": "ndex-object-model/cx2_empty.cx",
+      "exercises": "the smallest document: descriptor and status, an empty network",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": []
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_empty.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96"
+    },
+    {
+      "file": "ndex-object-model/cx2_aspect_after_postmetadata.cx",
+      "exercises": "attributeDeclarations after the nodes it declares and after the post-metadata; a count mismatch",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 0,
+        "labels": [
+          "WDR4",
+          "WDR48",
+          "WRAP53"
+        ],
+        "warnings": [
+          "W_ASPECT_ORDER",
+          "W_COUNT_MISMATCH"
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_aspect_after_postmetadata.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96",
+      "oracleDisagrees": "ndex2 resolves aliases only for declarations that come before the elements, so it reads the node names under the alias n; the declarations are read before the elements are typed, as the Java reader's two-pass Cytoscape import does"
+    },
+    {
+      "file": "ndex-object-model/cx2_metadata_after_normal_aspect.cx",
+      "exercises": "a metaData block between two aspects; counts that disagree with the elements",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_COUNT_MISMATCH"
+        ],
+        "nodes": 3,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          94913,
+          94915,
+          94917
+        ],
+        "labels": [
+          "WDR4",
+          "WDR48",
+          "WRAP53"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 94913,
+            "column": "name",
+            "value": "WDR4"
+          },
+          {
+            "id": 94915,
+            "column": "name",
+            "value": "WDR48"
+          },
+          {
+            "id": 94917,
+            "column": "name",
+            "value": "WRAP53"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_metadata_after_normal_aspect.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96"
+    },
+    {
+      "file": "ndex-object-model/cx2_pre_post_metadata.cx",
+      "exercises": "not JSON: a stray brace in the metaData block",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_SYNTAX"
+      },
+      "origin": "https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_pre_post_metadata.cx",
+      "license": "BSD-3-Clause (ndex-object-model LICENSE)",
+      "version": "commit 44dad96",
+      "sniffAs": "cx2"
+    },
+    {
+      "file": "cytoscape-web/minimal.valid.cx2",
+      "exercises": "status not last, no declarations (undeclared n and interaction), CX1 leftovers in metadata, ids from 0",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_ASPECT_ORDER",
+          "W_CX2_UNDECLARED_ATTRIBUTE"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "n",
+            "value": "node1"
+          },
+          {
+            "id": 1,
+            "column": "n",
+            "value": "node2"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 0,
+            "target": 1,
+            "column": "interaction",
+            "value": "interacts"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/minimal.valid.cx2",
+      "license": "MIT (cytoscape-web LICENSE)",
+      "version": "commit c66154f"
+    },
+    {
+      "file": "cytoscape-web/with-cartesian-layout.valid.cx2",
+      "exercises": "x / y on every node without declarations, ten parallel edges",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_CX2_UNDECLARED_ATTRIBUTE"
+        ],
+        "nodes": 20,
+        "edges": 30,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "role": "position",
+            "value": [
+              50,
+              -50,
+              0
+            ]
+          },
+          {
+            "id": 0,
+            "column": "n",
+            "value": "node1"
+          },
+          {
+            "id": 0,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 0,
+            "column": "score",
+            "value": 0
+          },
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              150,
+              -50,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "n",
+            "value": "node2"
+          },
+          {
+            "id": 1,
+            "column": "type",
+            "value": "gene"
+          },
+          {
+            "id": 1,
+            "column": "score",
+            "value": 0.1
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              250,
+              -50,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "column": "n",
+            "value": "node3"
+          },
+          {
+            "id": 2,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 2,
+            "column": "score",
+            "value": 0.2
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/with-cartesian-layout.valid.cx2",
+      "license": "MIT (cytoscape-web LICENSE)",
+      "version": "commit c66154f",
+      "oracleDisagrees": "ndex2 types an undeclared attribute from its first value (score 0, an int) and converts the later values to int, so 0.1 reads as 0; the column holds doubles, which the 5.1 widening rule keeps"
+    },
+    {
+      "file": "cytoscape-web/svg-passthrough.valid.cx2",
+      "exercises": "defaults that are SVG data URLs and false booleans, image passthrough mappings, a parallel edge",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 330,
+        "edges": 359,
+        "directed": true,
+        "nodeIds": [
+          155,
+          157,
+          159,
+          161,
+          163
+        ],
+        "labels": [
+          "YDL194W",
+          "YDR277C",
+          "YBR043C",
+          "YPR145W",
+          "YER054C"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 155,
+            "role": "position",
+            "value": [
+              1870.4468795669277,
+              -2393.3219489762514,
+              0
+            ]
+          },
+          {
+            "id": 155,
+            "column": "svg",
+            "value": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" /></svg>\n"
+          },
+          {
+            "id": 155,
+            "column": "name",
+            "value": "YDL194W"
+          },
+          {
+            "id": 155,
+            "column": "degree.layout",
+            "value": 1
+          },
+          {
+            "id": 155,
+            "column": "gal80Rexp",
+            "value": 0.449
+          },
+          {
+            "id": 157,
+            "role": "position",
+            "value": [
+              1924.232112110873,
+              -2281.954608888361,
+              0
+            ]
+          },
+          {
+            "id": 157,
+            "column": "svg",
+            "value": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" /></svg>\n"
+          },
+          {
+            "id": 157,
+            "column": "name",
+            "value": "YDR277C"
+          },
+          {
+            "id": 157,
+            "column": "degree.layout",
+            "value": 2
+          },
+          {
+            "id": 157,
+            "column": "gal80Rexp",
+            "value": 0.448
+          },
+          {
+            "id": 159,
+            "role": "position",
+            "value": [
+              1131.7168533218105,
+              -4319.59529110882,
+              0
+            ]
+          },
+          {
+            "id": 159,
+            "column": "svg",
+            "value": "data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><circle cx=\"50\" cy=\"50\" r=\"40\" stroke=\"black\" stroke-width=\"3\" fill=\"red\" /></svg>\n"
+          },
+          {
+            "id": 159,
+            "column": "name",
+            "value": "YBR043C"
+          },
+          {
+            "id": 159,
+            "column": "degree.layout",
+            "value": 1
+          },
+          {
+            "id": 159,
+            "column": "gal80Rexp",
+            "value": 0.0
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 813,
+            "target": 811
+          },
+          {
+            "source": 811,
+            "target": 787
+          },
+          {
+            "source": 809,
+            "target": 807
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 813,
+            "target": 811,
+            "column": "EdgeBetweenness",
+            "value": 496.0
+          },
+          {
+            "source": 813,
+            "target": 811,
+            "column": "name",
+            "value": "YKR026C (pp) YGL122C"
+          },
+          {
+            "source": 811,
+            "target": 787,
+            "column": "EdgeBetweenness",
+            "value": 988.0
+          },
+          {
+            "source": 811,
+            "target": 787,
+            "column": "name",
+            "value": "YGL122C (pp) YOL123W"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/svg-passthrough.valid.cx2",
+      "license": "MIT (cytoscape-web LICENSE); data: Cytoscape's galFiltered sample",
+      "version": "commit c66154f"
+    },
+    {
+      "file": "cytoscape-web/2496d8c5-5c74-11ec-b3be-0ac135e8bacf.valid.cx2",
+      "exercises": "z on every node (a stacking order), a bypass on every node and edge, 13 PASSTHROUGH mappings, an alias list",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 45,
+        "edges": 30,
+        "directed": true,
+        "nodeIds": [
+          513879,
+          513880,
+          513881,
+          513882,
+          513883
+        ],
+        "labels": [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "nodeAttrs": [
+          {
+            "id": 513879,
+            "role": "position",
+            "value": [
+              431.373463714484,
+              -365.9920745407425,
+              0
+            ]
+          },
+          {
+            "id": 513879,
+            "column": "z",
+            "value": 0
+          },
+          {
+            "id": 513879,
+            "column": "name",
+            "value": ""
+          },
+          {
+            "id": 513880,
+            "role": "position",
+            "value": [
+              540.0919859212266,
+              -521.2146666666662,
+              0
+            ]
+          },
+          {
+            "id": 513880,
+            "column": "z",
+            "value": 0
+          },
+          {
+            "id": 513880,
+            "column": "name",
+            "value": ""
+          },
+          {
+            "id": 513881,
+            "role": "position",
+            "value": [
+              433.9737148030597,
+              -453.14472222222275,
+              0
+            ]
+          },
+          {
+            "id": 513881,
+            "column": "z",
+            "value": 0
+          },
+          {
+            "id": 513881,
+            "column": "name",
+            "value": ""
+          },
+          {
+            "id": 513888,
+            "column": "NODE_BORDER_WIDTH",
+            "value": 0
+          },
+          {
+            "id": 513888,
+            "column": "NODE_LABEL",
+            "value": "Wound\nhealing"
+          },
+          {
+            "id": 513920,
+            "column": "NODE_Z_LOCATION",
+            "value": "32768.0"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 513922,
+            "target": 513901
+          },
+          {
+            "source": 513920,
+            "target": 513887
+          },
+          {
+            "source": 513919,
+            "target": 513905
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 513922,
+            "target": 513901,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 513922,
+            "target": 513901,
+            "column": "EndArrow",
+            "value": "mim-inhibition"
+          },
+          {
+            "source": 513920,
+            "target": 513887,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 513920,
+            "target": 513887,
+            "column": "EndArrow",
+            "value": "mim-stimulation"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/2496d8c5-5c74-11ec-b3be-0ac135e8bacf.valid.cx2",
+      "license": "MIT (cytoscape-web LICENSE); network rights CC0 (WikiPathways WP5049)",
+      "version": "commit c66154f"
+    },
+    {
+      "file": "cytoscape-web/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2",
+      "exercises": "the HCX hierarchy profile: ndexSchema, HCX::members lists into another network, HCX::isRoot, 50 node bypasses",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 70,
+        "edges": 87,
+        "directed": true,
+        "nodeIds": [
+          127,
+          126,
+          125,
+          124,
+          123
+        ],
+        "labels": [
+          "Subgroup of metabolic organelles",
+          "Ion transmembrane transport system",
+          "Transmembrane transport systems",
+          "RNA processing complex 2",
+          "RNA processing complex family"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 127,
+            "role": "position",
+            "value": [
+              -872.5791230541014,
+              412.1495917886891,
+              0
+            ]
+          },
+          {
+            "id": 127,
+            "column": "Proteins",
+            "value": "RPS18, RPL13A, RPL19, RPL27A, RPL7A, KRI1, MRPL46, MRPS14, MRPL19, MRPL20, RPL38, RPL18, RPS3A, MRPS31, MRPS9, RPL6, RPS13, HNRNPC, RBBP6, NOC2L, RPL28, RPL11, IMMT, AGK, MCAT, METTL17, MRPS11, NAT8L, NDUFA1, NDUFA10, NDUFA7, NDUFA9, NDUFAF2, NMNAT3, POLRMT, SUCLA2, TIMM50, TMLHE, TOMM40, URB2, YARS2"
+          },
+          {
+            "id": 127,
+            "column": "Category",
+            "value": "Known system"
+          },
+          {
+            "id": 127,
+            "column": "name",
+            "value": "Subgroup of metabolic organelles"
+          },
+          {
+            "id": 127,
+            "column": "95% prediction interval (nm)",
+            "value": "[844, 2928]"
+          },
+          {
+            "id": 126,
+            "role": "position",
+            "value": [
+              -995.5040220124689,
+              432.17219834107976,
+              0
+            ]
+          },
+          {
+            "id": 126,
+            "column": "Proteins",
+            "value": "ANKRD46, CHST10, CLPTM1, DGCR2, DISP1, DNAJC18, FAM69B, FZD8, GABRA5, KCNB2, KCNQ2, MCOLN2, MCOLN3, MFSD10, PDE3B, POMT1, SLC41A3, XKR8"
+          },
+          {
+            "id": 126,
+            "column": "Category",
+            "value": "Putative system"
+          },
+          {
+            "id": 126,
+            "column": "name",
+            "value": "Ion transmembrane transport system"
+          },
+          {
+            "id": 126,
+            "column": "95% prediction interval (nm)",
+            "value": "[893, 3100]"
+          },
+          {
+            "id": 125,
+            "role": "position",
+            "value": [
+              -995.4662489942094,
+              627.5861198783413,
+              0
+            ]
+          },
+          {
+            "id": 125,
+            "column": "Proteins",
+            "value": "ACVR1, AGPAT4, C15orf61, CACNA2D2, GPR180, IGFBP2, IMMT, LMF2, NAT14, PCDH19, PEX10, SH3GL2, SLC35F2, TESC, TMEM177, ANKRD46, CHST10, CLPTM1, DGCR2, DISP1, DNAJC18, FAM69B, FZD8, GABRA5, KCNB2, KCNQ2, MCOLN2, MCOLN3, MFSD10, PDE3B, POMT1, SLC41A3, XKR8"
+          },
+          {
+            "id": 125,
+            "column": "Category",
+            "value": "Putative system"
+          },
+          {
+            "id": 125,
+            "column": "name",
+            "value": "Transmembrane transport systems"
+          },
+          {
+            "id": 125,
+            "column": "95% prediction interval (nm)",
+            "value": "[2023, 7021]"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 127,
+            "target": 115
+          },
+          {
+            "source": 125,
+            "target": 126
+          },
+          {
+            "source": 123,
+            "target": 84
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 127,
+            "target": 115,
+            "column": "Is_Tree_Edge",
+            "value": "Not_Tree"
+          },
+          {
+            "source": 127,
+            "target": 115,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 125,
+            "target": 126,
+            "column": "Is_Tree_Edge",
+            "value": "Tree"
+          },
+          {
+            "source": 125,
+            "target": 126,
+            "column": "interaction",
+            "value": "interacts with"
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2",
+      "license": "MIT (cytoscape-web LICENSE); network rights MIT (MuSIC v1 hierarchy)",
+      "version": "commit c66154f"
+    },
+    {
+      "file": "cytoscape-web/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2",
+      "exercises": "the opaque filterWidgets aspect, five parallel edges",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 4,
+        "edges": 10,
+        "directed": true,
+        "nodeIds": [
+          2242,
+          2244,
+          3546,
+          4039
+        ],
+        "labels": [
+          "NBEA",
+          "SDF4",
+          "BLZF1",
+          "POLB"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 2242,
+            "role": "position",
+            "value": [
+              114.69088149117295,
+              0,
+              0
+            ]
+          },
+          {
+            "id": 2242,
+            "column": "name",
+            "value": "NBEA"
+          },
+          {
+            "id": 2242,
+            "column": "ensembl",
+            "value": "ensembl:ENSG00000172915"
+          },
+          {
+            "id": 2242,
+            "column": "antibody",
+            "value": "HPA039730"
+          },
+          {
+            "id": 2242,
+            "column": "filename",
+            "value": "534_B10_1_"
+          },
+          {
+            "id": 2244,
+            "role": "position",
+            "value": [
+              209.83785948284407,
+              213.88132554586835,
+              0
+            ]
+          },
+          {
+            "id": 2244,
+            "column": "name",
+            "value": "SDF4"
+          },
+          {
+            "id": 2244,
+            "column": "ensembl",
+            "value": "ensembl:ENSG00000078808"
+          },
+          {
+            "id": 2244,
+            "column": "antibody",
+            "value": "CAB015227"
+          },
+          {
+            "id": 2244,
+            "column": "filename",
+            "value": "620_A4_5_"
+          },
+          {
+            "id": 3546,
+            "role": "position",
+            "value": [
+              0,
+              189.78341347752743,
+              0
+            ]
+          },
+          {
+            "id": 3546,
+            "column": "name",
+            "value": "BLZF1"
+          },
+          {
+            "id": 3546,
+            "column": "ensembl",
+            "value": "ensembl:ENSG00000117475"
+          },
+          {
+            "id": 3546,
+            "column": "antibody",
+            "value": "HPA067113"
+          },
+          {
+            "id": 3546,
+            "column": "filename",
+            "value": "1754_H5_13_"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 2242,
+            "target": 3546
+          },
+          {
+            "source": 2242,
+            "target": 3546
+          },
+          {
+            "source": 2242,
+            "target": 3546
+          }
+        ]
+      },
+      "origin": "https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2",
+      "license": "MIT (cytoscape-web LICENSE)",
+      "version": "commit c66154f"
+    },
+    {
+      "file": "ndex/72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2",
+      "exercises": "WikiPathways WP615: z as a stacking order up to 32771, HTML edge defaults, JSON text in a network attribute, every node and edge bypassed, empty names",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 161,
+        "edges": 118,
+        "directed": true,
+        "nodeIds": [
+          103427,
+          103428,
+          103429,
+          103430,
+          103431
+        ],
+        "labels": [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        "nodeAttrs": [
+          {
+            "id": 103427,
+            "role": "position",
+            "value": [
+              415.0,
+              -735.0,
+              0
+            ]
+          },
+          {
+            "id": 103427,
+            "column": "z",
+            "value": 0.0
+          },
+          {
+            "id": 103427,
+            "column": "name",
+            "value": ""
+          },
+          {
+            "id": 103428,
+            "role": "position",
+            "value": [
+              1002.5,
+              -1256.0,
+              0
+            ]
+          },
+          {
+            "id": 103428,
+            "column": "z",
+            "value": 28672.0
+          },
+          {
+            "id": 103428,
+            "column": "name",
+            "value": ""
+          },
+          {
+            "id": 103429,
+            "role": "position",
+            "value": [
+              1021.0,
+              -652.0,
+              0
+            ]
+          },
+          {
+            "id": 103429,
+            "column": "z",
+            "value": 4096.0
+          },
+          {
+            "id": 103429,
+            "column": "name",
+            "value": ""
+          },
+          {
+            "id": 103456,
+            "column": "NODE_Z_LOCATION",
+            "value": "32768.0"
+          },
+          {
+            "id": 103488,
+            "column": "NODE_Z_LOCATION",
+            "value": "32768.0"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 103587,
+            "target": 103519
+          },
+          {
+            "source": 103584,
+            "target": 103463
+          },
+          {
+            "source": 103584,
+            "target": 103564
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 103587,
+            "target": 103519,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 103587,
+            "target": 103519,
+            "column": "sboType",
+            "value": "SBO:0000374"
+          },
+          {
+            "source": 103584,
+            "target": 103463,
+            "column": "StartArrow",
+            "value": "Line"
+          },
+          {
+            "source": 103584,
+            "target": 103463,
+            "column": "sboType",
+            "value": "SBO:0000375"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v3/networks/72288e93-5c67-11ec-b3be-0ac135e8bacf",
+      "license": "CC0 (network rights: Waiver-No Rights Reserved (CC0), holder WikiPathways)",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/f62acbc7-4cfc-11e9-9f06-0ac135e8bacf.cx2",
+      "exercises": "137 of 319 edges without v, five boolean columns, a default, antiparallel edges",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 267,
+        "edges": 319,
+        "directed": true,
+        "nodeIds": [
+          77557,
+          77558,
+          77559,
+          77560,
+          77561
+        ],
+        "labels": [
+          "PRKAB1",
+          "PRKAG3",
+          "PRKAB2",
+          "MLST8",
+          "RRAGC"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 77557,
+            "role": "position",
+            "value": [
+              -497.17827994702895,
+              1518.316042290197,
+              0
+            ]
+          },
+          {
+            "id": 77557,
+            "column": "Type",
+            "value": "GeneProduct"
+          },
+          {
+            "id": 77557,
+            "column": "name",
+            "value": "PRKAB1"
+          },
+          {
+            "id": 77557,
+            "column": "WP1471",
+            "value": true
+          },
+          {
+            "id": 77557,
+            "column": "Color",
+            "value": "#000000"
+          },
+          {
+            "id": 77558,
+            "role": "position",
+            "value": [
+              -809.5739250886305,
+              1764.6870139698844,
+              0
+            ]
+          },
+          {
+            "id": 77558,
+            "column": "Type",
+            "value": "GeneProduct"
+          },
+          {
+            "id": 77558,
+            "column": "name",
+            "value": "PRKAG3"
+          },
+          {
+            "id": 77558,
+            "column": "WP1471",
+            "value": true
+          },
+          {
+            "id": 77558,
+            "column": "Color",
+            "value": "#000000"
+          },
+          {
+            "id": 77559,
+            "role": "position",
+            "value": [
+              -789.9605522858961,
+              1829.522829399572,
+              0
+            ]
+          },
+          {
+            "id": 77559,
+            "column": "Type",
+            "value": "GeneProduct"
+          },
+          {
+            "id": 77559,
+            "column": "name",
+            "value": "PRKAB2"
+          },
+          {
+            "id": 77559,
+            "column": "WP1471",
+            "value": true
+          },
+          {
+            "id": 77559,
+            "column": "Color",
+            "value": "#000000"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 77823,
+            "target": 77595
+          },
+          {
+            "source": 77823,
+            "target": 77804
+          },
+          {
+            "source": 77820,
+            "target": 77588
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 77823,
+            "target": 77804,
+            "column": "LineStyle",
+            "value": "Solid"
+          },
+          {
+            "source": 77823,
+            "target": 77804,
+            "column": "Source Arrow Shape",
+            "value": "Line"
+          },
+          {
+            "source": 77818,
+            "target": 77817,
+            "column": "LineStyle",
+            "value": "Solid"
+          },
+          {
+            "source": 77818,
+            "target": 77817,
+            "column": "Source Arrow Shape",
+            "value": "Line"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v3/networks/f62acbc7-4cfc-11e9-9f06-0ac135e8bacf",
+      "license": "CC0 (network rights: Waiver-No rights reserved (CC0))",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/c370fda6-c69c-11e8-aaa6-0ac135e8bacf.cx2",
+      "exercises": "CX1 provenance aspects carried as opaque CX2 aspects (citations, supports, edgeCitations, edgeSupports), a self-loop, 20 parallel edges",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 75,
+        "edges": 117,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          7,
+          8,
+          18
+        ],
+        "labels": [
+          "AKT1",
+          "RAD51",
+          "BABAM2",
+          "BRCA2",
+          "BRCA1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "role": "position",
+            "value": [
+              -241.02019340515136,
+              -7.319245643615716,
+              0
+            ]
+          },
+          {
+            "id": 0,
+            "column": "name",
+            "value": "AKT1"
+          },
+          {
+            "id": 0,
+            "column": "UniProt",
+            "value": "http://identifiers.org/uniprot/P31749"
+          },
+          {
+            "id": 0,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 0,
+            "column": "HGNC",
+            "value": "http://identifiers.org/hgnc/HGNC:391"
+          },
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              -153.01192314147949,
+              -63.53936893463134,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "name",
+            "value": "RAD51"
+          },
+          {
+            "id": 1,
+            "column": "UniProt",
+            "value": "http://identifiers.org/uniprot/Q06609"
+          },
+          {
+            "id": 1,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 1,
+            "column": "HGNC",
+            "value": "http://identifiers.org/hgnc/HGNC:9817"
+          },
+          {
+            "id": 7,
+            "role": "position",
+            "value": [
+              -67.82907707214355,
+              -272.7582257461548,
+              0
+            ]
+          },
+          {
+            "id": 7,
+            "column": "name",
+            "value": "BABAM2"
+          },
+          {
+            "id": 7,
+            "column": "UniProt",
+            "value": "http://identifiers.org/uniprot/Q9NXR7"
+          },
+          {
+            "id": 7,
+            "column": "type",
+            "value": "protein"
+          },
+          {
+            "id": 7,
+            "column": "HGNC",
+            "value": "http://identifiers.org/hgnc/HGNC:1106"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 634,
+            "target": 18
+          },
+          {
+            "source": 490,
+            "target": 491
+          },
+          {
+            "source": 741,
+            "target": 1
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 634,
+            "target": 18,
+            "column": "supportType",
+            "value": "literature"
+          },
+          {
+            "source": 634,
+            "target": 18,
+            "column": "INDRA json",
+            "value": "{\"type\": \"IncreaseAmount\", \"subj\": {\"name\": \"oxaliplatin\", \"db_refs\": {\"TEXT\": \"oxaliplatin\", \"CHEBI\": \"CHEBI:31941\"}, \"sbo\": \"http://identifiers.org/sbo/SBO:0000459\"}, \"obj\": {\"name\": \"BRCA1\", \"db_refs\": {\"TEXT\": \"BRCA1\", \"UP\": \"P38398\", \"HGNC\": \"1100\"}, \"sbo\": \"http://identifiers.org/sbo/SBO:0000011\"}, \"evidence\": [{\"source_api\": \"reach\", \"pmid\": \"29239146\", \"text\": \"Vorinostat enhances the anticancer effect of oxaliplatin on HCC cells by suppressing the expression of BRCA1 that is induced by oxaliplatin.\", \"annotations\": {\"found_by\": \"transcription_1b\"}, \"epistemics\": {\"direct\": false, \"section_type\": null}}, {\"source_api\": \"reach\", \"pmid\": \"29239146\", \"text\": \"In this study, we showed that BRCA1 expression was upregulated by oxaliplatin exposure alone, whereas vorinostat downregulated BRCA1 expression in the presence or absence of oxaliplatin in HCC cells.\", \"annotations\": {\"found_by\": \"expression_1\"}, \"epistemics\": {\"direct\": false, \"section_type\": null}}], \"id\": \"b7b44375-fdf3-4a39-9fbd-eed0d6b4f063\", \"sbo\": \"http://identifiers.org/sbo/SBO:0000183\"}"
+          },
+          {
+            "source": 490,
+            "target": 491,
+            "column": "supportType",
+            "value": "literature"
+          },
+          {
+            "source": 490,
+            "target": 491,
+            "column": "INDRA json",
+            "value": "{\"type\": \"Complex\", \"members\": [{\"name\": \"ERCC4\", \"db_refs\": {\"UP\": \"Q92889\", \"HGNC\": \"3436\", \"TEXT\": \"XPF\"}}, {\"name\": \"ERCC1\", \"db_refs\": {\"UP\": \"P07992\", \"HGNC\": \"3433\", \"TEXT\": \"ERCC1\"}}], \"evidence\": [{\"source_api\": \"reach\", \"pmid\": \"29325523\", \"text\": \"Fractionation studies of 3104 fibroblasts showed that residual full-length XPF/ERCC4/FANCQ protein was detectable in the nucleus, while in cells from XP-F or XFE patients the mutant XPF/ERCC4/FANCQ appears to be mislocated and not to be part of the XPF and ERCC1 complex, presumably as a consequence of XPF protein misfolding [XREF_BIBR].\", \"annotations\": {\"found_by\": \"binding_token_5\"}, \"epistemics\": {\"direct\": true, \"section_type\": null}}, {\"source_api\": \"reach\", \"pmid\": \"29568775\", \"text\": \"ERCC1 and ERCC4 heterodimer is responsible for the 5 ' site excision while the incision of impaired DNA at the 3 ' site is performed by ERCC5 [XREF_BIBR, XREF_BIBR].\", \"annotations\": {\"found_by\": \"binding_complex_A_B\"}, \"epistemics\": {\"direct\": true, \"section_type\": null}}], \"id\": \"956d5816-1e0a-4a95-ad31-20668d80c1f9\", \"sbo\": \"http://identifiers.org/sbo/SBO:0000526\"}"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v3/networks/c370fda6-c69c-11e8-aaa6-0ac135e8bacf",
+      "license": "CC BY 4.0 (network rights; Fanconi Anemia Machine, NDEx network c370fda6, author Myself)",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/aa78a43f-9c4d-11eb-9e72-0ac135e8bacf.cx2",
+      "exercises": "Bioregistry: no layout and no visual aspects, 1,212 isolated nodes, non-ASCII text, a self-loop",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 1411,
+        "edges": 175,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "labels": [
+          "AberOWL",
+          "AgroPortal",
+          "BioContext",
+          "Biolink Model Registry",
+          "BioPortal Prefixes"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "name",
+            "value": "AberOWL"
+          },
+          {
+            "id": 0,
+            "column": "represents",
+            "value": "bioregistry.registry:aberowl"
+          },
+          {
+            "id": 0,
+            "column": "homepage",
+            "value": "http://aber-owl.net"
+          },
+          {
+            "id": 0,
+            "column": "description",
+            "value": "AberOWL is a framework for ontology-based access to biological data. It consists of a repository of bio-ontologies, a set of webservices which provide access to OWL(-EL) reasoning over the ontologies, and several frontends which utilise the ontology repository and reasoning services to provide access to specific biological datasets."
+          },
+          {
+            "id": 1,
+            "column": "name",
+            "value": "AgroPortal"
+          },
+          {
+            "id": 1,
+            "column": "represents",
+            "value": "bioregistry.registry:agroportal"
+          },
+          {
+            "id": 1,
+            "column": "homepage",
+            "value": "http://agroportal.lirmm.fr"
+          },
+          {
+            "id": 1,
+            "column": "description",
+            "value": "A vocabulary and ontology repository for agronomy and related domains."
+          },
+          {
+            "id": 2,
+            "column": "name",
+            "value": "BioContext"
+          },
+          {
+            "id": 2,
+            "column": "represents",
+            "value": "bioregistry.registry:biocontext"
+          },
+          {
+            "id": 2,
+            "column": "homepage",
+            "value": "https://github.com/prefixcommons/biocontext"
+          },
+          {
+            "id": 2,
+            "column": "description",
+            "value": "BioContext contains modular JSON-LD contexts for bioinformatics data."
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 58,
+            "target": 1313
+          },
+          {
+            "source": 96,
+            "target": 322
+          },
+          {
+            "source": 119,
+            "target": 118
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 58,
+            "target": 1313,
+            "column": "interaction",
+            "value": "provides"
+          },
+          {
+            "source": 96,
+            "target": 322,
+            "column": "interaction",
+            "value": "has_canonical"
+          },
+          {
+            "source": 119,
+            "target": 118,
+            "column": "interaction",
+            "value": "part_of"
+          },
+          {
+            "source": 161,
+            "target": 1313,
+            "column": "interaction",
+            "value": "provides"
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v3/networks/aa78a43f-9c4d-11eb-9e72-0ac135e8bacf",
+      "license": "CC0 (network rights: Waiver-No rights reserved (CC0), holder Charles Tapley Hoyt)",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "ndex/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf.cx2",
+      "exercises": "Epithelial Mesenchymal Transition: four self-loops, five antiparallel pairs, fully styled",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 16,
+        "edges": 59,
+        "directed": true,
+        "nodeIds": [
+          72,
+          73,
+          75,
+          77,
+          79
+        ],
+        "labels": [
+          "Zeb1",
+          "Cdh2",
+          "Cdh11",
+          "Krt5",
+          "Col3a1"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 72,
+            "role": "position",
+            "value": [
+              59.930877685546875,
+              45.22139118032134,
+              0
+            ]
+          },
+          {
+            "id": 72,
+            "column": "name",
+            "value": "Zeb1"
+          },
+          {
+            "id": 73,
+            "role": "position",
+            "value": [
+              129.2312999367714,
+              -100.00131897914972,
+              0
+            ]
+          },
+          {
+            "id": 73,
+            "column": "name",
+            "value": "Cdh2"
+          },
+          {
+            "id": 75,
+            "role": "position",
+            "value": [
+              155.6110606789589,
+              -13.167899179345028,
+              0
+            ]
+          },
+          {
+            "id": 75,
+            "column": "name",
+            "value": "Cdh11"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 116,
+            "target": 72
+          },
+          {
+            "source": 116,
+            "target": 77
+          },
+          {
+            "source": 116,
+            "target": 91
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 116,
+            "target": 72,
+            "column": "name",
+            "value": "Grhl2 (interacts with) Zeb1"
+          },
+          {
+            "source": 116,
+            "target": 72,
+            "column": "Type",
+            "value": 2
+          },
+          {
+            "source": 116,
+            "target": 77,
+            "column": "name",
+            "value": "Grhl2 (interacts with) Krt5"
+          },
+          {
+            "source": 116,
+            "target": 77,
+            "column": "Type",
+            "value": 1
+          }
+        ]
+      },
+      "origin": "https://www.ndexbio.org/v3/networks/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf",
+      "license": "MIT (network rights: MIT license (MIT), holder The Jackson Laboratory)",
+      "version": "retrieved 2026-10-02"
+    },
+    {
+      "file": "authored/fragments.cx2",
+      "exercises": "hasFragments true: nodes in three blocks interleaved with edges, attributeDeclarations in two blocks",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "labels": [
+          "a",
+          "b",
+          "c",
+          "d"
+        ],
+        "edgeAttrs": [
+          {
+            "source": 2,
+            "target": 3,
+            "column": "interaction",
+            "value": "binds"
+          }
+        ],
+        "forbidCodes": [
+          "W_CX2_UNDECLARED_FRAGMENTS"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 keeps only the last attributeDeclarations block, so the first block's alias n is not resolved; the specification merges fragments in encounter order"
+    },
+    {
+      "file": "authored/fragments-undeclared.cx2",
+      "exercises": "an aspect in two blocks although hasFragments is false",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "warnings": [
+          "W_CX2_UNDECLARED_FRAGMENTS"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "a",
+          "b"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "a"
+          },
+          {
+            "id": 2,
+            "column": "name",
+            "value": "b"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/all-types.cx2",
+      "exercises": "all ten declared types on nodes, edges and the network, empty lists, -0.0",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "s",
+            "value": "one"
+          },
+          {
+            "id": 1,
+            "column": "l",
+            "value": 4294967296
+          },
+          {
+            "id": 1,
+            "column": "i",
+            "value": 7
+          },
+          {
+            "id": 1,
+            "column": "f",
+            "value": 1.25
+          },
+          {
+            "id": 2,
+            "column": "s",
+            "value": ""
+          },
+          {
+            "id": 2,
+            "column": "l",
+            "value": -5
+          },
+          {
+            "id": 2,
+            "column": "i",
+            "value": 0
+          },
+          {
+            "id": 2,
+            "column": "f",
+            "value": -0.0
+          }
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 2,
+            "column": "s",
+            "value": "e"
+          },
+          {
+            "source": 1,
+            "target": 2,
+            "column": "l",
+            "value": 1
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/defaults-falsy.cx2",
+      "exercises": "declared defaults 0, false, the empty string and the empty list, which apply to a node without values",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "count",
+            "value": 0
+          },
+          {
+            "id": 1,
+            "column": "flag",
+            "value": false
+          },
+          {
+            "id": 1,
+            "column": "note",
+            "value": ""
+          },
+          {
+            "id": 1,
+            "column": "tags",
+            "value": []
+          },
+          {
+            "id": 1,
+            "column": "label",
+            "value": "none"
+          },
+          {
+            "id": 2,
+            "column": "count",
+            "value": 5
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 tests `if default_value:`, so falsy defaults (0, false, the empty string, the empty list) are ignored; the specification says a missing attribute takes its declared default, whatever it is"
+    },
+    {
+      "file": "authored/alias-edge-cases.cx2",
+      "exercises": "an alias equal to its name, a full name used despite its alias, alias and full name on one element, an alias that is another attribute's name or alias, an alias and a default on a network attribute",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "n",
+            "value": "one"
+          },
+          {
+            "id": 1,
+            "column": "full",
+            "value": "by full name"
+          },
+          {
+            "id": 2,
+            "column": "full",
+            "value": "by alias"
+          }
+        ],
+        "warnings": [
+          "W_CX2_NETWORK_DECLARATION",
+          "E_CX2_ALIAS_CONFLICT",
+          "W_CX2_ALIAS_BYPASSED",
+          "W_DUPLICATE_ATTRIBUTE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 lets a later alias overwrite an earlier one silently and keeps a full name used despite its alias as a separate key; the specification forbids both, so they are reported and the first declaration wins"
+    },
+    {
+      "file": "authored/long-ids.cx2",
+      "exercises": "node and edge ids 0, negative, 2^53 + 1 and 2^63 - 1, kept exact as text; a long value beyond 2^53",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 4,
+        "edges": 2,
+        "nodeIds": [
+          0,
+          -7,
+          "9007199254740993",
+          "9223372036854775807"
+        ],
+        "edgeChecks": [
+          {
+            "source": "9007199254740993",
+            "target": "9223372036854775807"
+          }
+        ],
+        "nodeAttrs": [
+          {
+            "id": "9007199254740993",
+            "column": "big",
+            "value": 12345678901234567891
+          }
+        ],
+        "warnings": [
+          "W_PRECISION"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/big-id-after-safe-ones.cx2",
+      "exercises": "an id beyond 2^53 after 1,000 safe ones, read per id while streaming",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1001,
+        "edges": 1001,
+        "nodeIds": [
+          0,
+          999,
+          "18014398509481985"
+        ],
+        "warnings": [
+          "W_PRECISION"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/value-mismatch.cx2",
+      "exercises": "values of the wrong type: a numeric string in a double, 3.7 and 2^31 in an integer, \"true\" in a boolean, a scalar and mixed items in a list, \"NaN\" in a double (kept in a string), null with and without a default, 3.0 in an integer, -0",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 9,
+        "nodeAttrs": [
+          {
+            "id": 7,
+            "column": "s",
+            "value": "NaN"
+          },
+          {
+            "id": 8,
+            "column": "s",
+            "value": "default"
+          },
+          {
+            "id": 9,
+            "column": "i",
+            "value": 3
+          },
+          {
+            "id": 1,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 2,
+            "column": "i",
+            "value": null
+          },
+          {
+            "id": 3,
+            "column": "i",
+            "value": null
+          },
+          {
+            "id": 4,
+            "column": "b",
+            "value": null
+          },
+          {
+            "id": 5,
+            "column": "l",
+            "value": null
+          },
+          {
+            "id": 6,
+            "column": "l",
+            "value": null
+          },
+          {
+            "id": 7,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 8,
+            "column": "d",
+            "value": null
+          },
+          {
+            "id": 9,
+            "column": "d",
+            "value": 0
+          }
+        ],
+        "warnings": [
+          "E_BAD_VALUE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 truncates 3.7 to 3, reads any string other than \"true\" as false, converts \"3.5\" and \"NaN\" with float() and aborts on a list of the wrong shape; the specification requires the declared type, so each mismatch is E_BAD_VALUE and the cell is unset"
+    },
+    {
+      "file": "authored/undeclared-type.cx2",
+      "exercises": "the Python spelling float, an unknown type date (inferred from the values) and a declaration without d (read as string)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "ratio",
+            "value": 0.5
+          },
+          {
+            "id": 1,
+            "column": "when",
+            "value": "2026-10-02"
+          },
+          {
+            "id": 1,
+            "column": "plain",
+            "value": "text"
+          }
+        ],
+        "warnings": [
+          "W_UNKNOWN_ATTR_TYPE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 aborts on the unknown type date; the specification leaves it undefined, so graph-io infers the column from its values and reports the type"
+    },
+    {
+      "file": "authored/python-types.cx2",
+      "exercises": "the Python type spellings str, int, bool and float that ndex2 writes",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "forbidCodes": [
+          "W_UNKNOWN_ATTR_TYPE"
+        ],
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          1
+        ],
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "a",
+            "value": "x"
+          },
+          {
+            "id": 1,
+            "column": "b",
+            "value": 1
+          },
+          {
+            "id": 1,
+            "column": "c",
+            "value": true
+          },
+          {
+            "id": 1,
+            "column": "e",
+            "value": 2.5
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/status-failed.cx2",
+      "exercises": "status.success false: the document is incomplete",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_STATUS_FAILED"
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "sniffAs": "cx2",
+      "oracleDisagrees": "ndex2 stores the failed status and reads the elements; the specification says the document must not be used"
+    },
+    {
+      "file": "authored/status-warning.cx2",
+      "exercises": "status.success true with an error text: a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_STATUS_WARNING"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/status-malformed.cx2",
+      "exercises": "a status block with two elements and a non-boolean success",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "E_CX2_NO_STATUS",
+          "W_ASPECT_ORDER"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/status-missing.cx2",
+      "exercises": "no status block: error severity, the data kept",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "E_CX2_NO_STATUS"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 accepts a missing status; the specification makes it mandatory and says a consumer should treat it as an I/O error"
+    },
+    {
+      "file": "authored/coordinates.cx2",
+      "exercises": "a partial layout, x without y, z without x / y, numeric-string coordinates, an attribute named x, y 0",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              10.5,
+              -20,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "z",
+            "value": 3
+          },
+          {
+            "id": 1,
+            "column": "x",
+            "value": "an attribute named x"
+          },
+          {
+            "id": 4,
+            "column": "z",
+            "value": 7
+          },
+          {
+            "id": 6,
+            "role": "position",
+            "value": [
+              -3,
+              0,
+              0
+            ]
+          }
+        ],
+        "warnings": [
+          "W_CX2_PARTIAL_LAYOUT",
+          "E_BAD_VALUE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 stores numeric-string coordinates and half coordinates as given; the specification requires x and y together as numbers"
+    },
+    {
+      "file": "authored/cartesian-layout-legacy.cx2",
+      "exercises": "a CX1 cartesianLayout aspect in a CX2 file whose nodes carry no coordinates: used, y flipped",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              5,
+              -6,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              -1,
+              2,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "column": "z",
+            "value": 4
+          }
+        ],
+        "forbidCodes": [
+          "W_CX2_LEGACY_LAYOUT"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 keeps cartesianLayout as an opaque aspect; a reader that ignores it loses the layout of a file converted from CX1"
+    },
+    {
+      "file": "authored/cartesian-layout-ignored.cx2",
+      "exercises": "a CX1 cartesianLayout aspect next to node coordinates: kept, not applied",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              0,
+              0,
+              0
+            ]
+          }
+        ],
+        "warnings": [
+          "W_CX2_LEGACY_LAYOUT"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/version-2.1.cx2",
+      "exercises": "CXVersion 2.1: read with a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_CX2_MINOR_VERSION"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/version-number.cx2",
+      "exercises": "CXVersion as the number 2: read with a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_CX2_MINOR_VERSION"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/version-3.cx2",
+      "exercises": "CXVersion 3.0: refused",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CX2_VERSION"
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "sniffAs": "cx2",
+      "oracleDisagrees": "ndex2 accepts any version"
+    },
+    {
+      "file": "authored/cx1-named-cx2.cx2",
+      "exercises": "a CX version 1 document under a .cx2 name, read as CX2",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "fail",
+        "code": "E_CX2_NO_DESCRIPTOR"
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "options": {
+        "format": "cx2"
+      },
+      "sniffAs": "cx",
+      "oracleDisagrees": "ndex2 reads a CX1 file as an empty CX2 network"
+    },
+    {
+      "file": "authored/descriptor-key-order.cx2",
+      "exercises": "the Java writer's descriptor key order, hasFragments first",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "edges": 0,
+        "directed": true,
+        "nodeIds": [
+          1
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/bom.cx2",
+      "exercises": "a UTF-8 byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "caf\u00e9"
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/utf16.cx2",
+      "exercises": "UTF-16LE with a byte order mark",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "nodeAttrs": [
+          {
+            "id": 2,
+            "column": "name",
+            "value": "na\u00efve"
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/latin1.cx2",
+      "exercises": "bytes that are not UTF-8: read as windows-1252 with a warning",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "name",
+            "value": "caf\u00e9"
+          }
+        ],
+        "warnings": [
+          "W_ENCODING_FALLBACK"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/editor-properties-flat.cx2",
+      "exercises": "visualEditorProperties in the specification's flat form with a tableDisplayConfiguration",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 1,
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/dangling-bypass.cx2",
+      "exercises": "node and edge bypasses for ids that name nothing",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "NODE_FILL_COLOR",
+            "value": "#FF0000"
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 1,
+            "target": 2,
+            "column": "EDGE_WIDTH",
+            "value": 2
+          }
+        ],
+        "warnings": [
+          "W_DANGLING_REFERENCE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 stores bypasses for unknown ids; the specification requires them to name an element"
+    },
+    {
+      "file": "authored/edges-before-nodes.cx2",
+      "exercises": "the edges block before the nodes block",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "edges": 2,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2,
+          3
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          },
+          {
+            "source": 2,
+            "target": 3
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/declarations-after-nodes.cx2",
+      "exercises": "attributeDeclarations after the nodes it types",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "labels": [
+          "late"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "score",
+            "value": 2
+          }
+        ],
+        "warnings": [
+          "W_ASPECT_ORDER"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 resolves aliases only for declarations that precede the elements, so it reads the name under its alias n"
+    },
+    {
+      "file": "authored/one-and-string-one.cx2",
+      "exercises": "a node id written once as 1 and once as \"1\": one node, attributes merged; a string edge id",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "column": "a",
+            "value": 1
+          },
+          {
+            "id": 1,
+            "column": "b",
+            "value": 2
+          }
+        ],
+        "warnings": [
+          "W_ID_TEXT_TYPE",
+          "W_DUPLICATE_NODE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 checks for a duplicate before it casts the string id, so it keeps 1 and \"1\" as two nodes"
+    },
+    {
+      "file": "authored/unknown-element-key.cx2",
+      "exercises": "keys a node or an edge element does not define (label, selected, w)",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "warnings": [
+          "W_UNKNOWN_ELEMENT"
+        ],
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/dangling-edge.cx2",
+      "exercises": "an edge whose target names no node: E_UNKNOWN_NODE, the edge skipped (format default addMissingNodes false)",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "warnings": [
+          "E_UNKNOWN_NODE"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 keeps an edge with an unknown endpoint; NDEx and Cytoscape Web reject it"
+    },
+    {
+      "file": "authored/mangled-ids.cx2",
+      "exercises": "the graphty:originalId attribute the CX2 exporter writes under sanitizeIds mangle, restored as the ids",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 3,
+        "nodeIds": [
+          "GO:0008150",
+          "GO:0009987",
+          2
+        ],
+        "edgeChecks": [
+          {
+            "source": "GO:0009987",
+            "target": "GO:0008150"
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "roundTripFailure": "the CX2 exporter writes the specification's integer node ids, so it refuses string ids without sanitizeIds \"mangle\" (declared loss E_ID_CHARSET)"
+    },
+    {
+      "file": "authored/empty-network.cx2",
+      "exercises": "a document with no aspects at all: an empty network",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 0,
+        "edges": 0
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/block-errors.cx2",
+      "exercises": "a block with two keys, a member that holds a scalar, an element that is not an object, a single-object opaque aspect",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "warnings": [
+          "E_BAD_ASPECT_BLOCK"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02",
+      "oracleDisagrees": "ndex2 reads the first matching key of a two-key block and crashes on an element that is not an object; the specification allows one key per block and objects only"
+    },
+    {
+      "file": "authored/order-and-counts.cx2",
+      "exercises": "an aspect after the post-metadata and element counts that disagree with what was read",
+      "oracle": "spec",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 2,
+        "edges": 1,
+        "warnings": [
+          "W_ASPECT_ORDER",
+          "W_COUNT_MISMATCH"
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    },
+    {
+      "file": "authored/style-rules.cx2",
+      "exercises": "defaults, PASSTHROUGH and DISCRETE mappings, editor properties and a font-face bypass: per-element values as columns, style rules reported as a loss",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodeAttrs": [
+          {
+            "id": 1,
+            "role": "position",
+            "value": [
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "id": 1,
+            "column": "name",
+            "value": "a"
+          },
+          {
+            "id": 1,
+            "column": "level",
+            "value": 1
+          },
+          {
+            "id": 2,
+            "role": "position",
+            "value": [
+              100,
+              -50,
+              0
+            ]
+          },
+          {
+            "id": 2,
+            "column": "name",
+            "value": "b"
+          },
+          {
+            "id": 2,
+            "column": "level",
+            "value": 3
+          },
+          {
+            "id": 2,
+            "column": "NODE_SIZE",
+            "value": 60
+          }
+        ],
+        "warnings": [
+          "W_STYLES_NOT_IMPORTED"
+        ],
+        "nodes": 2,
+        "edges": 1,
+        "directed": true,
+        "nodeIds": [
+          1,
+          2
+        ],
+        "labels": [
+          "a",
+          "b"
+        ],
+        "edgeChecks": [
+          {
+            "source": 1,
+            "target": 2
+          }
+        ]
+      },
+      "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
+      "license": "MIT (authored for graph-io)",
+      "version": "2026-10-02"
+    }
+  ]
+}

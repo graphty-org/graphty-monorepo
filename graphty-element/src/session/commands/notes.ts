@@ -219,7 +219,10 @@ const noteMerge: UndoableDefinition<NoteMergeCommand> = {
         const plan = planMerge(read.notes, held, onConflict, () => mintNoteId(now));
         const total = ctx.state.notes.size + plan.added.length;
         if (total > 10_000) {
-            throw refuseNote("E_TOO_LARGE", "notes", "A session holds at most 10,000 notes.", { count: total });
+            throw refuseNote("E_TOO_LARGE", "notes", "A session holds at most 10,000 notes.", {
+                count: total,
+                limit: 10_000,
+            });
         }
 
         const title = sourceName(command);

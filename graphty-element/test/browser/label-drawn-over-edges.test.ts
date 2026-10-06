@@ -49,12 +49,6 @@ const WIDTH = 640;
 /** How tall it is. */
 const HEIGHT = 480;
 
-/** How many frames to render before reading the buffer. */
-const FRAMES = 30;
-
-/** How long to leave between frames so the work a frame started can land. */
-const FRAME_MS = 10;
-
 /** How many pixels in from the label's projected edge to start counting, past antialiasing. */
 const INSET = 4;
 
@@ -90,12 +84,15 @@ describe("text is drawn over the edges of the graph", () => {
      * @returns The pixels, four bytes each, bottom row first.
      */
     async function readFrame(): Promise<Uint8Array> {
-        for (let frame = 0; frame < FRAMES; frame++) {
-            graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // The element's own word that the picture is final -- the queue drained, the layout
+        // converged, the paint applied and every shader compiled -- then one more frame so
+        // the buffer read below is a frame of that picture.
+        await graph.waitForStableFrame();
+        // A tooltip is the reader's, and the element's stable frame deliberately says nothing about
+        // what a reader does, so ask the scene too: it resolves once every mesh on screen -- the
+        // tooltip's plane and its texture included -- is ready to draw.
+        await graph.scene.whenReadyAsync();
+        graph.scene.render();
 
         const { engine } = graph;
 

@@ -35,11 +35,13 @@ The Web Component exposes these properties for declarative configuration:
 
 ### Display Properties
 
-| Property                 | Attribute                  | Type                           | Description                                                                                                                           |
-| ------------------------ | -------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode                                                                                                                        |
-| `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image                                                                                                      |
-| `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out. Unset (the default) frames the graph to fit; set, it places the camera and turns automatic framing off |
+| Property                 | Attribute                  | Type                           | Description                                                                                                                                           |
+| ------------------------ | -------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'` | Rendering mode                                                                                                                                        |
+| `background`             | `background`               | `GraphBackgroundConfig`        | A flat colour, or a skybox image                                                                                                                      |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                       | How far the camera starts out. Unset (the default) frames the graph to fit; set, it places the camera and turns automatic framing off                 |
+| `autoFrame`              | `auto-frame`               | `boolean`                      | Frame the graph after each load and layout change. On by default; `auto-frame="false"` leaves the camera where it is. `zoomToFit()` frames either way |
+| `labelDeclutter`         | `label-declutter`          | `boolean`                      | Hide a node label that would overlap another until the reader zooms in. Off by default; a view preference, not saved in a project                     |
 
 What nodes and edges look like is not a property: it is the layer stack on `element.session.styles`.
 See the [styling guide](../guide/styling).
@@ -102,15 +104,18 @@ The Web Component provides these methods for imperative control:
 
 ### Camera Control
 
-| Method                              | Parameters                              | Returns         | Description              |
-| ----------------------------------- | --------------------------------------- | --------------- | ------------------------ |
-| `getCameraState()`                  | -                                       | `CameraState`   | Get camera state         |
-| `setCameraState(state, options?)`   | `CameraState`, `CameraAnimationOptions` | `Promise<void>` | Set camera state         |
-| `setCameraPosition(pos, options?)`  | `{x, y, z}`, `CameraAnimationOptions`   | `Promise<void>` | Set camera position (3D) |
-| `setCameraTarget(target, options?)` | `{x, y, z}`, `CameraAnimationOptions`   | `Promise<void>` | Set camera target (3D)   |
-| `setCameraZoom(zoom, options?)`     | `number`, `CameraAnimationOptions`      | `Promise<void>` | Set zoom (2D)            |
-| `setCameraPan(pan, options?)`       | `{x, y}`, `CameraAnimationOptions`      | `Promise<void>` | Set pan (2D)             |
-| `resetCamera(options?)`             | `CameraAnimationOptions`                | `Promise<void>` | Reset to default         |
+| Method                              | Parameters                                                           | Returns         | Description                   |
+| ----------------------------------- | -------------------------------------------------------------------- | --------------- | ----------------------------- |
+| `getCameraState()`                  | -                                                                    | `CameraState`   | Get camera state              |
+| `setCameraState(state, options?)`   | `CameraState`, `CameraAnimationOptions`                              | `Promise<void>` | Set camera state              |
+| `setCameraPosition(pos, options?)`  | `{x, y, z}`, `CameraAnimationOptions`                                | `Promise<void>` | Set camera position (3D)      |
+| `setCameraTarget(target, options?)` | `{x, y, z}`, `CameraAnimationOptions`                                | `Promise<void>` | Set camera target (3D)        |
+| `setCameraZoom(zoom, options?)`     | `number`, `CameraAnimationOptions`                                   | `Promise<void>` | Set zoom (2D)                 |
+| `setCameraPan(pan, options?)`       | `{x, y}`, `CameraAnimationOptions`                                   | `Promise<void>` | Set pan (2D)                  |
+| `resetCamera(options?)`             | `CameraAnimationOptions`                                             | `Promise<void>` | Reset to default              |
+| `zoomStep(direction, options?)`     | `"in" \| "out"`, `CameraAnimationOptions`                            | `Promise<void>` | One zoom step (2D and 3D)     |
+| `zoomToNodes(ids, options?)`        | `string \| number \| (string \| number)[]`, `CameraAnimationOptions` | `Promise<void>` | Frame these nodes (2D and 3D) |
+| `zoomToSelection(options?)`         | `CameraAnimationOptions`                                             | `Promise<void>` | Look at the selected nodes    |
 
 ### Camera Presets
 

@@ -91,9 +91,10 @@ describe("HistogramRow", () => {
 
             const [two, three] = screen.getAllByTestId("histogram-bar");
             expect(three).toHaveAttribute("data-highlighted", "true");
-            expect(three.style.background).toContain("primary-color-filled");
+            expect(three.style.background).toBe(PANEL_INK.ACCENT);
             expect(two).toHaveAttribute("data-highlighted", "false");
-            expect(two.style.background).toBe(PANEL_INK.BORDER);
+            // Bars read in the secondary icon ink (spec 9.8); the divider ink is too faint.
+            expect(two.style.background).toBe("var(--cm-icon-secondary)");
         });
 
         it("keeps a non-zero count visible however small it is beside the tallest bin", () => {
@@ -169,9 +170,9 @@ describe("HistogramRow", () => {
             const max = screen.getByTestId("chart-axis-max");
             expect(min).toHaveTextContent("2");
             expect(max).toHaveTextContent("4");
-            expect(min.style.color).toBe(PANEL_INK.CHROME);
-            expect(max.style.color).toBe(PANEL_INK.CHROME);
-            expect(min.style.fontSize).toContain("font-size-sm");
+            // 11/16 450 secondary, from the cm-chart-text class.
+            expect(min).toHaveClass("cm-chart-text");
+            expect(max).toHaveClass("cm-chart-text");
         });
 
         it("stands on a 1px baseline", () => {
@@ -278,9 +279,7 @@ describe("HistogramRow", () => {
         });
 
         it("announces the drawing and its axis ends when a background run fills them in", () => {
-            renderChart(
-                <HistogramRow label="Links per node" busy={false} bins={DEGREES} minLabel="2" maxLabel="4" />,
-            );
+            renderChart(<HistogramRow label="Links per node" busy={false} bins={DEGREES} minLabel="2" maxLabel="4" />);
 
             const live = screen.getByTestId("histogram-chart");
             expect(live).toHaveAttribute("aria-live", "polite");
@@ -385,7 +384,7 @@ describe("SparklineRow", () => {
             expect(screen.getByTestId("sparkline-row")).toHaveStyle({ height: "32px" });
         });
 
-        it("normalises the series over its own extremes", () => {
+        it("normalizes the series over its own extremes", () => {
             renderChart(<SparklineRow values={[0, 5, 10]} minLabel="Tick 1" maxLabel="Tick 3" />);
 
             const polyline = screen.getByTestId("sparkline-plot").querySelector("polyline");
@@ -421,8 +420,8 @@ describe("SparklineRow", () => {
             const max = screen.getByTestId("chart-axis-max");
             expect(min).toHaveTextContent("Tick 1");
             expect(max).toHaveTextContent("Tick 20");
-            expect(min.style.color).toBe(PANEL_INK.CHROME);
-            expect(max.style.color).toBe(PANEL_INK.CHROME);
+            expect(min).toHaveClass("cm-chart-text");
+            expect(max).toHaveClass("cm-chart-text");
         });
 
         it("stands on the same 1px baseline the histogram does", () => {
@@ -440,7 +439,9 @@ describe("SparklineRow", () => {
 
     describe("accessibility", () => {
         it("is one named image rather than nothing at all", () => {
-            renderChart(<SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />,
+            );
 
             const images = screen.getAllByRole("img");
             expect(images).toHaveLength(1);
@@ -450,7 +451,9 @@ describe("SparklineRow", () => {
         });
 
         it("hides the marks themselves, which are a drawing and not a picture of their own", () => {
-            renderChart(<SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={SETTLING} minLabel="Tick 1" maxLabel="Tick 20" />,
+            );
 
             const plot = screen.getByTestId("sparkline-plot");
             expect(plot).toHaveAttribute("aria-hidden", "true");
@@ -458,7 +461,9 @@ describe("SparklineRow", () => {
         });
 
         it("carries a visually hidden table of every value in the series", () => {
-            renderChart(<SparklineRow label="Layout settling" values={[92, 71, 55]} minLabel="Tick 1" maxLabel="Tick 3" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={[92, 71, 55]} minLabel="Tick 1" maxLabel="Tick 3" />,
+            );
 
             const table = screen.getByTestId("sparkline-values");
             expect(table.tagName).toBe("TABLE");
@@ -518,7 +523,9 @@ describe("SparklineRow", () => {
         });
 
         it("keeps the series the right way round when text runs left to right", () => {
-            renderChart(<SparklineRow label="Layout settling" values={[0, 5, 10]} minLabel="Tick 1" maxLabel="Tick 3" />);
+            renderChart(
+                <SparklineRow label="Layout settling" values={[0, 5, 10]} minLabel="Tick 1" maxLabel="Tick 3" />,
+            );
 
             const polyline = screen.getByTestId("sparkline-plot").querySelector("polyline");
             expect(polyline).toHaveAttribute("points", "0,100 50,50 100,0");
@@ -631,7 +638,7 @@ describe("MetricRow", () => {
             const track = screen.getByTestId("metric-row-bar");
             const fill = screen.getByTestId("metric-row-fill");
             expect(track.style.background).toBe(PANEL_INK.SURFACE);
-            expect(fill.style.getPropertyValue("--progress-section-color")).toContain("primary-color-filled");
+            expect(fill.style.getPropertyValue("--progress-section-color")).toBe(PANEL_INK.ACCENT);
         });
 
         it("fills the track to the percentile", () => {
@@ -643,7 +650,9 @@ describe("MetricRow", () => {
         it("clamps a percentile above 100 rather than drawing past the track", () => {
             renderChart(<MetricRow name="Bridges" percentile={140} value="0.31" />);
 
-            expect(screen.getByTestId("metric-row-fill").style.getPropertyValue("--progress-section-size")).toBe("100%");
+            expect(screen.getByTestId("metric-row-fill").style.getPropertyValue("--progress-section-size")).toBe(
+                "100%",
+            );
             expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
         });
 
@@ -680,7 +689,7 @@ describe("MetricRow", () => {
         });
 
         it("leaves the whole name reachable when the row is too narrow to draw it", () => {
-            const long = "Betweenness centrality, normalised over the largest component";
+            const long = "Betweenness centrality, normalized over the largest component";
             renderChart(<MetricRow name={long} percentile={41} value="0.04" />);
 
             const name = screen.getByTestId("metric-row-name");

@@ -10,6 +10,7 @@
  * enforces it.
  */
 
+export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
@@ -17,16 +18,33 @@ export type { DefaultableLimits } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
+export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 export type {
+    ColumnHistogram,
+    ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DraftColumn,
+    DraftRow,
+    DraftRowFilter,
+    DraftRowOptions,
+    DraftTable,
+    EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
     ElementSession,
+    Endpoint,
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
     GraphSession,
     GraphStatistics,
     HistoryCause,
@@ -34,8 +52,17 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LoadChoices,
+    LoadDraft,
+    LoadMapping,
+    LoadMappingRead,
+    Neighbor,
+    NeighborOptions,
+    NeighborPage,
+    NeighborSort,
     NodeRecord,
     NodeRecordInput,
+    PageColumn,
     PendingId,
     PendingStep,
     PositionEntry,
@@ -43,6 +70,13 @@ export type {
     ProjectConfigPatch,
     ProjectSlice,
     ReadonlyElementPositions,
+    RecordPage,
+    RecordPageOptions,
+    RecordSort,
+    ResultCell,
+    ResultColumn,
+    ResultColumnDescriptor,
+    ResultSort,
     RowUpdate,
     SessionAttributes,
     SessionCatalogApi,
@@ -58,6 +92,8 @@ export type {
     SessionStatus,
     SessionViews,
     StyleProblem,
+    TableMapping,
+    TableMappingRead,
     TransactionOptions,
     TransactionScope,
 } from "./types";

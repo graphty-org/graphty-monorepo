@@ -1,0 +1,7 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"nodes":{"graphty:originalId":{"d":"string"},"name":{"d":"string"}}}]},
+{"nodes":[{"id":0,"v":{"graphty:originalId":"GO:0008150","name":"biological_process"}},{"id":1,"v":{"graphty:originalId":"GO:0009987"}},{"id":2}]},
+{"edges":[{"id":0,"s":1,"t":0},{"id":1,"s":2,"t":0}]},
+{"status":[{"error":"","success":true}]}
+]

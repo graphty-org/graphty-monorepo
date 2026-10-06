@@ -11,12 +11,13 @@ import {
     FormatRegistry,
     importAllGraphs,
     importGraph,
+    listGraphs,
     registry,
     sniff,
     UNKNOWN_FORMAT_CODE,
 } from "../src/registry.js";
 import { GRAPH_FORMATS, SNIFF_HEAD_BYTES } from "../src/sniff.js";
-import { type GraphImporter, ImportError, type ImportInput } from "../src/types.js";
+import { type GraphImporter, type GraphListing, ImportError, type ImportInput } from "../src/types.js";
 import {
     byteChunks,
     byteStream,
@@ -44,15 +45,18 @@ function edges(s: GraphSnapshot): string[] {
 }
 
 describe("FormatRegistry", () => {
-    it("holds the eight built-in formats in GRAPH_FORMATS order, importers and exporters alike", () => {
+    it("holds the built-in formats in GRAPH_FORMATS order; every one is read and written", () => {
         expect(registry).toBeInstanceOf(FormatRegistry);
         expect(registry.formats()).toEqual([...GRAPH_FORMATS]);
         expect(registry.importers().map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        expect(registry.exporters().map((e) => e.format)).toEqual([...GRAPH_FORMATS]);
+        const written = GRAPH_FORMATS;
+        expect(registry.exporters().map((e) => e.format)).toEqual(written);
         for (const format of GRAPH_FORMATS) {
             expect(registry.hasImporter(format)).toBe(true);
             expect(registry.hasExporter(format)).toBe(true);
             expect(registry.importer(format).format).toBe(format);
+        }
+        for (const format of written) {
             expect(registry.exporter(format).format).toBe(format);
         }
         expect(createRegistry()).not.toBe(registry);
@@ -60,7 +64,11 @@ describe("FormatRegistry", () => {
     });
 
     it("rejects an unknown format with E_UNSUPPORTED naming the known ones", () => {
-        for (const fn of [(): unknown => registry.importer("nope"), (): unknown => registry.exporter("nope")]) {
+        const written = GRAPH_FORMATS;
+        for (const [fn, supported] of [
+            [(): unknown => registry.importer("nope"), GRAPH_FORMATS],
+            [(): unknown => registry.exporter("nope"), written],
+        ] as const) {
             let caught: unknown;
             try {
                 fn();
@@ -70,7 +78,7 @@ describe("FormatRegistry", () => {
             expect(caught).toBeInstanceOf(GraphFormatError);
             expect(caught).toMatchObject({
                 code: "E_UNSUPPORTED",
-                details: { option: "format", found: "nope", supported: [...GRAPH_FORMATS] },
+                details: { option: "format", found: "nope", supported: [...supported] },
             });
         }
         expect(registry.hasImporter("nope")).toBe(false);
@@ -230,7 +238,7 @@ describe("importGraph (design 8.4)", () => {
         expect(merged.snapshot.edgeList().weights?.[0]).toBe(3);
         expect(merged.freeze.mergedEdges).toBe(1);
         expect(merged.freeze.droppedSelfLoops).toBe(1);
-        expect(merged.report.issues).toEqual([]);
+        expect(merged.report.issues.map((i) => i.code)).toEqual(["W_EDGES_MERGED", "W_SELF_LOOPS_DROPPED"]);
         const strict = await importGraph("source,target\na,ghost\n", {
             format: "csv",
             addMissingNodes: false,
@@ -300,6 +308,13 @@ describe("importAllGraphs", () => {
                 one.report.issues.map((i) => i.code),
                 format,
             ).toContain("W_MULTIPLE_GRAPHS");
+            // a graph chosen by graphIndex is not a default the caller needs warning about
+            const chosen = await importGraph(utf8(text), { format, graphIndex: 1 });
+            expect(chosen.snapshot.nodeCount, format).toBe(nodes[1]);
+            expect(
+                chosen.report.issues.map((i) => i.code),
+                format,
+            ).not.toContain("W_MULTIPLE_GRAPHS");
         }
     });
 
@@ -309,6 +324,74 @@ describe("importAllGraphs", () => {
         expect(all[0].sniff?.format).toBe("csv");
         expect(all[0].snapshot.edgeCount).toBe(1);
         await expect(importAllGraphs(utf8("digraph { a -> }"), { format: "dot" })).rejects.toBeInstanceOf(ImportError);
+    });
+});
+
+describe("listGraphs", () => {
+    const LISTING: readonly GraphListing[] = [
+        { index: 0, name: "first", nodes: 2, edges: 1 },
+        { index: 1, name: null, nodes: null, edges: null },
+    ];
+
+    /**
+     * A registry holding one importer that lists the graphs of what it reads, recording its calls.
+     * @returns the registry and the recorded input text and options
+     */
+    function listingRegistry(): { custom: FormatRegistry; calls: { text: string; options: unknown }[] } {
+        const calls: { text: string; options: unknown }[] = [];
+        const lister: GraphImporter = {
+            format: "multi",
+            extensions: [".multi"],
+            mimeTypes: [],
+            sniff: (head) => (new TextDecoder().decode(head).startsWith("MULTI") ? 1 : 0),
+            import: () => Promise.reject(new Error("not called")),
+            async listGraphs(input, options) {
+                let text = "";
+                for await (const chunk of input as AsyncIterable<string | Uint8Array>) {
+                    text += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
+                }
+                calls.push({ text, options });
+                return LISTING;
+            },
+        };
+        return { custom: new FormatRegistry().registerImporter(lister).registerImporter(csvImporter), calls };
+    }
+
+    it("sniffs the input and asks its importer for the listing, with the importer's options only", async () => {
+        const { custom, calls } = listingRegistry();
+        const text = `MULTI ${"x".repeat(SNIFF_HEAD_BYTES * 2)}`;
+        expect(await custom.listGraphs(byteChunks(new TextEncoder().encode(text), 100), { zAs: "column" })).toBe(
+            LISTING,
+        );
+        expect(calls).toEqual([{ text, options: { zAs: "column" } }]);
+        expect(await custom.listGraphs(byteStream(new TextEncoder().encode(text), 100), { format: "multi" })).toBe(
+            LISTING,
+        );
+        expect(calls[1].options).toEqual({});
+    });
+
+    it("answers null for a format whose importer does not list its graphs, and closes the input", async () => {
+        const { custom } = listingRegistry();
+        let cancelled = false;
+        const bytes = new TextEncoder().encode(`source,target\n${"a,b\n".repeat(SNIFF_HEAD_BYTES)}`);
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller): void {
+                controller.enqueue(bytes.subarray(0, SNIFF_HEAD_BYTES * 2));
+            },
+            cancel(): void {
+                cancelled = true;
+            },
+        });
+        expect(await custom.listGraphs(stream, { filename: "x.csv" })).toBeNull();
+        expect(cancelled).toBe(true);
+        expect(await listGraphs("source,target\na,b\n", { format: "csv" })).toBeNull();
+    });
+
+    it("fails like importGraph when no importer recognises the input", async () => {
+        const { custom } = listingRegistry();
+        await expect(custom.listGraphs("???")).rejects.toMatchObject({
+            report: { issues: [{ code: UNKNOWN_FORMAT_CODE }] },
+        });
     });
 });
 
@@ -358,5 +441,69 @@ describe("exportGraph / exportGraphToString / checkExport (design 8.5)", () => {
         expect(sniff({ filename: "graph.gexf" })?.format).toBe("gexf");
         expect(sniff({ head: '*Vertices 2\n1 "a"\n2 "b"\n*Edges\n1 2\n' })?.format).toBe("pajek");
         expect(sniff({})).toBeNull();
+    });
+});
+
+describe("choosing a graph and refusing plain text", () => {
+    const dot = "digraph first { a -> b }\ndigraph second { c -> d; d -> e }\ndigraph third { x }\n";
+
+    it("reads the graph graphIndex or graphName names from a format that does not list its graphs", async () => {
+        const second = await importGraph(dot, { format: "dot", graphIndex: 1 });
+        expect(second.snapshot.meta.name).toBe("second");
+        expect(second.snapshot.edgeCount).toBe(2);
+        expect((await importGraph(dot, { graphName: "third" })).snapshot.nodeCount).toBe(1);
+        const paj = "*Network one\n*Vertices 1\n1 a\n*Network two\n*Vertices 2\n1 x\n2 y\n";
+        expect((await importGraph(paj, { format: "pajek", graphName: "two" })).snapshot.nodeCount).toBe(2);
+    });
+
+    it("fails loudly on a choice that names no graph", async () => {
+        for (const choice of [{ graphIndex: 7 }, { graphName: "nope" }]) {
+            const err = await importGraph(dot, { format: "dot", ...choice }).catch((e: unknown) => e);
+            expect(err).toBeInstanceOf(ImportError);
+            expect((err as ImportError).issue?.code).toBe("E_GRAPH_NOT_FOUND");
+        }
+    });
+
+    it("refuses a sentence instead of reading it as a CSV edge list", async () => {
+        const err = await importGraph("hello world this is not a graph").catch((e: unknown) => e);
+        expect((err as ImportError).issue?.code).toBe(UNKNOWN_FORMAT_CODE);
+    });
+
+    it("detects CSV from an endpoint header even when a later row is short", async () => {
+        const { format, report } = await importGraph("source,target\na,b\nc\n");
+        expect(format).toBe("csv");
+        expect(report.issues.map((i) => i.code)).toEqual(["E_CSV_FIELD_COUNT"]);
+    });
+
+    it("lets a file extension beat a weak content guess", async () => {
+        const err = await importGraph("This is a text file, not a session", { filename: "not-a-zip.cys" }).catch(
+            (e: unknown) => e,
+        );
+        expect((err as ImportError).issue?.code).toBe("E_CYS_NOT_ZIP");
+        expect(sniff({ filename: "x.cys", head: "a,b\nc,d\n" })?.format).toBe("cys");
+        expect(sniff({ head: "a,b\nc,d\n" })?.format).toBe("csv");
+    });
+});
+
+describe("importGraph option and error shapes", () => {
+    it("names an import option value it cannot use in details.option, like an export option", async () => {
+        const err = await importGraph("a,b\n", { format: "csv", duplicateEdges: "average" as "keep" }).catch(
+            (e: unknown) => e,
+        );
+        expect(err).toBeInstanceOf(GraphFormatError);
+        expect((err as GraphFormatError).code).toBe("E_UNSUPPORTED");
+        expect((err as GraphFormatError).details).toEqual({ option: "duplicateEdges", found: "average" });
+        expect((err as GraphFormatError).message).toBe(
+            'option duplicateEdges: "average" is not one of the values it takes',
+        );
+    });
+
+    it("keeps an ImportError's report out of its enumerable properties, so printing one stays short", async () => {
+        const err = await importGraph("a,b\nc\n", { format: "csv", errorLimit: 0 }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ImportError);
+        const importError = err as ImportError;
+        expect(Object.keys(importError)).not.toContain("report");
+        expect(importError.report.errorCount).toBe(1);
+        expect(importError.message).toBe("error limit of 0 exceeded: line 2: 1 field, expected 2");
     });
 });

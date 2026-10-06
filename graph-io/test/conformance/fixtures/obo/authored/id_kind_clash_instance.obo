@@ -1,0 +1,10 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+name: term
+
+[Instance]
+id: X:1
+name: instance

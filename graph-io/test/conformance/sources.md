@@ -1138,3 +1138,386 @@ Items that are a public-API decision, not a bug:
 - whether a multi-graph DOT, `.paj` or JGF file returns a list;
 - whether an importer may fall back from UTF-8 to Latin-1 with a warning, versus requiring an
   explicit `encoding` option.
+
+---
+
+## 11. XGMML (`fixtures/xgmml/`)
+
+Research: `design/graph-io/cytoscape-and-obo/research-xgmml.md` (the dialects of section 2, the
+feature inventory of section 3, the mapping of section 4 and the error table of section 5);
+design section 1.1. Specification: the XGMML 1.0 draft of 2000-10-06 (archived:
+https://web.archive.org/web/20051226113401/http://www.cs.rpi.edu/~puninj/XGMML/draft-xgmml-20001006.html)
+and its 2001-06-27 DTD. The reference implementation is Cytoscape's reader and writer
+(https://github.com/cytoscape/cytoscape-impl/tree/develop/io-impl/impl/src/main/java/org/cytoscape/io/internal/read/xgmml,
+pinned at 208c1015e565ac55f6a78c2a23aa8196a7cf28ae).
+
+Oracle: Cytoscape 3.10.5 through CyREST, run by the manually dispatched workflow
+`.github/workflows/conformance-cytoscape-oracle.yml` (design section 6.3). Until its first run
+every expectation is hand-written from the draft, the DTD and the research (`"oracle": "spec"`).
+The fixtures where the specification overrules Cytoscape (the root `directed` attribute, numeric
+ids, whole-file aborts, the no-namespace refusal, unknown wrappers, dangling edges, collapsed
+groups) carry `oracleDisagrees`.
+
+Every file was retrieved on 2026-10-02. SHA-256 of the bytes committed:
+
+| Fixture                                       | Origin                                                                                                                                                                                                             | License (where stated)                                                        | SHA-256                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `cytoscape-impl/simple.xgmml`                 | https://github.com/cytoscape/cytoscape-impl/blob/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/xgmml/simple.xgmml                                                              | LGPL-2.1 (cytoscape-impl LICENSE); test-only                                  | `6becfe699115aa2127855cb7ede62e3bf43589052f76df33f96e3c2ebee2c5ce` |
+| `cytoscape-impl/simple_3.3.xgmml`             | same tree, `simple_3.3.xgmml`                                                                                                                                                                                      | LGPL-2.1, test-only                                                           | `fdde19ff576ea8cdecaf6776af6309f6961d85724fa62b7c99d39914fdce1c24` |
+| `cytoscape-impl/listAtt.xgmml`                | same tree, `listAtt.xgmml`                                                                                                                                                                                         | LGPL-2.1, test-only                                                           | `14d11e8b82289a15a08379d3872250f5165522e5949bcb1e711ea61d9fb4ff65` |
+| `cytoscape-impl/hiddenAtt.xgmml`              | same tree, `hiddenAtt.xgmml`                                                                                                                                                                                       | LGPL-2.1, test-only                                                           | `9dd5d204fdbb2763b6ace710cb24911be0c4b3b7feee272ace95fccfa25afdef` |
+| `cytoscape-impl/suid_metadata.xgmml`          | same tree, `suid_metadata.xgmml`                                                                                                                                                                                   | LGPL-2.1, test-only                                                           | `b2f6667f2144ef35c8c12764480ad59bd7340b7925f28af8456c8faa9a396d57` |
+| `cytoscape-impl/bare_ampersands.xgmml`        | same tree, `bare_ampersands.xgmml`                                                                                                                                                                                 | LGPL-2.1, test-only                                                           | `3111ed1ad601200dd0760a6c4c021cb325e93600889a11fafa3829b5e410a17d` |
+| `cytoscape-impl/empty.xgmml`                  | same tree, `empty.xgmml`                                                                                                                                                                                           | LGPL-2.1, test-only                                                           | `5fee3de28b7de2d30e7c80ed78c2ea3207ceac5529246ce2fbc034e4ad30ef72` |
+| `cytoscape-impl/empty_DTD.xgmml`              | same tree, `empty_DTD.xgmml`                                                                                                                                                                                       | LGPL-2.1, test-only                                                           | `0535305df17298a36a4858e87511148d7159f1ba90c3f36be6bbd466bad978d5` |
+| `cytoscape-impl/INVALID.xgmml`                | same tree, `INVALID.xgmml`                                                                                                                                                                                         | LGPL-2.1, test-only                                                           | `725d0a421514e02067c0ec52465723505cd50ce4c99ebe8f52841227cc16ed2c` |
+| `cytoscape-impl/group_2x_collapsed.xgmml`     | same tree, `group_2x_collapsed.xgmml`                                                                                                                                                                              | LGPL-2.1, test-only                                                           | `5b29cc2182246881d4a2ef3ae72c41979ff69c48b3be2e3a1387c8a4d87e8c80` |
+| `cytoscape-impl/group_2x_expanded.xgmml`      | same tree, `group_2x_expanded.xgmml`                                                                                                                                                                               | LGPL-2.1, test-only                                                           | `236a32419730692203e8dd8c568221d392c10e5ecd3650c27e5950d4857a9038` |
+| `cytoscape-impl/nested_groups_283.xgmml`      | same tree, `nested_groups_283.xgmml`                                                                                                                                                                               | LGPL-2.1, test-only                                                           | `626b762e065ab8b72cd89d25d7154fc9794eda52144d679ce9c1b116b655bd68` |
+| `cytoscape-impl/galFiltered.xgmml`            | same tree, `galFiltered.xgmml`                                                                                                                                                                                     | LGPL-2.1, test-only                                                           | `357c2bf4b2046773fae4a407285a6d95c5970cce53ef290fe7ac28d08ac2635c` |
+| `cytoscape-impl/t3/Module_Overview.xgmml`     | https://github.com/cytoscape/cytoscape-impl/blob/208c1015e565ac55f6a78c2a23aa8196a7cf28ae/io-impl/impl/src/test/resources/testData/NNFData/t3.cys, entry `CytoscapeSession-2009_11_19-13_37/Module_Overview.xgmml` | LGPL-2.1, test-only                                                           | `3a98cabcc86cfc4144f3d5900091a5d84e624d825e4823240e2cb208ef371be2` |
+| `cytoscape-impl/t3/M1.xgmml`                  | the same session, entry `M1.xgmml`                                                                                                                                                                                 | LGPL-2.1, test-only                                                           | `4fd347cf325942f6489f4a4a2712da4c6afcaaa54372a9e72822341de2ebe2d7` |
+| `cytoscape-impl/t3/M2.xgmml`                  | the same session, entry `M2.xgmml`                                                                                                                                                                                 | LGPL-2.1, test-only                                                           | `4bd2ae4289846c6298ef52640766e0fbfd6c51a5f9cc6f3e9ffa984ab0e0997f` |
+| `cytoscape-impl/t3/M3.xgmml`                  | the same session, entry `M3.xgmml`                                                                                                                                                                                 | LGPL-2.1, test-only                                                           | `3742ffa43f195f886647478cff7a326c70812adba97407b42d0b88dbf3c341cb` |
+| `leovan/yeast_perturbation.xgmml`             | https://github.com/leovan/xgmml/blob/c3cfe0b8234e4f1b4b8bb3ecd9bdf12eb9ce0a75/data/tests/yeast_perturbation.xgmml                                                                                                  | MIT (leovan/xgmml LICENSE); data Ideker et al., Science 292:929 (2001)        | `1117d885e4cd3f8c58445fd577beff1b213d471b996ba21d95b533ee453ee7de` |
+| `efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml` | https://github.com/allie-walker/Natural-product-function/blob/7f86fbc26db47f741a641d5d23470b45bc9c87af/SSN/20920_3-oxoacyl_c_20_full_ssn.xgmml                                                                     | MIT (repository LICENSE); EFI-EST, Zallot et al., Biochemistry 58:4169 (2019) | `b032acde05a875b0a00e29a2eddb123dfab6f3318c12c5b582a3a82593906786` |
+| `ngscheckmate/test.out.xgmml`                 | https://github.com/parklab/NGSCheckMate/blob/ef7a38c51dadbd4ef5b6b6db60775f239926f0a8/graph/test.out.xgmml                                                                                                         | MIT (repository LICENSE)                                                      | `b91d43559985c7fd581cb05d48facae573c9d89e569f699c30ea69014edb31bf` |
+| `vplg/3k6d_A_albe_PG.xml`                     | https://github.com/dfsp-spirit/vplg/blob/aa8bf6d6692f4fd5d4606cf4a4c5d7c668b99987/bk/bk_protsim/Data/Raw/k6/3k6d/A/3k6d_A_albe_PG.xml                                                                              | GPL-2.0-or-later (repository LICENSE); test-only                              | `c9cf94d440895fc213a4981cb901bb1f382d4892e050b89088bd820dd0ee29dd` |
+
+`authored/*.xgmml` (56 files) are written by `tools/make_xgmml_fixtures.py` (MIT, authored): the
+draft's examples D.1 to D.4 re-authored from the specification's structure (not its prose), the
+edge cases of research section 7 #22, the 2.x `type="map"`, `cy:hidden` spellings, a list att
+with a value, a 3.x nested-network pointer cycle, a group membership cycle, and session-network
+and session-view equivalents of `subnetworks.cys` and `nestedGroups_expanded.cys` (whose
+repository states no license, so they are reproduced, not copied). Rerun the script after
+changing it.
+
+The unit-test corpus `test/corpus/xgmml/` and `test/corpus/malformed/xgmml/` are written by the
+same script; `karate.xgmml` is Zachary's karate club built from `test/corpus/gml/karate.gml`.
+
+Not committed: the 25.8 MB EFI-EST network
+(`SSN/20870_acyl_transferase_pfam_80_full_ssn.xgmml` of the same repository, MIT), research #15.
+
+## 12. CX version 1 (`fixtures/cx/`)
+
+Research date: 2026-10-02. The feature and error inventory is
+`design/graph-io/cytoscape-and-obo/research-cx.md`; the mapping is section 1.2 of `design.md` in
+the same folder.
+
+### 12.1 Specification and readers
+
+- CX Data Model (NDEx, last updated 2022-12-13): https://home.ndexbio.org/data-model/ ; the same
+  text as Cytoscape Exchange Format Specification version 1:
+  https://cytoscape.org/cx/specification/cytoscape-exchange-format-specification-(version-1)/ .
+  There is no JSON Schema for CX1.
+- Oracle: ndex2 3.12.0 (BSD-3-Clause), `ndex2.create_nice_cx_from_raw_cx`, through
+  `tools/oracle_cx.py`, which types the values by the CX data-type table and Cytoscape's value
+  rule (ndex2 leaves them as written). It runs in the same Python as the CX2 oracle (section 13.1):
+  `tmp/cx/venv/bin/python test/conformance/tools/oracle.py cx`.
+- NiceCX is the root network: it does not split a collection, reads only the aspects metaData
+  names, keeps duplicate ids and dangling edges and ignores the status, so those fixtures are
+  hand-written (`"oracle": "spec"`) and say why in `oracleDisagrees` (research-cx.md section 7.3).
+- Second opinions read from source, not run: ndex-object-model `CxElementReader2`, NDEx's
+  `CXNetworkLoader`, Cytoscape's cx-support (`CxUtil.parseValue`, `NiceCyRootNetwork`).
+
+### 12.2 Real files
+
+Each file is copied unchanged. NDEx regenerates CX on request, so the NDEx copies are pinned by
+their SHA-256 here, never re-fetched. The CC BY-SA 4.0 networks are test-only (`test/` is not
+published).
+
+| File                                                     | Origin                                                                                                                                                                   | Version              | License (where stated)                                                                  | SHA-256                                                            |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `ndex2-client/SimpleNetwork.cx`                          | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/SimpleNetwork.cx                                             | commit e6467d8       | BSD-3-Clause (ndex2-client LICENSE.txt)                                                 | `29809cf85c2345cd8db181ae6a3a918e48ed02458e900cee4c1596cd1ab4c0d6` |
+| `ndex2-client/my_cx.cx`                                  | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/my_cx.cx                                                     | commit e6467d8       | BSD-3-Clause (ndex2-client LICENSE.txt)                                                 | `b73ae73e39b6867afcd7667bbc2c09ff00f5d7b769cc8b859ba3cd0411682ddd` |
+| `ndex2-client/SIMPLE_NETWORK.cx`                         | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/ndex2/tests/SIMPLE_NETWORK.cx                                            | commit e6467d8       | BSD-3-Clause (ndex2-client LICENSE.txt)                                                 | `983f031ff7922b105d41704cfa604e95bc1e4e4f4b915a8b57145557fcbcf186` |
+| `ndex2-client/glypican2_no_cartesian_layout.cx`          | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/glypican2_no_cartesian_layout.cx                              | commit e6467d8       | BSD-3-Clause (ndex2-client LICENSE.txt)                                                 | `60ce0db3c2bd5be83d5472c908a21557914c695a467caa9ea4fa3f6d988ba8c1` |
+| `cx2js/primitive_attributes.cx`                          | https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/primitive_attributes.cx                                    | commit 7ed4adc       | MIT (cx2js LICENSE, Cytoscape Consortium)                                               | `85e994089d118ffae0af61f7829fc3385e6643d57b9f4c939d73f4bb210ea3b1` |
+| `cx2js/UD-219.cx`                                        | https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/UD-219.cx                                                  | commit 7ed4adc       | MIT (cx2js LICENSE, Cytoscape Consortium)                                               | `96957e69a5c982da5cab592b7c9c0e932f14fbd09c8448d5802c688c2ff1d425` |
+| `cx2js/NWA-383.cx`                                       | https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/NWA-383.cx                                                 | commit 7ed4adc       | MIT (cx2js LICENSE, Cytoscape Consortium)                                               | `70ed7cc06f2a8a16a27646c2279679a4d4896f9c23f1a6362777334cb5d1e6cb` |
+| `cx2js/5views1network.cx`                                | https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/5views1network.cx                                          | commit 7ed4adc       | MIT (cx2js LICENSE, Cytoscape Consortium)                                               | `9f4343bf2e452774d85456ceccaf1b0c6aa817b7d8ccd8976ffe95ef4256f1a8` |
+| `cx2js/simple_bundled_edges.cx`                          | https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/simple_bundled_edges.cx                                    | commit 7ed4adc       | MIT (cx2js LICENSE, Cytoscape Consortium)                                               | `73d7b4424b922f3512906267581b0ee49ff1c74a4a9dcf604ec6f8d0072870d4` |
+| `cx2js/UD-294.cx`                                        | https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/resources/UD-294.cx                                                  | commit 7ed4adc       | MIT (cx2js LICENSE, Cytoscape Consortium)                                               | `e119f3397f6cd7c0338a28e15af346dfef805fcbbd25fc36418c227b745aee18` |
+| `cx2js/default_edge_bends.cx`                            | https://raw.githubusercontent.com/cytoscape/cx2js/7ed4adcb9caa7731eac96b10a8023525b6451b99/examples/anti-resources/default_edge_bends.cx                                 | commit 7ed4adc       | MIT (cx2js LICENSE, Cytoscape Consortium)                                               | `35d38e3dd0b79d8ec4f6d26aadb5256bd9f026e0ce947718e087e487b9056a0e` |
+| `ndex-object-model/10_networks_new.cx`                   | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/10_networks_new.cx                               | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                | `169e293b644e5298049a17a86209db6f9d75789cd61fb08cc18e342c03e037de` |
+| `ndex-object-model/network1_3n2e_no_numVerification.cx`  | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/network1_3n2e_no_numVerification.cx              | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                | `aa0fae9916905f89315421fe94eb3b6c92f0cd078e721c8f962d95395a8094ff` |
+| `ndex-object-model/cx2_tiny_double_and_longattribute.cx` | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny_double_and_longattribute.cx             | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                | `c42c3e51ff29c252e3c9c2b3a1158e4742ec24e82b87b84939015fb72b5bed38` |
+| `rcx/Direct-p53-effectors.cx`                            | https://raw.githubusercontent.com/frankkramer-lab/RCX/f6571e01164625f94c2ec6eabba2cc8ecaf5ceaf/inst/extdata/Direct-p53-effectors-67c3b75d-6191-11e5-8ac5-06603eb7f303.cx | RCX commit f6571e0   | MIT (RCX LICENSE.md, Florian Auer); originally NCI-PID on NDEx                          | `036e6010e2baf7fee78b257dcb2b4e74cc4a6acf908bf6a0d9e6015d2b23ef9a` |
+| `ndex/WP4742-ketogenesis.cx`                             | https://www.ndexbio.org/v2/network/cc593864-8b6c-11eb-9e72-0ac135e8bacf                                                                                                  | retrieved 2026-10-02 | CC0 (network rights: Waiver-No Rights Reserved (CC0), holder WikiPathways)              | `eb962f8e2d7679281396205efcc2d0324075315635661cc54be27de3557264ce` |
+| `ndex/ITCR-connectivity-map.cx`                          | https://www.ndexbio.org/v2/network/04c0a7e8-af92-11e7-94d3-0ac135e8bacf                                                                                                  | retrieved 2026-10-02 | CC0 (network rights: Waiver-No rights reserved (CC0))                                   | `5fd67a29ccebbe1160e0b4a2d7de3937c75d93b26ef5cba3ec9a8fed8023f056` |
+| `ndex/SIGNOR-multiple-sclerosis.cx`                      | https://www.ndexbio.org/v2/network/0522eea1-97f1-11eb-9e72-0ac135e8bacf                                                                                                  | retrieved 2026-10-02 | CC BY-SA 4.0 (network rights, holder Prof. Gianni Cesareni): test-only                  | `6b5b621513f46e10be3a497d6b69a49ef2561d982cec7a2d2ea6a2a1e45780c2` |
+| `ndex/parkinson-cytoscape-analysis.cx`                   | https://www.ndexbio.org/v2/network/70375fa2-7474-11ef-ad6c-005056ae3c32                                                                                                  | retrieved 2026-10-02 | CC BY-SA 4.0 (network rights, holder Prof. Gianni Cesareni): test-only                  | `e072f226a115a55678c6b6d66379a80d5322af8e422b2bdda95d510e59446706` |
+| `ndex/schizophrenia-subnetwork.cx`                       | https://www.ndexbio.org/v2/network/90bd68fb-1dd0-11ef-9621-005056ae23aa                                                                                                  | retrieved 2026-10-02 | CC BY 4.0 (network rights, holder Pierre Klemmer; attribution in sources.md section 12) | `4fcca74169bad32c5fddaa02a4f6e18f357cd89d648b6efd8c8d496f43fff224` |
+
+The CC BY 4.0 network is "Schizophrenia risk gene subnetwork with AOP-Wiki, cluster, and pathway
+data extended with ChEBI compounds relating to agrochemical and pesticideroles" by Pierre Klemmer
+on NDEx (https://www.ndexbio.org/viewer/networks/90bd68fb-1dd0-11ef-9621-005056ae23aa); this entry
+is its attribution.
+
+### 12.3 Authored files
+
+`fixtures/cx/authored/` is written by `tools/make_cx_fixtures.py` (MIT, authored for graph-io):
+the groups set and the malformed / edge-case set of research-cx.md section 8 rows 24 and 25 --
+which reproduce the cases of Cytoscape's unlicensed `cytoscape/cx` and `cxio` test files
+(`groups_1.cx`, `gal_filtered_3.cx`, `network_full_of_bugs.cx`, `Novershtern_dev_clean.sif.cx`,
+`empty.cx`, `n3_pp.cx`) without copying them -- and the cases design.md section 6.4 adds:
+attributes and layout before the nodes, a collection with and without metadata, an id beyond
+2^53 after 1,000 safe ones, string and `1e3` ids, `v: null`, single-object aspects, a visual
+property named like an attribute.
+
+### 12.4 Malformed corpus and unit corpus
+
+`test/corpus/malformed/cx/` holds CX2 content under `.cx` names (ndex-object-model, BSD-3-Clause)
+and authored malformed files (MIT): truncated, empty, a top-level object, a two-key fragment, a
+failed status, dangling endpoints, a duplicate edge id and a non-integer id. `test/corpus/cx/`
+holds four of the real files above for the cross-format fidelity matrix (CX is a source there, never
+a target: graph-io writes no CX1).
+
+### 12.5 Not vendored
+
+- The cx-support (`cytoscape/cx`) and `cxio` test resources: no license file; the authored set
+  covers their cases.
+- hiview.cx (cx2js, 54 MB) and Signor Complete - Human (NDEx 523fff27, 40 MB, CC BY-SA 4.0): too
+  large to commit.
+
+---
+
+## 13. CX2 (`fixtures/cx2/`)
+
+Research date: 2026-10-02. The feature and error inventory is
+`design/graph-io/cytoscape-and-obo/research-cx2.md`; the mapping is section 1.3 of `design.md` in
+the same folder.
+
+### 13.1 Specification and readers
+
+- CX2 specification (Cytoscape Consortium / NDEx):
+  https://cytoscape.org/cx/cx2/specification/cytoscape-exchange-format-specification-(version-2)/ ;
+  CX2 visual styles: https://cytoscape.org/cx/cx2/cx2-visual-styles/ . There is no published JSON
+  Schema for a whole document.
+- Oracle: ndex2 3.12.0 (BSD-3-Clause), `CX2Network.create_from_raw_cx2`, through
+  `tools/oracle_cx2.py`. It needs networkx 3.4, so it runs in its own Python:
+  `uv venv tmp/cx/venv -p 3.10 && VIRTUAL_ENV=tmp/cx/venv uv pip install ndex2==3.12.0`, then
+  `tmp/cx/venv/bin/python test/conformance/tools/oracle.py cx2`. Positions are expected y-up.
+- Where ndex2 departs from the specification the fixture is hand-written (`"oracle": "spec"`) and
+  says so in `oracleDisagrees`: falsy defaults ignored, `3.7` truncated in an integer column, any
+  string but `"true"` read as false, the last `attributeDeclarations` block kept, aliases resolved
+  only for declarations that precede the elements, an undeclared column typed by its first value
+  (0.1 read as 0), dangling edges, bypasses and a missing or failed status accepted, a declaration
+  without `d` typed from its values (the Java reader reads string).
+- Second opinions read from source, not run: ndex-object-model `CXReader` (Java) and Cytoscape
+  Web's `validator.ts`.
+
+### 13.2 Real files
+
+Each file is copied unchanged. NDEx regenerates CX2 on request, so the NDEx copies are pinned by
+their SHA-256 here, never re-fetched; a network's license is its own `rights` attribute.
+
+| File                                                                   | Origin                                                                                                                                                                       | Version              | License (where stated)                                                                   | SHA-256                                                            |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `ndex2-client/demo.cx2`                                                | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/demo.cx2                                                          | commit e6467d8       | BSD-3-Clause (ndex2-client LICENSE.txt)                                                  | `87d1b75325a0817b934f8d07e92b75d79853544ac69ae0fb92052d1133cadb1d` |
+| `ndex2-client/glypican2.cx2`                                           | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/glypican2.cx2                                                     | commit e6467d8       | BSD-3-Clause (ndex2-client LICENSE.txt)                                                  | `af847428ae84dc22d33797ff014d9e1fd9a5ac940b12c5c2e7cb2077b700a92f` |
+| `ndex2-client/no_edge_style2.cx2`                                      | https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/no_edge_style2.cx2                                                | commit e6467d8       | BSD-3-Clause (ndex2-client LICENSE.txt)                                                  | `87bc4f7fadcf3c19e10f69c5449f6fc96448b100fdef7ddb46c33355ced35733` |
+| `ndex-object-model/cx2_tiny.cx2`                                       | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny.cx2                                         | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                 | `33a7384377cb7855c6a8dfa06f3de03d739f1c1d8d2f62d98bac126206b05b98` |
+| `ndex-object-model/cx2_tiny_double_and_longattribute.cx`               | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_tiny_double_and_longattribute.cx                 | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                 | `c42c3e51ff29c252e3c9c2b3a1158e4742ec24e82b87b84939015fb72b5bed38` |
+| `ndex-object-model/cx2_empty.cx`                                       | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_empty.cx                                         | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                 | `ec504a092124a9ddcc541f3f4f3db8465ccb8c456e75682998fedfd82290f03e` |
+| `ndex-object-model/cx2_aspect_after_postmetadata.cx`                   | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_aspect_after_postmetadata.cx                     | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                 | `61f5f4f91887cb9ae809606d4ff9f985db5005a9ccd9c2e7d840ef592f50d72f` |
+| `ndex-object-model/cx2_metadata_after_normal_aspect.cx`                | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_metadata_after_normal_aspect.cx                  | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                 | `dd53c6a9165a7c59a3f0db9ee58f027c0e75fca31ae79f22a957e67d4dff4727` |
+| `ndex-object-model/cx2_pre_post_metadata.cx`                           | https://raw.githubusercontent.com/ndexbio/ndex-object-model/44dad96f989f664753741c5cd4cb8a6c52723243/src/test/resources/cx2_pre_post_metadata.cx                             | commit 44dad96       | BSD-3-Clause (ndex-object-model LICENSE)                                                 | `94269e05ae13e9c5ec485ea2fb01956cb32f2aee748dc43521c004f172b80341` |
+| `cytoscape-web/minimal.valid.cx2`                                      | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/minimal.valid.cx2                                 | commit c66154f       | MIT (cytoscape-web LICENSE)                                                              | `1730e453eece0826990ff6a76e3adab0394f435949fd66d44d712b458d09781e` |
+| `cytoscape-web/with-cartesian-layout.valid.cx2`                        | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/with-cartesian-layout.valid.cx2                   | commit c66154f       | MIT (cytoscape-web LICENSE)                                                              | `2882b465899ee15987992860669df13937c4636ebbf55957bc154e49ac9ecb94` |
+| `cytoscape-web/svg-passthrough.valid.cx2`                              | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/svg-passthrough.valid.cx2                         | commit c66154f       | MIT (cytoscape-web LICENSE); data: Cytoscape's galFiltered sample                        | `14affd586c74b340e20385b3767744fc651db194e3d7e22bdbdd6ba6f7170fb1` |
+| `cytoscape-web/2496d8c5-5c74-11ec-b3be-0ac135e8bacf.valid.cx2`         | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/2496d8c5-5c74-11ec-b3be-0ac135e8bacf.valid.cx2         | commit c66154f       | MIT (cytoscape-web LICENSE); network rights CC0 (WikiPathways WP5049)                    | `645cbce30731873723e53c3dc4162dec80297244e14eb716a997539ee46f59a0` |
+| `cytoscape-web/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2`     | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/1366ba85-9acc-11ef-9702-005056ae6f73.hcx.valid.cx2     | commit c66154f       | MIT (cytoscape-web LICENSE); network rights MIT (MuSIC v1 hierarchy)                     | `c9966bb90524cff9af6cb4e3ff3f73b2d8fbc1caffa73851996121ddb5e6ffa8` |
+| `cytoscape-web/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2` | https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/ndex/d3030388-dcb7-11ee-867c-005056aecf54.valid.filters.cx2 | commit c66154f       | MIT (cytoscape-web LICENSE)                                                              | `5410e9527f9015cc60c3ff6e61c2ab4dfbcb49b1f37501fd6ab368d33259c3c7` |
+| `ndex/72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2`                        | https://www.ndexbio.org/v3/networks/72288e93-5c67-11ec-b3be-0ac135e8bacf                                                                                                     | retrieved 2026-10-02 | CC0 (network rights: Waiver-No Rights Reserved (CC0), holder WikiPathways)               | `0aa7058d667a6e4a8431f08990cc7b34acc442d8f3750cab9c9e14313d5c06fc` |
+| `ndex/f62acbc7-4cfc-11e9-9f06-0ac135e8bacf.cx2`                        | https://www.ndexbio.org/v3/networks/f62acbc7-4cfc-11e9-9f06-0ac135e8bacf                                                                                                     | retrieved 2026-10-02 | CC0 (network rights: Waiver-No rights reserved (CC0))                                    | `2f69beb1b68996ba27ea5a6b76df058ed62ff17b2b33be67c6def14cd77ea4cd` |
+| `ndex/c370fda6-c69c-11e8-aaa6-0ac135e8bacf.cx2`                        | https://www.ndexbio.org/v3/networks/c370fda6-c69c-11e8-aaa6-0ac135e8bacf                                                                                                     | retrieved 2026-10-02 | CC BY 4.0 (network rights; Fanconi Anemia Machine, NDEx network c370fda6, author Myself) | `d2a91d8a670ebbf8d4bb795ac003ba6e9255a543ca335bd2d3af8bee66089b58` |
+| `ndex/aa78a43f-9c4d-11eb-9e72-0ac135e8bacf.cx2`                        | https://www.ndexbio.org/v3/networks/aa78a43f-9c4d-11eb-9e72-0ac135e8bacf                                                                                                     | retrieved 2026-10-02 | CC0 (network rights: Waiver-No rights reserved (CC0), holder Charles Tapley Hoyt)        | `a7f0079e9f371f217dcbffb4a4bfe02c79a610124c8dd807d98238612c552d96` |
+| `ndex/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf.cx2`                        | https://www.ndexbio.org/v3/networks/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf                                                                                                     | retrieved 2026-10-02 | MIT (network rights: MIT license (MIT), holder The Jackson Laboratory)                   | `81eb013378a7383e8ddd9f3a5b2e76ad43abb503101624983af28c85afc5bf1a` |
+
+The CC BY 4.0 network `c370fda6` is "Fanconi Anemia Machine - Cyndex2 network" on NDEx
+(https://www.ndexbio.org/viewer/networks/c370fda6-c69c-11e8-aaa6-0ac135e8bacf); this entry is its
+attribution.
+
+### 13.3 Authored files
+
+`fixtures/cx2/authored/` is written by `tools/make_cx2_fixtures.py` (MIT, authored for graph-io):
+one file per feature or error of research-cx2.md section 6.1 and design.md section 6.4 that no
+real file shows -- fragments declared and undeclared, all ten types, falsy defaults, alias edge
+cases, ids beyond 2^53 (also after 1,000 safe ones), value mismatches, unknown and missing types,
+the Python type spellings, failed / warning / malformed / missing status, partial and legacy
+coordinates, versions 2.1, 2 and 3.0, a CX1 document under a `.cx2` name, BOM / UTF-16 / Latin-1,
+flat editor properties, dangling bypasses and edges, edges before nodes, declarations after nodes,
+`1` and `"1"` as one node, unknown element keys, mangled ids, an empty network, malformed blocks,
+order and count problems, and style rules next to per-element visual values.
+
+### 13.4 Malformed corpus and unit corpus
+
+`test/corpus/malformed/cx2/` holds Cytoscape Web's 11 invalid fixtures (MIT,
+https://github.com/cytoscape/cytoscape-web/tree/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/invalid),
+renamed without the `.invalid` infix. `test/corpus/cx2/` holds four of the real files above for the
+cross-format fidelity matrix.
+
+### 13.5 Not vendored
+
+- The `cytoscape/cx` repository's examples (`small_network_with_styles.cx2`,
+  `different_attribute_types_no_style.cx2`): the repository has no license; the authored set
+  covers their cases, and `demo.cx2` is a byte-identical copy of the first under ndex2-client's
+  BSD license.
+- IntAct coronavirus (NDEx cabdc0e0, 6.5 MB, CC BY 4.0), BioPlex 3 HCT116 (NDEx e96d063d, 10 MB,
+  CC0) and STRING v12 (90 MB): too large to commit; both smaller ones import (1,583 / 2,449 and
+  10,251 / 75,346 nodes / edges) and BioPlex 3 is a planned graph-samples dataset.
+
+## 14. Cytoscape sessions (`fixtures/cys/`)
+
+Research: `design/graph-io/cytoscape-and-obo/research-session-and-style.md` (the version history
+of section 2.1, the entry inventories of 2.2 and 2.3, the CyCSV table format of 2.4, the session
+flavor of XGMML of section 3, the zip findings of section 6 and the error list of section 7);
+design sections 1.4 and 3. There is no written specification of the session format: the
+normative definition is Cytoscape's reader code (`Cy3SessionReaderImpl`, `Cy2SessionReaderImpl`,
+`CSVCyReader`, `SessionUtil` in https://github.com/cytoscape/cytoscape-impl, LGPL-2.1) and the zip
+container's APPNOTE 6.3.10 (https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
+
+Oracle: Cytoscape 3.10.5 through CyREST (`tools/oracle_cytoscape.py`, run by the manually
+dispatched workflow `.github/workflows/conformance-cytoscape-oracle.yml`). Until its first run the
+sessions that Cytoscape's own integration tests load carry those tests' assertions, transcribed
+(counts, network names, selection, attribute values; `"oracle": "cytoscape-integration-tests"`,
+https://github.com/cytoscape/cytoscape-gui-distribution/tree/develop/integration-test/src/test/java/org/cytoscape/session),
+and every other fixture hand-written expectations (`"oracle": "spec"`). Groups are where the
+specification of graph-io's model overrules what Cytoscape shows (`oracleDisagrees`).
+
+Every file was retrieved on 2026-10-02. SHA-256 of the bytes committed:
+
+| Fixture                                       | Origin                                                                                                                                         | License (where stated)                                                                 | SHA-256                                                            |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `session3x/simpleSession.cys`                 | https://github.com/cytoscape/cytoscape-gui-distribution/blob/develop/integration-test/src/test/resources/testData/session3x/simpleSession.cys  | LGPL-2.1 (the test tree's file headers; the repository has no LICENSE file); test-only | `777d58e2cf627a26b6eb836164d8500aba684f35b8393a989b187a10ce5a730d` |
+| `session3x/visualMappings.cys`                | same tree, `visualMappings.cys`                                                                                                                | LGPL-2.1, test-only                                                                    | `142b61cabc53eb86b8e0f012022d8e14e4872a9a68602c66a839233f4269eedc` |
+| `session3x/subnetworks.cys`                   | same tree, `subnetworks.cys`                                                                                                                   | LGPL-2.1, test-only                                                                    | `47d404e93e770190b3b811f93ea0e5dbca2273a6c8cffb1c62979cfa4b517f54` |
+| `session3x/groups.cys`                        | same tree, `groups.cys`                                                                                                                        | LGPL-2.1, test-only                                                                    | `395faf059cef1a725a52b2364d02c0db9f159bd3b8e32049286d515aa5ec2d31` |
+| `session3x/nestedGroups_collapsed.cys`        | same tree, `nestedGroups_collapsed.cys`                                                                                                        | LGPL-2.1, test-only                                                                    | `2f3b13533c0c97a689a38cf7452717723fb6b4a4f7025fc715e3eec40330c5fb` |
+| `session2x/v252Session.cys`                   | same repository, `testData/session2x/v252Session.cys`                                                                                          | LGPL-2.1, test-only                                                                    | `3252e176652664699102933ee3260f53121de396f0e1c5e152f129940ee9fdf4` |
+| `session2x/v270session.cys`                   | same tree, `v270session.cys`                                                                                                                   | LGPL-2.1, test-only                                                                    | `1277f593c0b94ba9e3b9894c9f5856c0a3fb6ed29d1c04538c1fe29ebb6b2dae` |
+| `session2x/v283Groups.cys`                    | same tree, `v283Groups.cys`                                                                                                                    | LGPL-2.1, test-only                                                                    | `2a175d498ecfad426b87b8460225c4f98ddc5ffe0b950e0f554ac616893919e4` |
+| `session2x/v263SessionLarge.cys`              | same tree, `v263SessionLarge.cys`                                                                                                              | LGPL-2.1, test-only                                                                    | `e2fe291f62dd30b616d037d6564cd0d172a3f06645ec81a6b08dce2021f32062` |
+| `session2x/v283Session1.cys`                  | same tree, `v283Session1.cys`                                                                                                                  | LGPL-2.1, test-only                                                                    | `22ced7e5f30217a31ef0fbbd297af6f7b24c1c1011c9cf74f6ec90f6a6404a10` |
+| `impl/t3.cys`                                 | https://github.com/cytoscape/cytoscape-impl/blob/develop/io-impl/impl/src/test/resources/testData/NNFData/t3.cys                               | LGPL-2.1 (cytoscape-impl LICENSE); test-only                                           | `c9a6bc88a0444b6aaf412cf3e663cb65792149150c05179e4a8e7d421b9c29c0` |
+| `impl/LUAD_vest_v2.cys`                       | https://github.com/cytoscape/cytoscape-impl/blob/develop/layout-cytoscape-impl/src/test/resources/circular-layout-tests/LUAD_vest_v2.cys       | LGPL-2.1, test-only                                                                    | `afaa9392882e5b8e4bb4783232126295a0424c3cf96127c219c0423471b816d8` |
+| `impl/goTrees.cys`                            | same tree, `goTrees.cys`                                                                                                                       | LGPL-2.1, test-only                                                                    | `aa0a60f0e10d2b323c072768f634e4c0a87716af41df6896fc38a7ba0fef5bfa` |
+| `sampledata/galFiltered.cys`                  | https://github.com/cytoscape/cytoscape-gui-distribution/blob/develop/assembly/src/main/resources/sampleData/galFiltered.cys                    | LGPL-2.1, test-only                                                                    | `59c641783323cca354074b4b571f21c5884a0b32e7cc014175bd19e93ae24135` |
+| `tutorials/STELZ.cys`                         | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/protocols/data/STELZ.cys                                                        | CC0-1.0 (cytoscape-tutorials LICENSE); data Stelzl et al., Cell 122:957 (2005)         | `3d4356d095eee438d0f7f567b94d46555f16d30766a9db9b6b3fc7e47a32c1d8` |
+| `tutorials/galFiltered.cys`                   | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/protocols/data/galFiltered.cys                                                  | CC0-1.0; data Ideker et al., Science 292:929 (2001)                                    | `3513217733656d964d683538a0591a2054c1270040a9f8702367275bedf53a6f` |
+| `tutorials/layout-v1.cys`                     | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/presentations/modules/network-visualization-light/layout-v1.cys                 | CC0-1.0                                                                                | `64e7bf226bc43113f24c2dcbdb13905467cf721263e6b4ed37c2f49b0eb87266` |
+| `tutorials/AnnotationExample.cys`             | https://github.com/cytoscape/cytoscape-tutorials/blob/gh-pages/presentations/modules/advanced-visualization/AnnotationExample.cys              | CC0-1.0                                                                                | `176212c77f808547204574f7398c13fc2213b941f6870e6d24c6dad7701a3177` |
+| `test/corpus/malformed/cys/test_session1.cys` | https://github.com/cytoscape/cytoscape-impl/blob/develop/core-task-impl/src/test/resources/test_session1.cys (the 2011 3.0 pre-release layout) | LGPL-2.1, test-only                                                                    | `aacc1998e2e4a71988aef118b4d2cabcd37ab6d705df3f60b96982751f46bed1` |
+
+`authored/*.cys` (35 files) are written by `tools/make_cys_fixtures.py` (MIT, authored): a small
+3.x session written from scratch (two registered subnetworks sharing nodes, every CyCSV column
+type and cell rule, virtual columns including a chain and a name collision, HIDDEN and app
+tables, an expanded group, a nested-network pointer, two views, styles, global and app entries)
+and its variants for the container cases of research section 7 (zip64, a stored entry with a
+data descriptor, trailing and prepended bytes, an archive comment, a duplicate entry, no root
+folder, two root folders, `__MACOSX` noise, UTF-8 names, truncation, a missing end record, a CRC
+mismatch, encryption, deflate64 and bzip2, a 1000:1 ratio bomb), the table and session cases
+(an unknown CyCSV version and column class, bad rows, broken virtual columns, a table, a view and a
+member reference naming nothing, an edge leaving its subnetwork, a version 4 marker, the 3.0
+pre-release layout) and a small 2.x session. The design proposed deriving the container cases from
+the CC0 tutorials `galFiltered.cys`; a session written from scratch is as freely licensed and keeps
+each case a few kilobytes. The unit-test corpus `test/corpus/cys/` (a karate club session built
+from `test/corpus/gml/karate.gml` and copies of the authored 3.x and 2.x sessions) and
+`test/corpus/malformed/cys/` are written by the same script. Rerun it after changing it.
+
+Not committed: `sessions/The_Yeast_Interactome.cys` (24,809,869 bytes,
+https://github.com/cytoscape/cytoscape-gui-distribution, LGPL-2.1), the large-file case.
+
+## 15. OBO (`fixtures/obo/`)
+
+Research: `design/graph-io/cytoscape-and-obo/research-obo.md` (the feature inventory, the reader
+behavior table of section 5 and the error cases of section 6); design section 4. Specifications:
+the OBO 1.4 syntax and semantics (https://owlcollab.github.io/oboformat/doc/obo-syntax.html), the
+1.4, 1.2 and 1.0 guides (https://owlcollab.github.io/oboformat/doc/GO.format.obo-1_4.html,
+`-1_2.html`, `-1_0.html`). The 1.4 BNF is normative; where it and the guides disagree (`\W`, the
+synonym scope, unquoted qualifiers, unknown tags) graph-io reads the union, as the files' writers
+did, and the fixture says so in `oracleDisagrees`.
+
+Oracles: fastobo-py 0.14.1 (MIT) through `tools/oracle_obo.py`; obonet 1.3.0
+(BSD-2-Clause-Patent) for the real files fastobo rejects; the specification for the cases both
+reject or misread. ROBOT 1.9.11 (owlapi's parser) was run on every file during the research as the
+acceptance check (`tmp/samples-obo/robot-out/`); its OWL-mediated graph is not used as an
+expectation (section 9 of the research says why).
+
+Every file was retrieved on 2026-10-02. SHA-256 of the bytes committed:
+
+| Fixture                               | Origin                                                                                                                              | License (where stated)                                                                                             | SHA-256                                                            |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `go/goslim_generic.obo`               | https://purl.obolibrary.org/obo/go/subsets/goslim_generic.obo (go/releases/2026-07-26)                                              | CC-BY-4.0 (GO citation policy, https://geneontology.org/docs/go-citation-policy/; in-file `terms:license`)         | `a28d9dd0364e39a6dc926599bd628c524d3c389017b5398642c8cf2484d9f111` |
+| `foundry/taxrank.obo`                 | https://purl.obolibrary.org/obo/taxrank.obo (releases/2025-09-24)                                                                   | CC0-1.0 (in-file remark)                                                                                           | `8cf42bd61ac683366ddde5018a7900804b8c942636e61f0793de4a289788e7c0` |
+| `foundry/ro.obo`                      | https://purl.obolibrary.org/obo/ro.obo                                                                                              | CC0-1.0 (in-file license)                                                                                          | `f2145eaecd649b395f5a908906f429fd6ac6dca2bc6816045b5c8a80da9a6b10` |
+| `foundry/so.obo`                      | https://purl.obolibrary.org/obo/so.obo                                                                                              | CC-BY-4.0 (OBO Foundry registry)                                                                                   | `22a8f3ec2b49125dbb6cee8456f0bca86dd8c98f433165ffa4b554da4f155204` |
+| `foundry/eco.obo`                     | https://purl.obolibrary.org/obo/eco.obo                                                                                             | CC0-1.0 (in-file remark)                                                                                           | `c8b52a2da2b0f92224b50a1d8773fd7e3bca0977d920d4e31ef9fde960c84fd4` |
+| `foundry/mi.obo`                      | https://purl.obolibrary.org/obo/mi.obo                                                                                              | CC-BY-4.0 (OBO Foundry registry)                                                                                   | `b1315efd86a13988df97d2daefed025dbd26b98d66104da76ea3e85706534d2f` |
+| `foundry/fao.obo`                     | https://purl.obolibrary.org/obo/fao.obo                                                                                             | CC0-1.0 (OBO Foundry registry)                                                                                     | `dcacb2306cc33c5ee288bf32a3701acf804dd345a232c64b0a41cf52d53ec217` |
+| `foundry/pato.obo`                    | https://purl.obolibrary.org/obo/pato.obo                                                                                            | CC-BY-3.0 (in-file license)                                                                                        | `951ca3dc2f0821ab56f46c240836cab1719c789dc79508cbec32e6f99cb8174e` |
+| `foundry/ms.obo`                      | https://purl.obolibrary.org/obo/ms.obo                                                                                              | CC-BY-4.0 (in-file remark; the registry says 3.0)                                                                  | `84c79d3a8325de0a9bd25eb64aec74b6e01656cd83e28ef368a8dfcc867752bf` |
+| `owlapi/escape_chars_test.obo`        | https://github.com/owlcs/owlapi/blob/b61ebe2da83daceebb3e7ba7afbd2582c9240c33/contract/src/test/resources/obo/escape_chars_test.obo | Apache-2.0 (owlapi README: LGPL-3.0 or Apache-2.0, the developer's choice)                                         | `9bc539e0ca48220b3962bfda1ff17e52d6a3aa79ec10256e3441f5e99e0a5b17` |
+| `owlapi/trailing_qualifier.obo`       | same tree, `trailing_qualifier.obo`                                                                                                 | Apache-2.0 (as above)                                                                                              | `fd1ac150b274c8c51bfb76979903a35fbcb1911705b4d827f786efbfcbcc4e6c` |
+| `owlapi/example1.obo`                 | https://github.com/owlcs/owlapi/blob/b61ebe2da83daceebb3e7ba7afbd2582c9240c33/oboformat/src/test/resources/example1.obo             | Apache-2.0 (as above)                                                                                              | `7221f7017063b1eae1d3810700373f7dc9b1badb0d9b5a80aa78d73538f582d9` |
+| `owlapi/simplego.obo`                 | contract tree, `simplego.obo`                                                                                                       | Apache-2.0 (as above)                                                                                              | `ecfa8c1fb1d441dd9090e51201e54a84ab6ba2dec1dbe36bc17879aae019351a` |
+| `owlapi/fbbt_comment_test.obo`        | contract tree, `fbbt_comment_test.obo`                                                                                              | Apache-2.0 (as above)                                                                                              | `29f8b4092f65d338064cc3f74be0a83522073b4efe3aba90cf41a7cc998e9402` |
+| `owlapi/chebi_problematic_xref.obo`   | contract tree, `chebi_problematic_xref.obo`                                                                                         | Apache-2.0 (as above)                                                                                              | `c8ade1994cdc7cc9ffb394e7be65628d62fbe81479e4fbba26d38cbfc5562f8c` |
+| `owlapi/behavior.obo`                 | https://github.com/owlcs/owlapi/blob/b61ebe2da83daceebb3e7ba7afbd2582c9240c33/osgidistribution/src/test/resources/behavior.obo      | Apache-2.0 (as above)                                                                                              | `27e94a5e9ba9e64da0ae9271520db94b79b036719ba5e6a4b7125aa11b899959` |
+| `owlapi/synapsed_to.obo`              | contract tree, `synapsed_to.obo`                                                                                                    | Apache-2.0 (as above)                                                                                              | `00f0b4436333c94dfd85ed3e4f21b9322ec9a47879580745fa38e3b8f2bc5858` |
+| `owlapi/xref_escapecolon.obo`         | contract tree, `xref_escapecolon.obo`                                                                                               | Apache-2.0 (as above)                                                                                              | `db8e5e640295652f8a208571175f412f5c63bb0b6b6145fc5896f5c0bb6431d3` |
+| `owlapi/gci_qualifier_test.obo`       | contract tree, `gci_qualifier_test.obo`                                                                                             | Apache-2.0 (as above)                                                                                              | `df5d2c0ffc8aebcb61cd743eefba03fc5520af1177c8b8516758d8ad289dd599` |
+| `owlapi/treat_xrefs_test.obo`         | contract tree, `treat_xrefs_test.obo`                                                                                               | Apache-2.0 (as above)                                                                                              | `f25d961800472745bc687af06b72d988536663a2265035d02d9c92d1e1e6e1b7` |
+| `owlapi/cardinality.obo`              | contract tree, `cardinality.obo`                                                                                                    | Apache-2.0 (as above)                                                                                              | `087c4a9dc97538f8fd61a89fd51b820f65ee5393527d64b9dbe010271056b0d5` |
+| `obographs/basic.obo`                 | https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/basic.obo                          | BSD-3-Clause (obographs pom.xml `<licenses>`; the repository has no LICENSE file)                                  | `5e0d6ea453f97bfd129348e348d33a32112689b54eda1ab75686c9d31e261609` |
+| `obographs/nucleus.obo`               | same tree, `nucleus.obo`                                                                                                            | BSD-3-Clause (as above)                                                                                            | `0a142682420fc0b20878b6315934f2a27e8f0ea38831d5240f333a34db694613` |
+| `obographs/equivNodeSetTest.obo`      | same tree, `equivNodeSetTest.obo`                                                                                                   | BSD-3-Clause (as above)                                                                                            | `9ceb1033bc079c7a953afba8bb827d2526469d3726f3fb244f8632adc9c09529` |
+| `obographs/logicalDefinitionTest.obo` | same tree, `logicalDefinitionTest.obo`                                                                                              | BSD-3-Clause (as above)                                                                                            | `b927edc6e2d31fee45b93a481651c6be8b976bc9913bfa00a5c6682416a93760` |
+| `obographs/obsoletion_example.obo`    | same tree, `obsoletion_example.obo`                                                                                                 | BSD-3-Clause (as above)                                                                                            | `0be0cabdf48fe1c7a41de103ff6bb84aefe53ef3541118f98455c4bd8d58ed18` |
+| `pronto/uo.obo`                       | https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/uo.obo                                  | MIT (pronto repository); the content is the Units Ontology, CC-BY-3.0                                              | `6f8cae2f473ee92ad43a2df4ccc5340053b2d0a93f8e6d78da392c593b104885` |
+| `obonet/brenda-subset.obo`            | https://github.com/dhimmel/obonet/blob/f47d326ae44c324cce44eec39937b69c657083c3/tests/data/brenda-subset.obo                        | BSD-2-Clause-Patent (obonet repository); BRENDA content of unstated terms, so test-only (`test/` is not published) | `5394757642d4f37f008bd0f9feed69ef48caceecc2b76c8d5e04134d1041bbf4` |
+| `fastobo/creation_dates.obo`          | https://github.com/fastobo/fastobo/blob/88f652c8ff8cd91f36375f06439ded5292078591/tests/data/creation_dates.obo                      | MIT (fastobo repository)                                                                                           | `cd9c18ac50b4e653af4709b8ffde175f5b22523a0ce213de1a23172dc598acce` |
+| `fastobo/header.input.obo`            | same tree, `header.input.obo`                                                                                                       | MIT (fastobo repository)                                                                                           | `42146612485a8628194e9d489176d7e594151fbe8d9f41b22745f3be76813045` |
+| `fastobo/mslite.obo`                  | same tree, `mslite.obo`                                                                                                             | MIT (fastobo repository); PSI-MS content, CC-BY-4.0                                                                | `6285737c87ad55b39da8215d8d5ed4e4eb2296a40e71d5add9ff2bf9b3c88e0c` |
+
+`authored/*.obo` (71 files) are written by `tools/make_obo_fixtures.py` (MIT, authored): the 44
+reader probes of research section 5, the Instance example of the 1.4 guide, OBO 1.0 legacy tags,
+UTF-16 and windows-1252 encodings, truncated files, form feed and lone CR line ends, and the
+section 6 error cases no real file shows. Rerun the script after changing it.
+
+The unit-test corpus `test/corpus/obo/` holds copies of `taxrank.obo`, `basic.obo` and
+`nucleus.obo` (above); `test/corpus/malformed/obo/` is authored.
+
+Too large to commit, checked by `test/formats/obo/large-files.test.ts` under
+`GRAPH_IO_LARGE_FIXTURES=1` (downloaded once into `tmp/graph-io-large/`, pinned by SHA-256):
+go-basic.obo and go-basic.json of the 2026-07-26 GO release. chebi.obo (271 MB) and
+ncbitaxon.json (2.36 GB, beyond one JavaScript string) are not pinned: they were never measured.
+
+## 16. OBO Graphs JSON (`fixtures/json/obographs/`, the `obographs` dialect)
+
+Specification: the OBO Graphs JSON Schema
+(https://github.com/geneontology/obographs/blob/master/schema/obographs-schema.json) and README
+(`sub`, not the README's outdated `subj`); design sections 1.6 and 4.6. Oracle
+`"python-json-obographs"`: the schema's mapping restated over Python's json module in
+`tools/oracle_obo.py` (`obographs()`), called by `oracle_json.py`. fastobo's `load_graph()` is the
+cross-check: it agrees on every file but `nucleus.json`, whose untyped nodes it reads as Typedefs.
+
+| Fixture                          | Origin                                                                                                          | License (where stated)                                           | SHA-256                                                            |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `goslim_generic.json`            | https://purl.obolibrary.org/obo/go/subsets/goslim_generic.json (go/releases/2026-07-26)                         | CC-BY-4.0 (GO citation policy)                                   | `4010f4394c3fa7531fe4e7f0f83b1541b4f95c409d6aaab484d826c06fe7cd3b` |
+| `ro.json`                        | https://purl.obolibrary.org/obo/ro.json                                                                         | CC0-1.0 (in-file license)                                        | `17eab8be4f47c73d2905ba45752154ae8e2e7b0bf03ba3cc62a326b42a38e5a5` |
+| `abox.json`                      | https://github.com/geneontology/obographs/blob/459a44e45b56188912bf7272239c984d94b1af4a/examples/abox.json      | BSD-3-Clause (obographs pom.xml)                                 | `e8b8219c3de6c11260716d8f996c0e8d21cc46db2e60d01f1a4d8d1dcb23efe6` |
+| `basic.json`                     | same tree, `basic.json`                                                                                         | BSD-3-Clause (as above)                                          | `5e432309ff9b0e2de61a983e2f025e1344723fbddab8c27e6ded7dbd90216926` |
+| `equivNodeSetTest.json`          | same tree, `equivNodeSetTest.json`                                                                              | BSD-3-Clause (as above)                                          | `e4c84cc71f6cbd15e9722cd961d703b9d701d931798ff74adb629d034824260d` |
+| `logicalDefinitionTest.json`     | same tree, `logicalDefinitionTest.json`                                                                         | BSD-3-Clause (as above)                                          | `333dd583827629c4d5e4dea298a0067c4d0e564b2feab0349b256f1333b51cf5` |
+| `nucleus.json`                   | same tree, `nucleus.json`                                                                                       | BSD-3-Clause (as above)                                          | `d303e887907633bdde8d297af820307a4814b6ed600872612f7b23d5e5a95188` |
+| `obsoletion_example.json`        | same tree, `obsoletion_example.json`                                                                            | BSD-3-Clause (as above)                                          | `294da3ae1abca4daafd6f9ce9fe65ab9bac5b5329a64e3d13e8ebf0914be0803` |
+| `pronto/abox.json`               | https://github.com/althonos/pronto/blob/8465a594cd35a029d255532bf9b95d7a06deabf3/tests/data/obographs/abox.json | MIT (pronto repository); obographs example content, BSD-3-Clause | `0dd504b4991bd90a5370a1399d433cef5981adfee79f94da1060cd21391167f6` |
+| `pronto/basic.json`              | same tree, `basic.json`                                                                                         | as above                                                         | `a91fb6d0fdf7fcdd8c9e6c68981ab807c2c3ddb7cd620af4cc48fd4d6f21a7db` |
+| `pronto/equivNodeSetTest.json`   | same tree, `equivNodeSetTest.json`                                                                              | as above                                                         | `63adcbb51d0b466bf900f9af3b84f609b4dd94921aac6d74765680f6ed5da673` |
+| `pronto/nucleus.json`            | same tree, `nucleus.json`                                                                                       | as above                                                         | `253b046a16902f595acc42844ee849f39324e586445e74b6a5faf16d7d80d711` |
+| `pronto/obsoletion_example.json` | same tree, `obsoletion_example.json`                                                                            | as above                                                         | `e841c8b0d900e9c11c82fefcd0613b9a22f573ce82869da89846bdb558392357` |
+
+`authored/*.json` (3 files: the README's `subj` key, two graphs, an endpoint missing from
+`nodes`) are written by `tools/make_obo_fixtures.py` (MIT, authored).

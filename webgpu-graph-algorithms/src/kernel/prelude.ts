@@ -13,8 +13,10 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 
 import {
     APSP_TILE,
+    BC_SIGMA_EXPONENT_CAP,
     EXACT_TILES_PER_PASS,
     F32_INF_BITS,
+    F32_SIGN_BIT,
     FA2_COINCIDENT_SQ,
     FA2_DISTANCE_FLOOR,
     FA2_DISTANCE_FLOOR_SQ,
@@ -57,6 +59,7 @@ export const PRELUDE_WGSL: string = /* wgsl */ `// ---- prelude: constants, stan
 const INVALID_INDEX: u32 = ${INVALID_INDEX}u;
 const U32_MAX: u32 = ${U32_MAX}u;
 const F32_INF_BITS: u32 = ${F32_INF_BITS}u;
+const F32_SIGN_BIT: u32 = ${F32_SIGN_BIT}u;
 const MAX_WORKGROUPS_PER_DIM: u32 = ${MAX_WORKGROUPS_PER_DIM}u;
 const EXACT_TILES_PER_PASS: u32 = ${EXACT_TILES_PER_PASS}u;
 const FA2_DIST_FLOOR: f32 = ${wgslF32Literal(FA2_DISTANCE_FLOOR)};
@@ -74,6 +77,7 @@ const RADIX_DIGIT_MASK: u32 = ${RADIX_BINS - 1}u;
 const APSP_TILE: u32 = ${APSP_TILE}u;
 const GROUP_HASH_LOAD_FACTOR: u32 = ${GROUP_HASH_LOAD_FACTOR}u;
 const TRIANGLE_BINARY_SEARCH_RATIO: u32 = ${TRIANGLE_BINARY_SEARCH_RATIO}u;
+const BC_SIGMA_EXPONENT_CAP: i32 = ${BC_SIGMA_EXPONENT_CAP}i;
 const F32_MAX: f32 = 0x1.fffffep+127;
 override WG: u32 = ${WORKGROUP_SIZE}u;
 override USE_PERM: bool = false;
@@ -83,6 +87,8 @@ override SUBGROUP_MAX: u32 = 0u;
 
 fn linear_id(wid: vec3<u32>, lid: u32) -> u32 { return (wid.x + wid.y * MAX_WORKGROUPS_PER_DIM) * WG + lid; }
 fn group_id(wid: vec3<u32>) -> u32 { return wid.x + wid.y * MAX_WORKGROUPS_PER_DIM; }
+// betweenness: the power of two the counts of depth L + 1 are divided by, from the f32 bits of depth L's largest count
+fn sigma_shift(maxBits: u32) -> i32 { return max(0i, i32((maxBits >> 23u) & 0xffu) - 127i - BC_SIGMA_EXPONENT_CAP); }
 fn lowbias32(x0: u32) -> u32 {
     var x = x0;
     x = x ^ (x >> 16u);
@@ -95,6 +101,11 @@ fn lowbias32(x0: u32) -> u32 {
 fn mask_bit(w: u32, i: u32) -> bool { return ((w >> (i & 31u)) & 1u) == 1u; }
 fn unpack_u8(w: u32, i: u32) -> u32 { return (w >> (8u * (i & 3u))) & 0xFFu; }
 fn pair_hash(i: u32, j: u32) -> u32 { return lowbias32((min(i, j) * 0x9E3779B9u) ^ max(i, j)); }
+fn order_key(w: f32) -> u32 {
+    let raw = bitcast<u32>(w);
+    let bits = select(raw, 0u, raw == F32_SIGN_BIT);
+    return select(bits | F32_SIGN_BIT, ~bits, (bits & F32_SIGN_BIT) != 0u);
+}
 fn hash_unit(h: u32) -> f32 { return f32(h >> 8u) * (1.0 / 16777216.0); }
 fn hash_dir(h: u32, dim: u32) -> vec3f {
     let phi = 6.283185307179586 * hash_unit(h);

@@ -20,6 +20,11 @@
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
 #
+# GRAPHTY_BUILD (optional), e.g. "commit=<sha> release=graphty@0.8.35", is written into the app's
+# index.html as <meta name="graphty-build" content="...">, replacing any stamp the build left there.
+# The deploy sets it, so the live page says which commit and which release it serves; the deploy
+# also reads it back to skip publishing a commit that is already live.
+#
 # A missing input is reported and skipped, as the deploy always did; the link check then fails on
 # every link into it.
 set -u
@@ -42,6 +47,10 @@ copy() {
 }
 
 copy graphty/dist ""
+if [ -n "${GRAPHTY_BUILD:-}" ] && [ -f "$OUT/index.html" ]; then
+    STAMP="$GRAPHTY_BUILD" perl -0pi -e 's/\s*<meta name="graphty-build"[^>]*>//g; s|</head>|    <meta name="graphty-build" content="$ENV{STAMP}" />\n    </head>|' "$OUT/index.html"
+    echo "Stamped /index.html: $GRAPHTY_BUILD"
+fi
 copy docs/.vitepress/dist docs
 copy graphty-element/storybook-static storybook/graphty-element
 copy graphty/storybook-static storybook/app

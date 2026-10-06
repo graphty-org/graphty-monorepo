@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph label="maps" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML" directed="1">
+  <att name="documentVersion" value="1.1"/>
+  <node id="-1" label="a"><att name="m" type="map"><att name="k" value="v" type="string"/><att name="n" value="2" type="integer"/></att></node>
+</graph>

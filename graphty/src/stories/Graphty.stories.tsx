@@ -35,7 +35,22 @@ const meta: Meta<typeof Graphty> = {
 
         // A flat circle is placed the same way every time, so the picture never depends on a seed.
         await element.session.layout.setDimension("2d");
-        await element.session.layout.set("circular");
+        // A small ring with big, labelled nodes and thick edges, so a change in the picture is easy
+        // to see: the camera fits the ring, so a smaller radius draws every node larger.
+        await element.session.layout.set("circular", { options: { scale: 0.2 } });
+        await element.session.styles.add({
+            name: "Story - large labelled nodes",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 4, "node.labelStyle": { sizePx: 96, color: "#000000" } },
+            encode: { "node.label": { by: "data.id", scale: "passthrough" } },
+        });
+        await element.session.styles.add({
+            name: "Story - thick edges",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.width": 25 },
+        });
         await element.session.data.addNodes(NODES);
         await element.session.data.addEdges(EDGES);
         await element.waitForStableFrame();

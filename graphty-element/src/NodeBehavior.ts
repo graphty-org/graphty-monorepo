@@ -687,6 +687,16 @@ export class NodeDragHandler {
     }
 
     /**
+     * The scene pointer observers this handler holds. A bulk teardown drops many handlers' observers
+     * from the scene in one pass before disposing them, because removing one at a time searches the
+     * scene's whole observer list for each (issue #543).
+     * @returns The observers, none once disposed.
+     */
+    get sceneObservers(): Observer<PointerInfoPre>[] {
+        return [this.pointerObserver, this.hoverObserver].filter((observer) => observer !== null);
+    }
+
+    /**
      * Cleans up event observers and releases resources.
      */
     public dispose(): void {

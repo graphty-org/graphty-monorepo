@@ -194,17 +194,17 @@ describe("XR Local Space Transformations", () => {
         });
 
         test("3D mode preserves Z coordinates", async () => {
-            const node1 = graph.getNode("node1");
-            if (!node1) {
-                return;
-            }
-
-            // Set a non-zero Z
-            node1.mesh.position.z = 5;
+            // A Z the layout holds, not one written onto the mesh: the element redraws every
+            // mesh from the layout on each frame it updates nodes (layout running, or a
+            // zoom-to-fit pending), so a hand-written mesh Z lasted only until the next such
+            // frame -- which a slow runner reached inside the test's 50 ms wait.
+            await graph.addNodes([{ id: "deep", position: { x: 0, y: 0, z: 5 } }]);
+            await operationQueueOf(graph).waitForCompletion();
             await new Promise((resolve) => setTimeout(resolve, 50));
 
-            // Z should be preserved in 3D mode
-            assert.notEqual(node1.mesh.position.z, 0, "Z should be non-zero in 3D mode");
+            const deep = graph.getNode("deep");
+            assert.isDefined(deep, "the node was added");
+            assert.closeTo(deep.mesh.position.z, 5, 0.01, "Z should be kept in 3D mode");
         });
 
         test("Babylon.js uses left-handed coordinate system", () => {

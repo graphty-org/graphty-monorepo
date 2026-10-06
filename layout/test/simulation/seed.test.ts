@@ -60,6 +60,37 @@ describe("seedPositions", () => {
         assert.equal(positions[8], 0);
     });
 
+    it("pads a zero-width box: one finite row spreads the others around it instead of stacking them on it", () => {
+        for (const range of ["fa2", "fr"] as const) {
+            const s = ring(4);
+            const positions = new Float32Array(12).fill(Number.NaN);
+            positions.set([5, -3, 0], 0);
+            seedPositions(s, positions, 11, 2, 1, null, range);
+            const seen = new Set<string>();
+            for (let i = 0; i < 4; i++) {
+                const x = positions[3 * i];
+                const y = positions[3 * i + 1];
+                // the padded box is the range's width (2 for "fa2", 1 for "fr") centered on the finite row
+                const half = range === "fr" ? 0.5 : 1;
+                assert.ok(Math.abs(x - 5) <= half && Math.abs(y + 3) <= half, `${range} row ${i} at (${x}, ${y})`);
+                seen.add(`${x},${y}`);
+            }
+            assert.equal(seen.size, 4, `${range}: every row has its own position`);
+        }
+    });
+
+    it("pads only the zero-width axis: two finite rows on a horizontal line do not flatten the rest onto it", () => {
+        const s = ring(4);
+        const positions = new Float32Array(12).fill(Number.NaN);
+        positions.set([0, 2, 0, 4, 2, 0], 0);
+        seedPositions(s, positions, 5, 2, 1, null, "fa2");
+        for (let i = 2; i < 4; i++) {
+            assert.ok(positions[3 * i] >= 0 && positions[3 * i] <= 4, "x stays inside the finite box");
+            assert.notEqual(positions[3 * i + 1], 2, "y is not the line's");
+            assert.ok(Math.abs(positions[3 * i + 1] - 2) <= 1, "y stays within the padded box");
+        }
+    });
+
     it('range "fr" draws in [0, 1)', () => {
         const s = ring(2);
         const positions = new Float32Array(6).fill(Number.NaN);

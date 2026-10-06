@@ -1,37 +1,16 @@
 /**
- * Seeded random number generator for reproducible results
+ * mulberry32: 32-bit state, output in [0, 1). Every step is exact 32-bit integer arithmetic
+ * (`Math.imul`), so the sequence is the reference one on every engine. The exact sequence is part
+ * of the result contract of every seeded algorithm: changing it changes their results.
+ * @param seed - Generator seed; only its low 32 bits are used
+ * @returns The generator
  */
-export class SeededRandom {
-    private seed: number;
-    private readonly m = 0x80000000; // 2**31
-    private readonly a = 1103515245;
-    private readonly c = 12345;
-
-    /**
-     * Creates a new SeededRandom instance with the given seed.
-     * @param seed - The seed value for reproducible random number generation
-     */
-    constructor(seed: number) {
-        // Handle negative seeds correctly
-        this.seed = ((seed % this.m) + this.m) % this.m;
-    }
-
-    /**
-     * Generate next random number between 0 and 1
-     * @returns A pseudo-random number in the range [0, 1]
-     */
-    next(): number {
-        this.seed = (this.a * this.seed + this.c) % this.m;
-        return this.seed / (this.m - 1);
-    }
-
-    /**
-     * Create a generator function for backward compatibility
-     * @param seed - The seed value for reproducible random number generation
-     * @returns A function that returns the next random number when called
-     */
-    static createGenerator(seed: number): () => number {
-        const rng = new SeededRandom(seed);
-        return () => rng.next();
-    }
+export function mulberry32(seed: number): () => number {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
 }

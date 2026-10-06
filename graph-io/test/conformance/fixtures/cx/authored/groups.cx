@@ -1,0 +1,9 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"metaData":[{"name":"nodes","version":"1.0"},{"name":"edges","version":"1.0"},{"name":"cyGroups","version":"1.0"},{"name":"cySubNetworks","version":"1.0"}]},
+{"nodes":[{"@id":1,"n":"n1"},{"@id":2,"n":"n2"},{"@id":3,"n":"n3"},{"@id":4,"n":"n4"},{"@id":5,"n":"n5"},{"@id":100,"n":"Group One"},{"@id":200,"n":"Inner"}]},
+{"edges":[{"@id":10,"s":1,"t":2},{"@id":11,"s":2,"t":5},{"@id":12,"s":3,"t":4}]},
+{"cySubNetworks":[{"@id":50,"nodes":"all","edges":"all"}]},
+{"cyGroups":[{"@id":100,"n":"Group One","nodes":[1,2,200],"internal_edges":[10],"external_edges":[11],"collapsed":true},{"@id":200,"n":"Inner","nodes":[3,4,2],"internal_edges":[12],"external_edges":[],"collapsed":false},{"@id":300,"n":"Missing node","nodes":[5],"internal_edges":[],"external_edges":[]},{"@id":400,"n":"Bad member","nodes":[999,1],"internal_edges":[],"external_edges":[]},{"@id":1,"n":"Cycle","nodes":[100],"internal_edges":[],"external_edges":[]}]},
+{"status":[{"error":"","success":true}]}
+]

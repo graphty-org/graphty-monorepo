@@ -165,6 +165,17 @@
                 "memoryDeltaBytes": 0,
                 "rate": 5090000,
                 "rateUnit": "edges/s"
+            },
+            {
+                "group": "mst",
+                "name": "minimumSpanningTree at 100k/1M",
+                "medianMs": 30.0,
+                "minMs": 28.0,
+                "maxMs": 33.0,
+                "runs": 5,
+                "memoryDeltaBytes": 0,
+                "rate": 33333333,
+                "rateUnit": "edges/s"
             }
         ]
     }

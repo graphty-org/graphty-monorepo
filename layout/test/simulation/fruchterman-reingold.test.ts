@@ -74,6 +74,44 @@ describe("FruchtermanReingoldSimulation", () => {
         }
     });
 
+    it("separates two coincident free nodes (the GPU's antisymmetric kick, not a zero force)", () => {
+        const s = fromEdgeArrays({ directed: false, nodeCount: 2, src: new Uint32Array(0), dst: new Uint32Array(0) });
+        const positions = new Float32Array(6);
+        const sim = new FruchtermanReingoldSimulation({ iterations: 10 });
+        sim.load(s, positions);
+        sim.step();
+        const d = Math.hypot(positions[0] - positions[3], positions[1] - positions[4]);
+        assert.ok(d > 0.1, `the pair is ${d} apart after one iteration`);
+        assert.ok(
+            Math.abs(positions[0] + positions[3]) < 1e-6 && Math.abs(positions[1] + positions[4]) < 1e-6,
+            "kick is antisymmetric",
+        );
+    });
+
+    it("one locked node and the rest unseeded does not collapse the layout onto the locked node", () => {
+        const s = grid(4, 4);
+        const positions = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
+        positions.set([0.25, 0.75, 0], 0);
+        const fixed = makeMask(s.nodeCount);
+        maskSet(fixed, 0, true);
+        const sim = new FruchtermanReingoldSimulation({ iterations: 50, fixed, seed: 3 });
+        sim.load(s, positions);
+        while (!sim.settled) {
+            sim.step(10);
+        }
+        assert.deepEqual(Array.from(positions.subarray(0, 3)), [0.25, 0.75, 0], "the locked node stays put");
+        let minD = Number.POSITIVE_INFINITY;
+        for (let i = 0; i < s.nodeCount; i++) {
+            for (let j = i + 1; j < s.nodeCount; j++) {
+                minD = Math.min(
+                    minD,
+                    Math.hypot(positions[3 * i] - positions[3 * j], positions[3 * i + 1] - positions[3 * j + 1]),
+                );
+            }
+        }
+        assert.ok(minD > 0.01, `closest pair is ${minD} apart`);
+    });
+
     it("is deterministic for a seed and independent of the step batching", () => {
         const s = grid(5, 5);
         const a = seeded(s, 42);
@@ -250,7 +288,7 @@ describe("FruchtermanReingoldSimulation", () => {
         }
     });
 
-    it("seeds the NaN rows of the owner's array at load() in [0, 1) (design 7.20) and keeps the finite ones", () => {
+    it("seeds the NaN rows of the owner's array at load() around the finite rows and keeps the finite ones", () => {
         const s = grid(3, 3);
         const positions = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
         positions[0] = 0.25;
@@ -264,8 +302,9 @@ describe("FruchtermanReingoldSimulation", () => {
         reference[2] = 0;
         seedPositions(s, reference, 4, 2, 1, null, "fr");
         assert.deepEqual(Array.from(positions), Array.from(reference));
-        for (const v of positions) {
-            assert.ok(v >= 0 && v < 1);
+        // one finite row is a zero-width box, padded to the "fr" range's width (1) centered on it
+        for (let i = 0; i < s.nodeCount; i++) {
+            assert.ok(Math.abs(positions[3 * i] - 0.25) <= 0.5 && Math.abs(positions[3 * i + 1] - 0.75) <= 0.5);
         }
     });
 

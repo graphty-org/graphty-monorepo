@@ -68,7 +68,21 @@ describe("extensionOf / normalizeMimeType / headBytes", () => {
 describe("rankFormats / sniffFormat (design 8.2)", () => {
     it("lists the eight built-in formats in the default registry's order", () => {
         expect(IMPORTERS.map((i) => i.format)).toEqual([...GRAPH_FORMATS]);
-        expect(GRAPH_FORMATS).toEqual(["json", "graphml", "gexf", "csv", "gml", "dot", "pajek", "neo4j"]);
+        expect(GRAPH_FORMATS).toEqual([
+            "json",
+            "graphml",
+            "gexf",
+            "csv",
+            "gml",
+            "dot",
+            "pajek",
+            "neo4j",
+            "xgmml",
+            "cx2",
+            "cx",
+            "obo",
+            "cys",
+        ]);
     });
 
     it("recognises every corpus file from its content alone and from its name alone", () => {
@@ -166,6 +180,28 @@ describe("rankFormats / sniffFormat (design 8.2)", () => {
         const csv = sniffFormat({ head: "source,target\na,b\n" }, IMPORTERS);
         expect(csv?.dialect).toBeNull();
         expect(sniffFormat({ filename: "g.json" }, IMPORTERS)?.dialect).toBeNull();
+    });
+});
+
+describe("JSON arrays that are not Cytoscape.js elements (design/graph-io/cytoscape-and-obo 1.2)", () => {
+    const content = (text: string, format: string): number =>
+        rankFormats({ head: text }, IMPORTERS).find((r) => r.format === format)?.content ?? 0;
+
+    it("scores a CX or CX2 head at most 0.3 as JSON, so the CX formats take it even named .json", () => {
+        const cx2 = '[{"CXVersion":"2.0","hasFragments":false},{"nodes":[{"id":1}]},{"edges":[]}]';
+        const cx1 = '[{"numberVerification":[{"longNumber":281474976710655}]},{"metaData":[{"name":"nodes"}]}]';
+        expect(content(cx2, "json")).toBe(0.3);
+        expect(content(cx1, "json")).toBe(0.3);
+        expect(sniffFormat({ head: cx2, filename: "network.json" }, IMPORTERS)?.format).toBe("cx2");
+        expect(sniffFormat({ head: cx2 }, IMPORTERS)?.format).toBe("cx2");
+    });
+
+    it("keeps a Cytoscape.js elements array, an empty array and every object document at their scores", () => {
+        expect(content('[{"data":{"id":"a"}},{"data":{"id":"b","source":"a","target":"a"}}]', "json")).toBe(0.5);
+        expect(content('[{"data":{"id":"a"}}], "nodes"', "json")).toBe(0.9);
+        expect(content("[]", "json")).toBe(0.5);
+        expect(content('{"nodes":[],"links":[]}', "json")).toBe(0.9);
+        expect(content("[1, 2, 3]", "json")).toBe(0.3);
     });
 });
 
@@ -270,5 +306,15 @@ describe("sniffJsonDialectHead", () => {
         expect(sniffJsonDialectHead('{"graphs": [{"nodes": {')).toBe("jgf");
         expect(sniffJsonDialectHead('{"graph": {"nodes": {"a": {}}}')).toBe("jgf");
         expect(sniffJsonDialectHead('{"graph": {"name": "g"}, "nodes": [], "links": []}')).toBe("node-link");
+    });
+});
+
+describe("the JSON dialect of a head cut inside the nodes", () => {
+    it("is null rather than node-link, since node-link and d3 differ only in keys after the nodes", () => {
+        const nodes = Array.from({ length: 400 }, (_, i) => `{"id":"n${i}"}`).join(",");
+        const d3 = `{"nodes":[${nodes}],"links":[{"source":"n0","target":"n1","value":2}]}`;
+        expect(sniffJsonDialectHead(d3.slice(0, 4096))).toBeNull();
+        expect(sniffJsonDialectHead(d3)).toBe("d3");
+        expect(sniffJsonDialectHead(`{"directed":true,"nodes":[${nodes}`.slice(0, 4096))).toBe("node-link");
     });
 });

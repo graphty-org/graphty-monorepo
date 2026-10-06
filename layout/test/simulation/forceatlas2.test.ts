@@ -241,11 +241,36 @@ describe("ForceAtlas2Simulation: the force-law variants (design 7.2)", () => {
         }
     });
 
-    it("accepts and ignores dissuadeHubs, nodeSize, seed and maxInFlight", () => {
+    it("accepts and ignores dissuadeHubs, nodeSize, maxInFlight, and seed when every start row is finite", () => {
         const base = run(s, {});
         const same = run(s, { dissuadeHubs: true, nodeSize: { a: 3 }, seed: 99, maxInFlight: 4 });
         assert.deepEqual(Array.from(same), Array.from(base));
         assert.deepEqual(Array.from(run(s, { compat: "paper" })), Array.from(base), "paper is the default (D5)");
+    });
+
+    it("load() seeds non-finite start rows from the seed option, exactly as seedPositions does (2D and 3D)", () => {
+        for (const dim of [2, 3] as const) {
+            const options = { seed: 5, dim, scale: 2, center: [1, -1, 3] };
+            const positions = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
+            positions.set([0.5, 0.25, 3], 0); // row 0 finite; the rest draw inside its box
+            positions[3 * 2] = Number.POSITIVE_INFINITY; // row 2 is unseeded as well
+            const expected = Float32Array.from(positions);
+            seedPositions(s, expected, 5, dim, 2, [1, -1, 3], "fa2");
+            const sim = new ForceAtlas2Simulation(options);
+            sim.load(s, positions);
+            assert.deepEqual(Array.from(positions), Array.from(expected), `dim ${dim}: the owner's array is seeded`);
+            sim.step(10);
+            for (const v of positions) {
+                assert.ok(Number.isFinite(v), `dim ${dim}: every position is finite after stepping`);
+            }
+            const again = new Float32Array(3 * s.nodeCount).fill(Number.NaN);
+            again.set([0.5, 0.25, 3], 0);
+            again[3 * 2] = Number.POSITIVE_INFINITY;
+            const twin = new ForceAtlas2Simulation(options);
+            twin.load(s, again);
+            twin.step(10);
+            assert.deepEqual(Array.from(again), Array.from(positions), `dim ${dim}: the same seed gives the same run`);
+        }
     });
 
     it("weights: the snapshot's arc weights (weight: true), an edge column by name, or none", () => {

@@ -1,0 +1,7 @@
+format-version: 1.2
+default-relationship-id-prefix: OBO_REL
+id-mapping: part_of BFO:0000050
+idspace: GO http://purl.obolibrary.org/obo/GO_ "Gene Ontology"
+
+[Term]
+id: X:1

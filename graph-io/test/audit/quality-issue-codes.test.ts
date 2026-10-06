@@ -31,6 +31,9 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import * as csv from "../../src/formats/csv/index.js";
+import * as cx from "../../src/formats/cx/index.js";
+import * as cx2 from "../../src/formats/cx2/index.js";
+import * as cys from "../../src/formats/cys/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
 import * as gml from "../../src/formats/gml/index.js";
@@ -38,6 +41,7 @@ import * as graphml from "../../src/formats/graphml/index.js";
 import * as json from "../../src/formats/json/index.js";
 import * as neo4j from "../../src/formats/neo4j/index.js";
 import * as pajek from "../../src/formats/pajek/index.js";
+import * as xgmml from "../../src/formats/xgmml/index.js";
 import { type GraphImporter, ImportError, type ImportReport } from "../../src/types.js";
 
 type CodeTable = Readonly<Record<string, string>>;
@@ -82,7 +86,14 @@ const SUBPATHS: Readonly<Record<string, Record<string, unknown>>> = {
     CSV: csv,
     JSON: json,
     NEO4J: neo4j,
+    CX2: cx2,
+    CX: cx,
+    XGMML: xgmml,
+    CYS: cys,
 };
+
+/** The subpaths of formats graph-io reads but does not write: no <FMT>_LOSS table. */
+const READ_ONLY: ReadonlySet<string> = new Set(["CX", "CYS"]);
 
 function isCodeTable(value: unknown): value is CodeTable {
     return (
@@ -121,7 +132,7 @@ describe("audit: issue and loss code tables", () => {
         const missing: string[] = [];
         for (const [fmt, subpath] of Object.entries(SUBPATHS)) {
             const names = Object.keys(tablesOf(subpath)).sort();
-            for (const wanted of [`${fmt}_ISSUE`, `${fmt}_LOSS`]) {
+            for (const wanted of READ_ONLY.has(fmt) ? [`${fmt}_ISSUE`] : [`${fmt}_ISSUE`, `${fmt}_LOSS`]) {
                 if (!names.includes(wanted)) {
                     missing.push(`${fmt}: has ${names.join(", ")}; no ${wanted}`);
                 }
@@ -161,9 +172,12 @@ describe("audit: issue and loss code tables", () => {
                 }
             }
         }
+        // a version is always the format's own (a CX2 descriptor's, a session marker's), so its
+        // code names the format: E_CX2_VERSION and E_CYS_VERSION are two concepts, not one
+        const formatOwn: ReadonlySet<string> = new Set(["VERSION"]);
         const divergent: string[] = [];
         for (const [key, codes] of byKey) {
-            if (codes.size > 1 && new Set(codes.values()).size > 1) {
+            if (!formatOwn.has(key) && codes.size > 1 && new Set(codes.values()).size > 1) {
                 divergent.push(`${key}: ${[...codes].map(([fmt, code]) => `${fmt}=${code}`).join(" ")}`);
             }
         }
@@ -179,6 +193,7 @@ describe("audit: issue and loss code tables", () => {
             ["gexf malformed xml", gexf.gexfImporter, gexf.GEXF_ISSUE, "<gexf><graph>"],
             ["neo4j unclosed quote", neo4j.neo4jImporter, neo4j.NEO4J_ISSUE, ':ID,name\n1,"abc'],
             ["neo4j text after quote", neo4j.neo4jImporter, neo4j.NEO4J_ISSUE, ':ID,name\n1,"abc"def\n'],
+            ["cys text input", cys.cysImporter, cys.CYS_ISSUE, "not a zip"],
         ];
         const unlisted: string[] = [];
         for (const [name, importer, table, text] of cases) {

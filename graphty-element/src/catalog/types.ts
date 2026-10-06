@@ -53,6 +53,18 @@ export type EdgeId = string;
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
 
+/**
+ * The name an algorithm suggests for a run's result, from the run's settings.
+ *
+ * `id` becomes the result path a style layer reads (`results.<id>.value`), so it is lower-case
+ * letters, digits and underscores, starting with a letter: `pagerank`, `louvain_resolution_1_5`.
+ * `label` is what a reader sees in the layer list and the legend: "Influence (damping 0.9)".
+ */
+export interface SuggestedName {
+    readonly id: string;
+    readonly label: string;
+}
+
 /** The identity of a style layer. Element-minted and stable; never an array index. */
 export type LayerId = string;
 
@@ -65,7 +77,14 @@ export type SetId = string;
 /** The identity of a saved scope: a kept set, so the same type as {@link SetId}. */
 export type ScopeId = SetId;
 
-/** A JMESPath expression over the published result root. */
+/**
+ * A column key: `data.<name>` for a data column, `results.<run>.<field>` for a run's result.
+ *
+ * The part after the root is the column's name LITERALLY, never an expression: a column named
+ * `shared chapters` or `a.b` has the path `data.shared chapters` or `data.a.b`. Wherever a path is
+ * taken as a path (a selector's `path`, a filter) it reads that column. To put one INSIDE an
+ * expression, pass it through `quotePath` first, which quotes every segment that needs it.
+ */
 export type Path = string;
 
 /** A JMESPath predicate. The same dialect everywhere an expression is accepted. */
@@ -162,13 +181,27 @@ export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
  * #306 and #307). A load that names either fails with that reason. Both are removed at the next
  * major release unless a reader lands first.
  */
-export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2"] as const;
+export const KNOWN_FORMAT_IDS = [
+    "json",
+    "csv",
+    "graphml",
+    "gexf",
+    "gml",
+    "dot",
+    "pajek",
+    "sif",
+    "cx2",
+    "xgmml",
+    "cx",
+    "cys",
+    "obo",
+] as const;
 
 /**
  * A format id: a built-in name, or a plugin's.
  *
- * The built-in names "sif" and "cx2" are deprecated and unserved (issues #306 and #307); they are
- * removed at the next major release unless a reader lands first.
+ * The built-in name "sif" is deprecated and unserved (issue #306); it is removed at the next major
+ * release unless a reader lands first.
  */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
@@ -227,6 +260,33 @@ export const ATTRIBUTE_TYPES = ["string", "number", "integer", "boolean", "time"
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 
 /**
+ * What a column's values measure, which decides how a binding that names no scale draws it.
+ *
+ * - `"categorical"` -- names of groups with no order: one color per value.
+ * - `"ordinal"` -- groups with an order, such as Low, Medium, High: colors and sizes follow it.
+ * - `"quantitative"` -- amounts: a ramp, or a size range.
+ * - `"time"` -- points in time.
+ *
+ * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
+ */
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+
+/**
+ * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
+ * catalogue, the file format, or the element's inference from the values. A data column reports
+ * `"declared"` or `"inferred"` today; `"catalog"` and `"file"` are reserved for results and for
+ * formats that write a column's measurement down.
+ *
+ * OPEN UNION: values may be added in a minor release.
+ */
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+
+/** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
+export type MeasurementDeclaration =
+    | { readonly measurement: "categorical" | "quantitative" | "time" }
+    | { readonly measurement: "ordinal"; readonly order: readonly (string | number)[] };
+
+/**
  * How expensive a computation is, in the one vocabulary every estimate uses. "instant" is
  * cheap enough to run without asking; "unbounded" cannot be estimated in advance at all.
  */
@@ -257,6 +317,41 @@ export const RESULT_SHAPES = [
 /** The shape of an algorithm's result. */
 export type ResultShape = (typeof RESULT_SHAPES)[number];
 
+/**
+ * One band of a field's interpretation scale: a range of values and what a value in it means.
+ *
+ * A band's lower bound is `above` (exclusive) or `atLeast` (inclusive), never both. The lowest
+ * band has neither and takes everything below the band above it.
+ */
+export interface FieldBand {
+    /** A stable id a consumer may key its own wording on, such as "clear". */
+    id: string;
+    /** The band in a few plain words, such as "Clearly separated". */
+    plainName: string;
+    /** One plain-language sentence on what a value in this band means. */
+    description: string;
+    /** A value strictly greater than this is in the band. */
+    above?: number;
+    /** A value greater than or equal to this is in the band. */
+    atLeast?: number;
+}
+
+/**
+ * How to read a quality score: what the scale measures, where its bands lie, and where the
+ * thresholds come from.
+ */
+export interface FieldInterpretation {
+    /** One sentence on what the score measures and the value that counts as good. */
+    summary: string;
+    /** Where the thresholds come from, as a citation a reader can look up. */
+    source: string;
+    /**
+     * The bands, highest first. A value is in the first band whose bound it meets, so every
+     * finite value is in exactly one band. `RunResult.band(field)` does this lookup.
+     */
+    bands: readonly FieldBand[];
+}
+
 /** One field a result publishes, per element or for the graph as a whole. */
 export interface FieldDescriptor {
     name: string;
@@ -266,6 +361,14 @@ export interface FieldDescriptor {
     type: "number" | "integer" | "boolean" | "string" | "table";
     unit?: string;
     normalization?: string;
+    /** How to read the value, for a quality score whose number alone means little. */
+    interpretation?: FieldInterpretation;
+    /**
+     * What the field's values measure, declared by the algorithm. A partition's group field is
+     * `"categorical"` by construction. Absent, the element reads strings and booleans as
+     * categorical and numbers as quantitative.
+     */
+    measurement?: Measurement;
     path: Path;
 }
 
@@ -448,8 +551,8 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
  * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one dark grey (#505050). The legend names the
- *   grey "other: K groups".
+ *   first, and every remaining group is painted one dark grey (#505050). The legend lists the
+ *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
  *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
@@ -492,6 +595,14 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * Values this binding does not paint: an element carrying one is left exactly as the
+           * layers beneath paint it, as an unmeasured element is. Compared as the legend spells a
+           * category, so the group `0` and the text `"0"` are the same value. The legend keeps
+           * the value's row, marked `hidden`, so it can be shown again. Set it per value with
+           * `styles.setValueHidden()`, which is one undoable step.
+           */
+          hidden?: (string | number | boolean)[];
           reverse?: boolean;
           midpoint?: number;
           bins?: number;
@@ -761,8 +872,29 @@ export interface FunctionDescriptor {
 // Attributes, metrics and validation
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * What a column does for the graph, beyond holding values: the node ids were read from it
+ * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
+ * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
+ * (`"edgeId"`).
+ *
+ * OPEN UNION: roles may be added in a minor release; handle unknown roles.
+ */
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+
+/**
+ * One thing that reads a column: a style layer whose selector or bindings read it, or a finished
+ * run that weighed its edges by it.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type AttributeUse =
+    | { readonly kind: "layer"; readonly id: LayerId }
+    | { readonly kind: "run"; readonly id: RunId };
+
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
+    /** The column's key, `data.<name>`, with the name unquoted; see {@link Path}. Quote it with `quotePath` before using it inside an expression. */
     path: Path;
     /** The bracketed form a formula uses, such as "[betweenness_centrality]". */
     token: string;
@@ -771,6 +903,14 @@ export interface AttributeDescriptor {
     technicalName: string;
     kind: "node" | "edge";
     type: AttributeType;
+    /**
+     * What the values measure. Inferred as `"categorical"` for strings and booleans and
+     * `"quantitative"` for numbers; `"ordinal"` and `"time"` are never inferred. A column of
+     * number codes needs a `data.declare` to be read as groups. Absent for a column with no values.
+     */
+    measurement?: Measurement;
+    /** Who said so. Present exactly when `measurement` is. */
+    measurementSource?: MeasurementSource;
     origin: "imported" | "joined" | "computed" | "result";
     /** The fraction of elements that carry a value, from 0 to 1. */
     completeness: number;
@@ -780,6 +920,26 @@ export interface AttributeDescriptor {
     sampleValues: readonly unknown[];
     /** Set when the attribute came from a run. */
     runId?: RunId;
+    /**
+     * What the column does for the graph: the roles it plays, read from the data configuration
+     * (`data.knownFields`) and the last load. Absent when it plays none. A column named with
+     * spaces (`shared chapters`) is matched by its literal name.
+     *
+     * ```ts
+     * const key = session.data.attributes().find((a) => a.roles?.includes("key")); // the node ids
+     * ```
+     */
+    roles?: readonly AttributeRole[];
+    /**
+     * What reads the column now: each style layer that selects or paints by it, in stack order,
+     * then each run that weighed its edges by it. Absent when nothing does. Together with `roles`
+     * this is "the attributes in use":
+     *
+     * ```ts
+     * const inUse = session.data.attributes().filter((a) => a.roles !== undefined || a.usedBy !== undefined);
+     * ```
+     */
+    usedBy?: readonly AttributeUse[];
 }
 
 /**
@@ -851,10 +1011,11 @@ export type SelectionDirection = "in" | "out" | "all";
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
- * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `member`
- * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
- * `clipped` (`"visible"` is); `item` and `threshold` speak the half or halves their field lives
- * on; every other leaf speaks nodes. A group with no members constrains nothing.
+ * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
+ * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
+ * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
+ * or halves their field lives on; every other leaf speaks nodes. A group with no members
+ * constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
@@ -870,6 +1031,20 @@ export type RuleTree =
       }
     | { readonly kind: "component"; readonly id: number }
     | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
+    /**
+     * The nodes with no edge to another node: each is a component of its own, so these are exactly
+     * the nodes `data.statistics().components.isolatedCount` counts. A node whose only edges are
+     * self-loops is one. Speaks nodes.
+     */
+    | { readonly kind: "isolated" }
+    /** The edges whose two ends are the same node: `statistics().selfLoopCount` of them. Speaks edges. */
+    | { readonly kind: "self-loop" }
+    /**
+     * The edges beyond the first between one pair of nodes, in the graph's edge order: exactly the
+     * edges `statistics().repeatedEdgeCount` counts. On an undirected graph `a`-`b` and `b`-`a` are
+     * one pair; on a directed graph they are two. Speaks edges.
+     */
+    | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed

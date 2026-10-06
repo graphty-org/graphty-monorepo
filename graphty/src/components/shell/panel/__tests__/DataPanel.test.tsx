@@ -160,6 +160,21 @@ describe("DataPanel", () => {
             expect(onDataTableOpenChange).toHaveBeenCalledWith(true);
         });
 
+        it("draws each loaded fact as a stat: one group per fact, a raw number formatted for the locale", () => {
+            render(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <DataPanel
+                        stateAxis="loaded"
+                        onLoad={acceptingLoad()}
+                        loadedFacts={[{ id: "rows", name: "Skipped rows", value: 1284000 }]}
+                    />
+                </ShellProvider>,
+            );
+
+            // Grouped in whatever locale the browser runs in: 1,284,000 or 1.284.000, never 1284000.
+            expect(screen.getByRole("group", { name: "Skipped rows" })).toHaveTextContent(/1\D284\D000/);
+        });
+
         it("offers the Import options gear on Loaded data", () => {
             renderPanel("loaded");
 

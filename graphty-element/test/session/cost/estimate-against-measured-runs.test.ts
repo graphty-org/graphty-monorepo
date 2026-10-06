@@ -54,6 +54,7 @@ import type { AlgorithmKey } from "../../../src/catalog/types";
 import type { DataManager } from "../../../src/managers/DataManager";
 import { calibrateCost, DEFAULT_COST_RATES, estimateCost, type MachineCalibration } from "../../../src/session/cost";
 import type { CostRates } from "../../../src/session/cost/estimate";
+import { sampledTransitivity } from "../../../src/session/statistics";
 import type { GraphStatistics } from "../../../src/session/types";
 
 /**
@@ -270,7 +271,12 @@ const louvainRun = onSnapshot("undirected", (s) =>
 const ROWS: readonly Row[] = [
     {
         key: "degree",
-        sizes: [50_000, 100_000],
+        // Large enough that one run takes the 0.05 s or more the file header asks for (15 to 30 ms
+        // here, about twice that on CI). At 50,000 and 100,000 nodes a run took 1 to 9 ms: the same
+        // 50,000-node run read 1 to 3 ms from one process to the next on one machine, and 6 ms on one
+        // CI runner, a ratio of 0.72 where every other row held (then with two objects built per
+        // node, which the element no longer builds).
+        sizes: [400_000, 800_000],
         run: (data, nodes) => {
             // Each edge's source and target counted off the snapshot's edge list, as the degree
             // adapter does.
@@ -282,13 +288,21 @@ const ROWS: readonly Row[] = [
                 outDegrees[src[edge]]++;
                 inDegrees[dst[edge]]++;
             }
-            const out: object[] = [];
+            // Then each node's id looked up and its counts written into the three published columns.
+            const measured: unknown[] = [];
+            const value = new Float64Array(nodes);
+            const inDegree = new Float64Array(nodes);
+            const outDegree = new Float64Array(nodes);
             for (let node = 0; node < nodes; node++) {
-                const [inDegree, outDegree] = [inDegrees[node], outDegrees[node]];
-                out.push({ id: graph.ids.idOf(node), values: { value: inDegree + outDegree, inDegree, outDegree } });
+                const id = graph.ids.idOf(node);
+                const index = graph.ids.indexOf(id);
+                const row = measured.push(id) - 1;
+                inDegree[row] = inDegrees[index];
+                outDegree[row] = outDegrees[index];
+                value[row] = inDegrees[index] + outDegrees[index];
             }
 
-            return out;
+            return { ids: measured, columns: { value, inDegree, outDegree } };
         },
     },
     // The estimate prices the whole iteration bound, so the row held to both bounds is one that
@@ -369,9 +383,10 @@ const ROWS: readonly Row[] = [
             optimismOnly: `this graph converges in ${passes} of the 1,000 passes the estimate charges`,
         }),
     ),
-    // Louvain on the graphs it is run on, held to both bounds: its model is pinned under the
-    // slowest of these per element (scale-free), and the sizes are large enough that the per-element
-    // growth its log term charges is visible.
+    // Louvain on the graphs it is run on, held to both bounds: graphs with no triangles, which its
+    // model charges in full, and a planted partition (transitivity about 0.09), which it charges
+    // about half. The sizes are large enough that the per-element growth its log term charges is
+    // visible.
     { key: "louvain", sizes: [20_000, 50_000], run: louvainRun },
     ...(
         [
@@ -423,31 +438,35 @@ function dataManagerOf(snapshot: GraphSnapshot): DataManager {
     return { getSnapshot: () => snapshot, undirected: () => undirected } as unknown as DataManager;
 }
 
-/** One measured graph, with the two facts the estimate reads from it beyond the node count. */
+/** One measured graph, with the facts the estimate reads from it beyond the node count. */
 interface Measured {
     readonly data: DataManager;
     readonly edges: number;
     readonly maxDegree: number;
+    readonly transitivity: number;
 }
 
 /**
  * Build a shape's graph as the element would hold it, declared directed as the loader stores it.
  * @param shape - The shape.
  * @param nodes - How many nodes.
- * @returns The graph, its edge count and its largest total degree.
+ * @returns The graph, its edge count, its largest total degree and its transitivity, as the
+ * session's statistics compute it.
  */
 function measuredGraph(shape: Shape, nodes: number): Measured {
     const { src, dst } = shape(nodes);
-    const degrees = new Uint32Array(nodes);
-    for (let edge = 0; edge < src.length; edge++) {
-        degrees[src[edge]]++;
-        degrees[dst[edge]]++;
-    }
+    const snapshot = fromEdgeArrays({ src, dst, nodeCount: nodes, directed: true });
 
+    // Read as the session's statistics read it: `degree()` and the transitivity build and cache the
+    // directed snapshot's reverse view, as they do on every graph the element loads. That view is
+    // part of the heap the algorithm then runs in; while degree built an object per node it moved
+    // that row's time by 2x (see the degree model in estimate.ts), so a run measured without it
+    // was not the element's run.
     return {
-        data: dataManagerOf(fromEdgeArrays({ src, dst, nodeCount: nodes, directed: true })),
+        data: dataManagerOf(snapshot),
         edges: src.length,
-        maxDegree: degrees.reduce((most, degree) => Math.max(most, degree), 0),
+        maxDegree: snapshot.degree().reduce((most, degree) => Math.max(most, degree), 0),
+        transitivity: sampledTransitivity(snapshot),
     };
 }
 
@@ -456,9 +475,10 @@ function measuredGraph(shape: Shape, nodes: number): Measured {
  * @param nodeCount - Nodes.
  * @param edgeCount - Edges.
  * @param maxDegree - The largest total degree.
+ * @param transitivity - The share of wedges closed into triangles.
  * @returns Statistics with nothing set that would make an algorithm unavailable.
  */
-function statistics(nodeCount: number, edgeCount: number, maxDegree: number): GraphStatistics {
+function statistics(nodeCount: number, edgeCount: number, maxDegree: number, transitivity: number): GraphStatistics {
     return {
         nodeCount,
         edgeCount,
@@ -470,6 +490,7 @@ function statistics(nodeCount: number, edgeCount: number, maxDegree: number): Gr
         repeatedEdgeCount: 0,
         degreeRange: [0, maxDegree],
         meanDegree: nodeCount === 0 ? 0 : (2 * edgeCount) / nodeCount,
+        transitivity,
         components: {
             count: 1,
             sizes: [nodeCount],
@@ -635,7 +656,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
                 once(0); // warm-up, untimed
 
                 for (const [index, nodes] of row.sizes.entries()) {
-                    const { edges, maxDegree } = graphs[index];
+                    const { edges, maxDegree, transitivity } = graphs[index];
                     // Probed on both sides of the runs, keeping the faster reading, so a burst of load
                     // during one probe window does not read as a slow machine.
                     const before = await machineSpeed();
@@ -645,13 +666,13 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     const estimate = estimateCost({
                         algorithm: row.key,
                         descriptor,
-                        statistics: statistics(nodes, edges, maxDegree),
+                        statistics: statistics(nodes, edges, maxDegree, transitivity),
                         calibration,
                     });
                     assert.isTrue(estimate.available, estimate.reason);
 
                     const ratio = estimate.seconds / measured;
-                    const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;
+                    const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;
                     if (process.env.COST_GUARD_VERBOSE !== undefined) {
                         process.stdout.write(`${facts}, machine speed ${speed.toFixed(2)}x the reference\n`);
                     }

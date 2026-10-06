@@ -25,7 +25,7 @@ import { PANEL_INK } from "@graphty/compact-mantine";
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useCallback, useRef, useState } from "react";
 
-import { TOOLTIP_DELAY_MS, TOP_BAR_HEIGHT } from "../constants";
+import { TOP_BAR_HEIGHT } from "../constants";
 import { MenuCaret } from "../MenuCaret";
 import type { TopBarProps } from "../types";
 import { CommandPalettePill } from "./CommandPalettePill";
@@ -53,7 +53,7 @@ import {
 } from "./topBarGeometry";
 import { TopBarGlyph } from "./topBarGlyphs";
 import {
-    compareTitle,
+    COMPARE_NOT_BUILT_TITLE,
     EXPORT_LABEL,
     EXPORT_MENU_DATA,
     EXPORT_MENU_IMAGE,
@@ -120,7 +120,6 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
     const {
         canRedo,
         canUndo,
-        compareActive,
         dataLoaded,
         datasetName,
         history = EMPTY_HISTORY,
@@ -129,7 +128,6 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
         onOpenHistory,
         onRedo,
         onShare,
-        onToggleCompare,
         onToggleSidebars,
         onUndo,
         sidebarsShown,
@@ -235,12 +233,7 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                     position="bottom-end"
                     withinPortal
                 >
-                    <Tooltip
-                        disabled={exportOpen && dataLoaded}
-                        label={exportTitle(dataLoaded)}
-                        openDelay={TOOLTIP_DELAY_MS}
-                        withinPortal
-                    >
+                    <Tooltip disabled={exportOpen && dataLoaded} label={exportTitle(dataLoaded)} withinPortal>
                         <Menu.Target>
                             <Button
                                 type="button"
@@ -339,13 +332,10 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                 />
 
                 <TopBarIconButton
-                    title={compareTitle(dataLoaded)}
-                    accessibleName={compareTitle(dataLoaded)}
+                    title={COMPARE_NOT_BUILT_TITLE}
+                    accessibleName={COMPARE_NOT_BUILT_TITLE}
                     glyph="compare"
-                    disabled={!dataLoaded}
-                    pressed={compareActive}
-                    active={compareActive}
-                    onClick={onToggleCompare}
+                    disabled
                 />
                 {/* ONE switch for BOTH sidebars, in the slot the mirrored pair occupied
                     until 2026-09-14. It is lit, and reports aria-pressed="true", while

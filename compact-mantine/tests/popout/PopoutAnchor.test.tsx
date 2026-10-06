@@ -46,9 +46,7 @@ describe("PopoutAnchor", () => {
     describe("context behavior", () => {
         it("usePopoutAnchorContext returns null when not inside PopoutAnchor", () => {
             const { result } = renderHook(() => usePopoutAnchorContext(), {
-                wrapper: ({ children }) => (
-                    <MantineProvider theme={compactTheme}>{children}</MantineProvider>
-                ),
+                wrapper: ({ children }) => <MantineProvider theme={compactTheme}>{children}</MantineProvider>,
             });
             expect(result.current).toBeNull();
         });
@@ -56,11 +54,7 @@ describe("PopoutAnchor", () => {
         it("usePopoutAnchorContext returns anchor context inside PopoutAnchor", () => {
             function TestComponent(): React.JSX.Element {
                 const context = usePopoutAnchorContext();
-                return (
-                    <div data-testid="context-check">
-                        {context ? "has-context" : "no-context"}
-                    </div>
-                );
+                return <div data-testid="context-check">{context ? "has-context" : "no-context"}</div>;
             }
 
             render(
@@ -86,7 +80,6 @@ describe("PopoutAnchor", () => {
             expect(() => {
                 render(
                     <MantineProvider theme={compactTheme}>
-                        {/* @ts-expect-error - Testing invalid children */}
                         <Popout.Anchor>{"invalid string child"}</Popout.Anchor>
                     </MantineProvider>,
                 );
@@ -116,17 +109,10 @@ describe("PopoutAnchor", () => {
             render(
                 <TestWrapper>
                     <Popout.Anchor>
-                        <Box
-                            w={200}
-                            data-testid="sidebar"
-                            style={{ border: "1px solid gray" }}
-                        >
+                        <Box w={200} data-testid="sidebar" style={{ border: "1px solid gray" }}>
                             <Popout>
                                 <Popout.Trigger>
-                                    <PopoutButton
-                                        icon={<UiGlyph name="gear" size={12} />}
-                                        aria-label="Open settings"
-                                    />
+                                    <PopoutButton icon={<UiGlyph name="gear" size={12} />} aria-label="Open settings" />
                                 </Popout.Trigger>
                                 <Popout.Panel
                                     width={150}
@@ -309,10 +295,16 @@ describe("PopoutAnchor", () => {
             const button = screen.getByRole("button", { name: "Open nested settings" });
 
             setRect(screen.getByTestId("outer-anchor"), {
-                left: 100, top: 0, right: 400, bottom: 600,
+                left: 100,
+                top: 0,
+                right: 400,
+                bottom: 600,
             });
             setRect(screen.getByTestId("inner-anchor"), {
-                left: 200, top: 0, right: 400, bottom: 600,
+                left: 200,
+                top: 0,
+                right: 400,
+                bottom: 600,
             });
             setRect(button, { left: 360, top: 80, right: 380, bottom: 100 });
 

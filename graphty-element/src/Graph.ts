@@ -14,6 +14,7 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    Observable,
     PointerEventTypes,
     Quaternion,
     Scene,
@@ -77,6 +78,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
+import { sampleOf } from "./data/source-bytes";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
@@ -105,6 +107,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -293,6 +296,15 @@ export class Graph implements GraphContext {
     camera: CameraManager;
     private initialCameraState?: import("./screenshot/types.js").CameraState;
     private initialCameraStateCaptured = false;
+
+    /**
+     * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
+     * the element last asked to frame the graph for a load or a new layout. The first-settlement
+     * framing is skipped while it is set, so it never moves a camera somebody has just placed.
+     */
+    #cameraPlaced = false;
+    /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    #autoFrame = true;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -366,6 +378,8 @@ export class Graph implements GraphContext {
     // Managers
     /** Event manager for adding/removing event listeners */
     readonly eventManager: EventManager;
+    /** Told the node label counts once the view is still and they changed. */
+    readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
     private lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
@@ -617,7 +631,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = false;
             },
             loadArrangement: (restoring, wrote) => {
-                this.layoutManager.loadArrangement(restoring);
+                this.layoutManager.loadArrangement(restoring, wrote);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -729,6 +743,7 @@ export class Graph implements GraphContext {
         };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
+        this.layoutManager.graphWritesWaiting = () => dispatcherOf(this.session).graphWritesWaiting;
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
         // way, and the layout engine can place every drawn edge.
@@ -1239,6 +1254,33 @@ export class Graph implements GraphContext {
             return;
         }
 
+        // NO NODE OR EDGE IS BUILT UNTIL THE RENDERER IS KNOWN. Opening WebGPU takes hundreds of
+        // milliseconds (an adapter, a device, and the shader compiler fetched from Babylon's CDN),
+        // and data assigned before the element was attached arrives in that window. Built then,
+        // every mesh went onto the WebGL scene, was disposed with it, and was built again on the
+        // WebGPU one. Disposing that many node meshes is quadratic (#680), which is what made a
+        // 10k-node WebGPU load take 46 s against 3 s under WebGL (#614). Loads wait on the queue
+        // instead, and take their turn once the scene they will be drawn on exists.
+        const queue = this.operationQueue;
+        const holdQueue = !queue.getStats().isPaused;
+        if (holdQueue) {
+            queue.pause();
+        }
+
+        try {
+            await this.openWebGPU(requested);
+        } finally {
+            if (holdQueue) {
+                queue.resume();
+            }
+        }
+    }
+
+    /**
+     * Opens a WebGPU engine and moves the graph onto it, or records why WebGL stays.
+     * @param requested - What was asked for: `"webgpu"` or `"auto"`.
+     */
+    private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
         const opened = await openWebGPUEngine(canvas);
         // Shut down while the engine was opening: nothing will ever dispose it but this.
@@ -1449,8 +1491,12 @@ export class Graph implements GraphContext {
                         // should NOT trigger zoom to fit - the user's camera position should be preserved.
                         if (!this.initialCameraStateCaptured) {
                             this.initialCameraStateCaptured = true;
-                            // Force a final zoom to fit after layout has truly settled
-                            this.autoFrame();
+                            // Force a final zoom to fit after layout has truly settled, unless the
+                            // camera was placed since the load asked for framing: that placement
+                            // is the answer, and a slow machine settles after it as often as before.
+                            if (!this.#cameraPlaced) {
+                                this.autoFrame();
+                            }
 
                             // Capture initial camera state after first settlement for resetCamera()
                             // Use setTimeout to allow zoom-to-fit to complete first
@@ -1624,6 +1670,16 @@ export class Graph implements GraphContext {
         } else if (Object.keys(project).length > 0) {
             this.setProjectConfig({ layoutBehavior: project });
         }
+    }
+
+    /**
+     * How many node labels this graph is drawing, and why the rest are not, as of the last frame
+     * that decided it. All zeros before a label is drawn. Reading it never forces a frame.
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
     }
 
     /**
@@ -1803,6 +1859,9 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
@@ -1813,6 +1872,8 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -1823,7 +1884,7 @@ export class Graph implements GraphContext {
 
         if (!format) {
             // Read first 2KB for format detection
-            const sample = await file.slice(0, 2048).text();
+            const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
             this.dataManager.throwIfSuperseded(load.generation, file.name);
             const detected = detectFormat(file.name, sample);
 
@@ -1834,8 +1895,9 @@ export class Graph implements GraphContext {
             format = detected;
         }
 
-        // Read full file content
-        const content = await file.text();
+        // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
+        // declaration), and a binary format such as a zip would not survive a text read.
+        const content = new Uint8Array(await file.arrayBuffer());
 
         // Load using appropriate DataSource
         const { replace: _replace, ...sourceOptions } = options ?? {};
@@ -1866,6 +1928,8 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -1887,13 +1951,15 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
-        let fetchedContent: string | undefined;
+        let fetchedContent: Uint8Array | undefined;
 
         if (!format) {
             // First try extension-based detection (no fetch needed)
@@ -1908,10 +1974,11 @@ export class Graph implements GraphContext {
                     throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
                 }
 
-                fetchedContent = await response.text();
+                // Bytes, decoded by the importer: see loadFromFile.
+                fetchedContent = new Uint8Array(await response.arrayBuffer());
                 this.dataManager.throwIfSuperseded(load.generation, url);
 
-                const sample = fetchedContent.slice(0, 2048);
+                const sample = sampleOf(fetchedContent);
                 const detectedFromContent = detectFormat(url, sample);
 
                 if (!detectedFromContent) {
@@ -1933,6 +2000,8 @@ export class Graph implements GraphContext {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
             ...(edgeSource === null ? {} : { edgeSource }),
             ...(edgeTarget === null ? {} : { edgeTarget }),
+            ...(options?.graphIndex === undefined ? {} : { graphIndex: options.graphIndex }),
+            ...(options?.graphName === undefined ? {} : { graphName: options.graphName }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch
@@ -3020,7 +3089,7 @@ export class Graph implements GraphContext {
      * ```
      */
     zoomToFit(): void {
-        this.updateManager.enableZoomToFit();
+        this.updateManager.enableZoomToFit(true);
     }
 
     // GraphContext implementation methods
@@ -3426,12 +3495,36 @@ export class Graph implements GraphContext {
 
     /**
      * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
-     * first settlement -- unless the configuration placed the camera itself with
-     * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
+     * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
+     * configuration placed the camera itself with `startingCameraDistance`. An explicit
+     * `zoomToFit()` is not affected.
      */
     private autoFrame(): void {
-        if (this.styles.config.graph.startingCameraDistance === undefined) {
+        this.#cameraPlaced = false;
+        if (this.#autoFrame && this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
+        }
+    }
+
+    /**
+     * Whether the camera frames the graph on its own after a data load or a layout change.
+     * @returns True (the default) when it does
+     */
+    getAutoFrame(): boolean {
+        return this.#autoFrame;
+    }
+
+    /**
+     * Switch the camera's own framing after a data load or a layout change on or off. Off, the
+     * camera stays where it is, and a re-frame already following a moving layout stops. An
+     * explicit `zoomToFit()` frames the graph either way. A preference of the view, not saved in a
+     * project file.
+     * @param on - True to frame after each load or layout change, false to leave the camera alone.
+     */
+    setAutoFrame(on: boolean): void {
+        this.#autoFrame = on;
+        if (!on) {
+            this.updateManager.stopAutoZoomToFit();
         }
     }
 
@@ -4590,6 +4683,13 @@ export class Graph implements GraphContext {
         // Resolve preset if needed
         const resolvedState = orbitAnglesToPosition("preset" in state ? this.resolveCameraPreset(state.preset) : state);
 
+        // An explicit placement answers any framing the element still owes on its own initiative
+        // (a data load, a new layout, the first settlement). Left outstanding, that request is
+        // honoured on a later frame -- once a style pass finishes, or once a slow machine renders
+        // one -- and moves the camera off the state just placed. A later load or layout asks again.
+        this.updateManager.disableZoomToFit();
+        this.#cameraPlaced = true;
+
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
             this.applyCameraStateImmediate(resolvedState);
@@ -4810,6 +4910,7 @@ export class Graph implements GraphContext {
      * @param frameCount - Number of frames for the animation
      * @param fps - Frames per second for the animation
      * @param easing - Optional easing function name
+     * @param signal - Cancels the animation: the distance stays where it is and is never written again
      */
     private async animateCameraDistance(
         orbitController: {
@@ -4821,6 +4922,7 @@ export class Graph implements GraphContext {
         frameCount: number,
         fps: number,
         easing?: string,
+        signal?: AbortSignal,
     ): Promise<void> {
         // The same floor the immediate path applies, so an animation never ends below it.
         const targetDistance = orbitController.clampDistance(requestedDistance);
@@ -4851,9 +4953,15 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
+
+                // Cancelled: stopping raises this callback too, and the final value is not ours to write.
+                if (signal?.aborted === true) {
+                    resolve();
+                    return;
+                }
 
                 // Ensure final value
                 orbitController.cameraDistance = targetDistance;
@@ -4861,6 +4969,18 @@ export class Graph implements GraphContext {
 
                 resolve();
             });
+
+            // Without this a cancelled animation kept writing the distance every frame and, at the
+            // end of its own duration, snapped the camera to ITS target over the one that replaced it.
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    this.scene.onBeforeRenderObservable.remove(observer);
+                    animatable.stop();
+                    resolve();
+                },
+                { once: true },
+            );
         });
     }
 
@@ -4997,6 +5117,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         } else if (targetState.position && targetState.target) {
             // Calculate distance from position to target
@@ -5010,6 +5131,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         }
 
@@ -5032,6 +5154,12 @@ export class Graph implements GraphContext {
                     const finalize = async (): Promise<void> => {
                         if (distanceAnimation) {
                             await distanceAnimation;
+                        }
+
+                        // Stopping a cancelled animation raises this too; its target is not the camera's now.
+                        if (signal?.aborted === true) {
+                            safeSettle();
+                            return;
                         }
 
                         // Ensure final state is applied exactly
@@ -5432,10 +5560,10 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands.
+     * Center the camera on the selection, keeping where it stands.
      *
-     * The camera turns to look at the centre of the box around the selected nodes; with nothing
-     * selected it does not move. The camera is view state, so this is not an undoable step.
+     * The camera turns to look at the center of the box around the selected nodes and the ends
+     * of the selected edges; with nothing selected it does not move. The camera is view state, so this is not an undoable step.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.0.0
@@ -5446,12 +5574,53 @@ export class Graph implements GraphContext {
      * ```
      */
     async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
-        const bounds = this.boundsToFrame(this.session.selection.nodes);
+        const { selection, data } = this.session;
+        const nodes = new Set<string | number>(selection.nodes);
+        for (const id of selection.edges) {
+            const edge = data.edge(id);
+            if (edge !== undefined) {
+                nodes.add(edge.source);
+                nodes.add(edge.target);
+            }
+        }
+
+        const bounds = this.boundsToFrame(nodes);
         if (bounds.measured === 0) {
             return undefined;
         }
 
         return this.setCameraTarget(bounds.center, options);
+    }
+
+    /**
+     * Frame the given nodes: the camera moves so the box around them fills the view.
+     *
+     * Works the same in 2D and 3D -- it is the `fitToGraph` view measured over these nodes only.
+     * Ids that name no node are skipped; when none of them names a node the camera does not
+     * move. The camera is view state, so this is not an undoable step.
+     * @param nodeIds - One node id, or several.
+     * @param options - Optional animation configuration.
+     * @returns Promise that resolves when the camera has moved.
+     * @since 3.3.0
+     * @example
+     * ```typescript
+     * await graph.zoomToNodes(["n1", "n2"]);
+     * ```
+     */
+    async zoomToNodes(
+        nodeIds: (string | number) | readonly (string | number)[],
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        // Each id is looked up the way getNode looks it up, so either spelling of an integer id
+        // frames the node, and the scope is handed the ids the graph itself holds.
+        // A lone id is not iterated: a string is iterable, and its characters name no node.
+        const ids = Array.isArray(nodeIds) ? nodeIds : [nodeIds as string | number];
+        const nodes = ids.flatMap((id) => this.getNode(id)?.id ?? []);
+        if (nodes.length === 0) {
+            return undefined;
+        }
+
+        return this.applyCameraView("fitToGraph", { ...options, scope: { nodes } });
     }
 
     /**

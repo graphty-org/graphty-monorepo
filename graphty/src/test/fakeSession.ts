@@ -50,6 +50,7 @@ import type {
     CostEstimate,
     DataSourceDescriptor,
     DataSourceInput,
+    EdgePageOptions,
     EdgeRecord,
     GraphSession,
     GraphStatistics,
@@ -61,11 +62,90 @@ import type {
     LegendBlock,
     NodeId,
     NodeRecord,
+    Note,
+    NoteInput,
+    NoteListOptions,
+    NoteTargetInput,
     ProjectSlice,
+    RecordPage,
+    RecordPageOptions,
     RunId,
     RunResult,
     SessionCommand,
 } from "@graphty/graphty-element/session";
+
+/** Counts page reads, so every fake page carries a revision of its own. */
+let fakeRevision = 0;
+
+/**
+ * One window of a record list, sorted the way the element sorts when asked: present values
+ * before missing ones, numbers by value, everything else as text.
+ * @param records - every record.
+ * @param page - the window and the order.
+ * @returns the page.
+ */
+function fakePage<TRecord extends Readonly<Record<string, unknown>>>(
+    records: readonly TRecord[],
+    page: RecordPageOptions,
+): RecordPage<TRecord> {
+    const { offset = 0 } = page;
+    // A result sort ({ run }) has no result to read here; only a { key } sort orders the fake.
+    const sort = page.sort !== undefined && "key" in page.sort ? page.sort : undefined;
+    const ordered =
+        sort === undefined
+            ? records
+            : [...records].sort((a, b) => {
+                  const x = a[sort.key];
+                  const y = b[sort.key];
+
+                  if (x === undefined || y === undefined) {
+                      return Number(x === undefined) - Number(y === undefined);
+                  }
+
+                  const order =
+                      typeof x === "number" && typeof y === "number"
+                          ? x - y
+                          : JSON.stringify(x).localeCompare(JSON.stringify(y));
+
+                  return sort.descending === true ? -order : order;
+              });
+
+    fakeRevision += 1;
+
+    return {
+        records: ordered.slice(offset, offset + (page.limit ?? 100)),
+        offset,
+        total: ordered.length,
+        revision: `fake-${String(fakeRevision)}`,
+    };
+}
+
+/**
+ * The attribute keys the records carry, as `session.data.attributes()` names them.
+ * @param records - every node and edge record.
+ * @param records.nodes - the node records.
+ * @param records.edges - the edge records.
+ * @returns one entry per key and kind.
+ */
+function fakeAttributes(records: {
+    readonly nodes: readonly NodeRecord[];
+    readonly edges: readonly EdgeRecord[];
+}): readonly { readonly name: string; readonly kind: "node" | "edge" }[] {
+    const named = new Map<string, { readonly name: string; readonly kind: "node" | "edge" }>();
+
+    for (const [kind, list] of [
+        ["node", records.nodes],
+        ["edge", records.edges],
+    ] as const) {
+        for (const record of list) {
+            for (const name of Object.keys(record)) {
+                named.set(`${kind}:${name}`, { name, kind });
+            }
+        }
+    }
+
+    return [...named.values()];
+}
 
 /** One run, as the fake session records it. */
 interface FakeRun {
@@ -152,6 +232,7 @@ function fakeRunResult(): RunResult {
         }),
         top: (_field: string, n: number) => ({ entries: ranking.slice(0, n), leftOut: null, reason: null }),
         graph: {},
+        band: () => undefined,
     } as unknown as RunResult;
 }
 
@@ -318,6 +399,12 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const watchers = new Map<string, Set<(payload?: unknown) => void>>();
     const runs: FakeRun[] = [];
     const pinned = new Set<NodeId>();
+    /* Same node, either spelling of its id: the element's pin, unpin, `pinned.has` and
+       `edgePage({ touching })` all take an integer id written as a number or a string. */
+    const sameNode = (a: NodeId, b: NodeId): boolean => String(a) === String(b);
+    Object.defineProperty(pinned, "has", {
+        value: (id: NodeId): boolean => [...pinned].some((held) => sameNode(held, id)),
+    });
     let minted = 0;
 
     /** What the graph a run would measure looks like now. @returns the digest. */
@@ -488,6 +575,76 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 put(next);
             },
         });
+    };
+
+    /* The notes, newest first, as `session.notes` lists them. Every write is one step that undo
+       and redo take back and put back, and every change is published as `note:changed`. */
+    const notes: Note[] = [];
+    let noteSeq = 0;
+    const targetKey = (target: NoteTargetInput): string =>
+        JSON.stringify(
+            Object.entries(target).map(([kind, value]) => [kind, typeof value === "number" ? String(value) : value]),
+        );
+    const noteChanged = (note: Note, change: "created" | "removed", cause: string): void => {
+        publish("note:changed", { id: note.id, change, fields: [], note: change === "removed" ? null : note, cause });
+    };
+    const putNote = (note: Note, cause: string): void => {
+        notes.unshift(note);
+        noteChanged(note, "created", cause);
+    };
+    const takeNote = (note: Note, cause: string): void => {
+        notes.splice(notes.indexOf(note), 1);
+        noteChanged(note, "removed", cause);
+    };
+    const notesApi = {
+        list: (options: NoteListOptions = {}): readonly Note[] => {
+            if (options.target === undefined) {
+                return [...notes];
+            }
+
+            const wanted = (Array.isArray(options.target) ? options.target : [options.target]).map(targetKey);
+
+            return notes.filter((note) => note.targets.some((target) => wanted.includes(targetKey(target))));
+        },
+        get: (id: string): Note | undefined => notes.find((note) => note.id === id),
+        add: (input: NoteInput): string => {
+            noteSeq += 1;
+            const note = Object.freeze({
+                id: `note_${String(noteSeq)}`,
+                time: new Date().toISOString(),
+                targets: input.targets,
+                text: input.text,
+            }) as Note;
+
+            putNote(note, "command");
+            record("Added note", "note.add", ["notes"], {
+                undo: () => {
+                    takeNote(note, "undo");
+                },
+                redo: () => {
+                    putNote(note, "redo");
+                },
+            });
+
+            return note.id;
+        },
+        remove: (id: string): void => {
+            const note = notes.find((held) => held.id === id);
+
+            if (note === undefined) {
+                return;
+            }
+
+            takeNote(note, "command");
+            record("Removed note", "note.remove", ["notes"], {
+                undo: () => {
+                    putNote(note, "undo");
+                },
+                redo: () => {
+                    takeNote(note, "redo");
+                },
+            });
+        },
     };
 
     const history = {
@@ -751,8 +908,26 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             statistics: statisticsNow,
             nodes: () => options.records?.().nodes ?? [],
             edges: () => options.records?.().edges ?? [],
+            /* A window of the same records, as the element pages them. The revision is read
+               fresh each time, so a holder of an older page always re-reads. */
+            nodePage: (page: RecordPageOptions = {}): RecordPage<NodeRecord> =>
+                fakePage(options.records?.().nodes ?? [], page),
+            edgePage: (page: EdgePageOptions = {}): RecordPage<EdgeRecord> =>
+                fakePage(
+                    (options.records?.().edges ?? []).filter(
+                        (edge) =>
+                            page.touching === undefined ||
+                            sameNode(edge.source, page.touching) ||
+                            sameNode(edge.target, page.touching),
+                    ),
+                    page,
+                ),
+            /* Every key the records carry, as the element lists its attributes. */
+            attributes: () => fakeAttributes(options.records?.() ?? { nodes: [], edges: [] }),
             /* Where the graph came from, as the last load named it; history does not move it here. */
             source: () => loadedFrom,
+            /* No load report: this stand-in reads no file, so it has no import issues to count. */
+            lastImport: () => null,
             import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
                 await (options.importer?.(source, importOptions) ?? Promise.resolve());
                 loadedFrom = {
@@ -774,18 +949,21 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         /* Nothing this fake holds ever places a node: there is no loader, no layout and no
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
+        notes: notesApi,
+        /* No filter is ever active here: the shell reads it to draw the ego network control. */
+        visibility: { filter: null },
         positions: {
             placedCount: 0,
             pinned,
             pin: (ids: readonly NodeId[]): Promise<void> => {
-                repin("Pinned", [...pinned, ...ids]);
+                repin("Pinned", [...pinned, ...ids.filter((id) => !pinned.has(id))]);
 
                 return Promise.resolve();
             },
             unpin: (ids: readonly NodeId[]): Promise<void> => {
                 repin(
                     "Unpinned",
-                    [...pinned].filter((id) => !ids.includes(id)),
+                    [...pinned].filter((held) => !ids.some((id) => sameNode(held, id))),
                 );
 
                 return Promise.resolve();

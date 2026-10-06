@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "pr": 697,
+  "subject": {
+    "builtMerge": "fc0eec38fb3d996dae53b7977dc2aded3820f929",
+    "head": "0aa2fd20b6ac296e222050bab5d2ab7a35f2c236",
+    "runId": 36973873700,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "tool": "fc0eec38fb3d996dae53b7977dc2aded3820f929"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/styles-label--depth-fade.png",
+      "from": "14de2f58a5be5456a753d649e50e222300d77ee1a1c778be98879d9350de02df",
+      "to": "1f7d86ea2d332c7985760ea09cb36c73a89c822c196272917aa9f60baf9a737a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-label--line-height.png",
+      "from": "5b9fa52b5b80f9ff1bf8f89e8ccda375f80855eabe1f5088240089e2812e8c2e",
+      "to": "3abdd6e9d8b5433203c2f8b189389a0b8aea84a320a4418ecc6510a7ad73b012",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-label--text-align.png",
+      "from": "6ce168d867da17052b60739301a5150ad4eb158dff57f3069104e3f3c2d39644",
+      "to": "0088c828c8fb12f508f8f874403a082da7bede1f4c7bb2ba6748035400296f86",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/styles-label--unicode-text.png",
+      "from": "462b981a5995fd54cff176f5deb1258a0e33cb6de633f7f5ea96de920669ffbf",
+      "to": "13adeb9a5db80d5ac4057cd6dbb8a5112efd760750b5084af5c9347d01bcd9c9",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-02T13:10:38.627Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiTTFhalJTeG9ZdEdzLXRvc3NqclhHSW1INVNmbTVzNHdKcXFCak15emNadyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjYwIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQDaW41Q4McyV2BmW20Ucw93EI9lvRHZLU8bxgtRWcUVNwIhANj5F-tOy7zITz1LCkTBW3n1oiIA8pvGjAx1FMr4S_N7"
+  }
+}

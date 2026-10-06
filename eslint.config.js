@@ -9,6 +9,8 @@ import simpleImportSort from "eslint-plugin-simple-import-sort";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
+
 export default tseslint.config(
     // ============================================
     // IGNORE PATTERNS
@@ -77,7 +79,8 @@ export default tseslint.config(
             "jsdoc/check-tag-names": [
                 "error",
                 {
-                    definedTags: ["since", "internal", "remarks"],
+                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them
+                    definedTags: ["since", "internal", "remarks", "category", "defaultValue"],
                 },
             ],
             "jsdoc/require-jsdoc": [
@@ -214,6 +217,15 @@ export default tseslint.config(
     },
 
     // ============================================
+    // compact-mantine USES ITS OWN REPLACEMENTS FOR STOCK MANTINE COMPONENTS
+    // ============================================
+    // The list, and why, is compact-mantine/eslint/mantine-replacements.js.
+    {
+        files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
+        rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
+    },
+
+    // ============================================
     // RELAXED RULES FOR TEST FILES
     // ============================================
     {
@@ -273,6 +285,16 @@ export default tseslint.config(
     // test that the storybook project executes, and tens of kilobytes of assertions were
     // being written into files no linter had ever read. Do not re-add the global ignore --
     // relax a rule here instead.
+    // graph-io's object keys are often a file format's own vocabulary -- OBO tags (is_a,
+    // holds_over_chain), CX properties (applies_to, properties_of), XGMML att names -- and Prettier
+    // removes the quotes that used to keep them out of this rule. Names graph-io declares itself
+    // are still checked.
+    {
+        files: ["graph-io/**/*.ts"],
+        rules: {
+            camelcase: ["error", { properties: "never" }],
+        },
+    },
     {
         files: ["**/*.stories.ts", "**/*.stories.tsx", "**/stories/**/*.ts"],
         rules: {

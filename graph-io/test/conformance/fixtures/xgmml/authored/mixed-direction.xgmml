@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="1" label="Network" directed="1" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <node id="a"/><node id="b"/><node id="c"/>
+  <edge id="d" source="a" target="b" cy:directed="1"/>
+  <edge id="u" source="b" target="c" cy:directed="0"/>
+  <edge id="t" source="c" target="a" cy:directed="true"/>
+</graph>

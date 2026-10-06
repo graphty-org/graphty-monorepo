@@ -1,8 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen } from "../../../test/test-utils";
+import { fireEvent, render, screen, waitFor } from "../../../test/test-utils";
 import type { ProviderType } from "../../../types/ai";
 import { AiProviderSettings, type AiProviderSettingsProps } from "../AiProviderSettings";
+
+const provider = { configure: vi.fn(), validateApiKey: vi.fn().mockResolvedValue(true) };
+const createProvider = vi.fn(() => provider);
+
+vi.mock("../../../types/ai", () => ({
+    getCreateProvider: vi.fn(() => Promise.resolve(createProvider)),
+}));
 
 /** An obvious dummy. No test in this file may carry a real key. */
 const DUMMY_KEY = "sk-test-not-a-real-key";
@@ -190,6 +197,20 @@ describe("AiProviderSettings", () => {
 
             expect(screen.getByTestId("ai-test-connection-anthropic")).not.toBeDisabled();
         });
+
+        it("asks the provider itself, through the element's createProvider", async () => {
+            render(<AiProviderSettings {...keyStore()} />);
+
+            fireEvent.change(screen.getByLabelText("API key"), { target: { value: DUMMY_KEY } });
+            fireEvent.click(screen.getByTestId("ai-test-connection-anthropic"));
+
+            await waitFor(() => {
+                expect(screen.getByTestId("ai-test-ok-anthropic")).toBeInTheDocument();
+            });
+            expect(createProvider).toHaveBeenCalledWith("anthropic");
+            expect(provider.configure).toHaveBeenCalledWith({ apiKey: DUMMY_KEY });
+            expect(provider.validateApiKey).toHaveBeenCalled();
+        });
     });
 
     describe("Key storage", () => {
@@ -203,27 +224,32 @@ describe("AiProviderSettings", () => {
             ).toBeInTheDocument();
         });
 
-        it("re-writes a key that was typed before the box was ticked, so it survives a reload", () => {
+        it("hands a key typed before the box was ticked to the store, then turns remembering on", () => {
+            // The store saves the keys it already holds when persistence is enabled,
+            // so the field only has to commit its key -- which leaving it does.
             const setKey = vi.fn();
             const onEnablePersistence = vi.fn();
 
             render(<AiProviderSettings {...keyStore({ setKey, onEnablePersistence })} />);
 
-            fireEvent.change(screen.getByLabelText("API key"), { target: { value: DUMMY_KEY } });
+            const field = screen.getByLabelText("API key");
+            fireEvent.change(field, { target: { value: DUMMY_KEY } });
+            fireEvent.blur(field);
             fireEvent.click(screen.getByTestId("ai-remember-keys"));
 
-            expect(onEnablePersistence).toHaveBeenCalled();
+            expect(setKey).toHaveBeenCalledTimes(1);
             expect(setKey).toHaveBeenCalledWith("anthropic", DUMMY_KEY);
+            expect(onEnablePersistence).toHaveBeenCalled();
         });
 
-        it("stops remembering without throwing the stored keys away", () => {
+        it("stops remembering by taking the keys out of storage, so a reload does not turn it back on", () => {
             const onDisablePersistence = vi.fn();
 
             render(<AiProviderSettings {...keyStore({ isPersistenceEnabled: true, onDisablePersistence })} />);
 
             fireEvent.click(screen.getByTestId("ai-remember-keys"));
 
-            expect(onDisablePersistence).toHaveBeenCalledWith(false);
+            expect(onDisablePersistence).toHaveBeenCalledWith();
         });
     });
 

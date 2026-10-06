@@ -50,9 +50,11 @@ export {
     layoutIdForEngine,
     UNSERVED_LAYOUT_IDS,
 } from "./src/catalog/layouts";
+export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export type { GraphListing } from "@graphty/graph-io";
 
 // The style channels a layer can paint, described as data: the plain name, the kind of value
 // each accepts, its enum values or numeric bounds, where it lands in a parsed style, and whether
@@ -60,8 +62,14 @@ export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catal
 // instead of copying the facts into the application where they drift the first time a channel's
 // bounds or values change. `CHANNEL_DESCRIPTORS` is defined beside the channel value types in
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
-export type { ChannelDescriptor, ChannelValueKind } from "./src/session/styles/channels";
+export type { ChannelDescriptor, ChannelGroup, ChannelValueKind } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+// The one color reader a channel uses: a hex string, any CSS color the element understands, or
+// Rgba components in, a clamped and rounded color with its `#rrggbb[aa]` hex out (null when the
+// value is not a color). A color control reads a layer's value through this rather than
+// building hex by hand.
+export type { ColorValue } from "./src/session/styles/channels";
+export { toColorValue } from "./src/session/styles/channels";
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and the one validator for it

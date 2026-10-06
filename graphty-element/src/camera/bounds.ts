@@ -45,7 +45,7 @@ function defaultBounds(): GraphBounds {
  * @param points - Where the elements being framed are, in world units.
  * @returns The box, its centre and its sides. With no points at all this is the element's default
  *   box with `measured` zero, which is what the built-in views have always framed an empty graph
- *   against.
+ *   against. When every point is in the same place it is that default box moved onto the point.
  */
 export function measureBounds(points: Iterable<Vec3>): GraphBounds {
     let minX = Infinity;
@@ -68,6 +68,23 @@ export function measureBounds(points: Iterable<Vec3>): GraphBounds {
 
     if (measured === 0) {
         return defaultBounds();
+    }
+
+    if (minX === maxX && minY === maxY && minZ === maxZ) {
+        // A box around one point has no size, and every view divides by or scales with it: the
+        // 2D zoom came out infinite and the 3D camera stood on the node. Framing one node is
+        // what `zoomToNodes(id)` is for, so a point gets the default box, centred on it.
+        const center = { x: minX, y: minY, z: minZ };
+        const offset = (by: number): Vec3 => ({ x: minX + by, y: minY + by, z: minZ + by });
+
+        return Object.freeze({
+            min: offset(-DEFAULT_EXTENT),
+            max: offset(DEFAULT_EXTENT),
+            center,
+            size: { x: DEFAULT_EXTENT * 2, y: DEFAULT_EXTENT * 2, z: DEFAULT_EXTENT * 2 },
+            maxDimension: DEFAULT_EXTENT * 2,
+            measured,
+        });
     }
 
     const size = { x: maxX - minX, y: maxY - minY, z: maxZ - minZ };

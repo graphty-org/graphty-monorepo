@@ -3,9 +3,9 @@
  * body and compiled on a FRESH context, and the SAME check that passes on the real kernel -- bellmanFordReport: the
  * `dist` bit patterns against the f32 Bellman-Ford oracle, `predArc` against the host's PD-27 tight-subgraph rule,
  * `reachedCount` and the flag on the uniform-weight grid from both corners and on the negative DAG, the flag on the
- * planted negative cycle, and the retry-exhausted tally of the fan-in under a retry bound of one, all bitwise (any
+ * planted negative cycle, and the flag and `dist` of the descending fan, all bitwise (any
  * mismatch is Infinity; a driver refusal is the maximal miss) -- fails on the mutant by at least minFactor. No row is
- * caught by a timing: the ignored exchange result is caught by the bound its losing lanes never exhaust, the inverted
+ * caught by a timing: the ignored exchange result is caught by the descending fan's false negative cycle, the inverted
  * improvement test and the dropped reverse direction by `dist`. The first block is the coverage loop of
  * test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15).
  */

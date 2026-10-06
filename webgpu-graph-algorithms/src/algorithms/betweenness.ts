@@ -2,22 +2,35 @@
  * Betweenness and edge betweenness on the device (design 8.4 "Betweenness (A7)", 3.3 lines 811-812, 9.7): Brandes'
  * algorithm as McLaughlin-Bader run it, k sources at a time.
  *
- * A source batch keeps four `n x k` arrays -- `depthK`, `sigmaK` (u32 shortest-path counts), `deltaK` (f32
- * dependencies) and the claim log `S` -- plus `ends`, the level boundaries into the log. Every array is indexed by
+ * A source batch keeps four `n x k` arrays -- `depthK`, `sigmaK` (u32 shortest-path counts, or the f32 bits of the
+ * rescaled ones), `deltaK` (f32 dependencies) and the claim log `S` -- plus `ends`, the level boundaries into the log,
+ * and `levelMax`, the f32 bits of the largest rescaled count at each depth. Every array is indexed by
  * `s * n + v`, and a log entry IS that index, so one u32 names a `(vertex, source)` pair: `4 n k` bytes can never
  * reach 2^32 because each array is one storage binding. The forward pass is a tagged breadth-first search: every
  * level is `bc-finalize` (the boundary: `ends[level + 1] = stackTop`, `done` on an empty level) and then ONE forward
  * dispatch, either `bc-forward` (block-mapped over the level's range of the log) or `bc-forward-edge` (every edge of
- * the `edgeList` view for every source), both claiming, counting and appending with the same rules. Levels are
- * recorded `MAX_LEVELS_PER_SUBMIT` per submit with one small readback (the counters block and the `ends` prefix), and
- * the log's `ends` is known on the host when the forward phase ends, so the backward pass is planned exactly: one
- * `bc-backward` dispatch per level from the deepest to depth 1, each writing `delta[s][w]` once by pulling over the
- * successors; then `bc-gather` adds each vertex's k dependencies into `bc` (and `bc-edge-gather` each arc's k terms
- * into `arcScores`). Nothing accumulates a float through an atomic, so the scores are bitwise reproducible.
+ * the `edgeList` view for every source), both claiming, counting and appending with the same rules.
+ * Levels are recorded `MAX_LEVELS_PER_SUBMIT` per submit with one small readback (the counters block and the `ends`
+ * prefix), and the log's `ends` is known on the host when the forward phase ends, so the backward pass is planned
+ * exactly: one `bc-backward` dispatch per level from the deepest to depth 1, each writing `delta[s][w]` once by pulling
+ * over the successors; then `bc-gather` adds each vertex's k dependencies into `bc` (and `bc-edge-gather` each arc's k
+ * terms into `arcScores`). Nothing accumulates a float through an atomic, so the scores are bitwise reproducible.
+ *
+ * Path counts that outgrow u32 (issue #719): a batch counts exactly in u32 first, and the forward kernels report a
+ * wrap. A 19 x 19 grid already has C(36, 18), about 9.1e9, corner-to-corner paths, and f32 counts would only move the
+ * cliff to a 68 x 68 grid. So a batch whose counts wrapped is abandoned before its backward pass and run again with
+ * every kernel's `SCALED` override: the forward bodies only claim, and after each level `bc-count` pulls the new
+ * depth's counts over the in-arcs (the `reverse` view; the forward core when undirected) as f32 divided by the power of
+ * two that keeps the previous depth's largest count at 2^BC_SIGMA_EXPONENT_CAP; `bc-backward` and `bc-edge-gather` undo
+ * that one step in the ratio Brandes' recursion reads, so the scores are what unbounded counts give. The rest of the
+ * run stays scaled. A batch that never wraps runs exactly as before, bit for bit. In the scaled form `sigmaOverflow`
+ * rises only when the counts at ONE depth span more than f32's exponent range (about 2^226; measured from a corner of a
+ * grid, 235 x 235 raises it and 230 x 230 does not); the `@graphty/algorithms` dispatcher then throws instead of
+ * returning the scores.
  *
  * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays design 4.7
  * counts plus the 4-byte log entry it omits -- as `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x
- * maxBufferSize / 16n), 64)`, at least 1 (`planBatchSize`); a graph whose single source does not fit one binding is
+ * maxBufferSize / 16n), BC_MAX_BATCH)` (256), at least 1 (`planBatchSize`); a graph whose single source does not fit one binding is
  * E_TOO_LARGE. The forward form is chosen per batch: the first batch runs `bc-forward`; a later one runs the
  * edge-parallel form when the previous batch's level count -- the MAXIMUM depth over its sources, the only depth
  * figure the host has, which over-estimates the median of design 8.4's rule and so errs toward the frontier form --
@@ -43,6 +56,7 @@ import { type F32, foldArcs, type GraphSnapshot, type U32 } from "@graphty/graph
 import {
     BC_BACKWARD_LEVELS_PER_SUBMIT,
     BC_BATCH_BUDGET_FRACTION,
+    BC_COUNT_MAX_GROUPS,
     BC_EDGE_PARALLEL_GAMMA,
     BC_MAX_BATCH,
     MAX_LEVELS_PER_SUBMIT,
@@ -53,6 +67,7 @@ import { CommandBatch } from "../kernel/batch.js";
 import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { BC_PARAMS, FILL_PARAMS, FRONTIER_COUNTERS, kernelSpec } from "../kernels.js";
+import { type CoreBinding } from "../memory/residency.js";
 import { assertWholeCore } from "../primitives/core-shape.js";
 import { W } from "../primitives/frontier.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
@@ -60,6 +75,7 @@ import { type BetweennessAcceleratorOptions } from "../types/accelerator.js";
 import { type GpuBetweennessResult, type GpuEdgeScoresResult } from "../types/betweenness.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
+import { reverseOf } from "./power-iteration.js";
 import { type AlgorithmScope, algorithmScope } from "./scope.js";
 import { aborted, bindingOf, checkDest } from "./sssp.js";
 
@@ -71,8 +87,8 @@ const BYTES_PER_NODE_SOURCE = 16;
 /** The seed of the deterministic draw of `k` sources (any fixed value: the draw only has to repeat). */
 const SAMPLE_SEED = 0x9e3779b9;
 
-/** Params slots of the ring: a backward submit's levels plus the fills, the seed, the gathers and the per-submit forward records. */
-const RING_SLOTS = BC_BACKWARD_LEVELS_PER_SUBMIT + 16;
+/** Params slots of the ring: a forward submit's records per level (boundary, forward and, when scaled, count) or a backward submit's levels, plus the fills, the seed and the gathers. */
+const RING_SLOTS = Math.max(3 * MAX_LEVELS_PER_SUBMIT, BC_BACKWARD_LEVELS_PER_SUBMIT) + 16;
 
 /** The device limits the batch planner reads. */
 interface BatchLimits {
@@ -99,9 +115,11 @@ export interface BetweennessBatchReport {
     readonly levels: number;
     /** `ends[0 .. levels + 1]`: the entries at depth L are `S[ends[L] .. ends[L + 1])`. */
     readonly ends: U32;
-    /** Whether a u32 path count wrapped in this batch. */
+    /** Whether the batch ran with rescaled f32 counts (its u32 counts wrapped on the first try). */
+    readonly scaled: boolean;
+    /** Whether a rescaled path count left f32's normal range in this batch. */
     readonly sigmaOverflow: boolean;
-    /** The `n x k` arrays as the batch left them (null unless the tuning asked for them). */
+    /** The `n x k` arrays as the batch left them (null unless the tuning asked for them); `sigmaK` as stored: u32 counts, or the f32 bits of the scaled ones. */
     readonly depthK: U32 | null;
     readonly sigmaK: U32 | null;
     readonly deltaK: F32 | null;
@@ -135,7 +153,7 @@ interface RawBetweenness {
 
 /**
  * The source batch size (design 8.4, 10.1): `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
- * 16n), 64, remaining)`, at least 1. Each of the four `n x k` arrays is one binding of `4 n k` bytes, and the batch's
+ * 16n), BC_MAX_BATCH, remaining)`, at least 1. Each of the four `n x k` arrays is one binding of `4 n k` bytes, and the batch's
  * four together stay inside a quarter of the largest buffer.
  * @internal
  * @param n - the vertex count (>= 1)
@@ -231,6 +249,7 @@ interface RunState {
     readonly n: number;
     readonly S: Binding;
     readonly ends: Binding;
+    readonly levelMax: Binding;
     readonly depthK: Binding;
     readonly sigmaK: Binding;
     readonly deltaK: Binding;
@@ -244,14 +263,63 @@ interface RunState {
     readonly edgeCount: number;
     readonly arcCount: number;
     readonly fill: Kernel;
+    readonly gather: Kernel;
+    /** The u32 kernels every batch tries first. */
+    readonly exact: ModeKernels;
+    /** The `SCALED` kernels, compiled when a batch's counts first wrap. */
+    scaled: ModeKernels | null;
+    /** Each bc kernel bound once per run: its resources never change inside a run, only the params offset does. */
+    readonly bound: Map<Kernel, BoundKernel>;
+}
+
+/** The kernels of one counting mode; `count` and `reverse` (the in-arcs it pulls over) only when scaled. */
+interface ModeKernels {
     readonly finalize: Kernel;
     readonly forward: Kernel;
     readonly forwardEdge: Kernel | null;
     readonly backward: Kernel;
-    readonly gather: Kernel;
     readonly edgeGather: Kernel | null;
-    /** Each bc kernel bound once per run: its resources never change inside a run, only the params offset does. */
-    readonly bound: Map<Kernel, BoundKernel>;
+    readonly count: { readonly kernel: Kernel; readonly rowPtr: Binding; readonly colIdx: Binding } | null;
+}
+
+/**
+ * Compiles the kernels of one counting mode.
+ * @param ctx - the context
+ * @param s - the snapshot
+ * @param core - its forward core (the in-arcs of an undirected snapshot)
+ * @param withForwardEdge - also the edge-parallel forward body
+ * @param withEdges - also the per-arc gather
+ * @param scaled - the `SCALED` variants plus `bc-count`
+ * @returns the kernels
+ */
+async function modeKernels(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    core: CoreBinding,
+    withForwardEdge: boolean,
+    withEdges: boolean,
+    scaled: boolean,
+): Promise<ModeKernels> {
+    const SCALED = scaled;
+    const [finalize, forward, backward] = await Promise.all(
+        (["bc-finalize", "bc-forward", "bc-backward"] as const).map((id) =>
+            ctx.pipelines.kernel(kernelSpec(id, { SCALED })),
+        ),
+    );
+    const forwardEdge = withForwardEdge
+        ? await ctx.pipelines.kernel(kernelSpec("bc-forward-edge", { UNDIRECTED: !s.directed, SCALED }))
+        : null;
+    const edgeGather = withEdges ? await ctx.pipelines.kernel(kernelSpec("bc-edge-gather", { SCALED })) : null;
+    let count: ModeKernels["count"] = null;
+    if (scaled) {
+        const reverse = s.directed ? reverseOf(ctx, s) : core;
+        count = {
+            kernel: await ctx.pipelines.kernel(kernelSpec("bc-count")),
+            rowPtr: reverse.rowPtr,
+            colIdx: reverse.colIdx ?? reverse.rowPtr,
+        };
+    }
+    return { finalize, forward, forwardEdge, backward, edgeGather, count };
 }
 
 /**
@@ -278,6 +346,7 @@ function recordFill(state: RunState, pass: GPUComputePassEncoder, dst: Binding, 
  * @param resources - its storage bindings (the same on every call for one kernel)
  * @param fields - the BcParams fields
  * @param items - the items the grid-stride plan covers
+ * @param maxGroups - the most workgroups the plan launches (default: the planner's cap)
  */
 function recordBc(
     state: RunState,
@@ -286,9 +355,10 @@ function recordBc(
     resources: Readonly<Record<string, Binding>>,
     fields: Readonly<Record<string, number>>,
     items: number,
+    maxGroups?: number,
 ): void {
     const { scope, ctx } = state;
-    const plan = planGridStride(items, ctx.workgroupSize, ctx.caps);
+    const plan = planGridStride(items, ctx.workgroupSize, ctx.caps, maxGroups);
     const params = scope.params(BC_PARAMS, { ...fields, stride: plan.stride ?? 0 });
     let bound = state.bound.get(kernel);
     if (bound === undefined) {
@@ -317,24 +387,27 @@ async function submit(state: RunState, batch: CommandBatch, signal: AbortSignal 
 }
 
 /**
- * One source batch: seed, forward levels until an empty one, backward levels, the gathers.
+ * One source batch: seed, forward levels until an empty one, backward levels, the gathers. In the exact mode a batch
+ * whose u32 counts wrapped stops after its forward phase (`wrapped`), before anything reaches the scores.
  * @param state - the run
+ * @param mode - the kernels of the counting mode
  * @param sources - the batch's sources
  * @param form - the forward body
  * @param levelsPerSubmit - the forward cadence
  * @param tuning - the knobs
  * @param signal - the caller's signal
- * @returns the batch's levels and overflow flag
+ * @returns the batch's levels, whether its exact counts wrapped, and the scaled form's overflow flag
  */
 async function runBatch(
     state: RunState,
+    mode: ModeKernels,
     sources: readonly number[],
     form: ForwardForm,
     levelsPerSubmit: number,
     tuning: BetweennessTuning,
     signal: AbortSignal | undefined,
-): Promise<{ levels: number; overflow: boolean }> {
-    const { ctx, n, S, ends, depthK, sigmaK, deltaK, counters } = state;
+): Promise<{ levels: number; wrapped: boolean; overflow: boolean }> {
+    const { ctx, n, S, ends, levelMax, depthK, sigmaK, deltaK, counters } = state;
     const k = sources.length;
     const words = n * k;
     const seeds = Uint32Array.from(sources, (v, s) => s * n + v);
@@ -354,15 +427,18 @@ async function runBatch(
             recordFill(state, pass, depthK, words, 0xffffffff);
             recordFill(state, pass, sigmaK, words, 0);
             recordFill(state, pass, deltaK, words, 0);
-            recordBc(state, pass, state.finalize, { counters, ends, S, depthK, sigmaK }, { n, k, role: 1 }, 1);
+            if (mode.count !== null) {
+                recordFill(state, pass, levelMax, n + 2, 0);
+            }
+            recordBc(state, pass, mode.finalize, { counters, ends, S, depthK, sigmaK, levelMax }, { n, k, role: 1 }, 1);
         }
         for (let level = 0; level < levelsPerSubmit; level++) {
-            recordBc(state, pass, state.finalize, { counters, ends, S, depthK, sigmaK }, { n, k, role: 0 }, 1);
-            if (form === "edge" && state.forwardEdge !== null && state.edgeSrc !== null && state.edgeDst !== null) {
+            recordBc(state, pass, mode.finalize, { counters, ends, S, depthK, sigmaK, levelMax }, { n, k, role: 0 }, 1);
+            if (form === "edge" && mode.forwardEdge !== null && state.edgeSrc !== null && state.edgeDst !== null) {
                 recordBc(
                     state,
                     pass,
-                    state.forwardEdge,
+                    mode.forwardEdge,
                     { edgeSrc: state.edgeSrc, edgeDst: state.edgeDst, S, ends, counters, depthK, sigmaK },
                     forwardFields,
                     forwardItems,
@@ -371,10 +447,22 @@ async function runBatch(
                 recordBc(
                     state,
                     pass,
-                    state.forward,
+                    mode.forward,
                     { rowPtr: state.rowPtr, colIdx: state.colIdx, S, ends, counters, depthK, sigmaK },
                     forwardFields,
                     forwardItems,
+                );
+            }
+            if (mode.count !== null) {
+                const { kernel, rowPtr, colIdx } = mode.count;
+                recordBc(
+                    state,
+                    pass,
+                    kernel,
+                    { rowPtr, colIdx, S, ends, counters, depthK, sigmaK, levelMax },
+                    { n, k },
+                    words,
+                    BC_COUNT_MAX_GROUPS,
                 );
             }
         }
@@ -389,6 +477,9 @@ async function runBatch(
             levels = words32[W.level];
             overflow = words32[W.sigmaOverflow] !== 0;
             endsWords = new Uint32Array(back, endsRequest.offset, endsCount).slice(0, levels + 1);
+            if (overflow && mode.count === null) {
+                return { levels, wrapped: true, overflow: false };
+            }
         } else if (recorded > n + 2) {
             // a batch claims at most n - 1 levels deep, then one level is empty
             throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: the done flag never rose in ${recorded} levels`, {
@@ -415,20 +506,28 @@ async function runBatch(
             recordBc(
                 state,
                 pass,
-                state.backward,
-                { rowPtr: state.rowPtr, colIdx: state.colIdx, S, depthK, sigmaK, deltaK },
+                mode.backward,
+                { rowPtr: state.rowPtr, colIdx: state.colIdx, S, depthK, sigmaK, deltaK, levelMax },
                 { n, k, start, count },
                 count,
             );
         }
         if (last) {
             recordBc(state, pass, state.gather, { deltaK, bc: state.bc }, { n, k }, n);
-            if (state.edgeGather !== null && state.arcScores !== null) {
+            if (mode.edgeGather !== null && state.arcScores !== null) {
                 recordBc(
                     state,
                     pass,
-                    state.edgeGather,
-                    { rowPtr: state.rowPtr, colIdx: state.colIdx, depthK, sigmaK, deltaK, arcScores: state.arcScores },
+                    mode.edgeGather,
+                    {
+                        rowPtr: state.rowPtr,
+                        colIdx: state.colIdx,
+                        depthK,
+                        sigmaK,
+                        deltaK,
+                        arcScores: state.arcScores,
+                        levelMax,
+                    },
                     { n, k, count: state.arcCount },
                     state.arcCount,
                 );
@@ -456,12 +555,13 @@ async function runBatch(
         forward: form,
         levels,
         ends: endsWords.slice(),
+        scaled: mode.count !== null,
         sigmaOverflow: overflow,
         depthK: arrays?.depthK ?? null,
         sigmaK: arrays?.sigmaK ?? null,
         deltaK: arrays?.deltaK ?? null,
     });
-    return { levels, overflow };
+    return { levels, wrapped: false, overflow };
 }
 
 /**
@@ -501,22 +601,17 @@ async function runRaw(
         const arrayBytes = 4 * n * kMax;
         const lease = (bytes: number, label: string): Binding => bindingOf(scope.scratch(bytes, label), bytes);
         const arcBytes = 4 * Math.max(1, s.arcCount);
-        const [fill, finalize, forward, backward, gather] = await Promise.all(
-            (["fill", "bc-finalize", "bc-forward", "bc-backward", "bc-gather"] as const).map((id) =>
-                ctx.pipelines.kernel(kernelSpec(id)),
-            ),
+        const [fill, gather] = await Promise.all(
+            (["fill", "bc-gather"] as const).map((id) => ctx.pipelines.kernel(kernelSpec(id))),
         );
-        const forwardEdge =
-            edgeView === null
-                ? null
-                : await ctx.pipelines.kernel(kernelSpec("bc-forward-edge", { UNDIRECTED: !s.directed }));
-        const edgeGather = withEdges ? await ctx.pipelines.kernel(kernelSpec("bc-edge-gather")) : null;
+        const exact = await modeKernels(ctx, s, core, edgeView !== null, withEdges, false);
         const state: RunState = {
             ctx,
             scope,
             n,
             S: lease(arrayBytes, "S"),
             ends: lease(4 * (n + 2), "ends"),
+            levelMax: lease(4 * (n + 2), "level-max"),
             depthK: lease(arrayBytes, "depthK"),
             sigmaK: lease(arrayBytes, "sigmaK"),
             deltaK: lease(arrayBytes, "deltaK"),
@@ -530,12 +625,9 @@ async function runRaw(
             edgeCount,
             arcCount: s.arcCount,
             fill,
-            finalize,
-            forward,
-            forwardEdge,
-            backward,
             gather,
-            edgeGather,
+            exact,
+            scaled: null,
             bound: new Map(),
         };
         await ctx.allocator.check();
@@ -559,11 +651,24 @@ async function runRaw(
             if (pinned === "auto" && previousLevels >= 0) {
                 form = previousLevels < BC_EDGE_PARALLEL_GAMMA * Math.log2(n) ? "edge" : "frontier";
             }
-            if (state.forwardEdge === null) {
+            if (state.exact.forwardEdge === null) {
                 form = "frontier"; // no edges to run edge-parallel over
             }
             const batch = sources.slice(start, start + k);
-            const outcome = await runBatch(state, batch, form, levelsPerSubmit, tuning, options?.signal);
+            let outcome = await runBatch(
+                state,
+                state.scaled ?? state.exact,
+                batch,
+                form,
+                levelsPerSubmit,
+                tuning,
+                options?.signal,
+            );
+            if (outcome.wrapped) {
+                // the u32 counts wrapped: this batch, and every later one, counts rescaled f32 instead
+                state.scaled ??= await modeKernels(ctx, s, core, edgeView !== null, withEdges, true);
+                outcome = await runBatch(state, state.scaled, batch, form, levelsPerSubmit, tuning, options?.signal);
+            }
             overflow = overflow || outcome.overflow;
             previousLevels = outcome.levels;
             start += k;
@@ -705,7 +810,9 @@ export async function edgeBetweennessWithTuning(
  * the sources run (`sourcesUsed` beside them; multiply by `n / sourcesUsed` for the estimator of the full sum). The
  * CPU package's convention: halved on an undirected snapshot, `normalized` divides by `(n - 1)(n - 2)` directed or
  * half that undirected. Weights are ignored (breadth-first on both packages). `endpoints: true` is E_UNSUPPORTED.
- * `sigmaOverflow` is true when some pair has more than 2^32 shortest paths: the scores are then wrong.
+ * The path counts are f32 rescaled per depth, so a lattice's astronomically many shortest paths are counted exactly
+ * enough; `sigmaOverflow` is true only when the counts at one depth spread wider than f32's exponent range (about
+ * 2^226): the scores are then wrong, and the `@graphty/algorithms` dispatcher throws instead of returning them.
  * @param ctx - the context whose device runs the kernels
  * @param s - the snapshot (uploaded through ctx.residency, or found there)
  * @param options - `normalized`, `endpoints`, `sources`, `k`, plus dest (a Float32Array of length n) / signal / onProgress (sources done, sources total)

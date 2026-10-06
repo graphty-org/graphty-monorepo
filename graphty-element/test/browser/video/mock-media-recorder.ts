@@ -15,8 +15,17 @@ export class MockMediaRecorder {
         this.mimeType = options?.mimeType ?? "video/webm";
     }
 
-    start(): void {
+    start(timeslice?: number): void {
         this.state = "recording";
+
+        // A browser hands over its first data once its encoder runs, when asked for a timeslice.
+        if (timeslice !== undefined) {
+            setTimeout(() => {
+                if (this.state === "recording") {
+                    this.ondataavailable?.({ data: new Blob(["mock header"], { type: this.mimeType }) } as BlobEvent);
+                }
+            }, 0);
+        }
     }
 
     stop(): void {

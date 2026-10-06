@@ -54,13 +54,13 @@
  * asynchronous graph-ready poll.
  */
 
-import { type DataTableColumn, PopoutRegion } from "@graphty/compact-mantine";
+import { type DataTableColumn, type DataTableSort, PopoutRegion } from "@graphty/compact-mantine";
 import type { AccelerationPolicy, GraphSession } from "@graphty/graphty-element/session";
 import React, { useCallback, useMemo, useRef } from "react";
 
 import { Graphty, type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
-import type { LayerItem } from "../../layout/LeftSidebar";
 import { CANVAS_TOOLBAR_Z_INDEX, type CanvasBottomStackState, INSIGHTS_STRIP_TOP, OVERLAY_INSET } from "../constants";
+import type { LayerItem } from "../panel/StyleLayerList";
 import type { CanvasRegionProps } from "../types";
 import { useShell } from "../useShell";
 import { CanvasBottomStackContext } from "./canvasBottomStack";
@@ -121,6 +121,8 @@ export interface CanvasFilterStatusConfig {
     readonly note?: FilterStatusNote | null;
     /** Opens Explore, where the chips live while that panel is open. */
     readonly onOpenExplore?: () => void;
+    /** Controls an active filter draws after the chips. */
+    readonly controls?: React.ReactNode;
 }
 
 /**
@@ -160,8 +162,18 @@ export interface CanvasDrawerConfig<TRow extends object> {
     readonly tab: DataDrawerTab;
     /** Tab change. */
     readonly onTabChange: (tab: DataDrawerTab) => void;
-    /** The rows. */
+    /** The rows: every row, or with `rowCount` a window of them. */
     readonly rows: readonly TRow[];
+    /** How many rows there are in all, when `rows` is a window from `rowOffset`. */
+    readonly rowCount?: number;
+    /** Where `rows[0]` sits among all of them. */
+    readonly rowOffset?: number;
+    /** The rows the table is drawing, as positions. */
+    readonly onRangeChange?: (start: number, end: number) => void;
+    /** The sort, held by the caller. */
+    readonly sorting?: readonly DataTableSort[];
+    /** A header asked for a new sort. */
+    readonly onSortingChange?: (sorting: DataTableSort[]) => void;
     /** The columns. */
     readonly columns: readonly DataTableColumn<TRow>[];
     /** A stable id per row; the row selection IS the canvas selection. */
@@ -457,6 +469,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                                     chips={filterStatus.chips}
                                     note={filterStatus.note}
                                     onOpenExplore={filterStatus.onOpenExplore}
+                                    controls={filterStatus.controls}
                                 />
                             )}
                         </div>
@@ -498,6 +511,11 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                                     tab={drawer.tab}
                                     onTabChange={drawer.onTabChange}
                                     rows={drawer.rows}
+                                    rowCount={drawer.rowCount}
+                                    rowOffset={drawer.rowOffset}
+                                    onRangeChange={drawer.onRangeChange}
+                                    sorting={drawer.sorting}
+                                    onSortingChange={drawer.onSortingChange}
                                     columns={drawer.columns}
                                     getRowId={drawer.getRowId}
                                     showLabel={drawer.showLabel}

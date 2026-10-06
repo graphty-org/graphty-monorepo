@@ -1,85 +1,251 @@
-import { ActionIcon, Box, Group, Slider, Stack, Text } from "@mantine/core";
+import { ActionIcon } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
-import React, { useId, useMemo, useRef } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_GRADIENT_STOP_COLOR } from "../constants/colors";
-import { PANEL_GRID, PANEL_INK } from "../constants/panel";
-import { useLabels, useNumberFormatter } from "../i18n";
+import { PANEL_GRID } from "../constants/panel";
+import { useLabels, useNumberFormatter, useNumberParser } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ColorStop } from "../types";
 import { createColorStop, createDefaultGradientStops } from "../utils/color-stops";
-import { CompactColorInput } from "./CompactColorInput";
+import { mixHex, normalizeHexa } from "../utils/color-utils";
+import { Chit } from "./color/Chit";
+import { ColorPickerPanel } from "./color/ColorPickerPanel";
+import { isLeavingWithoutCommit, leaveWithoutCommit } from "./color/escape";
 
-// The older half of the library, brought to the same standard as the row types.
-// Contract sections 1.1, 1.3, 2.1, 2.2, 2.3, 3 and 7 were applied here.
+// Figma's gradient editor (design/figma-spec.md 7.5, measured on
+// popovers-and-menus/color-picker-gradient-existing): a direction row, 24px square stop handles
+// over a 32-tall gradient bar, the color picker for the selected stop, a "Stops" header with
+// "+", and one 32-tall row per stop (position, chit and hex, minus). The look lives in
+// src/theme/css/color.css.ts.
 //
-// Accessibility: the APG "Grouping controls" pattern for the list of stops --
-// a group named by the heading above it, holding one run of controls per stop
-// -- and the APG "Slider" pattern for the position and direction sliders,
-// which Mantine implements natively including its right-to-left arrow-key
-// behaviour. The sliders' names are set with `thumbLabel`, so they land on the
-// element that actually carries role="slider"; the aria-label this component
-// used to set went on the wrapping div, where no assistive technology looked
-// for it.
-//
-// Not reachable from outside Mantine 8.3.10: aria-valuetext. Slider forwards
-// `thumbProps` to its Thumb, but Thumb destructures a fixed list of props and
-// spreads nothing onto the element, so the unit ("50%", "90 degrees") cannot be
-// attached to the reading. The unit is carried by the visible tooltip and by
-// the heading instead, and the reading is announced as a bare number.
+// Accessibility: each handle is an APG "Slider" (role=slider, arrows 1%, Shift 10%, Home / End,
+// Delete / Backspace removes); the stops sit in a group named by the "Stops" heading; the angle
+// is a spinbutton.
 
-/**
- * The fewest stops a gradient can be reduced to.
- *
- * Two is the floor because a gradient with one stop is a flat colour, which is
- * a different thing to configure.
- */
+/** The fewest stops: one stop is a flat color, not a gradient. */
 const DEFAULT_MIN_STOPS = 2;
 
-/**
- * The most stops the editor offers by default.
- *
- * Five is as many as a 280px panel can lay out without the position sliders
- * becoming too short to aim at.
- */
+/** The most stops offered by default. */
 const DEFAULT_MAX_STOPS = 5;
 
-/**
- * The width of one stop's position slider, in pixels.
- */
-const STOP_SLIDER_WIDTH = 80;
-
-/**
- * A position along a gradient, as a percentage.
- */
-const POSITION_MIN = 0;
-
-/**
- * The far end of a gradient, as a percentage.
- */
+/** The ends of a gradient, as percentages. */
 const POSITION_MAX = 100;
 
-/**
- * The smallest angle the direction slider offers, in degrees.
- */
-const ANGLE_MIN = 0;
+/** Angles wrap at a full turn. */
+const FULL_TURN = 360;
+
+/** The rotate button turns the gradient by a quarter. */
+const QUARTER_TURN = 90;
+
+/** Shift multiplies a keyboard step by this. */
+const SHIFT_STEP = 10;
+
+/** The English names of the buttons Figma adds; every other string comes from the labels. */
+export interface GradientEditorLabels {
+    /** The button that reverses the stops. */
+    flip: string;
+    /** The button that turns the gradient 90 degrees. */
+    rotate: string;
+}
+
+const DEFAULT_EDITOR_LABELS: GradientEditorLabels = {
+    flip: "Flip gradient",
+    rotate: "Rotate gradient 90 degrees",
+};
 
 /**
- * The largest angle the direction slider offers, in degrees.
+ * Clamp a percentage into 0..100.
+ * @param n - the value
+ * @returns the clamped value
  */
-const ANGLE_MAX = 360;
+function clampPercent(n: number): number {
+    return Math.min(POSITION_MAX, Math.max(0, n));
+}
+
+/** Props for the internal UnitField. */
+interface UnitFieldProps {
+    value: number;
+    format: (value: number) => string;
+    /** Snap a committed value into range (and wrap an angle). */
+    normalize: (value: number) => number;
+    onCommit: (value: number, event: React.SyntheticEvent) => void;
+    className: string;
+    ariaLabel: string;
+    role?: "spinbutton";
+    min?: number;
+    max?: number;
+    testId: string;
+}
 
 /**
- * The angles the direction slider writes a tick mark under.
+ * A filled text field holding one number with its unit ("50%", "90\u00b0"): typing commits on
+ * blur or Enter and reverts on Escape; ArrowUp / ArrowDown step 1 (Shift 10) and commit at once.
+ * @param props - Component props
+ * @param props.value - the value
+ * @param props.format - formats the value with its unit
+ * @param props.normalize - snaps a committed value into range
+ * @param props.onCommit - called once per committed change
+ * @param props.className - the field classes
+ * @param props.ariaLabel - the accessible name
+ * @param props.role - spinbutton for an angle, none for a position
+ * @param props.min - the lowest value
+ * @param props.max - the highest value
+ * @param props.testId - test id
+ * @returns the field
  */
-const ANGLE_MARKS = [0, 90, 180, 270, 360];
+function UnitField({
+    value,
+    format,
+    normalize,
+    onCommit,
+    className,
+    ariaLabel,
+    role,
+    min,
+    max,
+    testId,
+}: UnitFieldProps): React.JSX.Element {
+    const parse = useNumberParser();
+    const [draft, setDraft] = useState(format(value));
+
+    useEffect(() => {
+        setDraft(format(value));
+    }, [value, format]);
+
+    const commit = (next: number, event: React.SyntheticEvent): void => {
+        const settled = normalize(next);
+        setDraft(format(settled));
+        if (settled !== value) {
+            onCommit(settled, event);
+        }
+    };
+
+    const commitDraft = (event: React.SyntheticEvent): void => {
+        const typed = parse(draft);
+        if (Number.isNaN(typed)) {
+            setDraft(format(value));
+            return;
+        }
+        commit(typed, event);
+    };
+
+    return (
+        <input
+            className={className}
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            spellCheck={false}
+            role={role}
+            aria-label={ariaLabel}
+            aria-valuenow={role === undefined ? undefined : value}
+            aria-valuemin={role === undefined ? undefined : min}
+            aria-valuemax={role === undefined ? undefined : max}
+            aria-valuetext={role === undefined ? undefined : format(value)}
+            data-testid={testId}
+            value={draft}
+            onChange={(event) => {
+                setDraft(event.currentTarget.value);
+            }}
+            onFocus={(event) => {
+                event.currentTarget.select();
+            }}
+            onBlur={(event) => {
+                if (!isLeavingWithoutCommit(event)) {
+                    commitDraft(event);
+                }
+            }}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    commitDraft(event);
+                } else if (event.key === "Escape") {
+                    leaveWithoutCommit(event, () => {
+                        setDraft(format(value));
+                    });
+                } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                    event.preventDefault();
+                    const step = (event.shiftKey ? SHIFT_STEP : 1) * (event.key === "ArrowUp" ? 1 : -1);
+                    commit(value + step, event);
+                }
+            }}
+        />
+    );
+}
+
+/** Props for the internal StopHexField. */
+interface StopHexFieldProps {
+    color: string;
+    onCommit: (color: string, event: React.SyntheticEvent) => void;
+    ariaLabel: string;
+}
+
+/**
+ * A stop's hex box: typing commits on Enter or blur (three or six hex digits, otherwise it
+ * redraws), Escape reverts.
+ * @param props - Component props
+ * @param props.color - the stop's color, `#RRGGBB`
+ * @param props.onCommit - called with the typed color, `#RRGGBB` upper case, once it differs
+ * @param props.ariaLabel - the accessible name
+ * @returns the field
+ */
+function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.JSX.Element {
+    const shown = color.replace("#", "").toUpperCase();
+    const [draft, setDraft] = useState(shown);
+
+    useEffect(() => {
+        setDraft(shown);
+    }, [shown]);
+
+    const commit = (event: React.SyntheticEvent): void => {
+        const digits = draft.trim().replace("#", "");
+        const candidate = digits.length === 3 || digits.length === 6 ? normalizeHexa(digits)?.slice(0, 7) : undefined;
+        if (candidate === undefined || candidate === `#${shown}`) {
+            setDraft(shown);
+            return;
+        }
+        onCommit(candidate, event);
+    };
+
+    return (
+        <input
+            className="cm-paint-input cm-paint-hex"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={ariaLabel}
+            data-testid="gradient-editor-stop-hex"
+            value={draft}
+            onChange={(event) => {
+                setDraft(event.currentTarget.value.toUpperCase());
+            }}
+            onFocus={(event) => {
+                event.currentTarget.select();
+            }}
+            onBlur={(event) => {
+                if (!isLeavingWithoutCommit(event)) {
+                    commit(event);
+                }
+            }}
+            onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                    commit(event);
+                } else if (event.key === "Escape") {
+                    leaveWithoutCommit(event, () => {
+                        setDraft(shown);
+                    });
+                }
+            }}
+        />
+    );
+}
 
 /**
  * Props for the GradientEditor component.
  */
 export interface GradientEditorProps {
     /**
-     * The gradient's colour stops, when you drive the editor from your own
+     * The gradient's color stops, when you drive the editor from your own
      * state. Order them by `offset`; the editor keeps them in order as it
      * works.
      */
@@ -100,19 +266,19 @@ export interface GradientEditorProps {
      */
     defaultDirection?: number;
     /**
-     * Whether to offer the direction slider.
+     * Whether to offer the direction row: the angle field, flip and rotate.
      * @default true
      */
     showDirection?: boolean;
     /**
-     * Called whenever the gradient changes: a colour, a position, a stop added
+     * Called whenever the gradient changes: a color, a position, a stop added
      * or a stop removed.
      *
      * Both halves of the gradient are passed on every change, so a consumer
      * never has to remember which one moved. The event that caused the change
-     * is third and optional -- a drag and the colour picker report none.
+     * is third and optional -- a drag and the color picker report none.
      *
-     * While a slider is being dragged this is called on every step. Use
+     * While a stop handle is being dragged this is called on every step. Use
      * `onChangeEnd` if you want the settled value only.
      */
     onChange?: (stops: ColorStop[], direction: number, event?: React.SyntheticEvent) => void;
@@ -149,42 +315,91 @@ export interface GradientEditorProps {
      * @default 5
      */
     maxStops?: number;
+    /** Replace the English names of the flip and rotate buttons. */
+    labels?: Partial<GradientEditorLabels>;
 }
 
 /**
- * An editor for a multi-stop linear gradient.
+ * Figma's flip-gradient glyph: two horizontal arrows pointing opposite ways (swap).
+ * ponytail: drawn here because the shared icon register has no swap glyph; move it there when
+ * a second caller needs it.
+ * @returns the glyph
+ */
+function SwapGlyph(): React.JSX.Element {
+    return (
+        <svg
+            width={16}
+            height={16}
+            viewBox="0 0 16 16"
+            aria-hidden
+            focusable="false"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M13 5.5H3M5 3.5l-2 2 2 2" />
+            <path d="M3 10.5h10M11 8.5l2 2-2 2" />
+        </svg>
+    );
+}
+
+/**
+ * Figma's rotate-gradient glyph: a diamond with a quarter-turn arrow over it.
+ * @returns the glyph
+ */
+function RotateShapeGlyph(): React.JSX.Element {
+    return (
+        <svg
+            width={16}
+            height={16}
+            viewBox="0 0 16 16"
+            aria-hidden
+            focusable="false"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        >
+            <path d="M8 6.5l3.5 3.5L8 13.5 4.5 10z" />
+            <path d="M4.5 5.5l1-1a3.5 3.5 0 0 1 5 0l1.5 1.5M12 3.5v2.5H9.5" />
+        </svg>
+    );
+}
+
+/**
+ * An editor for a multi-stop linear gradient, laid out as Figma's: square stop handles over a
+ * gradient bar, a color picker (ColorPickerPanel, without opacity) for the selected stop, a
+ * "Stops" list of rows (position, chit and hex, remove), and an optional direction row (the
+ * angle, flip and rotate).
  *
- * Each stop is one row: a colour control, a slider for where the stop sits
- * along the gradient, and a button that removes it. A button above the list
- * adds a stop halfway between the last one and the end, and an optional slider
- * below sets the angle the gradient runs at.
+ * One stop is selected at a time: its handle, its row's chit, or focus entering its row selects
+ * it, and the picker edits its color. The row's hex box edits it too. Nothing opens a pop-out.
  *
- * The list is bounded at both ends. It will not go below `minStops`, because a
- * gradient of one colour is a flat fill rather than a gradient, and it will not
- * go above `maxStops`, because the position sliders get too short to aim at.
- * At either bound the button that would cross it is disabled rather than
- * silently doing nothing.
+ * Drag a handle to move its stop, click the bar to add a stop there (its color mixed from its
+ * neighbors), and use the arrow keys on a focused handle to nudge it (Shift for 10%), Home /
+ * End to send it to an end, and Delete or Backspace to remove it. The list is bounded by
+ * `minStops` and `maxStops`; at either bound the button that would cross it is disabled.
  *
- * Dragging reports three things: `onChangeStart` once when the drag begins,
- * `onChange` on every step, and `onChangeEnd` once when it settles. Opening an
- * undo transaction on the first and closing it on the last turns a whole drag
- * into one undo entry rather than one per pixel moved.
+ * A drag -- of a handle, or in the picker -- reports `onChangeStart` once, `onChange` on every
+ * step and `onChangeEnd` once, so a consumer can wrap the whole drag in one undo entry. A
+ * keyboard step or a typed commit is one complete gesture of its own.
  *
- * Every stop carries an `id`, which is what keeps the right control attached to
- * the right stop as stops are added, removed and reordered. Build stops with
- * `createColorStop` rather than writing the object by hand, so the id is unique.
+ * Every stop carries an `id`, which keeps the right controls attached to the right stop as stops
+ * are added, removed and reordered. Build stops with `createColorStop`.
  * @param props - Component props
- * @param props.stops - The gradient's colour stops, when you drive the editor from your own state
+ * @param props.stops - The gradient's color stops, when you drive the editor from your own state
  * @param props.defaultStops - The stops the editor starts with when it keeps its own state
  * @param props.direction - The angle the gradient runs at, when you drive the editor from your own state
  * @param props.defaultDirection - The angle the editor starts at when it keeps its own state
- * @param props.showDirection - Whether to offer the direction slider
+ * @param props.showDirection - Whether to offer the direction row
  * @param props.onChange - Called whenever the gradient changes, with both halves of it
  * @param props.onChangeStart - Called once when a change to a position or to the direction begins
  * @param props.onChangeEnd - Called once when such a change settles, with the gradient it settled on
  * @param props.minStops - The fewest stops the reader can reduce the gradient to
  * @param props.maxStops - The most stops the reader can build up to
- * @returns The list of stops, and the direction slider when it is asked for
+ * @param props.labels - English names for the flip and rotate buttons
+ * @returns The gradient editor
  * @example
  * ```tsx
  * const [stops, setStops] = useState([createColorStop(0, "#6366F1"), createColorStop(1, "#06B6D4")]);
@@ -197,8 +412,6 @@ export interface GradientEditorProps {
  *         setStops(nextStops);
  *         setAngle(nextAngle);
  *     }}
- *     onChangeStart={() => history.begin()}
- *     onChangeEnd={() => history.commit()}
  * />
  * ```
  */
@@ -206,28 +419,25 @@ export function GradientEditor({
     stops,
     defaultStops,
     direction,
-    defaultDirection = ANGLE_MIN,
+    defaultDirection = 0,
     showDirection = true,
     onChange,
     onChangeStart,
     onChangeEnd,
     minStops = DEFAULT_MIN_STOPS,
     maxStops = DEFAULT_MAX_STOPS,
+    labels: labelOverrides,
 }: GradientEditorProps): React.JSX.Element {
     const labels = useLabels();
+    const editorLabels = { ...DEFAULT_EDITOR_LABELS, ...labelOverrides };
     const formatNumber = useNumberFormatter({ maximumFractionDigits: 0 });
     const stopsHeadingId = useId();
     const directionHeadingId = useId();
 
-    // Built once rather than on every render, because every call mints fresh
-    // ids and only the first render's result is ever kept.
+    // Built once: every call mints fresh ids.
     const fallbackStops = useMemo(() => createDefaultGradientStops(), []);
 
-    // Controlled and uncontrolled, the way every state-holding component in
-    // this package works. Each half reports both halves, so a consumer's
-    // handler never has to work out which one moved. Only these two handlers
-    // report the change: calling onChange again from the callers below is what
-    // used to fire it twice for one edit.
+    // Each half reports both halves, so a consumer never has to work out which one moved.
     const [stopsValue, setStops] = useUncontrolled<ColorStop[]>({
         value: stops,
         defaultValue: defaultStops,
@@ -240,208 +450,424 @@ export function GradientEditor({
     const [directionValue, setDirection] = useUncontrolled<number>({
         value: direction,
         defaultValue: defaultDirection,
-        finalValue: ANGLE_MIN,
+        finalValue: 0,
         onChange: (nextDirection: number, event?: React.SyntheticEvent): void => {
             onChange?.(stopsValue, nextDirection, event);
         },
     });
 
-    // Whether a drag is in progress, so that its start is reported once rather
-    // than on every step of it.
-    const draggingRef = useRef(false);
+    const [selectedId, setSelectedId] = useState<string | undefined>(stopsValue[0]?.id);
+    const selected = stopsValue.find((stop) => stop.id === selectedId) ?? stopsValue[0];
 
-    /**
-     * Report the beginning of a drag, once.
-     * @param event - The press that began the drag, when there was one
-     */
-    const beginDrag = (event?: React.PointerEvent): void => {
-        if (draggingRef.current) {
+    // The latest stops, for the end of a drag (the release arrives after several renders).
+    const latest = useRef(stopsValue);
+    latest.current = stopsValue;
+    const areaRef = useRef<HTMLDivElement>(null);
+    const drag = useRef<{ index: number; pointerId: number } | null>(null);
+    // Whether a picker gesture has reported its start and not yet its end.
+    const picking = useRef(false);
+    // The handle to focus once a keyboard delete has rendered: the one that took the removed
+    // stop's place, or the new last one. Without it focus falls to the page body.
+    const refocus = useRef<number | null>(null);
+
+    useEffect(() => {
+        const index = refocus.current;
+        refocus.current = null;
+        if (index === null) {
             return;
         }
+        const handles = areaRef.current?.querySelectorAll<HTMLElement>(".cm-gradient-handle");
+        if (handles !== undefined && handles.length > 0) {
+            handles[Math.min(index, handles.length - 1)].focus();
+        }
+    }, [stopsValue]);
 
-        draggingRef.current = true;
-        onChangeStart?.(event);
-    };
-
-    /**
-     * Report the end of a drag, with the gradient it settled on.
-     * @param settledStops - The stops as they stand now
-     * @param settledDirection - The angle as it stands now
-     */
-    const endDrag = (settledStops: ColorStop[], settledDirection: number): void => {
-        draggingRef.current = false;
-        onChangeEnd?.(settledStops, settledDirection);
-    };
+    const percent = (value: number): string => labels.percent(formatNumber.format(value));
+    const degrees = (value: number): string => labels.degrees(formatNumber.format(value));
 
     /**
-     * The stops with one stop's colour replaced.
-     * @param index - Which stop to recolour
-     * @param color - The colour to give it
-     * @returns A new array of stops
-     */
-    const withStopColor = (index: number, color: string): ColorStop[] =>
-        stopsValue.map((stop, i) => (i === index ? { ...stop, color } : stop));
-
-    /**
-     * The stops with one stop moved along the gradient.
-     * @param index - Which stop to move
-     * @param position - Where to move it to, as a percentage
-     * @returns A new array of stops
+     * The stops with one stop moved.
+     * @param index - which stop
+     * @param position - where to, as a percentage
+     * @returns a new array of stops
      */
     const withStopOffset = (index: number, position: number): ColorStop[] =>
-        stopsValue.map((stop, i) => (i === index ? { ...stop, offset: position / POSITION_MAX } : stop));
+        latest.current.map((stop, i) =>
+            i === index ? { ...stop, offset: clampPercent(position) / POSITION_MAX } : stop,
+        );
 
     /**
-     * Add a stop halfway between the last one and the end of the gradient.
-     *
-     * The guard is belt and braces: the button is disabled at `maxStops`, so
-     * this is only reached by a caller driving the editor from code.
-     * @param event - The click, or the click a browser synthesises from Enter or Space
+     * One complete gesture: start, change, end.
+     * @param next - the stops it settles on
+     * @param event - what caused it
      */
+    const stepStops = (next: ColorStop[], event?: React.SyntheticEvent): void => {
+        onChangeStart?.();
+        setStops(next, event);
+        latest.current = next;
+        onChangeEnd?.(next, directionValue);
+    };
+
     const addStop = (event: React.MouseEvent<HTMLButtonElement>): void => {
         if (stopsValue.length >= maxStops) {
             return;
         }
-
         const last = stopsValue[stopsValue.length - 1];
         const newOffset = last === undefined ? 0.5 : (last.offset + 1) / 2;
-        const nextStops = [...stopsValue, createColorStop(newOffset, DEFAULT_GRADIENT_STOP_COLOR)];
-        nextStops.sort((a, b) => a.offset - b.offset);
+        const added = createColorStop(newOffset, DEFAULT_GRADIENT_STOP_COLOR);
+        const nextStops = [...stopsValue, added].sort((a, b) => a.offset - b.offset);
+        setSelectedId(added.id);
         setStops(nextStops, event);
     };
 
-    /**
-     * Remove one stop from the gradient.
-     *
-     * The guard is belt and braces: the buttons are disabled at `minStops`, so
-     * this is only reached by a caller driving the editor from code.
-     * @param index - Which stop to remove
-     * @param event - The click, or the click a browser synthesises from Enter or Space
-     */
-    const removeStop = (index: number, event: React.MouseEvent<HTMLButtonElement>): void => {
+    const removeStop = (index: number, event: React.SyntheticEvent): void => {
         if (stopsValue.length <= minStops) {
             return;
         }
-
         setStops(
             stopsValue.filter((_, i) => i !== index),
             event,
         );
     };
 
+    /**
+     * A click on the bar adds a stop there, its color mixed from the stops either side.
+     * @param event - the click
+     */
+    const addStopAt = (event: React.MouseEvent<HTMLDivElement>): void => {
+        if (stopsValue.length >= maxStops) {
+            return;
+        }
+        const rect = event.currentTarget.getBoundingClientRect();
+        if (rect.width === 0) {
+            return;
+        }
+        const offset =
+            Math.round(clampPercent(((event.clientX - rect.left) / rect.width) * POSITION_MAX)) / POSITION_MAX;
+        const sorted = [...stopsValue].sort((a, b) => a.offset - b.offset);
+        const after = sorted.find((stop) => stop.offset >= offset) ?? sorted[sorted.length - 1];
+        const before = [...sorted].reverse().find((stop) => stop.offset <= offset) ?? sorted[0];
+        const span = after.offset - before.offset;
+        const color = span > 0 ? mixHex(before.color, after.color, (offset - before.offset) / span) : before.color;
+        const added = createColorStop(offset, color);
+        setSelectedId(added.id);
+        setStops(
+            [...stopsValue, added].sort((a, b) => a.offset - b.offset),
+            event,
+        );
+    };
+
+    const handlePointerDown = (index: number, event: React.PointerEvent<HTMLDivElement>): void => {
+        setSelectedId(stopsValue[index].id);
+        if (event.button > 0) {
+            return;
+        }
+        event.currentTarget.focus();
+        // jsdom has no pointer capture; browsers always do.
+        if ("setPointerCapture" in event.currentTarget) {
+            event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        drag.current = { index, pointerId: event.pointerId };
+        onChangeStart?.(event);
+    };
+
+    const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+        const area = areaRef.current;
+        if (drag.current === null || area === null) {
+            return;
+        }
+        const rect = area.getBoundingClientRect();
+        if (rect.width === 0) {
+            return;
+        }
+        const position = Math.round(((event.clientX - rect.left) / rect.width) * POSITION_MAX);
+        const next = withStopOffset(drag.current.index, position);
+        if (next[drag.current.index].offset !== latest.current[drag.current.index].offset) {
+            latest.current = next;
+            setStops(next);
+        }
+    };
+
+    const handlePointerUp = (): void => {
+        if (drag.current === null) {
+            return;
+        }
+        drag.current = null;
+        onChangeEnd?.(latest.current, directionValue);
+    };
+
+    const handleHandleKeys = (index: number, event: React.KeyboardEvent<HTMLDivElement>): void => {
+        const current = stopsValue[index].offset * POSITION_MAX;
+        const step = event.shiftKey ? SHIFT_STEP : 1;
+        const targets: Record<string, number> = {
+            ArrowRight: current + step,
+            ArrowUp: current + step,
+            ArrowLeft: current - step,
+            ArrowDown: current - step,
+            Home: 0,
+            End: POSITION_MAX,
+        };
+        if (event.key === "Delete" || event.key === "Backspace") {
+            event.preventDefault();
+            if (stopsValue.length > minStops) {
+                refocus.current = index;
+            }
+            removeStop(index, event);
+            return;
+        }
+        if (!(event.key in targets)) {
+            return;
+        }
+        event.preventDefault();
+        const next = withStopOffset(index, Math.round(targets[event.key]));
+        if (next[index].offset !== stopsValue[index].offset) {
+            stepStops(next, event);
+        }
+    };
+
+    /**
+     * The stops with one stop recolored.
+     * @param id - which stop
+     * @param color - the new color
+     * @returns a new array of stops
+     */
+    const withStopColor = (id: string, color: string): ColorStop[] =>
+        latest.current.map((stop) => (stop.id === id ? { ...stop, color } : stop));
+
+    // The picker reports every step of a drag and then settles, so its steps open one gesture
+    // and its settle closes it, as a handle drag does.
+    const pickColor = (color: string): void => {
+        if (selected === undefined) {
+            return;
+        }
+        if (!picking.current) {
+            picking.current = true;
+            onChangeStart?.();
+        }
+        const next = withStopColor(selected.id, color);
+        latest.current = next;
+        setStops(next);
+    };
+
+    const pickColorEnd = (): void => {
+        if (!picking.current) {
+            return;
+        }
+        picking.current = false;
+        onChangeEnd?.(latest.current, directionValue);
+    };
+
+    const flip = (event: React.MouseEvent<HTMLButtonElement>): void => {
+        const flipped = stopsValue.map((stop) => ({ ...stop, offset: 1 - stop.offset })).reverse();
+        setStops(flipped, event);
+    };
+
+    const rotate = (event: React.MouseEvent<HTMLButtonElement>): void => {
+        setDirection((directionValue + QUARTER_TURN) % FULL_TURN, event);
+    };
+
+    const commitDirection = (angle: number, event: React.SyntheticEvent): void => {
+        onChangeStart?.();
+        setDirection(angle, event);
+        onChangeEnd?.(stopsValue, angle);
+    };
+
+    const gradientCss = [...stopsValue]
+        .sort((a, b) => a.offset - b.offset)
+        .map((stop) => `${stop.color} ${stop.offset * POSITION_MAX}%`)
+        .join(", ");
+
     const atMax = stopsValue.length >= maxStops;
     const atMin = stopsValue.length <= minStops;
 
     return (
-        <Stack data-testid="gradient-editor" gap="xs">
-            <Group justify="space-between" align="center">
-                <Text id={stopsHeadingId} data-testid="gradient-editor-heading" size="xs" c={PANEL_INK.CHROME}>
-                    {labels.colorStops}
-                </Text>
-                <ActionIcon
-                    variant="subtle"
-                    color="gray"
-                    size={PANEL_GRID.TRAIL}
-                    data-testid="gradient-editor-add-stop"
-                    onClick={addStop}
-                    disabled={atMax}
-                    aria-label={labels.addColorStop}
-                >
-                    <UiGlyph name="plus" size={PANEL_GRID.CHEVRON} />
-                </ActionIcon>
-            </Group>
-
-            {/* One group, named by the heading above it, so a screen reader
-                announces the list once and then reads each stop's controls
-                without repeating what they belong to. */}
-            <Stack data-testid="gradient-editor-stops" gap="xs" role="group" aria-labelledby={stopsHeadingId}>
-                {stopsValue.map((stop, index) => {
-                    const ordinal = formatNumber.format(index + 1);
-
-                    return (
-                        <Group key={stop.id} data-testid="gradient-editor-stop" gap="xs" align="flex-end" wrap="nowrap">
-                            <CompactColorInput
-                                color={stop.color}
-                                defaultColor={DEFAULT_GRADIENT_STOP_COLOR}
-                                onColorChange={(color, event) => {
-                                    // A reset reports undefined, which for a
-                                    // gradient stop means "go back to the
-                                    // colour a new stop starts at".
-                                    setStops(withStopColor(index, color ?? DEFAULT_GRADIENT_STOP_COLOR), event);
-                                }}
-                                showOpacity={false}
-                            />
-                            <Box style={{ width: STOP_SLIDER_WIDTH }}>
-                                <Slider
-                                    data-testid="gradient-editor-stop-position"
-                                    min={POSITION_MIN}
-                                    max={POSITION_MAX}
-                                    value={stop.offset * POSITION_MAX}
-                                    onPointerDown={beginDrag}
-                                    onChange={(position) => {
-                                        beginDrag();
-                                        setStops(withStopOffset(index, position));
-                                    }}
-                                    onChangeEnd={(position) => {
-                                        endDrag(withStopOffset(index, position), directionValue);
-                                    }}
-                                    label={(position) => labels.percent(formatNumber.format(position))}
-                                    thumbLabel={labels.colorStopPosition(ordinal)}
-                                />
-                            </Box>
-                            <ActionIcon
-                                variant="subtle"
-                                color="gray"
-                                size={PANEL_GRID.TRAIL}
-                                onClick={(event) => {
-                                    removeStop(index, event);
-                                }}
-                                data-testid="gradient-editor-remove-stop"
-                                disabled={atMin}
-                                aria-label={labels.removeColorStop(ordinal)}
-                            >
-                                <UiGlyph name="minus" size={PANEL_GRID.CHEVRON} />
-                            </ActionIcon>
-                        </Group>
-                    );
-                })}
-            </Stack>
-
+        <div className="cm-gradient" data-testid="gradient-editor">
             {showDirection && (
-                <Box data-testid="gradient-editor-direction" pb="md" role="group" aria-labelledby={directionHeadingId}>
-                    <Text
+                <div
+                    className="cm-gradient-row cm-gradient-direction"
+                    data-testid="gradient-editor-direction"
+                    role="group"
+                    aria-labelledby={directionHeadingId}
+                >
+                    <span
                         id={directionHeadingId}
+                        className="cm-visually-hidden"
                         data-testid="gradient-editor-direction-heading"
-                        size="xs"
-                        c={PANEL_INK.CHROME}
-                        mb={4}
                     >
                         {labels.direction}
-                    </Text>
-                    {/* Mantine's Slider reads the direction provider itself, so
-                        its arrow keys already run the way the text does. */}
-                    <Slider
-                        data-testid="gradient-editor-direction-slider"
-                        min={ANGLE_MIN}
-                        max={ANGLE_MAX}
+                    </span>
+                    <UnitField
+                        className="cm-field cm-gradient-angle"
+                        role="spinbutton"
+                        min={0}
+                        max={FULL_TURN}
+                        ariaLabel={labels.gradientDirection}
+                        testId="gradient-editor-direction-input"
                         value={directionValue}
-                        onPointerDown={beginDrag}
-                        onChange={(angle) => {
-                            beginDrag();
-                            setDirection(angle);
-                        }}
-                        onChangeEnd={(angle) => {
-                            endDrag(stopsValue, angle);
-                        }}
-                        label={(angle) => labels.degrees(formatNumber.format(angle))}
-                        thumbLabel={labels.gradientDirection}
-                        marks={ANGLE_MARKS.map((angle) => ({
-                            value: angle,
-                            label: labels.degrees(formatNumber.format(angle)),
-                        }))}
+                        format={degrees}
+                        normalize={(angle) => ((Math.round(angle) % FULL_TURN) + FULL_TURN) % FULL_TURN}
+                        onCommit={commitDirection}
                     />
-                </Box>
+                    <ActionIcon
+                        className="cm-gradient-end"
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        aria-label={editorLabels.flip}
+                        data-testid="gradient-editor-flip"
+                        onClick={flip}
+                    >
+                        <SwapGlyph />
+                    </ActionIcon>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        aria-label={editorLabels.rotate}
+                        data-testid="gradient-editor-rotate"
+                        onClick={rotate}
+                    >
+                        <RotateShapeGlyph />
+                    </ActionIcon>
+                </div>
             )}
-        </Stack>
+
+            <div role="group" aria-labelledby={stopsHeadingId}>
+                <div ref={areaRef} className="cm-gradient-area" data-testid="gradient-editor-bar-area">
+                    {stopsValue.map((stop, index) => (
+                        <div
+                            key={stop.id}
+                            className="cm-gradient-handle cm-focus-outside"
+                            data-testid="gradient-editor-handle"
+                            data-selected={stop.id === selected?.id || undefined}
+                            role="slider"
+                            tabIndex={0}
+                            aria-label={labels.colorStopPosition(formatNumber.format(index + 1))}
+                            aria-valuemin={0}
+                            aria-valuemax={POSITION_MAX}
+                            aria-valuenow={Math.round(stop.offset * POSITION_MAX)}
+                            aria-valuetext={percent(Math.round(stop.offset * POSITION_MAX))}
+                            style={{ "--cm-offset": stop.offset } as React.CSSProperties}
+                            onFocus={() => {
+                                setSelectedId(stop.id);
+                            }}
+                            onPointerDown={(event) => {
+                                handlePointerDown(index, event);
+                            }}
+                            onPointerMove={handlePointerMove}
+                            onPointerUp={handlePointerUp}
+                            onPointerCancel={handlePointerUp}
+                            onKeyDown={(event) => {
+                                handleHandleKeys(index, event);
+                            }}
+                        >
+                            <span
+                                className="cm-gradient-handle-chit"
+                                style={{ "--cm-chit-color": stop.color } as React.CSSProperties}
+                            />
+                        </div>
+                    ))}
+                    <div
+                        className="cm-gradient-bar"
+                        // A pointer shortcut only: the "+" button is the keyboard route to a new stop.
+                        role="presentation"
+                        aria-hidden
+                        data-testid="gradient-editor-bar"
+                        style={{ "--cm-gradient": gradientCss } as React.CSSProperties}
+                        onClick={addStopAt}
+                    />
+                </div>
+
+                {selected !== undefined && (
+                    <ColorPickerPanel
+                        value={selected.color}
+                        withAlpha={false}
+                        onChange={pickColor}
+                        onChangeEnd={pickColorEnd}
+                    />
+                )}
+
+                <div className="cm-gradient-header">
+                    <span id={stopsHeadingId} data-testid="gradient-editor-heading">
+                        {labels.colorStops}
+                    </span>
+                    <ActionIcon
+                        variant="subtle"
+                        size={PANEL_GRID.TRAIL}
+                        data-testid="gradient-editor-add-stop"
+                        onClick={addStop}
+                        disabled={atMax}
+                        aria-label={labels.addColorStop}
+                    >
+                        <UiGlyph name="plus" />
+                    </ActionIcon>
+                </div>
+
+                <div className="cm-gradient-stops" data-testid="gradient-editor-stops">
+                    {stopsValue.map((stop, index) => {
+                        const ordinal = formatNumber.format(index + 1);
+                        const isSelected = stop.id === selected?.id;
+
+                        return (
+                            <div
+                                key={stop.id}
+                                className="cm-gradient-row cm-gradient-stop"
+                                data-testid="gradient-editor-stop"
+                                data-selected={isSelected || undefined}
+                                onPointerDown={() => {
+                                    setSelectedId(stop.id);
+                                }}
+                                onFocus={() => {
+                                    setSelectedId(stop.id);
+                                }}
+                            >
+                                <UnitField
+                                    className="cm-field cm-gradient-position"
+                                    ariaLabel={labels.colorStopPosition(ordinal)}
+                                    testId="gradient-editor-stop-position"
+                                    value={Math.round(stop.offset * POSITION_MAX)}
+                                    format={percent}
+                                    normalize={(position) => Math.round(clampPercent(position))}
+                                    onCommit={(position, event) => {
+                                        stepStops(withStopOffset(index, position), event);
+                                    }}
+                                />
+                                <div className="cm-paint-field cm-gradient-color">
+                                    <button
+                                        type="button"
+                                        className="cm-paint-chit"
+                                        data-testid="gradient-editor-stop-chit"
+                                        aria-label={labels.colorSwatch}
+                                        aria-pressed={isSelected}
+                                        onClick={() => {
+                                            setSelectedId(stop.id);
+                                        }}
+                                    >
+                                        <Chit color={stop.color} variant="field" />
+                                    </button>
+                                    <StopHexField
+                                        color={stop.color}
+                                        ariaLabel={labels.colorHexValue}
+                                        onCommit={(color, event) => {
+                                            stepStops(withStopColor(stop.id, color), event);
+                                        }}
+                                    />
+                                </div>
+                                <ActionIcon
+                                    variant="subtle"
+                                    size={PANEL_GRID.TRAIL}
+                                    onClick={(event) => {
+                                        removeStop(index, event);
+                                    }}
+                                    data-testid="gradient-editor-remove-stop"
+                                    disabled={atMin}
+                                    aria-label={labels.removeColorStop(ordinal)}
+                                >
+                                    <UiGlyph name="minus" />
+                                </ActionIcon>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
     );
 }

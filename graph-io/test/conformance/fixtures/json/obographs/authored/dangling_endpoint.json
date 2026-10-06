@@ -1,0 +1,20 @@
+{
+  "graphs": [
+    {
+      "nodes": [
+        {
+          "id": "http://purl.obolibrary.org/obo/X_1",
+          "lbl": "one",
+          "type": "CLASS"
+        }
+      ],
+      "edges": [
+        {
+          "sub": "http://purl.obolibrary.org/obo/X_1",
+          "pred": "is_a",
+          "obj": "http://purl.obolibrary.org/obo/UBERON_0000001"
+        }
+      ]
+    }
+  ]
+}

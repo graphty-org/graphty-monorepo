@@ -19,6 +19,7 @@ import {
     DEFAULT_WARN_UNRELEASED_SNAPSHOTS,
     EXACT_MAX_NODES,
     F32_INF_BITS,
+    F32_SIGN_BIT,
     FA2_COINCIDENT_SQ,
     FA2_DEFAULTS,
     FA2_DISTANCE_FLOOR,
@@ -265,7 +266,7 @@ describe("constants.ts (contract 3.2)", () => {
 
     it("pins the betweenness batch constants (design 8.4, 10.1)", () => {
         expect(BC_BATCH_BUDGET_FRACTION).toBe(0.25);
-        expect(BC_MAX_BATCH).toBe(64);
+        expect(BC_MAX_BATCH).toBe(256);
         expect(BC_EDGE_PARALLEL_GAMMA).toBe(2);
         expect(BC_BACKWARD_LEVELS_PER_SUBMIT).toBe(64);
     });
@@ -308,6 +309,10 @@ describe("constants.ts (contract 3.2)", () => {
         expect(APSP_MAX_DISPATCHES_PER_SUBMIT).toBe(4096);
         // the whole sweep of a 32,767-node matrix (Chromium's 4 GiB binding) is 3 x 1,024 dispatches: one submit
         expect(3 * Math.ceil(32767 / APSP_TILE)).toBeLessThanOrEqual(APSP_MAX_DISPATCHES_PER_SUBMIT);
+    });
+
+    it("F32_SIGN_BIT is the bit pattern of -0, derived rather than remembered", () => {
+        expect(F32_SIGN_BIT).toBe(new Uint32Array(new Float32Array([-0]).buffer)[0]);
     });
 
     it("F32_INF_BITS is the bit pattern of +Infinity, derived rather than remembered", () => {

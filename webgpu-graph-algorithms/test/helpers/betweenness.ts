@@ -4,7 +4,8 @@
  * 1e-4 score tolerance of design 9.7 (a flag that disagrees, or a driver that throws, is the maximal miss):
  * exact karate (vertex and edge, the frontier and the edge-parallel forward pass), the path's closed forms (vertex
  * and edge), a directed random graph run two sources per batch in both forward forms (so the tag, the batch
- * boundary and the gather's running sum all matter), and the overflow flag on the layered fixture and its control.
+ * boundary and the gather's running sum all matter), layered(4, 70), whose 4^68 paths only the per-depth rescaling
+ * keeps inside f32, and the overflow flag on wideAndNarrow(130) and its control wideAndNarrow(100).
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
@@ -17,7 +18,7 @@ import {
 import { type GpuContext } from "../../src/context.js";
 import { brandesOracle } from "../oracle/betweenness.js";
 import { edgeConvention, scoreError, vertexConvention } from "./centrality-check.js";
-import { KARATE_EDGES, layeredEdges, pathEdges, randomEdges, snapshotOf } from "./graphs.js";
+import { KARATE_EDGES, layeredEdges, pathEdges, randomEdges, snapshotOf, wideAndNarrowEdges } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 
 /** Design 9.7's betweenness tolerance. */
@@ -75,14 +76,14 @@ async function edgeRatio(ctx: GpuContext, s: GraphSnapshot, tuning: BetweennessT
 }
 
 /**
- * The overflow flag of a one-source run against its expectation.
+ * The overflow flag of a one-source run from vertex 0 against its expectation.
  * @param ctx - the context
- * @param layers - the layered fixture's depth
+ * @param layers - the wideAndNarrow fixture's depth
  * @param expected - the flag it must raise
  * @returns 0 or Infinity
  */
 async function overflowRatio(ctx: GpuContext, layers: number, expected: boolean): Promise<number> {
-    const s = snapshotOf(layeredEdges(4, layers));
+    const s = snapshotOf(wideAndNarrowEdges(layers));
     const got = await betweennessWithTuning(ctx, s, { sources: [0] }, {});
     return got.sigmaOverflow === expected ? 0 : Infinity;
 }
@@ -97,6 +98,7 @@ export async function betweennessReport(ctx: GpuContext): Promise<CheckReport> {
     const path = snapshotOf(pathEdges(40));
     const directed = snapshotOf(randomEdges(60, 240, 11), { directed: true });
     const twoPerBatch = { limits: limitsForK(60, 2) };
+    const deep = snapshotOf(layeredEdges(4, 70));
     return mergeReports([
         await sample("karate vertex, frontier", () => vertexRatio(ctx, karate, { forward: "frontier" })),
         await sample("karate vertex, edge-parallel", () => vertexRatio(ctx, karate, { forward: "edge" })),
@@ -109,7 +111,9 @@ export async function betweennessReport(ctx: GpuContext): Promise<CheckReport> {
         await sample("directed random, k = 2, edge-parallel", () =>
             vertexRatio(ctx, directed, { ...twoPerBatch, forward: "edge" }),
         ),
-        await sample("layered(4, 18) overflows", () => overflowRatio(ctx, 18, true)),
-        await sample("layered(4, 16) does not", () => overflowRatio(ctx, 16, false)),
+        await sample("layered(4, 70) vertex, rescaled counts", () => vertexRatio(ctx, deep, {})),
+        await sample("layered(4, 70) edges, rescaled counts", () => edgeRatio(ctx, deep, {})),
+        await sample("wideAndNarrow(130) overflows", () => overflowRatio(ctx, 130, true)),
+        await sample("wideAndNarrow(100) does not", () => overflowRatio(ctx, 100, false)),
     ]);
 }

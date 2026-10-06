@@ -1,0 +1,9 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1},{"@id":2}]},
+{"edges":[{"@id":1,"s":1,"t":2},{"@id":2,"s":1,"t":99},{"@id":3,"s":98,"t":2}]},
+{"nodeAttributes":[{"po":97,"n":"a","v":"x"}]},
+{"edgeAttributes":[{"po":96,"n":"b","v":"y"}]},
+{"cartesianLayout":[{"node":95,"x":1,"y":1}]},
+{"status":[{"error":"","success":true}]}
+]

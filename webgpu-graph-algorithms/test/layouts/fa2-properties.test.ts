@@ -8,8 +8,8 @@
  * length; z === center.z in 2D; per-node displacement <= speed |F| / (1 + sqrt(speed swing_i)).
  *
  * Sizing (spec 11.3 property row: "generators sized by gpuScale()"): karate cannot shrink (34 nodes), so on a
- * software adapter (gpuScale() < 1) the per-run submission counts shrink instead -- STEPS bounds the before / after
- * step generators of the fixed-node property (4 -> 2) and HALF the speed-continuity horizon on each side of the
+ * software adapter (gpuScale() < 1) the per-run submission counts shrink instead -- stepBound() bounds the before / after
+ * step generators of the fixed-node property (4 -> 2) and halfSpan() the speed-continuity horizon on each side of the
  * setPosition (5 -> 3; the re-synchronised oracles follow). numRuns stays at the spec's 200 on every adapter.
  */
 
@@ -39,9 +39,9 @@ import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 const NUM_RUNS = 200;
 const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators of the fixed-node property (gpuScale() sizing, file header). */
-const STEPS = gpuScale() < 1 ? 2 : 4;
+const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
 /** Iterations on each side of the setPosition in the speed-continuity property (gpuScale() sizing, file header). */
-const HALF = gpuScale() < 1 ? 3 : 5;
+const halfSpan = (): number => (gpuScale() < 1 ? 3 : 5);
 
 /** The smallest normal f32 (2^-126): WGSL permits flushing subnormals to zero, so a subnormal coordinate written to the device may legitimately read back as +0. */
 const MIN_NORMAL_F32 = 2 ** -126;
@@ -87,8 +87,8 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
             await fc.assert(
                 fc.asyncProperty(
                     fc.array(fc.boolean(), { minLength: n, maxLength: n }),
-                    fc.integer({ min: 1, max: STEPS }),
-                    fc.integer({ min: 1, max: STEPS }),
+                    fc.integer({ min: 1, max: stepBound() }),
+                    fc.integer({ min: 1, max: stepBound() }),
                     async (bits, before, after) => {
                         const mask = makeMask(n);
                         bits.forEach((b, i) => {
@@ -262,9 +262,9 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
                     async (i, x, y) => {
                         let before: { readonly speed: number; readonly speedEfficiency: number } | null = null;
                         let after: { readonly speed: number; readonly speedEfficiency: number } | null = null;
-                        const run = await resyncTrace(ctx, s, start, BASE_OPTIONS, PAPER, 2 * HALF, {
+                        const run = await resyncTrace(ctx, s, start, BASE_OPTIONS, PAPER, 2 * halfSpan(), {
                             beforeStep: (sim, k) => {
-                                if (k !== HALF) {
+                                if (k !== halfSpan()) {
                                     return;
                                 }
                                 before = { speed: sim.stats.speed, speedEfficiency: sim.stats.speedEfficiency };

@@ -48,6 +48,7 @@ export type {
     RunChange,
     RunDirection,
     RunOptions,
+    RunPainting,
     RunPhase,
     RunRecord,
     RunRemoval,
@@ -58,6 +59,7 @@ export type {
     RunStyle,
     StaleNote,
     StartOptions,
+    SuggestionOutcome,
     WeightMeaning,
 } from "./types";
 export {

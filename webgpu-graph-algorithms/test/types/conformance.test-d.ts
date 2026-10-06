@@ -11,6 +11,8 @@ import type {
     EdgeScoresResultLike,
     HitsOptionsLike,
     LabelResultLike,
+    MstOptions,
+    MstResultLike,
     PageRankOptionsLike,
     PageRankResultLike,
     ScoresResultLike,
@@ -151,6 +153,10 @@ expectTypeOf<Awaited<ReturnType<GpuAccelerator["allPairsShortestPath"]>>>().toMa
 // seam does not see until the seam declares them)
 expectTypeOf<HitsOptionsLike | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["labelPropagation"]>[1]>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["labelPropagation"]>>>().toMatchTypeOf<LabelResultLike>();
+// ---- minimumSpanningTree: the seam's own MstOptions in (its `weights` refused at run time), a result that satisfies
+// `MstResultLike` out
+expectTypeOf<MstOptions | undefined>().toEqualTypeOf<Parameters<GpuAccelerator["minimumSpanningTree"]>[1]>();
+expectTypeOf<Awaited<ReturnType<GpuAccelerator["minimumSpanningTree"]>>>().toMatchTypeOf<MstResultLike>();
 expectTypeOf<Awaited<ReturnType<GpuAccelerator["triangleCount"]>>>().toMatchTypeOf<
     Awaited<ReturnType<NonNullable<AlgorithmAccelerator["triangleCount"]>>>
 >();

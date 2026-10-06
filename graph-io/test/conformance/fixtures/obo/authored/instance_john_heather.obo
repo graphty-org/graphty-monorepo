@@ -1,0 +1,30 @@
+format-version: 1.4
+ontology: people
+
+[Term]
+id: person
+name: person
+
+[Typedef]
+id: married_to
+name: married to
+is_symmetric: true
+
+[Typedef]
+id: shoe_size
+name: shoe size
+is_metadata_tag: true
+
+[Instance]
+id: john
+name: John Day
+instance_of: person
+property_value: shoe_size "8" xsd:positiveInteger
+relationship: married_to heather
+
+[Instance]
+id: heather
+name: Heather Day
+instance_of: person
+property_value: shoe_size "6" xsd:positiveInteger
+relationship: married_to john

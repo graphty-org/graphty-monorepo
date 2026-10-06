@@ -1,0 +1,149 @@
+/* The workspace frame's regions (tier1-design.md section 2). Colors come only from
+   compact-mantine's --cm-* tokens. */
+
+.ws-app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--cm-bg);
+    color: var(--cm-text);
+}
+
+.ws-header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    height: 40px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--cm-border);
+}
+
+.ws-header-button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 5px;
+    color: var(--cm-text);
+}
+
+.ws-project-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 240px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 5px;
+    color: var(--cm-text);
+    font-size: 13px;
+    font-weight: 550;
+}
+
+.ws-project-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ws-header-button:hover,
+.ws-project-name:hover {
+    background: var(--cm-bg-hover);
+}
+
+.ws-body {
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: auto var(--ws-left) minmax(0, 1fr) var(--ws-right);
+    grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+}
+
+.ws-left,
+.ws-right {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.ws-left {
+    border-inline-end: 1px solid var(--cm-border);
+}
+
+.ws-right {
+    border-inline-start: 1px solid var(--cm-border);
+}
+
+.ws-main {
+    position: relative;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-width: 0;
+    min-height: 0;
+}
+
+.ws-canvas {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.ws-canvas-overlays {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.ws-canvas-overlays > * {
+    pointer-events: auto;
+}
+
+.ws-toolbar-dock {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - 24px);
+}
+
+/* 8 px above the toolbar (48 tall, 12 up). */
+.ws-notice-slot {
+    position: absolute;
+    bottom: 68px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5;
+}
+
+.ws-dock {
+    position: relative;
+    min-height: 0;
+    border-top: 1px solid var(--cm-border);
+}
+
+.ws-page {
+    grid-column: 2 / -1;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+}
+
+.ws-shortcut-sheet {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 300;
+}
+
+/* The regions above set a display, which would otherwise outrank the hidden attribute. */
+.ws-body > [hidden] {
+    display: none;
+}

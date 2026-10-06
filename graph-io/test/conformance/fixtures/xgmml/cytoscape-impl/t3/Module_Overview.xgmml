@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph label="Module_Overview" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML"  directed="1">
+  <att name="documentVersion" value="1.1"/>
+  <att name="networkMetadata">
+    <rdf:RDF>
+      <rdf:Description rdf:about="http://www.cytoscape.org/">
+        <dc:type>Protein-Protein Interaction</dc:type>
+        <dc:description>N/A</dc:description>
+        <dc:identifier>N/A</dc:identifier>
+        <dc:date>2009-11-19 13:37:45</dc:date>
+        <dc:title>Module_Overview</dc:title>
+        <dc:source>http://www.cytoscape.org/</dc:source>
+        <dc:format>Cytoscape-XGMML</dc:format>
+      </rdf:Description>
+    </rdf:RDF>
+  </att>
+  <att type="string" name="backgroundColor" value="#ccccff"/>
+  <att type="real" name="GRAPH_VIEW_ZOOM" value="2.95"/>
+  <att type="real" name="GRAPH_VIEW_CENTER_X" value="40.0"/>
+  <att type="real" name="GRAPH_VIEW_CENTER_Y" value="40.0"/>
+  <att type="string" name="__layoutAlgorithm" value="grid" cy:hidden="true"/>
+  <att type="string" name="immutable_id" value="2" cy:editable="false"/>
+  <node label="C" id="-4">
+    <att type="string" name="canonicalName" value="C"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="0.0" y="0.0" fill="#ff9999" width="1" outline="#666666"/>
+  </node>
+  <node label="M3" id="-3">
+    <att type="string" name="canonicalName" value="M3"/>
+    <att type="string" name="nested_network_id" value="M3"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="80.0" y="0.0" fill="#ff9999" width="1" outline="#666666"/>
+  </node>
+  <node label="M2" id="-2">
+    <att type="string" name="canonicalName" value="M2"/>
+    <att type="string" name="nested_network_id" value="M2"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="0.0" y="80.0" fill="#ff9999" width="1" outline="#666666"/>
+  </node>
+  <node label="M1" id="-1">
+    <att type="string" name="canonicalName" value="M1"/>
+    <att type="string" name="nested_network_id" value="M1"/>
+    <graphics type="ELLIPSE" h="40.0" w="40.0" x="80.0" y="80.0" fill="#ff9999" width="1" outline="#666666"/>
+  </node>
+  <edge label="C (pp) M3" source="-4" target="-3">
+    <att type="string" name="canonicalName" value="C (pp) M3"/>
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff"/>
+  </edge>
+  <edge label="M3 (im) M1" source="-3" target="-1">
+    <att type="string" name="canonicalName" value="M3 (im) M1"/>
+    <att type="string" name="interaction" value="im"/>
+    <graphics width="1" fill="#0000ff"/>
+  </edge>
+  <edge label="M2 (pp) C" source="-2" target="-4">
+    <att type="string" name="canonicalName" value="M2 (pp) C"/>
+    <att type="string" name="interaction" value="pp"/>
+    <graphics width="1" fill="#0000ff"/>
+  </edge>
+  <edge label="M2 (im) M3" source="-2" target="-3">
+    <att type="string" name="canonicalName" value="M2 (im) M3"/>
+    <att type="string" name="interaction" value="im"/>
+    <graphics width="1" fill="#0000ff"/>
+  </edge>
+  <edge label="M1 (im) M2" source="-1" target="-2">
+    <att type="string" name="canonicalName" value="M1 (im) M2"/>
+    <att type="string" name="interaction" value="im"/>
+    <graphics width="1" fill="#0000ff"/>
+  </edge>
+</graph>

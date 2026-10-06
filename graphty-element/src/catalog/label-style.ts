@@ -67,9 +67,13 @@ export interface LabelStyle {
     /**
      * Whether the label is drawn at all.
      *
-     * Writing the words through `node.label` or `edge.label` switches a label on, so this is only
-     * ever written to switch one back OFF while leaving its text resolved -- which is how a layer
+     * Writing the words through `node.label` or `edge.label` switches a label on. Written
+     * `false`, this switches one back OFF while leaving its text resolved -- which is how a layer
      * hides labels on part of a graph without taking the words away from the layers under it.
+     *
+     * Written `true` on `node.labelStyle` with no `node.label` anywhere in the stack, it switches
+     * node labels on with the element's own words, which are each node's id. A layer that only
+     * wants labels on never has to name an attribute to draw.
      */
     enabled?: boolean;
 

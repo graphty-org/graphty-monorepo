@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="1" label="Network" directed="1" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <att name="name" value="small" type="string" cy:type="String"/>
+  <node id="1" label="A"><att name="name" value="A" type="string" cy:type="String"/><att name="score" value="0.5" type="real" cy:type="Double"/><att name="degree" value="2" type="integer" cy:type="Integer"/><graphics type="ELLIPSE" x="10" y="20" z="0" fill="#FF0000"/></node>
+  <node id="2" label="B"><att name="name" value="B" type="string" cy:type="String"/><att name="score" value="1.5" type="real" cy:type="Double"/><att name="degree" value="1" type="integer" cy:type="Integer"/><graphics type="ELLIPSE" x="30" y="40" z="0" fill="#00FF00"/></node>
+  <node id="3" label="C"><att name="name" value="C" type="string" cy:type="String"/><att name="degree" value="1" type="integer" cy:type="Integer"/><graphics type="RECTANGLE" x="50" y="0" z="0"/></node>
+  <edge id="4" label="A (pp) B" source="1" target="2" cy:directed="1"><att name="interaction" value="pp" type="string" cy:type="String"/></edge>
+  <edge id="5" label="A (pd) C" source="1" target="3" cy:directed="1"><att name="interaction" value="pd" type="string" cy:type="String"/></edge>
+</graph>

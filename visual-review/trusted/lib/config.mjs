@@ -19,10 +19,12 @@ const DEFAULTS = {
     workDir: ".visual-review",
     commitPrefix: "test",
     issueLabels: ["bug"],
+    fontconfig: null,
 };
 
-// Project ids name artifacts, jobs, directories and regular expressions, so they stay plain.
-const PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+// Project ids name artifacts, jobs, directories and regular expressions, so they stay plain; and
+// results.json allows only these.
+const PROJECT_ID = /^[a-z0-9][a-z0-9-]*$/;
 // A path inside the repository: relative, no "..", no backslashes.
 const REPO_PATH = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\]+$/;
 
@@ -30,7 +32,7 @@ const REPO_PATH = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\]+$/;
  * Checks a parsed config and fills in the defaults.
  * @param {unknown} input the parsed JSON
  * @returns {{ defaultBranch: string, workflow: string, baselines: string, workDir: string,
- *     commitPrefix: string, issueLabels: string[], projects: Record<string, { storybook: string,
+ *     commitPrefix: string, issueLabels: string[], fontconfig: string | null, projects: Record<string, { storybook: string,
  *     build: string | null, workers: number, seedFromDefaultBranch: boolean, waitFor: { selector:
  *     string, method: string, failOnConsole: string | null } | null }> }} the settings
  */
@@ -58,6 +60,14 @@ export function normalizeConfig(input) {
         }
         out[key] = out[key].replace(/\/+$/, "");
     }
+    // The fontconfig file every capture draws with (FONTCONFIG_FILE), so local and CI captures use
+    // the same committed fonts instead of whatever the host has installed. Null: host fonts.
+    if (raw.fontconfig !== undefined && raw.fontconfig !== null) {
+        if (typeof raw.fontconfig !== "string" || !REPO_PATH.test(raw.fontconfig)) {
+            fail('fontconfig must be a fonts.conf inside the repository, relative and without ".."');
+        }
+        out.fontconfig = raw.fontconfig;
+    }
     if (raw.issueLabels !== undefined) {
         if (!Array.isArray(raw.issueLabels) || raw.issueLabels.some((l) => typeof l !== "string")) {
             fail("issueLabels must be an array of strings");
@@ -72,7 +82,7 @@ export function normalizeConfig(input) {
     for (const [id, p] of Object.entries(projects)) {
         const where = `projects.${id}`;
         if (!PROJECT_ID.test(id)) {
-            fail(`${where}: a project id is letters, digits, ".", "_" and "-"`);
+            fail(`${where}: a project id is lowercase letters, digits and "-"`);
         }
         if (typeof p !== "object" || p === null) {
             fail(`${where} must be an object`);

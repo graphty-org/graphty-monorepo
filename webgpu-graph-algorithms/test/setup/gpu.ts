@@ -71,6 +71,8 @@ let nullHandle: NodeGpuHandle | null = null;
 let summary: AdapterSummary | null = null;
 let reason: string | null = "E_NO_ADAPTER: device acquisition did not run";
 let verdict: Verdict = { ok: false, skip: true, reason };
+/** True once beforeAll has probed the adapter; isSoftware() / gpuScale() before that would read a null summary. */
+let probed = false;
 const contexts: GpuContext[] = [];
 const rawDevices: GPUDevice[] = [];
 const uncaptured: WebGpuGraphError[] = [];
@@ -108,8 +110,17 @@ export function skipReason(): string | null {
     return reason;
 }
 
-/** True when the setup's probe found a software adapter. */
+/**
+ * True when the setup's probe found a software adapter. Throws when read before the probe (at module level, while
+ * vitest collects the file): the answer there is always false, so a size scaled by it silently runs at full size on
+ * lavapipe.
+ */
 export function isSoftware(): boolean {
+    if (!probed) {
+        throw new Error(
+            "isSoftware() / gpuScale() read before the setup probed the adapter: call it inside a test or hook",
+        );
+    }
     return summary?.software ?? false;
 }
 
@@ -227,6 +238,13 @@ beforeAll(async () => {
         handle = await createNodeGpu({
             adapter: envOrUndefined("GRAPHTY_GPU_ADAPTER"),
             dawnFeatures: dawnFeatures === undefined ? undefined : dawnFeatures.split(","),
+            // Dawn 0.6.x rounds every timestamp-query result to a 65,536 ns grid by default -- a Spectre-style
+            // mitigation, and 64x coarser than the 1,024 ns of 0.4.x. Our kernels are microseconds, so a pass
+            // shorter than one tick reads a duration of exactly zero: `test/kernel/profiler.test.ts` fails 10
+            // runs in 10 on the RTX 4070 SUPER with it on, and cannot see it on lavapipe, whose passes are
+            // milliseconds. Turned off here rather than per lane, so a new lane does not have to remember it;
+            // nothing this process profiles is anyone else's secret. G-ENV finding ENV-F9.
+            dawnDisableFeatures: ["timestamp_quantization"],
         });
     } catch (err) {
         reason = `E_NO_ADAPTER: ${messageOf(err)}`;
@@ -258,6 +276,7 @@ beforeAll(async () => {
     if (reason !== null) {
         console.warn(`[gpu] ${reason}`);
     }
+    probed = true;
 });
 
 afterEach(() => {

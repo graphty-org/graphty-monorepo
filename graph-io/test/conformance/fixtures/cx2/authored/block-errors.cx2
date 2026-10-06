@@ -1,0 +1,8 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"nodes":[{"id":1}],"edges":[{"id":1,"s":1,"t":1}]},
+{"notAnAspect":1},
+{"nodes":[2,{"id":3}]},
+{"ndexStatus":{"published":true,"nodeCount":2}},
+{"status":[{"error":"","success":true}]}
+]

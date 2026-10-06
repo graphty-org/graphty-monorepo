@@ -1,78 +1,78 @@
 import { Checkbox, Radio, RangeSlider, SegmentedControl, Slider, Switch } from "@mantine/core";
 
+import { CompactCheckboxIcon } from "../../components/selection/CompactCheckboxIcon";
+import { checkSegmentOnMouseDown } from "../../components/selection/pointer-down";
 import {
+    CHECKBOX_CLASSES,
     compactCheckboxScale,
-    compactControlLabelStyles,
     compactRadioScale,
-    compactSegmentedControlIndicatorStyles,
-    compactSegmentedControlRootStyles,
     compactSegmentedControlScale,
-    compactSliderMarkLabelStyles,
     compactSliderScale,
     compactSwitchScale,
+    RADIO_CLASSES,
+    SEGMENTED_CLASSES,
+    SLIDER_CLASSES,
+    SWITCH_CLASSES,
 } from "../styles/controls";
 import { compactVarsForSize } from "../styles/size-scale";
 
 /**
- * Theme extensions for control components with compact sizing by default.
+ * Theme extensions for the selection controls, drawn as the Figma editor draws them
+ * (design/figma-spec.md 5.2 - 5.8).
  *
- * All control components default to size="sm", which every scale in
- * ../styles/controls.ts answers with the compact values this package has always
- * shipped. Each `vars` resolver reads `props.size` and looks that size up in the
- * component's scale, so an explicitly sized control differs from its neighbours
- * instead of collapsing onto the compact value. Before 2026-09-13 these
- * resolvers took no arguments and returned one frozen object, so xs through xl
- * all rendered identically -- see ../styles/size-scale.ts for the mechanism and
- * the product owner's report.
+ * Each extension does three things:
+ * - `vars`: the per-size CSS variables of ../styles/controls.ts. The resolver reads `props.size`
+ *   (with optional chaining, because the regression suites call `vars!()` with no arguments), so
+ *   an explicitly sized control differs from its neighbors; see ../styles/size-scale.ts.
+ * - `classNames`: the `cm-*` classes ../css/selection.css.ts keys every color, state and focus
+ *   ring on, light and dark and the AA option alike (the stylesheet reads tokens only).
+ * - `defaultProps`: size sm (the compact default) and the behavior Figma has and Mantine does
+ *   not: the checkbox tick glyph, no sliding segmented indicator, options that activate on
+ *   mouse-down.
  *
- * `props?.size` is read with optional chaining on purpose: the theme regression
- * suites invoke `extension.vars!()` with no arguments at all, and
- * compactVarsForSize maps an absent size onto the compact entry.
- *
- * The compact (size="sm") values:
- * - Switch: --switch-height: 16px, --switch-width: 28px
- * - Checkbox: --checkbox-size: 16px
- * - Radio: --radio-size: 16px
- * - Slider: --slider-size: 4px, --slider-thumb-size: 12px
- * - SegmentedControl: --sc-font-size: 10px
+ * Checkbox variants: `filled` (Mantine's default, kept) is Figma's blue checkbox of dialogs and
+ * popovers; `variant="neutral"` is the panel checkbox that stays gray when checked (ToggleRow
+ * uses it). SegmentedControl variants: the default is the panel track (5.2),
+ * `variant="toolbar"` the mode switch with a raised thumb (5.3), `variant="loose"` the paint-type
+ * row of separate 24 x 24 options (5.2).
  */
 export const controlComponentExtensions = {
     SegmentedControl: SegmentedControl.extend({
         defaultProps: {
             size: "sm",
             withItemsBorders: false,
+            // The selected face is drawn on the option itself, so it jumps in one frame; the
+            // floating indicator is hidden by the stylesheet and must not animate either.
+            transitionDuration: 0,
+            onMouseDown: checkSegmentOnMouseDown,
         },
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactSegmentedControlScale, props?.size),
         }),
-        styles: {
-            root: compactSegmentedControlRootStyles,
-            indicator: compactSegmentedControlIndicatorStyles,
-        },
+        classNames: SEGMENTED_CLASSES,
     }),
 
     Checkbox: Checkbox.extend({
         defaultProps: {
             size: "sm",
+            icon: CompactCheckboxIcon,
         },
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactCheckboxScale, props?.size),
         }),
-        styles: {
-            label: compactControlLabelStyles,
-        },
+        classNames: CHECKBOX_CLASSES,
     }),
 
     Switch: Switch.extend({
         defaultProps: {
             size: "sm",
+            // Figma's knob is a plain white pill; Mantine's inner dot is not drawn.
+            withThumbIndicator: false,
         },
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactSwitchScale, props?.size),
         }),
-        styles: {
-            label: compactControlLabelStyles,
-        },
+        classNames: SWITCH_CLASSES,
     }),
 
     Slider: Slider.extend({
@@ -82,9 +82,7 @@ export const controlComponentExtensions = {
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactSliderScale, props?.size),
         }),
-        styles: {
-            markLabel: compactSliderMarkLabelStyles,
-        },
+        classNames: SLIDER_CLASSES,
     }),
 
     Radio: Radio.extend({
@@ -94,9 +92,7 @@ export const controlComponentExtensions = {
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactRadioScale, props?.size),
         }),
-        styles: {
-            label: compactControlLabelStyles,
-        },
+        classNames: RADIO_CLASSES,
     }),
 
     RangeSlider: RangeSlider.extend({
@@ -106,8 +102,6 @@ export const controlComponentExtensions = {
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactSliderScale, props?.size),
         }),
-        styles: {
-            markLabel: compactSliderMarkLabelStyles,
-        },
+        classNames: SLIDER_CLASSES,
     }),
 };

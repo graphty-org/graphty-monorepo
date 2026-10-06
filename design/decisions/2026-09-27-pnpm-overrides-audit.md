@@ -83,3 +83,22 @@ lockfile changes. The stale alerts are dismissed as "inaccurate" with a comment 
 lockfile now resolves. If new alerts keep arriving frozen the same way, the repository's
 dependency graph setting needs the owner; a CI dependency-submission step is the other route and
 was deliberately not added.
+
+## 2026-10-03: braces GHSA-vfj7-8cjw-p6xm, ignored (no patched version exists)
+
+`pnpm audit --audit-level=high` began failing every pull request's Build job on 2026-10-03 with
+GHSA-vfj7-8cjw-p6xm: braces through 3.0.3 can exhaust the call stack on deeply nested brace
+patterns. The advisory lists no patched version (3.0.3 is the latest braces), so no override can
+fix it. Its one path here is `@nx/react > http-proxy-middleware > micromatch > braces`, a
+development-server dependency that only expands glob patterns written in this repository's own
+configuration; nothing passes it a pattern from outside. It is listed in the root package.json's
+`pnpm.auditConfig.ignoreGhsas`. Remove that entry when braces publishes a fix, and add an override
+floor here instead.
+
+## 2026-10-03: node-forge GHSA-86w9-cpqp-85rv, ignored (no patched version exists)
+
+node-forge through 1.4.0 accepts some malformed RSA PKCS#1 v1.5 signatures. 1.4.0 is the latest
+release, so no override can fix it. Its only path is `@sonar/scan > node-forge`: the SonarQube
+scanner the pre-push gate runs against the owner's own server, which never verifies a signature from
+outside. It is listed in the root package.json's `pnpm.auditConfig.ignoreGhsas`. Remove the entry
+when node-forge publishes a fix, and add an override floor here instead.

@@ -43,6 +43,18 @@ describe("channelControls", () => {
         }
     });
 
+    it("takes each row's name, group, default and disabled reason from the element, not a copy", () => {
+        for (const channel of channels) {
+            const descriptor = CHANNEL_DESCRIPTORS[channel];
+            const control = CHANNEL_CONTROLS[channel];
+
+            expect(control.label).toBe(descriptor.shortName);
+            expect(control.group).toBe(descriptor.group);
+            expect(control.fallback).toBe(descriptor.default);
+            expect(control.unavailable).toBe(descriptor.unsupportedReason);
+        }
+    });
+
     it("offers exactly the enum values the element accepts", () => {
         for (const channel of channels) {
             const descriptor = CHANNEL_DESCRIPTORS[channel];

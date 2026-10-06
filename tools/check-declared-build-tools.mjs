@@ -17,11 +17,13 @@
  * Usage: node tools/check-declared-build-tools.mjs              (exit 1 when anything is found)
  *        node tools/check-declared-build-tools.mjs --self-test  (prove it catches an undeclared vite)
  */
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { scratchWorkspace } from "./scratch-workspace.mjs";
+import { workspaceDirs } from "./workspace-files.mjs";
 
 /**
  * Reads a package.json.
@@ -150,9 +152,7 @@ function check(rootDir) {
     const root = readJson(join(rootDir, "package.json"));
     const rootDeps = declared(root);
     const bins = rootBinaries(rootDir, rootDeps);
-    const workspaceYaml = readFileSync(join(rootDir, "pnpm-workspace.yaml"), "utf8");
-    const packagesBlock = workspaceYaml.split(/^packages:\s*$/m)[1]?.split(/^\S/m)[0] ?? "";
-    const dirs = [...packagesBlock.matchAll(/^\s*-\s*["']?([^"'\s]+)["']?/gm)].map((m) => m[1]);
+    const dirs = workspaceDirs(rootDir);
     const problems = [];
     for (const dir of dirs) {
         const pkgFile = join(rootDir, dir, "package.json");
@@ -191,11 +191,7 @@ function check(rootDir) {
  * reported while it leaves vite undeclared and passes once it declares it.
  */
 function selfTest() {
-    const dir = mkdtempSync(join(tmpdir(), "declared-tools-"));
-    const write = (file, body) => {
-        mkdirSync(dirname(join(dir, file)), { recursive: true });
-        writeFileSync(join(dir, file), typeof body === "string" ? body : JSON.stringify(body));
-    };
+    const { dir, write } = scratchWorkspace("declared-tools-");
     try {
         write("package.json", { name: "root", devDependencies: { vite: "^7.0.0" } });
         write("pnpm-workspace.yaml", 'packages:\n    - "app"\n');

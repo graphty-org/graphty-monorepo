@@ -1,9 +1,9 @@
 /**
  * yFiles / yEd graphics read out of the JSON tree of a `yfiles.type` key (tree.ts) into typed
  * columns, beside the tree itself: a `y:ShapeNode` gives the node's position, size, fill and
- * border colours, label and shape, and a `y:PolyLineEdge` gives the edge's line colour and width,
+ * border colors, label and shape, and a `y:PolyLineEdge` gives the edge's line color and width,
  * its arrows and the direction they draw. The values are the ones graphty-element's own GraphML
- * parser produced, so a consumer rebuilds its records by dropping the `yfiles.` prefix: colours
+ * parser produced, so a consumer rebuilds its records by dropping the `yfiles.` prefix: colors
  * are `#RRGGBB` in upper case (a `#RGB` is expanded, any other text is kept as written), numbers
  * are parsed with parseFloat, the position is `[x, y, 0]` and the shape is the yFiles shape type
  * as written. One difference: a label whose text is a number (`<y:NodeLabel>0</y:NodeLabel>`) is
@@ -52,6 +52,7 @@ const EDGE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
  * @param field - the field name (a key of the values graphicsValues() returns)
  * @param keyId - the id of the GraphML key whose tree it is read from
  * @returns the declaration
+ * @category Plugin helpers
  */
 export function graphicsDecl(domain: "node" | "edge", field: string, keyId: string): ColumnDecl {
     const fields = domain === "node" ? NODE_FIELDS : EDGE_FIELDS;
@@ -76,6 +77,7 @@ export function graphicsDecl(domain: "node" | "edge", field: string, keyId: stri
  * @param meta.dtype - the column dtype
  * @param meta.origin - the column origin
  * @returns true for a mapped graphics column
+ * @category Plugin helpers
  */
 export function isGraphicsColumn(meta: {
     readonly name: string;
@@ -95,6 +97,7 @@ export function isGraphicsColumn(meta: {
  * @param table - the table it is in
  * @param domain - node or edge
  * @returns the number of rows that differ from the trees
+ * @category Plugin helpers
  */
 export function staleGraphicsRows(column: Column, table: Iterable<Column>, domain: "node" | "edge"): number {
     const field = column.meta.name.slice(YFILES_COLUMN_PREFIX.length);
@@ -130,19 +133,21 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
  * PolyLineEdge's for an edge; nothing for any other graphics (GenericNode, BezierEdge, ...).
  * @param domain - node or edge
  * @param tree - the `<data>` content as tree.ts builds it
+ * @param unmapped - receives the fields whose text is present but not a number (not mapped)
  * @returns field name -> value, in declaration order
+ * @category Plugin helpers
  */
-export function graphicsValues(domain: "node" | "edge", tree: unknown): [string, unknown][] {
+export function graphicsValues(domain: "node" | "edge", tree: unknown, unmapped: string[] = []): [string, unknown][] {
     const out: [string, unknown][] = [];
     if (domain === "node") {
         const shape = child(tree, "ShapeNode");
         if (shape !== undefined) {
-            shapeNodeValues(shape, out);
+            shapeNodeValues(shape, out, unmapped);
         }
     } else {
         const edge = child(tree, "PolyLineEdge");
         if (edge !== undefined) {
-            polyLineEdgeValues(edge, out);
+            polyLineEdgeValues(edge, out, unmapped);
         }
     }
     return out;
@@ -152,21 +157,22 @@ export function graphicsValues(domain: "node" | "edge", tree: unknown): [string,
  * Read a ShapeNode.
  * @param shape - the ShapeNode element
  * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
  */
-function shapeNodeValues(shape: unknown, out: [string, unknown][]): void {
+function shapeNodeValues(shape: unknown, out: [string, unknown][], unmapped: string[]): void {
     const geometry = child(shape, "Geometry");
     // yFiles requires x, y, width and height on Geometry; a position needs both coordinates
-    const x = number(attr(geometry, "x"));
-    const y = number(attr(geometry, "y"));
+    const x = checked(attr(geometry, "x"), "x", unmapped);
+    const y = checked(attr(geometry, "y"), "y", unmapped);
     if (x !== undefined && y !== undefined) {
         out.push(["position", [x, y, 0]]);
     }
-    push(out, "width", number(attr(geometry, "width")));
-    push(out, "height", number(attr(geometry, "height")));
+    push(out, "width", checked(attr(geometry, "width"), "width", unmapped));
+    push(out, "height", checked(attr(geometry, "height"), "height", unmapped));
     push(out, "color", color(attr(child(shape, "Fill"), "color")));
     const border = child(shape, "BorderStyle");
     push(out, "borderColor", color(attr(border, "color")));
-    push(out, "borderWidth", number(attr(border, "width")));
+    push(out, "borderWidth", checked(attr(border, "width"), "borderWidth", unmapped));
     const label = child(shape, "NodeLabel");
     // an element with no text and no attributes is "" (no label); one with attributes but no text is a blank label
     if (typeof label === "string" ? label.length > 0 : label !== undefined) {
@@ -180,11 +186,12 @@ function shapeNodeValues(shape: unknown, out: [string, unknown][]): void {
  * Read a PolyLineEdge.
  * @param edge - the PolyLineEdge element
  * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
  */
-function polyLineEdgeValues(edge: unknown, out: [string, unknown][]): void {
+function polyLineEdgeValues(edge: unknown, out: [string, unknown][], unmapped: string[]): void {
     const line = child(edge, "LineStyle");
     push(out, "color", color(attr(line, "color")));
-    push(out, "width", number(attr(line, "width")));
+    push(out, "width", checked(attr(line, "width"), "width", unmapped));
     const arrows = child(edge, "Arrows");
     if (arrows !== undefined && typeof arrows === "object") {
         const target = attr(arrows, "target");
@@ -273,9 +280,24 @@ function number(value: string | undefined): number | undefined {
 }
 
 /**
- * A colour attribute: `#RRGGBB` upper-cased, `#RGB` expanded, anything else as written.
+ * A number attribute, recording a present text that is not a number.
  * @param value - the text
- * @returns the colour, or undefined when absent or empty
+ * @param field - the field it maps to
+ * @param unmapped - receives the field when the text is not a number
+ * @returns the number, or undefined
+ */
+function checked(value: string | undefined, field: string, unmapped: string[]): number | undefined {
+    const n = number(value);
+    if (n === undefined && value !== undefined && value.length > 0) {
+        unmapped.push(field);
+    }
+    return n;
+}
+
+/**
+ * A color attribute: `#RRGGBB` upper-cased, `#RGB` expanded, anything else as written.
+ * @param value - the text
+ * @returns the color, or undefined when absent or empty
  */
 function color(value: string | undefined): string | undefined {
     if (value === undefined || value.length === 0) {

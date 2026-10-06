@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "pr": 519,
+  "subject": {
+    "builtMerge": "69421b963f65b335086d0f07cefd57ff01f12143",
+    "head": "08ed936331faa641cf90f876cb1db4ab9a41d2fe",
+    "runId": 36956009495,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+      "emojiFont": true,
+      "tool": "69421b963f65b335086d0f07cefd57ff01f12143"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/styles-edge--animation-speed.png",
+      "from": "66440a70ac747bc4004e38cb2f1c972f2c23caa7e58879bf8880ae94c0d1b421",
+      "to": "940f645d879703876d15e7effacc1a2809e7a9effc4d71e3eca219a706932b1f",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-02T04:10:34.860Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiQkNfZjdoOWExMXlyY25hR2NxY0dFVEZMMkNaOHZYYVZrQW9sRURJTFMwVSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjYwIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIC3mlOB-EW6289zUt7J1Aqiqp9Q3ospFeCeWK1VdLHa8AiEAk_EHKwfFTqNKeGGbmuP12mTgFiewowwAl5aFqAP4t0s"
+  }
+}

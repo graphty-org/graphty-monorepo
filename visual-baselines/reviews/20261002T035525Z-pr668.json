@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "pr": 668,
+  "subject": {
+    "builtMerge": "9841f70c549b2d9b38be649f0e8039325a1fa500",
+    "head": "0d055824b808c24fd97720a97ce3922dca9bc020",
+    "runId": 36956017384,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 9V74 80-Core Processor",
+      "emojiFont": true,
+      "tool": "9841f70c549b2d9b38be649f0e8039325a1fa500"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/undo--pin-and-drag-then-undo.png",
+      "from": "a3ac07c7acea33f3cc0cdb0d0a045a118b661c410efff7b6e51633b5f1dc0bdc",
+      "to": "0c575f191626faa779f81127e240f46ab3e9ec58f9c4b335da70c68a2c57aabf",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-02T03:55:25.074Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiRzBSX0xhaUctZEwxLVN2R29ycFhTQVFrOW1jcFBwSFh6aHFaQ0JvcjVmOCIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjYwIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIHZLo4qhBQBcZ86x0EOcWEuK9xKpnKTWRAbIYzgHIxO1AiA0o4Bkm0yGn0Ha5JKbmpI4diZ2V0G4xLkA3mCqn-SP6g"
+  }
+}

@@ -1,0 +1,8 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"nodes":[{"id":1},{"id":2}]},
+{"edges":[{"id":5,"s":1,"t":2}]},
+{"nodeBypasses":[{"id":1,"v":{"NODE_FILL_COLOR":"#FF0000"}},{"id":99,"v":{"NODE_FILL_COLOR":"#00FF00"}}]},
+{"edgeBypasses":[{"id":5,"v":{"EDGE_WIDTH":2}},{"id":77,"v":{"EDGE_WIDTH":9}}]},
+{"status":[{"error":"","success":true}]}
+]

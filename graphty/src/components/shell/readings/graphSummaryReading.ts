@@ -36,7 +36,7 @@
  * wins here, because it is the rule and the board is one instance of it.
  */
 
-import { formatPercent, formatProseCount, joinList } from "./readingFormat";
+import { formatPercent, formatProseCount, joinList, pluralise } from "./readingFormat";
 
 /** At most this many node types are named before ", and N other types" (spec 5852). */
 const NAMED_TYPE_CAP = 3;
@@ -103,18 +103,6 @@ export const DEFAULT_EDGE_NOUN = "relationships";
  */
 export const GRAPH_SUMMARY_EMPTY_READING =
     "Nothing is loaded yet. Open a file, a URL or pasted data to see a reading here.";
-
-/**
- * Pluralises a noun on a count, so "1 small part holds the rest" is not written as
- * "1 small parts hold the rest". The spec's example strings are all plural; this only
- * ever narrows away from them.
- * @param count - the count the noun is attached to.
- * @param singular - the singular noun.
- * @returns the singular when the count is exactly 1, the "s" plural otherwise.
- */
-function pluralise(count: number, singular: string): string {
-    return count === 1 ? singular : `${singular}s`;
-}
 
 /**
  * Sentence 1's node clause: the type list when types are known, a bare count when they

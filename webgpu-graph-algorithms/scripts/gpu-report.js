@@ -13,6 +13,12 @@
  * then a 10 s sample of `nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader` at 1 Hz when
  * nvidia-smi exists. Prints ONE JSON document to stdout (diagnostics go to stderr; never pipe through tee).
  *
+ * `node scripts/gpu-report.js --clocks <clock log> <bench log>` (issue #703) is a second, GPU-free mode: it reads the
+ * 200 ms log gpu.yml records with `nvidia-smi --query-gpu=timestamp,clocks.sm,clocks.max.sm,pstate,power.draw
+ * --format=csv -lms 200` while `pnpm run bench` runs, and the bench output with the same local time in front of every
+ * line, and prints `{ groups: ClockGroup[] }`: per benchmark group, the min and median SM clock, the P-states seen and
+ * the power draw. scripts/bench-compare.js cites it beside a regression, so a clock drop is told from slower code.
+ *
  * Exit codes: 0 ok; 2 the policy is violated (ok: false, reason set); 3 no module / no adapter (dist/node.js
  * missing, E_NO_WEBGPU, or requestAdapter() null; reason set); 1 an unexpected error (message on stderr).
  */
@@ -258,6 +264,116 @@ function failureDocument(policy, reason, runner) {
 }
 
 /**
+ * One sample of the clock log.
+ * @typedef {{ t: number, smMHz: number, maxSmMHz: number, pstate: string, powerW: number }} ClockSample
+ */
+
+/**
+ * The clock record of one benchmark group; the clock and power fields are null when no sample fell inside it.
+ * @typedef {object} ClockGroup
+ * @property {string} group - the benchmark group
+ * @property {number} samples - the clock samples taken while it ran
+ * @property {number | null} smMinMHz - the lowest SM clock
+ * @property {number | null} smMedianMHz - the median SM clock
+ * @property {number | null} maxSmMHz - the card's maximum SM clock
+ * @property {Record<string, number>} pstates - how many samples saw each P-state
+ * @property {number | null} powerMinW - the lowest power draw
+ * @property {number | null} powerMedianW - the median power draw
+ */
+
+/** "2026/10/02 06:41:00.200" at the start of a line: nvidia-smi's timestamp and the one gpu.yml stamps the bench log with. */
+const STAMP = /^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})/;
+
+/**
+ * Milliseconds of a stamp. Both logs carry the runner's local time, so it is read as UTC on both sides alike.
+ * @param {string} text - a line that may start with a stamp
+ * @returns {number | null} the time, or null when the line has no stamp
+ */
+function stampMs(text) {
+    const m = STAMP.exec(text);
+    return m === null ? null : Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6], +m[7]);
+}
+
+/**
+ * Parse the clock log: `timestamp, clocks.current.sm [MHz], clocks.max.sm [MHz], pstate, power.draw [W]` rows;
+ * the header and any line that is not a sample are skipped.
+ * @param {string} text - the log
+ * @returns {ClockSample[]} the samples, oldest first
+ */
+export function parseClockLog(text) {
+    const samples = [];
+    for (const line of text.split("\n")) {
+        const parts = line.split(",").map((p) => p.trim());
+        const t = stampMs(line);
+        const sm = Number.parseFloat(parts[1]);
+        const max = Number.parseFloat(parts[2]);
+        if (t === null || parts.length < 5 || !Number.isFinite(sm)) {
+            continue;
+        }
+        samples.push({ t, smMHz: sm, maxSmMHz: max, pstate: parts[3], powerW: Number.parseFloat(parts[4]) });
+    }
+    return samples;
+}
+
+/**
+ * The group intervals of the stamped bench log: a group runs from its `== <group> (` header to the next one, the
+ * last to the log's last stamped line.
+ * @param {string} text - the bench output, a stamp in front of every line
+ * @returns {{ group: string, start: number, end: number }[]} the groups in run order
+ */
+export function parseBenchLog(text) {
+    const groups = [];
+    let last = null;
+    for (const line of text.split("\n")) {
+        const t = stampMs(line);
+        if (t === null) {
+            continue;
+        }
+        last = t;
+        const header = /^\S+ \S+ == (\S+) \(/.exec(line);
+        if (header !== null) {
+            if (groups.length > 0) {
+                groups[groups.length - 1].end = t;
+            }
+            groups.push({ group: header[1], start: t, end: t });
+        }
+    }
+    if (groups.length > 0 && last !== null) {
+        groups[groups.length - 1].end = last;
+    }
+    return groups;
+}
+
+/**
+ * The clock record of every group: the samples whose time falls in [start, end).
+ * @param {readonly ClockSample[]} samples - parseClockLog's samples
+ * @param {readonly { group: string, start: number, end: number }[]} groups - parseBenchLog's groups
+ * @returns {ClockGroup[]} one record per group, in run order
+ */
+export function summarizeClocks(samples, groups) {
+    return groups.map(({ group, start, end }) => {
+        const inside = samples.filter((s) => s.t >= start && s.t < end);
+        const pstates = {};
+        for (const s of inside) {
+            pstates[s.pstate] = (pstates[s.pstate] ?? 0) + 1;
+        }
+        const some = inside.length > 0;
+        const sm = inside.map((s) => s.smMHz);
+        const power = inside.map((s) => s.powerW).filter((w) => Number.isFinite(w));
+        return {
+            group,
+            samples: inside.length,
+            smMinMHz: some ? Math.min(...sm) : null,
+            smMedianMHz: some ? median(sm) : null,
+            maxSmMHz: some ? Math.max(...inside.map((s) => s.maxSmMHz)) : null,
+            pstates,
+            powerMinW: power.length > 0 ? Math.min(...power) : null,
+            powerMedianW: power.length > 0 ? median(power) : null,
+        };
+    });
+}
+
+/**
  * Build the report.
  * @param {Readonly<Record<string, string | undefined>>} env - the environment
  * @returns {Promise<{ document: Record<string, unknown>, exitCode: number }>} the document and the exit code
@@ -379,6 +495,19 @@ export async function report(env) {
  * @returns {Promise<void>} resolves before process.exit
  */
 async function main() {
+    if (process.argv[2] === "--clocks") {
+        const [clockFile, benchFile] = process.argv.slice(3);
+        if (clockFile === undefined || benchFile === undefined) {
+            console.error("usage: gpu-report.js --clocks <clock log> <bench log>");
+            process.exit(EXIT_UNEXPECTED);
+        }
+        const groups = summarizeClocks(
+            parseClockLog(readFileSync(clockFile, "utf8")),
+            parseBenchLog(readFileSync(benchFile, "utf8")),
+        );
+        process.stdout.write(`${JSON.stringify({ groups }, null, 4)}\n`);
+        return;
+    }
     let outcome;
     try {
         outcome = await report(process.env);

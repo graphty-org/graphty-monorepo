@@ -326,7 +326,7 @@ describe("indexed.closenessCentrality, sampled", () => {
     it("draws the same k sources as betweenness, the same way every time", () => {
         const s = checksummedSnapshot(gnmLike());
         for (const k of [0, 1, 7, 20]) {
-            const drawn = resolveSources(s.nodeCount, undefined, k);
+            const drawn = resolveSources(s, undefined, k);
             const first = closenessCentrality(s, { k });
             expect(first.sourcesUsed).toBe(k);
             expect([...first.scores]).toEqual([...closenessCentrality(s, { k }).scores]);

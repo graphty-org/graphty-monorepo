@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "pr": 695,
+  "subject": {
+    "builtMerge": "86812f7fe7c49cfbb3ca43fb21a40bf06aee1a7a",
+    "head": "e635a1df16fd0be38fb18a36b1749572b29060a0",
+    "runId": 36973877257,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "tool": "86812f7fe7c49cfbb3ca43fb21a40bf06aee1a7a"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/algorithms/mst--prim.png",
+      "from": "389722dd60a45e80b1cf46c4137ebf7be10a4d0642bf38de8beae53356dd38c2",
+      "to": "0cefa7763a8388f42d0c6a426785fd86b858985962fb6e1088ad943365fad261",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-02T13:08:32.428Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiSThXQ1dXVzFqNzNIVkpEWGhGOE9JUk9vQnZkV3JWNnRqbG5JLW5tTVJtVSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjYwIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIHEALnWBh9JzUyi_GLa7hsaKr9vNs1-hyxO85WTtsezcAiEA5b7ge215qwhN4YUmvCgdAEqfXvsURdgmECGE95p3g7k"
+  }
+}

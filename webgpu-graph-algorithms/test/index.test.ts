@@ -84,6 +84,7 @@ const VALUE_EXPORTS = [
     // P11: structure and community (design 3.3 lines 806-807, 8.5, 8.6)
     "triangleCount",
     "labelPropagation",
+    "minimumSpanningTree",
     // the device self-check (the capability record a caller reads before committing work to a device)
     "verifyDevice",
 ];
@@ -154,6 +155,7 @@ const NEVER_EXPORTED = [
     "prepareCooToCsr",
     "prepareGroupByKeyRow",
     "planGroupRows",
+    "compressPasses",
 ];
 
 describe("public barrel (contract 3.15; spec 3.3, 11.3 row 'Build output')", () => {

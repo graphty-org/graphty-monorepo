@@ -1,0 +1,38 @@
+{
+    "format": "cx2",
+    "description": "CX2 files from ndex2-client, Cytoscape Web and NDEx",
+    "files": [
+        {
+            "path": "demo.cx2",
+            "source": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/demo.cx2",
+            "license": "BSD-3-Clause",
+            "expectedNodes": 6,
+            "expectedEdges": 6,
+            "features": ["aliases", "positions", "bypasses", "visual-properties", "opaque-aspects"]
+        },
+        {
+            "path": "glypican2.cx2",
+            "source": "https://raw.githubusercontent.com/ndexbio/ndex2-client/e6467d81b90a779f903eaac1dfb6b63eb25938a4/tests/data/glypican2.cx2",
+            "license": "BSD-3-Clause",
+            "expectedNodes": 2,
+            "expectedEdges": 1,
+            "features": ["aliases", "list-attributes", "discrete-mappings"]
+        },
+        {
+            "path": "minimal.cx2",
+            "source": "https://raw.githubusercontent.com/cytoscape/cytoscape-web/c66154f62bd8b0191e90e48afcba72efcb1fa382/test/fixtures/cx2/valid/minimal.valid.cx2",
+            "license": "MIT",
+            "expectedNodes": 2,
+            "expectedEdges": 1,
+            "features": ["undeclared-attributes", "status-not-last"]
+        },
+        {
+            "path": "emt-network.cx2",
+            "source": "https://www.ndexbio.org/v3/networks/d8e7c9c5-c809-11e8-aaa6-0ac135e8bacf (network rights: MIT, The Jackson Laboratory)",
+            "license": "MIT",
+            "expectedNodes": 16,
+            "expectedEdges": 59,
+            "features": ["self-loops", "antiparallel-edges", "visual-properties"]
+        }
+    ]
+}

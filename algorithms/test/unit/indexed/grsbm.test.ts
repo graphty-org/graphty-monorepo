@@ -1,7 +1,9 @@
 import { GraphBuilder, INVALID_INDEX } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
+import { describe, expect, it, vi } from "vitest";
 
 import { grsbm, type GrsbmOptions, type GrsbmResult } from "../../../src/indexed/grsbm.js";
+import { mulberry32 } from "../../../src/utils/math-utilities.js";
 import { expectFacadeMatchesLegacy, type FacadeFixture } from "../../helpers/facade-differential.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
@@ -9,6 +11,13 @@ import type { GRSBMCluster, GRSBMResult, NodeId } from "../../helpers/legacy-typ
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { toSnapshot } from "../../helpers/to-snapshot.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
+
+// The golden records were taken with 2.x's generator, so this suite replays it in place of
+// mulberry32 to check the arithmetic and the order of the draws against them.
+vi.mock("../../../src/utils/math-utilities.js", async () => {
+    const { legacySeededRandom } = await import("../../helpers/legacy-random.js");
+    return { mulberry32: vi.fn(legacySeededRandom) };
+});
 
 const fixtures: FacadeFixture[] = [...undirectedFixtures(), ...directedFixtures()];
 
@@ -105,17 +114,27 @@ describe("indexed.grsbm", () => {
         expect(Array.from(r.modularityScores)).toEqual([0]);
     });
 
+    it("draws from the package generator, seeded with the seed option", () => {
+        vi.mocked(mulberry32).mockClear();
+        grsbm(toSnapshot(undirectedFixtures()[2].graph), { seed: 7 });
+        expect(vi.mocked(mulberry32)).toHaveBeenCalledWith(7);
+    });
+
     it("leaves Math.random alone", () => {
         const before = Math.random;
         grsbm(toSnapshot(undirectedFixtures()[2].graph));
         expect(Math.random).toBe(before);
     });
 
-    it("equals legacy on every fixture, weights ignored", () => {
+    // These two record the port, not 2.x: 2.x bisected along the eigenvector of the Laplacian's
+    // largest eigenvalue instead of the Fiedler vector (issue #975), so its records encoded that bug.
+    // They were re-taken from the fixed port with 2.x's generator; the cut, the modularity
+    // arithmetic, the member order and the serials are still 2.x's.
+    it("matches its recorded result on every fixture, weights ignored", () => {
         expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, { weighted: false }));
     });
 
-    it("equals legacy on every fixture with every option set", () => {
+    it("matches its recorded result on every fixture with every option set", () => {
         const options = { maxDepth: 2, minClusterSize: 3, tolerance: 1e-8, maxIterations: 40, seed: 7 };
         expectFacadeMatchesLegacy(fixtures, (g) => portShape(g, { ...options, weighted: false }));
     });
@@ -242,5 +261,87 @@ describe("indexed.grsbm", () => {
         const b = grsbm(weighted.freeze());
         expect(Array.from(a.labels)).toEqual(Array.from(b.labels));
         expect(Array.from(a.modularityScores)).toEqual(Array.from(b.modularityScores));
+    });
+
+    /** The root's bisection vector: the Fiedler vector of the whole graph. */
+    function rootFiedler(s: ReturnType<GraphBuilder["freeze"]>, options: GrsbmOptions = {}): number[] {
+        const values = grsbm(s, { maxDepth: 1, ...options }).clusters[0].split?.spectralValues;
+        expect(values).toBeDefined();
+        return Array.from(values ?? []);
+    }
+
+    it("splits along the Fiedler vector: a path graph's is cos(pi (k + 1/2) / n), up to sign", () => {
+        const n = 10;
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i + 1 < n; i++) {
+            b.addEdge(i, i + 1);
+        }
+        const values = rootFiedler(b.freeze(), { maxIterations: 1000, tolerance: 1e-12 });
+        const exact = Array.from({ length: n }, (_, k) => Math.cos((Math.PI * (k + 0.5)) / n));
+        const length = Math.hypot(...exact);
+        const sign = Math.sign(values[0]);
+        for (let k = 0; k < n; k++) {
+            expect(sign * values[k]).toBeCloseTo(exact[k] / length, 6);
+        }
+    });
+
+    it("gives two cliques joined by one edge opposite signs, with weighted degrees", () => {
+        // Two 5-cliques joined by 4-5. Heavy clique weights make the Laplacian's largest eigenvalue
+        // far exceed the unweighted degree, so a shift taken from counted arcs would not hold.
+        for (const [inside, bridge] of [
+            [1, 1],
+            [10, 0.5],
+        ]) {
+            const b = new GraphBuilder({ directed: false });
+            for (const base of [0, 5]) {
+                for (let i = 0; i < 5; i++) {
+                    for (let j = i + 1; j < 5; j++) {
+                        b.addEdge(base + i, base + j, inside);
+                    }
+                }
+            }
+            b.addEdge(4, 5, bridge);
+            const values = rootFiedler(b.freeze());
+            const sign = Math.sign(values[0]);
+            for (let i = 0; i < 10; i++) {
+                expect(Math.sign(values[i]), `weights ${String(inside)}, node ${String(i)}`).toBe(i < 5 ? sign : -sign);
+            }
+        }
+    });
+
+    it("splits a two-block planted partition exactly along its blocks at depth 1", () => {
+        const sample = plantedPartitionGraph({ groups: 2, groupSize: 20, pIn: 0.5, pOut: 0.02, seed: 1 });
+        const truth = sample.nodeColumns?.community;
+        if (!(truth instanceof Uint32Array)) {
+            throw new Error("planted partition graph has no u32 community column");
+        }
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < sample.nodeCount; i++) {
+            b.addNode(i);
+        }
+        for (let e = 0; e < sample.src.length; e++) {
+            b.addEdge(sample.src[e], sample.dst[e]);
+        }
+        const s = b.freeze();
+        const r = grsbm(s, { maxDepth: 1 });
+        expect(r.count).toBe(2);
+        const blocks = r.groups().map((group) => new Set([...group].map((i) => truth[Number(s.ids.idOf(i))])));
+        expect(blocks.map((set) => set.size)).toEqual([1, 1]);
+        expect(new Set(blocks.flatMap((set) => [...set])).size).toBe(2);
+    });
+
+    it("bisects a cluster with no internal arcs without NaN", () => {
+        // Eight isolated nodes: the Laplacian is zero, so the iteration has nothing to multiply.
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < 8; i++) {
+            b.addNode(i);
+        }
+        const r = grsbm(b.freeze());
+        for (const c of r.clusters) {
+            expect(Number.isNaN(c.modularity) || Number.isNaN(c.spectralScore)).toBe(false);
+            for (const v of c.split?.spectralValues ?? []) {
+                expect(Number.isFinite(v)).toBe(true);
+            }
+        }
     });
 });

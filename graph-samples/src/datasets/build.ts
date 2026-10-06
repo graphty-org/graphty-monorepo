@@ -69,7 +69,8 @@ interface U8ColumnData {
 /** A number column, e.g. a latitude. */
 interface F64ColumnData {
     readonly dtype: "f64";
-    readonly values: readonly number[];
+    /** null for a node with no value, which loads as NaN (JSON has no NaN). */
+    readonly values: readonly (number | null)[];
 }
 
 /** An unsigned 32-bit integer column, e.g. a population. */
@@ -87,7 +88,9 @@ export interface DatasetData {
     /** Flat edge endpoints: src0, dst0, src1, dst1, ... */
     readonly edges: readonly number[];
     readonly weights: readonly number[] | null;
-    readonly columns: Readonly<Record<string, DictColumnData | StringColumnData | U8ColumnData | F64ColumnData | U32ColumnData>>;
+    readonly columns: Readonly<
+        Record<string, DictColumnData | StringColumnData | U8ColumnData | F64ColumnData | U32ColumnData>
+    >;
 }
 
 /**
@@ -122,7 +125,7 @@ export function buildDataset(data: DatasetData): SampleGraph {
                 nodeColumns[name] = Uint32Array.from(column.values);
                 break;
             case "f64":
-                nodeColumns[name] = Float64Array.from(column.values);
+                nodeColumns[name] = Float64Array.from(column.values, (value) => value ?? Number.NaN);
                 break;
             default:
                 throw new TypeError(`unknown column dtype in dataset column "${name}"`);

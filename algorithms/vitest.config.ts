@@ -1,6 +1,8 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+
 export default defineConfig({
     test: {
         projects: [
@@ -73,7 +75,7 @@ export default defineConfig({
                           statements: 80,
                       },
         },
-        reporters: ["verbose"],
+        reporters: ["verbose", ...ciJunitReporter()],
         slowTestThreshold: 5000,
         // Force exit after tests complete to prevent hanging
         teardownTimeout: 10000,

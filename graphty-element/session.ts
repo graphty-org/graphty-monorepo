@@ -63,14 +63,30 @@ import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 import type { SelectionOp } from "./src/session/selection";
 
 export type {
+    ColumnHistogram,
+    ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DraftColumn,
+    DraftRow,
+    DraftRowFilter,
+    DraftRowOptions,
+    DraftTable,
+    EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
+    Endpoint,
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
     GraphSession,
     GraphStatistics,
     HistoryCause,
@@ -78,14 +94,30 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LoadChoices,
+    LoadDraft,
+    LoadMapping,
+    LoadMappingRead,
+    Neighbor,
+    NeighborOptions,
+    NeighborPage,
+    NeighborSort,
     NodeRecord,
     NodeRecordInput,
+    PageColumn,
     PendingId,
     PendingStep,
     PositionEntry,
     ProjectConfig,
     ProjectConfigPatch,
     ProjectSlice,
+    RecordPage,
+    RecordPageOptions,
+    RecordSort,
+    ResultCell,
+    ResultColumn,
+    ResultColumnDescriptor,
+    ResultSort,
     RowUpdate,
     SessionAttributes,
     SessionCatalogApi,
@@ -101,6 +133,8 @@ export type {
     SessionStatus,
     SessionViews,
     StyleProblem,
+    TableMapping,
+    TableMappingRead,
     TransactionOptions,
     TransactionScope,
 } from "./src/session";
@@ -116,7 +150,7 @@ export { createGraphSession } from "./src/session";
  * `data-loaded` and `data-loading-complete`.
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, RepeatedEdgeCounts } from "./src/data/report";
+export type { ImportReport, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
@@ -135,6 +169,12 @@ export type { ReadonlyElementPositions } from "./src/session";
 
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
+
+// ---------------------------------------------------------------------------------------------
+// Previewing a load: the column roles a table of each kind takes and requires
+// ---------------------------------------------------------------------------------------------
+
+export { LOAD_ROLES } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again
@@ -157,6 +197,7 @@ export type {
     RunExecutor,
     RunOptions,
     RunOutcome,
+    RunPainting,
     RunPhase,
     RunProgressReport,
     RunQueue,
@@ -169,6 +210,7 @@ export type {
     RunStyle,
     StaleNote,
     StartOptions,
+    SuggestionOutcome,
     WeightMeaning,
 } from "./src/session/runs";
 export {
@@ -181,6 +223,12 @@ export {
     RUN_STATUSES,
     TERMINAL_RUN_STATUSES,
 } from "./src/session/runs";
+
+// ---------------------------------------------------------------------------------------------
+// The shapes every verb names things with: a column, a run's result column, a coded fact, progress
+// ---------------------------------------------------------------------------------------------
+
+export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
 
 // ---------------------------------------------------------------------------------------------
 // Reading what a run produced
@@ -258,6 +306,23 @@ export type {
 } from "./src/session/notes/types";
 
 // ---------------------------------------------------------------------------------------------
+// The project file: the whole session saved to one file and opened again, as `session.project`
+// ---------------------------------------------------------------------------------------------
+
+export type {
+    ProjectApi,
+    ProjectOpenOptions,
+    ProjectOpenReport,
+    ProjectProblem,
+    ProjectSaveOptions,
+    ProjectSaveReport,
+    ProjectSource,
+    ProjectStatus,
+    SavedProject,
+} from "./src/session/projectFile";
+export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+
+// ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
 // ---------------------------------------------------------------------------------------------
 
@@ -310,6 +375,9 @@ export { DEFAULT_COST_GATE_LIMITS, DEFAULT_EXACT_COMPUTATION_CAP_SECONDS } from 
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
+    AttributeDescriptor,
+    AttributeRole,
+    AttributeUse,
     Binding,
     BindingOverflow,
     Channel,
@@ -318,12 +386,17 @@ export type {
     EdgeReading,
     EdgeRef,
     Encoding,
+    FieldBand,
     FieldDescriptor,
+    FieldInterpretation,
     ItemKey,
     LayerId,
     LayerKind,
     LayerSource,
     LayerSpec,
+    Measurement,
+    MeasurementDeclaration,
+    MeasurementSource,
     NodeId,
     Path,
     PathKind,
@@ -354,16 +427,23 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 
 export type {
     ChannelExplanation,
+    ColumnEncodingSpec,
     ElementLayerSpec,
+    EncodingOptions,
+    EncodingProposal,
+    EncodingRefusalCode,
     EncodingRun,
     EncodingSpec,
+    EncodingSuggestion,
     ExplainTarget,
     FieldWords,
     HighlightSpec,
+    HighlightSuggestion,
     Layer,
     LayerPosition,
     LayerProblem,
     LegendBlock,
+    LegendReading,
     LegendSwatch,
     RepaintReason,
     RepaintReport,
@@ -372,6 +452,7 @@ export type {
     StyleContribution,
     StyleExplanation,
     StylesApi,
+    StyleSuggestion,
     TemplateOptions,
     TemplateReport,
     UnboundLayer,

@@ -1,3 +1,60 @@
+## 0.1.20 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.5
+
+## 0.1.19 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.4
+
+## 0.1.18 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.3
+
+## 0.1.17 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.2
+
+## 0.1.16 (2026-10-04)
+
+### 🚀 Features
+
+- **graph-samples:** host the Gene Ontology, Disease Ontology and BioPlex 3 datasets ([066457dc0](https://github.com/graphty-org/graphty-monorepo/commit/066457dc0))
+- **graph-samples:** add the yeast, Stelzl, WikiPathways and GO slim datasets read by graph-io ([311ea3256](https://github.com/graphty-org/graphty-monorepo/commit/311ea3256))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.1
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.1.15 (2026-10-03)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.0
+
+## 0.1.14 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.6
+
+## 0.1.13 (2026-10-02)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.2.5
+
 ## 0.1.12 (2026-10-01)
 
 ### 🧱 Updated Dependencies

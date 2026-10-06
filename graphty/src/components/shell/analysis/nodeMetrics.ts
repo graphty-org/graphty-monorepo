@@ -55,6 +55,7 @@
 import type { GraphSession, Histogram, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
+import { formatCount } from "../readings/readingFormat";
 
 /**
  * The three node metrics this slice runs, by the id the Suggested card and the command
@@ -509,25 +510,29 @@ export interface MetricDistribution {
 export const METRIC_DISTRIBUTION_MAX_BINS = 20;
 
 /**
- * Formats one metric value for a bin label or an axis end.
+ * Formats one metric value, the one way every surface prints it: a bin label, an axis
+ * end, a reading's headline and a Counts row.
  *
  * Counts print exact with comma groups. A value at or above 1 in magnitude prints to
  * the Settings > Defaults decimal places (spec 2266-2271, default 2). Below 1 that rule
  * stops being data -- a PageRank score of 0.0034 rounds to "0.00" and says nothing --
  * so below 1 the two places are read as two SIGNIFICANT figures instead, which is the
  * comparability the setting was asking for. Trailing zeros are dropped either way,
- * because "0.50" claims a precision the second place is not carrying.
- * @param value - the value to print.
+ * because "0.50" claims a precision the second place is not carrying. Grouping and
+ * trimming match how graphty-element prints its own figures.
+ * @param value - the value to print. A non-finite value reads "0".
  * @param integerValued - whether the metric is a count.
- * @returns the printed value, ASCII only.
+ * @returns the printed value, ASCII only, e.g. 1234 -> "1,234", 41.276 -> "41.28",
+ * 0.0034 -> "0.0034", 0.5 -> "0.5".
+ * @public
  */
-function formatMetricValue(value: number, integerValued: boolean): string {
+export function formatMetricValue(value: number, integerValued: boolean): string {
     if (!Number.isFinite(value)) {
         return "0";
     }
 
     if (integerValued || Number.isInteger(value)) {
-        return Math.round(value).toLocaleString("en-US");
+        return formatCount(value);
     }
 
     const text =

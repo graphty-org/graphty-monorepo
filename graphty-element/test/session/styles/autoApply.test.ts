@@ -328,7 +328,7 @@ describe("when a sweep finishes", () => {
         );
         assert.lengthOf(during, 0, "nothing paints while the sweep is running");
 
-        assert.deepStrictEqual(encodedRuns(hold.release()), ["pagerank"]);
+        assert.deepStrictEqual(encodedRuns(hold.release().paint), ["pagerank"]);
     });
 
     it("keeps the member that would have ended up on top", () => {
@@ -338,7 +338,7 @@ describe("when a sweep finishes", () => {
         harness.policy.completed(PAGERANK, false, hold);
         harness.policy.completed(DEGREE, false, hold);
 
-        assert.deepStrictEqual(encodedRuns(hold.release()), ["degree"]);
+        assert.deepStrictEqual(encodedRuns(hold.release().paint), ["degree"]);
     });
 
     it("keeps one member per channel, so a node metric and an edge metric both paint", () => {
@@ -348,7 +348,7 @@ describe("when a sweep finishes", () => {
         harness.policy.completed(DEGREE, false, hold);
         harness.policy.completed(EDGE_BETWEENNESS, false, hold);
 
-        assert.deepStrictEqual(encodedRuns(hold.release()), ["degree", "edgebetweenness"]);
+        assert.deepStrictEqual(encodedRuns(hold.release().paint), ["degree", "edgebetweenness"]);
     });
 
     it("keeps one highlight however many members chose a subset", () => {
@@ -357,7 +357,7 @@ describe("when a sweep finishes", () => {
 
         harness.policy.completed(ROUTE, false, hold);
         harness.policy.completed(INFLUENCERS, false, hold);
-        const held = highlights(hold.release());
+        const held = highlights(hold.release().paint);
 
         assert.lengthOf(held, 1);
         assert.strictEqual(held[0].run, "influencers");
@@ -368,7 +368,7 @@ describe("when a sweep finishes", () => {
         const hold = harness.policy.hold();
 
         assert.lengthOf(harness.policy.completed(DEGREE, false).paint, 1);
-        assert.lengthOf(hold.release(), 0);
+        assert.lengthOf(hold.release().paint, 0);
     });
 
     it("hands back nothing on a second release", () => {
@@ -376,8 +376,8 @@ describe("when a sweep finishes", () => {
         const hold = harness.policy.hold();
         harness.policy.completed(DEGREE, false, hold);
 
-        assert.lengthOf(hold.release(), 1);
-        assert.lengthOf(hold.release(), 0);
+        assert.lengthOf(hold.release().paint, 1);
+        assert.lengthOf(hold.release().paint, 0);
     });
 
     it("still counts a member that was suppressed as having had its moment", () => {
@@ -388,6 +388,51 @@ describe("when a sweep finishes", () => {
 
         assert.lengthOf(decision.paint, 0);
         assert.isTrue(decision.painted, "the moment passed, so a later completion paints nothing");
+    });
+});
+
+// ---------------------------------------------------------------------------------------------
+// What the policy reports about its decision (runs.painting)
+// ---------------------------------------------------------------------------------------------
+
+describe("what the policy reports about each suggestion", () => {
+    it("names the hand-written layer that suppressed a suggestion", () => {
+        const harness = record();
+        harness.layers = [layerOf("mine", { by: "user" })];
+
+        const { painting } = harness.policy.completed(DEGREE, false);
+
+        assert.strictEqual(painting?.state, "decided");
+        assert.deepStrictEqual(
+            painting?.suggestions.map((each) => (each.outcome === "suppressed" ? each.byLayerId : each.outcome)),
+            ["mine"],
+        );
+    });
+
+    it("says why nothing was decided: opted out, not succeeded, no stack, or already decided", () => {
+        assert.strictEqual(record().policy.completed({ ...DEGREE, style: false }, false).painting?.state, "opted-out");
+        assert.strictEqual(
+            record().policy.completed({ ...DEGREE, status: "failed" }, false).painting?.state,
+            "not-succeeded",
+        );
+        assert.strictEqual(record(false).policy.completed(DEGREE, false).painting?.state, "no-styles");
+        assert.isUndefined(record().policy.completed(DEGREE, true).painting, "a re-run keeps its first decision");
+    });
+
+    it("marks a batch member pending, then reports the members a sibling's suggestion replaced", () => {
+        const harness = record();
+        const hold = harness.policy.hold();
+
+        assert.strictEqual(harness.policy.completed(DEGREE, false, hold).painting?.state, "pending");
+        harness.policy.completed(PAGERANK, false, hold);
+        const released = hold.release();
+
+        assert.deepStrictEqual(released.members, ["degree", "pagerank"]);
+        assert.deepStrictEqual(encodedRuns(released.paint), ["pagerank"]);
+        assert.deepStrictEqual(
+            released.settled.map((each) => (each.outcome === "superseded" ? each.byRunId : each.outcome)),
+            ["pagerank"],
+        );
     });
 });
 

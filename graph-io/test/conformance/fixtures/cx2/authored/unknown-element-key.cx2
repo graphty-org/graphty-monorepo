@@ -1,0 +1,6 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"nodes":[{"id":1,"label":"a","selected":true},{"id":2,"label":"b"}]},
+{"edges":[{"id":1,"s":1,"t":2,"w":1}]},
+{"status":[{"error":"","success":true}]}
+]

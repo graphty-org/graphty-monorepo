@@ -13,8 +13,9 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it } from "vitest";
 
-import { compactTheme, PANEL_GRID } from "../../../src";
+import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
+import { PANEL_GRID } from "../../../src/constants/panel";
 
 interface Node {
     id: string;
@@ -32,6 +33,10 @@ const COLUMNS: DataTableColumn<Node>[] = [
     { id: "label", header: "Node", value: (node) => node.label, width: 160 },
     { id: "degree", header: "Links", value: (node) => node.degree, align: "end", width: 80 },
 ];
+
+/** The default row (Figma's 32px list pitch, design/figma-spec.md 10.6), and its pitch: a 1px grid gap between rows. */
+const ROW = 32;
+const PITCH = ROW + 1;
 
 /** The height of the scrolling area these tests measure against. */
 const VIEWPORT = 320;
@@ -67,7 +72,7 @@ describe("DataTable geometry", () => {
         renderTable(<DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />);
 
         const drawn = screen.getAllByTestId("data-table-row");
-        // The viewport holds eleven rows at the 28px pitch. Overscan draws eight
+        // The viewport holds seven rows at the 41px pitch. Overscan draws eight
         // more above and below, so anything under thirty is virtualization
         // working and two thousand is it not working at all.
         expect(drawn.length).toBeLessThan(30);
@@ -78,18 +83,27 @@ describe("DataTable geometry", () => {
             // The scrollbar is the length of all two thousand rows: that is
             // what makes the scroll position mean the same thing it would if
             // every row were really there.
-            expect(viewport.scrollHeight).toBeGreaterThanOrEqual(2000 * PANEL_GRID.DATA_PITCH);
+            expect(viewport.scrollHeight).toBeGreaterThanOrEqual(2000 * PITCH - 1);
         });
     });
 
-    it("keeps the rows exactly one data pitch apart", () => {
+    it("draws the search field at the panel's control height, like every other field", () => {
+        renderTable(
+            <DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} searchable />,
+        );
+
+        const field = screen.getByTestId("data-table-search");
+        expect(field.getBoundingClientRect().height).toBe(PANEL_GRID.CONTROL_HEIGHT);
+    });
+
+    it("keeps the rows one 40px row and one 1px grid line apart", () => {
         renderTable(<DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />);
 
         const rows = screen.getAllByTestId("data-table-row");
         const boxes = rows.map((row) => row.getBoundingClientRect()).sort((a, b) => a.top - b.top);
 
-        expect(boxes[0].height).toBeCloseTo(PANEL_GRID.DATA_PITCH, 1);
-        expect(boxes[1].top - boxes[0].top).toBeCloseTo(PANEL_GRID.DATA_PITCH, 1);
+        expect(boxes[0].height).toBeCloseTo(ROW, 1);
+        expect(boxes[1].top - boxes[0].top).toBeCloseTo(PITCH, 1);
     });
 
     it("swaps one set of rows for another as the table is scrolled", async () => {
@@ -98,7 +112,7 @@ describe("DataTable geometry", () => {
         expect(drawnRowIndexes()[0]).toBe(2);
 
         const viewport = screen.getByTestId("data-table-viewport");
-        viewport.scrollTop = 500 * PANEL_GRID.DATA_PITCH;
+        viewport.scrollTop = 500 * PITCH;
 
         await waitFor(() => {
             expect(drawnRowIndexes()[0]).toBeGreaterThan(480);
@@ -116,7 +130,7 @@ describe("DataTable geometry", () => {
         const header = screen.getAllByRole("columnheader")[0];
         const before = header.getBoundingClientRect().top;
 
-        viewport.scrollTop = 500 * PANEL_GRID.DATA_PITCH;
+        viewport.scrollTop = 500 * PITCH;
         await waitFor(() => {
             expect(drawnRowIndexes()[0]).toBeGreaterThan(480);
         });
@@ -141,12 +155,7 @@ describe("DataTable geometry", () => {
             <DirectionProvider initialDirection="rtl" detectDirection={false}>
                 <MantineProvider theme={compactTheme}>
                     <div style={{ width: 400 }}>
-                        <DataTable
-                            columns={COLUMNS}
-                            data={NODES}
-                            getRowId={(node) => node.id}
-                            height={VIEWPORT}
-                        />
+                        <DataTable columns={COLUMNS} data={NODES} getRowId={(node) => node.id} height={VIEWPORT} />
                     </div>
                 </MantineProvider>
             </DirectionProvider>,
@@ -196,5 +205,97 @@ describe("DataTable geometry", () => {
         const frame = viewport.getBoundingClientRect();
         expect(box.top).toBeGreaterThanOrEqual(frame.top - 1);
         expect(box.bottom).toBeLessThanOrEqual(frame.bottom + 1);
+    });
+});
+
+describe("DataTable over a window of the rows", () => {
+    /** How many rows the windowed table says it holds. */
+    const TOTAL = 100_000;
+
+    /**
+     * Rows made on demand, as a host reading a page of a large store would.
+     * @param start - The first position
+     * @param count - How many
+     * @returns The rows
+     */
+    const windowOf = (start: number, count: number): Node[] =>
+        Array.from({ length: count }, (_, index) => ({
+            id: `n${String(start + index)}`,
+            label: `Node ${String(start + index)}`,
+            degree: (start + index) % 97,
+        }));
+
+    /**
+     * A host that holds one window and fetches another when the table asks.
+     * @param props - What it reports to the test
+     * @param props.onRange - Called with each range the table asks for
+     * @param props.onSort - Called with each sort the reader asks for
+     * @returns The table
+     */
+    function WindowedHost(props: {
+        onRange: (start: number, end: number) => void;
+        onSort?: () => void;
+    }): React.JSX.Element {
+        const [held, setHeld] = React.useState({ offset: 0, rows: windowOf(0, 40) });
+
+        return (
+            <DataTable
+                columns={COLUMNS}
+                data={held.rows}
+                rowCount={TOTAL}
+                rowOffset={held.offset}
+                getRowId={(node) => node.id}
+                height={VIEWPORT}
+                onSortingChange={props.onSort}
+                onRangeChange={(start, end) => {
+                    props.onRange(start, end);
+                    if (start < held.offset || end > held.offset + held.rows.length) {
+                        setHeld({ offset: start, rows: windowOf(start, end - start + 20) });
+                    }
+                }}
+            />
+        );
+    }
+
+    it("scrolls the length of every row while holding a window, and draws the window it is handed", async () => {
+        const ranges: [number, number][] = [];
+        renderTable(<WindowedHost onRange={(start, end) => ranges.push([start, end])} />);
+
+        const viewport = screen.getByTestId("data-table-viewport");
+        await waitFor(() => {
+            expect(viewport.scrollHeight).toBeGreaterThan(TOTAL * PITCH * 0.99);
+        });
+        expect(screen.getByRole("grid").getAttribute("aria-rowcount")).toBe(String(TOTAL + 1));
+        expect(ranges[0]?.[0]).toBe(0);
+
+        viewport.scrollTop = 60_000 * PITCH;
+
+        await waitFor(() => {
+            expect(screen.getByText("Node 60000")).toBeTruthy();
+        });
+        expect(ranges.at(-1)?.[0]).toBeGreaterThan(59_000);
+        // The row at position 60,000 is the row the window holds for it.
+        const row = screen.getByText("Node 60000").closest("[data-testid='data-table-row']");
+        expect(row?.getAttribute("aria-rowindex")).toBe(String(60_000 + 2));
+        expect(screen.getAllByTestId("data-table-row").length).toBeLessThan(40);
+    });
+
+    it("leaves the order to the caller: a header reports the sort and does not reorder the window", async () => {
+        const user = userEvent.setup();
+        let sorted = 0;
+        renderTable(
+            <WindowedHost
+                onRange={() => undefined}
+                onSort={() => {
+                    sorted += 1;
+                }}
+            />,
+        );
+
+        await user.click(within(screen.getAllByTestId("data-table-header")[1]).getByTestId("data-table-sort-button"));
+
+        expect(sorted).toBe(1);
+        expect(drawnRowIndexes()[0]).toBe(2);
+        expect(within(screen.getAllByTestId("data-table-row")[0]).getByText("Node 0")).toBeTruthy();
     });
 });

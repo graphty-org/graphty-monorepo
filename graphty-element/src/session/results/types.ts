@@ -18,7 +18,17 @@
  * interfaces, published from the Node-safe `./session` entry point.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, Path, Query, ResultShape, RunId } from "../../catalog/types";
+import type {
+    EdgeId,
+    FieldBand,
+    FieldDescriptor,
+    Measurement,
+    NodeId,
+    Path,
+    Query,
+    ResultShape,
+    RunId,
+} from "../../catalog/types";
 import type { Caveats, Run } from "../runs/types";
 
 // ---------------------------------------------------------------------------------------------
@@ -235,7 +245,7 @@ export const RESULT_FIELD_CONTRACT = {
         types: ["integer"],
     },
     normalization: {
-        meaning: "How the values were scaled before publication: \"max\", \"min-max\" or \"none\".",
+        meaning: 'How the values were scaled before publication: "max", "min-max" or "none".',
         scope: "graph",
         types: ["string"],
     },
@@ -761,8 +771,16 @@ export interface SummaryGroup {
     /** How many elements are in it. */
     readonly size: number;
     /**
-     * What to call it, such as "Group 1", for a result that partitions into groups. The legend
-     * of a colour encoding over the same groups labels its swatches with the same names.
+     * Its place by size, from 1 for the largest, ties ordered by group id, for a result that
+     * partitions into groups. The legend of a colour encoding over the same groups carries the
+     * same `rank` on each swatch, and a page column of the group field carries it per cell, so
+     * every surface names a group the same way: word it from the rank ("Group 3").
+     */
+    readonly rank?: number;
+    /**
+     * What to call it, such as "Group 1", for a result that partitions into groups.
+     * @deprecated English words; word the group from {@link SummaryGroup.rank} instead. Removed in
+     *   the next major.
      */
     readonly name?: string;
 }
@@ -868,6 +886,18 @@ export interface RunResult {
      */
     histogram(field: string, options?: HistogramOptions): Histogram;
     /**
+     * The distribution of a grouping result's group sizes: how many groups have each size.
+     *
+     * A bar counts GROUPS, not elements, so the counts add up to the number of groups. It is the
+     * same {@link Histogram} {@link RunResult.histogram} returns, so one chart draws both: one bar
+     * per size when there are few distinct sizes (`"per-value"`), bands otherwise (`"banded"`).
+     * @param options - How to cut the bins.
+     * @returns The bins, in ascending order of size.
+     * @throws A GraphtyError coded E_BAD_COMMAND when the result publishes no groups (it is not a
+     *   community or a layered grouping), or E_OPTION_RANGE when the bin count is out of range.
+     */
+    groupSizes(options?: HistogramOptions): Histogram;
+    /**
      * The bounded form of this result.
      * @returns The summary.
      */
@@ -881,6 +911,14 @@ export interface RunResult {
      * @returns The sentence.
      */
     reading(options?: ReadingOptions): string;
+    /**
+     * Which band of its interpretation scale a graph-level field's value falls in, such as
+     * "clear" for a community result's modularity above 0.3. The bands, their thresholds and
+     * their source are on the field's `interpretation` in the catalogue.
+     * @param field - The graph-level field, such as "modularity".
+     * @returns The band, or undefined when the field has no interpretation or no finite value.
+     */
+    band(field: string): FieldBand | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -954,4 +992,33 @@ export interface ResultsApi {
     has(run: RunRef, field?: string): boolean;
     /** Every run that has published a result, as an expression editor reads them. */
     readonly roots: readonly ResultRoot[];
+}
+
+/**
+ * The shapes whose primary field names groups.
+ *
+ * A community's group is an integer and a degree is an integer, and reading them the same way is
+ * how a partition ends up painted as a continuous ramp from group 0 to group 41. The shape is
+ * what tells the two apart -- and only for the field the shape declares primary, because
+ * `groupSize` on the same result really is a measurement.
+ */
+const GROUPING_SHAPES: ReadonlySet<ResultShape> = new Set(["community", "layered-grouping", "category-table"]);
+
+/**
+ * What a run's field measures: what the algorithm declared, else categorical for a grouping
+ * shape's primary field and for strings and booleans, else quantitative.
+ * @param field - The field.
+ * @param shape - The run's result shape.
+ * @returns The measurement.
+ */
+export function fieldMeasurement(field: FieldDescriptor, shape: ResultShape): Measurement {
+    if (field.measurement !== undefined) {
+        return field.measurement;
+    }
+
+    if (GROUPING_SHAPES.has(shape) && resultShapeContract(shape).primaryField === field.name) {
+        return "categorical";
+    }
+
+    return field.type === "string" || field.type === "boolean" ? "categorical" : "quantitative";
 }

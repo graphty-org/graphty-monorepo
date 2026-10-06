@@ -12,12 +12,13 @@
  * dedupe-claim and dedupe-filter; P8-T4 adds frontier-finalize with the FrontierCounters and FrontierParams blocks;
  * P8-T5 adds advance-expand; P8-T6 adds bfs-contract and sssp-pred; P8-T7 adds bfs-fused; P8-T8 adds bfs-bottom-up,
  * bfs-bitset-build and bfs-unvisited-flags; P8-T9 adds sssp-relax; P8-T10 adds bf-relax with the BfParams and BfFlags
- * blocks; P8-T11 adds closeness-sweep and closeness-reduce; P9 (betweenness) adds bc-finalize, bc-forward,
- * bc-backward, bc-gather, bc-edge-gather and bc-forward-edge with the BcParams block; all-pairs shortest paths
+ * blocks; closeness adds closeness-level and closeness-rowsum with the ClosenessParams block; P9 (betweenness) adds bc-finalize, bc-forward,
+ * bc-backward, bc-gather, bc-edge-gather, bc-forward-edge and bc-count (issue #719) with the BcParams block; all-pairs shortest paths
  * (design 8.7) adds apsp-init and apsp-fw with the ApspParams block. P11 (the structure and community phase, plan
  * design/webgpu/plans/2026-09-23-webgpu-p11-structure-and-community.md) adds the graph build on the device (coo-emit,
  * run-flags, coo-scatter), the per-row group-by-key (group-by-key-row), label propagation's step (lpa-step) and
- * triangle counting (orient-flags, tri-intersect). This file is the only importer of src/wgsl/** (spec 3.2;
+ * triangle counting (orient-flags, tri-intersect), and Boruvka's minimum spanning tree adds mst-best and mst-link
+ * with the MstParams block. This file is the only importer of src/wgsl/** (spec 3.2;
  * test/layers.test.ts).
  */
 
@@ -31,6 +32,7 @@ import { advanceExpandWgsl } from "./wgsl/advance-expand.wgsl.js";
 import { apspFwWgsl } from "./wgsl/apsp-fw.wgsl.js";
 import { apspInitWgsl } from "./wgsl/apsp-init.wgsl.js";
 import { bcBackwardWgsl } from "./wgsl/bc-backward.wgsl.js";
+import { bcCountWgsl } from "./wgsl/bc-count.wgsl.js";
 import { bcEdgeGatherWgsl } from "./wgsl/bc-edge-gather.wgsl.js";
 import { bcFinalizeWgsl } from "./wgsl/bc-finalize.wgsl.js";
 import { bcForwardWgsl } from "./wgsl/bc-forward.wgsl.js";
@@ -43,8 +45,8 @@ import { bfsContractWgsl } from "./wgsl/bfs-contract.wgsl.js";
 import { bfsFusedWgsl } from "./wgsl/bfs-fused.wgsl.js";
 import { bfsNextDegreeWgsl } from "./wgsl/bfs-next-degree.wgsl.js";
 import { bfsUnvisitedFlagsWgsl } from "./wgsl/bfs-unvisited-flags.wgsl.js";
-import { closenessReduceWgsl } from "./wgsl/closeness-reduce.wgsl.js";
-import { closenessSweepWgsl } from "./wgsl/closeness-sweep.wgsl.js";
+import { closenessLevelWgsl } from "./wgsl/closeness-level.wgsl.js";
+import { closenessRowsumWgsl } from "./wgsl/closeness-rowsum.wgsl.js";
 import { compactScatterWgsl } from "./wgsl/compact-scatter.wgsl.js";
 import { cooEmitWgsl } from "./wgsl/coo-emit.wgsl.js";
 import { cooScatterWgsl } from "./wgsl/coo-scatter.wgsl.js";
@@ -70,6 +72,8 @@ import { groupByKeyRowWgsl } from "./wgsl/group-by-key-row.wgsl.js";
 import { histogramWgsl } from "./wgsl/histogram.wgsl.js";
 import { indirectFinalizeWgsl } from "./wgsl/indirect-finalize.wgsl.js";
 import { lpaStepWgsl } from "./wgsl/lpa-step.wgsl.js";
+import { mstBestWgsl } from "./wgsl/mst-best.wgsl.js";
+import { mstLinkWgsl } from "./wgsl/mst-link.wgsl.js";
 import { orientFlagsWgsl } from "./wgsl/orient-flags.wgsl.js";
 import { prFinalizeWgsl } from "./wgsl/pr-finalize.wgsl.js";
 import { prScaleWgsl } from "./wgsl/pr-scale.wgsl.js";
@@ -135,12 +139,13 @@ export type KernelId =
     | "bfs-next-degree"
     | "sssp-relax"
     | "bf-relax"
-    | "closeness-sweep"
-    | "closeness-reduce"
+    | "closeness-level"
+    | "closeness-rowsum"
     | "bc-finalize"
     | "bc-forward"
     | "bc-backward"
     | "bc-gather"
+    | "bc-count"
     | "bc-edge-gather"
     | "bc-forward-edge"
     | "apsp-init"
@@ -151,7 +156,9 @@ export type KernelId =
     | "orient-flags"
     | "tri-intersect"
     | "group-by-key-row"
-    | "lpa-step";
+    | "lpa-step"
+    | "mst-best"
+    | "mst-link";
 
 /** One registry entry: everything of a WgslModuleSpec except the per-variant overrides and snippets. */
 export interface KernelEntry {
@@ -428,8 +435,8 @@ export const COMPACT_PARAMS: UniformBlock = UniformBlock.define("CompactParams",
  * out-degree sum of the vertices the level claimed, accumulated by `bfs-next-degree` at the end of every level and
  * read, subtracted and zeroed by the next boundary -- Beamer's m_f measured on the frontier the boundary decides
  * for, not on the one it has just expanded); `stackTop` @104 (betweenness: the append cursor of the claim log, which
- * `bc-finalize` also writes into `ends` at every level boundary) and `sigmaOverflow` @108 (betweenness: 1 once a u32
- * path count wrapped) are APPENDED so every earlier word keeps its byte offset. The words nothing writes before P8-T8 / P8-T9 are declared now because
+ * `bc-finalize` also writes into `ends` at every level boundary) and `sigmaOverflow` @108 (betweenness: 1 once a
+ * rescaled path count left f32's normal range) are APPENDED so every earlier word keeps its byte offset. The words nothing writes before P8-T8 / P8-T9 are declared now because
  * the byte layout is what the single result copy decodes.
  */
 export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
@@ -475,8 +482,7 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
  * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
  * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
  * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
- * `sssp-pred` hop pass, P8-T9), `perNode` @72 (`closeness-sweep`: 1 also folds every claim into the per-node
- * distance sums of a sampled run), `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
+ * `sssp-pred` hop pass, P8-T9), `pad3` @72, `pad2` @76. The `slotBase` field that once addressed the selector's indirect slots went with
  * the slots (2026-09-25); `pad2` keeps the block an explicit 80 bytes, the way every block here is padded.
  */
 export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams", [
@@ -498,7 +504,7 @@ export const FRONTIER_PARAMS: UniformBlock = UniformBlock.define("FrontierParams
     ["stride", "u32"],
     ["firstOfSubmit", "u32"],
     ["iteration", "u32"],
-    ["perNode", "u32"],
+    ["pad3", "u32"],
     ["pad2", "u32"],
 ]);
 
@@ -512,6 +518,35 @@ export const BC_PARAMS: UniformBlock = UniformBlock.define("BcParams", [
     ["role", "u32"],
     ["pad0", "u32"],
     ["pad1", "u32"],
+]);
+
+/**
+ * `ClosenessParams` (uniform, 64 B): the params of `closeness-level` and `closeness-rowsum` -- `role` @0 (level: 0 a
+ * level, 1 the seed's clear, 2 the seed's sources; rowsum: 0 integer, 1 f32, 2 harmonic), `n` @4, `words` @8 (32-bit
+ * words per node, so `32 x words` sources per batch), `base` @12 (the words of one `bits` region), `total` @16 (the
+ * words the clear zeroes), `level` @20, `row` @24 (the level's row of the submit's count table), `ctrl` @28 (the word
+ * of the control ring in `table`), `count` @32 (the batch's sources), `source` @36 (its first source, or its first
+ * word of the source list), `sourcesAt` @40 (the word of a sampled run's source list in `table`, 0 for the exact
+ * run), `pullAt` @44 (the frontier arcs above which a level pulls), `perNode` @48 (1: a sampled run's per-node
+ * distance sums), `arcCount` @52 (the arcs a push level covers), `pullOk` @56 (1: a level may pull), `pad0` @60.
+ */
+export const CLOSENESS_PARAMS: UniformBlock = UniformBlock.define("ClosenessParams", [
+    ["role", "u32"],
+    ["n", "u32"],
+    ["words", "u32"],
+    ["base", "u32"],
+    ["total", "u32"],
+    ["level", "u32"],
+    ["row", "u32"],
+    ["ctrl", "u32"],
+    ["count", "u32"],
+    ["source", "u32"],
+    ["sourcesAt", "u32"],
+    ["pullAt", "u32"],
+    ["perNode", "u32"],
+    ["arcCount", "u32"],
+    ["pullOk", "u32"],
+    ["pad0", "u32"],
 ]);
 
 /** `BfParams` (uniform, 16 B; P8-T10): `edgeCount` @0 (the logical edges of the `edgeList` view), `stride` @4 (the grid-stride plan's stride), `maxRetries` @8 (PD-12's compare-exchange bound), `cutoffBits` @12 (the f32 bit pattern of the CPU port's `cutoff`, `+Inf` when absent). */
@@ -564,6 +599,14 @@ export const LPA_PARAMS: UniformBlock = UniformBlock.define("LpaParams", [
     ["direction", "u32"],
     ["counterIndex", "u32"],
     ["pad0", "u32"],
+]);
+
+/** `MstParams` (uniform, 16 B; P11): `count` @0 (the edges of `mst-best`, the vertices of `mst-link`), `counterIndex` @4 (the word of `counters` that receives the round's recorded edges), `pad0` @8, `pad1` @12. */
+export const MST_PARAMS: UniformBlock = UniformBlock.define("MstParams", [
+    ["count", "u32"],
+    ["counterIndex", "u32"],
+    ["pad0", "u32"],
+    ["pad1", "u32"],
 ]);
 
 // ---- the entries (contract 3.10.1; group 0 = graph, 1 = state, 2 = params, 3 = cold)
@@ -1070,7 +1113,7 @@ const GRID_CENTROID: KernelEntry = {
     phase: "P4",
 };
 
-/** `grid-centroid-hub` (G4b, spec 7.7; P4-T9, PD-13, DEP-P4-L): one workgroup per hub cell, dispatched indirectly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
+/** `grid-centroid-hub` (G4b, spec 7.7; P4-T9, PD-13, DEP-P4-L): one workgroup per word of `hubList`, dispatched directly, a WG-strided sum through `wg_reduce_vec4` guarded by `h < hubCount[0]`; 6 storage bindings (`hubCount` is a read-only view of `hubCounters`). */
 const GRID_CENTROID_HUB: KernelEntry = {
     id: "grid-centroid-hub",
     body: gridCentroidHubWgsl,
@@ -1410,44 +1453,45 @@ const BF_RELAX: KernelEntry = {
     phase: "P8",
 };
 
-/** `closeness-sweep` (design 8.4 "32 sources per u32 word"; P8-T11, PD-13 / DEP-P8-E): one level of the bit-parallel multi-source BFS -- `advance-expand`'s block-mapped strip over the compacted frontier list with the claim inline (`atomicOr` on the visited word of the four-region `bits` buffer, the won bits into the level's next region and the flags region, one workgroup-memory tally per source flushed by one `atomicAdd` per source per workgroup into `perSource`); 8 storage bindings (the four graph slots, `frontierList` read-only, `counters`, `bits` and `perSource` as `array<atomic<u32>>`) -- exactly at the budget; the inlined Hillis-Steele scan, so `needs: []`. */
-const CLOSENESS_SWEEP: KernelEntry = {
-    id: "closeness-sweep",
-    body: closenessSweepWgsl,
-    entryPoint: "closeness_sweep",
-    bindings: GRAPH_SLOTS.concat(
-        decl(1, 0, "frontierList", "storage-ro", "array<u32>"),
-        decl(1, 1, "counters", "storage", "array<atomic<u32>>"),
-        decl(1, 2, "bits", "storage", "array<atomic<u32>>"),
-        decl(1, 3, "perSource", "storage", "array<atomic<u32>>"),
-        decl(2, 0, "P", "uniform", "FrontierParams"),
-    ),
-    overrideDecls: [],
-    uniforms: [FRONTIER_PARAMS],
-    needs: [],
-    snippetSlots: [],
-    phase: "P8",
-};
-
-/** `closeness-reduce` (design 8.4, 9.7; P8-T11, PD-13): the one-lane bookkeeping of the sweep -- role 0 the level boundary (`done` from the previous level's compacted count, `newCount` folded into `reached` and the 64-bit `sum` at `level + 1` with the 16-bit split product and the carry, `level` advanced), role 1 the seed of a batch (the sources' bits into `visited` and the level-0 frontier region, their flags, `counters[0] = k`, `level = U32_MAX`), role 2 the same seed from a sampled run's source list; 3 storage bindings (`counters` and `perSource` as `array<atomic<u32>>`, `bits` plain: one lane writes the seed). */
-const CLOSENESS_REDUCE: KernelEntry = {
-    id: "closeness-reduce",
-    body: closenessReduceWgsl,
-    entryPoint: "closeness_reduce",
+/** `closeness-level` (design 8.4 "32 sources per u32 word"): one level of closeness's bit-parallel multi-source BFS in one dispatch, `32 x P.words` sources per batch -- role 0 the level (push over the out-arcs or pull over the in-arcs, push one invocation per arc, pull one per node, chosen per level on the device from the frontier's arcs against `P.pullAt`, the pull with an early exit once every source has reached the node), role 1 and role 2 the batch's seed; 6 storage bindings (the forward and the reverse CSR as group-1 state, `bits` and `table` as `array<atomic<u32>>`). */
+const CLOSENESS_LEVEL: KernelEntry = {
+    id: "closeness-level",
+    body: closenessLevelWgsl,
+    entryPoint: "closeness_level",
     bindings: [
-        decl(1, 0, "counters", "storage", "array<atomic<u32>>"),
-        decl(1, 1, "perSource", "storage", "array<atomic<u32>>"),
-        decl(1, 2, "bits", "storage", "array<u32>"),
-        decl(2, 0, "P", "uniform", "FrontierParams"),
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "inRowPtr", "storage-ro", "array<u32>"),
+        decl(1, 3, "inColIdx", "storage-ro", "array<u32>"),
+        decl(1, 4, "bits", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "table", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "ClosenessParams"),
     ],
     overrideDecls: [],
-    uniforms: [FRONTIER_PARAMS],
+    uniforms: [CLOSENESS_PARAMS],
     needs: [],
     snippetSlots: [],
     phase: "P8",
 };
 
-/** `bc-finalize` (design 8.4, 5.4): the one-lane bookkeeping of a betweenness batch -- role 1 seeds it (depth 0 and one path for the k seed entries of the claim log, `stackTop = k`, `level = U32_MAX`), role 0 is the level boundary (`ends[level + 1] = stackTop`, `frontierCount`, `done` on an empty level); 5 storage bindings (the counters block as `array<atomic<u32>>`, `ends`, `S` read-only, `depthK` and `sigmaK` plain: one lane writes the seed). The design's finalize row has 2; `ends` is the third (the level boundary), and the seed's `S`, `depthK` and `sigmaK` make it five. */
+/** `closeness-rowsum` (design 8.7): closeness from a finished all-pairs matrix, one workgroup per row -- the off-diagonal finite entries summed as integers (`P.role` 0), as f32 (1) or as reciprocals (2, harmonic), by a tree reduction; 2 storage bindings (`dist` read-only, `out`). */
+const CLOSENESS_ROWSUM: KernelEntry = {
+    id: "closeness-rowsum",
+    body: closenessRowsumWgsl,
+    entryPoint: "closeness_rowsum",
+    bindings: [
+        decl(1, 0, "dist", "storage-ro", "array<f32>"),
+        decl(1, 1, "out", "storage", "array<u32>"),
+        decl(2, 0, "P", "uniform", "ClosenessParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [CLOSENESS_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `bc-finalize` (design 8.4, 5.4): the one-lane bookkeeping of a betweenness batch -- role 1 seeds it (depth 0 and one path for the k seed entries of the claim log, `stackTop = k`, `level = U32_MAX`), role 0 is the level boundary (`ends[level + 1] = stackTop`, `frontierCount`, `done` on an empty level); 6 storage bindings (the counters block as `array<atomic<u32>>`, `ends`, `S` read-only, `depthK`, `sigmaK` and `levelMax` plain: one lane writes the seed; `SCALED` seeds f32 bits). The design's finalize row has 2; `ends` is the third (the level boundary), and the seed's `S`, `depthK`, `sigmaK` and `levelMax` make it six. */
 const BC_FINALIZE: KernelEntry = {
     id: "bc-finalize",
     body: bcFinalizeWgsl,
@@ -1458,16 +1502,17 @@ const BC_FINALIZE: KernelEntry = {
         decl(1, 2, "S", "storage-ro", "array<u32>"),
         decl(1, 3, "depthK", "storage", "array<u32>"),
         decl(1, 4, "sigmaK", "storage", "array<u32>"),
+        decl(1, 5, "levelMax", "storage", "array<u32>"),
         decl(2, 0, "P", "uniform", "BcParams"),
     ],
-    overrideDecls: [],
+    overrideDecls: [{ name: "SCALED", type: "bool", default: false }],
     uniforms: [BC_PARAMS],
     needs: [],
     snippetSlots: [],
     phase: "P9",
 };
 
-/** `bc-forward` (design 8.4, 8.10 "BC forward (tagged)", 16.1): one level of the tagged multi-source BFS -- the block-mapped strip over the level's range of the claim log with the claim, the path count and the overflow report inline, the winners appended to the log; 7 storage bindings (`rowPtr`, `colIdx`, `S` read-write -- the level being read and the appends are ranges of ONE binding --, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`); the inlined Hillis-Steele scan, so `needs: []`. */
+/** `bc-forward` (design 8.4, 8.10 "BC forward (tagged)", 16.1): one level of the tagged multi-source BFS -- the block-mapped strip over the level's range of the claim log with the claim, the path count and the overflow report inline (`SCALED`: the claim only, `bc-count` counts), the winners appended to the log; 7 storage bindings (`rowPtr`, `colIdx`, `S` read-write -- the level being read and the appends are ranges of ONE binding --, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`); the inlined Hillis-Steele scan, so `needs: []`. */
 const BC_FORWARD: KernelEntry = {
     id: "bc-forward",
     body: bcForwardWgsl,
@@ -1482,14 +1527,14 @@ const BC_FORWARD: KernelEntry = {
         decl(1, 6, "sigmaK", "storage", "array<atomic<u32>>"),
         decl(2, 0, "P", "uniform", "BcParams"),
     ],
-    overrideDecls: [],
+    overrideDecls: [{ name: "SCALED", type: "bool", default: false }],
     uniforms: [BC_PARAMS],
     needs: [],
     snippetSlots: [],
     phase: "P9",
 };
 
-/** `bc-backward` (design 8.4, 8.10 "BC backward (successor pull)"): one level of the dependency accumulation, one invocation per log entry of a host-planned range, each pulling over its successors and writing its delta once; 6 storage bindings (`rowPtr`, `colIdx`, `S`, `depthK`, `sigmaK` read-only, `deltaK`). */
+/** `bc-backward` (design 8.4, 8.10 "BC backward (successor pull)"): one level of the dependency accumulation, one invocation per log entry of a host-planned range, each pulling over its successors and writing its delta once; 7 storage bindings (`rowPtr`, `colIdx`, `S`, `depthK`, `sigmaK` read-only, `deltaK`, `levelMax` read-only: the depth scale of `bc-count`, read under `SCALED`). */
 const BC_BACKWARD: KernelEntry = {
     id: "bc-backward",
     body: bcBackwardWgsl,
@@ -1501,9 +1546,10 @@ const BC_BACKWARD: KernelEntry = {
         decl(1, 3, "depthK", "storage-ro", "array<u32>"),
         decl(1, 4, "sigmaK", "storage-ro", "array<u32>"),
         decl(1, 5, "deltaK", "storage", "array<f32>"),
+        decl(1, 6, "levelMax", "storage-ro", "array<u32>"),
         decl(2, 0, "P", "uniform", "BcParams"),
     ],
-    overrideDecls: [],
+    overrideDecls: [{ name: "SCALED", type: "bool", default: false }],
     uniforms: [BC_PARAMS],
     needs: [],
     snippetSlots: [],
@@ -1527,7 +1573,7 @@ const BC_GATHER: KernelEntry = {
     phase: "P9",
 };
 
-/** `bc-edge-gather` (design 8.4 "edge BC accumulates per arc from the same n x k deltas"): the per-arc twin of `bc-gather`, one invocation per arc (its row found by an upper-bound search over `rowPtr`) adding the arc's term over the batch's sources; 6 storage bindings (`rowPtr`, `colIdx`, `depthK`, `sigmaK`, `deltaK` read-only, `arcScores`). */
+/** `bc-edge-gather` (design 8.4 "edge BC accumulates per arc from the same n x k deltas"): the per-arc twin of `bc-gather`, one invocation per arc (its row found by an upper-bound search over `rowPtr`) adding the arc's term over the batch's sources; 7 storage bindings (`rowPtr`, `colIdx`, `depthK`, `sigmaK`, `deltaK` read-only, `arcScores`, `levelMax` read-only). */
 const BC_EDGE_GATHER: KernelEntry = {
     id: "bc-edge-gather",
     body: bcEdgeGatherWgsl,
@@ -1539,16 +1585,17 @@ const BC_EDGE_GATHER: KernelEntry = {
         decl(1, 3, "sigmaK", "storage-ro", "array<u32>"),
         decl(1, 4, "deltaK", "storage-ro", "array<f32>"),
         decl(1, 5, "arcScores", "storage", "array<f32>"),
+        decl(1, 6, "levelMax", "storage-ro", "array<u32>"),
         decl(2, 0, "P", "uniform", "BcParams"),
     ],
-    overrideDecls: [],
+    overrideDecls: [{ name: "SCALED", type: "bool", default: false }],
     uniforms: [BC_PARAMS],
     needs: [],
     snippetSlots: [],
     phase: "P9",
 };
 
-/** `bc-forward-edge` (design 8.4 "the edge-parallel form", 8.8 row 7): one forward level edge-parallel over the `edgeList` view for every source of the batch, with `bc-forward`'s claim, count and overflow report, appending to the same claim log; `UNDIRECTED` relaxes both directions of every edge; 7 storage bindings (`edgeSrc`, `edgeDst`, `S` read-write, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`). */
+/** `bc-forward-edge` (design 8.4 "the edge-parallel form", 8.8 row 7): one forward level edge-parallel over the `edgeList` view for every source of the batch, with `bc-forward`'s claim, count and overflow report (`SCALED`: the claim only), appending to the same claim log; `UNDIRECTED` relaxes both directions of every edge; 7 storage bindings (`edgeSrc`, `edgeDst`, `S` read-write, `ends` read-only, the counters block, `depthK` and `sigmaK` as `array<atomic<u32>>`). */
 const BC_FORWARD_EDGE: KernelEntry = {
     id: "bc-forward-edge",
     body: bcForwardEdgeWgsl,
@@ -1563,7 +1610,33 @@ const BC_FORWARD_EDGE: KernelEntry = {
         decl(1, 6, "sigmaK", "storage", "array<atomic<u32>>"),
         decl(2, 0, "P", "uniform", "BcParams"),
     ],
-    overrideDecls: [{ name: "UNDIRECTED", type: "bool", default: false }],
+    overrideDecls: [
+        { name: "UNDIRECTED", type: "bool", default: false },
+        { name: "SCALED", type: "bool", default: false },
+    ],
+    uniforms: [BC_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P9",
+};
+
+/** `bc-count` (design 8.4, issue #719): in a batch rerun because its u32 counts wrapped, the path counts of the depth a forward level just claimed, pulled over the in-arcs in CSR order as f32 bits and rescaled per depth by a power of two, the overflow flag raised when a count leaves f32's normal range; 8 storage bindings (the REVERSE core's `rowPtr` and `colIdx`, `S` and `ends` read-only, the counters block and `levelMax` as `array<atomic<u32>>`, `depthK` read-only, `sigmaK` read-write). */
+const BC_COUNT: KernelEntry = {
+    id: "bc-count",
+    body: bcCountWgsl,
+    entryPoint: "bc_count",
+    bindings: [
+        decl(1, 0, "rowPtr", "storage-ro", "array<u32>"),
+        decl(1, 1, "colIdx", "storage-ro", "array<u32>"),
+        decl(1, 2, "S", "storage-ro", "array<u32>"),
+        decl(1, 3, "ends", "storage-ro", "array<u32>"),
+        decl(1, 4, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "depthK", "storage-ro", "array<u32>"),
+        decl(1, 6, "sigmaK", "storage", "array<u32>"),
+        decl(1, 7, "levelMax", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "BcParams"),
+    ],
+    overrideDecls: [],
     uniforms: [BC_PARAMS],
     needs: [],
     snippetSlots: [],
@@ -1747,6 +1820,51 @@ const LPA_STEP: KernelEntry = {
     phase: "P11",
 };
 
+/** `mst-best` (design 8.5; P11-T4, PD-7): one edge per invocation offers itself to both endpoint components; PASS 0 takes the minimum `order_key` of the weight, PASS 1 the minimum edge index among that key's edges; 6 storage bindings. */
+const MST_BEST: KernelEntry = {
+    id: "mst-best",
+    body: mstBestWgsl,
+    entryPoint: "mst_best",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "edgeWeight", "storage-ro", "array<f32>"),
+        decl(1, 3, "comp", "storage-ro", "array<u32>"),
+        decl(1, 4, "bestKey", "storage", "array<atomic<u32>>"),
+        decl(1, 5, "bestEdge", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "MstParams"),
+    ],
+    overrideDecls: [
+        { name: "PASS", type: "u32", default: 0 },
+        { name: "WEIGHTED", type: "bool", default: false },
+    ],
+    uniforms: [MST_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
+/** `mst-link` (design 8.5; P11-T4): a component root hooks onto the component its best edge reaches and records the edge, the lower root of a two-cycle staying; one atomic per workgroup counts the recorded edges; 6 storage bindings. */
+const MST_LINK: KernelEntry = {
+    id: "mst-link",
+    body: mstLinkWgsl,
+    entryPoint: "mst_link",
+    bindings: [
+        decl(1, 0, "edgeSrc", "storage-ro", "array<u32>"),
+        decl(1, 1, "edgeDst", "storage-ro", "array<u32>"),
+        decl(1, 2, "bestEdge", "storage-ro", "array<u32>"),
+        decl(1, 3, "comp", "storage", "array<atomic<u32>>"),
+        decl(1, 4, "treeEdge", "storage", "array<u32>"),
+        decl(1, 5, "counters", "storage", "array<atomic<u32>>"),
+        decl(2, 0, "P", "uniform", "MstParams"),
+    ],
+    overrideDecls: [],
+    uniforms: [MST_PARAMS],
+    needs: [],
+    snippetSlots: [],
+    phase: "P11",
+};
+
 /**
  * The entries by id, in dispatch order. PLAN DECISION: `KernelId` is declared in full (contract 3.10) while the
  * entries landed phase by phase, so the table is built as a Partial record and exported below through the
@@ -1756,9 +1874,10 @@ const LPA_STEP: KernelEntry = {
  * and `"fa2-to-scene"`; M8b-T3 landed the seven P7 entries and P4 its thirteen; P8-T3 landed the three compact /
  * dedupe entries, P8-T4 `"frontier-finalize"`, P8-T5 `"advance-expand"`, P8-T6 `"bfs-contract"` and `"sssp-pred"` and
  * P8-T7 `"bfs-fused"`, P8-T8 `"bfs-bottom-up"`, `"bfs-bitset-build"` and `"bfs-unvisited-flags"`, P8-T9
- * `"sssp-relax"`, P8-T10 `"bf-relax"` and P8-T11 `"closeness-sweep"` and `"closeness-reduce"`, betweenness the
+ * `"sssp-relax"`, P8-T10 `"bf-relax"`, closeness `"closeness-level"` and `"closeness-rowsum"`, betweenness the
  * six `"bc-*"` entries, all-pairs shortest paths `"apsp-init"` and `"apsp-fw"`, and P11 its seven (the graph
- * build, the group-by-key, label propagation's step and triangle counting), so every member of `KernelId`
+ * build, the group-by-key, label propagation's step and triangle counting) plus Boruvka's `"mst-best"` and
+ * `"mst-link"`, so every member of `KernelId`
  * is present and the assertion is exact.
  */
 const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze({
@@ -1806,12 +1925,13 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "bfs-next-degree": BFS_NEXT_DEGREE,
     "sssp-relax": SSSP_RELAX,
     "bf-relax": BF_RELAX,
-    "closeness-sweep": CLOSENESS_SWEEP,
-    "closeness-reduce": CLOSENESS_REDUCE,
+    "closeness-level": CLOSENESS_LEVEL,
+    "closeness-rowsum": CLOSENESS_ROWSUM,
     "bc-finalize": BC_FINALIZE,
     "bc-forward": BC_FORWARD,
     "bc-backward": BC_BACKWARD,
     "bc-gather": BC_GATHER,
+    "bc-count": BC_COUNT,
     "bc-edge-gather": BC_EDGE_GATHER,
     "bc-forward-edge": BC_FORWARD_EDGE,
     "apsp-init": APSP_INIT,
@@ -1823,6 +1943,8 @@ const REGISTRY: Readonly<Partial<Record<KernelId, KernelEntry>>> = Object.freeze
     "tri-intersect": TRI_INTERSECT,
     "group-by-key-row": GROUP_BY_KEY_ROW,
     "lpa-step": LPA_STEP,
+    "mst-best": MST_BEST,
+    "mst-link": MST_LINK,
 });
 
 /** THE registry (spec 3.5): every entry, keyed by id. */

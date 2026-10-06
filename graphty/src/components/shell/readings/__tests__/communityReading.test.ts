@@ -1,3 +1,4 @@
+import type { FieldBand } from "@graphty/graphty-element/catalog";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -17,11 +18,23 @@ const CAT_GROUPS: readonly CommunityGroupSize[] = [
     { communityId: 3, name: "Group 4", size: 3 },
 ];
 
+/**
+ * A band as graphty-element reports it. Only the id and plain name matter to a reading;
+ * which band a value is in is the element's call, tested there.
+ * @param id - the band id.
+ * @param plainName - the element's plain name for it.
+ * @returns the band.
+ */
+function band(id: string, plainName = id): FieldBand {
+    return { id, plainName, description: "" };
+}
+
 /** The cat fixture's community run, as the shell will hand it over. */
 const CAT_STATISTICS: CommunityStatistics = {
     groupCount: 4,
     largestGroupSize: 7,
     modularity: 0.447,
+    modularityBand: band("clear"),
     nodeCount: 20,
     groups: CAT_GROUPS,
     colouredGroupCount: 4,
@@ -95,20 +108,32 @@ describe("communityReading", () => {
 
     describe("the banded clause carries the spec's words", () => {
         it("bands a weak grouping with its caution", () => {
-            expect(communityReading({ ...CAT_STATISTICS, modularity: 0.25, encodingApplied: false })).toBe(
-                "4 groups found. The groups are weakly separated; treat with caution (modularity 0.250).",
-            );
-        });
-
-        it("bands 0.3 itself as weak", () => {
-            expect(communityReading({ ...CAT_STATISTICS, modularity: 0.3, encodingApplied: false })).toBe(
-                "4 groups found. The groups are weakly separated; treat with caution (modularity 0.300).",
-            );
+            expect(
+                communityReading({
+                    ...CAT_STATISTICS,
+                    modularity: 0.25,
+                    modularityBand: band("weak"),
+                    encodingApplied: false,
+                }),
+            ).toBe("4 groups found. The groups are weakly separated; treat with caution (modularity 0.250).");
         });
 
         it("bands a barely separated grouping as possibly meaningless", () => {
-            expect(communityReading({ ...CAT_STATISTICS, modularity: 0.05, encodingApplied: false })).toBe(
+            expect(
+                communityReading({
+                    ...CAT_STATISTICS,
+                    modularity: 0.05,
+                    modularityBand: band("barely"),
+                    encodingApplied: false,
+                }),
+            ).toBe(
                 "4 groups found. The groups are barely separated; the grouping may not be meaningful (modularity 0.050).",
+            );
+        });
+
+        it("drops the banded clause when the element named no band", () => {
+            expect(communityReading({ ...CAT_STATISTICS, modularityBand: undefined })).toBe(
+                "4 groups found. The largest has 7 members.",
             );
         });
     });

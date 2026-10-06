@@ -37,7 +37,9 @@ export type {
     EdgeId,
     EdgeLinePattern,
     Encoding,
+    FieldBand,
     FieldDescriptor,
+    FieldInterpretation,
     FormatDescriptor,
     FormatId,
     FunctionDescriptor,
@@ -52,6 +54,9 @@ export type {
     LayoutId,
     LogSinkDescriptor,
     LogSinkId,
+    Measurement,
+    MeasurementDeclaration,
+    MeasurementSource,
     MetricAvailability,
     NodeId,
     OptionBound,
@@ -72,6 +77,7 @@ export type {
     Selector,
     StaticStyle,
     StyleDocument,
+    SuggestedName,
     ThemeDescriptor,
 } from "./types";
 export {

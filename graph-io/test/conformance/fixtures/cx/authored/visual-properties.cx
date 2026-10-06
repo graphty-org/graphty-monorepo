@@ -1,0 +1,9 @@
+[
+{"numberVerification":[{"longNumber":281474976710655}]},
+{"nodes":[{"@id":1},{"@id":2}]},
+{"edges":[{"@id":3,"s":1,"t":2}]},
+{"cyViews":[{"@id":40,"s":30}]},
+{"cySubNetworks":[{"@id":30,"nodes":"all","edges":"all"}]},
+{"cyVisualProperties":[{"properties_of":"network","applies_to":40,"view":40,"properties":{"NETWORK_BACKGROUND_PAINT":"#FFFFFF","NETWORK_SCALE_FACTOR":"1.0"}},{"properties_of":"nodes:default","applies_to":40,"view":40,"properties":{"NODE_SHAPE":"ELLIPSE","NODE_SIZE":"35.0"},"dependencies":{"nodeSizeLocked":"true"},"mappings":{"NODE_LABEL":{"type":"PASSTHROUGH","definition":"COL=name,T=string"},"NODE_FILL_COLOR":{"type":"DISCRETE","definition":"COL=kind,T=string,K=0=a,,b,V=0=#FF0000"}}},{"properties_of":"edges:default","applies_to":40,"view":40,"properties":{"EDGE_WIDTH":"2.0"}},{"properties_of":"nodes","applies_to":1,"view":40,"properties":{"NODE_FILL_COLOR":"#00FF00","NODE_LABEL_FONT_FACE":"SansSerif.italic,,plain,,14"}},{"properties_of":"edges","applies_to":3,"view":40,"properties":{"EDGE_BEND":"0.5,0.5,0.5"}}]},
+{"status":[{"error":"","success":true}]}
+]

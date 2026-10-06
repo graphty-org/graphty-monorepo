@@ -3,7 +3,7 @@ import type { AccelerationPolicy, GraphSession, Layer } from "@graphty/graphty-e
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
-import type { LayerItem } from "./layout/LeftSidebar";
+import type { LayerItem } from "./shell/panel/StyleLayerList";
 
 /**
  * How the app wants the element to draw: node labels that would land on each other are thinned
@@ -47,11 +47,6 @@ interface GraphtyProps {
 }
 
 export interface GraphtyHandle {
-    /** Get node and edge data from the graph */
-    getData: () => {
-        nodes: Record<string, unknown>[];
-        edges: Record<string, unknown>[];
-    };
     /** Captures the canvas as an image, forwarded to the element's own verb. */
     captureScreenshot: GraphtyElement["captureScreenshot"];
     /**
@@ -74,15 +69,6 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
     useImperativeHandle(
         ref,
         () => ({
-            /* The node and edge records the data table and the node inspector draw, as the
-               session lists them. */
-            getData: () => {
-                const session = graphtyRef.current?.session;
-
-                return session === undefined
-                    ? { nodes: [], edges: [] }
-                    : { nodes: [...session.data.nodes()], edges: [...session.data.edges()] };
-            },
             captureScreenshot: (options) => {
                 if (!graphtyRef.current) {
                     return Promise.reject(new Error("Graph element not initialized"));

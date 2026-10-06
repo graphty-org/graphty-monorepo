@@ -205,4 +205,21 @@ describe("derivation lane", () => {
         assert.deepEqual(ran, ["views"]);
         assert.notStrictEqual(lane.rendered, state, "rendered is a copy the state's writers cannot reach");
     });
+
+    it("runs no hook once closed, and releases a pass that was waiting", async () => {
+        const lane = new DerivationLane(createProjectState());
+        const ran: string[] = [];
+        lane.register("config", () => {
+            ran.push("config");
+        });
+
+        lane.touch("config", "bg");
+        const waiting = lane.settled();
+        lane.close();
+        await waiting;
+        lane.touch("config", "fg");
+        await lane.settled();
+
+        assert.deepEqual(ran, []);
+    });
 });

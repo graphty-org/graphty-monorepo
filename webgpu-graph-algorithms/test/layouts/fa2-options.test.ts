@@ -519,7 +519,6 @@ describe("ForceAtlas2Model (no device; contract 3.13)", () => {
             "cellHist",
             "cellStart",
             "hubList",
-            "hubArgs",
             "pyramid",
         ]);
         expect(grid.stages).toEqual(paper.stages);

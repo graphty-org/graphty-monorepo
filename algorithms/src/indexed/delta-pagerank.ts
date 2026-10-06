@@ -1,12 +1,14 @@
 import type { F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import type { PageRankResult } from "./pagerank.js";
 
 /**
  * The delta PageRank engines over snapshots: the `useDelta` path of the legacy `pageRank`
  * ({@link deltaPageRank}), and the {@link DeltaPageRank} and {@link PriorityDeltaPageRank} engines.
- * Each reproduces its legacy counterpart's arithmetic, including its quirks, so a facade over it
- * gives the legacy answer: neighbours are visited in logical edge order (the legacy adjacency's
+ * The first two reproduce their legacy counterparts' arithmetic, including its quirks, so a facade
+ * over them gives the legacy answer; {@link PriorityDeltaPageRank} converges to `pageRank` instead.
+ * Neighbours are visited in logical edge order (the legacy adjacency's
  * insertion order), and every weight comes from the per-arc `weights` override when one is given.
  * @module
  */
@@ -116,7 +118,10 @@ function nodeVector(v: NumericVector | undefined, n: number, name: string): F64 
         return null;
     }
     if (v.length !== n) {
-        throw new RangeError(`${name} has ${String(v.length)} entries; the graph has ${String(n)} nodes`);
+        throw withCode(
+            new RangeError(`${name} has ${String(v.length)} entries; the graph has ${String(n)} nodes`),
+            "E_BAD_OPTION",
+        );
     }
     const out = Float64Array.from(v);
     normalize(out);
@@ -134,14 +139,17 @@ function arcWeights(s: GraphSnapshot, w: NumericVector | undefined): NumericVect
         return s.weights;
     }
     if (w.length !== s.arcCount) {
-        throw new RangeError(`weights has ${String(w.length)} entries; the graph has ${String(s.arcCount)} arcs`);
+        throw withCode(
+            new RangeError(`weights has ${String(w.length)} entries; the graph has ${String(s.arcCount)} arcs`),
+            "E_BAD_OPTION",
+        );
     }
     return w;
 }
 
 function checkDamping(d: number): void {
     if (d < 0 || d > 1) {
-        throw new Error("Damping factor must be between 0 and 1");
+        throw withCode(new Error("Damping factor must be between 0 and 1"), "E_BAD_OPTION");
     }
 }
 
@@ -162,7 +170,7 @@ function checkDamping(d: number): void {
  */
 export function deltaPageRank(s: GraphSnapshot, o: DeltaPageRankOptions = {}): PageRankResult {
     if (!s.directed) {
-        throw new Error("PageRank requires a directed graph");
+        throw withCode(new Error("PageRank requires a directed graph"), "E_NEEDS_DIRECTED");
     }
     const d = o.dampingFactor ?? 0.85;
     checkDamping(d);
@@ -236,7 +244,7 @@ export class DeltaPageRank {
      */
     constructor(s: GraphSnapshot, o: DeltaPageRankEngineOptions = {}) {
         if (!s.directed) {
-            throw new Error("DeltaPageRank requires a directed graph");
+            throw withCode(new Error("DeltaPageRank requires a directed graph"), "E_NEEDS_DIRECTED");
         }
         this.s = s;
         this.order = arcsInEdgeOrder(s);
@@ -417,11 +425,14 @@ class DuplicateMaxHeap {
 
 /**
  * Delta PageRank processed one node at a time, largest pending delta first, keeping its state
- * between calls as the legacy `PriorityDeltaPageRank` does. `maxIterations` counts processed
- * nodes; every 1000 of them the run stops if no pending delta reaches `tolerance`. At the end
- * each pending delta of at least `deltaThreshold` is added to its score (and stays pending), the
- * teleport share is added, and the scores are normalised. The out-weights are the WEIGHTED
- * out-degrees even when `weighted` is false, as in legacy.
+ * between calls. `maxIterations` counts processed nodes; every 1000 of them the run stops if no
+ * pending delta reaches `tolerance`. At the end each pending delta of at least `deltaThreshold` is
+ * added to its score (and stays pending), and the scores are normalised.
+ *
+ * The starting deltas are the teleport share, so the scores converge to `pageRank`'s and no
+ * teleport is added at the end. A dangling node's mass is dropped rather than spread; since
+ * `pageRank` spreads it by the same uniform distribution as the teleport, normalising gives the
+ * same answer. A delta is split by arc weight when `weighted` is true, evenly otherwise.
  * @public
  */
 export class PriorityDeltaPageRank {
@@ -440,7 +451,7 @@ export class PriorityDeltaPageRank {
      */
     constructor(s: GraphSnapshot, o: DeltaPageRankEngineOptions = {}) {
         if (!s.directed) {
-            throw new Error("PriorityDeltaPageRank requires a directed graph");
+            throw withCode(new Error("PriorityDeltaPageRank requires a directed graph"), "E_NEEDS_DIRECTED");
         }
         this.s = s;
         this.order = arcsInEdgeOrder(s);
@@ -476,7 +487,7 @@ export class PriorityDeltaPageRank {
             }
             scores[u] += delta;
             deltas[u] = 0;
-            const ow = this.outW[u];
+            const ow = weights === null ? s.rowPtr[u + 1] - s.rowPtr[u] : this.outW[u];
             if (ow > 0) {
                 for (let k = s.rowPtr[u]; k < s.rowPtr[u + 1]; k++) {
                     const a = order[k];
@@ -500,12 +511,10 @@ export class PriorityDeltaPageRank {
             }
             iteration++;
         }
-        const teleport = (1 - d) / n;
         for (let v = 0; v < n; v++) {
             if (Math.abs(deltas[v]) >= threshold) {
                 scores[v] += deltas[v];
             }
-            scores[v] += teleport;
         }
         normalize(scores);
         return scores.slice();

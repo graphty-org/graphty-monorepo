@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen, waitFor } from "../../../../test/test-utils";
+import { fireEvent, render, screen, TOOLTIP_FIND_OPTIONS, waitFor } from "../../../../test/test-utils";
 import { COMING_LABEL, LAYOUT_MENU_LABEL, LayoutChipMenu } from "../LayoutChipMenu";
 import type { LayoutQuickPick } from "../statusBarModel";
 
@@ -84,7 +84,7 @@ describe("LayoutChipMenu", () => {
 
             await user.hover(screen.getByRole("button", { name: LAYOUT_MENU_LABEL }));
 
-            expect(await screen.findByText(LAYOUT_MENU_LABEL)).toBeInTheDocument();
+            expect(await screen.findByText(LAYOUT_MENU_LABEL, {}, TOOLTIP_FIND_OPTIONS)).toBeInTheDocument();
 
             rerender(<LayoutChipMenu {...defaultProps()} opened />);
 

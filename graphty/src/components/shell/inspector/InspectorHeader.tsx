@@ -26,7 +26,7 @@ import { PANEL_GRID, PANEL_INK, UiGlyph } from "@graphty/compact-mantine";
 import { ActionIcon, Box, Text, Tooltip } from "@mantine/core";
 import React from "react";
 
-import { PANEL_HEADER_HEIGHT, TOOLTIP_DELAY_MS } from "../constants";
+import { PANEL_HEADER_HEIGHT } from "../constants";
 import {
     INSPECTOR_CLUSTER_GAP,
     INSPECTOR_HEADER_CLUSTER_WIDTH,
@@ -122,7 +122,7 @@ function HeaderIcon(props: HeaderIconProps): React.JSX.Element {
      * control read as two greys in two headers that sit side by side.
      */
     return (
-        <Tooltip label={label} openDelay={TOOLTIP_DELAY_MS} position="bottom" withinPortal>
+        <Tooltip label={label} position="bottom" withinPortal>
             <ActionIcon
                 type="button"
                 variant={active ? "light" : "subtle"}

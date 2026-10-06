@@ -1,7 +1,9 @@
 import { GraphBuilder, GraphFormatError } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { AMBIGUOUS_GRAPH_NAME_CODE, GRAPH_NOT_FOUND_CODE, NO_GRAPH_CODE } from "../../src/common/codes.js";
 import {
+    chooseGraph,
     DEFAULT_ERROR_LIMIT,
     type ImportFormatDefaults,
     reportSinkOptions,
@@ -10,6 +12,7 @@ import {
     SINK_OPTION_CODE,
 } from "../../src/common/options.js";
 import { ImportReportBuilder } from "../../src/common/report.js";
+import { ImportError } from "../../src/types.js";
 
 const TEXT_DEFAULTS: ImportFormatDefaults = { ids: "canonical", defaultDirected: false, weightFrom: "weight" };
 
@@ -227,5 +230,51 @@ describe("reportSinkOptions (design 8.4 precedence)", () => {
         // the looser request against a refusing sink is never honoured
         expect(reportSinkOptions(sink(), { addMissingNodes: true }, report, true)).toBe(1);
         expect(report.finish().issues.map((i) => i.element)).toEqual(["addMissingNodes", "addMissingNodes"]);
+    });
+});
+
+describe("chooseGraph (graphIndex / graphName)", () => {
+    const names = ["Network A", null, "Network B", "Network A"];
+
+    /**
+     * The fatal code chooseGraph records, or the index it returns.
+     * @param run - the call
+     * @returns the index or the code
+     */
+    function outcome(run: (report: ImportReportBuilder) => number): number | string {
+        const report = new ImportReportBuilder("test", 100);
+        try {
+            return run(report);
+        } catch (err) {
+            expect(err).toBeInstanceOf(ImportError);
+            return (err as ImportError).report.issues.map((i) => i.code).join(",");
+        }
+    }
+
+    it("reads the first graph by default, the one graphIndex names, or the one graphName names", () => {
+        expect(outcome((r) => chooseGraph(names, undefined, r))).toBe(0);
+        expect(outcome((r) => chooseGraph(names, {}, r))).toBe(0);
+        expect(outcome((r) => chooseGraph(names, { graphIndex: 3 }, r))).toBe(3);
+        expect(outcome((r) => chooseGraph(names, { graphName: "Network B" }, r))).toBe(2);
+    });
+
+    it("fails when the choice names no graph, more than one, or the input holds none", () => {
+        expect(outcome((r) => chooseGraph(names, { graphIndex: 4 }, r))).toBe(GRAPH_NOT_FOUND_CODE);
+        expect(outcome((r) => chooseGraph(names, { graphName: "Network C" }, r))).toBe(GRAPH_NOT_FOUND_CODE);
+        expect(outcome((r) => chooseGraph(names, { graphName: "Network A" }, r))).toBe(AMBIGUOUS_GRAPH_NAME_CODE);
+        expect(outcome((r) => chooseGraph([], undefined, r))).toBe(NO_GRAPH_CODE);
+        const report = new ImportReportBuilder("test", 100);
+        expect(() => chooseGraph(names, { graphName: "Network A" }, report)).toThrow(/indexes 0, 3/);
+    });
+
+    it("refuses an option of the wrong type, and both options at once", () => {
+        const report = new ImportReportBuilder("test", 100);
+        for (const bad of [{ graphIndex: -1 }, { graphIndex: 1.5 }, { graphIndex: "1" }, { graphName: 7 }]) {
+            expect(() => chooseGraph(names, bad as never, report)).toThrow(GraphFormatError);
+        }
+        expect(() => chooseGraph(names, { graphIndex: 0, graphName: "Network B" }, report)).toThrow(
+            /graphIndex and graphName/,
+        );
+        expect(report.issues).toEqual([]);
     });
 });

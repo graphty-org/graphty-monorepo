@@ -71,6 +71,102 @@ Find clusters of related nodes:
 await graph.runAlgorithm("graphty", "louvain");
 ```
 
+#### Naming the groups
+
+A community's group ids are whatever the algorithm assigned (`0`, `7`, `12`), and they mean
+nothing to a reader. Each group also has a `rank`: its place by size, 1 for the largest, ties
+ordered by id. The run's summary, the legend of a color encoding over the groups, and a table
+column of the group field (`PageColumn.ranks`, see [Result Columns](./result-columns#naming-a-community-in-a-table))
+all carry the same rank for the same group, so name a group from its rank and every surface agrees:
+
+```typescript
+const result = await element.run("louvain");
+await element.session.styles.encode({ run: result, channel: "node.color" });
+
+for (const { group, size, rank } of result.summary().groups ?? []) {
+    console.log(`Group ${rank}`, group, size); // "Group 1" 2 6 -- the largest group first
+}
+
+const block = element.session.styles.legend().find((entry) => entry.runId === result.runId);
+for (const swatch of block?.swatches ?? []) {
+    console.log(swatch.rank, swatch.value, swatch.color); // 1 2 "#e69f00" -- value === group
+}
+```
+
+`SummaryGroup.name` ("Group 1") is deprecated and will be removed in the next major; word the
+group from `rank` in your own language instead.
+
+#### Hiding one group
+
+`styles.setValueHidden(layerId, channel, value, hidden)` takes one group out of a layer's paint
+and puts it back. `channel` says which field the value belongs to: the value is hidden in that
+channel and in any other channel of the layer that reads the same field, while a channel sized or
+colored by a different field keeps painting. The group's nodes are drawn as the layers beneath paint them, every other group keeps its
+color, and the legend keeps the group's row, marked `hidden: true`, with the color it comes back
+in. Each call is one undoable step, and the hidden list is part of the layer, so a saved project
+keeps it:
+
+```typescript
+const layer = await element.session.styles.encode({ run: result, channel: "node.color" });
+const [largest] = result.summary().groups ?? [];
+
+await element.session.styles.setValueHidden(layer.id, "node.color", largest.group, true); // hide it
+await element.session.styles.setValueHidden(layer.id, "node.color", largest.group, false); // paint it again
+```
+
+It works on any layer that encodes from the data, not only a run's: pass the `value` of a legend
+swatch together with its block's `channel`. The values are stored on each binding as `hidden`, which you can also write yourself in a
+layer you add.
+
+#### How big the groups are
+
+`summary().groups` lists the largest groups; a run with hundreds of communities needs their
+spread instead. `result.groupSizes()` bins the groups by size and counts GROUPS, so the counts add
+up to the number of groups. It returns the same `Histogram` `result.histogram(field)` does, so one
+chart draws both: one bar per size when there are few distinct sizes (`binning: "per-value"`),
+bands otherwise (`"banded"`):
+
+```typescript
+const result = await element.run("louvain");
+const { bins, binning } = result.groupSizes();
+
+for (const bin of bins) {
+    console.log(bin.from, bin.to, bin.count); // groups of size from..to, and how many there are
+}
+```
+
+It takes the same `{ bins, scale }` options as `histogram()`, and refuses a result that publishes
+no groups (a measurement, a path) with `E_BAD_COMMAND`.
+
+#### Is the grouping meaningful?
+
+A community run publishes its modularity, and the run says how to read it. `band("modularity")`
+returns which band of the score's scale the value falls in, so a consumer never hard-codes the
+thresholds:
+
+```typescript
+const result = await element.run("louvain");
+const band = result.band("modularity");
+
+console.log(band?.id, band?.plainName); // "clear" "Clearly separated"
+```
+
+| Band id  | Modularity                | Plain name        |
+| -------- | ------------------------- | ----------------- |
+| `clear`  | above 0.3                 | Clearly separated |
+| `weak`   | 0.1 to 0.3, both included | Weakly separated  |
+| `barely` | below 0.1                 | Barely separated  |
+
+The 0.3 line is Newman and Girvan's ("Finding and evaluating community structure in networks",
+Phys. Rev. E 69, 026113, 2004); the 0.1 line is graphty-element's convention for a split barely
+better than a random one. The same scale, with a one-sentence description per band and the
+citation, is on the modularity field of the algorithm's catalogue entry
+(`fields[].interpretation`), so it can be shown before anything has run. `band()` returns
+`undefined` for a field with no scale or no finite value.
+
+The result's own sentence, `result.reading()`, names the band too, for example "Modularity is
+0.447 (clearly separated)."
+
 ### Component Analysis
 
 Find connected subgraphs:
@@ -161,18 +257,36 @@ await graph.runAlgorithm("graphty", "max-flow", {
 A run hands back its own result. Nothing has to be found by walking the graph:
 
 ```typescript
-const run = await element.run("degree");
+const result = await element.run("degree");
 
 // One element
-console.log(run.result.node("node1")?.value);
+console.log(result.node("node1")?.value);
 
 // The shape of the whole thing, computed once
-const summary = run.result.summary();
+const summary = result.summary();
 console.log(summary.max, summary.min, summary.top[0].id);
 ```
 
 The same values are published as columns under the run's id, which is what a style layer and a
-filter read: `results.<runId>.value`.
+filter read: `results.<runId>.value`. A table reads them the same way, a page of records at a
+time, sorted by the run's values -- see [Result Columns](./result-columns).
+
+### A result that stopped early
+
+A run that stopped before it finished still succeeds and publishes what it had. `run.partial` (and
+`run.record.partial`) is `true`, and `run.caveats.partialReason` says why, whatever stopped it: a
+`timeBoxMs` box, a cancellation, or an algorithm reporting that it reached its own iteration cap
+(a [custom algorithm](./extending/custom-algorithms) does that with `converged(false, iterations)`). The two always
+agree, so a consumer that marks unfinished results reads `partial` alone:
+
+```typescript
+const run = element.run("betweenness", {}, { timeBoxMs: 200 });
+await run;
+
+if (run.partial) {
+    console.log(run.caveats.partialReason); // why it stopped
+}
+```
 
 ## Running over part of the graph
 
@@ -202,13 +316,26 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
 
 With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
 
-**A run's id names its result.** The element derives it from the algorithm, whether the run is
-exact or sampled, and the scope -- with `"visible"` and `"selection"` frozen to the filter and the
-selection in force when the run started. So the same call under another filter is another result,
-with its own id, and a layer painting the first result keeps painting what the first run read.
-Parameters and the seed are not part of the id: starting a result again with new ones re-runs that
-result in place, and every layer bound to it repaints from the new values. To keep two parameter
-settings side by side, name them with `as:`.
+**A run's id names its result, in words.** A run you do not name with `as:` is named after its
+algorithm -- `results.degree.value`, `results.pagerank.value`, `results.shortest_path.onPath` --
+and an algorithm whose settings change what its result means adds the setting once it leaves its
+default: `results.louvain_resolution_1_5.group`, labelled "Communities (resolution 1.5)", or
+`results.pagerank_damping_0_9.value`. The built-ins name PageRank's damping, Katz's alpha, the
+direction of eigenvector centrality and HITS, the resolution of Louvain and Leiden, the
+strength of components, and the method of shortest path and link prediction.
+
+Starting the same run again finds the same result: same algorithm, same name, and the same scope
+-- with `"visible"` and `"selection"` frozen to the filter and the selection in force when the run
+started -- whether it is exact or sampled. A setting the name does not carry (the iteration cap,
+the seed) re-runs that result in place, and every layer bound to it repaints from the new values.
+A different computation that would take a name already in use gets `_2`, `_3`, ...: degree over
+the whole graph is `degree`, and degree over a set after it is `degree_2`. An id never changes
+once given, and a name passed with `as:` always wins, so to keep two runs side by side under names
+of your own, name them with `as:`.
+
+**This changed in 3.6.** Before, an unnamed run's id was the algorithm and a hash of its result,
+such as `degree_0bkzd1n0p2dnik`. Ids already saved in that form keep working; only new runs get
+readable names.
 
 **This changed in 2.5.** Before, a run recorded its scope but computed over the whole graph, so a
 run scoped to less than the graph -- including a default run while a visibility filter was hiding
@@ -276,6 +403,15 @@ await element.session.styles.encode({ run, channel: "node.color", palette: "viri
 `encode()` replaces the layer already painting that channel from that run, so running the
 algorithm again leaves one layer and one legend block rather than two.
 
+On `node.size` or `edge.width`, a measurement is drawn from 1 (the default size) to 3 unless you
+pass `range` -- the same default a column of amounts gets -- and that range is written into the
+layer, so `styles.get(layer.id)` and a saved project show it:
+
+```typescript
+await element.session.styles.encode({ run, channel: "node.size" }); // range [1, 3]
+await element.session.styles.encode({ run, channel: "node.size", range: [1, 5] });
+```
+
 ### Sizing by a measurement in one flag
 
 A node measurement -- PageRank, degree, betweenness and the rest -- can size the nodes as well as
@@ -328,7 +464,7 @@ colour vision. When a community run finds more groups than that, `encode()` deci
 
 ```typescript
 // Default: the 8 largest groups keep their colours; the rest share one grey,
-// and the legend's last row reads "other: K groups"
+// and the legend lists that grey as its last row, with role: "other" and its count
 await element.session.styles.encode({ run, channel: "node.color" });
 
 // Cycle the colours and change node shape on each cycle: group 9 is orange again, as a box
@@ -356,6 +492,12 @@ await element.session.styles.encode({ run: degree, channel: "node.size" });
 
 Layers stack, so the two do not fight: one decides colour, the other decides size, and
 `session.styles.legend()` describes both.
+
+### What a run painted
+
+A run's suggested style is not always painted: a layer you wrote that already colors every node
+holds it back. `session.runs.painting(runId)` reports what happened to each suggestion. See
+[What a Run Painted](./run-painting).
 
 ## Custom Algorithms
 

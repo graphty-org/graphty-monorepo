@@ -1,5 +1,6 @@
 import { type GraphSnapshot, type U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
 /** A partition of the node set (graph-format design 14.2's result table, line 3738). @public */
@@ -67,8 +68,11 @@ function unionEdges(s: GraphSnapshot): LabelResult {
  */
 export function connectedComponents(s: GraphSnapshot): LabelResult {
     if (s.directed) {
-        throw new Error(
-            "Connected components requires an undirected graph. Use weaklyConnectedComponents, or pass s.toUndirected().snapshot.",
+        throw withCode(
+            new Error(
+                "Connected components requires an undirected graph. Use weaklyConnectedComponents, or pass s.toUndirected().snapshot.",
+            ),
+            "E_NEEDS_UNDIRECTED",
         );
     }
     return unionEdges(s);

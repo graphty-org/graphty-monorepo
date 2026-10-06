@@ -28,7 +28,6 @@ describe("Migration from size='compact'", () => {
                     MantineProvider,
                     { theme: compactTheme },
                     React.createElement(TextInput, {
-                        // @ts-expect-error Testing legacy size value that is now invalid
                         size: "compact",
                         label: "Legacy",
                     }),

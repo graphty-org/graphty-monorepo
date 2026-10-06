@@ -209,7 +209,9 @@ export function fakeGh({
             return JSON.stringify({ jobs: jobs[m[1]] ?? [] });
         }
         if ((m = /actions\/runs\/(\d+)\/artifacts/.exec(path))) {
-            return JSON.stringify({ artifacts: (artifacts[m[1]] ?? []).map((name) => ({ name, expired: false })) });
+            return JSON.stringify({
+                artifacts: (artifacts[m[1]] ?? []).map((name) => ({ name, expired: false, size_in_bytes: 1000000 })),
+            });
         }
         if ((m = /actions\/runs\/(\d+)$/.exec(path))) {
             return JSON.stringify(run(runsById[m[1]]));
@@ -217,6 +219,10 @@ export function fakeGh({
         if (/issues\/\d+\/comments$/.test(path ?? "") || /\/statuses\/\w+$/.test(path ?? "")) {
             posted.push({ path, body: JSON.parse(args.length > 2 ? (input ?? "{}") : "{}") });
             return "{}";
+        }
+        if (path === "repos/{owner}/{repo}/pulls") {
+            posted.push({ path, body: JSON.parse(input ?? "{}") });
+            return JSON.stringify({ html_url: "https://gh/pull/650", number: 650 });
         }
         if (args[0] === "run" && args[1] === "download") {
             const name = args[4];
@@ -251,6 +257,16 @@ export const onePr =
         });
 
 /**
+ * The compact-mantine fixture's items without its failed capture: a pull request the inbox can
+ * call ready (one with a failed story never is).
+ * @returns {object[]} the items
+ */
+export const capturedItems = () =>
+    JSON.parse(readFileSync(join(FIXTURE, "compact-mantine/results.json"), "utf8")).items.filter(
+        (i) => i.status !== "failed",
+    );
+
+/**
  * The fixture as pull request #123, with slider--sizes renamed from old-slider--sizes and looking
  * exactly as that old id's baseline: a moved item, whose baseline is its own capture's bytes.
  * @param {object} r the repository
@@ -276,3 +292,20 @@ export const withMoved = (r, extra = []) => {
     const at = { commit: r.head, headSha: r.head };
     return onePr({ results: { "visual-compact-mantine-1": { ...at, items }, "visual-graphty-element-1": at } })(r);
 };
+
+/**
+ * A new tab whose request interception is on for its whole life, so a `page.route` holds the very
+ * next request the page sends. Playwright turns Chromium's interception on with a page's first
+ * route and off with its last unroute, and the renderer takes that switch asynchronously: a
+ * request sent right after `await page.route(...)` can still go out unintercepted (about one in
+ * ten on a CPU throttled sixfold, as a slow CI runner is). With this never-matching route held,
+ * later routes only change what Playwright matches, which is in force before `page.route` returns.
+ * @param {import("playwright").Browser} browser the browser to open it in
+ * @param {import("playwright").BrowserContextOptions} options the viewport and the rest, as for newPage
+ * @returns {Promise<import("playwright").Page>} the tab
+ */
+export async function interceptedPage(browser, options) {
+    const page = await browser.newPage(options);
+    await page.route("**/interception-stays-on", (route) => route.continue());
+    return page;
+}

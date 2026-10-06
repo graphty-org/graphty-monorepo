@@ -1,4 +1,7 @@
+import * as crypto from "crypto";
 import * as fs from "fs";
+import * as https from "https";
+import type { AddressInfo } from "net";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
@@ -27,32 +30,57 @@ describe("self-signed-cert", () => {
     });
 
     describe("generateSelfSignedCert", () => {
-        test("should generate valid certificate and key", () => {
-            const result = generateSelfSignedCert();
+        test("should generate valid certificate and key", async () => {
+            const result = await generateSelfSignedCert();
 
             expect(result).toHaveProperty("cert");
             expect(result).toHaveProperty("key");
             expect(result.cert).toContain("-----BEGIN CERTIFICATE-----");
             expect(result.cert).toContain("-----END CERTIFICATE-----");
-            expect(result.key).toContain("-----BEGIN RSA PRIVATE KEY-----");
-            expect(result.key).toContain("-----END RSA PRIVATE KEY-----");
+            expect(result.key).toContain("-----BEGIN PRIVATE KEY-----");
+            expect(result.key).toContain("-----END PRIVATE KEY-----");
         });
 
-        test("should generate certificate with custom hostname", () => {
-            const result = generateSelfSignedCert("custom.example.com");
+        test("should generate certificate with custom hostname", async () => {
+            const result = await generateSelfSignedCert("custom.example.com");
 
             expect(result.cert).toContain("-----BEGIN CERTIFICATE-----");
-            expect(result.key).toContain("-----BEGIN RSA PRIVATE KEY-----");
+            expect(result.key).toContain("-----BEGIN PRIVATE KEY-----");
         });
 
-        test("should include hostname in Subject Alternative Names", () => {
-            // The selfsigned library includes SANs in the certificate
-            // We can't easily decode the certificate to verify, but we can
-            // at least verify the certificate is generated
-            const result = generateSelfSignedCert("test.local");
+        test("should include hostname, localhost and loopback IPs in Subject Alternative Names", async () => {
+            const result = await generateSelfSignedCert("test.local");
+            const x509 = new crypto.X509Certificate(result.cert);
 
-            expect(result.cert).toBeTruthy();
-            expect(result.key).toBeTruthy();
+            expect(x509.subjectAltName).toBe(
+                "DNS:test.local, DNS:localhost, IP Address:127.0.0.1, IP Address:0:0:0:0:0:0:0:1",
+            );
+            expect(x509.subject).toContain("CN=test.local");
+            expect(x509.publicKey.asymmetricKeyType).toBe("rsa");
+            expect(x509.publicKey.asymmetricKeyDetails?.modulusLength).toBe(2048);
+            const days = (Date.parse(x509.validTo) - Date.parse(x509.validFrom)) / 86_400_000;
+            expect(Math.round(days)).toBe(365);
+        });
+
+        test("should be accepted by an HTTPS client that trusts it", async () => {
+            const { cert, key } = await generateSelfSignedCert("localhost");
+            const server = https.createServer({ cert, key }, (_req, res) => res.end("ok"));
+            await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+            const { port } = server.address() as AddressInfo;
+            try {
+                const body = await new Promise<string>((resolve, reject) => {
+                    https
+                        .get({ host: "127.0.0.1", servername: "localhost", port, ca: cert }, (res) => {
+                            let data = "";
+                            res.on("data", (chunk: Buffer) => (data += chunk.toString()));
+                            res.on("end", () => resolve(data));
+                        })
+                        .on("error", reject);
+                });
+                expect(body).toBe("ok");
+            } finally {
+                server.close();
+            }
         });
     });
 
@@ -83,7 +111,7 @@ describe("self-signed-cert", () => {
     describe("readCertFiles", () => {
         test("should read cert files from disk", () => {
             const certContent = "-----BEGIN CERTIFICATE-----\ntest cert\n-----END CERTIFICATE-----";
-            const keyContent = "-----BEGIN RSA PRIVATE KEY-----\ntest key\n-----END RSA PRIVATE KEY-----";
+            const keyContent = "-----BEGIN PRIVATE KEY-----\ntest key\n-----END PRIVATE KEY-----";
 
             fs.writeFileSync(testCertPath, certContent);
             fs.writeFileSync(testKeyPath, keyContent);

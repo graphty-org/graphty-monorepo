@@ -1,0 +1,14 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: C:1
+
+[Instance]
+id: I:1
+instance_of: C:1
+property_value: shoe_size "8" xsd:positiveInteger
+relationship: knows I:2
+
+[Instance]
+id: I:2

@@ -18,10 +18,20 @@
  * (spec 7.12) -- while the resolution of any older promise, and every tick start before the release, must find
  * the written coordinates intact.
  *
- * The pause (spec 7.19): `pauseAt` is the EARLIEST tick of the pause; the pause begins at the first tick >=
- * pauseAt whose start finds inFlight === maxInFlight, calls flush() once (never awaited, so the ticks keep their
- * cadence) and calls no step() for `pauseTicks` ticks; a flush() that has not resolved when the window closes, a
- * pause that never starts, and every rejected promise are recorded in `errors`.
+ * The pause (spec 7.19): `pauseAt` is the EARLIEST tick of the pause. The pause begins at the first tick >=
+ * pauseAt; that tick FILLS the flight to maxInFlight with synchronous step() calls, then calls flush() once
+ * (never awaited, so the ticks keep their cadence) and calls no step() until the window closes. The window
+ * closes at the first tick that is both `pauseTicks` ticks or more past the start AND finds flush() resolved,
+ * and the ticks it spent waiting are added to the run so the caller keeps the ticks it asked for after the
+ * pause. `pauseStartTick` and `pauseEndTick` report the two ticks; a pause the loop never reached, a flush()
+ * that never resolved, and every rejected promise are recorded in `errors`.
+ *
+ * Why the flight is filled rather than waited for: inFlight rises synchronously with each step() call (contract
+ * 3.13), so filling it reaches the saturated state by construction. Waiting for a tick to START saturated is a
+ * race between how long a batch runs and how long a tick lasts, and that race is lost whenever the machine's
+ * speed moves away from whatever rate the caller sized iterationsPerStep against -- which on a shared box or a
+ * software rasterizer it does continuously. Closing the window on the observed flush() rather than on a tick
+ * count is the same rule at the other end: a machine that stalls gets a longer pause, not a failed assertion.
  *
  * Model-agnostic (PD-18): the two generic parameters take any GpuLayoutSimulation, and the body reads only the
  * simulation's shared surface (iterationsDone, inFlight, settled and the @internal counters), never a stats field.
@@ -65,7 +75,12 @@ export interface FrameLoopReport {
     readonly errors: readonly unknown[];
     /** For each setPosition issued: whether the written coordinates were still in the owner's array at every later tick until a batch submitted after the write landed. */
     readonly positionHolds: readonly { readonly tick: number; readonly index: number; readonly held: boolean }[];
+    /** Times the flight GREW while the caller was paused -- a batch the simulation submitted on its own (7.19). */
     readonly submissionsDuringPause: number;
+    /** The tick the pause began at -- the tick whose step() calls filled the flight to maxInFlight (null: no pause). */
+    readonly pauseStartTick: number | null;
+    /** The tick the pause ended at: the first one `pauseTicks` or more after the start whose sample found flush() resolved (null: the pause never started or never closed). */
+    readonly pauseEndTick: number | null;
 }
 
 /** Spec 7.19: "no submission happens for the next 100 ticks". */
@@ -158,8 +173,12 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
     let submissionsDuringPause = 0;
     let maxObservedInFlight = 0;
     let settledAtTick: number | null = null;
-    let lastBatchIdSeen = counters.lastSubmittedBatchId;
+    /** While paused the flight may only drain: the largest count it is allowed to show at the next tick. */
+    let flightCeiling = Infinity;
     let pauseStart: number | null = null;
+    let pauseEnd: number | null = null;
+    /** Ticks the pause spent past its `pauseTicks` floor waiting for flush(): added to the run, not taken from it. */
+    let extraTicks = 0;
     let pausing = false;
     let flushResolved = false;
 
@@ -186,7 +205,31 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
         }
     };
 
-    for (let tick = 0; tick < options.ticks; tick++) {
+    /**
+     * One step(k) of the element's frame: never awaited, the handler attached ONCE per distinct promise.
+     * @param tick - the tick of the call (a landing releases the writes issued at or before it)
+     */
+    const stepOnce = (tick: number): void => {
+        const settledBefore = sim.settled;
+        const promise = sim.step(options.iterationsPerStep);
+        if (handled.has(promise)) {
+            return; // a coalesced call: the oldest pending batch's promise, already carrying a handler
+        }
+        handled.add(promise);
+        if (!settledBefore) {
+            submissions += 1;
+        }
+        promise.then(
+            () => {
+                onLanded(tick);
+            },
+            (err: unknown) => {
+                errors.push(err);
+            },
+        );
+    };
+
+    for (let tick = 0; tick < options.ticks + extraTicks; tick++) {
         // (a) the tick-start sample: everything that landed before this macrotask is visible now
         const inFlightAtStart = sim.inFlight;
         maxObservedInFlight = Math.max(maxObservedInFlight, inFlightAtStart);
@@ -195,28 +238,28 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
             settledAtTick = tick;
         }
         checkHolds();
-        if (pausing && counters.lastSubmittedBatchId !== lastBatchIdSeen) {
-            submissionsDuringPause += 1; // nothing called step(): the simulation submitted on its own
-        }
-        lastBatchIdSeen = counters.lastSubmittedBatchId;
-        // (b) the pause window
-        if (pausing && pauseStart !== null && tick >= pauseStart + pauseTicks) {
-            pausing = false;
-            if (!flushResolved) {
-                errors.push(
-                    new Error(
-                        `flush() did not resolve inside the ${pauseTicks}-tick pause that started at tick ${pauseStart}`,
-                    ),
-                );
+        // Nothing called step() since the pause filled the flight, so the flight can only DRAIN: a rise is a
+        // batch the simulation submitted on its own (spec 7.19). Read from inFlight, which moves synchronously
+        // with a step() call, rather than from lastSubmittedBatchId, which the context assigns a few microtasks
+        // later (contract 3.13) and shares with every other simulation on the same context.
+        if (pausing) {
+            if (inFlightAtStart > flightCeiling) {
+                submissionsDuringPause += 1;
             }
+            flightCeiling = inFlightAtStart;
         }
-        if (
-            !pausing &&
-            pauseStart === null &&
-            pauseAt !== null &&
-            tick >= pauseAt &&
-            inFlightAtStart === options.maxInFlight
-        ) {
+        // (b) the pause window
+        if (pausing && pauseStart !== null && tick >= pauseStart + pauseTicks && flushResolved) {
+            pausing = false;
+            pauseEnd = tick;
+            extraTicks = tick - (pauseStart + pauseTicks);
+        }
+        if (!pausing && pauseStart === null && pauseAt !== null && tick >= pauseAt) {
+            for (let slot = sim.inFlight; slot < options.maxInFlight; slot++) {
+                stepOnce(tick); // fill the flight: inFlight rises synchronously with the call (contract 3.13)
+            }
+            maxObservedInFlight = Math.max(maxObservedInFlight, sim.inFlight);
+            flightCeiling = sim.inFlight; // the filled flight: exact, and read in the same synchronous block
             pausing = true;
             pauseStart = tick;
             sim.flush().then(
@@ -246,22 +289,7 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
                     });
                 }
             }
-            const settledBefore = sim.settled;
-            const promise = sim.step(options.iterationsPerStep);
-            if (!handled.has(promise)) {
-                handled.add(promise);
-                if (!settledBefore) {
-                    submissions += 1;
-                }
-                promise.then(
-                    () => {
-                        onLanded(tick);
-                    },
-                    (err: unknown) => {
-                        errors.push(err);
-                    },
-                );
-            }
+            stepOnce(tick);
             maxObservedInFlight = Math.max(maxObservedInFlight, sim.inFlight);
         }
         // (e) the frame ends: readbacks land, handlers run, before the next tick starts
@@ -269,12 +297,16 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
     }
     if (pauseAt !== null && pauseStart === null) {
         errors.push(
-            new Error(`pause never started: no tick >= ${pauseAt} began with inFlight === ${options.maxInFlight}`),
+            new Error(`pause never started: the loop ran ${options.ticks + extraTicks} ticks, short of ${pauseAt}`),
         );
     }
-    if (pausing && !flushResolved) {
+    if (pausing) {
         errors.push(
-            new Error("flush() did not resolve before the loop ended (the pause window ran past the last tick)"),
+            new Error(
+                flushResolved
+                    ? `the ${pauseTicks}-tick pause that started at tick ${pauseStart} ran past the last tick`
+                    : `flush() did not resolve before the loop ended (the pause started at tick ${pauseStart})`,
+            ),
         );
     }
     return {
@@ -286,6 +318,8 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
         errors,
         positionHolds: writes.map((write) => ({ tick: write.tick, index: write.index, held: write.held })),
         submissionsDuringPause,
+        pauseStartTick: pauseStart,
+        pauseEndTick: pauseEnd,
     };
 }
 

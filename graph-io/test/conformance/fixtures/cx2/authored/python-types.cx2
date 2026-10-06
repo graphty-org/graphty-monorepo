@@ -1,0 +1,6 @@
+[
+{"CXVersion":"2.0","hasFragments":false},
+{"attributeDeclarations":[{"nodes":{"a":{"d":"str"},"b":{"d":"int"},"c":{"d":"bool"},"e":{"d":"float"}}}]},
+{"nodes":[{"id":1,"v":{"a":"x","b":1,"c":true,"e":2.5}}]},
+{"status":[{"error":"","success":true}]}
+]

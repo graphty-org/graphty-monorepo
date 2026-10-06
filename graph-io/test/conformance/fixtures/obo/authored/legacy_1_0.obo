@@ -1,0 +1,21 @@
+format-version: GO_1.0
+version: 3.1
+typeref: relationship.obo
+date: 02:06:2004 12:00
+saved-by: curator
+
+[Term]
+id: GO:0000001
+name: old term
+exact_synonym: "e" [A:1]
+related_synonym: "r" []
+narrow_synonym: "n" []
+broad_synonym: "b" []
+xref_analog: B:1
+xref_unknown: C:1
+is_obsolete: true
+use_term: GO:0000002
+
+[Term]
+id: GO:0000002
+name: new term

@@ -222,7 +222,7 @@ for this milestone", gives the reason for each.
 - **No emoji font, a warning.** Capture asks fontconfig for a font holding U+1F680 and, without
   one, logs that every emoji will be captured as an empty box, and records
   `environment.emojiFont: false`. The development server has none; the pinned fonts (section 6,
-  item 9, with Noto Color Emoji) are the fix for local and CI capture alike.
+  item 9, with Noto Color Emoji) fixed it for local and CI capture alike.
 - **The two `layout-gpu--*-fake` stories time out, unfixed.** Their screenshot waits past 30 s on
   a loaded machine in every run. Measured: after the story settles, SwiftShader's GPU process
   stays near 340% CPU and any capture of that page, even a 40 px strip or with the page clock
@@ -237,8 +237,14 @@ for this milestone", gives the reason for each.
   changed item first, then new, unstable and removed; a story's modes sit together. Tiles are
   numbered in the order the story screen's "N of M" and J / K follow, and coming back from a
   story outlines and scrolls to its tile. A text filter, a go-to box (a number, or part of a story
-  id), and a per-component "Accept N undecided" (asks first; `/api/accept-all` with `component`)
-  complete it. Escape returns to the grid from a story wherever the focus is.
+  id), and a per-component "Accept N undecided" (no question, since Undo N takes it back;
+  `/api/accept-all` with `component`, which answers with the files it accepted, so the page
+  marks those tiles in place without reloading the project or moving the grid) complete it.
+  Every bulk Accept takes only what the grid shows: under a filter (Removed, New) or Find story,
+  the bar's button reads "Accept 131 removed" or "Accept 12 matching", asks naming the count and
+  the filter, and a component's Accept N counts only its shown items. The page sends those files
+  as `files`; the server accepts each one exactly as Accept all would, so what Finish signs is
+  unchanged. Escape returns to the grid from a story wherever the focus is.
 - **No decision is silently reversed.** A reject always needs a reason. A, R and E do nothing on a
   decided item; U or Undo clears it first. The API refuses a different decision on a decided
   item with 409 and accepts the same one again (opening an item Accept all decided re-sends it).
@@ -250,6 +256,8 @@ for this milestone", gives the reason for each.
 - **A local preview (`serve --results`) is look only.** It is the target "local", titled "Local
   preview", never master or a seed: no Accept, Reject or Exclude, no Finish, and the API refuses
   every decision and Finish on it, because Finish accepts only CI captures. `--branch` is gone.
+  Superseded for pull requests by `local-previews.md` (local captures of a pull request's merge
+  tree become reviewable and finishable; the gate is unchanged).
 - **The signing key and how to replace it.** The targets screen and Finish's confirmation name the
   key, where git found it (`git config --show-origin`), and the committer, and print the exact
   command that starts the same server from the owner's own shell.
@@ -478,16 +486,13 @@ that environment, so every measurement is rerun under them before a seed.
    version in `visual-review/package.json`, bumped only by a deliberate upkeep pull request
    (quarterly), independent of other lockfile changes. The browser directory is restored from a
    cache keyed by that version (restore only; the capture job never saves a cache).
-9. **Pinned fonts.** The capture sets `FONTCONFIG_FILE=visual-review/fonts/fonts.conf`, which lists
-   only the committed font directory (Inter, DejaVu Sans and DejaVu Sans Mono, and the COLRv1 build
-   of Noto Color Emoji; all OFL) and a temporary `<cachedir>`, so no host font is consulted.
-   Explicit alias rules decide which committed font answers each family: `sans-serif`, `serif`,
-   `monospace`, `emoji`, `system-ui`, `ui-sans-serif`, `ui-monospace`, `SFMono-Regular`, `Menlo`,
-   `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `Roboto`, `Helvetica`, `Arial` and `Verdana`
-   (graphty-element's label default). A check story renders each family, a non-Latin line, an
-   emoji and the current time, so a font or clock regression is one obvious diff. Within days, a
-   test greps story and component sources for `font-family` values and fails on a family with no
-   rule.
+9. **Pinned fonts.** `visual-review.config.json` sets `"fontconfig": "visual-fonts/fonts.conf"`,
+   and capture starts every browser with `FONTCONFIG_FILE` pointing at it and a temporary font
+   cache, so no host font is consulted, locally or in CI. `visual-fonts/` (Git LFS) is a snapshot
+   of the ubuntu-24.04 runner's fonts and fontconfig rules as of 2026-10-04 (88 files, 117 MB), so
+   CI's bytes did not change and no baseline was re-approved. Built by the repository, not shipped
+   in the npm package. `local-previews.md` section 3 lists the fonts and how each family resolves,
+   and section 4 the measurement: all 1,432 items byte-identical between a local capture and CI's.
 10. **Recorded environment.** Each capture records the CPU model and flags from `/proc/cpuinfo`,
     the Chromium version, the WebGL renderer string, whether `navigator.gpu` exists, the SHA-256 of
     the font directory and the tool version. The record that accepts an image copies that
@@ -670,8 +675,15 @@ shows the entry to add:
 
 `publicKey` is the key `getPublicKey()` returns, which `node:crypto` reads directly. The entry
 goes into `visual-review/passkeys.json` through a pull request the owner merges. The passkey is in
-iCloud Keychain, so it is on the owner's iPhone, iPad and Mac, and a lost device loses nothing. To
-replace or add a key, the owner registers again and merges the change.
+iCloud Keychain, so it is on the owner's iPhone, iPad and Mac, and a lost device loses nothing.
+
+The first key is trusted because the owner merged it: Apple's passkeys give no attestation, so
+the server cannot tell a key made on the owner's device from one a program posted to the page.
+The page shows the new credential id, and the owner merges only the pull request that names it,
+right after pressing Register. Once master holds a key, the gate fails any pull request that
+changes `passkeys.json`, and the server trusts only master's keys, never one registered since.
+Adding or replacing a key is then an administrator's merge past the failing gate, a deliberate
+act no pull request can make on its own.
 
 ### The record
 
@@ -722,20 +734,49 @@ comment.
 
 ### The gate
 
-The CI gate (`visual-review/trusted/gate.mjs`) already requires every changed baseline and
-excluding settings file to be named, with its new hash, by a record the pull request adds. It also
-requires, for each such record, with `node:crypto` alone:
+The CI gate (`visual-review/trusted/gate.mjs`) requires, for each record the pull request adds,
+with `node:crypto` alone:
 
 1. `approval.credentialId` names a key in `passkeys.json` as it is on the base branch;
 2. clientDataJSON's `type` is `webauthn.get`, its `challenge` is the hash recomputed from the
-   record as committed, and its `origin` is an https origin on the key's `rpId`;
+   record as committed (in canonical JSON, which refuses numbers with two spellings, such as
+   `1e999` and `-0`), and its `origin` is an https origin whose host is exactly the key's `rpId`,
+   on any port;
 3. authenticatorData begins with the SHA-256 of the key's `rpId`, and its user-verified flag (UV,
    bit 2) is set, so Face ID, Touch ID or the device passcode ran;
 4. the ECDSA P-256 signature verifies over `authenticatorData || SHA-256(clientDataJSON)` with the
-   key.
+   key;
+5. the record is version 2, names this pull request or none (a seed), and is not a copy of a
+   record already on the base branch.
+
+A record that fails counts for nothing. Then every changed baseline PNG, every added or changed
+settings file, and (once master holds a key) `passkeys.json` must be accounted for: the verified
+records' items, replayed oldest `reviewedAt` first, each moving a path only `from` its current
+hash `to` another, must take the file from its base branch hash to its hash in the pull request.
+Tying each item to the contents it was approved over is what stops a replay: an old seed record
+copied into a later pull request, or a decision the owner replaced later in the same pull
+request, moves nothing. So Finish never requires the branch to hold master's newest baselines:
+it records the owner's decisions against the capture the owner reviewed, and the merge queue,
+which brings the pull request up to date with master and captures and gates the merged tree
+before merging, sends back any image master's changes altered. If master changes the same
+baselines between capture and merge, the
+record no longer starts from master's contents and the owner reviews again; git would conflict
+on those files anyway. Update from master (`visual-review update <pr>`, or the page's button)
+resolves that conflict by taking master's side, which needs no record and no approval: the file
+then equals the base, so it is no change, and the recapture shows the owner what still differs.
+
+The gate also fails a story compared at a `diffThreshold` above 0.8 (at 1 nothing reads as
+changed; 0.8 is the highest any story uses) and a pull request that moves the baselines
+directory in its config (capture follows the pull request's config; the record check, the base
+branch's).
+
+CI runs the gate, and the capture, as the base branch has them (`git archive HEAD^1`), never the
+pull request's copy, so a pull request cannot loosen the code that judges it.
 
 An accept without a valid approval does not count, whoever wrote it. Test vectors cover each
-failure: an edited record, a wrong rpId, UV clear, an unknown key, a bad signature.
+failure: an edited record, a wrong rpId, UV clear, an unknown key, a bad signature, an origin on
+another host, a replayed seed, a decision replaced later, a copied record, a swapped key and a
+loosening settings file.
 
 **Existing records.** The milestone 1 and 2 records stay as they are, unproven history; the
 baselines they accepted are grandfathered and are not approved again. From the day the gate starts
@@ -744,13 +785,29 @@ checking approvals, every new accept needs one.
 ### Limits
 
 This proves the owner's device approved the record; it does not show that the owner looked at
-every image. It does not defend against a tampered review page: the page is served from the
-machine agents run on, so a page an agent altered could show one set of images and ask Face ID to
-approve another. That is out of scope; moving the approval step to a separate signing origin that
-agents cannot change is a possible later step. The gate also runs from `ci.yml`, which a pull
-request can edit; `CLAUDE.md` forbids agents to edit it, `gate.mjs` or `passkeys.json`, and code
-review is the backstop. Separately, the owner should consider giving agents a fine-grained token
-without administrator rights, since today's token lets an agent merge around any check.
+every image. What it does not defend against:
+
+- **A tampered review page.** The page is served from the machine agents run on, so a page an
+  agent altered could show one set of images and ask Face ID to approve another.
+- **Any other page on the rpId's host.** The rpId `dev.ato.ms` is shared by every server
+  servherd starts there (Storybook, the graphty app, agents' own servers), each on its own port.
+  Any of them, a story in a pull request included, can ask for an assertion over a record hash it
+  chose, and the Face ID sheet names only the host. The gate refuses subdomains but cannot tell
+  ports apart. A host that serves only the review page (for example `review.dev.ato.ms`), with
+  the gate pinned to it, closes this; it is the owner's decision, since it needs DNS and a
+  certificate, and changing the rpId means registering a new passkey.
+- **`ci.yml` itself.** A pull request can edit the workflow and drop the gate step; the base
+  branch's gate code does not help when the step is gone. Closing it needs a check the pull
+  request cannot edit: a ruleset-required workflow. `CLAUDE.md` forbids agents to edit it and
+  code review is the backstop.
+- **A story's own code**, which runs in the capture browser and could draw the stored baseline
+  instead of itself, and its `parameters.chromatic.diffThreshold` (capped at 0.8).
+- **An approved seed that was never merged.** Its record names no pull request and starts from
+  master's contents, so another pull request could apply exactly the images the owner approved
+  for it. Abandoned seed branches should be deleted.
+
+Separately, the owner should consider giving agents a fine-grained token without administrator
+rights, since today's token lets an agent merge around any check.
 
 ## 9. History, git hashes and dirty state
 
@@ -939,6 +996,12 @@ Finish, and the API refuses every decision and Finish on it. A local capture rec
 (describe and diff hash); its fonts and graphics stack are not CI's, so a preview can never
 become a baseline.
 
+**Local previews of a pull request.** `local-previews.md` replaces the rule above for one case
+(built 2026-10-04): a local capture of a pull request's merge tree with the pinned fonts
+(`tools/visual-preview.sh`) can be reviewed and finished, and the unchanged gate passes it only
+when CI's capture matches. It also adds the pending-approvals
+inbox and the quiet notifier.
+
 **How captures and baselines move.** CI uploads each capture as an artifact. The review server
 lists open pull requests and their newest CI runs with `gh` and downloads the artifacts with `gh
 run download` into `tmp/visual-review/`; the baselines a capture was compared with are inside the
@@ -1088,6 +1151,9 @@ contention measurement passes, the same day if possible (about 10 to 20 minutes 
 - The baselines-changed pending guard (section 11).
 
 ### This week: passkey approval
+
+Built: items 1 and 2 below, with the gate and the capture run from the base branch's code in CI,
+and the replay, settings and key-swap checks of section 8. Item 3 is the owner's.
 
 1. `trusted/lib/approval.mjs`: the record hash and the assertion checks of section 8, with
    `node:crypto` alone, and a test vector for each failure; `gate.mjs` counts an accept only with

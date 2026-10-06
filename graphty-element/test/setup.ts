@@ -1,10 +1,11 @@
 import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Logger } from "@babylonjs/core/Misc/logger";
-import { afterEach, expect, vi } from "vitest";
+import { afterEach, beforeAll, expect, vi } from "vitest";
 
 import type { Graph } from "../src/Graph";
 import { MockDeviceInputSystem } from "../src/input/mock-device-input-system";
 import { caughtFailure, installCaughtErrors, takeCaughtErrors } from "./helpers/caught-errors";
+import { pinLabelFont } from "./helpers/pin-label-font";
 
 // An error the element caught and carried on past, or one nobody caught, fails the test it
 // happened in (test/helpers/caught-errors.ts).
@@ -37,6 +38,12 @@ declare global {
             jsHeapSizeLimit: number;
         };
     }
+}
+
+// In a real browser, draw labels in the committed test font rather than whatever the machine has
+// installed as "Verdana" (see helpers/pin-label-font.ts). happy-dom has no font loading to pin.
+if (typeof FontFace !== "undefined") {
+    beforeAll(pinLabelFont);
 }
 
 // Suppress Babylon.js logs during tests. The Logger is imported from its own module, not from the

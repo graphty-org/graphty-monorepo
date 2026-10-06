@@ -224,6 +224,8 @@ export class UpdateManager implements Manager {
      * arrived after the layout stopped silently do nothing.
      */
     private forceZoomToFit = false;
+    /** Whether the outstanding request came from a consumer's `zoomToFit()`, not the element. */
+    private explicitZoomToFit = false;
     private config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
     private minLayoutStepsBeforeZoom = 10;
@@ -408,15 +410,13 @@ export class UpdateManager implements Manager {
         const nodeVisibilityVersion = nodeVisibility?.version ?? NO_MASK_VERSION;
         const edgeVisibilityVersion = edgeVisibility?.version ?? NO_MASK_VERSION;
 
-        const nodesMoved =
-            !this.appliedAnything ||
-            nodeSelectionVersion !== this.appliedNodeSelection ||
-            nodeVisibilityVersion !== this.appliedNodeVisibility ||
-            showContext !== this.appliedShowContext;
-        const edgesMoved =
-            !this.appliedAnything ||
-            edgeSelectionVersion !== this.appliedEdgeSelection ||
-            edgeVisibilityVersion !== this.appliedEdgeVisibility;
+        const { nodesMoved, edgesMoved } = this.viewMasksMoved(
+            nodeSelectionVersion,
+            edgeSelectionVersion,
+            nodeVisibilityVersion,
+            edgeVisibilityVersion,
+            showContext,
+        );
 
         if (!nodesMoved && !edgesMoved) {
             return;
@@ -456,6 +456,57 @@ export class UpdateManager implements Manager {
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Which halves of the scene the masks have moved since they were last applied.
+     * @param nodeSelection - The node selection mask's version now.
+     * @param edgeSelection - The edge selection mask's version now.
+     * @param nodeVisibility - The node visibility mask's version now.
+     * @param edgeVisibility - The edge visibility mask's version now.
+     * @param showContext - Whether hidden nodes are drawn faintly now.
+     * @returns Whether the nodes and whether the edges need the masks applied again.
+     */
+    private viewMasksMoved(
+        nodeSelection: number,
+        edgeSelection: number,
+        nodeVisibility: number,
+        edgeVisibility: number,
+        showContext: boolean,
+    ): { nodesMoved: boolean; edgesMoved: boolean } {
+        return {
+            nodesMoved:
+                !this.appliedAnything ||
+                nodeSelection !== this.appliedNodeSelection ||
+                nodeVisibility !== this.appliedNodeVisibility ||
+                showContext !== this.appliedShowContext,
+            edgesMoved:
+                !this.appliedAnything ||
+                edgeSelection !== this.appliedEdgeSelection ||
+                edgeVisibility !== this.appliedEdgeVisibility,
+        };
+    }
+
+    /**
+     * Whether a filter, a time window or a selection has changed since the last pass drew it.
+     *
+     * The masks reach the meshes on the NEXT pass, so between `visibility.set` resolving and that
+     * pass the frame on screen still shows the old answer. Without this the picture read as final
+     * the whole time, and `waitForStableFrame()` returned with the filtered-out nodes still drawn.
+     * Reading a mask resyncs it, the same read the next pass makes.
+     * @returns True when the masks hold an answer the meshes do not show yet.
+     */
+    private viewMasksPending(): boolean {
+        const masks = this.viewMasks ?? EMPTY_MASKS;
+        const { nodesMoved, edgesMoved } = this.viewMasksMoved(
+            masks.selection?.nodes().version ?? NO_MASK_VERSION,
+            masks.selection?.edges().version ?? NO_MASK_VERSION,
+            masks.visibility?.nodes().version ?? NO_MASK_VERSION,
+            masks.visibility?.edges().version ?? NO_MASK_VERSION,
+            masks.showContext?.() ?? false,
+        );
+
+        return nodesMoved || edgesMoved;
     }
 
     /**
@@ -536,10 +587,13 @@ export class UpdateManager implements Manager {
      * every frame once the layout has stopped -- so routing an explicit request through it made
      * `Graph.zoomToFit()` silent from the first settlement onwards, and made the element's own
      * "re-frame now that the layout has truly settled" call dead on arrival.
+     * @param explicit - True when a consumer asked, so {@link UpdateManager.stopAutoZoomToFit}
+     *   leaves the request standing.
      */
-    enableZoomToFit(): void {
+    enableZoomToFit(explicit = false): void {
         this.needsZoomToFit = true;
         this.forceZoomToFit = true;
+        this.explicitZoomToFit ||= explicit;
         // Whatever an earlier pass found to frame, this request has not been answered yet.
         this.framingHasNothingToFrame = false;
         // Only reset the layout step count if we haven't zoomed yet
@@ -559,6 +613,18 @@ export class UpdateManager implements Manager {
         // An outstanding request goes with it, so switching auto-framing back on later does not
         // spend a re-frame somebody asked for before it was switched off.
         this.forceZoomToFit = false;
+        this.explicitZoomToFit = false;
+    }
+
+    /**
+     * Stop the element's own framing -- the follow of a moving layout and any request the element
+     * made itself -- but keep a consumer's outstanding `zoomToFit()`, which is answered once.
+     */
+    stopAutoZoomToFit(): void {
+        this.needsZoomToFit = false;
+        if (!this.explicitZoomToFit) {
+            this.forceZoomToFit = false;
+        }
     }
 
     /**
@@ -677,6 +743,10 @@ export class UpdateManager implements Manager {
             return "the camera has not finished framing the graph";
         }
 
+        if (this.viewMasksPending()) {
+            return "a filter or a selection has not been drawn yet";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -722,6 +792,11 @@ export class UpdateManager implements Manager {
         // An outstanding framing request only means the camera is about to move if there is
         // something for it to frame; see `framingHasNothingToFrame`.
         if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
+            return false;
+        }
+
+        // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
+        if (this.viewMasksPending()) {
             return false;
         }
 
@@ -1110,7 +1185,7 @@ export class UpdateManager implements Manager {
      * @returns True when this frame will re-frame the camera, given a box to frame.
      */
     private willZoomToFit(): boolean {
-        if (!this.needsZoomToFit) {
+        if (!this.needsZoomToFit && !this.forceZoomToFit) {
             return false;
         }
 
@@ -1197,6 +1272,7 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.forceZoomToFit = false;
+        this.explicitZoomToFit = false;
         this.framingHasNothingToFrame = false;
         this.lastZoomStep = this.layoutStepCount;
 

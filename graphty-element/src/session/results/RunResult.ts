@@ -19,7 +19,7 @@
  * published from the Node-safe `./session` entry point.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
+import type { EdgeId, FieldBand, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { Caveats } from "../runs/types";
 import { defaultReading } from "./reading";
@@ -27,6 +27,7 @@ import { nearestNames } from "./ResultsApi";
 import {
     analyzeColumn,
     type AnalyzedColumn,
+    arrayColumn,
     buildHistogram,
     isNormalization,
     type NumericColumnSource,
@@ -80,6 +81,22 @@ export interface ResultElementValues<Id extends NodeId = NodeId> {
     readonly values: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Numeric fields published as columns: row `i` of every column belongs to `ids[i]`, and every
+ * element carries every column.
+ *
+ * The form a run with one number per element hands over. A {@link ResultElementValues} entry is
+ * two objects per element, which costs more than the arithmetic of a cheap metric, and how much
+ * more depends on the garbage collector's state when the run starts: degree on 800,000 nodes took
+ * 27 to 87 ms from one process to the next, nearly all of it the objects.
+ */
+export interface ResultColumns<Id extends NodeId = NodeId> {
+    /** The elements' ids, exactly as the graph holds them. */
+    readonly ids: readonly Id[];
+    /** The fields, keyed by the shape's field names, each as long as `ids`. */
+    readonly columns: Readonly<Record<string, Float64Array>>;
+}
+
 /** One row of the `sizes` table a grouping result publishes, largest first. */
 interface ResultSizeRow {
     /** The group, or the level for a layered grouping. */
@@ -125,7 +142,7 @@ export interface RunResultInit {
     /** The graph-level fields the algorithm published, keyed by field name. */
     readonly graph?: Readonly<Record<string, unknown>>;
     /** What the run published per node, in the order a column reads them. */
-    readonly nodes?: readonly ResultElementValues[];
+    readonly nodes?: readonly ResultElementValues[] | ResultColumns;
     /** What the run published per edge, in the order a column reads them. */
     readonly edges?: readonly ResultElementValues<EdgeId>[];
     /** What qualifies the numbers. */
@@ -231,20 +248,12 @@ interface ElementTable {
  * @param entries - What the run published, or undefined when this half is empty.
  * @returns The table; its columns stay plain arrays until {@link sealTable}.
  */
-function buildTable(entries: readonly ResultElementValues[] | undefined): ElementTable {
-    const index = new OwnIndex();
-    const positions: number[] = [];
-    for (const entry of entries ?? []) {
-        let position = index.positions.get(entry.id);
-        if (position === undefined) {
-            position = index.ids.length;
-            index.positions.set(entry.id, position);
-            index.ids.push(entry.id);
-        }
-
-        positions.push(position);
+function buildTable(entries: readonly ResultElementValues[] | ResultColumns | undefined): ElementTable {
+    if (entries !== undefined && "columns" in entries) {
+        return columnTable(entries);
     }
 
+    const { index, positions } = indexIds((entries ?? []).map((entry) => entry.id));
     const table: ElementTable = { index, token: null, length: index.ids.length, columns: new Map() };
     (entries ?? []).forEach((entry, at) => {
         for (const [name, value] of Object.entries(entry.values)) {
@@ -253,6 +262,46 @@ function buildTable(entries: readonly ResultElementValues[] | undefined): Elemen
     });
 
     return table;
+}
+
+/**
+ * {@link buildTable} for a run that published columns. Each is copied, as an entry's values are.
+ * @param published - The ids and their columns.
+ * @returns The table, its columns already `Float64Array`s.
+ */
+function columnTable(published: ResultColumns): ElementTable {
+    const { ids, columns } = published;
+    const { index, positions } = indexIds(ids);
+    const table: ElementTable = { index, token: null, length: index.ids.length, columns: new Map() };
+    for (const [name, values] of Object.entries(columns)) {
+        const column = new Float64Array(table.length);
+        positions.forEach((position, at) => (column[position] = values[at]));
+        table.columns.set(name, column);
+    }
+
+    return table;
+}
+
+/**
+ * Give each id a position in a new index; an id seen before keeps the position it has.
+ * @param ids - The ids, in the order the run published them.
+ * @returns The index, and each published row's position in it.
+ */
+function indexIds(ids: readonly NodeId[]): { index: OwnIndex; positions: number[] } {
+    const index = new OwnIndex();
+    const positions: number[] = [];
+    for (const id of ids) {
+        let position = index.positions.get(id);
+        if (position === undefined) {
+            position = index.ids.length;
+            index.positions.set(id, position);
+            index.ids.push(id);
+        }
+
+        positions.push(position);
+    }
+
+    return { index, positions };
 }
 
 /**
@@ -684,8 +733,8 @@ function summaryValueField(shape: ResultShape): string | null {
  * Read the `sizes` or `categories` table a result published as summary groups.
  * @param value - The published table.
  * @param limit - How many rows a summary may carry.
- * @param named - Whether each group gets its display name, which a partition into groups does
- *   and a table of levels or of named categories does not.
+ * @param named - Whether each group gets its rank and display name, which a partition into
+ *   groups does and a table of levels or of named categories does not.
  * @returns The groups, bounded, or undefined when the value is not a table this can read.
  */
 function toSummaryGroups(value: unknown, limit: number, named: boolean): readonly SummaryGroup[] | undefined {
@@ -704,7 +753,8 @@ function toSummaryGroups(value: unknown, limit: number, named: boolean): readonl
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {
-            groups.push(Object.freeze(named ? { group, size, name: groupName(groups.length + 1) } : { group, size }));
+            const rank = groups.length + 1;
+            groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
         }
 
         if (groups.length === limit) {
@@ -925,6 +975,31 @@ class Result implements RunResult {
     }
 
     /**
+     * The distribution of the group sizes, read from the full `sizes` table.
+     * @param options - How to cut the bins.
+     * @returns The distribution, one count per group.
+     * @throws A GraphtyError coded E_BAD_COMMAND when the result publishes no `sizes` table, or
+     *   E_OPTION_RANGE when the bin count is outside the permitted range.
+     */
+    groupSizes(options?: HistogramOptions): Histogram {
+        const { sizes } = this.graph;
+        if (!Array.isArray(sizes)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `Run "${this.runId}" is a ${this.shape} result, which publishes no groups to count.`,
+                source: "run",
+                details: { runId: this.runId, shape: this.shape },
+            });
+        }
+
+        const values = (sizes as readonly { readonly size?: unknown }[]).map((row) =>
+            typeof row.size === "number" ? row.size : Number.NaN,
+        );
+
+        return buildHistogram(arrayColumn(values), { ...options, integerValued: true });
+    }
+
+    /**
      * The bounded form of this result.
      *
      * Everything on it is either a single figure or a list the element cut to a fixed length, so
@@ -944,6 +1019,28 @@ class Result implements RunResult {
      */
     reading(options?: ReadingOptions): string {
         return this.#reading(this, options ?? {});
+    }
+
+    /**
+     * Which band of its interpretation scale a graph-level field's value falls in.
+     * @param field - The graph-level field, such as "modularity".
+     * @returns The band, or undefined when the field has no interpretation or no finite value.
+     */
+    band(field: string): FieldBand | undefined {
+        const value = this.graph[field];
+        const interpretation = this.fields.find(
+            (candidate) => candidate.name === field && candidate.kind === "graph",
+        )?.interpretation;
+
+        if (interpretation === undefined || typeof value !== "number" || !Number.isFinite(value)) {
+            return undefined;
+        }
+
+        return interpretation.bands.find(
+            (band) =>
+                (band.above === undefined || value > band.above) &&
+                (band.atLeast === undefined || value >= band.atLeast),
+        );
     }
 
     /**

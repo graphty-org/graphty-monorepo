@@ -1,0 +1,11 @@
+[
+{"CXVersion":"2.0","hasFragments":true},
+{"attributeDeclarations":[{"nodes":{"name":{"d":"string","a":"n"}}}]},
+{"nodes":[{"id":1,"v":{"n":"a"}},{"id":2,"v":{"n":"b"}}]},
+{"edges":[{"id":10,"s":1,"t":2}]},
+{"attributeDeclarations":[{"edges":{"interaction":{"d":"string","a":"i"}}}]},
+{"nodes":[{"id":3,"v":{"n":"c"}}]},
+{"edges":[{"id":11,"s":2,"t":3,"v":{"i":"binds"}}]},
+{"nodes":[{"id":4,"v":{"n":"d"}}]},
+{"status":[{"error":"","success":true}]}
+]

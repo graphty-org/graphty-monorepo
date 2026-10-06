@@ -23,7 +23,7 @@
  * App shell progressive disclosure design, section 7 "Novice path".
  */
 
-import type { GraphSession, RunId, RunResult } from "@graphty/graphty-element/session";
+import type { FieldBand, GraphSession, RunId, RunResult } from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
 import {
@@ -95,6 +95,8 @@ export interface CommunityRunResult {
     readonly largestGroupSize: number;
     /** Modularity, or undefined when the element did not report it. */
     readonly modularity?: number;
+    /** The band graphty-element put the modularity in, or undefined when it named none. */
+    readonly modularityBand?: FieldBand;
     /** Nodes the run covered. */
     readonly nodeCount: number;
     /** Every group, largest first. */
@@ -219,12 +221,12 @@ export async function runCommunityDetection(session: Pick<GraphSession, "runs">)
 
     /* The element counts the groups while it walks the result, so the sizes and the count come
        from one reading and cannot disagree. It also orders them (largest first, equal sizes by
-       id) and names them, and the legend of the run's colours uses the same order and names, so
-       the list is taken as it comes: re-sorting or renaming here is how the result panel once
+       id) and ranks them, and the legend of the run's colours carries the same rank, so the list
+       is taken as it comes and worded from the rank: re-sorting here is how the result panel once
        said "Group 1" for the group the legend called "0". */
     const groups = (summary.groups ?? []).map((entry) => ({
         communityId: Number(entry.group),
-        name: entry.name ?? String(entry.group),
+        name: entry.rank === undefined ? String(entry.group) : `Group ${String(entry.rank)}`,
         size: entry.size,
     }));
 
@@ -232,12 +234,14 @@ export async function runCommunityDetection(session: Pick<GraphSession, "runs">)
        and a run that did not publish one must degrade to the reading with no banded clause
        rather than to a fabricated score. */
     const { modularity } = result.graph;
+    const modularityBand = result.band("modularity");
 
     return {
         runId: run.id,
         groupCount: groups.length,
         largestGroupSize: groups.length > 0 ? groups[0].size : 0,
         ...(typeof modularity === "number" && Number.isFinite(modularity) ? { modularity } : {}),
+        ...(modularityBand === undefined ? {} : { modularityBand }),
         nodeCount: summary.measured,
         groups,
     };

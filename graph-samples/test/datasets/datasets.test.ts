@@ -12,12 +12,16 @@ import { davisSouthernWomen } from "../../src/datasets/davis-southern-women/inde
 import { dolphins } from "../../src/datasets/dolphins/index.js";
 import { florentineFamilies } from "../../src/datasets/florentine-families/index.js";
 import { football } from "../../src/datasets/football/index.js";
+import { goSlimGeneric } from "../../src/datasets/go-slim-generic/index.js";
 import { karate } from "../../src/datasets/karate/index.js";
 import { knuthMiles } from "../../src/datasets/knuth-miles/index.js";
 import { lesMiserables } from "../../src/datasets/les-miserables/index.js";
 import { openflights } from "../../src/datasets/openflights/index.js";
 import { politicalBlogs } from "../../src/datasets/political-blogs/index.js";
 import { politicalBooks } from "../../src/datasets/political-books/index.js";
+import { stelzlInteractome } from "../../src/datasets/stelzl-interactome/index.js";
+import { wikipathwaysSenescenceAutophagy } from "../../src/datasets/wikipathways-senescence-autophagy/index.js";
+import { yeastPerturbation } from "../../src/datasets/yeast-perturbation/index.js";
 import { type SampleGraph } from "../../src/types.js";
 import { degrees, expectSimple } from "../helpers/graph.js";
 
@@ -36,6 +40,10 @@ const LOADERS: Readonly<Record<string, () => SampleGraph>> = {
     "celegans-neural": celegansNeural,
     "political-blogs": politicalBlogs,
     openflights,
+    "yeast-perturbation": yeastPerturbation,
+    "stelzl-interactome": stelzlInteractome,
+    "wikipathways-senescence-autophagy": wikipathwaysSenescenceAutophagy,
+    "go-slim-generic": goSlimGeneric,
 };
 
 const BUNDLED = DATASETS.filter((meta) => meta.hosting !== "remote");
@@ -119,6 +127,43 @@ describe("the catalogue", () => {
 });
 
 describe("dataset contents", () => {
+    it("yeast perturbation: Cytoscape's galFiltered, labelled by gene name, placed by its saved drawing", () => {
+        const g = yeastPerturbation();
+        const snapshot = fromEdgeArrays(g);
+        const label = columnValues(snapshot.nodes, "label", g.nodeCount);
+        expect(g.ids?.[0]).toBe("YKR026C");
+        expect(label).toContain("GAL4");
+        const y = columnValues(snapshot.nodes, "y", g.nodeCount) as number[];
+        expect(y.every((v) => Number.isFinite(v))).toBe(true);
+        // genes with no expression ratio in the session load as NaN, not as a ratio of 0
+        const gal4 = columnValues(snapshot.nodes, "gal4RGexp", g.nodeCount) as number[];
+        expect(gal4.filter((v) => Number.isNaN(v)).length).toBeGreaterThan(0);
+        // stored y-up: Cytoscape's screen y (all positive here) is negated
+        expect(y.filter((v) => v > 0).length).toBeLessThan(y.length / 2);
+    });
+
+    it("stelzl interactome: HUGO symbols label Entrez ids, and the session's self-loops are gone", () => {
+        const g = stelzlInteractome();
+        const label = columnValues(fromEdgeArrays(g).nodes, "label", g.nodeCount);
+        expect(label).toContain("TP53");
+        expect(Array.from(g.src).every((s, e) => s !== g.dst[e])).toBe(true);
+    });
+
+    it("wikipathways: every element carries its saved position and a WikiPathways type", () => {
+        const g = wikipathwaysSenescenceAutophagy();
+        const snapshot = fromEdgeArrays(g);
+        const x = columnValues(snapshot.nodes, "x", g.nodeCount) as number[];
+        expect(x.every((v) => Number.isFinite(v))).toBe(true);
+        expect(columnValues(snapshot.nodes, "type", g.nodeCount)).toContain("GeneProduct");
+    });
+
+    it("go slim: terms of all three GO namespaces, each arc from a term to its parent", () => {
+        const g = goSlimGeneric();
+        const namespaces = new Set(columnValues(fromEdgeArrays(g).nodes, "namespace", g.nodeCount));
+        expect(namespaces).toEqual(new Set(["biological_process", "cellular_component", "molecular_function"]));
+        expect(g.ids?.every((id) => id.startsWith("GO:"))).toBe(true);
+    });
+
     it("karate: the instructor and the administrator lead the two factions", () => {
         const g = karate();
         const snapshot = fromEdgeArrays(g);

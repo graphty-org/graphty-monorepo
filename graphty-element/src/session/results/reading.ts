@@ -175,9 +175,13 @@ function groupingReading(result: RunResult, summary: ResultSummary, options: Rea
 
     // Modularity is published by some partitioning algorithms and not others, so it is said only
     // when there is one. A partition with no score is not a worse partition; it is an unscored
-    // one, and inventing a word for how good it is would be the reading making a claim up.
+    // one, and inventing a word for how good it is would be the reading making a claim up. The
+    // word for a scored one comes from the field's own interpretation scale, never from here.
     if (modularity !== undefined) {
-        parts.push(`Modularity is ${figure(modularity, locale)}.`);
+        const band = result.band("modularity");
+        const word = band === undefined ? "" : ` (${band.plainName.toLowerCase()})`;
+
+        parts.push(`Modularity is ${figure(modularity, locale)}${word}.`);
     }
 
     return parts.join(" ");
@@ -237,7 +241,7 @@ function setReading(result: RunResult, summary: ResultSummary, options: ReadingO
  * @returns The sentence.
  */
 function pairReading(result: RunResult, options: ReadingOptions): string {
-    const {pairs} = result.graph;
+    const { pairs } = result.graph;
     const count = Array.isArray(pairs) ? pairs.length : 0;
 
     if (count === 0) {
@@ -295,7 +299,7 @@ function coverageReading(summary: ResultSummary, options: ReadingOptions): strin
  */
 export function defaultReading(result: RunResult, options: ReadingOptions): string {
     const summary = result.summary();
-    const {shape} = result;
+    const { shape } = result;
 
     switch (shape) {
         case "node-metric":

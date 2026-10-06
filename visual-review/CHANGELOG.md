@@ -1,3 +1,159 @@
+## 0.2.11 (2026-10-05)
+
+### 🚀 Features
+
+- **visual-review:** open the review page on a pending-approvals inbox and add a quiet notifier ([8cbbd540b](https://github.com/graphty-org/graphty-monorepo/commit/8cbbd540b))
+- **ci:** test Mergify batches of up to 4, with a visual gate that accepts a batch ([020bf7138](https://github.com/graphty-org/graphty-monorepo/commit/020bf7138))
+
+### 🩹 Fixes
+
+- **ci:** drop the Microsoft apt sources before apt runs ([3e757a40c](https://github.com/graphty-org/graphty-monorepo/commit/3e757a40c))
+- **visual-review:** type the gate's pull request as one number or a batch ([094f91532](https://github.com/graphty-org/graphty-monorepo/commit/094f91532))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.10 (2026-10-05)
+
+### 🩹 Fixes
+
+- **visual-review:** show a local preview while another project of the CI run downloads ([fc534d028](https://github.com/graphty-org/graphty-monorepo/commit/fc534d028))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.9 (2026-10-05)
+
+### 🚀 Features
+
+- **visual-review:** review and finish on a local preview of a pull request ([f5636fb54](https://github.com/graphty-org/graphty-monorepo/commit/f5636fb54))
+- **visual-review:** capture with the fonts the config's fontconfig pins ([5eb56d652](https://github.com/graphty-org/graphty-monorepo/commit/5eb56d652))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.8 (2026-10-04)
+
+### 🚀 Features
+
+- **visual-review:** finish without merging master first ([f4cc31c41](https://github.com/graphty-org/graphty-monorepo/commit/f4cc31c41))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.7 (2026-10-04)
+
+### 🩹 Fixes
+
+- **visual-review:** with Focus on, show an image only once its focus point is known ([96302a86b](https://github.com/graphty-org/graphty-monorepo/commit/96302a86b))
+- **visual-review:** label a loading Flash, Highlight or Spotlight as that view ([74af30a73](https://github.com/graphty-org/graphty-monorepo/commit/74af30a73))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.6 (2026-10-04)
+
+### 🚀 Features
+
+- **visual-review:** ask the reject reason in its own box; J previous, K next ([#862](https://github.com/graphty-org/graphty-monorepo/issues/862), [#863](https://github.com/graphty-org/graphty-monorepo/issues/863))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.5 (2026-10-04)
+
+This was a version bump only for visual-review to align it with other projects, there were no code changes.
+
+## 0.2.4 (2026-10-04)
+
+### 🚀 Features
+
+- **visual-review:** a compact control panel laid out by use, for an iPad ([#860](https://github.com/graphty-org/graphty-monorepo/issues/860))
+- **visual-review:** one breadcrumb to move between targets, projects, grid and item ([#859](https://github.com/graphty-org/graphty-monorepo/issues/859))
+- **visual-review:** open each item framed on where to look (Focus, O) ([#858](https://github.com/graphty-org/graphty-monorepo/issues/858))
+- **visual-review:** hide the baseline pane so the new image takes both widths ([#857](https://github.com/graphty-org/graphty-monorepo/issues/857))
+- **visual-review:** accept what the grid's filter shows ([#856](https://github.com/graphty-org/graphty-monorepo/issues/856))
+- **visual-review:** accept a component in place, keeping the grid's place ([#855](https://github.com/graphty-org/graphty-monorepo/issues/855))
+
+### 🩹 Fixes
+
+- **visual-review:** whole labels and a pressable tile Undo on an iPad with hundreds of items ([#123](https://github.com/graphty-org/graphty-monorepo/issues/123), [#855](https://github.com/graphty-org/graphty-monorepo/issues/855), [#859](https://github.com/graphty-org/graphty-monorepo/issues/859), [#860](https://github.com/graphty-org/graphty-monorepo/issues/860))
+- **visual-review:** escape closes the grid's More menu, and the crumbs hold still ([#859](https://github.com/graphty-org/graphty-monorepo/issues/859))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.3 (2026-10-03)
+
+### 🚀 Features
+
+- **visual-review:** update a pull request from master in one step ([#673](https://github.com/graphty-org/graphty-monorepo/issues/673))
+
+### 🩹 Fixes
+
+- **visual-review:** offer approvals from before passkeys on a branch behind master ([21920e63](https://github.com/graphty-org/graphty-monorepo/commit/21920e63))
+- **visual-review:** sign approvals made before passkeys again from the review page ([2a478234](https://github.com/graphty-org/graphty-monorepo/commit/2a478234))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.2 (2026-10-02)
+
+### 🚀 Features
+
+- **visual-review:** blocking waits in a centered modal, and faster loading ([8fe5078a](https://github.com/graphty-org/graphty-monorepo/commit/8fe5078a))
+- **visual-review:** approve Finish with the owner's passkey and enforce it in the gate ([d04b4d6c](https://github.com/graphty-org/graphty-monorepo/commit/d04b4d6c))
+- **visual-review:** fixed decision bar, loading progress and next-project flow in the review page ([94564d06](https://github.com/graphty-org/graphty-monorepo/commit/94564d06))
+- **visual-review:** cached target list, download progress, thumbnails and a Finish preview ([a4d30061](https://github.com/graphty-org/graphty-monorepo/commit/a4d30061))
+- **visual-review:** publish accept notes in Finish's comment and the seed pull request ([1720f048](https://github.com/graphty-org/graphty-monorepo/commit/1720f048))
+- **visual-review:** register a passkey and approve Finish with Face ID in the page ([6ca1466f](https://github.com/graphty-org/graphty-monorepo/commit/6ca1466f))
+- **visual-review:** passkey registration and approval routes in the review server ([cce0cfb7](https://github.com/graphty-org/graphty-monorepo/commit/cce0cfb7))
+- **visual-review:** commit only the passkey-approved record at Finish ([83e1e617](https://github.com/graphty-org/graphty-monorepo/commit/83e1e617))
+- **visual-review:** gate requires passkey approvals once a key is registered ([3912c7d6](https://github.com/graphty-org/graphty-monorepo/commit/3912c7d6))
+- **visual-review:** verify passkey approvals of review records ([68ca01f2](https://github.com/graphty-org/graphty-monorepo/commit/68ca01f2))
+
+### 🩹 Fixes
+
+- **visual-review:** review page on narrow windows and touch, and the Keys overlay ([edc72f0b](https://github.com/graphty-org/graphty-monorepo/commit/edc72f0b))
+- **visual-review:** steady story panes, next project first, finished decisions kept in view ([61f4d890](https://github.com/graphty-org/graphty-monorepo/commit/61f4d890))
+- **visual-review:** keep the grid bar's labels on one line, in two rows on an iPad ([04a514c0](https://github.com/graphty-org/graphty-monorepo/commit/04a514c0))
+- **visual-review:** start Face ID inside the press, and trust only master's keys ([17b40be5](https://github.com/graphty-org/graphty-monorepo/commit/17b40be5))
+- **visual-review:** refuse approvals from another host and numbers with two forms ([9fa904d5](https://github.com/graphty-org/graphty-monorepo/commit/9fa904d5))
+- **visual-review:** count a review record only from the base branch's contents ([d18af012](https://github.com/graphty-org/graphty-monorepo/commit/d18af012))
+- **visual-review:** fail closed when the server cannot read its passkeys ([9b75eaea](https://github.com/graphty-org/graphty-monorepo/commit/9b75eaea))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.2.1 (2026-10-02)
+
+### 🚀 Features
+
+- **visual-review:** flash the spotlighted baseline and new image in Spotlight ([48526aa4](https://github.com/graphty-org/graphty-monorepo/commit/48526aa4))
+
+### 🩹 Fixes
+
+- **visual-review:** stale tiles never re-accept, Accept all counts removals, Finish shows restarts ([e283dc64](https://github.com/graphty-org/graphty-monorepo/commit/e283dc64))
+- **visual-review:** keep decisions, targets and Finish whole when GitHub, git or the disk fail ([7a61e563](https://github.com/graphty-org/graphty-monorepo/commit/7a61e563))
+- **visual-review:** check project ids and mode names before capturing; gate survives bad JSON ([126926a2](https://github.com/graphty-org/graphty-monorepo/commit/126926a2))
+- **visual-review:** make the review page's caches, decisions and routing robust ([7c64a548](https://github.com/graphty-org/graphty-monorepo/commit/7c64a548))
+- **visual-review:** make Finish show feedback at once and ask in the page ([cd50d329](https://github.com/graphty-org/graphty-monorepo/commit/cd50d329))
+- **visual-review:** log gh failures and load the other targets when one fails ([da6678ea](https://github.com/graphty-org/graphty-monorepo/commit/da6678ea))
+- **visual-review:** retry gh on network failures and load the other projects when one fails ([842011da](https://github.com/graphty-org/graphty-monorepo/commit/842011da))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.0 (2026-10-01)
 
 ### 🩹 Fixes

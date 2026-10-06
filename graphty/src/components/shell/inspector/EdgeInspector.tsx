@@ -21,9 +21,9 @@ import { ControlSection, DataRow, PANEL_GRID, PANEL_INK, ProseBlock } from "@gra
 import { Box, Group, Text, UnstyledButton } from "@mantine/core";
 import React from "react";
 
-import { ComingTag } from "./ComingTag";
 import { type InspectorAction, InspectorActions } from "./InspectorActions";
 import { INSPECTOR_CLUSTER_GAP, INSPECTOR_KIND_FONT_SIZE, INSPECTOR_SECTION_IDS } from "./inspectorConstants";
+import { type InspectorNote, InspectorNotes } from "./InspectorNotes";
 import { useInspectorSection } from "./sections";
 
 /**
@@ -50,6 +50,12 @@ export interface EdgeInspectorProps {
     readonly attributes: readonly { readonly name: string; readonly value: string }[];
     /** The departure floor item 2 requires while the capability is unbuilt. */
     readonly caveat?: string;
+    /** The edge's notes, newest first, as graphty-element's `session.notes` holds them. */
+    readonly notes: readonly InspectorNote[];
+    /** Saves a new note on this edge. */
+    readonly onAddNote: (text: string) => void;
+    /** Deletes a note. */
+    readonly onDeleteNote: (noteId: string) => void;
     /** Selects one of the endpoints. */
     readonly onSelectEndpoint: (nodeId: string) => void;
     /** Runs one verb of the actions block. */
@@ -73,12 +79,14 @@ export function EdgeInspector(props: EdgeInspectorProps): React.JSX.Element {
         time,
         attributes,
         caveat,
+        notes,
+        onAddNote,
+        onDeleteNote,
         onSelectEndpoint,
         onAction,
     } = props;
 
     const attributesSection = useInspectorSection(INSPECTOR_SECTION_IDS.edgeAttributes, true);
-    const notesSection = useInspectorSection(INSPECTOR_SECTION_IDS.edgeNotes, false);
 
     const actions: InspectorAction[] = [
         { id: "selectEndpoints", label: "Select endpoints", coming: true },
@@ -168,12 +176,13 @@ export function EdgeInspector(props: EdgeInspectorProps): React.JSX.Element {
                 <DataRow name="Edge id" value={edgeId} />
             </ControlSection>
 
-            <ControlSection
-                label="Notes"
-                opened={notesSection.opened}
-                onOpenChange={notesSection.onOpenChange}
-                empty
-                actions={<ComingTag subject="Notes" />}
+            <InspectorNotes
+                sectionId={INSPECTOR_SECTION_IDS.edgeNotes}
+                defaultOpen={false}
+                inputTestId="edge-note-input"
+                notes={notes}
+                onAddNote={onAddNote}
+                onDeleteNote={onDeleteNote}
             />
 
             <InspectorActions label="Actions" actions={actions} moreActions={moreActions} />

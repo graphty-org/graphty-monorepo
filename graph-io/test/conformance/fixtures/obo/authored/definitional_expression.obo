@@ -1,0 +1,6 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+is_a: GO:0005737^part_of(CL:0000023)

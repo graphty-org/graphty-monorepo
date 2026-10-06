@@ -1,0 +1,21 @@
+format-version: 1.4
+ontology: test
+
+[Term]
+id: X:1
+intersection_of: X:2
+intersection_of: part_of X:3
+
+[Term]
+id: X:4
+union_of: X:2
+union_of: X:3
+
+[Term]
+id: X:2
+
+[Term]
+id: X:3
+
+[Typedef]
+id: part_of

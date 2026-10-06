@@ -1,0 +1,103 @@
+# .github/workflows/gpu-weekly-paired.yml -- the weekly full paired benchmark of webgpu-graph-algorithms on the NVIDIA
+# T4: master's tip against the latest released version (the newest webgpu-graph-algorithms@<version> tag), every
+# benchmark group, with scripts/bench-ab.js's statistics unchanged (4 ABBA rounds, flag above x1.08).
+#
+# Why it exists: a pull request's paired benchmark in gpu.yml runs only the groups its change can move
+# (scripts/bench-groups.js), so a slowdown the import scan cannot see, or one that builds up over several pull
+# requests each under the threshold, is caught here within a week. A regression fails this run and files or
+# rewrites one open issue (labels bug, gpu, priority:high, effort:medium); a clean run closes it. It never runs on a
+# pull request, and it is a workflow of its own rather than a job of gpu.yml so that release.yml's gate, which reads
+# the newest gpu.yml run of a commit, never mistakes it for the lane's verdict on master.
+#
+# Timing: one pass of every group is about 7.7 minutes on the T4 and the paired run makes eight passes plus the
+# base build, about 65 minutes (gpu.yml run 36882775800 hit a 40-minute limit after about 5 of the 8); setup,
+# install and build add about 5.
+name: GPU weekly paired benchmark
+on:
+    schedule:
+        - cron: "41 7 * * 1" # Mondays 07:41 UTC
+    workflow_dispatch:
+permissions:
+    contents: read
+    issues: write
+concurrency:
+    group: gpu-weekly-paired
+    cancel-in-progress: false
+
+jobs:
+    paired:
+        name: Paired benchmark, master against the latest release (NVIDIA T4)
+        runs-on: machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand # the same machine.dev T4 as gpu.yml's default
+        timeout-minutes: 100 # setup about 5 + the paired step's 85
+        env:
+            GRAPHTY_GPU_REQUIRE: nvidia
+            GRAPHTY_RUNNER_CLASS: gpu-linux-t4
+            XDG_RUNTIME_DIR: /tmp
+        defaults: { run: { working-directory: webgpu-graph-algorithms, shell: bash } }
+        steps:
+            - uses: actions/checkout@v4
+              with: { ref: master, fetch-depth: 0 } # every tag, and the release commit bench-ab.js checks out
+            - name: Driver up
+              run: sudo modprobe nvidia nvidia_uvm || true; nvidia-smi
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with: { node-version: 22.x, cache: pnpm }
+            - run: pnpm install --frozen-lockfile
+              working-directory: .
+              env: { HUSKY: "0" }
+            - run: pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms
+              working-directory: .
+            - name: Adapter report (fails loudly on a software adapter)
+              run: node scripts/gpu-report.js
+            - name: Paired benchmark of every group against the latest release
+              id: ab
+              continue-on-error: true
+              timeout-minutes: 85 # about 65 measured, with margin
+              run: |
+                  tag=$(git tag -l 'webgpu-graph-algorithms@*' --sort=-v:refname | head -1)
+                  echo "tag=$tag" >> "$GITHUB_OUTPUT"
+                  if [ -z "$tag" ]; then echo "no webgpu-graph-algorithms release tag"; exit 1; fi
+                  if git diff --quiet "$tag" HEAD -- src; then
+                      echo "no change under webgpu-graph-algorithms/src since $tag: nothing to compare"
+                      echo "skipped=true" >> "$GITHUB_OUTPUT"
+                      exit 0
+                  fi
+                  pnpm run bench:ab --base "$tag" 2>&1 | tee "$RUNNER_TEMP/ab.log"
+            - name: File, update or close the regression issue
+              if: ${{ !cancelled() && steps.ab.outputs.skipped != 'true' }}
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  OUTCOME: ${{ steps.ab.outcome }}
+                  TAG: ${{ steps.ab.outputs.tag }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  title="Weekly paired benchmark: webgpu-graph-algorithms regressed since the last release"
+                  number="$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number // empty')"
+                  if [ "$OUTCOME" = "success" ]; then
+                      if [ -n "$number" ]; then
+                          gh issue close "$number" --comment "The weekly paired benchmark against $TAG found no regression ($RUN_URL)."
+                      fi
+                      exit 0
+                  fi
+                  if ! grep -q ' REGRESSION$' "$RUNNER_TEMP/ab.log" 2>/dev/null; then
+                      echo "the paired benchmark failed without a regression row: see the log; no issue filed"
+                      exit 0
+                  fi
+                  {
+                      echo "The weekly paired benchmark ($RUN_URL) compared master ($(git rev-parse --short HEAD)) with $TAG"
+                      echo "on the NVIDIA T4, every group, and found rows whose 95 % interval lies wholly above x1.08 (at"
+                      echo "least 8 % slower). Find the change that slowed them, or record why the cost is accepted."
+                      echo "This issue is rewritten by every failing run and closed by the first clean one."
+                      echo
+                      echo '```'
+                      sed -n '/ABBA rounds of/,$p' "$RUNNER_TEMP/ab.log" | head -c 60000
+                      echo '```'
+                  } > "$RUNNER_TEMP/issue.md"
+                  if [ -n "$number" ]; then
+                      gh issue edit "$number" --body-file "$RUNNER_TEMP/issue.md"
+                  else
+                      gh issue create --title "$title" --label bug --label gpu --label priority:high --label effort:medium --body-file "$RUNNER_TEMP/issue.md"
+                  fi
+            - name: Fail the run when the paired benchmark failed
+              if: steps.ab.outcome == 'failure'
+              run: exit 1

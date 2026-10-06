@@ -8,7 +8,10 @@
  * the values for NON-NEGATIVE floats only (PD-9); with a negative distance the bit-pattern order reverses, so the
  * claim is a compare-exchange loop on the pattern: read, compute, compare as floats, try to exchange. WGSL lets
  * `atomicCompareExchangeWeak` fail spuriously, so the loop is BOUNDED (PD-12: `P.maxRetries`, the driver's
- * `MAX_RETRIES`; contention is per vertex, not global) and a lane that exhausts it sets `flags[1]`
+ * `MAX_RETRIES`) -- on SPURIOUS failures only (`old_value == cur`). A failure that returns another value lost to
+ * another lane's successful exchange, which strictly lowered `dist[v]`; that happens at most once per edge into
+ * `v` per round, so those iterations are bounded by the in-degree and never counted (issue #470: counted, 32
+ * descending candidates in one 32-wide subgroup needed 31 attempts and exhausted 16). A lane that exhausts it sets `flags[1]`
  * (`retryExhausted`): the driver treats the round as changed and runs on, so the lost update is retried by the next
  * round, which examines every edge anyway; a bound hit in the decision round is E_VALIDATION, never a guess. A
  * successful exchange sets `flags[0]` (`changed`); the driver stops when a batch of rounds changed nothing, and a
@@ -26,9 +29,11 @@ fn relax(v: u32, nd: f32) {
         if (!(nd < bitcast<f32>(cur))) { break; }                     // no improvement; +Inf is greater than every finite nd
         let r = atomicCompareExchangeWeak(&dist[v], cur, bitcast<u32>(nd));
         if (r.exchanged) { atomicStore(&flags[0], 1u); break; }        // changed
-        cur = r.old_value;
-        tries = tries + 1u;
-        if (tries >= P.maxRetries) { atomicStore(&flags[1], 1u); break; }   // retryExhausted (PD-12)
+        if (r.old_value == cur) {                                      // a spurious failure: the only kind the bound counts
+            tries = tries + 1u;
+            if (tries >= P.maxRetries) { atomicStore(&flags[1], 1u); break; }   // retryExhausted (PD-12)
+        }
+        cur = r.old_value;                                             // else another lane's improvement won (issue #470)
     }
 }
 

@@ -203,6 +203,24 @@ export function layeredEdges(width: number, layers: number): EdgeSpec[] {
 }
 
 /**
+ * `layeredEdges(4, layers)` with a plain path of `layers` more vertices hanging off vertex 0: from vertex 0 the
+ * vertices at one depth have as few as 1 shortest path (the path) and as many as about 4^depth (the layers). Past
+ * about 115 layers that spread is wider than one f32 exponent range, the case the betweenness kernels must report
+ * instead of rescaling.
+ * @param layers - groups of the layered part, and vertices of the path
+ * @returns the edges
+ */
+export function wideAndNarrowEdges(layers: number): EdgeSpec[] {
+    const edges = layeredEdges(4, layers);
+    const first = 4 * layers;
+    edges.push([0, first]);
+    for (let i = 0; i + 1 < layers; i++) {
+        edges.push([first + i, first + i + 1]);
+    }
+    return edges;
+}
+
+/**
  * The graph-format benchmark xorshift32 generator (harness.ts makeRandom; bitwise on the generator state only,
  * never on an index). Used by every random generator here: the gpu-upload.test.ts LCG (state * 1103515245 + 12345
  * mod 2^32) has low bits of tiny period, so when n is a power of two `state % n` depends on those low bits alone

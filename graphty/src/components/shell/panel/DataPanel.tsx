@@ -239,7 +239,8 @@ export interface LoadedDataSummary {
 }
 
 /**
- * One fact about the loaded data, drawn as an RT-6 row.
+ * One fact about the loaded data, drawn as a stat row (`DataRow` with `stat`): the name
+ * as the label, the value as the emphasized reading, the pair one named group.
  *
  * Built by the caller and handed in through {@link DataPanelProps.loadedFacts}.
  * @public
@@ -249,8 +250,8 @@ export interface LoadedDataFact {
     readonly id: string;
     /** What the fact is called. */
     readonly name: string;
-    /** What it reads. */
-    readonly value: string;
+    /** What it reads. Pass a count as a raw number: the row formats it for the reader's locale. */
+    readonly value: string | number;
     /** The complete reading, where the drawing is shorter than the meaning. */
     readonly title?: string;
 }
@@ -511,7 +512,7 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
 
                     {loadedFacts.map((fact) => (
                         <Box key={fact.id} title={fact.title}>
-                            <DataRow name={fact.name} value={fact.value} />
+                            <DataRow stat name={fact.name} value={fact.value} />
                         </Box>
                     ))}
                 </PanelSection>

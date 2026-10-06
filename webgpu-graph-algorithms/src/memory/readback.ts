@@ -16,6 +16,13 @@
  * fan-out, which is where the macOS host lane lost its vitest worker (CLAUDE.md "Verified Platform Facts"). The
  * ring therefore tracks every map on its slots (mapPending) and defers an unmap, a return or a destroy that
  * arrives during one to the moment the map settles.
+ *
+ * webgpu 0.6.1 unmaps a device's buffers itself when the device is destroyed (dawn-gpu/node-webgpu 402a7ea1).
+ * That makes the unmap half of destroyAll() redundant on 0.6.x -- but only the unmap half. The deferral above
+ * guards the double-settle of a PENDING map, which is a different defect and which no commit between 0.4.0 and
+ * 0.6.1 claims to fix, so both stay until the suite has actually run on 0.6.x and the double-settle is shown to
+ * be gone. Deleting the deferral on the strength of the release note alone would remove the only thing standing
+ * between a pending map and a SIGSEGV. See docs/decisions/G-ENV.md.
  */
 
 import { DEFAULT_STAGING_SLOTS, OOM_SCOPE_THRESHOLD_BYTES } from "../constants.js";

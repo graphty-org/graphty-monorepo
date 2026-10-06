@@ -1,0 +1,11 @@
+format-version: 1.4
+ontology: test
+date: 17:04:2012 15:38
+
+[Term]
+id: X:1
+creation_date: 2009-04-13T01:32:36Z
+
+[Term]
+id: X:2
+creation_date: 2009-04-13

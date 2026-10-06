@@ -1,0 +1,87 @@
+name: Cytoscape conformance oracle
+
+# Regenerates the Cytoscape-derived expectations of graph-io's XGMML and .cys conformance
+# fixtures by asking Cytoscape Desktop 3.10.5 itself, through CyREST, what it shows for each file
+# (design/graph-io/cytoscape-and-obo/design.md section 6.3). Cytoscape needs Java 17 and an X
+# display, which the development machines do not have, so this runs only when dispatched by hand,
+# under xvfb-run on a GitHub runner. It never commits: it uploads the regenerated manifests as an
+# artifact, which a developer reviews (marking oracleDisagrees where the specification wins) and
+# commits. CI never needs Java: the expectations are committed.
+
+on:
+    workflow_dispatch:
+        inputs:
+            formats:
+                description: "The fixture formats to regenerate"
+                default: "xgmml cys"
+                required: true
+            include-spec:
+                description: "Also replace the hand-written (oracle: spec) expectations"
+                type: boolean
+                default: true
+
+permissions:
+    contents: read
+
+concurrency:
+    group: conformance-cytoscape-oracle
+    cancel-in-progress: true
+
+jobs:
+    oracle:
+        name: Cytoscape 3.10.5 oracle
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        env:
+            CYTOSCAPE_VERSION: "3.10.5"
+            CYREST_PORT: "1234"
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Java 17 (Cytoscape's Linux tarball bundles none)
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: "17"
+
+            - name: Download Cytoscape
+              run: |
+                  curl -fsSL -o "$RUNNER_TEMP/cytoscape.tar.gz" \
+                      "https://github.com/cytoscape/cytoscape/releases/download/${CYTOSCAPE_VERSION}/cytoscape-unix-${CYTOSCAPE_VERSION}.tar.gz"
+                  tar -xzf "$RUNNER_TEMP/cytoscape.tar.gz" -C "$RUNNER_TEMP"
+
+            - name: Start Cytoscape headless with CyREST
+              run: |
+                  xvfb-run -a "$RUNNER_TEMP/cytoscape-unix-${CYTOSCAPE_VERSION}/cytoscape.sh" -R "$CYREST_PORT" \
+                      > "$RUNNER_TEMP/cytoscape.log" 2>&1 &
+                  for _ in $(seq 1 120); do
+                      if curl -fs "http://localhost:${CYREST_PORT}/v1" > /dev/null; then
+                          exit 0
+                      fi
+                      sleep 5
+                  done
+                  echo "CyREST did not answer within 10 minutes" >&2
+                  tail -100 "$RUNNER_TEMP/cytoscape.log" >&2
+                  exit 1
+
+            - name: Regenerate the expectations
+              working-directory: graph-io
+              env:
+                  CYREST_URL: http://localhost:${{ env.CYREST_PORT }}
+                  FORMATS: ${{ inputs.formats }}
+                  INCLUDE_SPEC: ${{ inputs.include-spec }}
+              run: |
+                  flag=""
+                  if [ "$INCLUDE_SPEC" = "true" ]; then flag="--include-spec"; fi
+                  # shellcheck disable=SC2086 # FORMATS is a list of words
+                  python3 test/conformance/tools/oracle.py $flag $FORMATS
+                  git diff --stat -- test/conformance/fixtures
+
+            - name: Upload the regenerated manifests and the Cytoscape log
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: cytoscape-oracle-manifests
+                  path: |
+                      graph-io/test/conformance/fixtures/*/manifest.json
+                      ${{ runner.temp }}/cytoscape.log

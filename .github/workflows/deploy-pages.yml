@@ -1,12 +1,24 @@
 name: Deploy to GitHub Pages
 
+# graphty.app (the app, the docs, the Storybooks and the hosted data: one Pages site) deploys after every green
+# CI run on master, not with a release: the app is private, so its cadence affects no consumer
+# (design/ci/ci-cd-plan.md, section 10). The site is assembled from exactly that run's artifacts. To redeploy,
+# re-run this workflow's run for that commit.
 on:
     workflow_run:
         workflows: ["CI"]
-        types: [completed]
-        branches: [master]
-    # Manual trigger not supported - artifacts only available from CI workflow
-    # To redeploy, re-run the CI workflow on master instead
+        types:
+            - completed
+        branches:
+            - master
+
+# One deploy at a time; a newer pending deploy replaces an older pending one.
+concurrency:
+    group: deploy-pages
+
+env:
+    RUN_ID: ${{ github.event.workflow_run.id }}
+    SHA: ${{ github.event.workflow_run.head_sha }}
 
 permissions:
     contents: read
@@ -14,17 +26,43 @@ permissions:
     id-token: write
     actions: read # Required to download artifacts from other workflow runs
 
-concurrency:
-    group: "pages"
-    cancel-in-progress: false
-
 jobs:
+    # Only a green CI run of a push to master deploys. The live page's build stamp says which commit it
+    # serves; when it is this one (a re-run), or a newer one (CI runs finish out of order), there is
+    # nothing to do.
+    check:
+        name: Is this commit live already
+        if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+        runs-on: ubuntu-24.04
+        outputs:
+            deploy: ${{ steps.live.outputs.deploy }}
+        steps:
+            - id: live
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  live=$(curl -fsSL --max-time 30 https://graphty.app/ | grep -o 'name="graphty-build" content="[^"]*"' || true)
+                  echo "live stamp: ${live:-none}"
+                  live_sha=$(sed -n 's/.*commit=\([0-9a-f]*\) .*/\1/p' <<< "$live")
+                  case "$live" in
+                      *"commit=${SHA} "*) echo "::notice::${SHA} is live already"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+                  esac
+                  if [ -n "$live_sha" ] && [ "$(gh api "repos/${GITHUB_REPOSITORY}/compare/${live_sha}...${SHA}" --jq .status 2>/dev/null)" = behind ]; then
+                      echo "::notice::the live ${live_sha} is newer than ${SHA}"; echo "deploy=false" >> "$GITHUB_OUTPUT"; exit 0
+                  fi
+                  echo "deploy=true" >> "$GITHUB_OUTPUT"
+
     build:
         name: Assemble Site
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        needs: check
+        if: ${{ needs.check.outputs.deploy == 'true' }}
         runs-on: ubuntu-24.04
         steps:
+            # The deployed commit, with history and tags, so the stamp below can name the app's release.
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ env.SHA }}
+                  fetch-depth: 0
 
             # Download all artifacts from CI workflow
             - name: Download graphty app build
@@ -32,7 +70,7 @@ jobs:
               with:
                   name: build-graphty
                   path: ./graphty/dist/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graphty-element Storybook
@@ -40,7 +78,7 @@ jobs:
               with:
                   name: build-storybook-element
                   path: ./graphty-element/storybook-static/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download graphty Storybook
@@ -48,7 +86,7 @@ jobs:
               with:
                   name: build-storybook-app
                   path: ./graphty/storybook-static/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download compact-mantine Storybook
@@ -56,7 +94,7 @@ jobs:
               with:
                   name: build-storybook-compact-mantine
                   path: ./compact-mantine/storybook-static/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download algorithms Storybook
@@ -64,7 +102,7 @@ jobs:
               with:
                   name: build-storybook-algorithms
                   path: ./algorithms/storybook-static/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download layout Storybook
@@ -72,7 +110,7 @@ jobs:
               with:
                   name: build-storybook-layout
                   path: ./layout/storybook-static/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download unified docs
@@ -80,7 +118,7 @@ jobs:
               with:
                   name: build-docs
                   path: ./docs/.vitepress/dist/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download algorithms gh-pages
@@ -88,7 +126,7 @@ jobs:
               with:
                   name: build-ghpages-algorithms
                   path: ./algorithms/gh-pages/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Download layout gh-pages
@@ -96,19 +134,33 @@ jobs:
               with:
                   name: build-ghpages-layout
                   path: ./layout/gh-pages/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
-            # graph-samples' hosted datasets. scripts/build-hosted.mjs needs only Node and graph-format's
-            # build; it records every source's URL and SHA-256, so its hash keys the download cache
-            # and an older cache still serves the sources that did not change.
+            # graph-samples' hosted datasets. scripts/build-hosted.mjs needs only Node and the builds of
+            # graph-format and graph-io (the Cytoscape and ontology datasets are read by graph-io's own
+            # importers); it records every source's URL and SHA-256, so its hash keys the download
+            # cache and an older cache still serves the sources that did not change.
             - name: Download graph-format build
               uses: actions/download-artifact@v4
               with:
                   name: build-graph-format
                   path: ./graph-format/dist/
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ env.RUN_ID }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Download graph-io build
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-graph-io
+                  path: ./graph-io/dist/
+                  run-id: ${{ env.RUN_ID }}
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+
+            # Nothing is installed here, so graph-io's import of @graphty/graph-format is pointed at
+            # the checkout's graph-format, the way the workspace links it
+            - name: Link graph-format for graph-io
+              run: mkdir -p graph-io/node_modules/@graphty && ln -s ../../../graph-format graph-io/node_modules/@graphty/graph-format
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -119,7 +171,7 @@ jobs:
               uses: actions/cache@v4
               with:
                   path: tmp/graph-samples-sources
-                  key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs') }}
+                  key: graph-samples-sources-${{ hashFiles('graph-samples/scripts/build-hosted.mjs', 'graph-samples/scripts/graph-io-source.mjs') }}
                   restore-keys: graph-samples-sources-
 
             # Fails the deploy rather than publishing a site without the data fetchDataset() loads
@@ -129,9 +181,15 @@ jobs:
             # Assemble the unified GitHub Pages site. The URL layout (what goes where, and the
             # /storybook/element/ -> /storybook/graphty-element/ redirects) lives in the script, which
             # CI's link check also runs, so every link to graphty.app is checked against this site.
+            # The build stamp: the commit, and the app's release tag that holds it. nx tags the version
+            # commit, a child of the released commit, so the oldest graphty@ tag containing the commit is
+            # its release; when the release had nothing to version for the app, there is no such tag yet
+            # and the newest one before it is the app's current release.
             - name: Assemble GitHub Pages site
               run: |
-                  ./tools/assemble-pages-site.sh ./public
+                  tag=$(git tag --contains "$SHA" --list 'graphty@[0-9]*' --sort=version:refname | head -1)
+                  [ -n "$tag" ] || tag=$(git describe --tags --abbrev=0 --match 'graphty@[0-9]*' "$SHA" || echo none)
+                  GRAPHTY_BUILD="commit=${SHA} release=${tag}" ./tools/assemble-pages-site.sh ./public
                   echo ""
                   echo "Site structure:"
                   find ./public -maxdepth 3 -name "index.html" | sort

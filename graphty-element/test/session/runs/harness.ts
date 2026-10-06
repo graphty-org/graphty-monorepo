@@ -261,6 +261,7 @@ export function stubResult(runId: RunId): RunResult {
         ranking: () => [],
         top: () => ({ entries: [], leftOut: null, reason: null }),
         histogram: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
+        groupSizes: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         reading: () => "A stub result.",
         band: () => undefined,

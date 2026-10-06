@@ -2,8 +2,8 @@
 /**
  * diff-stories.mjs -- render the same stories from two built Storybooks and compare them.
  *
- * Serves each storybook-static directory on a free local port, renders every named story at one
- * viewport in headless Chromium (SwiftShader WebGL, as in CI), and saves
+ * Serves each storybook-static directory on a free local port with visual-review's capture
+ * server, renders every named story at one viewport in headless Chromium (SwiftShader WebGL, as in CI), and saves
  * <out>/<story>.baseline.png (from the first build) and <out>/<story>.head.png (from the second).
  * For each story it prints JSON: whether the PNG bytes are identical, and, for graphty-element
  * stories, the camera and node positions from each side, so a pixel difference can be attributed
@@ -20,12 +20,13 @@
  *     --settle         how long to let each story render before the screenshot (default 4500)
  */
 
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
-import { createServer } from "node:http";
-import { extname, join, normalize } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
+
+import { serve } from "../visual-review/capture/capture.mjs";
 
 /* global document -- read only inside page.evaluate, which runs in the browser */
 
@@ -49,67 +50,19 @@ if (!dirA || !dirB || ids.length === 0 || !(width > 0 && height > 0) || !(settle
 const OUT = values.out;
 await mkdir(OUT, { recursive: true });
 
-const TYPES = {
-    ".html": "text/html",
-    ".js": "text/javascript",
-    ".mjs": "text/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".svg": "image/svg+xml",
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".woff2": "font/woff2",
-    ".woff": "font/woff",
-    ".ttf": "font/ttf",
-    ".map": "application/json",
-    ".wasm": "application/wasm",
-    ".csv": "text/csv",
-    ".txt": "text/plain",
-    ".ico": "image/x-icon",
-};
-
-/**
- * Serve a directory on 127.0.0.1 at a port the OS picks.
- * @param dir the directory to serve
- * @returns the server and the port it listens on
- */
-function serve(dir) {
-    const server = createServer(async (req, res) => {
-        try {
-            let p = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");
-            if (p === "/") {
-                p = "/index.html";
-            }
-            const f = join(dir, p);
-            if ((await stat(f)).isDirectory()) {
-                throw new Error("directory");
-            }
-            res.writeHead(200, {
-                "Content-Type": TYPES[extname(f)] ?? "application/octet-stream",
-                "Access-Control-Allow-Origin": "*",
-            });
-            res.end(await readFile(f));
-        } catch {
-            res.writeHead(404);
-            res.end("not found");
-        }
-    });
-    return new Promise((r) => server.listen(0, "127.0.0.1", () => r([server, server.address().port])));
-}
-
-const [serverA, portA] = await serve(dirA);
-const [serverB, portB] = await serve(dirB);
+const [serverA, baseA] = await serve(dirA);
+const [serverB, baseB] = await serve(dirB);
 const browser = await chromium.launch({
     args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
 });
 
-async function render(port, id) {
+async function render(base, id) {
     const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
     const errs = [];
     page.on("pageerror", (e) => errs.push(e.message.split("\n")[0]));
     await page
-        .goto(`http://127.0.0.1:${port}/iframe.html?id=${encodeURIComponent(id)}&viewMode=story`, {
+        .goto(`${base}iframe.html?id=${encodeURIComponent(id)}&viewMode=story`, {
             waitUntil: "load",
             timeout: 30000,
         })
@@ -153,8 +106,8 @@ async function render(port, id) {
 }
 
 for (const id of ids) {
-    const a = await render(portA, id);
-    const b = await render(portB, id);
+    const a = await render(baseA, id);
+    const b = await render(baseB, id);
     const safe = id.replace(/[^a-z0-9]+/gi, "-");
     await writeFile(join(OUT, `${safe}.baseline.png`), a.png);
     await writeFile(join(OUT, `${safe}.head.png`), b.png);

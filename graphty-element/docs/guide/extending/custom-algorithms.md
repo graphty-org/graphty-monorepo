@@ -217,7 +217,7 @@ counts the passes, so the cost estimate grows with it:
 ```ts
 import { defineAlgorithm } from "@graphty/graphty-element/extend";
 
-// PageRank: on every pass, each node's rank flows to its neighbours, shared out by its degree.
+// PageRank: on every pass, each node's rank flows to its neighbors, shared out by its degree.
 defineAlgorithm({
     id: "acme-rank",
     options: { passes: { type: "integer", default: 30, min: 1, max: 200 } },
@@ -243,6 +243,53 @@ defineAlgorithm({
 `converged(done, iterations)`, which records how an iterative method ended. A definition that
 reads edge direction declares `direction: "directed"`; without it the directed accessors
 (`outEdges()` and the rest) throw rather than guess.
+
+### Naming its result
+
+A run you start without `as` is named for you, and the name is the path a style layer reads. With
+nothing else declared it is your id with underscores for hyphens: an unnamed run of
+`acme-confidence-degree` publishes at `results.acme_confidence_degree.value`.
+
+When a setting makes two runs mean different things, `suggestedName` names the result after it.
+It receives the run's options, with the defaults filled in, and returns an `id` -- lower-case
+letters, digits and underscores, starting with a letter -- and a `label`, the words the layer list
+and the legend show. Return `undefined` to keep the plain name:
+
+```ts
+import { defineAlgorithm } from "@graphty/graphty-element/extend";
+
+// Reach: how many other nodes are within `hops` steps. The result is named after the hop count.
+defineAlgorithm({
+    id: "acme-reach",
+    options: { hops: { type: "integer", default: 2, min: 1, max: 10 } },
+    suggestedName: (options) =>
+        options.hops === 2 ? undefined : { id: `acme_reach_${options.hops}`, label: `Reach in ${options.hops} hops` },
+    node: (node, { options }) => {
+        const seen = new Set([node.id]);
+        let frontier = [node];
+        for (let hop = 0; hop < options.hops; hop++) {
+            frontier = frontier.flatMap((next) => next.neighbors()).filter((next) => !seen.has(next.id));
+            frontier.forEach((next) => seen.add(next.id));
+        }
+        return seen.size - 1;
+    },
+});
+```
+
+```ts
+element.run("acme-reach"); // results.acme_reach.value, labelled "Acme reach"
+element.run("acme-reach", { hops: 3 }); // results.acme_reach_3.value, labelled "Reach in 3 hops"
+```
+
+How the element uses the name:
+
+- **The same run again is the same result.** Starting `acme-reach` with `hops: 3` a second time
+  finds `acme_reach_3` and re-runs it if the graph changed, rather than making a second result.
+  A setting the name leaves out re-runs the same result in place, and its layers repaint.
+- **A different run under a name that is taken gets `_2`, `_3`, ...** -- the same settings over
+  another scope, say: `acme_reach_3_2`.
+- **A name passed with `as` always wins**, and an id, once given, never changes.
+- **A suggested id that breaks the rule is refused** with `E_BAD_COMMAND` when the run starts.
 
 ### When you need more
 
@@ -391,6 +438,11 @@ export class TieStrength extends DeclaredAlgorithm<TieStrengthOptions> {
 DeclaredAlgorithm.register(TieStrength);
 ```
 
+A class names its result the way a definition does, with an optional
+`static suggestedName = (options) => ({ id, label }) | undefined` beside `static version` (see
+"Naming its result"). Left out, an unnamed run of this class publishes at
+`results.tie_strength.value`.
+
 `compute` RETURNS what it measured. It never writes a result anywhere, and it computes no ranking,
 no percentile and no statistics -- those are the element's to derive, and deriving them per
 algorithm is how two algorithms come to disagree about what a percentile is.
@@ -467,7 +519,7 @@ pair `A -> B`, `B -> A` becomes one edge, which keeps the lower row's weight). T
   many as they merged. Without it the weights are the ones the graph was loaded with, whose meaning
   the run does not state.
 
-In a snapshot the neighbours of row `r` are `colIdx[rowPtr[r] .. rowPtr[r + 1])`; `edgeList()`
+In a snapshot the neighbors of row `r` are `colIdx[rowPtr[r] .. rowPtr[r + 1])`; `edgeList()`
 gives `src`, `dst` and `weights` per edge; `ids.idOf(row)` is a node's id; and `weightedDegree()`,
 `degree()` and the other members of graph-format 1.x's `GraphSnapshot` are there to use. An
 undirected snapshot stores each edge as two arcs, one in each endpoint's row. Take `GraphSnapshot`,
@@ -622,7 +674,8 @@ row saying `false` or `0` for an element you did not measure turns "not in my re
 instruction -- and, because layers stack, it erases whatever the layers beneath it painted.
 
 Do not ship styling with your algorithm. There is no `suggestedStyles` field, and dimming or
-greying what your algorithm did not select is a reader's choice, not yours.
+greying what your algorithm did not select is a reader's choice, not yours. What an algorithm may
+suggest is a NAME for its result, through `suggestedName` (see "Naming its result").
 
 ### Deliberate limits
 

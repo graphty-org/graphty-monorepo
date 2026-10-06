@@ -21,14 +21,14 @@ npm install @graphty/algorithms @graphty/graph-format
 
 ## Quick Start
 
-Build a snapshot with `GraphBuilder`, run an algorithm on it, and read the result by node index. `graph.ids` maps
-between your node ids and the indices.
+Build a snapshot with `GraphBuilder`, run an algorithm on it, and read the result. Results are typed arrays indexed by
+node; `graph.ids` maps between your node ids and the indices, and the helpers below do it for you.
 
 <!-- doc-check -->
 
 ```typescript
 import { GraphBuilder } from "@graphty/graph-format";
-import { betweennessCentrality, dijkstra, louvain } from "@graphty/algorithms";
+import { betweennessCentrality, dijkstra, groupsById, louvain, pathIds, scoresById } from "@graphty/algorithms";
 
 const builder = new GraphBuilder({ directed: false });
 builder.addEdge("alice", "bob", 1);
@@ -37,26 +37,26 @@ builder.addEdge("alice", "carol", 4);
 builder.addEdge("carol", "dave", 1);
 const graph = builder.freeze();
 
-const alice = graph.ids.requireIndex("alice");
-const dave = graph.ids.requireIndex("dave");
+// Shortest paths from one node: distances and the path to any other. A node is its index or { id }.
+const paths = dijkstra(graph, { id: "alice" });
+console.log(paths.dist[graph.ids.requireIndex("dave")]); // 4
+console.log(pathIds(paths.pathTo({ id: "dave" }), graph)); // ["alice", "bob", "carol", "dave"]
 
-// Shortest paths from one node: distances and the path to any other
-const paths = dijkstra(graph, alice);
-console.log(paths.dist[dave]); // 4
-console.log(Array.from(paths.pathTo(dave), (i) => graph.ids.idOf(i))); // ["alice", "bob", "carol", "dave"]
-
-// A score per node, keyed by id again with toMap
-const betweenness = graph.ids.toMap(betweennessCentrality(graph).scores);
+// A score per node, keyed by id
+const betweenness = scoresById(betweennessCentrality(graph), graph);
 console.log(betweenness.get("carol")); // 2
 
-// A community label per node
-const communities = louvain(graph);
-console.log(communities.count > 0); // true
+// A partition, as groups of ids
+const communities = groupsById(louvain(graph), graph);
+console.log(communities.length > 0); // true
 ```
 
-Every function takes the snapshot first and an options object last; a required input such as a source node index sits
-between them (`dijkstra(graph, source, options?)`). The [guide](https://graphty.app/docs/algorithms/guide/getting-started)
-covers each family with runnable examples.
+Every function takes the snapshot first and an options object last; a required input such as a source node sits
+between them (`dijkstra(graph, source, options?)`). Wherever a function takes a node it accepts its index or `{ id }`
+(the id form is explicit because ids can be numbers), and wherever it takes a set of nodes (sampled `sources`,
+`candidates`, matching sides) it accepts a `NodeSet`: an array of indices, `{ mask }` or `{ ids }`. Matching's `left`
+and `right` still read a bare `Uint32Array` as a node mask, as they always have. The
+[guide](https://graphty.app/docs/algorithms/guide/getting-started) covers each family with runnable examples.
 
 ## Algorithms
 
@@ -112,6 +112,34 @@ A test runs every algorithm to check its entry, so the catalog changes when an a
 [`@graphty/webgpu-graph-algorithms`](https://www.npmjs.com/package/@graphty/webgpu-graph-algorithms) where it
 implements them, and on the CPU otherwise: `await accelerated(gpu).pageRank(graph)`. Without an accelerator
 (`accelerated(null)`) every call runs on the CPU. An accelerator's failure is thrown, never quietly retried on the CPU.
+
+## Errors
+
+Every error an algorithm throws on purpose carries a stable `code` (the `AlgorithmErrorCode` type lists them), so a
+caller can react to the case without matching message text:
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { connectedComponents, weaklyConnectedComponents } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: true });
+builder.addEdge("a", "b");
+const graph = builder.freeze();
+
+try {
+    connectedComponents(graph);
+} catch (error) {
+    // E_NEEDS_UNDIRECTED: the directed graph needs the weakly connected variant
+    const code = (error as { code?: string }).code;
+    console.log(code); // E_NEEDS_UNDIRECTED
+    console.log(weaklyConnectedComponents(graph).count); // 1
+}
+```
+
+`E_NEEDS_UNDIRECTED` and `E_NEEDS_DIRECTED` (the wrong kind of graph), `E_BAD_OPTION`, `E_BAD_NODE` (a node index
+out of range) and `E_BAD_WEIGHT` cover most of them.
 
 ## Upgrading From 2.x
 

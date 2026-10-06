@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="1" label="Network" directed="1" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <node id="1" label="1"><att name="name" value="1" type="string" cy:type="String"/></node>
+  <node id="2" label="2"><att name="name" value="2" type="string" cy:type="String"/></node>
+  <node id="3" label="3"><att name="name" value="3" type="string" cy:type="String"/></node>
+  <node id="4" label="4"><att name="name" value="4" type="string" cy:type="String"/></node>
+  <node id="5" label="5"><att name="name" value="5" type="string" cy:type="String"/></node>
+  <node id="6" label="6"><att name="name" value="6" type="string" cy:type="String"/></node>
+  <node id="7" label="7"><att name="name" value="7" type="string" cy:type="String"/></node>
+  <node id="8" label="8"><att name="name" value="8" type="string" cy:type="String"/></node>
+  <node id="9" label="9"><att name="name" value="9" type="string" cy:type="String"/></node>
+  <node id="10" label="10"><att name="name" value="10" type="string" cy:type="String"/></node>
+  <node id="11" label="11"><att name="name" value="11" type="string" cy:type="String"/></node>
+  <node id="12" label="12"><att name="name" value="12" type="string" cy:type="String"/></node>
+  <node id="13" label="13"><att name="name" value="13" type="string" cy:type="String"/></node>
+  <node id="14" label="14"><att name="name" value="14" type="string" cy:type="String"/></node>
+  <node id="15" label="15"><att name="name" value="15" type="string" cy:type="String"/></node>
+  <node id="16" label="16"><att name="name" value="16" type="string" cy:type="String"/></node>
+  <node id="17" label="17"><att name="name" value="17" type="string" cy:type="String"/></node>
+  <node id="18" label="18"><att name="name" value="18" type="string" cy:type="String"/></node>
+  <node id="19" label="19"><att name="name" value="19" type="string" cy:type="String"/></node>
+  <node id="20" label="20"><att name="name" value="20" type="string" cy:type="String"/></node>
+  <node id="21" label="21"><att name="name" value="21" type="string" cy:type="String"/></node>
+  <node id="22" label="22"><att name="name" value="22" type="string" cy:type="String"/></node>
+  <node id="23" label="23"><att name="name" value="23" type="string" cy:type="String"/></node>
+  <node id="24" label="24"><att name="name" value="24" type="string" cy:type="String"/></node>
+  <node id="25" label="25"><att name="name" value="25" type="string" cy:type="String"/></node>
+  <node id="26" label="26"><att name="name" value="26" type="string" cy:type="String"/></node>
+  <node id="27" label="27"><att name="name" value="27" type="string" cy:type="String"/></node>
+  <node id="28" label="28"><att name="name" value="28" type="string" cy:type="String"/></node>
+  <node id="29" label="29"><att name="name" value="29" type="string" cy:type="String"/></node>
+  <node id="30" label="30"><att name="name" value="30" type="string" cy:type="String"/></node>
+  <node id="31" label="31"><att name="name" value="31" type="string" cy:type="String"/></node>
+  <node id="32" label="32"><att name="name" value="32" type="string" cy:type="String"/></node>
+  <node id="33" label="33"><att name="name" value="33" type="string" cy:type="String"/></node>
+  <node id="34" label="34"><att name="name" value="34" type="string" cy:type="String"/></node>
+  <edge id="e0" label="2 (interacts with) 1" source="2" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e1" label="3 (interacts with) 1" source="3" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e2" label="3 (interacts with) 2" source="3" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e3" label="4 (interacts with) 1" source="4" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e4" label="4 (interacts with) 2" source="4" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e5" label="4 (interacts with) 3" source="4" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e6" label="5 (interacts with) 1" source="5" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e7" label="6 (interacts with) 1" source="6" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e8" label="7 (interacts with) 1" source="7" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e9" label="7 (interacts with) 5" source="7" target="5" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e10" label="7 (interacts with) 6" source="7" target="6" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e11" label="8 (interacts with) 1" source="8" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e12" label="8 (interacts with) 2" source="8" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e13" label="8 (interacts with) 3" source="8" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e14" label="8 (interacts with) 4" source="8" target="4" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e15" label="9 (interacts with) 1" source="9" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e16" label="9 (interacts with) 3" source="9" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e17" label="10 (interacts with) 3" source="10" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e18" label="11 (interacts with) 1" source="11" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e19" label="11 (interacts with) 5" source="11" target="5" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e20" label="11 (interacts with) 6" source="11" target="6" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e21" label="12 (interacts with) 1" source="12" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e22" label="13 (interacts with) 1" source="13" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e23" label="13 (interacts with) 4" source="13" target="4" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e24" label="14 (interacts with) 1" source="14" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e25" label="14 (interacts with) 2" source="14" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e26" label="14 (interacts with) 3" source="14" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e27" label="14 (interacts with) 4" source="14" target="4" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e28" label="17 (interacts with) 6" source="17" target="6" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e29" label="17 (interacts with) 7" source="17" target="7" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e30" label="18 (interacts with) 1" source="18" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e31" label="18 (interacts with) 2" source="18" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e32" label="20 (interacts with) 1" source="20" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e33" label="20 (interacts with) 2" source="20" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e34" label="22 (interacts with) 1" source="22" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e35" label="22 (interacts with) 2" source="22" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e36" label="26 (interacts with) 24" source="26" target="24" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e37" label="26 (interacts with) 25" source="26" target="25" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e38" label="28 (interacts with) 3" source="28" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e39" label="28 (interacts with) 24" source="28" target="24" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e40" label="28 (interacts with) 25" source="28" target="25" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e41" label="29 (interacts with) 3" source="29" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e42" label="30 (interacts with) 24" source="30" target="24" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e43" label="30 (interacts with) 27" source="30" target="27" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e44" label="31 (interacts with) 2" source="31" target="2" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e45" label="31 (interacts with) 9" source="31" target="9" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e46" label="32 (interacts with) 1" source="32" target="1" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e47" label="32 (interacts with) 25" source="32" target="25" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e48" label="32 (interacts with) 26" source="32" target="26" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e49" label="32 (interacts with) 29" source="32" target="29" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e50" label="33 (interacts with) 3" source="33" target="3" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e51" label="33 (interacts with) 9" source="33" target="9" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e52" label="33 (interacts with) 15" source="33" target="15" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e53" label="33 (interacts with) 16" source="33" target="16" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e54" label="33 (interacts with) 19" source="33" target="19" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e55" label="33 (interacts with) 21" source="33" target="21" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e56" label="33 (interacts with) 23" source="33" target="23" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e57" label="33 (interacts with) 24" source="33" target="24" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e58" label="33 (interacts with) 30" source="33" target="30" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e59" label="33 (interacts with) 31" source="33" target="31" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e60" label="33 (interacts with) 32" source="33" target="32" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e61" label="34 (interacts with) 9" source="34" target="9" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e62" label="34 (interacts with) 10" source="34" target="10" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e63" label="34 (interacts with) 14" source="34" target="14" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e64" label="34 (interacts with) 15" source="34" target="15" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e65" label="34 (interacts with) 16" source="34" target="16" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e66" label="34 (interacts with) 19" source="34" target="19" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e67" label="34 (interacts with) 20" source="34" target="20" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e68" label="34 (interacts with) 21" source="34" target="21" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e69" label="34 (interacts with) 23" source="34" target="23" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e70" label="34 (interacts with) 24" source="34" target="24" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e71" label="34 (interacts with) 27" source="34" target="27" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e72" label="34 (interacts with) 28" source="34" target="28" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e73" label="34 (interacts with) 29" source="34" target="29" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e74" label="34 (interacts with) 30" source="34" target="30" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e75" label="34 (interacts with) 31" source="34" target="31" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e76" label="34 (interacts with) 32" source="34" target="32" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+  <edge id="e77" label="34 (interacts with) 33" source="34" target="33" cy:directed="0"><att name="interaction" value="interacts with" type="string" cy:type="String"/></edge>
+</graph>

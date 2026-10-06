@@ -1,6 +1,6 @@
 import type { F32, F64, GraphSnapshot, NumericVector } from "@graphty/graph-format";
 
-import { ConvergenceError } from "../errors.js";
+import { ConvergenceError, withCode } from "../errors.js";
 
 /** Options of the index-based eigenvector centrality, matching the legacy `eigenvectorCentrality`. @public */
 export interface EigenvectorOptions {
@@ -53,8 +53,9 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
     const tol = o.tolerance ?? 1e-6;
     const start = o.startVector;
     if (start !== undefined && start.length !== n) {
-        throw new Error(
-            `eigenvectorCentrality: startVector has ${String(start.length)} entries for ${String(n)} nodes`,
+        throw withCode(
+            new Error(`eigenvectorCentrality: startVector has ${String(start.length)} entries for ${String(n)} nodes`),
+            "E_BAD_OPTION",
         );
     }
     let x = new Float64Array(n);

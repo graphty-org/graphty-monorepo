@@ -1,0 +1,81 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Components/Color/Overview" />
+
+# Color
+
+Four components cover color in a dense panel: picking one color, picking the picker
+alone, editing a gradient, and drawing a color or size mapping. Every one of them fits
+the 240px panel grid, follows the light and dark schemes, and takes its names from
+`LabelsProvider`.
+
+They share one picker. `ColorPickerPanel` is the saturation field, the hue and opacity
+sliders, the value row and the swatches; `CompactColorInput` opens it in a pop-out from its
+chit, and `GradientEditor` draws one under its gradient bar to edit the selected stop. So a
+color is picked the same way wherever a reader meets it.
+
+## Reach for
+
+- **[CompactColorInput](?path=/docs/components-color-compactcolorinput--docs)** when a panel row
+  sets one color and its opacity. A 24px field with a chit, the hex value and the opacity; the
+  chit opens the picker. `undefined` means "nothing chosen": the default shows in italics and a
+  reset appears once the reader sets something.
+- **[ColorPickerPanel](?path=/docs/components-color-colorpickerpanel--docs)** when you need the
+  picker on a surface of your own -- your own pop-over, a toolbar, an inline editor -- or a
+  picker that offers solid or gradient paint (pass a `GradientEditor` as its `gradient`).
+- **[GradientEditor](?path=/docs/components-color-gradienteditor--docs)** when the value is a
+  multi-stop linear gradient: colors, positions and the angle.
+- **[RampRow](?path=/docs/components-color-ramprow--docs)** when a continuous value drives the
+  size or the color of something and the panel should show that mapping as a picture instead of
+  a sentence. It draws; it does not edit.
+
+Outside this group: a color chosen from a short fixed list of named options is a `Select`
+([Components/Inputs](?path=/docs/components-inputs-overview--docs)), and a series of values
+rather than two ends is a `HistogramRow` or `SparklineRow`
+([Components/Data display](?path=/docs/components-data-display-overview--docs)).
+
+## Which provider they need
+
+`CompactColorInput` opens a pop-out, so it needs a `PopoutManager` somewhere above it. Without
+one it throws on first render. `ColorPickerPanel`, `GradientEditor` and `RampRow` open nothing
+and need no provider. See [Components/Overlays](?path=/docs/components-overlays-overview--docs).
+
+```tsx
+import { CompactColorInput, PopoutManager } from "@graphty/compact-mantine";
+
+export function FillSetting() {
+    return (
+        <PopoutManager>
+            <CompactColorInput label="Fill" defaultColor="#5B8FF9" defaultOpacity={100} />
+        </PopoutManager>
+    );
+}
+```
+
+## One drag, one undo entry
+
+A drag reports its start, its changes and its end, so a whole gesture can be one entry in your
+history. `GradientEditor` calls `onChangeStart` once when a handle drag or a drag in its picker
+begins, `onChange` on every step and `onChangeEnd` once when it settles; `ColorPickerPanel`
+calls `onChange` live and `onChangeEnd` when a drag settles. A keyboard step or a typed value is
+a complete gesture of its own.
+
+```tsx
+<GradientEditor
+    stops={stops}
+    direction={angle}
+    onChangeStart={() => beginUndo()}
+    onChange={(nextStops, nextAngle) => {
+        setStops(nextStops);
+        setAngle(nextAngle);
+    }}
+    onChangeEnd={() => commitUndo()}
+/>
+```
+
+## A color value changes hands first
+
+Like every component in the package, a change hands you the value first and the event second,
+and the event is optional. `CompactColorInput` reports the color and the opacity separately
+(`onColorChange`, `onOpacityChange`) or together (`onChange(color, opacity)`); `undefined` in
+either means the reader took their override away.

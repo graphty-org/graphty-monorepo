@@ -127,12 +127,14 @@ describe("createAccelerator (contract 3.14; spec 3.3, 9.2, 9.3)", () => {
         const ctx = await acquire({ label: "accelerator-members" });
         const acc = createAccelerator(ctx);
         expect(acc.kind).toBe("webgpu");
+        expect(acc.harmonicCloseness).toBe(true);
         expect(acc.ctx).toBe(ctx);
         expect(Object.keys(acc).sort()).toEqual(
             [
                 "ctx",
                 "dispose",
                 "forceAtlas2",
+                "harmonicCloseness",
                 "kind",
                 "options",
                 "release",

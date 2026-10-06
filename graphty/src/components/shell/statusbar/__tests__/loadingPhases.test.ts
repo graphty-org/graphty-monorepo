@@ -5,7 +5,6 @@ import {
     CANCEL_LABEL,
     cancelledPhaseLabel,
     formatBytes,
-    formatPercent,
     formatSeconds,
     LOAD_CANCEL_DISABLED_TITLE,
     loadCompleteMessage,
@@ -110,12 +109,6 @@ describe("loadingPhases", () => {
         it("reads whole seconds at ten and above", () => {
             expect(formatSeconds(34)).toBe("34 s");
             expect(formatSeconds(12.4)).toBe("12 s");
-        });
-
-        it("writes whole percentages", () => {
-            expect(formatPercent(0.4)).toBe("40%");
-            expect(formatPercent(0.243)).toBe("24%");
-            expect(formatPercent(2)).toBe("100%");
         });
     });
 });

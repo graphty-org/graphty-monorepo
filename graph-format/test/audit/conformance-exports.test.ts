@@ -1,5 +1,5 @@
 /**
- * Audit (API conformance lens): the export list of src/index.ts must equal the 131 declarations of
+ * Audit (API conformance lens): the export list of src/index.ts must equal the 140 declarations of
  * design section 12.2, name for name and kind for kind. The design says the listing "is the shape
  * of dist/graph-format.d.ts: everything below is exported from src/index.ts and nothing else is".
  *
@@ -34,6 +34,7 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "fromBytes",
         "fromCsr",
         "fromEdgeArrays",
+        "fromElements",
         "fromRecords",
         "fromWire",
         "gatherArray",
@@ -54,6 +55,9 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "remapArray",
         "remapColumn",
         "renumberPartition",
+        "resolveNode",
+        "resolveNodeMask",
+        "resolveNodeSet",
         "scatterArray",
         "withComponents",
     ],
@@ -77,6 +81,8 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "DictColumn",
         "EdgeArraysInput",
         "EdgeListView",
+        "ElementAccessors",
+        "ElementsSnapshot",
         "F32Column",
         "F64Column",
         "FreezeOptions",
@@ -89,6 +95,7 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "I32Column",
         "JsonColumn",
         "ListColumn",
+        "NodeResolvable",
         "RecordsInput",
         "ResolvedBuilderOptions",
         "ReverseView",
@@ -144,6 +151,8 @@ const DESIGN_12_2: Readonly<Record<Kind, readonly string[]>> = {
         "NodeIdMapKind",
         "NodeIndex",
         "NodeMask",
+        "NodeRef",
+        "NodeSet",
         "NumericVector",
         "ScalarDtype",
         "TypedArrayData",
@@ -216,14 +225,14 @@ function barrelExports(): Map<string, Kind | "other"> {
 describe("design section 12.2: the export list of src/index.ts", () => {
     const expectedAll = KINDS.flatMap((kind) => DESIGN_12_2[kind]).sort();
 
-    it("transcribes 131 distinct names (4 constants, 5 classes, 29 functions, 52 interfaces, 41 type aliases)", () => {
-        expect(expectedAll).toHaveLength(131);
-        expect(new Set(expectedAll).size).toBe(131);
+    it("transcribes 140 distinct names (4 constants, 5 classes, 33 functions, 55 interfaces, 43 type aliases)", () => {
+        expect(expectedAll).toHaveLength(140);
+        expect(new Set(expectedAll).size).toBe(140);
         expect(DESIGN_12_2.const).toHaveLength(4);
         expect(DESIGN_12_2.class).toHaveLength(5);
-        expect(DESIGN_12_2.function).toHaveLength(29);
-        expect(DESIGN_12_2.interface).toHaveLength(52);
-        expect(DESIGN_12_2.type).toHaveLength(41);
+        expect(DESIGN_12_2.function).toHaveLength(33);
+        expect(DESIGN_12_2.interface).toHaveLength(55);
+        expect(DESIGN_12_2.type).toHaveLength(43);
     });
 
     it("exports at runtime exactly the value declarations (classes, functions, constants) and no default", () => {
@@ -238,7 +247,7 @@ describe("design section 12.2: the export list of src/index.ts", () => {
         }
     });
 
-    it("exports through the type checker exactly the 131 names of the listing, with the same kinds", () => {
+    it("exports through the type checker exactly the 140 names of the listing, with the same kinds", () => {
         const actual = barrelExports();
         expect([...actual.keys()].sort()).toEqual(expectedAll);
         for (const kind of KINDS) {

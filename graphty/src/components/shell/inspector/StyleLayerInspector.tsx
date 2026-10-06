@@ -16,8 +16,8 @@ import { ActionRow, ControlSection, DataRow } from "@graphty/compact-mantine";
 import type { Channel, LayerSpec } from "@graphty/graphty-element/session";
 import React from "react";
 
-import type { LayerItem } from "../../layout/LeftSidebar";
 import { StyleLayerPropertiesPanel } from "../../sidebar/panels/StyleLayerPropertiesPanel";
+import type { LayerItem } from "../panel/StyleLayerList";
 import { ComingTag } from "./ComingTag";
 import { INSPECTOR_SECTION_IDS } from "./inspectorConstants";
 import { useInspectorSection } from "./sections";

@@ -1,5 +1,7 @@
 import { defineConfig } from "vitest/config";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+
 export default defineConfig({
     test: {
         globals: true,
@@ -8,7 +10,7 @@ export default defineConfig({
         testTimeout: 30000,
         include: ["test/**/*.test.ts"],
         // verbose prints a line per test: useful locally, needless noise in CI.
-        reporters: process.env.CI ? ["default"] : ["verbose"],
+        reporters: [...(process.env.CI ? ["default"] : ["verbose"]), ...ciJunitReporter()],
         // see test/setup/yield-to-event-loop.ts -- without it one audit file holds the worker
         // past birpc's hardcoded 60 s RPC timeout on a CI runner and fails a green run
         setupFiles: ["./test/setup/yield-to-event-loop.ts"],

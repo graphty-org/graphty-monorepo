@@ -1,3 +1,33 @@
+## 1.3.5 (2026-10-05)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.4 (2026-10-05)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.3 (2026-10-04)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.2 (2026-10-04)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.1 (2026-10-04)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.0 (2026-10-03)
+
+### 🚀 Features
+
+- **graph-format:** accept and return element ids ([#728](https://github.com/graphty-org/graphty-monorepo/issues/728))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.2.6 (2026-10-02)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

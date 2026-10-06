@@ -31,6 +31,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import * as csv from "../../src/formats/csv/index.js";
 import * as cx from "../../src/formats/cx/index.js";
 import * as cx2 from "../../src/formats/cx2/index.js";
+import * as cys from "../../src/formats/cys/index.js";
 import * as dot from "../../src/formats/dot/index.js";
 import * as gexf from "../../src/formats/gexf/index.js";
 import * as gml from "../../src/formats/gml/index.js";
@@ -39,6 +40,7 @@ import * as json from "../../src/formats/json/index.js";
 import * as neo4j from "../../src/formats/neo4j/index.js";
 import * as obo from "../../src/formats/obo/index.js";
 import * as pajek from "../../src/formats/pajek/index.js";
+import * as xgmml from "../../src/formats/xgmml/index.js";
 import * as root from "../../src/index.js";
 import {
     type CommonExportOptions,
@@ -91,6 +93,8 @@ interface DesignGraphImporter<Opts = unknown> {
     readonly format: string;
     readonly extensions: readonly string[];
     readonly mimeTypes: readonly string[];
+    // added after the design: the format's own option names, for W_UNKNOWN_OPTION
+    readonly options?: readonly string[] | undefined;
     sniff?(head: Uint8Array): number;
     import(input: ImportInput, sink: GraphSink, options?: Opts & CommonImportOptions): Promise<ImportReport>;
     importAll?(
@@ -131,6 +135,10 @@ interface DesignCommonExportOptions {
 interface DesignGraphExporter<Opts = unknown> {
     readonly format: string;
     readonly capabilities: ExportCapabilities;
+    readonly extensions?: readonly string[] | undefined;
+    readonly mimeTypes?: readonly string[] | undefined;
+    // added after the design: the format's own option names, for W_UNKNOWN_OPTION
+    readonly options?: readonly string[] | undefined;
     check(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): readonly LossNote[];
     export(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): AsyncIterable<Uint8Array>;
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
@@ -224,7 +232,21 @@ describe("design 12.4: the io contract types are exported with the listed shapes
 
 // ============================================================ 8.2 / 13.1 surfaces
 
-const FORMATS = ["gexf", "graphml", "gml", "dot", "pajek", "csv", "json", "neo4j", "cx2"] as const;
+const FORMATS = [
+    "gexf",
+    "graphml",
+    "gml",
+    "dot",
+    "pajek",
+    "csv",
+    "json",
+    "neo4j",
+    "xgmml",
+    "cx2",
+    "obo",
+    "cx",
+    "cys",
+] as const;
 const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     gexf,
     graphml,
@@ -234,11 +256,12 @@ const SUBPATHS: Record<(typeof FORMATS)[number], Record<string, unknown>> = {
     csv,
     json,
     neo4j,
+    xgmml,
     cx2,
+    obo,
+    cx,
+    cys,
 };
-/** The formats graph-io reads but does not write: one importer, no exporter. */
-const READ_ONLY = ["cx", "obo"] as const;
-const READ_ONLY_SUBPATHS: Record<(typeof READ_ONLY)[number], Record<string, unknown>> = { cx, obo };
 
 describe("design 8.2 / 13.1: registry, sniff, children and the eight format surfaces", () => {
     it("exports the registry with importGraph / exportGraph / sniff and the children CSR helper", () => {
@@ -249,11 +272,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         expect(typeof root.createRegistry).toBe("function");
         expect(typeof root.childrenCsr).toBe("function");
         expect(root.registry.formats()).toEqual([...root.GRAPH_FORMATS]);
-        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set([...FORMATS, ...READ_ONLY]));
-        for (const format of READ_ONLY) {
-            expect(root.registry.importer(format).format).toBe(format);
-            expect(root.registry.hasExporter(format)).toBe(false);
-        }
+        expect(new Set(root.GRAPH_FORMATS)).toEqual(new Set(FORMATS));
     });
 
     it("registers one importer and one exporter per format, each typed by the 12.4 contract", () => {
@@ -280,7 +299,7 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
         const pkg = JSON.parse(readFileSync(join(here, "..", "..", "package.json"), "utf-8")) as {
             exports: Record<string, Record<string, string>>;
         };
-        expect(Object.keys(pkg.exports)).toEqual([".", ...[...FORMATS, ...READ_ONLY].map((f) => `./${f}`)]);
+        expect(Object.keys(pkg.exports).sort()).toEqual([".", ...FORMATS.map((f) => `./${f}`)].sort());
         for (const [key, entry] of Object.entries(pkg.exports)) {
             const name = key === "." ? "graph-io" : key.slice(2);
             expect(Object.keys(entry)[0], `${key}: types must come first`).toBe("types");
@@ -298,14 +317,6 @@ describe("design 8.2 / 13.1: registry, sniff, children and the eight format surf
             }
             expect(sub[`${format}Importer`]).toBe(root.registry.importer(format));
             expect(sub[`${format}Exporter`]).toBe(root.registry.exporter(format));
-        }
-        for (const format of READ_ONLY) {
-            const sub = READ_ONLY_SUBPATHS[format];
-            for (const [name, value] of Object.entries(sub)) {
-                expect((root as Record<string, unknown>)[name], `${format}: ${name}`).toBe(value);
-            }
-            expect(sub[`${format}Importer`]).toBe(root.registry.importer(format));
-            expect(root.registry.hasExporter(format)).toBe(false);
         }
     });
 });

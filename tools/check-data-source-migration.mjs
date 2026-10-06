@@ -17,30 +17,17 @@
  * Usage: node tools/check-data-source-migration.mjs              (exit 1 on a problem)
  *        node tools/check-data-source-migration.mjs --self-test  (prove each rule fires)
  */
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { scratchWorkspace } from "./scratch-workspace.mjs";
+import { sourceFiles } from "./workspace-files.mjs";
 
 const DATA_DIR = "graphty-element/src/data";
 const SRC_DIR = "graphty-element/src";
 const PARSER_PACKAGES = ["papaparse", "fast-xml-parser"];
 const PARSER_FUNCTIONS = ["parsePajek", "tokenizeLine", "tokenize"];
-
-/**
- * Every source file under a directory.
- * @param dir - the directory
- * @returns absolute paths of its .ts, .tsx, .js and .mjs files, recursively
- */
-function sourceFiles(dir) {
-    if (!existsSync(dir)) {
-        return [];
-    }
-    return readdirSync(dir, { withFileTypes: true, recursive: true })
-        .filter((e) => e.isFile() && /\.(?:[cm]?[jt]s|tsx)$/.test(e.name))
-        .map((e) => join(e.parentPath, e.name));
-}
 
 /**
  * The module specifiers a source file imports or re-exports, statically or dynamically.

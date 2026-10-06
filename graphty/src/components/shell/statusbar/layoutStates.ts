@@ -19,7 +19,8 @@
  * chip's own `title` and nowhere else on the status bar.
  */
 
-import { formatCount, formatExactCount } from "./formatCounts";
+import { formatCount as formatExactCount } from "../readings/readingFormat";
+import { formatCount } from "./formatCounts";
 
 /** State 1: the file carried positions for every node, so Fixed is in force. */
 export const LAYOUT_FROM_FILE_LABEL = "Positions from file";

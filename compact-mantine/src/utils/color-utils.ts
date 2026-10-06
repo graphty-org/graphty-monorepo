@@ -87,3 +87,64 @@ export function toHexaColor(hex: string, opacity: number): string {
 export function isValidHex(color: string): boolean {
     return /^#?([A-Fa-f0-9]{3}|[A-Fa-f0-9]{4}|[A-Fa-f0-9]{6}|[A-Fa-f0-9]{8})$/.test(color);
 }
+
+/**
+ * The lowest channel value (0-255) at which Figma rings a swatch so that it
+ * stays visible on a white surface. Measured on the picker's document swatches:
+ * #E6E6E6, #F5F5F5, #FFFFE5 and #EBEBF7 carry the ring; #D9D9D9 and #D9E5FF do not.
+ */
+const LIGHT_CHANNEL_FLOOR = 0xe0;
+
+/**
+ * Expand a 3-, 4-, 6- or 8-digit hex color into `#RRGGBBAA`, upper case.
+ * @param color - a hex color, with or without `#`
+ * @returns the 8-digit form, or `undefined` when the text is not a hex color
+ */
+export function normalizeHexa(color: string): string | undefined {
+    if (!isValidHex(color)) {
+        return undefined;
+    }
+    let digits = color.replace("#", "");
+    if (digits.length <= 4) {
+        digits = digits.replace(/./g, "$&$&");
+    }
+    if (digits.length === 6) {
+        digits += "ff";
+    }
+    return `#${digits.toUpperCase()}`;
+}
+
+/**
+ * Whether a color is light enough to need the swatch ring Figma draws on
+ * near-white colors (every channel at or above 0xE0).
+ * @param color - a hex color
+ * @returns true for near-white colors
+ */
+export function isLightColor(color: string): boolean {
+    const hexa = normalizeHexa(color);
+    if (hexa === undefined) {
+        return false;
+    }
+    return [1, 3, 5].every((i) => parseInt(hexa.slice(i, i + 2), 16) >= LIGHT_CHANNEL_FLOOR);
+}
+
+/**
+ * The color a fraction of the way between two hex colors, channel by channel.
+ * Used when a click on a gradient bar adds a stop between two others.
+ * @param from - the color at 0
+ * @param to - the color at 1
+ * @param t - how far along, 0 to 1
+ * @returns `#RRGGBB`, upper case
+ */
+export function mixHex(from: string, to: string, t: number): string {
+    const a = normalizeHexa(from) ?? "#000000FF";
+    const b = normalizeHexa(to) ?? "#000000FF";
+    const channel = (i: number): string => {
+        const x = parseInt(a.slice(i, i + 2), 16);
+        const y = parseInt(b.slice(i, i + 2), 16);
+        return Math.round(x + (y - x) * t)
+            .toString(16)
+            .padStart(2, "0");
+    };
+    return `#${channel(1)}${channel(3)}${channel(5)}`.toUpperCase();
+}

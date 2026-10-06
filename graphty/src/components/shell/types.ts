@@ -369,8 +369,6 @@ export interface CanvasDockState {
      * toolbar, the minimap and the legend are not drawn at all (spec 01 section 3).
      */
     readonly drawerMaximised: boolean;
-    /** Whether the Compare split is on. */
-    readonly compareOpen: boolean;
 }
 
 /**
@@ -538,10 +536,6 @@ export interface TopBarProps {
     readonly onExport: (target: "data" | "image") => void;
     /** Share menu: Export data with a CX2 or GraphML preset, and Copy image. */
     readonly onShare: (target: "copy-image" | "export-data") => void;
-    /** Whether Compare mode is on; the toggle draws active. */
-    readonly compareActive: boolean;
-    /** Compare two views. */
-    readonly onToggleCompare: () => void;
     /**
      * Whether BOTH sidebars are on screen; the one switch draws active and reports
      * `aria-pressed="true"` while they are.

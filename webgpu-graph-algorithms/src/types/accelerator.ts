@@ -130,6 +130,8 @@ export interface AcceleratorOptions {
  */
 export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator {
     readonly kind: "webgpu";
+    /** `closenessCentrality` honours `harmonic` on an exact run, so the CPU dispatcher sends harmonic closeness here. */
+    readonly harmonicCloseness: true;
     readonly ctx: GpuContext;
     readonly options: Readonly<AcceleratorOptions>;
     forceAtlas2(options?: ForceAtlas2Options): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;

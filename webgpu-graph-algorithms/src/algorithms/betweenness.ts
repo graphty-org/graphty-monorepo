@@ -30,7 +30,7 @@
  *
  * The batch size k is planned from the device limits at 16 bytes per (node, source) -- the three arrays design 4.7
  * counts plus the 4-byte log entry it omits -- as `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x
- * maxBufferSize / 16n), 64)`, at least 1 (`planBatchSize`); a graph whose single source does not fit one binding is
+ * maxBufferSize / 16n), BC_MAX_BATCH)` (256), at least 1 (`planBatchSize`); a graph whose single source does not fit one binding is
  * E_TOO_LARGE. The forward form is chosen per batch: the first batch runs `bc-forward`; a later one runs the
  * edge-parallel form when the previous batch's level count -- the MAXIMUM depth over its sources, the only depth
  * figure the host has, which over-estimates the median of design 8.4's rule and so errs toward the frontier form --
@@ -153,7 +153,7 @@ interface RawBetweenness {
 
 /**
  * The source batch size (design 8.4, 10.1): `min(floor(maxStorageBufferBindingSize / 4n), floor(0.25 x maxBufferSize /
- * 16n), 64, remaining)`, at least 1. Each of the four `n x k` arrays is one binding of `4 n k` bytes, and the batch's
+ * 16n), BC_MAX_BATCH, remaining)`, at least 1. Each of the four `n x k` arrays is one binding of `4 n k` bytes, and the batch's
  * four together stay inside a quarter of the largest buffer.
  * @internal
  * @param n - the vertex count (>= 1)

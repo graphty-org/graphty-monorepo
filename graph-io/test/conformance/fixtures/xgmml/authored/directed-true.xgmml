@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<!DOCTYPE graph PUBLIC "-//John Punin//DTD graph description//EN" "http://www.cs.rpi.edu/~puninj/XGMML/xgmml.dtd">
+<graph id="t" directed="true">
+  <node id="a"/><node id="b"/>
+  <edge source="a" target="b"/>
+</graph>

@@ -106,10 +106,6 @@ function at(result: unknown, path: string): unknown {
     return path === "" ? result : path.split(".").reduce<unknown>((o, k) => (o as Record<string, unknown>)[k], result);
 }
 
-// grsbm leaves every small graph whole, weighted or not, so the fixture cannot show it reading weights;
-// test/unit/indexed/grsbm.test.ts shows it on the karate club.
-const WEIGHTS_SHOWN_ELSEWHERE = new Set(["grsbm"]);
-
 const WEIGHT_RULES: Readonly<Record<WeightUse, readonly [boolean, boolean, boolean]>> = {
     never: [true, true, true],
     always: [false, false, false],
@@ -119,8 +115,17 @@ const WEIGHT_RULES: Readonly<Record<WeightUse, readonly [boolean, boolean, boole
 
 const entries = Object.entries(ALGORITHMS) as [string, AlgorithmEntry][];
 
-// Exports that are not algorithms of the `fn(graph, ...inputs, options)` shape.
-const NOT_ALGORITHMS = new Set(["accelerated", "walkPredArcs", "walkPredEdges", "bipartiteFlowNetwork", "arcSourceIn"]);
+// Exports that are not algorithms of the `fn(graph, ...inputs, options)` shape: helpers, and the id-keyed views of a result.
+const NOT_ALGORITHMS = new Set([
+    "accelerated",
+    "walkPredArcs",
+    "walkPredEdges",
+    "bipartiteFlowNetwork",
+    "arcSourceIn",
+    "groupsById",
+    "pathIds",
+    "scoresById",
+]);
 
 describe("ALGORITHMS", () => {
     it("lists every algorithm the package exports, under its export name", () => {
@@ -198,7 +203,7 @@ describe("ALGORITHMS", () => {
             // Whether the weighted and the unweighted graph give the same answer: with the default options, and
             // with the `weighted` flag set the other way from the rule's default.
             const [plainSame, flag, flaggedSame] = WEIGHT_RULES[entry.weights];
-            expect(same()).toBe(plainSame || WEIGHTS_SHOWN_ELSEWHERE.has(entry.name));
+            expect(same()).toBe(plainSame);
             expect(same({ weighted: flag })).toBe(flaggedSame);
         });
 

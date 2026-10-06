@@ -7,6 +7,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
 import { type LabelResult, withGroups } from "./components.js";
 
@@ -135,7 +136,10 @@ function votingRows(s: GraphSnapshot, weighted: boolean): VotingRows {
         for (let a = 0; a < weights.length; a++) {
             const w = weights[a];
             if (!(w >= 0) || w === Infinity) {
-                throw new RangeError(`arc ${a} has weight ${w}; label propagation needs finite, non-negative weights`);
+                throw withCode(
+                    new RangeError(`arc ${a} has weight ${w}; label propagation needs finite, non-negative weights`),
+                    "E_BAD_WEIGHT",
+                );
             }
         }
     }
@@ -158,13 +162,19 @@ function votingRows(s: GraphSnapshot, weighted: boolean): VotingRows {
  */
 function checkOptions(n: number, maxIterations: number, randomSeed: number | null): void {
     if (!Number.isInteger(maxIterations) || maxIterations < 0) {
-        throw new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`);
+        throw withCode(
+            new RangeError(`maxIterations must be a non-negative integer, got ${maxIterations}`),
+            "E_BAD_OPTION",
+        );
     }
     if (randomSeed !== null && !Number.isInteger(randomSeed)) {
-        throw new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`);
+        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     if (maxIterations * n > Number.MAX_SAFE_INTEGER) {
-        throw new RangeError(`maxIterations * nodeCount (${maxIterations} * ${n}) exceeds Number.MAX_SAFE_INTEGER`);
+        throw withCode(
+            new RangeError(`maxIterations * nodeCount (${maxIterations} * ${n}) exceeds Number.MAX_SAFE_INTEGER`),
+            "E_BAD_OPTION",
+        );
     }
 }
 
@@ -432,7 +442,10 @@ export function labelPropagationSemiSupervised(
     const weighted = options.weighted ?? true;
     const n = s.nodeCount;
     if (seeds.length !== n) {
-        throw new RangeError(`seeds has ${seeds.length} entries; the snapshot has ${n} nodes`);
+        throw withCode(
+            new RangeError(`seeds has ${seeds.length} entries; the snapshot has ${n} nodes`),
+            "E_BAD_OPTION",
+        );
     }
     checkOptions(n, maxIterations, randomSeed);
     const rows = votingRows(s, weighted);

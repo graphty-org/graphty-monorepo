@@ -192,6 +192,7 @@ describe("the session doors the guides teach", () => {
         ["session.sets", "src/session/sets/types.ts", "SetsApi"],
         ["session.scope", "src/session/scope/ScopeApi.ts", "ScopeApi"],
         ["session.notes", "src/session/notes/types.ts", "NotesApi"],
+        ["session.runs", "src/session/runs/types.ts", "RunsApi"],
     ] as const) {
         it(`every \`${receiver}.<name>\` in a guide is declared by ${name}`, () => {
             const declared = interfaceMembers(file, name);
@@ -212,6 +213,26 @@ describe("the session doors the guides teach", () => {
             assert.deepStrictEqual(wrong, [], `a guide teaches a name ${name} does not declare`);
         });
     }
+
+    it("no guide reads `run.result`, which an awaited run does not have", () => {
+        const wrong = GUIDES.flatMap((guide) =>
+            readFileSync(guide, "utf8")
+                .split("\n")
+                .flatMap((text, index) => (/\brun\.result\b/.test(text) ? [`${guide}:${String(index + 1)}`] : [])),
+        );
+
+        assert.deepStrictEqual(wrong, [], "an awaited run IS its result: read `result.node(...)`, not `run.result`");
+    });
+
+    it("every `explain(` in a guide names its element as `{ node }` or `{ edge }`", () => {
+        const wrong = GUIDES.flatMap((guide) =>
+            [...readFileSync(guide, "utf8").matchAll(/\bexplain\(\{\s*(\w+)/g)]
+                .filter((match) => match[1] !== "node" && match[1] !== "edge")
+                .map((match) => `${guide}: explain({ ${match[1]}`),
+        );
+
+        assert.deepStrictEqual(wrong, [], "ExplainTarget is { node: id } or { edge: id }");
+    });
 
     it("reads the interfaces' own members and nothing beside them", () => {
         const scope = interfaceMembers("src/session/scope/ScopeApi.ts", "ScopeApi");

@@ -434,6 +434,11 @@ describe("dot importer: the grammar", () => {
         expect(cell(snapshot, "graph", "ranksep", 0)).toBe(3);
         expect(cell(snapshot, "graph", "label", 0)).toBe("G label");
         expect(snapshot.graph.get("label")?.dtype).toBe("string");
+        // typed by the text's grammar, like a node attribute: "3" is i32, "2.0" stays f64
+        const typed = await load("digraph { graph [whole=3, real=2.0, flag=true]; a }");
+        expect(typed.snapshot.graph.get("whole")?.dtype).toBe("i32");
+        expect(typed.snapshot.graph.get("real")?.dtype).toBe("f64");
+        expect(typed.snapshot.graph.get("flag")?.dtype).toBe("bool");
     });
 
     it("reports attributes of a subgraph that is not a cluster and keeps its nodes", async () => {
@@ -499,7 +504,8 @@ describe("dot importer: the grammar", () => {
         const { snapshot, report } = await load(
             'digraph { a [pos="1.5,2"]; b [pos="3,4,5!"]; c [pos="nope"]; a -> b [pos="e,1,2 3,4"] }',
         );
-        expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS]);
+        // updated: the first pos has two coordinates and the second three, now reported
+        expect(codes(report)).toEqual([DOT_ISSUE.POS_DIMS, DOT_ISSUE.BAD_POS]);
         const position = snapshot.nodes.byRole("position");
         expect(position?.meta.name).toBe("pos");
         expect(position?.dtype).toBe("f32");

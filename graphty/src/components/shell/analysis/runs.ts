@@ -221,12 +221,12 @@ export async function runCommunityDetection(session: Pick<GraphSession, "runs">)
 
     /* The element counts the groups while it walks the result, so the sizes and the count come
        from one reading and cannot disagree. It also orders them (largest first, equal sizes by
-       id) and names them, and the legend of the run's colours uses the same order and names, so
-       the list is taken as it comes: re-sorting or renaming here is how the result panel once
+       id) and ranks them, and the legend of the run's colours carries the same rank, so the list
+       is taken as it comes and worded from the rank: re-sorting here is how the result panel once
        said "Group 1" for the group the legend called "0". */
     const groups = (summary.groups ?? []).map((entry) => ({
         communityId: Number(entry.group),
-        name: entry.name ?? String(entry.group),
+        name: entry.rank === undefined ? String(entry.group) : `Group ${String(entry.rank)}`,
         size: entry.size,
     }));
 

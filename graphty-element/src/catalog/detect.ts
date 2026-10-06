@@ -36,6 +36,9 @@
 
 import {
     csvImporter,
+    cx2Importer,
+    cxImporter,
+    cysImporter,
     dotImporter,
     gexfImporter,
     gmlImporter,
@@ -43,8 +46,10 @@ import {
     graphmlImporter,
     jsonImporter,
     neo4jImporter,
+    oboImporter,
     pajekImporter,
     rankFormats,
+    xgmmlImporter,
 } from "@graphty/graph-io";
 
 import { GraphtyError } from "../errors";
@@ -79,7 +84,21 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
     { id: "dot", importer: dotImporter },
     { id: "pajek", importer: pajekImporter },
     { id: "csv", importer: neo4jImporter },
+    { id: "xgmml", importer: xgmmlImporter },
+    { id: "cx2", importer: cx2Importer },
+    { id: "cx", importer: cxImporter },
+    { id: "obo", importer: oboImporter },
+    { id: "cys", importer: cysImporter },
 ];
+
+/**
+ * The graph-io importer behind one of the element's built-in formats.
+ * @param id - The format id.
+ * @returns The importer, or undefined when the id is not a built-in format.
+ */
+export function builtInImporter(id: string): GraphImporter | undefined {
+    return BUILT_IN_IMPORTERS.find((entry) => entry.id === id)?.importer;
+}
 
 /**
  * How sure a graph-io sniffer must be before the element names its format from content alone.

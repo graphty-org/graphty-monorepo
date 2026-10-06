@@ -9,12 +9,10 @@
  *
  * Where a number already has a home it comes from there -- `shell/constants.ts` for
  * the bar's two size profiles and the canvas overlay ladder, `PANEL_GRID` and
- * `COMPACT_SIZING` for panel-scale metrics, `POPOUT_GAP` for the gap a transient
- * surface leaves its opener. The handful below are the Views menu's own drawn values,
+ * `COMPACT_SIZING` for panel-scale metrics. `VIEWS_MENU_GAP` is the gap the menu
+ * leaves its opener. The handful below are the Views menu's own drawn values,
  * each carrying the citation that fixes it.
  */
-
-import { POPOUT_GAP } from "@graphty/compact-mantine";
 
 import { CANVAS_TOOLBAR_DESKTOP, CANVAS_TOOLBAR_NARROW, type CanvasToolbarProfile, OVERLAY_INSET } from "../constants";
 
@@ -144,6 +142,13 @@ export const VIEWS_MENU_SECOND_LINE_FONT_SIZE = 10;
 export const CANVAS_EDGE_CLAMP = OVERLAY_INSET;
 
 /**
+ * The Views menu's gap above its button (the artboard's 8 px, ART-VM:340-343). It was
+ * compact-mantine's `POPOUT_GAP` until the library docked its pop-outs flush (0); the menu
+ * keeps the artboard's gap, so it is named here and read by ViewsMenu too.
+ */
+export const VIEWS_MENU_GAP = 8;
+
+/**
  * The drawn bottom edge of the open menu, measured from the canvas floor.
  *
  * Two readings of the same pixel, and they agree: the spec's "bottom edge 4 px above
@@ -157,7 +162,7 @@ export const CANVAS_EDGE_CLAMP = OVERLAY_INSET;
  * @returns the menu's bottom edge in CSS pixels above the canvas floor.
  */
 export function viewsMenuBottomOffset(profile: CanvasToolbarProfile, toolbarBottomOffset: number): number {
-    return toolbarBottomOffset + profile.height - (profile.borderWidth + profile.containerPadding) + POPOUT_GAP;
+    return toolbarBottomOffset + profile.height - (profile.borderWidth + profile.containerPadding) + VIEWS_MENU_GAP;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -13,6 +13,8 @@
  * Node, in a worker and in a legend drawn by a consumer who never loads a 3D engine.
  */
 
+import { clamp } from "../../clamp";
+
 /**
  * The colour returned when a ramp is asked for a value that does not exist.
  *
@@ -72,15 +74,15 @@ export function hexToRgb(hex: string | null | undefined): RgbColor | null {
 /**
  * Convert RGB components to hex color string.
  *
- * The channels are expected to be finite: the only caller mixes two parsed hex colours
- * with a finite factor, so they always are. A channel outside 0-255 is clamped, which is
+ * The channels are expected to be finite: the callers mix two parsed hex colours with a finite
+ * factor, or apply a colour-blindness matrix to one, so they always are. A channel outside 0-255 is clamped, which is
  * what keeps a rounding overshoot from producing a seven-digit string.
  * @param r - Red component (0-255).
  * @param g - Green component (0-255).
  * @param b - Blue component (0-255).
  * @returns Hex color string (e.g., "#440154").
  */
-function rgbToHex(r: number, g: number, b: number): string {
+export function rgbToHex(r: number, g: number, b: number): string {
     const toHex = (value: number): string => {
         const hex = Math.round(Math.max(0, Math.min(255, value))).toString(16);
         return hex.length === 1 ? `0${hex}` : hex;
@@ -162,7 +164,7 @@ export function interpolatePalette(
     }
 
     // Clamp value to [0, 1]
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
 
     // Handle edge cases
     if (clampedValue === 0) {

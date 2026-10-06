@@ -1,9 +1,9 @@
+import { CompactColorInput, PopoutManager } from "@graphty/compact-mantine";
 import {
     ActionIcon,
     Box,
     Button,
     Checkbox,
-    ColorInput,
     Divider,
     Group,
     NativeSelect,
@@ -77,61 +77,60 @@ const COMPACT_ALIAS_CAPTION =
 
 export const Introduction: Story = {
     render: () => (
-        <Stack gap="lg">
-            <Box>
-                <Title order={2} mb="md">
-                    Compact Component System
-                </Title>
-                <Text c="dimmed" mb="lg">
-                    The compact size provides a dense UI suitable for properties panels, toolbars, and data-heavy
-                    interfaces. All components use <code>size="compact"</code> to achieve consistent 24px heights and
-                    11px fonts.
-                </Text>
-            </Box>
-
-            <Box>
-                <Title order={4} mb="sm">
-                    Quick Example
-                </Title>
-                <Box
-                    p="sm"
-                    style={{
-                        backgroundColor: "var(--mantine-color-default-hover)",
-                        borderRadius: "var(--mantine-radius-sm)",
-                    }}
-                >
-                    <Text size="xs" fw={500} mb="sm">
-                        Node Properties
+        <PopoutManager>
+            <Stack gap="lg">
+                <Box>
+                    <Title order={2} mb="md">
+                        Compact Component System
+                    </Title>
+                    <Text c="dimmed" mb="lg">
+                        The compact size provides a dense UI suitable for properties panels, toolbars, and data-heavy
+                        interfaces. All components use <code>size="compact"</code> to achieve consistent 24px heights
+                        and 11px fonts.
                     </Text>
-                    <Stack gap={8}>
-                        <Group grow>
-                            <NativeSelect
-                                size="compact"
-                                data={["Sphere", "Cube", "Cone"]}
-                                rightSection={<ChevronDown size={14} />}
-                            />
-                            <NumberInput size="compact" defaultValue={1.0} decimalScale={1} hideControls />
-                        </Group>
-                        <SegmentedControl size="compact" data={["Solid", "Gradient"]} fullWidth />
-                        <Group>
-                            <ColorInput size="compact" defaultValue="#5B8FF9" style={{ flex: 1 }} />
-                            <NumberInput size="compact" defaultValue={100} suffix="%" w={60} hideControls />
-                        </Group>
-                        <Slider size="compact" defaultValue={75} label={(val) => `${val}%`} />
-                        <Group gap="md">
-                            <Checkbox size="compact" label="Visible" defaultChecked />
-                            <Checkbox size="compact" label="Selectable" defaultChecked />
-                        </Group>
-                        <Group justify="flex-end">
-                            <Button size="compact" variant="subtle">
-                                Reset
-                            </Button>
-                            <Button size="compact">Apply</Button>
-                        </Group>
-                    </Stack>
                 </Box>
-            </Box>
-        </Stack>
+
+                <Box>
+                    <Title order={4} mb="sm">
+                        Quick Example
+                    </Title>
+                    <Box
+                        p="sm"
+                        style={{
+                            backgroundColor: "var(--mantine-color-default-hover)",
+                            borderRadius: "var(--mantine-radius-sm)",
+                        }}
+                    >
+                        <Text size="xs" fw={500} mb="sm">
+                            Node Properties
+                        </Text>
+                        <Stack gap={8}>
+                            <Group grow>
+                                <NativeSelect
+                                    size="compact"
+                                    data={["Sphere", "Cube", "Cone"]}
+                                    rightSection={<ChevronDown size={14} />}
+                                />
+                                <NumberInput size="compact" defaultValue={1.0} decimalScale={1} hideControls />
+                            </Group>
+                            <SegmentedControl size="compact" data={["Solid", "Gradient"]} fullWidth />
+                            <CompactColorInput defaultColor="#5B8FF9" />
+                            <Slider size="compact" defaultValue={75} label={(val) => `${val}%`} />
+                            <Group gap="md">
+                                <Checkbox size="compact" label="Visible" defaultChecked />
+                                <Checkbox size="compact" label="Selectable" defaultChecked />
+                            </Group>
+                            <Group justify="flex-end">
+                                <Button size="compact" variant="subtle">
+                                    Reset
+                                </Button>
+                                <Button size="compact">Apply</Button>
+                            </Group>
+                        </Stack>
+                    </Box>
+                </Box>
+            </Stack>
+        </PopoutManager>
     ),
 };
 
@@ -214,105 +213,96 @@ export const AllComponents: Story = {
 
 export const PropertiesPanelExample: Story = {
     render: () => (
-        <Box
-            p="sm"
-            style={{
-                backgroundColor: "var(--mantine-color-default-hover)",
-                borderRadius: "var(--mantine-radius-sm)",
-                width: 260,
-            }}
-        >
-            <Group justify="space-between" mb="sm">
-                <Text size="xs" fw={500}>
-                    Node Style
-                </Text>
-                <ActionIcon size="compact" variant="subtle">
-                    <Settings size={14} />
-                </ActionIcon>
-            </Group>
-
-            <Stack gap={8}>
-                <Box>
-                    <Text size="xs" c="dimmed" mb={2}>
-                        Shape
+        <PopoutManager>
+            <Box
+                p="sm"
+                style={{
+                    backgroundColor: "var(--mantine-color-default-hover)",
+                    borderRadius: "var(--mantine-radius-sm)",
+                    width: 260,
+                }}
+            >
+                <Group justify="space-between" mb="sm">
+                    <Text size="xs" fw={500}>
+                        Node Style
                     </Text>
-                    <Group gap={4} grow>
-                        <NativeSelect
-                            size="compact"
-                            data={[
-                                { group: "Basic", items: ["Sphere", "Cube"] },
-                                { group: "Advanced", items: ["Torus", "Cone"] },
-                            ]}
-                            rightSection={<ChevronDown size={14} />}
-                        />
-                        <NumberInput
-                            size="compact"
-                            defaultValue={1.0}
-                            min={0.1}
-                            max={10}
-                            step={0.1}
-                            decimalScale={1}
-                            hideControls
-                        />
-                    </Group>
-                </Box>
-
-                <Divider />
-
-                <Box>
-                    <Text size="xs" c="dimmed" mb={2}>
-                        Color Mode
-                    </Text>
-                    <SegmentedControl size="compact" data={["Solid", "Gradient", "Radial"]} fullWidth />
-                </Box>
-
-                <Box>
-                    <Text size="xs" c="dimmed" mb={2}>
-                        Color
-                    </Text>
-                    <Group gap={8}>
-                        <ColorInput size="compact" defaultValue="#5b8ff9" style={{ flex: 1 }} />
-                        <NumberInput
-                            size="compact"
-                            defaultValue={100}
-                            min={0}
-                            max={100}
-                            hideControls
-                            suffix="%"
-                            w={60}
-                        />
-                    </Group>
-                </Box>
-
-                <Divider />
-
-                <Box>
-                    <Text size="xs" c="dimmed" mb={2}>
-                        Visibility
-                    </Text>
-                    <Group gap="md">
-                        <Checkbox size="compact" label="Visible" defaultChecked />
-                        <Checkbox size="compact" label="Selectable" defaultChecked />
-                    </Group>
-                </Box>
-
-                <Box>
-                    <Text size="xs" c="dimmed" mb={2}>
-                        Opacity
-                    </Text>
-                    <Slider size="compact" defaultValue={100} min={0} max={100} label={(val) => `${val}%`} />
-                </Box>
-
-                <Divider />
-
-                <Group gap="xs" justify="flex-end">
-                    <Button size="compact" variant="subtle">
-                        Reset
-                    </Button>
-                    <Button size="compact">Apply</Button>
+                    <ActionIcon size="compact" variant="subtle">
+                        <Settings size={14} />
+                    </ActionIcon>
                 </Group>
-            </Stack>
-        </Box>
+
+                <Stack gap={8}>
+                    <Box>
+                        <Text size="xs" c="dimmed" mb={2}>
+                            Shape
+                        </Text>
+                        <Group gap={4} grow>
+                            <NativeSelect
+                                size="compact"
+                                data={[
+                                    { group: "Basic", items: ["Sphere", "Cube"] },
+                                    { group: "Advanced", items: ["Torus", "Cone"] },
+                                ]}
+                                rightSection={<ChevronDown size={14} />}
+                            />
+                            <NumberInput
+                                size="compact"
+                                defaultValue={1.0}
+                                min={0.1}
+                                max={10}
+                                step={0.1}
+                                decimalScale={1}
+                                hideControls
+                            />
+                        </Group>
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                        <Text size="xs" c="dimmed" mb={2}>
+                            Color Mode
+                        </Text>
+                        <SegmentedControl size="compact" data={["Solid", "Gradient", "Radial"]} fullWidth />
+                    </Box>
+
+                    <Box>
+                        <Text size="xs" c="dimmed" mb={2}>
+                            Color
+                        </Text>
+                        <CompactColorInput defaultColor="#5B8FF9" />
+                    </Box>
+
+                    <Divider />
+
+                    <Box>
+                        <Text size="xs" c="dimmed" mb={2}>
+                            Visibility
+                        </Text>
+                        <Group gap="md">
+                            <Checkbox size="compact" label="Visible" defaultChecked />
+                            <Checkbox size="compact" label="Selectable" defaultChecked />
+                        </Group>
+                    </Box>
+
+                    <Box>
+                        <Text size="xs" c="dimmed" mb={2}>
+                            Opacity
+                        </Text>
+                        <Slider size="compact" defaultValue={100} min={0} max={100} label={(val) => `${val}%`} />
+                    </Box>
+
+                    <Divider />
+
+                    <Group gap="xs" justify="flex-end">
+                        <Button size="compact" variant="subtle">
+                            Reset
+                        </Button>
+                        <Button size="compact">Apply</Button>
+                    </Group>
+                </Stack>
+            </Box>
+        </PopoutManager>
     ),
 };
 

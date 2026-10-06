@@ -86,6 +86,19 @@ describe("dot exporter: capabilities and shape", () => {
         expect(anonymous).toBe("digraph {\n}\n");
     });
 
+    it("refuses an option of the wrong type with E_UNSUPPORTED, in check() and export()", async () => {
+        const snapshot = await imported("graph { a -- b }");
+        for (const options of [{ indent: "x" }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
+            const option = Object.keys(options ?? {})[0];
+            expect(() => dotExporter.check(snapshot, options)).toThrow(
+                expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),
+            );
+            await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({
+                code: "E_UNSUPPORTED",
+            });
+        }
+    });
+
     it("quotes ids and values exactly when the grammar needs it and writes HTML strings bare", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         for (const id of ["plain", "with space", 'has "quote"', "node", "Graph", "", "1e21", "-3", "1.5", "_x9"]) {
@@ -198,6 +211,19 @@ describe("dot exporter: capabilities and shape", () => {
 });
 
 describe("dot exporter: clusters", () => {
+    it("notes a parent that is a plain node: it reads back marked as a cluster", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("g");
+        b.addNode("m");
+        b.declareNodeColumn({ name: "parent", dtype: "u32", role: "parent", refersTo: "node", nullable: true });
+        b.setNodeValue("parent", 1, 0);
+        const snapshot = b.freeze();
+        const note = dotExporter.check(snapshot).find((n) => n.code === DOT_LOSS.CLUSTER_MARKED);
+        expect(note?.column).toBe(CLUSTER_COLUMN);
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expect(back.nodes.get(CLUSTER_COLUMN)?.value(0)).toBe(true);
+    });
+
     it("emits a cluster block for a container node with its attributes and nested members", async () => {
         const snapshot = await imported(
             'digraph { subgraph cluster_0 { label="one"; a; subgraph cluster_1 { b } } c; subgraph cluster_0 { c } }',

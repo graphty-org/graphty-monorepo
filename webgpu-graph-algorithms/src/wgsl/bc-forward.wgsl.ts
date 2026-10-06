@@ -2,7 +2,7 @@
  * The `bc-forward` kernel body (design 8.4 "forward pass = BFS with sigma as array<atomic<u32>>", 8.10 "BC forward
  * (tagged)", 16.1): one level of the tagged multi-source breadth-first search of a betweenness batch. The level's
  * frontier is the range `S[ends[level] .. ends[level + 1])` of the claim log, every entry a packed `s * n + u`; the
- * expansion is `closeness-sweep`'s block-mapped strip (each workgroup loads up to `WG` entries, scans their degrees
+ * expansion is `advance-expand`'s block-mapped strip (each workgroup loads up to `WG` entries, scans their degrees
  * in workgroup memory, and every lane strips the aggregate by an upper-bound binary search), fused with the claim, so
  * no edge queue exists.
  *

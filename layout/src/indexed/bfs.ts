@@ -1,4 +1,4 @@
-import type { GraphSnapshot } from "@graphty/graph-format";
+import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
 
 import type { LayoutResult } from "../positions";
 import { toLayoutSnapshot } from "../simulation/snapshot";
@@ -7,8 +7,8 @@ import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite"
 
 /** Options of the index-based breadth-first layout. */
 export interface BfsLayoutOptions extends CommonLayoutOptions {
-    /** Index of the node the search starts from; default 0. */
-    readonly start?: number | undefined;
+    /** The node the search starts from: its index, or `{ id }`; default 0. */
+    readonly start?: NodeRef | undefined;
     /** Default `vertical`. */
     readonly align?: LayerAlign | undefined;
 }
@@ -66,6 +66,6 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
 export function bfs(s: GraphSnapshot, options: BfsLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const { start = 0, align = "vertical" } = options;
-    const layers = n === 0 ? [] : bfsLayers(toLayoutSnapshot(s), start);
+    const layers = n === 0 ? [] : bfsLayers(toLayoutSnapshot(s), resolveNode(s, start));
     return result(planar(layeredRows(n, layers, multipartitePlace, align, scale, center), dim, center), dim, n);
 }

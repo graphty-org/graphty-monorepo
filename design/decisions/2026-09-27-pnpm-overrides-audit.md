@@ -94,3 +94,11 @@ development-server dependency that only expands glob patterns written in this re
 configuration; nothing passes it a pattern from outside. It is listed in the root package.json's
 `pnpm.auditConfig.ignoreGhsas`. Remove that entry when braces publishes a fix, and add an override
 floor here instead.
+
+## 2026-10-03: node-forge GHSA-86w9-cpqp-85rv, ignored (no patched version exists)
+
+node-forge through 1.4.0 accepts some malformed RSA PKCS#1 v1.5 signatures. 1.4.0 is the latest
+release, so no override can fix it. Its only path is `@sonar/scan > node-forge`: the SonarQube
+scanner the pre-push gate runs against the owner's own server, which never verifies a signature from
+outside. It is listed in the root package.json's `pnpm.auditConfig.ignoreGhsas`. Remove the entry
+when node-forge publishes a fix, and add an override floor here instead.

@@ -14,6 +14,7 @@ import {
     CubicEase,
     EasingFunction,
     Engine,
+    Observable,
     PointerEventTypes,
     Quaternion,
     Scene,
@@ -77,6 +78,7 @@ import {
 import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
+import { sampleOf } from "./data/source-bytes";
 import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
@@ -105,6 +107,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -300,6 +303,8 @@ export class Graph implements GraphContext {
      * framing is skipped while it is set, so it never moves a camera somebody has just placed.
      */
     #cameraPlaced = false;
+    /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    #autoFrame = true;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     needRays = true;
@@ -373,6 +378,8 @@ export class Graph implements GraphContext {
     // Managers
     /** Event manager for adding/removing event listeners */
     readonly eventManager: EventManager;
+    /** Told the node label counts once the view is still and they changed. */
+    readonly onNodeLabelCounts = new Observable<NodeLabelCounts>();
     private renderManager: RenderManager;
     private lifecycleManager: LifecycleManager;
     /** The managers the lifecycle manager runs, kept so the renderer chosen at init can replace its own. */
@@ -1666,6 +1673,16 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * How many node labels this graph is drawing, and why the rest are not, as of the last frame
+     * that decided it. All zeros before a label is drawn. Reading it never forces a frame.
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
+    }
+
+    /**
      * The layout behaviour: the view preferences somebody set on this graph, and the pacing
      * settings saved with the project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in
      * effect. Those three always read their value, so assigning one its default reads back even
@@ -1842,6 +1859,9 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async loadFromFile(
@@ -1852,6 +1872,8 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
@@ -1862,7 +1884,7 @@ export class Graph implements GraphContext {
 
         if (!format) {
             // Read first 2KB for format detection
-            const sample = await file.slice(0, 2048).text();
+            const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
             this.dataManager.throwIfSuperseded(load.generation, file.name);
             const detected = detectFormat(file.name, sample);
 
@@ -1873,8 +1895,9 @@ export class Graph implements GraphContext {
             format = detected;
         }
 
-        // Read full file content
-        const content = await file.text();
+        // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
+        // declaration), and a binary format such as a zip would not survive a text read.
+        const content = new Uint8Array(await file.arrayBuffer());
 
         // Load using appropriate DataSource
         const { replace: _replace, ...sourceOptions } = options ?? {};
@@ -1905,6 +1928,8 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @returns Promise that resolves to the load's id when data is loaded
      * @example
      * ```typescript
@@ -1926,13 +1951,15 @@ export class Graph implements GraphContext {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
         },
     ): Promise<{ loadId: number }> {
         const load = this.reserveLoad(options?.replace);
         const { detectFormat } = await import("./data/format-detection.js");
 
         let format = options?.format;
-        let fetchedContent: string | undefined;
+        let fetchedContent: Uint8Array | undefined;
 
         if (!format) {
             // First try extension-based detection (no fetch needed)
@@ -1947,10 +1974,11 @@ export class Graph implements GraphContext {
                     throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
                 }
 
-                fetchedContent = await response.text();
+                // Bytes, decoded by the importer: see loadFromFile.
+                fetchedContent = new Uint8Array(await response.arrayBuffer());
                 this.dataManager.throwIfSuperseded(load.generation, url);
 
-                const sample = fetchedContent.slice(0, 2048);
+                const sample = sampleOf(fetchedContent);
                 const detectedFromContent = detectFormat(url, sample);
 
                 if (!detectedFromContent) {
@@ -1972,6 +2000,8 @@ export class Graph implements GraphContext {
             nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
             ...(edgeSource === null ? {} : { edgeSource }),
             ...(edgeTarget === null ? {} : { edgeTarget }),
+            ...(options?.graphIndex === undefined ? {} : { graphIndex: options.graphIndex }),
+            ...(options?.graphName === undefined ? {} : { graphName: options.graphName }),
         };
 
         // If we already fetched content for detection, pass it as data to avoid double-fetch
@@ -3059,7 +3089,7 @@ export class Graph implements GraphContext {
      * ```
      */
     zoomToFit(): void {
-        this.updateManager.enableZoomToFit();
+        this.updateManager.enableZoomToFit(true);
     }
 
     // GraphContext implementation methods
@@ -3465,13 +3495,36 @@ export class Graph implements GraphContext {
 
     /**
      * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
-     * first settlement -- unless the configuration placed the camera itself with
-     * `startingCameraDistance`. An explicit `zoomToFit()` is not affected.
+     * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
+     * configuration placed the camera itself with `startingCameraDistance`. An explicit
+     * `zoomToFit()` is not affected.
      */
     private autoFrame(): void {
         this.#cameraPlaced = false;
-        if (this.styles.config.graph.startingCameraDistance === undefined) {
+        if (this.#autoFrame && this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
+        }
+    }
+
+    /**
+     * Whether the camera frames the graph on its own after a data load or a layout change.
+     * @returns True (the default) when it does
+     */
+    getAutoFrame(): boolean {
+        return this.#autoFrame;
+    }
+
+    /**
+     * Switch the camera's own framing after a data load or a layout change on or off. Off, the
+     * camera stays where it is, and a re-frame already following a moving layout stops. An
+     * explicit `zoomToFit()` frames the graph either way. A preference of the view, not saved in a
+     * project file.
+     * @param on - True to frame after each load or layout change, false to leave the camera alone.
+     */
+    setAutoFrame(on: boolean): void {
+        this.#autoFrame = on;
+        if (!on) {
+            this.updateManager.stopAutoZoomToFit();
         }
     }
 
@@ -4857,6 +4910,7 @@ export class Graph implements GraphContext {
      * @param frameCount - Number of frames for the animation
      * @param fps - Frames per second for the animation
      * @param easing - Optional easing function name
+     * @param signal - Cancels the animation: the distance stays where it is and is never written again
      */
     private async animateCameraDistance(
         orbitController: {
@@ -4868,6 +4922,7 @@ export class Graph implements GraphContext {
         frameCount: number,
         fps: number,
         easing?: string,
+        signal?: AbortSignal,
     ): Promise<void> {
         // The same floor the immediate path applies, so an animation never ends below it.
         const targetDistance = orbitController.clampDistance(requestedDistance);
@@ -4898,9 +4953,15 @@ export class Graph implements GraphContext {
             });
 
             // Animate the dummy object
-            this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
+            const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1.0, () => {
                 // Cleanup observer
                 this.scene.onBeforeRenderObservable.remove(observer);
+
+                // Cancelled: stopping raises this callback too, and the final value is not ours to write.
+                if (signal?.aborted === true) {
+                    resolve();
+                    return;
+                }
 
                 // Ensure final value
                 orbitController.cameraDistance = targetDistance;
@@ -4908,6 +4969,18 @@ export class Graph implements GraphContext {
 
                 resolve();
             });
+
+            // Without this a cancelled animation kept writing the distance every frame and, at the
+            // end of its own duration, snapped the camera to ITS target over the one that replaced it.
+            signal?.addEventListener(
+                "abort",
+                () => {
+                    this.scene.onBeforeRenderObservable.remove(observer);
+                    animatable.stop();
+                    resolve();
+                },
+                { once: true },
+            );
         });
     }
 
@@ -5044,6 +5117,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         } else if (targetState.position && targetState.target) {
             // Calculate distance from position to target
@@ -5057,6 +5131,7 @@ export class Graph implements GraphContext {
                 frameCount,
                 fps,
                 options.easing,
+                signal,
             );
         }
 
@@ -5079,6 +5154,12 @@ export class Graph implements GraphContext {
                     const finalize = async (): Promise<void> => {
                         if (distanceAnimation) {
                             await distanceAnimation;
+                        }
+
+                        // Stopping a cancelled animation raises this too; its target is not the camera's now.
+                        if (signal?.aborted === true) {
+                            safeSettle();
+                            return;
                         }
 
                         // Ensure final state is applied exactly
@@ -5479,10 +5560,10 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands.
+     * Center the camera on the selection, keeping where it stands.
      *
-     * The camera turns to look at the centre of the box around the selected nodes; with nothing
-     * selected it does not move. The camera is view state, so this is not an undoable step.
+     * The camera turns to look at the center of the box around the selected nodes and the ends
+     * of the selected edges; with nothing selected it does not move. The camera is view state, so this is not an undoable step.
      * @param options - Optional animation configuration.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.0.0
@@ -5493,7 +5574,17 @@ export class Graph implements GraphContext {
      * ```
      */
     async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
-        const bounds = this.boundsToFrame(this.session.selection.nodes);
+        const { selection, data } = this.session;
+        const nodes = new Set<string | number>(selection.nodes);
+        for (const id of selection.edges) {
+            const edge = data.edge(id);
+            if (edge !== undefined) {
+                nodes.add(edge.source);
+                nodes.add(edge.target);
+            }
+        }
+
+        const bounds = this.boundsToFrame(nodes);
         if (bounds.measured === 0) {
             return undefined;
         }

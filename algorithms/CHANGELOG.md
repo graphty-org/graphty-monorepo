@@ -1,3 +1,65 @@
+## 3.3.5 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.20
+- Updated graph-format to 1.3.5
+
+## 3.3.4 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.19
+- Updated graph-format to 1.3.4
+
+## 3.3.3 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.18
+- Updated graph-format to 1.3.3
+
+## 3.3.2 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.17
+- Updated graph-format to 1.3.2
+
+## 3.3.1 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.16
+- Updated graph-format to 1.3.1
+
+## 3.3.0 (2026-10-03)
+
+### 🚀 Features
+
+- **algorithms:** send exact harmonic closeness to an accelerator that declares it ([#734](https://github.com/graphty-org/graphty-monorepo/issues/734))
+- **algorithms:** partitions read as LabelResult, traversals return tree edges, errors carry codes ([d78dba4a](https://github.com/graphty-org/graphty-monorepo/commit/d78dba4a))
+- **algorithms:** accept node ids and return id-keyed results ([#728](https://github.com/graphty-org/graphty-monorepo/issues/728))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.15
+- Updated graph-format to 1.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.2.0 (2026-10-03)
+
+### 🚀 Features
+
+- **algorithms:** export a machine-readable ALGORITHMS catalog ([#731](https://github.com/graphty-org/graphty-monorepo/issues/731))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.1.8 (2026-10-03)
 
 ### 🩹 Fixes

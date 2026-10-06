@@ -11,9 +11,11 @@ import {
     type CommonImportOptions,
     formatF32,
     type GraphImporter,
+    headBytes,
     ImportError,
     type ImportInput,
     type ImportReport,
+    INPUT_ISSUE,
 } from "@graphty/graph-io";
 
 import type { AdHocData } from "../config/common.js";
@@ -129,7 +131,7 @@ export interface ImportedGraph {
  * `GraphtyError` with `E_PARSE_FAILED` naming the format and the line, whose `cause` is the
  * importer's `ImportError`.
  * @param importer - the graph-io importer for the format
- * @param text - the whole document
+ * @param text - the whole document: text, or bytes the importer decodes
  * @param options - importer options; `ids` defaults to "string", so ids stay the text the file wrote
  * @param fatal - issue codes that make even a recognisable document unreadable, or "any"
  * @param policy - how the scratch builder treats what the importer pushes
@@ -137,7 +139,7 @@ export interface ImportedGraph {
  */
 export async function importDocument<Opts>(
     importer: GraphImporter<Opts>,
-    text: string,
+    text: string | Uint8Array,
     options: Opts & CommonImportOptions,
     fatal: readonly string[] | "any" = [],
     policy: ScratchPolicy = {},
@@ -151,7 +153,7 @@ export async function importDocument<Opts>(
             throw error;
         }
 
-        const recognised = importer.sniff?.(new TextEncoder().encode(text.slice(0, 4096))) ?? 0;
+        const recognised = importer.sniff?.(headBytes(text)) ?? 0;
         if (fatal === "any" || recognised === 0 || error.report.issues.some((issue) => fatal.includes(issue.code))) {
             throw parseFailed(importer, error);
         }
@@ -163,12 +165,40 @@ export async function importDocument<Opts>(
 }
 
 /**
+ * The error a load fails with when graph-io stopped because the input holds nothing at all: the
+ * file is empty, not unreadable, so it is refused as an empty load like a file of no records.
+ * @param error - what graph-io threw
+ * @param format - the format the file was read as
+ * @returns a `GraphtyError` with `E_EMPTY_LOAD`, or null when the input was not empty
+ */
+export function emptyLoad(error: unknown, format: string): GraphtyError | null {
+    if (
+        !(error instanceof ImportError) ||
+        !error.report.issues.some((issue) => issue.code === INPUT_ISSUE.EMPTY_INPUT)
+    ) {
+        return null;
+    }
+
+    return GraphtyError.wrap(error, {
+        code: "E_EMPTY_LOAD",
+        source: "data",
+        message: `The ${format} source is empty, so there was nothing to load. Check the file.`,
+        details: { format, rowErrors: 0 },
+    });
+}
+
+/**
  * The error a load fails with when the importer could not read the file.
  * @param importer - the graph-io importer for the format
  * @param error - the importer's error
  * @returns a `GraphtyError` with `E_PARSE_FAILED` naming the format and the last error line
  */
 function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError {
+    const empty = emptyLoad(error, importer.format);
+    if (empty !== null) {
+        return empty;
+    }
+
     const line = error.report.issues.filter((issue) => issue.severity === "error").at(-1)?.line ?? null;
     return GraphtyError.wrap(error, {
         code: "E_PARSE_FAILED",
@@ -185,7 +215,7 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
  * naming the line of the last error, so the graph on screen stays as it was. The importer's
  * errors reach the aggregator either way.
  * @param importer - the graph-io importer for the format
- * @param text - the whole document
+ * @param text - the whole document: text, or bytes the importer decodes
  * @param options - importer options
  * @param errors - the data source's aggregator
  * @param policy - how the scratch builder treats what the importer pushes
@@ -194,7 +224,7 @@ function parseFailed(importer: GraphImporter, error: ImportError): GraphtyError 
  */
 export async function importWhole<Opts>(
     importer: GraphImporter<Opts>,
-    text: string,
+    text: string | Uint8Array,
     options: Opts & CommonImportOptions,
     errors: ErrorAggregator,
     policy: ScratchPolicy = {},
@@ -265,6 +295,13 @@ export interface ImportedRecords {
  */
 class FirstValueBuilder extends GraphBuilder {
     private readonly written = new Map<number, Set<number>>();
+    /** How many times a node was added: a node table's rows read so far. */
+    added = 0;
+
+    override addNode(id: Parameters<GraphBuilder["addNode"]>[0]): number {
+        this.added++;
+        return super.addNode(id);
+    }
 
     override setNodeValue(column: ColumnHandle | string, index: number, value: unknown): void {
         const handle = typeof column === "string" ? this.nodeColumn(column) : column;
@@ -346,12 +383,15 @@ function recordsOf(snapshot: GraphSnapshot): { nodes: ImportedNode[]; edges: Imp
  * @param importer - the graph-io importer
  * @param input - the text to read
  * @param options - the importer's options
+ * @param rowsRead - Told the nodes added so far (a node table's rows) each time the importer
+ *     reports progress
  * @returns the records and the report
  */
 export async function importRecords<O>(
     importer: GraphImporter<O>,
     input: ImportInput,
     options: O & CommonImportOptions,
+    rowsRead?: (rows: number) => void,
 ): Promise<ImportedRecords> {
     const builderOptions = {
         directed: true,
@@ -364,7 +404,18 @@ export async function importRecords<O>(
 
     let report: ImportReport;
     try {
-        report = await importer.import(input, builder, options);
+        report = await importer.import(
+            input,
+            builder,
+            rowsRead === undefined
+                ? options
+                : {
+                      ...options,
+                      onProgress: () => {
+                          rowsRead(builder.added);
+                      },
+                  },
+        );
     } catch (error) {
         if (error instanceof ImportError) {
             return { nodes: [], edges: [], report: error.report, aborted: true };

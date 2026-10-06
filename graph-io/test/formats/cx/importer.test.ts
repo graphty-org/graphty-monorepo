@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { GraphBuilder, type GraphBuilderOptions, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
@@ -424,7 +428,10 @@ describe("cxImporter: the stream (research-cx.md 4.1)", () => {
     it("fails on empty input, invalid JSON, a top-level object and CX2 content", async () => {
         expect(codes((await failure("")).report)).toEqual([CX_ISSUE.EMPTY_INPUT]);
         expect(codes((await failure('[{"nodes":[{"@id":1}]')).report)).toEqual([CX_ISSUE.SYNTAX]);
-        expect(codes((await failure('[{"nodes":[{"@id":NaN}]}]')).report)).toEqual([CX_ISSUE.SYNTAX]);
+        // a bare NaN (Python's json writes it) is read as the number since the robustness pass: the
+        // node's id is then E_INVALID_ID and the import goes on
+        const nan = await load('[{"nodes":[{"@id":NaN}]}]');
+        expect(codes(nan.report)).toEqual([CX_ISSUE.JSON_NONSTANDARD_NUMBER, CX_ISSUE.INVALID_ID]);
         expect(codes((await failure('{"nodes":[]}')).report)).toEqual([CX_ISSUE.NOT_CX]);
         const cx2 = await failure('[{"CXVersion":"2.0","hasFragments":false},{"status":[{"success":true}]}]');
         expect(codes(cx2.report)).toEqual([CX_ISSUE.NOT_CX]);
@@ -473,7 +480,10 @@ describe("cxImporter: the stream (research-cx.md 4.1)", () => {
             ]),
         );
         expect(snapshot.ids.toArray()).toEqual([1, 2, 3]);
-        expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(4);
+        // the first member's array-valued second key (edges: []) is read as its own fragment since
+        // the robustness pass (W_MULTI_ASPECT_FRAGMENT), no longer skipped as a bad block
+        expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(3);
+        expect(codes(report)).toContain(CX_ISSUE.MULTI_ASPECT_FRAGMENT);
         expect((snapshot.meta.extra.cx as Record<string, unknown>).ndexStatus).toEqual([{ published: true }]);
     });
 
@@ -595,6 +605,52 @@ describe("cxImporter: collections (design section 1.2)", () => {
         expect(codes((await failure(COLLECTION, { graphName: "Nope" })).report)).toEqual([CX_ISSUE.GRAPH_NOT_FOUND]);
     });
 
+    it('reads every aspect that names a node or an edge under ids: "string" as under the default', async () => {
+        // layouts, groups, attributes, visual properties and links name elements by their CX id;
+        // each must find the element the ids option renamed
+        const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "conformance", "fixtures", "cx");
+        const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")) as {
+            fixtures: { file: string; expected: { outcome: string } }[];
+        };
+        const setCells = (s: GraphSnapshot): Record<string, number> => {
+            const out: Record<string, number> = {};
+            for (const [table, columns, count] of [
+                ["node", s.nodes, s.nodeCount],
+                ["edge", s.edges, s.edgeCount],
+            ] as const) {
+                for (const column of columns) {
+                    let n = 0;
+                    for (let row = 0; row < count; row++) {
+                        n += column.isSet(row) ? 1 : 0;
+                    }
+                    out[`${table}:${column.meta.name}`] = n;
+                }
+            }
+            return out;
+        };
+        let compared = 0;
+        for (const { file, expected } of manifest.fixtures) {
+            if (expected.outcome !== "pass") {
+                continue;
+            }
+            const bytes = new Uint8Array(readFileSync(join(dir, file)));
+            const plain = await load(bytes);
+            const text = await load(bytes, { ids: "string" });
+            expect(setCells(text.snapshot), file).toEqual(setCells(plain.snapshot));
+            compared++;
+        }
+        expect(compared).toBeGreaterThan(10);
+    });
+
+    it("keeps a subnetwork's members under every ids option", async () => {
+        // membership lists hold the ids as written; a coerced id must still find its subnetwork
+        for (const ids of ["string", "number", "keep"] as const) {
+            const byName = await load(COLLECTION, { graphName: "First", ids });
+            expect(byName.snapshot.nodeCount, ids).toBe(2);
+            expect(byName.snapshot.edgeCount, ids).toBe(1);
+        }
+    });
+
     it("reads every subnetwork with importAll()", async () => {
         const all = await importAllGraphs(COLLECTION, { format: "cx" });
         expect(all.map((r) => r.snapshot.nodeCount)).toEqual([2, 2, 3]);
@@ -713,7 +769,7 @@ describe("cxImporter: groups, visual properties and provenance (research-cx.md 3
             CX_ISSUE.DANGLING_REFERENCE,
         ]);
         expect(report.issues.find((i) => i.code === CX_ISSUE.STYLES_NOT_IMPORTED)?.message).toMatch(
-            /1 default\(s\), 1 mapping\(s\), 1 dependenc\(ies\).*#706/,
+            /1 default, 1 mapping, 1 dependenc\(ies\)\); they are kept/,
         );
         expect((s.meta.extra.cx as Record<string, unknown[]>).cyVisualProperties).toHaveLength(6);
     });
@@ -780,9 +836,7 @@ describe("cxImporter: groups, visual properties and provenance (research-cx.md 3
         expect(s.edgeCount).toBe(1);
         expect(value(s, "a", 2)).toBe("x");
         expect(codes(report)).toEqual([CX_ISSUE.BAD_ASPECT_BLOCK, CX_ISSUE.ROOT_ONLY, CX_ISSUE.BAD_VALUE]);
-        expect(report.issues.find((i) => i.code === CX_ISSUE.ROOT_ONLY)?.message).toMatch(
-            /1 node\(s\) and 1 edge\(s\)/,
-        );
+        expect(report.issues.find((i) => i.code === CX_ISSUE.ROOT_ONLY)?.message).toMatch(/1 node and 1 edge/);
         expect(report.issues.find((i) => i.code === CX_ISSUE.BAD_VALUE)?.message).toMatch(/has no v/);
         expect(report.issues.filter((i) => i.code === CX_ISSUE.BAD_ASPECT_BLOCK)).toHaveLength(2);
     });

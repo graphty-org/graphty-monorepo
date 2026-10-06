@@ -1,4 +1,10 @@
-import { detectFormat, FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
+import {
+    detectFormat,
+    FORMAT_DESCRIPTORS,
+    formatDescriptor,
+    type GraphListing,
+    listGraphs,
+} from "@graphty/graphty-element/catalog";
 import {
     Box,
     Button,
@@ -28,6 +34,8 @@ export interface LoadDataRequest {
     url?: string;
     file?: File;
     data?: string;
+    /** Which graph of a file that holds several, as graphty-element's `listGraphs` numbers them. */
+    graphIndex?: number;
     replaceExisting: boolean;
 }
 
@@ -114,6 +122,16 @@ function urlPath(url: string): string {
     }
 }
 
+/**
+ * One graph of a file in words: its name, else its position, and its size when the file states it.
+ * @param graph - the listing graphty-element returned.
+ * @returns the label of its choice in the Network menu.
+ */
+function graphLabel(graph: GraphListing): string {
+    const name = graph.name ?? `Network ${graph.index + 1}`;
+    return graph.nodes === null ? name : `${name} (${graph.nodes} nodes, ${graph.edges ?? 0} edges)`;
+}
+
 /** What the error line says when the refusal carried no message of its own. */
 const UNREADABLE_LOAD_ERROR = "The data could not be loaded, and the loader gave no reason.";
 
@@ -175,6 +193,10 @@ export function LoadDataModal({
     const [isDragging, setIsDragging] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [replaceExisting, setReplaceExisting] = useState(true);
+    /* The graphs of the chosen file when it holds several (a Cytoscape session, a CX
+       collection), as graphty-element lists them, and the one the reader picked. */
+    const [graphs, setGraphs] = useState<readonly GraphListing[] | null>(null);
+    const [graphIndex, setGraphIndex] = useState(0);
     /* Whether a load is in flight. It is not cosmetic: `onLoad` now settles only once
        graphty-element has said what became of the data, so the press and the answer are
        seconds apart on a large file, and a dialog that looked idle in between invited a
@@ -187,6 +209,8 @@ export function LoadDataModal({
         setUrl("");
         setPastedContent("");
         setSelectedFile(null);
+        setGraphs(null);
+        setGraphIndex(0);
         setError(null);
         setReplaceExisting(true);
     }, []);
@@ -199,6 +223,16 @@ export function LoadDataModal({
     const handleFileSelect = useCallback((file: File) => {
         setSelectedFile(file);
         setError(null);
+        setGraphs(null);
+        setGraphIndex(0);
+        // A file that holds several graphs offers a choice; one that cannot be listed loads its first.
+        listGraphs({ config: { file } })
+            .then((listed) => {
+                setGraphs(listed !== null && listed.length > 1 ? listed : null);
+            })
+            .catch(() => {
+                setGraphs(null);
+            });
 
         // The name and the first 1 KB, so the element can tell apart formats that share an extension.
         setDetectedFormat(detectFormat({ filename: file.name }));
@@ -287,6 +321,9 @@ export function LoadDataModal({
 
         if (inputMethod === "file" && selectedFile) {
             request.file = selectedFile;
+            if (graphs !== null) {
+                request.graphIndex = graphIndex;
+            }
         } else if (inputMethod === "url" && url) {
             request.url = url;
         } else if (inputMethod === "paste" && pastedContent) {
@@ -338,6 +375,8 @@ export function LoadDataModal({
         onLoad,
         handleClose,
         replaceExisting,
+        graphs,
+        graphIndex,
     ]);
 
     const canLoad = useCallback((): boolean => {
@@ -548,6 +587,19 @@ export function LoadDataModal({
                         },
                     }}
                 />
+
+                {inputMethod === "file" && graphs !== null && (
+                    <Select
+                        label="Network"
+                        description={`This file holds ${graphs.length} networks; one is loaded.`}
+                        value={String(graphIndex)}
+                        onChange={(value) => {
+                            setGraphIndex(value === null ? 0 : Number(value));
+                        }}
+                        data={graphs.map((graph) => ({ value: String(graph.index), label: graphLabel(graph) }))}
+                        allowDeselect={false}
+                    />
+                )}
 
                 {/* Supported Formats Help */}
                 <Text size="xs" c="dimmed">

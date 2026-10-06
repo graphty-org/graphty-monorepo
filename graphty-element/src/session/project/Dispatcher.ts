@@ -37,6 +37,7 @@ import type { SetService } from "../commands/sets";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
+import type { ProgressChange } from "../shared";
 import type { ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp } from "./arrangement";
 import { DerivationLane } from "./derive";
@@ -98,6 +99,8 @@ interface CommandServices {
     layoutAdvice?: LayoutAdvice;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
+    /** Where a data source's ingest reports how far a load has got; the session publishes it. */
+    progress?: (change: ProgressChange) => void;
 }
 
 /** What the queue hands a queued command when its slot comes up. */

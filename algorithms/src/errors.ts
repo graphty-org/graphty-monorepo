@@ -1,4 +1,47 @@
 /**
+ * The stable code every error an algorithm throws on purpose carries as `error.code`, so a caller can tell the
+ * cases apart without matching message text (which may change):
+ *
+ * - `E_NEEDS_UNDIRECTED` / `E_NEEDS_DIRECTED`: the algorithm is defined for the other kind of graph.
+ * - `E_BAD_OPTION`: an option is out of range, of the wrong length, or inconsistent with another.
+ * - `E_BAD_NODE`: a node index (a start, a target, a source) is not a node of the graph.
+ * - `E_BAD_WEIGHT`: an edge weight the algorithm cannot use (negative, infinite or NaN).
+ * - `E_NOT_CONNECTED` / `E_NOT_BIPARTITE` / `E_EMPTY_GRAPH`: the graph lacks a property the algorithm needs.
+ * - `E_TOO_LARGE`: the result would exceed a size bound the caller can raise.
+ * - `E_NOT_CONVERGED`, `E_BAD_PATH`, `E_PATH_COUNT_OVERFLOW`: {@link ConvergenceError}, {@link PathWalkError}
+ *   and {@link PathCountOverflowError}.
+ *
+ * The thrown object stays the `Error` or `RangeError` it was before codes existed.
+ * @public
+ */
+export type AlgorithmErrorCode =
+    | "E_NEEDS_UNDIRECTED"
+    | "E_NEEDS_DIRECTED"
+    | "E_BAD_OPTION"
+    | "E_BAD_NODE"
+    | "E_BAD_WEIGHT"
+    | "E_NOT_CONNECTED"
+    | "E_NOT_BIPARTITE"
+    | "E_EMPTY_GRAPH"
+    | "E_TOO_LARGE"
+    | "E_NOT_CONVERGED"
+    | "E_BAD_PATH"
+    | "E_PATH_COUNT_OVERFLOW";
+
+/**
+ * Attach a code to an error about to be thrown.
+ * @param error - The error
+ * @param code - Its code
+ * @returns The same error, with `code` set
+ */
+export function withCode<E extends Error>(
+    error: E,
+    code: AlgorithmErrorCode,
+): E & { readonly code: AlgorithmErrorCode } {
+    return Object.assign(error, { code });
+}
+
+/**
  * Thrown when an iterative algorithm reaches its iteration cap before meeting its tolerance.
  *
  * The scores it had reached are not returned: an unconverged vector is not the answer, and
@@ -7,6 +50,7 @@
  */
 export class ConvergenceError extends Error {
     override readonly name = "ConvergenceError";
+    readonly code: AlgorithmErrorCode = "E_NOT_CONVERGED";
 
     /**
      * Builds the error and its message.
@@ -36,6 +80,7 @@ export class ConvergenceError extends Error {
  */
 export class PathWalkError extends Error {
     override readonly name = "PathWalkError";
+    readonly code: AlgorithmErrorCode = "E_BAD_PATH";
 
     /**
      * Builds the error and its message.
@@ -64,6 +109,7 @@ export class PathWalkError extends Error {
  */
 export class PathCountOverflowError extends Error {
     override readonly name = "PathCountOverflowError";
+    readonly code: AlgorithmErrorCode = "E_PATH_COUNT_OVERFLOW";
 
     /**
      * Builds the error and its message.

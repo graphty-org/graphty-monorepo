@@ -122,24 +122,31 @@ const club = karate(); // 34 nodes, 78 weighted edges, node column `club`
 karateMeta.citation; // what to cite
 ```
 
-| Subpath                         | Graph                                              | Nodes / edges  | Ground truth |
-| ------------------------------- | -------------------------------------------------- | -------------- | ------------ |
-| `datasets/karate`               | Zachary's karate club (weighted)                   | 34 / 78        | `club`       |
-| `datasets/florentine-families`  | Florentine marriages                               | 15 / 20        |              |
-| `datasets/davis-southern-women` | Davis Southern Women (bipartite)                   | 32 / 89        | `side`       |
-| `datasets/les-miserables`       | Les Miserables co-appearances (weighted)           | 77 / 254       |              |
-| `datasets/football`             | US college football 2000, Evans' corrected version | 115 / 613      | `conference` |
-| `datasets/political-books`      | Books about US politics                            | 105 / 441      | `lean`       |
-| `datasets/dolphins`             | Doubtful Sound dolphins                            | 62 / 159       |              |
-| `datasets/contiguous-usa`       | Contiguous US states and DC, land borders          | 49 / 107       |              |
-| `datasets/knuth-miles`          | Knuth's 128 cities, 1949 road miles (complete)     | 128 / 8,128    |              |
-| `datasets/celegans-neural`      | C. elegans neurons (directed, weighted)            | 297 / 2,345    |              |
-| `datasets/political-blogs`      | US political blogs, 2004 (directed)                | 1,490 / 19,022 | `lean`       |
-| `datasets/openflights`          | OpenFlights airports and routes (directed)         | 3,214 / 36,906 |              |
+| Subpath                                      | Graph                                                     | Nodes / edges  | Ground truth |
+| -------------------------------------------- | --------------------------------------------------------- | -------------- | ------------ |
+| `datasets/karate`                            | Zachary's karate club (weighted)                          | 34 / 78        | `club`       |
+| `datasets/florentine-families`               | Florentine marriages                                      | 15 / 20        |              |
+| `datasets/davis-southern-women`              | Davis Southern Women (bipartite)                          | 32 / 89        | `side`       |
+| `datasets/les-miserables`                    | Les Miserables co-appearances (weighted)                  | 77 / 254       |              |
+| `datasets/football`                          | US college football 2000, Evans' corrected version        | 115 / 613      | `conference` |
+| `datasets/political-books`                   | Books about US politics                                   | 105 / 441      | `lean`       |
+| `datasets/dolphins`                          | Doubtful Sound dolphins                                   | 62 / 159       |              |
+| `datasets/contiguous-usa`                    | Contiguous US states and DC, land borders                 | 49 / 107       |              |
+| `datasets/knuth-miles`                       | Knuth's 128 cities, 1949 road miles (complete)            | 128 / 8,128    |              |
+| `datasets/celegans-neural`                   | C. elegans neurons (directed, weighted)                   | 297 / 2,345    |              |
+| `datasets/political-blogs`                   | US political blogs, 2004 (directed)                       | 1,490 / 19,022 | `lean`       |
+| `datasets/openflights`                       | OpenFlights airports and routes (directed)                | 3,214 / 36,906 |              |
+| `datasets/yeast-perturbation`                | Yeast galactose network, Cytoscape's demo (directed, x/y) | 331 / 361      |              |
+| `datasets/stelzl-interactome`                | Human protein interactions, Stelzl 2005 (directed, x/y)   | 1,691 / 3,128  |              |
+| `datasets/wikipathways-senescence-autophagy` | WikiPathways WP615 pathway drawing (directed, x/y)        | 161 / 118      |              |
+| `datasets/go-slim-generic`                   | Generic GO slim, term to parent (directed)                | 140 / 62       | `namespace`  |
 
 The root entry exports `DATASETS`, the metadata of every dataset (title, description, citation,
 source, license, counts, columns, what it showcases) without any of the graph data. The
-geographic datasets carry `latitude` and `longitude` node columns in degrees.
+geographic datasets carry `latitude` and `longitude` node columns in degrees. The Cytoscape and
+ontology datasets are read from their published files (a Cytoscape session, a CX2 network, an OBO
+ontology) by `@graphty/graph-io`'s own importers; the drawn ones carry the saved `x` and `y`, with
+y growing upward.
 
 ### Hosted datasets
 
@@ -155,11 +162,14 @@ const roads = await fetchDataset("road-ny"); // a GraphSnapshot, with its node c
 const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" });
 ```
 
-| Name         | Graph                                                    | Nodes / edges       | Download | Ground truth |
-| ------------ | -------------------------------------------------------- | ------------------- | -------- | ------------ |
-| `road-ny`    | New York City roads, DIMACS (directed, lengths, lon/lat) | 264,346 / 733,846   | 9.4 MB   |              |
-| `ogbn-arxiv` | arXiv CS citations, OGB (directed, `year`)               | 169,343 / 1,166,243 | 10.6 MB  | `subject`    |
-| `com-dblp`   | DBLP co-authorship, SNAP                                 | 317,080 / 1,049,866 | 15.6 MB  |              |
+| Name               | Graph                                                    | Nodes / edges       | Download | Ground truth |
+| ------------------ | -------------------------------------------------------- | ------------------- | -------- | ------------ |
+| `road-ny`          | New York City roads, DIMACS (directed, lengths, lon/lat) | 264,346 / 733,846   | 9.4 MB   |              |
+| `ogbn-arxiv`       | arXiv CS citations, OGB (directed, `year`)               | 169,343 / 1,166,243 | 10.6 MB  | `subject`    |
+| `com-dblp`         | DBLP co-authorship, SNAP                                 | 317,080 / 1,049,866 | 15.6 MB  |              |
+| `go-basic`         | Gene Ontology, term to parent (directed, `obsolete`)     | 48,340 / 71,496     | 1.4 MB   | `namespace`  |
+| `disease-ontology` | Human Disease Ontology, disease to parent (directed)     | 14,854 / 17,479     | 0.3 MB   |              |
+| `bioplex3-hct116`  | BioPlex 3.0 HCT116 protein interactions (directed, x/y)  | 10,251 / 75,346     | 0.7 MB   |              |
 
 `https://graphty.app/data/graph-samples/v1/index.json` lists the same metadata with each file's URL.
 

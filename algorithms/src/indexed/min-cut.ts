@@ -7,8 +7,9 @@ import {
     type NumericVector,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { mulberry32 } from "../utils/math-utilities.js";
-import { crossingEdges, edgeCapacities, type MinCutResult } from "./flow.js";
+import { crossingEdges, edgeCapacities, type MinCutResult, sidesPartition } from "./flow.js";
 import { IndexedMaxHeap } from "./structures/max-heap.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
@@ -48,7 +49,8 @@ export function stoerWagner(s: GraphSnapshot, options: StoerWagnerOptions = {}):
     const n = s.nodeCount;
     const capacity = edgeCapacities(s, options.weights);
     if (n < 2) {
-        return { cutValue: 0, side: makeMask(n, true), cutEdges: new Uint32Array(0) };
+        const side = makeMask(n, true);
+        return { ...sidesPartition(side, n), cutValue: 0, side, cutEdges: new Uint32Array(0) };
     }
     // Incident (neighbour, edge) pairs per node, both directions of every edge.
     const { src, dst } = s.edgeList();
@@ -130,7 +132,12 @@ export function stoerWagner(s: GraphSnapshot, options: StoerWagnerOptions = {}):
         next[tail[prev]] = last;
         tail[prev] = tail[last];
     }
-    return { cutValue: best, side: bestSide, cutEdges: crossingEdges(s, bestSide, false, capacity, false) };
+    return {
+        ...sidesPartition(bestSide, n),
+        cutValue: best,
+        side: bestSide,
+        cutEdges: crossingEdges(s, bestSide, false, capacity, false),
+    };
 }
 
 /**
@@ -150,15 +157,16 @@ export function kargerMinCut(s: GraphSnapshot, options: KargerOptions = {}): Min
     const iterations = options.iterations ?? 100;
     const randomSeed = options.randomSeed ?? 42;
     if (!Number.isInteger(iterations) || iterations < 1) {
-        throw new RangeError(`iterations must be a positive integer, got ${iterations}`);
+        throw withCode(new RangeError(`iterations must be a positive integer, got ${iterations}`), "E_BAD_OPTION");
     }
     if (!Number.isInteger(randomSeed)) {
-        throw new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`);
+        throw withCode(new RangeError(`randomSeed must be a finite integer, got ${randomSeed}`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
     const capacity = edgeCapacities(s, options.weights);
     if (n < 2) {
-        return { cutValue: 0, side: makeMask(n), cutEdges: new Uint32Array(0) };
+        const side = makeMask(n);
+        return { ...sidesPartition(side, n), cutValue: 0, side, cutEdges: new Uint32Array(0) };
     }
     const { src, dst } = s.edgeList();
     const rand = mulberry32(randomSeed);
@@ -197,5 +205,10 @@ export function kargerMinCut(s: GraphSnapshot, options: KargerOptions = {}): Min
             }
         }
     }
-    return { cutValue: best, side: bestSide, cutEdges: crossingEdges(s, bestSide, false, capacity, false) };
+    return {
+        ...sidesPartition(bestSide, n),
+        cutValue: best,
+        side: bestSide,
+        cutEdges: crossingEdges(s, bestSide, false, capacity, false),
+    };
 }

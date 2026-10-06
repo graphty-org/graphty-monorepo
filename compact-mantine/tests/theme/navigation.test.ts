@@ -27,9 +27,14 @@ describe("navigationComponentExtensions", () => {
         expect(navigationComponentExtensions.Tabs).toBeDefined();
     });
 
-    it("exports exactly 6 navigation components", () => {
+    it("exports TabsTab, the theme name Tabs.Tab reads its default props from", () => {
+        expect(navigationComponentExtensions.TabsTab).toBeDefined();
+    });
+
+    it("exports exactly 7 navigation extensions", () => {
         const components = Object.keys(navigationComponentExtensions);
-        expect(components).toHaveLength(6);
+        expect(components).toHaveLength(7);
+        expect(components).toContain("TabsTab");
         expect(components).toContain("Anchor");
         expect(components).toContain("Burger");
         expect(components).toContain("NavLink");

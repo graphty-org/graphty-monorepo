@@ -1,5 +1,6 @@
 import type { F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import type { PageRankResult } from "./pagerank.js";
 
 /**
@@ -117,7 +118,10 @@ function nodeVector(v: NumericVector | undefined, n: number, name: string): F64 
         return null;
     }
     if (v.length !== n) {
-        throw new RangeError(`${name} has ${String(v.length)} entries; the graph has ${String(n)} nodes`);
+        throw withCode(
+            new RangeError(`${name} has ${String(v.length)} entries; the graph has ${String(n)} nodes`),
+            "E_BAD_OPTION",
+        );
     }
     const out = Float64Array.from(v);
     normalize(out);
@@ -135,14 +139,17 @@ function arcWeights(s: GraphSnapshot, w: NumericVector | undefined): NumericVect
         return s.weights;
     }
     if (w.length !== s.arcCount) {
-        throw new RangeError(`weights has ${String(w.length)} entries; the graph has ${String(s.arcCount)} arcs`);
+        throw withCode(
+            new RangeError(`weights has ${String(w.length)} entries; the graph has ${String(s.arcCount)} arcs`),
+            "E_BAD_OPTION",
+        );
     }
     return w;
 }
 
 function checkDamping(d: number): void {
     if (d < 0 || d > 1) {
-        throw new Error("Damping factor must be between 0 and 1");
+        throw withCode(new Error("Damping factor must be between 0 and 1"), "E_BAD_OPTION");
     }
 }
 
@@ -163,7 +170,7 @@ function checkDamping(d: number): void {
  */
 export function deltaPageRank(s: GraphSnapshot, o: DeltaPageRankOptions = {}): PageRankResult {
     if (!s.directed) {
-        throw new Error("PageRank requires a directed graph");
+        throw withCode(new Error("PageRank requires a directed graph"), "E_NEEDS_DIRECTED");
     }
     const d = o.dampingFactor ?? 0.85;
     checkDamping(d);
@@ -237,7 +244,7 @@ export class DeltaPageRank {
      */
     constructor(s: GraphSnapshot, o: DeltaPageRankEngineOptions = {}) {
         if (!s.directed) {
-            throw new Error("DeltaPageRank requires a directed graph");
+            throw withCode(new Error("DeltaPageRank requires a directed graph"), "E_NEEDS_DIRECTED");
         }
         this.s = s;
         this.order = arcsInEdgeOrder(s);
@@ -444,7 +451,7 @@ export class PriorityDeltaPageRank {
      */
     constructor(s: GraphSnapshot, o: DeltaPageRankEngineOptions = {}) {
         if (!s.directed) {
-            throw new Error("PriorityDeltaPageRank requires a directed graph");
+            throw withCode(new Error("PriorityDeltaPageRank requires a directed graph"), "E_NEEDS_DIRECTED");
         }
         this.s = s;
         this.order = arcsInEdgeOrder(s);

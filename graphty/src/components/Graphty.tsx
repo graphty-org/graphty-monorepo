@@ -3,7 +3,7 @@ import type { AccelerationPolicy, GraphSession, Layer } from "@graphty/graphty-e
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
-import type { LayerItem } from "./layout/LeftSidebar";
+import type { LayerItem } from "./shell/panel/StyleLayerList";
 
 /**
  * How the app wants the element to draw: node labels that would land on each other are thinned

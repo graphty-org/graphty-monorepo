@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE graph [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<graph label="&xxe;"><node id="a"/></graph>

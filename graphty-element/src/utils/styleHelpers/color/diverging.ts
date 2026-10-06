@@ -3,6 +3,7 @@
  */
 
 import { BLUE_ORANGE_COLORS, PURPLE_GREEN_COLORS, RED_BLUE_COLORS } from "../../../config/palettes/diverging";
+import { clamp } from "../../clamp";
 import { interpolatePalette } from "./interpolation";
 
 /**
@@ -69,8 +70,8 @@ export function redBlue(value: number, midpoint = 0.5): string {
  */
 function normalizeDivergingValue(value: number, midpoint: number): number {
     // Clamp value to [0, 1]
-    const clampedValue = Math.max(0, Math.min(1, value));
-    const clampedMidpoint = Math.max(0, Math.min(1, midpoint));
+    const clampedValue = clamp(value, 0, 1);
+    const clampedMidpoint = clamp(midpoint, 0, 1);
 
     if (clampedValue < clampedMidpoint) {
         // Map [0, midpoint] to [0, 0.5]

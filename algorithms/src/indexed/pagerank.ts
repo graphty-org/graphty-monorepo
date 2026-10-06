@@ -1,5 +1,7 @@
 import type { F32, F64, GraphSnapshot, NumericVector } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
+
 /** Options of the index-based PageRank (graph-format design 14.2 Port 3). @public */
 export interface PageRankOptions {
     /** Probability of following a link; default 0.85. */
@@ -166,12 +168,18 @@ function rowSums(s: GraphSnapshot, perArc: F64): F64 {
  */
 function distribution(v: F32 | F64, n: number, name: string): F64 | null {
     if (v.length !== n) {
-        throw new Error(`PageRank: ${name} has ${String(v.length)} entries for ${String(n)} nodes`);
+        throw withCode(
+            new Error(`PageRank: ${name} has ${String(v.length)} entries for ${String(n)} nodes`),
+            "E_BAD_OPTION",
+        );
     }
     let total = 0;
     for (const mass of v) {
         if (!Number.isFinite(mass) || mass < 0) {
-            throw new Error(`PageRank: ${name} must be finite and non-negative, got ${String(mass)}`);
+            throw withCode(
+                new Error(`PageRank: ${name} must be finite and non-negative, got ${String(mass)}`),
+                "E_BAD_OPTION",
+            );
         }
         total += mass;
     }

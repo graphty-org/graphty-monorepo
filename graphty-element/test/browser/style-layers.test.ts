@@ -411,18 +411,17 @@ describe("a layer bound to what one run chose", () => {
      * JMESPath does (src/session/styles/predicate.ts). Written plain, a run called "first-route"
      * lexes as a subtraction and the layer is refused before it reaches the stack.
      *
-     * This is not an exotic id. assertRunId admits hyphens by name, and deriveRunId MINTS them:
-     * the default id of a run is algorithmSlug(algorithm) plus a digest, and the slug keeps the
-     * key's hyphens. So every default-id run of "shortest-path", "min-cut" and
-     * "bipartite-matching" -- the shape highlight() exists for -- was refused, and those
-     * algorithms drew no picture at all. The three tests above pass either way, because they name
-     * their runs with an underscore; this one is the one that fails when the quoting goes.
+     * This is not an exotic id. assertRunId admits hyphens by name, so any caller may name a run
+     * "first-route" with `as:`. Before run ids were readable names, the element MINTED them too:
+     * every default-id run of "shortest-path", "min-cut" and "bipartite-matching" -- the shape
+     * highlight() exists for -- was refused, and those algorithms drew no picture at all. The
+     * element now mints underscores, so this test names its run with a hyphen itself. The three
+     * tests above pass either way, because they name their runs with an underscore; this one is
+     * the one that fails when the quoting goes.
      */
     it("quotes its own generated selector, so a run id carrying a hyphen still paints", async () => {
-        const run = session.runs.start("shortest-path", { source: "a", target: "e" });
+        const run = session.runs.start("shortest-path", { source: "a", target: "e" }, { as: "first-route" });
         await run;
-
-        assert.include(run.id, "-", "the default id of a hyphenated algorithm key carries the hyphen");
 
         const [nodeLayer] = await session.styles.highlight({ run: run.id });
 
@@ -688,5 +687,47 @@ describe("a stack over a graph a node was removed from", () => {
         for (const id of survivors) {
             assert.strictEqual(colorOf(id), before.get(id), `node ${id} shows its own paint, not its neighbour's`);
         }
+    });
+});
+
+/**
+ * ONE GROUP OF A RUN'S COLOURS, HIDDEN AND SHOWN AGAIN (#907).
+ *
+ * Components splits the graph into the five connected nodes and f on its own. Hiding f's group
+ * must hand f back to the paint beneath the run's layer on the canvas and leave the other group
+ * exactly as the run painted it.
+ */
+describe("hiding one group of a run's encoding", () => {
+    /**
+     * The colour the element paints one node.
+     * @param id - The node id.
+     * @returns The colour, serialized so two can be compared.
+     */
+    function colorOf(id: string): string {
+        const index = session.data.snapshot().ids.indexOf(id);
+
+        return JSON.stringify(graph.getStylePainter().nodePaint(index)?.color ?? null);
+    }
+
+    it("paints the hidden group as the layers beneath do, and paints it again when shown", async () => {
+        const base = colorOf("f");
+        const run = session.runs.start("components", {}, { as: "parts", style: false });
+        const result = await run;
+        const layer = await session.styles.encode({ run: run.id, channel: "node.color" });
+        await operationQueueOf(graph).waitForCompletion();
+        const painted = { a: colorOf("a"), f: colorOf("f") };
+        assert.notStrictEqual(painted.f, base, "the run painted f's group");
+        const group = result.node("f")?.group as string | number;
+
+        await session.styles.setValueHidden(layer.id, "node.color", group, true);
+        await operationQueueOf(graph).waitForCompletion();
+
+        assert.strictEqual(colorOf("f"), base, "f is back to the colour beneath the run's layer");
+        assert.strictEqual(colorOf("a"), painted.a, "the other group keeps the run's colour");
+
+        await session.styles.setValueHidden(layer.id, "node.color", group, false);
+        await operationQueueOf(graph).waitForCompletion();
+
+        assert.strictEqual(colorOf("f"), painted.f, "shown again, f takes the run's colour back");
     });
 });

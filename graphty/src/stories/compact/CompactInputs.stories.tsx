@@ -1,7 +1,7 @@
+import { CompactColorInput, PopoutManager } from "@graphty/compact-mantine";
 import {
     Autocomplete,
     Box,
-    ColorInput,
     Group,
     NativeSelect,
     NumberInput,
@@ -217,20 +217,17 @@ export const AutocompleteBasic: Story = {
     ),
 };
 
-// ColorInput Stories
-export const ColorInputBasic: Story = {
-    name: "ColorInput - Basic",
+// Color Stories: compact-mantine's CompactColorInput, the one color field
+export const CompactColorInputBasic: Story = {
+    name: "CompactColorInput - Basic",
     render: () => (
-        <Stack gap="md">
-            <ColorInput size="compact" label="Color picker" defaultValue="#5B8FF9" />
-            <ColorInput
-                size="compact"
-                label="With swatches"
-                defaultValue="#FF6B6B"
-                swatches={["#5B8FF9", "#FF6B6B", "#61D095", "#F7B731", "#9B59B6"]}
-            />
-            <ColorInput size="compact" label="With alpha" format="hexa" defaultValue="#5B8FF980" />
-        </Stack>
+        <PopoutManager>
+            <Stack gap="md">
+                <CompactColorInput label="Color" defaultColor="#5B8FF9" showOpacity={false} />
+                <CompactColorInput label="With opacity" defaultColor="#FF6B6B" />
+                <CompactColorInput label="Half transparent" defaultColor="#5B8FF9" defaultOpacity={50} />
+            </Stack>
+        </PopoutManager>
     ),
 };
 
@@ -272,53 +269,55 @@ export const PasswordInputBasic: Story = {
 export const AllInputs: Story = {
     name: "All Inputs Overview",
     render: () => (
-        <Stack gap="lg">
-            <Box>
-                <Text fw={500} mb="xs">
-                    Text Inputs
-                </Text>
-                <Group grow>
-                    <TextInput size="compact" placeholder="TextInput" />
-                    <PasswordInput size="compact" placeholder="PasswordInput" />
-                </Group>
-            </Box>
+        <PopoutManager>
+            <Stack gap="lg">
+                <Box>
+                    <Text fw={500} mb="xs">
+                        Text Inputs
+                    </Text>
+                    <Group grow>
+                        <TextInput size="compact" placeholder="TextInput" />
+                        <PasswordInput size="compact" placeholder="PasswordInput" />
+                    </Group>
+                </Box>
 
-            <Box>
-                <Text fw={500} mb="xs">
-                    Number Input
-                </Text>
-                <Group grow>
-                    <NumberInput size="compact" placeholder="With controls" />
-                    <NumberInput size="compact" placeholder="No controls" hideControls />
-                </Group>
-            </Box>
+                <Box>
+                    <Text fw={500} mb="xs">
+                        Number Input
+                    </Text>
+                    <Group grow>
+                        <NumberInput size="compact" placeholder="With controls" />
+                        <NumberInput size="compact" placeholder="No controls" hideControls />
+                    </Group>
+                </Box>
 
-            <Box>
-                <Text fw={500} mb="xs">
-                    Select Inputs
-                </Text>
-                <Group grow>
-                    <NativeSelect size="compact" data={["Option 1", "Option 2"]} />
-                    <Select size="compact" data={["Option 1", "Option 2"]} placeholder="Select" />
-                </Group>
-            </Box>
+                <Box>
+                    <Text fw={500} mb="xs">
+                        Select Inputs
+                    </Text>
+                    <Group grow>
+                        <NativeSelect size="compact" data={["Option 1", "Option 2"]} />
+                        <Select size="compact" data={["Option 1", "Option 2"]} placeholder="Select" />
+                    </Group>
+                </Box>
 
-            <Box>
-                <Text fw={500} mb="xs">
-                    Other Inputs
-                </Text>
-                <Group grow>
-                    <Autocomplete size="compact" placeholder="Autocomplete" data={["React", "Vue"]} />
-                    <ColorInput size="compact" defaultValue="#5B8FF9" />
-                </Group>
-            </Box>
+                <Box>
+                    <Text fw={500} mb="xs">
+                        Other Inputs
+                    </Text>
+                    <Group grow>
+                        <Autocomplete size="compact" placeholder="Autocomplete" data={["React", "Vue"]} />
+                        <CompactColorInput defaultColor="#5B8FF9" showOpacity={false} />
+                    </Group>
+                </Box>
 
-            <Box>
-                <Text fw={500} mb="xs">
-                    Textarea
-                </Text>
-                <Textarea size="compact" placeholder="Multi-line input..." rows={2} />
-            </Box>
-        </Stack>
+                <Box>
+                    <Text fw={500} mb="xs">
+                        Textarea
+                    </Text>
+                    <Textarea size="compact" placeholder="Multi-line input..." rows={2} />
+                </Box>
+            </Stack>
+        </PopoutManager>
     ),
 };

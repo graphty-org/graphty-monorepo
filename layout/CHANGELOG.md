@@ -1,3 +1,84 @@
+## 2.2.6 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.20
+- Updated graph-format to 1.3.5
+- Updated algorithms to 3.3.5
+
+## 2.2.5 (2026-10-05)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.19
+- Updated graph-format to 1.3.4
+- Updated algorithms to 3.3.4
+
+## 2.2.4 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.18
+- Updated graph-format to 1.3.3
+- Updated algorithms to 3.3.3
+
+## 2.2.3 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.17
+- Updated graph-format to 1.3.2
+- Updated algorithms to 3.3.2
+
+## 2.2.2 (2026-10-04)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.16
+- Updated graph-format to 1.3.1
+- Updated algorithms to 3.3.1
+
+## 2.2.1 (2026-10-04)
+
+### 🩹 Fixes
+
+- **layout:** keep planar from putting two nodes on the same point ([#722](https://github.com/graphty-org/graphty-monorepo/issues/722))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.2.0 (2026-10-03)
+
+### 🚀 Features
+
+- **layout:** fitToBox helper, and arf honors scale and center when given ([9d573808](https://github.com/graphty-org/graphty-monorepo/commit/9d573808))
+- **layout:** accept node ids for start, root and node-set options ([#728](https://github.com/graphty-org/graphty-monorepo/issues/728))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.15
+- Updated graph-format to 1.3.0
+- Updated algorithms to 3.3.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.1.0 (2026-10-03)
+
+### 🚀 Features
+
+- **layout:** export a machine-readable LAYOUTS catalog ([#731](https://github.com/graphty-org/graphty-monorepo/issues/731))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.2.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.9 (2026-10-03)
 
 ### 🩹 Fixes

@@ -1,0 +1,12 @@
+name: Drop the Microsoft apt sources
+description: >
+    Removes every apt source on the runner that points at packages.microsoft.com (microsoft-prod,
+    azure-cli, ...). The hosted Ubuntu images ship them, nothing in this repository installs from
+    them, and when that server answers 403 `apt-get update` exits 100 and fails the job before a
+    test runs (run 37244710257). Run it before the first apt use in a job: `playwright install
+    --with-deps`, `playwright install-deps`, `visual-review install-browser` or `apt-get`.
+runs:
+    using: composite
+    steps:
+        - shell: bash
+          run: "{ grep -rl packages.microsoft.com /etc/apt/sources.list.d || true; } | xargs -r sudo rm -fv"

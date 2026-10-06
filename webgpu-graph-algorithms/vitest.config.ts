@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { ciJunitReporter } from "../vitest.ci-junit.mjs";
+
 /**
  * The Chromium flag sets: the two of spec 12.2 (GRAPHTY_BROWSER_GPU "nvidia" | "swiftshader", default swiftshader)
  * and the host lane's "metal" and "warp". Kept in one exported constant so the Vitest 4 provider change is a
@@ -88,7 +90,7 @@ function browserLaunchEnv(): Record<string, string> | undefined {
  * @returns the names in command-line order
  */
 function selectedProjects(): string[] {
-    const {argv} = process;
+    const { argv } = process;
     const names: string[] = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
@@ -119,6 +121,7 @@ const thresholdsActive = projects.length === 1 && projects[0] === "node" && proc
  *   device/acquire.test.ts       an `it.fails` case leaves an uncaptured validation error for the setup's hook
  *   device/context.test.ts       three broken bind groups (sink-ctx, slot-ctx, hook) and a device.destroy() mid-life
  *   device/error-scope.test.ts   broken bind groups inside validation scopes; an out-of-memory scope left on a device
+ *   device/managed.test.ts       device.destroy() on a managed accelerator's device, to see a new one acquired
  *   device/lost.test.ts          broken bind groups on raw devices, then device.destroy() under a pending read and
  *                                mid-batch
  *   kernel/batch.test.ts         a wrong-usage buffer reaches the pending-error slot
@@ -129,6 +132,7 @@ const thresholdsActive = projects.length === 1 && projects[0] === "node" && proc
  */
 const DEVICE_ERROR_TESTS: readonly string[] = [
     "test/device/acquire.test.ts",
+    "test/device/managed.test.ts",
     "test/device/context.test.ts",
     "test/device/error-scope.test.ts",
     "test/device/lost.test.ts",
@@ -252,7 +256,12 @@ export default defineConfig({
         // Root, not per project, likewise: one file at a time for the device-error and limits runs (see serialRun).
         fileParallelism: serialRun ? false : undefined,
         // verbose prints a line per test: useful locally, needless noise in CI
-        reporters: process.env.CI ? ["default"] : ["verbose"],
+        reporters: [
+            ...(process.env.CI ? ["default"] : ["verbose"]),
+            ...ciJunitReporter(
+                process.env.GRAPHTY_GPU_NO_SUBGROUPS ? { classnameTemplate: "no-subgroups/{filepath}" } : {},
+            ),
+        ],
         coverage: {
             provider: "v8",
             // On a runner only lcov.info is uploaded and json-summary carries the thresholds, so the html and

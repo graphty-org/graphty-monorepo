@@ -1,5 +1,6 @@
 import { type GraphSnapshot, renumberPartition } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of the index-based Louvain, matching the legacy `louvain`. @public */
@@ -298,7 +299,10 @@ function aggregate(level: Level, comm: Uint32Array, count: number): Level {
  */
 export function louvain(s: GraphSnapshot, o: LouvainOptions = {}): LouvainResult {
     if (s.directed) {
-        throw new Error("Louvain requires an undirected graph. Pass s.toUndirected().snapshot.");
+        throw withCode(
+            new Error("Louvain requires an undirected graph. Pass s.toUndirected().snapshot."),
+            "E_NEEDS_UNDIRECTED",
+        );
     }
     const resolution = o.resolution ?? 1;
     const maxIterations = o.maxIterations ?? 100;

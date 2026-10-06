@@ -280,13 +280,16 @@ describe("format catalogue", () => {
 
         assert.deepEqual(
             UNSERVED_FORMAT_IDS.map((entry) => entry.id),
-            ["sif", "cx2"],
+            ["sif"],
         );
     });
 
-    it("reports that every built-in format can be read and written", () => {
+    it("reports that every built-in format can be read, and all but CX, sessions and OBO written", () => {
         assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canImport));
-        assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canExport));
+        assert.deepEqual(
+            FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canExport).map((descriptor) => descriptor.id),
+            ["cx", "cys", "obo"],
+        );
     });
 
     it("gives every format lower-case dotted extensions and at least one media type", () => {
@@ -311,7 +314,7 @@ describe("format catalogue", () => {
         // hard-coded namespace strings.
         assert.deepEqual(
             formatsForExtension(".xml").map((descriptor) => descriptor.id),
-            ["graphml", "gexf"],
+            ["graphml", "gexf", "xgmml"],
         );
         assert.deepEqual(formatsForExtension(".nope"), []);
     });
@@ -345,7 +348,7 @@ describe("format catalogue", () => {
     });
 
     it("refuses a deprecated unserved format name with the reason it is unserved", () => {
-        // "sif" and "cx2" are still in FormatId, so autocomplete offers them. A load that names
+        // "sif" is still in FormatId, so autocomplete offers it. A load that names
         // one must say why it cannot be read, not claim the name is unknown.
         for (const entry of UNSERVED_FORMAT_IDS) {
             const error = unknownFormat(entry.id);

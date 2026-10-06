@@ -21,6 +21,7 @@ export { gpuEligibility } from "./columns/column.js";
 export { gatherArray, gatherColumn, remapArray, remapColumn, scatterArray, withComponents } from "./columns/remap.js";
 export { fromCsr } from "./populate/from-csr.js";
 export { fromEdgeArrays } from "./populate/from-edge-arrays.js";
+export { fromElements } from "./populate/from-elements.js";
 export { fromRecords } from "./populate/from-records.js";
 export { renumberPartition } from "./snapshot/derived.js";
 export { equalsTopology, isGraphSnapshot } from "./snapshot/graph-snapshot.js";
@@ -37,6 +38,7 @@ export {
     maskToIndices,
     maskXor,
 } from "./util/mask.js";
+export { type NodeResolvable, resolveNode, resolveNodeMask, resolveNodeSet } from "./util/node-set.js";
 export { paddedU32View } from "./util/typed-array.js";
 export { fromByteChunks, fromBytes } from "./wire/bytes.js";
 export { fromWire } from "./wire/from-wire.js";
@@ -122,9 +124,13 @@ export type {
     DerivedGraph,
     EdgeArraysInput,
     EdgeListView,
+    ElementAccessors,
+    ElementsSnapshot,
     FlagClaims,
     FromCsrOptions,
     NodeIdMapKind,
+    NodeRef,
+    NodeSet,
     RecordsInput,
     ReverseView,
     SimplifyOptions,

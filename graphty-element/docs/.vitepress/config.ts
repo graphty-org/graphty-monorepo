@@ -88,6 +88,10 @@ export default defineConfig({
                     ],
                 },
                 {
+                    text: "Frameworks",
+                    items: [{ text: "React", link: "/guide/frameworks/react" }],
+                },
+                {
                     text: "Extending",
                     items: [
                         { text: "Extension Points", link: "/guide/extending/" },

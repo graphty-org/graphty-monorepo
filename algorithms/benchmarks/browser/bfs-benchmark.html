@@ -94,8 +94,14 @@
             <div id="resultsSummary"></div>
         </div>
 
-        <!-- Load Benchmark.js from CDN -->
-        <script src="https://cdn.jsdelivr.net/npm/benchmark@2.1.4/benchmark.min.js"></script>
+        <!-- Load Benchmark.js from CDN. benchmark.js, not benchmark.min.js: the package ships no
+             minified file, so jsDelivr would minify one on the fly, and that output is not
+             guaranteed to stay byte-identical. The integrity hash is the npm package's file. -->
+        <script
+            src="https://cdn.jsdelivr.net/npm/benchmark@2.1.4/benchmark.js"
+            integrity="sha384-Xlo3om/AkrQgwZvrOOUr+4s+/q6goI2tZmuT0gCa+DQzPDiV3+ufoxsqO4idHS16"
+            crossorigin="anonymous"
+        ></script>
 
         <!-- Load the compiled graph algorithms -->
         <script type="module">

@@ -50,7 +50,7 @@ const LOCK_WAIT_S = 15 * 60;
 // How many release.yml runs a pass lists; most are publish runs of master pushes, a few are trains.
 const LOOKBACK = 100;
 // The events that start a release train; a push starts the publish job, which tests nothing.
-const TRAIN_EVENTS = ["schedule", "workflow_dispatch"];
+const TRAIN_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const SCAN_TIMEOUT_MS = 1800 * 1000;
 const GATE_NAME = "Graphty";
 // The "Graphty" gate's conditions at stage 0. Each stage of the burn-down adds its ratchet here
@@ -203,7 +203,7 @@ const ghJson = (args) => JSON.parse(execFileSync("gh", args, { cwd: ROOT, encodi
 export function pickCommit(runs, hasCoverage, maxAsk = 5) {
     let asked = 0;
     for (const run of runs) {
-        if (!TRAIN_EVENTS.includes(run.event) || run.status !== "completed") continue;
+        if (!TRAIN_EVENTS.has(run.event) || run.status !== "completed") continue;
         if (["cancelled", "skipped"].includes(run.conclusion)) continue;
         if (asked++ >= maxAsk) break;
         if (hasCoverage(run)) return { sha: run.headSha, run };

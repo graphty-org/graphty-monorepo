@@ -96,7 +96,7 @@ describe("ci.yml", () => {
         assert.ok(block, "ci.yml has a workflow-level concurrency block");
         assert.equal(
             block[1],
-            "    group: ci-${{ github.event.pull_request.number || github.sha }}-" +
+            "    group: ci-${{ github.event.pull_request.number || inputs.ref && format('release-{0}', inputs.ref) || github.sha }}-" +
                 `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
                 "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
         );
@@ -122,7 +122,10 @@ describe("ci.yml", () => {
     });
 
     it("holds the merge queue to master's rule that every job succeeds", () => {
-        assert.match(job(ci, "all-checks"), /\[\[ "\$FULL" == "false" \]\] && ok='\["success","skipped"\]'/);
+        assert.match(
+            job(ci, "all-checks"),
+            /\[\[ "\$FULL" == "false" \|\| "\$LIGHT" == "true" \]\] && ok='\["success","skipped"\]'/,
+        );
         const queue = job(ci, "queue-checks");
         assert.match(queue, /name: Queue Checks Pass/);
         assert.match(queue, /"\$ALL_CHECKS" != "success"/);
@@ -148,6 +151,60 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+
+    it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {
+        const build = job(ci, "build");
+        // the plan: a push tests nothing (affected is empty, so the matrix is empty) and is marked light
+        assert.match(
+            build,
+            /if \[\[ "\$EVENT" == "push" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
+        );
+        assert.equal(plan([]).length, 0, "an empty affected list runs no shard");
+        assert.match(job(ci, "test"), /if: needs.build.outputs.test-count != '0'\n/);
+        assert.match(
+            job(ci, "cost-accuracy"),
+            /if: contains\(fromJSON\(needs.build.outputs.affected\), 'graphty-element'\)/,
+        );
+        for (const name of ["links", "visual"]) {
+            assert.match(
+                job(ci, name),
+                /\n {8}if: needs.build.outputs.light != 'true'\n/,
+                `${name} is skipped on master`,
+            );
+        }
+        // the benchmarks need the test job, so they are skipped with it
+        assert.match(job(ci, "performance"), /needs: test\n/);
+        assert.match(build, /- name: CI workflow tests\n\s+if: steps.plan.outputs.light != 'true'\n/);
+        // the build still runs, every project, with the uploads deploy-pages.yml reads
+        assert.match(build, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
+        assert.match(build, /name: build-docs\n/);
+        // the summary checks pass a light run whose skipped jobs were skipped on purpose, and Build must succeed
+        assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.build.outputs.light \}\}/);
+        assert.match(job(ci, "all-checks"), /\(.key == "build" and \$r != "success"\)/);
+        assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
+    });
+
+    it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
+        const build = job(ci, "build");
+        // light is set only on a push; every other event takes the affected (pull request) or full path
+        assert.equal(build.match(/echo "light=true"/g).length, 1);
+        assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
+        assert.equal(plan(PACKAGES).length, 13, "a full run is every shard");
+        // no test-type job is limited to pushes or to master
+        for (const name of ["test", "links", "visual", "cost-accuracy", "performance"]) {
+            assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
+        }
+        assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request'\n/);
+    });
+
+    it("can be called by the release train on its candidate, and checks out that commit in every job", () => {
+        assert.match(ci, /workflow_call:\n\s+inputs:\n\s+ref:\n(?:.*\n){1,2}\s+type: string\n\s+required: true/);
+        const checkouts = ci.match(/- uses: actions\/checkout@v4\n(?:\s+.*\n){0,3}/g);
+        assert.ok(checkouts.length >= 10);
+        for (const c of checkouts) {
+            assert.match(c, /ref: \$\{\{ inputs.ref \}\}/, c);
+        }
     });
 });
 
@@ -263,6 +320,8 @@ describe("hosts.yml", () => {
     it("runs nightly, and a pull request's Windows leg on the short scope", () => {
         const hosts = workflow("hosts.yml");
         assert.match(hosts, /schedule: \[\{ cron: /);
+        // a push to master runs no tests: the release train runs Hosts on its candidate instead
+        assert.doesNotMatch(hosts.slice(0, hosts.indexOf("\njobs:")), /^ {4}push:/m);
         assert.match(hosts, /NARROW: .*github.event_name == 'pull_request'/);
     });
 });
@@ -304,7 +363,11 @@ describe("master-guard", () => {
 describe("release.yml", () => {
     const release = workflow("release.yml");
     const pick = job(release, "pick");
+    const ci = job(release, "ci");
     const t4 = job(release, "t4");
+    const audit = job(release, "audit");
+    const hosts = job(release, "hosts");
+    const coverage = job(release, "coverage");
     const held = job(release, "held");
     const train = job(release, "train");
     const publish = job(release, "publish");
@@ -315,64 +378,112 @@ describe("release.yml", () => {
         assert.deepEqual(pushes, ['git push origin "${COMMIT}:refs/heads/${branch}"']);
     });
 
-    it("cuts the release only from master, once a day or on dispatch, from a commit green on every lane", () => {
-        assert.match(release, /schedule:\n\s+- cron: /);
+    it("tries a release every 6 hours and on dispatch, from master's newest commit", () => {
+        assert.match(release, /schedule:\n\s+- cron: "0 0,6,12,18 \* \* \*"\n/);
         assert.match(release, /workflow_dispatch:\n\s+inputs:\n\s+packages:/);
         assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' \}\}/);
-        assert.match(pick, /case "\$ci" in \*" completed success"\) ;; \*\) continue ;; esac/);
-        assert.match(pick, /case "\$hosts" in "" \| \*" completed success"\) ;; \*\) continue ;; esac/);
-        assert.match(pick, /is still open; it must merge or close first/);
-        // the T4 is no longer read from gpu.yml runs on master: the train runs it itself
-        assert.doesNotMatch(pick, /runs gpu\.yml|"\$gpu"/);
-        assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
-        assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
-        // the train is put first by .mergify.yml's "release train" priority rule, not a label
-        assert.doesNotMatch(train, /gh pr create[^\n]*--label/);
+        assert.match(pick, /echo "sha=\$\(git rev-parse HEAD\)"/);
+        // no master CI run is read: master runs no tests, the train tests the candidate itself
+        assert.doesNotMatch(pick, /ci\.yml|hosts\.yml|ci_run_id/);
+        assert.doesNotMatch(release, /run-id: \$\{\{ needs.pick/);
     });
 
-    it("runs the T4 on the picked commit before anything is versioned, and opens the pull request only if it passed", () => {
-        assert.match(t4, /needs: pick\n/);
-        assert.match(t4, /if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+    it("does nothing while the previous release is pending", () => {
+        // an open release pull request, unless it conflicts with master: then it is closed and replaced
+        assert.match(pick, /startswith\("release\/train-"\)/);
+        assert.match(pick, /if \[ "\$mergeable" = CONFLICTING \]; then\n\s+gh pr close "\$number" --delete-branch/);
+        assert.match(pick, /is still open; it must merge or close first/);
+        // an open "Release held" issue (a fix is in progress); an ad hoc dispatch runs anyway
+        assert.match(pick, /if \[ -n "\$held" \] && \[ "\$EVENT" != workflow_dispatch \]; then\n\s+skip /);
+        // the last release not tagged yet
+        assert.match(pick, /has no tag \$\{project\}@\$\{version\} yet/);
+        // nothing releasable: the same versioning the train runs, made locally, makes no commit
+        assert.match(pick, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
+        assert.match(pick, /release: \$\{\{ steps.releasable.outputs.release \|\| 'false' \}\}/);
+        for (const j of [ci, t4, hosts, audit]) {
+            assert.match(j, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        }
+    });
+
+    it("waits on events, never on a count of hours", () => {
+        for (const file of ["release.yml", "ci.yml", "coverage.yml"]) {
+            const text = workflow(file).replace(/^\s*#.*$/gm, "");
+            assert.doesNotMatch(text, /\bdate -d|created_?[aA]t|updated_?[aA]t|mergedAt|\bhours?\b|3600|86400/, file);
+        }
+        assert.doesNotMatch(release.replace(/^\s*#.*$/gm, ""), /timeout-minutes/);
+    });
+
+    it("tests the candidate with the full suite, the T4 and the audit before the release pull request", () => {
+        assert.match(
+            ci,
+            /uses: \.\/\.github\/workflows\/ci\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}\n\s+secrets: inherit/,
+        );
         assert.match(
             t4,
             /uses: \.\/\.github\/workflows\/gpu\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}/,
         );
-        assert.match(train, /needs: \[pick, t4\]/);
-        assert.match(train, /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.t4.result == 'success' \}\}/);
+        assert.match(
+            hosts,
+            /uses: \.\/\.github\/workflows\/hosts\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}/,
+        );
+        assert.match(workflow("hosts.yml"), /workflow_call:\n\s+inputs:\n\s+ref:/);
+        assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
+        assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
+        assert.match(train, /needs: \[pick, ci, t4, hosts, audit\]/);
+        assert.match(
+            train,
+            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' \}\}/,
+        );
+        // the release ships the builds of its own CI call, not a master run's
+        assert.match(train, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
+        assert.match(train, /commit=\$\(tools\/release-version.sh "\$PACKAGES"\)/);
+        assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
+        // the train is put first by .mergify.yml's "release train" priority rule, not a label
+        assert.doesNotMatch(train, /gh pr create[^\n]*--label/);
         // one train at a time across its jobs, so two trains never pay for two T4 runs of one commit
         assert.match(release, /^concurrency:\n {4}group: .*'release-train' \}\}\n {4}cancel-in-progress: false/m);
+        // coverage comes from the same CI call, and never holds the release
+        assert.match(coverage, /needs: \[pick, ci\]\n\s+if: \$\{\{ needs.ci.result == 'success' \}\}/);
+        assert.match(coverage, /uses: \.\/\.github\/workflows\/coverage\.yml/);
+        assert.doesNotMatch(train + held, /coverage/);
+        const cov = workflow("coverage.yml");
+        assert.match(cov, /on:\n\s+workflow_call:/);
+        assert.doesNotMatch(cov, /workflow_run|run-id/);
     });
 
-    it("holds the whole release on a red T4: no pull request, no builds kept, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, t4\]/);
-        assert.match(held, /needs.t4.result == 'failure'/);
+    it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
+        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, train\]/);
+        assert.match(
+            held,
+            /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && contains\(needs.\*.result, 'failure'\) \}\}/,
+        );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the train kept, and only the train keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
         assert.match(train, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(publish, /name: release-builds-\$\{\{ steps.commit.outputs.sha \}\}/);
         assert.equal(release.match(/gh pr create/g).length, 1);
-        // one issue: found by its title prefix and updated, else created with the labels githerd and triage read
-        assert.match(held, /title="Release held: T4 GPU failed on \$\{SHA:0:7\}"/);
-        assert.match(held, /startswith\("Release held: T4 GPU failed on "\)/);
+        // one issue naming what failed: found by its title prefix and updated, else created with the labels
+        // githerd and triage read
+        for (const [result, name] of [
+            ["CI", "CI"],
+            ["T4", "T4 GPU"],
+            ["HOSTS", "Hosts"],
+            ["AUDIT", "security audit"],
+        ]) {
+            assert.ok(held.includes(`[ "$${result}_RESULT" != failure ] || what+=("${name}")`), name);
+        }
+        assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
+        assert.match(held, /startswith\("Release held: "\)/);
         assert.match(held, /gh issue edit "\$open"[^\n]*--title "\$title"/);
         assert.match(held, /gh issue comment "\$open"/);
-        assert.match(held, /--label bug --label priority:high --label gpu --label effort:medium/);
-        assert.match(held, /actions\/runs\/\$\{GITHUB_RUN_ID\}/);
+        assert.match(held, /--label bug --label priority:high --label effort:medium/);
         assert.match(held, /::error::release held/);
-        // and the next train whose T4 passes closes it
-        assert.match(train, /startswith\("Release held: T4 GPU failed on "\)[\s\S]*gh issue close "\$open"/);
-    });
-
-    it("audits the released commit's dependencies before it opens the release pull request", () => {
-        const audit = train.indexOf("run: pnpm audit --prod --audit-level=high");
-        assert.ok(audit > train.indexOf("pnpm install --frozen-lockfile"), "after install");
-        assert.ok(audit < train.indexOf("nx release --skip-publish"), "before versioning");
-        assert.ok(audit < train.indexOf("name: Keep the builds for the publish job"), "before the 30-day artifact");
-        assert.ok(audit < train.indexOf("gh pr create"), "before the release pull request");
-        const step = train.slice(train.lastIndexOf("- name:", audit), audit);
-        assert.match(step, /if: \$\{\{ steps.lanes.outputs.release == 'true' \}\}/, "runs whenever a release is cut");
-        assert.doesNotMatch(step, /continue-on-error/, "a high advisory blocks the release");
+        // and the next train that passes closes it, as its last step
+        const close = train.indexOf('gh issue close "$open"');
+        assert.ok(close > train.indexOf("gh pr create"), "closed only after the release pull request");
+        assert.match(train.slice(0, close), /startswith\("Release held: "\)[^\n]*\n[^\n]*$/);
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {

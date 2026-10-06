@@ -1,6 +1,6 @@
 # .github/workflows/gpu.yml -- the webgpu-graph-algorithms GPU lane on an NVIDIA T4 (design/ci/ci-cd-plan.md section 7).
 # Never a job of CI (a job whose runner is offline would queue for 24 hours and stall every pull request).
-# The paid T4 runs in exactly two places (owner decision, 2026-10-06): the daily release train, which calls this
+# The paid T4 runs in exactly two places (owner decision, 2026-10-06): the release train, which calls this
 # workflow on the commit it is about to release and opens no release pull request unless it passes
 # (release.yml, job "t4"), and a manual dispatch. Pull requests and master pushes never start it; their GPU
 # coverage is CI's software-GPU shards (lavapipe and SwiftShader) and the pre-push gate's run on the developer's

@@ -1,22 +1,25 @@
 name: Coverage
 
+# Coveralls' master coverage, from the release train's full run (release.yml, job "coverage"): a push to master
+# runs no test shards, so the release train's CI call is the run that has coverage for a master commit. It reads
+# the shards' artifacts from that same run.
 on:
-    workflow_run:
-        workflows: ["CI"]
-        types: [completed]
-        branches: [master]
-
-concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
+    workflow_call:
+        inputs:
+            ref:
+                description: "the commit the coverage was measured on"
+                type: string
+                required: true
 
 jobs:
     # Merge blob reports from graphty-element shards
     merge-reports:
         name: Merge Test Reports
         runs-on: ubuntu-24.04
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
 
             - uses: pnpm/action-setup@v4
 
@@ -37,8 +40,6 @@ jobs:
                   pattern: blob-report-*
                   path: graphty-element/.vitest-reports
                   merge-multiple: true
-                  run-id: ${{ github.event.workflow_run.id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Merge test reports
               run: cd graphty-element && pnpm exec vitest --merge-reports || true
@@ -48,9 +49,10 @@ jobs:
         name: Publish Coverage
         needs: merge-reports
         runs-on: ubuntu-24.04
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         steps:
             - uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.ref }}
 
             - uses: pnpm/action-setup@v4
 
@@ -70,8 +72,6 @@ jobs:
               with:
                   pattern: coverage-*
                   path: coverage-reports
-                  run-id: ${{ github.event.workflow_run.id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
 
             # A shard group's artifact (ci.yml, "Upload coverage (shard group)") holds one
             # coverage-<shard> directory per member: move them up beside the other shards' artifacts.

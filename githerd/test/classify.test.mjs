@@ -7,6 +7,7 @@ import {
     failureLines,
     isNoLog,
     othersWithKey,
+    refusedOnly,
     setupDrift,
 } from "../lib/classify.mjs";
 
@@ -407,5 +408,24 @@ describe("isNoLog", () => {
             '\uFEFF<?xml version="1.0" encoding="utf-8"?><Error><Code>BlobNotFound</Code><Message>The specified blob does not exist.\nRequestId:7ee33565-c01e-003b-1174-5374dc000000\nTime:2026-10-03T20:16:41.1944052Z</Message></Error>';
         expect(isNoLog(body)).toBe(true);
         expect(isNoLog(SETUP)).toBe(false);
+    });
+});
+
+describe("refusedOnly", () => {
+    const T4 = "GPU / Test (NVIDIA T4)";
+    const refused = { name: T4, id: 2, refused: true, startedAt: "T11:00:00", completedAt: "T11:00:05" };
+    const gate = { name: "GPU / T4 GPU gate", id: 4, refused: false, startedAt: "T11:00:10", completedAt: "T11:00:15" };
+    const ran = (/** @type {number} */ id) => (/** @type {string} */ name) => (name === T4 ? id : 0);
+
+    it("holds for refusals and the gate after them, once a job of the refused name got a runner after", () => {
+        expect(refusedOnly([refused, gate], ran(3))).toBe(true);
+        expect(refusedOnly([refused, gate], ran(1))).toBe(false);
+        expect(refusedOnly([refused, gate], ran(0))).toBe(false);
+    });
+
+    it("does not hold with no refusal, or a failure that started before the refusal ended", () => {
+        expect(refusedOnly([gate], ran(3))).toBe(false);
+        expect(refusedOnly([refused, { ...gate, startedAt: "T11:00:01" }], ran(3))).toBe(false);
+        expect(refusedOnly([refused, { ...gate, startedAt: null }], ran(3))).toBe(false);
     });
 });

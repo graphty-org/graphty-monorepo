@@ -113,7 +113,7 @@ import {
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
-import { balanceRefusal, classify, isNoLog } from "./classify.mjs";
+import { balanceRefusal, classify, isNoLog, refusedOnly } from "./classify.mjs";
 import { flakePoll, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
@@ -2650,7 +2650,7 @@ export async function startDaemon({
             advisory: state.advisory ?? null,
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);
-        await runnerRefusals(gh, nodes, t.getTime());
+        await runnerRefusals(gh, nodes, t.getTime(), prs);
         const shared = markShared(state, prs, nodes, { threshold: config.sharedFailurePrs, at: iso });
         for (const key of shared.declared) event("shared-failure", { key, prs: state.sharedFailures[key].prs });
         for (const end of shared.ended) event("shared-failure-ended", end);
@@ -2692,8 +2692,9 @@ export async function startDaemon({
      * @param {ReturnType<typeof createGitHub>} gh the client
      * @param {any[]} nodes the open pull requests
      * @param {number} ms the poll's time
+     * @param {Record<string, import("./prs.mjs").PrRecord>} prs this poll's records
      */
-    async function runnerRefusals(gh, nodes, ms) {
+    async function runnerRefusals(gh, nodes, ms, prs) {
         const read = state.refusalsRead ?? {};
         /** @type {Record<string, any>} */
         const live = {};
@@ -2713,6 +2714,72 @@ export async function startDaemon({
         }
         state.refusalsRead = live;
         for (const [name, j] of byJob) balanceItem(name, j);
+        await rerunRefused(gh, nodes, prs, {
+            refused: (id) => Boolean(live[String(id)]),
+            ran: (name) => byJob.get(name)?.ran ?? 0,
+        });
+    }
+
+    /**
+     * Re-runs the failed jobs of each run that failed only for the rented runner's balance once
+     * the balance is back (classify.mjs `refusedOnly`; the event that ends the balance item,
+     * `balanceItem`): the newest run of each workflow on an open pull request's head, and each
+     * red lane's run on master's tip. Once per run (`state.balanceReruns`), through `rerunRun`:
+     * never a run that started while a draft, was re-run already, or is no longer on its head.
+     * Everything is read from this poll's data but the run itself, and a lane's jobs (cached).
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {any[]} nodes the open pull requests
+     * @param {Record<string, import("./prs.mjs").PrRecord>} prs this poll's records
+     * @param {{refused: (id: number) => boolean, ran: (name: string) => number}} seen whether a pull
+     *   request's check run was refused, and the newest job of a name that got a runner
+     */
+    async function rerunRefused(gh, nodes, prs, { refused, ran }) {
+        const due = [...refusedPrRuns(nodes, prs, { refused, ran }), ...(await refusedMasterRuns(ran))];
+        const spent = (state.balanceReruns ??= {});
+        const acting = gh.acting("worker-writes");
+        const runs = `repos/${config.repo}/actions/runs/`;
+        const iso = now().toISOString();
+        for (const { n, run, rec } of due) {
+            try {
+                await rerunRun(gh, n, run, { spent, acting, runs, iso, rec, situation: "balance-refused-run" });
+            } catch (err) {
+                void ledger({ kind: "error", where: "balance-rerun", error: /** @type {Error} */ (err).message });
+            }
+        }
+        const live = new Set(due.map((d) => String(d.run.id)));
+        for (const id of Object.keys(spent)) if (!live.has(id)) delete spent[id];
+    }
+
+    /**
+     * Each red lane's run on master's tip that failed only for the rented runner's balance, once the
+     * balance is back (`rerunRefused`); its jobs are the ones `classifyLanes` read (cached).
+     * @param {(name: string) => number} ran the newest job of a name that got a runner
+     * @returns {Promise<RefusedRun[]>} the runs to re-run
+     */
+    async function refusedMasterRuns(ran) {
+        const m = state.master ?? {};
+        /** @type {RefusedRun[]} */
+        const due = [];
+        for (const [name, l] of Object.entries(m.lanes ?? {})) {
+            const lane = /** @type {any} */ (l);
+            const refusals = new Set(
+                (lane.redJobs ?? [])
+                    .filter((/** @type {any} */ r) => balanceRefusal({ workflow: "", job: r.name, steps: [r.step] }))
+                    .map((/** @type {any} */ r) => r.id),
+            );
+            if (lane.verdict !== "red" || !lane.runId || lane.sha !== m.headSha || !refusals.size) continue;
+            const workflow = lane.workflowName ?? name;
+            const failed = (await failingJobs(lane.runId)).map((/** @type {any} */ j) => ({
+                name: `${workflow} / ${j.name}`,
+                id: j.id,
+                refused: refusals.has(j.id),
+                startedAt: j.started_at,
+                completedAt: j.completed_at,
+            }));
+            if (refusedOnly(failed, ran))
+                due.push({ n: null, run: { id: lane.runId, workflow }, rec: { headSha: m.headSha } });
+        }
+        return due;
     }
 
     /**
@@ -3961,22 +4028,60 @@ export async function startDaemon({
  */
 
 /**
- * Re-runs one cancelled run of pull request `n` (`rerunCancelled`), unless it is still running,
- * was re-run already, started while the pull request was a draft (a re-run reuses the draft event
- * and skips CI again), or its re-run was asked for already (or recorded as a would-do while the
- * group does not act and still does not).
+ * @typedef {{n: number | null, run: {id: number, workflow: string}, rec: any}} RefusedRun a run to
+ *   re-run for the rented runner's balance: its pull request (null for master), the run, and the
+ *   record whose `headSha` it must still be on
+ */
+
+/**
+ * The newest run of each workflow on each ready pull request's head that failed only for the rented
+ * runner's balance, once the balance is back (classify.mjs `refusedOnly`), from the poll's check runs.
+ * @param {any[]} nodes the open pull requests
+ * @param {Record<string, import("./prs.mjs").PrRecord>} prs this poll's records
+ * @param {{refused: (id: number) => boolean, ran: (name: string) => number}} seen whether a check run
+ *   was refused, and the newest job of a name that got a runner
+ * @returns {RefusedRun[]} the runs to re-run
+ */
+function refusedPrRuns(nodes, prs, { refused, ran }) {
+    /** @type {RefusedRun[]} */
+    const due = [];
+    for (const node of nodes.filter((x) => !x.isDraft)) {
+        const checks = newestCheckRuns(node);
+        /** @type {Map<string, number>} */
+        const newest = new Map();
+        for (const c of checks) {
+            const id = c.checkSuite?.workflowRun?.databaseId ?? 0;
+            if (id > (newest.get(c.workflow) ?? 0)) newest.set(c.workflow, id);
+        }
+        for (const [workflow, id] of newest) {
+            const jobs = checks.filter((c) => c.checkSuite.workflowRun.databaseId === id);
+            const failed = jobs
+                .filter((c) => RED_JOB.has(String(c.conclusion).toLowerCase()))
+                .map((c) => ({ ...c, name: c.job, id: c.databaseId, refused: refused(c.databaseId) }));
+            if (jobs.every((c) => c.status === "COMPLETED") && refusedOnly(failed, ran))
+                due.push({ n: node.number, run: { id, workflow }, rec: prs[node.number] });
+        }
+    }
+    return due;
+}
+
+/**
+ * Re-runs the failed jobs of one run of pull request `n` (`rerunCancelled`, `rerunRefused`),
+ * unless it is still running, is no longer on the head, was re-run already, started while the pull
+ * request was a draft (a re-run reuses the draft event and skips CI again), or its re-run was asked
+ * for already (or recorded as a would-do while the group does not act and still does not).
  * @param {ReturnType<typeof createGitHub>} gh the client
- * @param {number} n the pull request
+ * @param {number | null} n the pull request, null for master
  * @param {any} cancelled the run, marked with `rerun`
- * @param {{spent: Record<string, any>, acting: boolean, runs: string, iso: string, rec: any}} opts the
- *   re-runs asked for by run, whether `worker-writes` acts, the runs' API path, the poll's time and
- *   the pull request's record
+ * @param {{spent: Record<string, any>, acting: boolean, runs: string, iso: string, rec: any,
+ *   situation?: string}} opts the re-runs asked for by run, whether `worker-writes` acts, the runs'
+ *   API path, the poll's time, the pull request's record (its `headSha`), and the ledger's situation
  * @returns {Promise<boolean>} true the first time the run is seen as a draft run, to ledger once
  */
-async function rerunRun(gh, n, cancelled, { spent, acting, runs, iso, rec }) {
+async function rerunRun(gh, n, cancelled, { spent, acting, runs, iso, rec, situation = "cancelled-run" }) {
     const id = String(cancelled.id);
     const run = (await gh.get(`${runs}${id}`)).body ?? {};
-    if (run.status !== "completed") return false;
+    if (run.status !== "completed" || (run.head_sha && rec?.headSha && run.head_sha !== rec.headSha)) return false;
     if ((run.run_attempt ?? 1) > 1) {
         cancelled.rerun = "spent";
         return false;
@@ -3997,7 +4102,7 @@ async function rerunRun(gh, n, cancelled, { spent, acting, runs, iso, rec }) {
         const res = await gh.write("POST", `${runs}${id}/rerun-failed-jobs`, undefined, {
             group: "worker-writes",
             check: { path: `${runs}${id}/attempts/2`, expect: { run_attempt: 2 } },
-            fields: { situation: "cancelled-run", pr: n, workflow: cancelled.workflow },
+            fields: { situation, pr: n, workflow: cancelled.workflow },
         });
         if (res.performed) cancelled.rerun = "started";
     } catch (err) {

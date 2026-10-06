@@ -2234,6 +2234,183 @@ describe("failure classes on master", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    describe("a run refused for its balance, once a runner is granted again", () => {
+        const REFUSED = "Machine: Insufficient balance to run job. Current balance: $-6.2450. Minimum required: $0.05.";
+        const T4 = "Test (NVIDIA T4)";
+        /**
+         * A GPU workflow check run.
+         * @param {number} id the job
+         * @param {string} name the job's name
+         * @param {[string, string]} span when it started and completed, `HH:MM:SS` on 10-02
+         * @param {number} runId its run
+         * @returns {any} the GraphQL check run
+         */
+        const check = (id, name, [from, to], runId) => ({
+            __typename: "CheckRun",
+            name,
+            status: "COMPLETED",
+            conclusion: "FAILURE",
+            startedAt: `2026-10-02T${from}Z`,
+            completedAt: `2026-10-02T${to}Z`,
+            databaseId: id,
+            checkSuite: { workflowRun: { databaseId: runId, workflow: { name: "GPU" } } },
+        });
+        /**
+         * An open pull request with the given checks on its head.
+         * @param {number} number the pull request
+         * @param {string} head its head commit
+         * @param {any[]} ctxs its check runs
+         * @returns {any} the GraphQL node
+         */
+        const pr = (number, head, ctxs) => {
+            const node = { ...gatedPr(), number, headRefName: `fix/${number}`, headRefOid: head };
+            node.commits.nodes[0].commit.statusCheckRollup.contexts.nodes = ctxs;
+            return node;
+        };
+        /**
+         * A T4 job the rented runner refused for its balance.
+         * @param {number} id the job
+         * @param {number} runId its run
+         * @returns {any} the job
+         */
+        const refusedJob = (id, runId) => ({
+            id,
+            run_id: runId,
+            name: T4,
+            conclusion: "failure",
+            labels: [RENTED],
+            steps: [{ name: REFUSED, conclusion: "failure" }],
+        });
+        // Run 302 on #9: the T4 refused at once, and the gate that needs it failed after it.
+        const refusedRun = () => [
+            check(2, T4, ["11:00:00", "11:00:05"], 302),
+            check(4, "T4 GPU gate", ["11:00:10", "11:00:15"], 302),
+        ];
+        // #8's T4 got a runner (it ran 20 minutes) after the refusal: the balance is back.
+        const granted = () => pr(8, C, [check(3, T4, ["11:00:00", "11:20:00"], 303)]);
+        const balanceReruns = async () =>
+            (await readLedger(join(dir, ".githerd")))
+                .filter((e) => e.situation === "balance-refused-run")
+                .map((e) => [e.kind, e.group, e.op]);
+        const writesTo = (/** @type {number} */ id) =>
+            gh.writes().filter((c) => c.args.some((a) => a.endsWith(`actions/runs/${id}/rerun-failed-jobs`)));
+        const acting = () => {
+            writeConfig({
+                mode: "acting",
+                actions: { workerWrites: true },
+                lanes: {
+                    ci: { workflow: "ci.yml", gating: "required" },
+                    gpu: { workflow: "gpu.yml", gating: "required" },
+                },
+            });
+            mkdirSync(join(dir, ".githerd"), { recursive: true });
+            writeFileSync(
+                join(dir, ".githerd", "ledger.jsonl"),
+                `${JSON.stringify({ ts: clock.toISOString(), kind: "would-do", group: "worker-writes", op: "earlier" })}\n`,
+            );
+        };
+
+        it("re-runs a pull request's refused run once as a would-do in dry-run, only after a runner is granted", async () => {
+            gpuConfig();
+            scene.job = { 2: refusedJob(2, 302) };
+            scene.prs = [pr(9, D, refusedRun())];
+            const daemon = await start();
+            await poll(daemon);
+            expect(await balanceReruns()).toEqual([]);
+            scene.prs = [granted(), pr(9, D, refusedRun())];
+            for (const at of ["12:03", "12:06", "12:09"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(daemon);
+            }
+            expect(await balanceReruns()).toEqual([
+                ["would-do", "worker-writes", "POST actions/runs/302/rerun-failed-jobs"],
+            ]);
+            expect(gh.writes()).toEqual([]);
+        });
+
+        it("re-runs it once when acting; never a run already re-run, off its head, or with a failure of its own", async () => {
+            acting();
+            scene.job = { 2: refusedJob(2, 302), 5: refusedJob(5, 305) };
+            // #10's own benchmark job failed while the T4 was still being refused.
+            const own = pr(10, B, [
+                check(5, T4, ["11:00:00", "11:00:05"], 305),
+                check(6, "Benchmarks", ["11:00:01", "11:00:20"], 305),
+            ]);
+            scene.prs = [granted(), pr(9, D, refusedRun()), own];
+            const daemon = await start();
+            for (const at of ["12:00", "12:03"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(daemon);
+            }
+            expect(writesTo(302)).toHaveLength(1);
+            expect(writesTo(305)).toEqual([]);
+            expect(daemon.state.balanceReruns["302"]).toMatchObject({ pr: 9, acting: true });
+
+            // A restart, and the re-run itself refused again: not re-run again.
+            scene.runAttempt = 2;
+            const again = await start();
+            for (const at of ["12:06", "12:09"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(again);
+            }
+            expect(writesTo(302)).toHaveLength(1);
+        });
+
+        it("does not re-run a refused run whose pull request has a newer head", async () => {
+            acting();
+            scene.job = { 2: refusedJob(2, 302) };
+            scene.run = { head_sha: A };
+            scene.prs = [granted(), pr(9, D, refusedRun())];
+            const daemon = await start();
+            for (const at of ["12:00", "12:03"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(daemon);
+            }
+            expect(writesTo(302)).toEqual([]);
+        });
+
+        it("re-runs master's newest GPU run refused for its balance once a runner is granted", async () => {
+            gpuConfig();
+            const job = (
+                /** @type {number} */ id,
+                /** @type {string} */ name,
+                /** @type {string[]} */ span,
+                steps,
+            ) => ({
+                id,
+                run_attempt: 1,
+                name,
+                conclusion: "failure",
+                labels: [RENTED],
+                started_at: `2026-10-02T${span[0]}Z`,
+                completed_at: `2026-10-02T${span[1]}Z`,
+                steps,
+            });
+            scene.gpu = [{ ...run(200, A, "failure"), name: "GPU" }];
+            scene.jobs = {
+                200: [
+                    job(2000, T4, ["11:00:00", "11:00:05"], [{ name: BALANCE, conclusion: "failure" }]),
+                    job(2001, "T4 GPU gate", ["11:00:10", "11:00:15"], [{ name: "Gate", conclusion: "failure" }]),
+                ],
+            };
+            const daemon = await start();
+            for (const at of ["12:00", "12:03"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(daemon);
+            }
+            expect(await balanceReruns()).toEqual([]);
+            scene.prs = [pr(8, C, [check(3000, T4, ["11:00:00", "11:20:00"], 303)])];
+            for (const at of ["12:06", "12:09"]) {
+                clock = new Date(`2026-10-02T${at}:00Z`);
+                await poll(daemon);
+            }
+            expect(await balanceReruns()).toEqual([
+                ["would-do", "worker-writes", "POST actions/runs/200/rerun-failed-jobs"],
+            ]);
+            expect(gh.writes()).toEqual([]);
+        });
+    });
+
     /**
      * Calls `githerd_verdict` as an owner session would.
      * @param {any} daemon the daemon

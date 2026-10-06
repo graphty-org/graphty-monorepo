@@ -5,7 +5,7 @@ import { completeGraph, gridGraph, wheelGraph } from "@graphty/graph-samples/gen
 import { describe, it } from "vitest";
 
 import * as layout from "../../src";
-import { type CommonLayoutOptions, type Graph, type LayoutResult, toLayoutSnapshot } from "../../src";
+import { type CommonLayoutOptions, type LayoutResult } from "../../src";
 import { goldenFile, matchesGolden } from "./golden";
 
 /** An undirected snapshot of `n` nodes (ids 0 .. n - 1) and the given edges. */
@@ -357,25 +357,61 @@ describe("planar", () => {
 });
 
 describe("spectral", () => {
-    it("matches the legacy layout exactly in 2D and 3D, with parallel edges and a self-loop", () => {
-        // edges out of index order, a parallel pair (2, 4) and a self-loop on 5
-        const g: Graph = {
-            nodes: () => ["a", "b", "c", "d", "e", "f", "g"],
-            edges: () => [
-                ["c", "e"],
-                ["a", "b"],
-                ["e", "c"],
-                ["f", "f"],
-                ["b", "c"],
-                ["d", "e"],
-                ["f", "g"],
-                ["a", "g"],
-                ["d", "a"],
-            ],
-        };
-        const s = toLayoutSnapshot(g);
-        matchesGolden(layout.spectral(s, { seed: 4, scale: 2, center: [1, 2] }), golden("spectral 2d"));
-        matchesGolden(layout.spectral(s, { seed: 8, dim: 3 }), golden("spectral 3d"));
+    // two 5-cliques joined by the edge 4-5
+    const barbell = graph(10, [
+        ...[0, 5].flatMap((o) =>
+            Array.from({ length: 5 }, (_, i) =>
+                Array.from({ length: 4 - i }, (__, j) => [o + i, o + i + j + 1] as const),
+            ).flat(),
+        ),
+        [4, 5],
+    ]);
+
+    it("lays a path out along the first axis in order, as the Fiedler vector orders it", () => {
+        const r = layout.spectral(path(12), { seed: 1 });
+        const x = Array.from({ length: 12 }, (_, i) => row(r, i)[0]);
+        const sign = Math.sign(x[11] - x[0]);
+        for (let i = 1; i < 12; i++) {
+            assert.ok(sign * (x[i] - x[i - 1]) > 0, `x is not monotonic at ${i}: ${x.join(", ")}`);
+        }
+    });
+
+    it("splits two cliques joined by one edge to the two sides of the first axis", () => {
+        for (const seed of [1, 2, 3]) {
+            const r = layout.spectral(barbell, { seed });
+            const side = Math.sign(row(r, 0)[0]);
+            for (let i = 0; i < 10; i++) {
+                assert.equal(Math.sign(row(r, i)[0]), i < 5 ? side : -side, `seed ${seed}, node ${i}`);
+            }
+        }
+    });
+
+    it("gives every axis its own eigenvector: no two components of a 3D layout are equal", () => {
+        const r = layout.spectral(path(9), { seed: 8, dim: 3 });
+        for (const [k, l] of [
+            [0, 1],
+            [0, 2],
+            [1, 2],
+        ]) {
+            assert.ok(
+                Array.from({ length: 9 }, (_, i) => row(r, i)).some((p) => Math.abs(p[k] - p[l]) > 1e-3),
+                `components ${k} and ${l} are equal`,
+            );
+        }
+    });
+
+    it("is the same for the same seed, with parallel edges and a self-loop", () => {
+        const g = graph(5, [
+            [0, 1],
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 4],
+            [4, 0],
+            [1, 3],
+            [2, 2],
+        ]);
+        assert.deepEqual(layout.spectral(g, { seed: 7 }).positions, layout.spectral(g, { seed: 7 }).positions);
     });
 
     it("puts two nodes at the centre minus and plus scale", () => {
@@ -385,42 +421,8 @@ describe("spectral", () => {
     });
 });
 
-describe("spectral and planar keep the output of layout 1.x", () => {
+describe("planar keeps the output of layout 1.x", () => {
     // The coordinates below were produced by the implementations before the migration to snapshots.
-    const spectralGraph = toLayoutSnapshot({
-        nodes: () => [0, 1, 2, 3, 4],
-        edges: () => [
-            [0, 1],
-            [0, 1],
-            [1, 2],
-            [2, 3],
-            [3, 4],
-            [4, 0],
-            [1, 3],
-            [2, 2],
-        ],
-    });
-
-    it("spectral in 2D, with a parallel edge and a self-loop", () => {
-        matchesGolden(layout.spectral(spectralGraph, { seed: 7 }), [
-            [0.39279270028992536, 0.0031423426377324903],
-            [-0.6355519396046398, -0.18854288286515103],
-            [8.704879263260277e-12, 0.593684065965646],
-            [0.635551939590555, -0.7720581144464991],
-            [-0.39279270028454544, 0.36377458870827156],
-        ]);
-    });
-
-    it("spectral in 3D, with a parallel edge and a self-loop", () => {
-        matchesGolden(layout.spectral(spectralGraph, { seed: 7, scale: 2, center: [1, 2, 3], dim: 3 }), [
-            [1.6630117939800617, 2.005304096099559, 3.6630117939800617],
-            [-0.07277561760632345, 1.6817503102315094, 1.9272243823936765],
-            [1.0000000000146934, 3.0021050221725725, 3.000000000014693],
-            [2.072775617582549, 0.6968097035963008, 4.072775617582549],
-            [0.33698820602901913, 2.614030867900058, 2.336988206029019],
-        ]);
-    });
-
     // six nodes whose Hamiltonian cycle 0-2-4-1-3-5 is not in index order, so it becomes the outer face
     const planarEdges: [number, number][] = [
         [0, 2],

@@ -439,7 +439,10 @@ export const LAYOUT_CATALOG: readonly LayoutCatalogEntry[] = [
             id: "force-2d",
             plainName: "Spread Out, Flat",
             technicalName: "Force-directed layout, two-dimensional",
-            description: "The same pull and push as Spread Out, worked out on a single plane.",
+            description:
+                "Spreads the nodes evenly over a flat disc: every pair of nodes is pulled together and " +
+                "pushed apart, and an edge pulls only slightly harder, so groups show faintly if at all. " +
+                "A different force model from Spread Out.",
             family: "force",
             kind: "batch",
             maxDimensions: 2,

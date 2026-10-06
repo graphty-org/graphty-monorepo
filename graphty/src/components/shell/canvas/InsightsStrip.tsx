@@ -72,6 +72,12 @@ export interface InsightsStripProps {
 const DISMISS_LABEL = "Hide suggestions";
 
 /**
+ * The strip's accessible name. Left and Right move between its cards, so it is a
+ * toolbar: a screen reader then announces it and the arrow keys it answers to.
+ */
+const INSIGHTS_LABEL = "Suggestions";
+
+/**
  * Draws the top-centre Insights strip, or nothing when there is no card to show.
  * @param props - the cards, the form and the dismiss handlers.
  * @returns the strip element, or null when there are no cards.
@@ -123,6 +129,9 @@ export function InsightsStrip(props: InsightsStripProps): React.JSX.Element | nu
     return (
         <div
             data-canvas-overlay="insights"
+            role="toolbar"
+            aria-label={INSIGHTS_LABEL}
+            aria-orientation="horizontal"
             onKeyDown={handleKeyDown}
             style={{
                 maxWidth: INSIGHTS_STRIP_MAX_WIDTH,

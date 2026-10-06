@@ -805,6 +805,27 @@ describe("githerdDone", () => {
         expect(s.proposals["pr:7"]).toMatchObject({ kind: "not-needed-pr", status: "unconfirmed", proposedBy: "w1" });
     });
 
+    it("records the references on master a triage keep weighed, so they ask for no verify", async () => {
+        const s = state({
+            issues: { byNumber: { 5: { state: "open" } } },
+            merged: { commitRefs: { 5: ["b702301a5"] }, refs: { 5: ["#947"] } },
+        });
+        const triage = (s.jobs["triage-refresh"] = working("triage", "refresh", { batch: [5] }));
+        const { ctx } = setup(s);
+        const result = [
+            {
+                issue: 5,
+                verdict: "keep",
+                evidence: "partly done: the element question is still open",
+                labels: { type: "bug", priority: "priority:high", effort: "effort:low" },
+            },
+        ];
+        expect(JSON.parse((await githerdDone(ctx, triage, report({ result }), "w1")).text)).toMatchObject({
+            verified: true,
+        });
+        expect(s.issues.byNumber[5].judgedRefs).toEqual(["b702301a5", "#947"]);
+    });
+
     it("records a verified triage batch's verdicts and a split's children", async () => {
         const s = state();
         const triage = (s.jobs["triage-new"] = working("triage", "new", { batch: [5] }));

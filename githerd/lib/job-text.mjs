@@ -128,7 +128,7 @@ function refreshLines(facts) {
     }
     if (facts.batch?.length) {
         const refs = facts.batch.map((/** @type {number} */ n) => `#${n}`).join(" ");
-        lines.push(`MUST JUDGE (a merge mentions them without closing them): ${refs}`);
+        lines.push(`MUST JUDGE (a merge or a commit on master names them without closing them): ${refs}`);
     }
     lines.push("OPEN ISSUES:", ...(facts.open ?? []).map((/** @type {any} */ i) => `  #${i.number} ${i.title}`));
     return lines;

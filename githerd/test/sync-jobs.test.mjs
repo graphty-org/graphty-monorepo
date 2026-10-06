@@ -674,6 +674,39 @@ describe("syncJobs: issues", () => {
         expect(state.jobs["issue-619"].facts.references).toBeUndefined();
     });
 
+    it("offers no verify job for references a triage keep already weighed, and does for a later one", () => {
+        // #966: a commit on master named it, and the session that read it left the issue open.
+        const state = base();
+        issue(state, 966, LABELED, { judgedRefs: ["b702301a5"] });
+        state.merged.commitRefs = commitRefs("b702301a5\ttest(graphty): space out the fixture (#966)", [966]);
+        expect(sync(state).created).toEqual(["issue-966"]);
+        expect(state.jobs["issue-966"].reason).toBe("front of the issue queue: high bug, effort low");
+        expect(state.jobs["issue-966"].facts.references).toBeUndefined();
+        delete state.jobs["issue-966"];
+        state.merged.commitRefs = commitRefs("1234567ab\tfix: the rest (#966)\nb702301a5\ttest: (#966)", [966]);
+        expect(sync(state).created).toEqual(["issue-966"]);
+        expect(state.jobs["issue-966"].facts.references).toEqual(["1234567ab"]);
+    });
+
+    it("has the next refresh judge an issue only a commit on master names", () => {
+        const state = base();
+        issue(state, 966, LABELED);
+        issue(state, 967, LABELED, { judgedRefs: ["aaaaaaaaa"] });
+        state.merged.commitRefs = commitRefs("b702301a5\tfix (#966)\naaaaaaaaa\tfix (#967)", [966, 967]);
+        sync(state);
+        const prs = Array.from({ length: 20 }, (_, i) => ({
+            number: 100 + i,
+            mergedAt: `2026-10-04T11:${String(i).padStart(2, "0")}:00Z`,
+            closes: [],
+            mentions: [],
+            paths: [],
+        }));
+        state.merged = accumulateMerged(state.merged, /** @type {any} */ (prs));
+        expect(sync(state).created).toEqual(["triage-refresh-1"]);
+        // No merge mentions #966, yet a commit names it and no verdict weighed that yet.
+        expect(state.jobs["triage-refresh-1"].facts.batch).toEqual([966]);
+    });
+
     it("leaves an issue nothing on master names unchanged", () => {
         const state = base();
         issue(state, 906, LABELED);

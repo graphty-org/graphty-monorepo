@@ -43,6 +43,14 @@ priority_rules:
       priority: high
       allow_checks_interruption: false
 
+    # A pull request labeled "queue:next" goes ahead of ordinary ones (priority low by default) but behind
+    # the release train and red-master fixes, and never interrupts a batch being checked.
+    - name: next in line
+      conditions:
+          - label=queue:next
+      priority: medium
+      allow_checks_interruption: false
+
 queue_rules:
     # The release pull request that release.yml opens (the "release train" priority rule puts it first).
     # Listed before "default", so it takes this rule: checked alone, never batched with other pull

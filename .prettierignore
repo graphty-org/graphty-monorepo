@@ -12,6 +12,10 @@ storybook-static/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
+# nothing formats them. Prettier would also rewrite the commit subjects they quote (A* -> A\*,
+# __proto__ -> **proto**), and a release pull request must never fail CI on its own changelogs.
+**/CHANGELOG.md
 *.min.js
 *.bundle.js
 

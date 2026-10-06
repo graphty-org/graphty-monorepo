@@ -910,6 +910,8 @@ the queue never asks for a new approval. Nobody turns on auto-merge by hand.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.
+- To move a pull request ahead of ordinary ones, add the `queue:next` label: it goes behind the
+  release train and red-master fixes, and never interrupts a batch already being checked.
 - Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
   request with it on would merge anyway.
 

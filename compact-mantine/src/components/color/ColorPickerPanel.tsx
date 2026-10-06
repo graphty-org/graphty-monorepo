@@ -13,7 +13,6 @@ import React, { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
 import { normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
-import { overTriggerComboboxProps } from "../inputs/listbox";
 import { Chit } from "./Chit";
 import { isLeavingWithoutCommit, leaveWithoutCommit } from "./escape";
 import { OpacityInput } from "./OpacityInput";
@@ -509,7 +508,7 @@ export function ColorPickerPanel({
                                 data={FORMATS}
                                 value={format}
                                 allowDeselect={false}
-                                comboboxProps={{ ...overTriggerComboboxProps(), withinPortal: false }}
+                                comboboxProps={{ withinPortal: false }}
                                 onChange={(next) => {
                                     if (next !== null) {
                                         setFormat(next as ColorPickerFormat);

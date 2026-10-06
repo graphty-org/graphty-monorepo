@@ -2182,8 +2182,8 @@ export class Graph implements GraphContext {
      *
      * What the `node-data` property does, and the node half of {@link setEdges}. A node whose id is
      * not in the new set is removed the way {@link removeNodes} removes one, so the edges attached
-     * to it go too. A node whose id IS in the new set keeps its object and its position; its data
-     * is not rewritten. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
+     * to it go too. A node whose id IS in the new set keeps its object and its position, and its
+     * data becomes the record it was just given, so a style reading a changed field repaints. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
      * is removed, so the graph keeps the nodes it had.
      * @param nodes - the nodes the graph should hold afterwards
      * @param idPath - Key to use for node IDs (default: the configured node id path)

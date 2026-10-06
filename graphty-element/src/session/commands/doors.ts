@@ -814,7 +814,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadFromFile: LOAD_FROM_FILE,
             loadFromUrl: LOAD_FROM_URL,
             ...DATA_DOORS,
-            // Called while the graph holds every node the rows above left: naming them all again removes none.
+            // Called while the graph holds every node the rows above left: naming them all again removes
+            // none, and n1, which `updateNodes` gave a weight, takes back the bare record it is handed.
             setNodes: calls(
                 [
                     [
@@ -829,6 +830,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
                 batchOf(
                     "Replaced the nodes",
+                    {
+                        op: "data.apply",
+                        mutation: {
+                            kind: "update-rows",
+                            target: "node",
+                            rows: [{ id: "n1", values: { id: "n1" } }],
+                            replace: true,
+                        },
+                    },
                     addNodes(
                         { id: "n1" },
                         { id: "n2" },

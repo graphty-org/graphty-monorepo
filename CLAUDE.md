@@ -465,16 +465,15 @@ The target flow:
 
 **Live today:** the pull request half of the target flow. A draft pull request runs no tests: ci.yml
 skips its build and test jobs and reports `All Checks Pass` and `Queue Checks Pass` as FAILED
-("draft: CI not run"), so a draft can never look green; `hosts.yml` and gpu.yml
-skip drafts too. `Lint PR Title` still checks a draft's title (seconds). A ready one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
+("draft: CI not run"), so a draft can never look green; `hosts.yml` skips drafts too. `Lint PR Title` still checks a draft's title (seconds). A ready one runs the affected suite with the screenshots and the gate; `Cost Estimate Accuracy` runs on
 every pull request that affects graphty-element and gates it; the short test shards run as two
 grouped jobs. ci.yml also knows a Mergify merge-queue run (a draft on a `mergify/merge-queue/*`
 branch, opened by Mergify in this repository): it runs the full suite there and reports
 `Queue Checks Pass`, and `Lint PR Title` passes it. Mergify checks batches of up to 4
 (`.mergify.yml`), and the visual gate accepts a batch (`--queue-event`). Releases run on the daily
 train (see "Release versioning"), and graphty.app deploys after every green CI run on master. A red master CI
-freezes the queue and opens a revert (`master-guard.yml`), and a pull request that affects
-webgpu-graph-algorithms is queued only after the T4 passed on it (`T4 GPU gate`). The
+freezes the queue and opens a revert (`master-guard.yml`). The paid T4 GPU lane runs only in the
+local pre-push gate and on the daily release train, never on a pull request or a master push. The
 plan's section 16
 is the order of the migration. Update this paragraph as each step lands.
 
@@ -491,10 +490,10 @@ CI, and Mergify queues only ready pull requests.
 | `release.yml` | Daily (14:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request) | The release train: opens the release pull request, then tags and publishes it with npm trusted publishing |
 | `deploy-pages.yml` | After every green CI run on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
-| `gpu.yml` | Ready PRs, push to master, dispatch (the nightly is switched off in the file) | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4). Never a job of CI. Its `T4 GPU gate` check is required for queue entry: it passes at once when nx says the change does not affect webgpu-graph-algorithms (workflow files other than gpu.yml left out), and otherwise once the T4 passed on the PR, run once per PR and again only when a later push affects the package again (`tools/gpu-lane-needed.sh`). On master a commit that does not affect the package inherits the last T4 pass. `release.yml` requires it green. A PR's paired benchmark runs only the groups its change can move (`scripts/bench-groups.js`) |
+| `gpu.yml` | Called by the daily release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue; once a fix is on master, the next train re-runs the T4, releases everything at once and closes the issue |
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | Push/PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); `release.yml` waits for it and requires it green when it ran |
-| `master-guard.yml` | After CI, GPU or Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. GPU or Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
+| `master-guard.yml` | After CI or Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
 
 ### Dead Links
 
@@ -524,7 +523,8 @@ package has no guide pages, so its documentation link is the generated API refer
 ### Release versioning
 
 Releases go out on a daily train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Once a day
-`release.yml` versions the newest master commit green on CI, GPU and Hosts and opens a
+`release.yml` runs the T4 GPU lane on the newest master commit green on CI and Hosts and, only
+if it passes, versions that commit and opens a
 `chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)
 holding only version fields and changelogs; Mergify merges it, and the merge starts `release.yml`'s
 publish job, which tags each package, creates its GitHub release and publishes it with npm trusted

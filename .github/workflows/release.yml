@@ -3,9 +3,13 @@ name: Release
 # A daily release train, landed through the merge queue like every other change (design/ci/ci-cd-plan.md,
 # sections 10 and 11).
 #
-# 1. Once a day (the schedule), or at once when the owner dispatches it (the ad hoc release), the train job finds
-#    the newest master commit green on every lane, versions it with nx release, and opens a "chore(release):
-#    publish" pull request holding only version fields and changelogs. Mergify merges it ahead of waiting pull
+# 1. Once a day (the schedule), or at once when the owner dispatches it (the ad hoc release), the pick job finds
+#    the newest master commit green on CI and Hosts, the t4 job runs the paid NVIDIA T4 lane (gpu.yml) on exactly
+#    that commit, and only when it passes does the train job version it with nx release and open a "chore(release):
+#    publish" pull request holding only version fields and changelogs. A red T4 holds the WHOLE release: no pull
+#    request, nothing published, and the held job opens or updates one "Release held: T4 GPU failed on <sha>"
+#    issue. The next train whose T4 passes releases everything at once and closes that issue (owner decision,
+#    2026-10-06: the T4 runs only here, on manual dispatch and in the local pre-push gate). Mergify merges it ahead of waiting pull
 #    requests (.mergify.yml's "release train" priority rule, which matches the branch, not a label) without
 #    interrupting the batches already being checked.
 # 2. That merge is a push to master, which starts the publish job: it tags each released package
@@ -31,33 +35,40 @@ on:
         branches:
             - master
 
+# One train at a time across all its jobs: a second train waits for the first, which has opened its pull request
+# (or held the release) by then, so the second never runs a second paid T4 on the same commit. A push run (the
+# publish job) gets a group of its own and never waits for a train.
+concurrency:
+    group: ${{ github.event_name == 'push' && format('release-push-{0}', github.run_id) || 'release-train' }}
+    cancel-in-progress: false
+
 jobs:
-    # The released commit is the NEWEST commit on master's first-parent line, after the last release landed, whose
-    # lanes all succeeded: CI and the GPU lane must exist and be green; Hosts is filtered by paths, so a commit with
-    # no Hosts run has nothing to wait for (owner rule of 2026-09-18: no release while any lane is red). A commit
-    # whose lanes failed, were cancelled or are still running is passed over, never released.
-    train:
-        name: Open the release pull request
+    # The candidate is the NEWEST commit on master's first-parent line, after the last release landed, whose lanes
+    # all succeeded: CI must exist and be green; Hosts is filtered by paths, so a commit with no Hosts run has
+    # nothing to wait for (owner rule of 2026-09-18: no release while any lane is red). A commit whose lanes failed,
+    # were cancelled or are still running is passed over, never released. The T4 lane is not read here: it runs
+    # on the candidate in the t4 job below.
+    pick:
+        name: Pick the release candidate
         if: ${{ github.event_name != 'push' && github.ref == 'refs/heads/master' }}
         runs-on: ubuntu-24.04
-        # A second train waits for the first, which has opened its pull request by then and so stops the second.
-        concurrency:
-            group: release-train
         permissions:
             actions: read
-            contents: write
-            issues: write
-            pull-requests: write
-            statuses: write
+            contents: read
+            pull-requests: read
         env:
             GH_TOKEN: ${{ github.token }}
+        outputs:
+            release: ${{ steps.lanes.outputs.release }}
+            sha: ${{ steps.lanes.outputs.sha }}
+            ci_run_id: ${{ steps.lanes.outputs.ci_run_id }}
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: master
                   fetch-depth: 0
 
-            - name: Pick the newest commit since the last release with CI, GPU and Hosts green
+            - name: Pick the newest commit since the last release with CI and Hosts green
               id: lanes
               run: |
                   set -euo pipefail
@@ -87,7 +98,7 @@ jobs:
                       gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/$1/runs?branch=master&per_page=100" \
                           --jq '.workflow_runs[] | "\(.head_sha) \(.id) \(.status) \(.conclusion // "-")"'
                   }
-                  ci_runs=$(runs ci.yml); gpu_runs=$(runs gpu.yml); hosts_runs=$(runs hosts.yml)
+                  ci_runs=$(runs ci.yml); hosts_runs=$(runs hosts.yml)
                   newest() { awk -v s="$2" '$1 == s { print $2, $3, $4; exit }' <<< "$1"; }
                   # The release ships the CI run's per-package builds, which CI keeps for one day.
                   artifacts_ok() {
@@ -100,58 +111,141 @@ jobs:
                       [ "$live" = 0 ]
                   }
                   for sha in "${candidates[@]}"; do
-                      ci=$(newest "$ci_runs" "$sha"); gpu=$(newest "$gpu_runs" "$sha"); hosts=$(newest "$hosts_runs" "$sha")
-                      echo "${sha}: ci=[${ci:-none}] gpu=[${gpu:-none}] hosts=[${hosts:-none (paths did not change)}]"
+                      ci=$(newest "$ci_runs" "$sha"); hosts=$(newest "$hosts_runs" "$sha")
+                      echo "${sha}: ci=[${ci:-none}] hosts=[${hosts:-none (paths did not change)}]"
                       case "$ci" in *" completed success") ;; *) continue ;; esac
-                      case "$gpu" in *" completed success") ;; *) continue ;; esac
                       case "$hosts" in "" | *" completed success") ;; *) continue ;; esac
                       ci_run_id=${ci%% *}
                       artifacts_ok "$ci_run_id" ||
                           skip "${sha} is green but CI run ${ci_run_id} no longer holds its builds; the next train tries a newer commit"
-                      echo "every lane green on ${sha}; CI run ${ci_run_id} holds the build artifacts"
+                      echo "CI and Hosts green on ${sha}; CI run ${ci_run_id} holds the build artifacts; the T4 runs on it next"
                       { echo "release=true"; echo "sha=${sha}"; echo "ci_run_id=${ci_run_id}"; } >> "$GITHUB_OUTPUT"
                       exit 0
                   done
-                  skip "no commit since the last release is green on every lane yet; dispatch again once one is"
+                  skip "no commit since the last release is green on CI and Hosts yet; dispatch again once one is"
+
+    # The paid NVIDIA T4 lane on exactly the candidate: gpu.yml's job, tests and benchmarks.
+    t4:
+        name: T4 GPU
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        permissions:
+            contents: read
+        uses: ./.github/workflows/gpu.yml
+        with:
+            ref: ${{ needs.pick.outputs.sha }}
+
+    # A red T4 holds the whole release: this job opens no pull request and publishes nothing. It opens (or retitles
+    # and comments on) the one open "Release held: T4 GPU failed on <sha>" issue, which githerd turns into a fix
+    # job; the next train whose T4 passes releases everything and closes it.
+    held:
+        name: Hold the release (T4 failed)
+        needs: [pick, t4]
+        if: ${{ !cancelled() && needs.pick.outputs.release == 'true' && needs.t4.result == 'failure' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            actions: read
+            issues: write
+        env:
+            GH_TOKEN: ${{ github.token }}
+            SHA: ${{ needs.pick.outputs.sha }}
+        steps:
+            - name: Open or update the held-release issue
+              run: |
+                  set -euo pipefail
+                  run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  title="Release held: T4 GPU failed on ${SHA:0:7}"
+                  {
+                      echo "The release train's T4 GPU run failed on ${SHA}: ${run_url}"
+                      echo
+                      echo "No release pull request was opened and nothing was published. The whole release is held until the T4 passes: fix webgpu-graph-algorithms (or whatever the T4 found) on master, then the next train (the daily 14:00 UTC run, or \`gh workflow run release.yml --ref master\`) re-runs the T4 and, when it passes, releases everything at once and closes this issue."
+                      echo
+                      echo "What failed (the T4 job's failed steps, then its FAIL and error lines):"
+                      echo
+                      echo '```'
+                      gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+                          --jq '.jobs[] | select(.conclusion == "failure" and (.name | contains("NVIDIA T4"))) | "\(.id) \(.name): \([.steps[] | select(.conclusion == "failure") | .name] | join("; "))"' |
+                          while read -r id rest; do
+                              echo "$rest"
+                              # a job the provider refused (no balance, no runner) has no log
+                              gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${id}/logs" 2>/dev/null |
+                                  sed 's/^[0-9TZ:.-]* //' | grep -E '(^| )(FAIL|##\[error\])' | head -60 || true
+                          done || echo "(the run's jobs could not be read; open the run)" # the issue matters more than its details
+                      echo '```'
+                  } > "$RUNNER_TEMP/body.md"
+                  open=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label gpu --limit 100 --json number,title \
+                      --jq '[.[] | select(.title | startswith("Release held: T4 GPU failed on "))][0].number // empty')
+                  if [ -n "$open" ]; then
+                      gh issue edit "$open" -R "$GITHUB_REPOSITORY" --title "$title"
+                      gh issue comment "$open" -R "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/body.md"
+                  else
+                      open=$(gh issue create -R "$GITHUB_REPOSITORY" --title "$title" \
+                          --label bug --label priority:high --label gpu --label effort:medium --body-file "$RUNNER_TEMP/body.md")
+                  fi
+                  echo "::error::release held: the T4 GPU lane failed on ${SHA}; no release pull request was opened (issue ${open})"
+
+    # Versions the candidate and opens the release pull request, only after the T4 passed on it.
+    train:
+        name: Open the release pull request
+        needs: [pick, t4]
+        if: ${{ needs.pick.outputs.release == 'true' && needs.t4.result == 'success' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            actions: read
+            contents: write
+            issues: write
+            pull-requests: write
+            statuses: write
+        env:
+            GH_TOKEN: ${{ github.token }}
+        steps:
+            - name: Close the held-release issue (the T4 passed)
+              env:
+                  SHA: ${{ needs.pick.outputs.sha }}
+              run: |
+                  set -euo pipefail
+                  open=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label gpu --limit 100 --json number,title \
+                      --jq '[.[] | select(.title | startswith("Release held: T4 GPU failed on "))][0].number // empty')
+                  [ -z "$open" ] || gh issue close "$open" -R "$GITHUB_REPOSITORY" --comment \
+                      "The T4 passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases everything that was held."
+
+            - uses: actions/checkout@v4
+              with:
+                  ref: master
+                  fetch-depth: 0
 
             # The version commit must sit on the tree the lanes tested.
             - name: Check out the green commit
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               env:
-                  SHA: ${{ steps.lanes.outputs.sha }}
+                  SHA: ${{ needs.pick.outputs.sha }}
               run: git checkout --quiet --detach "$SHA"
 
             # The tested builds, kept in this run for 30 days under the commit's name, so the publish job finds
             # them however long the pull request waits in the queue (CI keeps its own copy for one day).
             - name: Download the green commit's builds
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               uses: actions/download-artifact@v4
               with:
                   pattern: "build-{graph-format,graph-io,webgpu-graph-algorithms,graph-samples,algorithms,layout,graphty,graphty-element,remote-logger,compact-mantine}"
                   path: ${{ runner.temp }}/builds
-                  run-id: ${{ steps.lanes.outputs.ci_run_id }}
+                  run-id: ${{ needs.pick.outputs.ci_run_id }}
                   github-token: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Keep the builds for the publish job
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               uses: actions/upload-artifact@v4
               with:
-                  name: release-builds-${{ steps.lanes.outputs.sha }}
+                  name: release-builds-${{ needs.pick.outputs.sha }}
                   path: ${{ runner.temp }}/builds
                   retention-days: 30
                   if-no-files-found: error
 
             - uses: pnpm/action-setup@v4
-              if: ${{ steps.lanes.outputs.release == 'true' }}
 
             - uses: actions/setup-node@v4
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               with:
                   node-version: 22.x
                   cache: "pnpm"
 
             - name: Install dependencies
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               run: pnpm install --frozen-lockfile
               env:
                   HUSKY: "0"
@@ -162,7 +256,6 @@ jobs:
             # changelogs it wrote, never this nx.json edit. To stop one package, add it to release-hold.json; never
             # disable this workflow (CLAUDE.md, "Release versioning").
             - name: Leave out the held packages
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               env:
                   PACKAGES: ${{ inputs.packages }}
               run: |
@@ -176,7 +269,6 @@ jobs:
             # publish job), so a pull request that never merges leaves nothing behind; nothing is pushed by nx.
             - name: Version the packages
               id: version
-              if: ${{ steps.lanes.outputs.release == 'true' }}
               run: |
                   set -euo pipefail
                   git config user.name "github-actions[bot]"
@@ -192,7 +284,7 @@ jobs:
                       echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
                   fi
               env:
-                  SHA: ${{ steps.lanes.outputs.sha }}
+                  SHA: ${{ needs.pick.outputs.sha }}
                   # the changelog renderer looks up commit authors' GitHub handles
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   HUSKY: "0"
@@ -205,9 +297,9 @@ jobs:
             - name: Open the release pull request
               if: ${{ steps.version.outputs.commit != '' }}
               env:
-                  SHA: ${{ steps.lanes.outputs.sha }}
+                  SHA: ${{ needs.pick.outputs.sha }}
                   COMMIT: ${{ steps.version.outputs.commit }}
-                  CI_RUN: ${{ steps.lanes.outputs.ci_run_id }}
+                  CI_RUN: ${{ needs.pick.outputs.ci_run_id }}
                   PACKAGES: ${{ inputs.packages }}
               run: |
                   set -euo pipefail
@@ -220,7 +312,7 @@ jobs:
                   kind=daily
                   [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || kind="ad hoc"
                   {
-                      echo "The ${kind} release train versions ${SHA}, the newest master commit green on CI, GPU and Hosts (CI run ${CI_RUN})."
+                      echo "The ${kind} release train versions ${SHA}, the newest master commit green on CI and Hosts (CI run ${CI_RUN}), after the T4 GPU lane passed on it in ${run_url}."
                       [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."
                       echo
                       echo "Releases:"
@@ -231,7 +323,7 @@ jobs:
                   gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
                   for context in "All Checks Pass" "Lint PR Title"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
-                          -f description="release train: versions and changelogs only, on a commit green on every lane" \
+                          -f description="release train: versions and changelogs only, on a commit green on every lane and the T4" \
                           -f target_url="$run_url" >/dev/null
                   done
 

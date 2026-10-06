@@ -21,7 +21,7 @@ const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, 
 const job = (text, name) => {
     const start = text.indexOf(`\n    ${name}:\n`);
     assert.ok(start > 0, `job ${name} exists`);
-    const next = text.slice(start + 1).search(/\n {4}[a-z-]+:\n/);
+    const next = text.slice(start + 1).search(/\n {4}[a-z0-9-]+:\n/);
     return next === -1 ? text.slice(start) : text.slice(start, start + 1 + next);
 };
 const PACKAGES = [...new Set(SHARDS.map((s) => s.package))];
@@ -160,12 +160,6 @@ describe("the lanes outside CI", () => {
             job(hosts, "test"),
             /if: github.event_name != 'pull_request' \|\| !github.event.pull_request.draft\n/,
         );
-        const gpu = workflow("gpu.yml");
-        assert.match(gpu, /pull_request: \{ types: \[opened, synchronize, reopened, ready_for_review\] \}/);
-        assert.match(
-            job(gpu, "decide"),
-            /if: github.event_name != 'pull_request' \|\| !github.event.pull_request.draft\n/,
-        );
     });
 });
 
@@ -214,69 +208,45 @@ describe(".mergify.yml", () => {
 
 describe("gpu.yml", () => {
     const gpu = workflow("gpu.yml");
+    const triggers = (text) => text.slice(text.indexOf("\non:\n"), text.search(/\n(permissions|concurrency|jobs):/));
 
-    it("runs on ready pull requests and master, never on a label or a schedule, and never cancels a paid run", () => {
-        assert.match(gpu, /pull_request: \{ types: \[opened, synchronize, reopened, ready_for_review\] \}/);
-        // the nightly is off until the owner turns it on (spot on hold, issue #1003): no live schedule, no spot
-        assert.doesNotMatch(gpu, /^ {4}schedule:/m);
-        assert.doesNotMatch(gpu, /labeled/);
+    it("runs only when dispatched or called by the release train, never on a pull request, a push or a schedule", () => {
+        const on = triggers(gpu);
+        assert.doesNotMatch(on, /^ {4}(pull_request|pull_request_target|push|schedule|merge_group|workflow_run)\b/m);
+        assert.match(on, /^ {4}workflow_call:\n {8}inputs:\n {12}ref:/m);
+        assert.match(on, /^ {4}workflow_dispatch:/m);
         assert.match(gpu, /cancel-in-progress: false/);
         assert.doesNotMatch(job(gpu, "test-gpu"), /tenancy=spot/);
+        // the T4 tests the commit the train selected, not the train's own checkout
+        assert.match(
+            job(gpu, "test-gpu"),
+            /- uses: actions\/checkout@v4\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
+        );
+        assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
     });
 
-    it("runs the T4 only when the decision says so, and only for this repository's pull requests", () => {
-        const t4 = job(gpu, "test-gpu");
-        assert.match(t4, /needs: decide/);
-        assert.match(t4, /needs.decide.outputs.run == 'true'/);
-        assert.match(t4, /head.repo.full_name == github.repository/);
-    });
-
-    it("always reports the gate, failing it on a draft, a missing decision or a failed T4", () => {
-        const gate = job(gpu, "gate");
-        assert.match(gate, /name: T4 GPU gate/);
-        assert.match(gate, /if: always\(\)/);
-        assert.match(gate, /"\$DRAFT" == "true" .* exit 1/);
-        assert.match(gate, /"\$DECIDE" != "success" .* exit 1/);
-        assert.match(gate, /"\$T4" != "success" .* exit 1/);
+    it("leaves no pull request or master push able to start a paid T4 anywhere", () => {
+        const dir = new URL("../.github/workflows/", import.meta.url);
+        for (const file of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {
+            const text = readFileSync(new URL(file, dir), "utf8");
+            if (!/gpu=t4|gpu-linux-t4|uses: \.\/\.github\/workflows\/gpu\.yml/.test(text.replace(/^\s*#.*$/gm, ""))) {
+                continue;
+            }
+            if (file === "release.yml") {
+                // its push trigger only publishes; the T4 hangs off the pick job, which never runs on a push
+                assert.match(job(text, "pick"), /if: \$\{\{ github.event_name != 'push' /);
+                assert.match(job(text, "t4"), /needs: pick\n/);
+                continue;
+            }
+            assert.doesNotMatch(triggers(text), /^ {4}(pull_request|pull_request_target|push|merge_group)\b/m, file);
+        }
     });
 });
 
-describe(".mergify.yml and the GPU gate", () => {
-    const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-
-    it("lets a pull request skip the gate only when none of its files can affect the GPU package", () => {
-        const exempt = /-files~=\^\(\?!\(([^)]+)\)\/\)/.exec(mergify)[1].split("|");
-        assert.match(mergify, /- check-success=T4 GPU gate/);
-        // Every workspace package the GPU package depends on, through package.json (what nx follows).
-        const pkg = (dir) => JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), "utf8"));
-        const dirs = [
-            "algorithms",
-            "graph-format",
-            "graph-io",
-            "graph-samples",
-            "layout",
-            "graphty-element",
-            "graphty",
-        ];
-        dirs.push("remote-logger", "compact-mantine", "visual-review", "webgpu-graph-algorithms");
-        const byName = new Map(dirs.map((d) => [pkg(d).name, d]));
-        const deps = new Set(["webgpu-graph-algorithms"]);
-        for (const d of deps) {
-            const p = pkg(d);
-            for (const name of Object.keys({ ...p.dependencies, ...p.devDependencies, ...p.peerDependencies })) {
-                if (byName.has(name)) {
-                    deps.add(byName.get(name));
-                }
-            }
-        }
-        assert.ok(deps.has("graph-format") && deps.has("layout"), "the walk found the GPU package's dependencies");
-        for (const dir of exempt) {
-            assert.ok(!deps.has(dir), `${dir} is a dependency of webgpu-graph-algorithms, so it cannot skip the gate`);
-        }
-        const skip = new RegExp(`^(?!(${exempt.join("|")})/)`);
-        assert.ok(!skip.test("graphty-element/src/Graph.ts"));
-        assert.ok(skip.test("graph-format/src/index.ts"));
-        assert.ok(skip.test("pnpm-lock.yaml"));
+describe(".mergify.yml and the T4", () => {
+    it("makes no pull request wait on a T4 result", () => {
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.doesNotMatch(mergify, /T4|GPU|gpu/);
     });
 });
 
@@ -297,10 +267,13 @@ describe("master-guard", () => {
         assert.equal(decide(run("CI", "success")), "green");
         assert.equal(decide(run("CI", "cancelled")), "none");
         assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
-        assert.equal(decide(run("GPU", "failure")), "hardware-red");
+        assert.equal(decide(run("Hosts", "failure")), "hardware-red");
         assert.equal(decide(run("Hosts", "failure", "schedule")), "hardware-red");
-        assert.equal(decide(run("GPU", "success")), "none");
-        assert.equal(decide(run("GPU", "failure", "pull_request")), "none");
+        assert.equal(decide(run("Hosts", "success")), "none");
+        assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
+        // the T4 runs only in the release train, which files its own issue
+        assert.equal(decide(run("GPU", "failure")), "none");
+        assert.match(workflow("master-guard.yml"), /workflows: \["CI", "Hosts"\]/);
     });
 
     it("finds the commit in its own freezes and the pull request in a merge commit", () => {
@@ -321,6 +294,9 @@ describe("master-guard", () => {
 
 describe("release.yml", () => {
     const release = workflow("release.yml");
+    const pick = job(release, "pick");
+    const t4 = job(release, "t4");
+    const held = job(release, "held");
     const train = job(release, "train");
     const publish = job(release, "publish");
 
@@ -333,15 +309,50 @@ describe("release.yml", () => {
     it("cuts the release only from master, once a day or on dispatch, from a commit green on every lane", () => {
         assert.match(release, /schedule:\n\s+- cron: /);
         assert.match(release, /workflow_dispatch:\n\s+inputs:\n\s+packages:/);
-        assert.match(train, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' \}\}/);
-        assert.match(train, /case "\$ci" in \*" completed success"\) ;; \*\) continue ;; esac/);
-        assert.match(train, /case "\$gpu" in \*" completed success"\) ;; \*\) continue ;; esac/);
-        assert.match(train, /case "\$hosts" in "" \| \*" completed success"\) ;; \*\) continue ;; esac/);
-        assert.match(train, /is still open; it must merge or close first/);
+        assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' \}\}/);
+        assert.match(pick, /case "\$ci" in \*" completed success"\) ;; \*\) continue ;; esac/);
+        assert.match(pick, /case "\$hosts" in "" \| \*" completed success"\) ;; \*\) continue ;; esac/);
+        assert.match(pick, /is still open; it must merge or close first/);
+        // the T4 is no longer read from gpu.yml runs on master: the train runs it itself
+        assert.doesNotMatch(pick, /runs gpu\.yml|"\$gpu"/);
         assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
         assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
         // the train is put first by .mergify.yml's "release train" priority rule, not a label
-        assert.doesNotMatch(train, /--label/);
+        assert.doesNotMatch(train, /gh pr create[^\n]*--label/);
+    });
+
+    it("runs the T4 on the picked commit before anything is versioned, and opens the pull request only if it passed", () => {
+        assert.match(t4, /needs: pick\n/);
+        assert.match(t4, /if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        assert.match(
+            t4,
+            /uses: \.\/\.github\/workflows\/gpu\.yml\n\s+with:\n\s+ref: \$\{\{ needs.pick.outputs.sha \}\}/,
+        );
+        assert.match(train, /needs: \[pick, t4\]/);
+        assert.match(train, /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.t4.result == 'success' \}\}/);
+        // one train at a time across its jobs, so two trains never pay for two T4 runs of one commit
+        assert.match(release, /^concurrency:\n {4}group: .*'release-train' \}\}\n {4}cancel-in-progress: false/m);
+    });
+
+    it("holds the whole release on a red T4: no pull request, no builds kept, nothing published, one issue", () => {
+        assert.match(held, /needs: \[pick, t4\]/);
+        assert.match(held, /needs.t4.result == 'failure'/);
+        assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
+        // the publish job finds only builds the train kept, and only the train keeps them
+        assert.equal(release.match(/name: release-builds-/g).length, 2);
+        assert.match(train, /name: release-builds-\$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(publish, /name: release-builds-\$\{\{ steps.commit.outputs.sha \}\}/);
+        assert.equal(release.match(/gh pr create/g).length, 1);
+        // one issue: found by its title prefix and updated, else created with the labels githerd and triage read
+        assert.match(held, /title="Release held: T4 GPU failed on \$\{SHA:0:7\}"/);
+        assert.match(held, /startswith\("Release held: T4 GPU failed on "\)/);
+        assert.match(held, /gh issue edit "\$open"[^\n]*--title "\$title"/);
+        assert.match(held, /gh issue comment "\$open"/);
+        assert.match(held, /--label bug --label priority:high --label gpu --label effort:medium/);
+        assert.match(held, /actions\/runs\/\$\{GITHUB_RUN_ID\}/);
+        assert.match(held, /::error::release held/);
+        // and the next train whose T4 passes closes it
+        assert.match(train, /startswith\("Release held: T4 GPU failed on "\)[\s\S]*gh issue close "\$open"/);
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {

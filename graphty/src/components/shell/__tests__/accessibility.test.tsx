@@ -29,8 +29,6 @@ const KNOWN_VIOLATIONS: readonly { readonly rule: string; readonly target: strin
     { rule: "color-contrast", target: "[data-sample-hint=", issue: 508 },
     { rule: "color-contrast", target: 'a[href$="graphty.app/"]', issue: 508 },
     { rule: "color-contrast", target: "or paste data", issue: 508 },
-    // The Coming tag's chrome ink on the raised fill measures 4.42:1 at 10px.
-    { rule: "color-contrast", target: 'span[title="Coming"]', issue: 509 },
 ];
 
 /**

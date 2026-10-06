@@ -114,7 +114,7 @@ export class ApiKeyManager {
     constructor(options: ApiKeyManagerOptions = {}) {
         this.storage = options.storage ?? "localStorage";
         this.prefix = options.prefix ?? DEFAULT_STORAGE_PREFIX;
-        void this.enqueue(() => this.restorePersistence());
+        void this.enqueue(() => this.restorePersistence()); // NOSONAR(S7059): restoring on construct is the documented contract; ready() exposes its completion
     }
 
     /**
@@ -154,7 +154,7 @@ export class ApiKeyManager {
         };
         this.persistenceConfig = persistenceConfig;
 
-        if (typeof window === "undefined") {
+        if (globalThis.window === undefined) {
             return this.pending;
         }
 
@@ -170,7 +170,7 @@ export class ApiKeyManager {
      */
     disablePersistence(clearStorage = true): void {
         const config = this.persistenceConfig;
-        if (clearStorage && config && typeof window !== "undefined") {
+        if (clearStorage && config && globalThis.window !== undefined) {
             try {
                 const area = storageArea(config.storage);
                 area.removeItem(itemName(config, KEYS_ITEM));
@@ -295,7 +295,7 @@ export class ApiKeyManager {
      * custom key remembered for this tab, then with the built-in key.
      */
     private async restorePersistence(): Promise<void> {
-        if (typeof window === "undefined" || this.hostChosePersistence) {
+        if (globalThis.window === undefined || this.hostChosePersistence) {
             return;
         }
 
@@ -353,7 +353,7 @@ export class ApiKeyManager {
     /** Queue a save of the keys and default provider when persistence is on. */
     private persistKeys(): void {
         const config = this.persistenceConfig;
-        if (config && typeof window !== "undefined") {
+        if (config && globalThis.window !== undefined) {
             void this.enqueue(() => this.save(config));
         }
     }
@@ -523,7 +523,7 @@ function toBase64(...parts: Uint8Array[]): string {
     let binary = "";
     for (const part of parts) {
         for (const byte of part) {
-            binary += String.fromCharCode(byte);
+            binary += String.fromCodePoint(byte);
         }
     }
 
@@ -536,7 +536,7 @@ function toBase64(...parts: Uint8Array[]): string {
  * @returns The bytes
  */
 function fromBase64(text: string): Uint8Array<ArrayBuffer> {
-    return Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
+    return Uint8Array.from(atob(text), (char) => char.codePointAt(0) ?? 0);
 }
 
 /**

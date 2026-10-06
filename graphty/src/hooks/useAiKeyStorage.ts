@@ -137,7 +137,7 @@ export function useAiKeyStorage(options: UseAiKeyStorageOptions = {}): UseAiKeyS
             });
             refresh();
             // Stored keys arrive once they are decrypted
-            void loaded?.then(refresh);
+            loaded?.then(refresh, refresh);
         },
         [refresh],
     );

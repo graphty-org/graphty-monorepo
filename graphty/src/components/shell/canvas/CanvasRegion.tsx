@@ -56,7 +56,7 @@
 
 import { type DataTableColumn, type DataTableSort, PopoutRegion } from "@graphty/compact-mantine";
 import type { AccelerationPolicy, GraphSession } from "@graphty/graphty-element/session";
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 
 import { Graphty, type GraphtyHandle, type SelectionChangedDetail, type StylesChangedDetail } from "../../Graphty";
 import { CANVAS_TOOLBAR_Z_INDEX, type CanvasBottomStackState, INSIGHTS_STRIP_TOP, OVERLAY_INSET } from "../constants";
@@ -299,7 +299,6 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
         insights,
         legend,
         minimap,
-        onCanvasTap,
         overlays,
         stateAxis,
         timeSlider,
@@ -347,32 +346,6 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
         [channels.length, overlays.legend, overlays.minimap, rect.height, rect.profile, rect.width, stack],
     );
 
-    // Spec 01 section 7 items 4 and 5: below 1280 a tap on the canvas closes an open
-    // overlay, and a tap on the canvas TOOLBAR is not a tap on the canvas. Every
-    // overlay is a descendant of a node carrying `data-canvas-overlay`, so one
-    // `closest` call separates the graph from everything drawn over it.
-    //
-    // The other carve-out design 5.2 makes -- a tap that SELECTED a node is not a tap
-    // away either -- is not made here and must not be: this region knows only what was
-    // under the pointer, and what the pick produced is the shell's fact. `AppShell`
-    // filters the call this handler makes; this contract is unchanged by that.
-    const handleClick = useCallback(
-        (event: React.MouseEvent<HTMLDivElement>) => {
-            if (onCanvasTap === undefined || breakpoint !== "narrow") {
-                return;
-            }
-
-            const { target } = event;
-
-            if (target instanceof Element && target.closest("[data-canvas-overlay]") !== null) {
-                return;
-            }
-
-            onCanvasTap();
-        },
-        [breakpoint, onCanvasTap],
-    );
-
     return (
         <CanvasBottomStackContext.Provider value={layout}>
             <div
@@ -381,7 +354,6 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                 data-reflowed={layout.reflowed ? "true" : "false"}
                 data-toolbar-drawn={layout.toolbarBottom === null ? "false" : "true"}
                 data-toolbar-bottom={layout.toolbarBottom === null ? undefined : String(layout.toolbarBottom)}
-                onClick={handleClick}
                 style={{
                     flex: "1 1 auto",
                     minWidth: 0,

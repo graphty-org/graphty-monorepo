@@ -30,8 +30,9 @@ concurrency:
     group: ci-${{ github.event.pull_request.number || github.sha }}-${{ github.event.pull_request.draft && !(startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]') && 'draft' || 'run' }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Note: We use local Nx caching only (no Nx Cloud)
-# Cache is stored in .nx/cache and persisted via actions/cache
+# No Nx cache is persisted between runs (no Nx Cloud, no actions/cache of .nx/cache): it never hit, because
+# release commits change every package.json and nx.json sharedGlobals includes .github/workflows/**, and each
+# run saved a new 600 MB entry that pushed the Git LFS baseline caches toward eviction.
 
 # Every job names ubuntu-24.04 rather than ubuntu-latest. The label is not a constant: it became 24.04 during
 # 2026 with no change here, which is how the webgpu-graph-algorithms node shard came to judge its kernels on a
@@ -160,15 +161,6 @@ jobs:
             # change, so it failed every PR at once (52 PR runs in 4 waves in 5 days). The release
             # train in release.yml audits before it opens the release pull request, and
             # dependency-review.yml reviews the pull requests that change dependencies.
-
-            - name: Cache Nx
-              uses: actions/cache@v4
-              with:
-                  path: .nx/cache
-                  key: nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
-                  restore-keys: |
-                      nx-${{ runner.os }}-build-${{ hashFiles('pnpm-lock.yaml') }}-
-                      nx-${{ runner.os }}-build-
 
             # PR: Build then lint (build first for type dependencies). The base is named explicitly: the checkout
             # has every branch as a remote-tracking ref (fetch-depth 0) but no local master, and nx.json's
@@ -522,13 +514,13 @@ jobs:
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
+            - name: Install Playwright system packages
+              if: matrix.needs-browser
+              uses: ./.github/actions/playwright-system-deps
+
             - name: Install Playwright browsers
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install chromium --with-deps
-
-            - name: Install Playwright deps (if cached)
-              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit == 'true'
-              run: pnpm exec playwright install-deps chromium
+              run: pnpm exec playwright install chromium
 
             # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
             - name: Install Mesa lavapipe
@@ -1161,10 +1153,18 @@ jobs:
             - uses: ./.github/actions/drop-microsoft-apt-source
               if: steps.skip.outputs.skip != 'true'
 
-            # With the browser cached this installs only the system libraries Chromium needs.
+            # `visual-review install-browser` (the template's step) is `playwright install --with-deps
+            # chromium`, apt on each of the five jobs; this installs the same system packages from a cache.
+            - name: Install Playwright system packages
+              if: steps.skip.outputs.skip != 'true'
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
             - name: Install Chromium
               if: steps.skip.outputs.skip != 'true'
-              run: pnpm exec visual-review install-browser
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
 
             - name: Download Storybook build
               if: steps.skip.outputs.skip != 'true'

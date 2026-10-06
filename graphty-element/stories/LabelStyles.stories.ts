@@ -16,6 +16,7 @@ import {
     drawn,
     holds,
 } from "./assertions";
+import { catSocialNetwork2FixedUrl, catSocialNetwork2Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
 import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
 
@@ -39,7 +40,7 @@ import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry
 const CAT_NETWORK = {
     dataSource: "json",
     dataSourceConfig: {
-        data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json",
+        data: catSocialNetwork2Url,
     },
     layout: "ngraph",
     layoutConfig: { seed: 42 },
@@ -486,7 +487,7 @@ export const FontSize: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2-fixed-positions-actual-engine.json",
+            data: catSocialNetwork2FixedUrl,
         },
         setup: storySetup({
             node: { "node.labelStyle": { sizePx: 96 } },

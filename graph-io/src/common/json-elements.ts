@@ -76,7 +76,7 @@ const SENTINEL = `${String.fromCodePoint(0)}graph-io`;
 const NONSTANDARD_TOKENS: readonly (readonly [string, number])[] = [
     ["-Infinity", -Infinity],
     ["Infinity", Infinity],
-    ["NaN", NaN],
+    ["NaN", Number.NaN],
 ];
 
 /** A JSON integer literal (no fraction, no exponent, no leading zero), as CANONICAL_INTEGER in common/ids.ts. */

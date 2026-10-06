@@ -854,42 +854,10 @@ describe("gpu.yml", () => {
     });
 });
 
-describe(".mergify.yml and the GPU gate", () => {
-    const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-
-    it("lets a pull request skip the gate only when none of its files can affect the GPU package", () => {
-        const exempt = /-files~=\^\(\?!\(([^)]+)\)\/\)/.exec(mergify)[1].split("|");
-        assert.match(mergify, /- check-success=T4 GPU gate/);
-        // Every workspace package the GPU package depends on, through package.json (what nx follows).
-        const pkg = (dir) => JSON.parse(readFileSync(new URL(`../${dir}/package.json`, import.meta.url), "utf8"));
-        const dirs = [
-            "algorithms",
-            "graph-format",
-            "graph-io",
-            "graph-samples",
-            "layout",
-            "graphty-element",
-            "graphty",
-        ];
-        dirs.push("remote-logger", "compact-mantine", "visual-review", "webgpu-graph-algorithms");
-        const byName = new Map(dirs.map((d) => [pkg(d).name, d]));
-        const deps = new Set(["webgpu-graph-algorithms"]);
-        for (const d of deps) {
-            const p = pkg(d);
-            for (const name of Object.keys({ ...p.dependencies, ...p.devDependencies, ...p.peerDependencies })) {
-                if (byName.has(name)) {
-                    deps.add(byName.get(name));
-                }
-            }
-        }
-        assert.ok(deps.has("graph-format") && deps.has("layout"), "the walk found the GPU package's dependencies");
-        for (const dir of exempt) {
-            assert.ok(!deps.has(dir), `${dir} is a dependency of webgpu-graph-algorithms, so it cannot skip the gate`);
-        }
-        const skip = new RegExp(`^(?!(${exempt.join("|")})/)`);
-        assert.ok(!skip.test("graphty-element/src/Graph.ts"));
-        assert.ok(skip.test("graph-format/src/index.ts"));
-        assert.ok(skip.test("pnpm-lock.yaml"));
+describe(".mergify.yml and the T4", () => {
+    it("makes no pull request wait on a T4 result", () => {
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        assert.doesNotMatch(mergify, /T4 GPU gate/);
     });
 });
 

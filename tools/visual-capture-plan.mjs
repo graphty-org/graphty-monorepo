@@ -57,18 +57,15 @@ export function skippedProjects({ on, pullRequest, labels, visual, all, affected
 }
 
 /**
- * The files a pull request changes: the diff nx affected uses, from the merge base with `base` to
- * the checkout. Renames are listed as a delete and an add, so a root file moved into a package
- * still counts as a root change.
- * @param base the base ref
+ * The files a pull request changes. Renames are listed as a delete and an add, so a root file moved
+ * into a package still counts as a root change.
+ * @param range the diff range; ci.yml's is the one nx affected uses, from the merge base with the
+ *     base branch to the checkout
  * @param cwd the repository
  * @returns the changed paths
  */
-export function changedFiles(base, cwd = process.cwd()) {
-    return execFileSync("git", ["diff", "--name-only", "--no-renames", "-z", `${base}...HEAD`], {
-        cwd,
-        encoding: "utf8",
-    })
+export function changedFiles(range, cwd = process.cwd()) {
+    return execFileSync("git", ["diff", "--name-only", "--no-renames", "-z", range], { cwd, encoding: "utf8" })
         .split("\0")
         .filter(Boolean);
 }
@@ -87,7 +84,7 @@ if (isMain) {
     const on = env.SKIP_UNAFFECTED_CAPTURES === "true";
     const pullRequest = env.PULL_REQUEST === "true";
     const config = JSON.parse(readFileSync(new URL("../visual-review.config.json", import.meta.url), "utf8"));
-    const changed = on && pullRequest ? changedFiles(`origin/${env.BASE_REF}`) : [];
+    const changed = on && pullRequest ? changedFiles(`origin/${env.BASE_REF}...HEAD`) : [];
     const skip = skippedProjects({
         on,
         pullRequest,

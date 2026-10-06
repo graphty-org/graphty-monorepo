@@ -197,22 +197,20 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
     it("still sees a root file a pull request moves into a package", () => {
         const dir = mkdtempSync(join(tmpdir(), "visual-plan-"));
         const git = (...args) => {
-            const r = spawnSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], {
-                cwd: dir,
-                encoding: "utf8",
-            });
+            const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
             assert.equal(r.status, 0, r.stderr);
+            return r.stdout.trim();
         };
         try {
-            git("init", "-q", "-b", "main");
+            // Two trees, no commits: the diff is the same, and nothing needs signing.
+            git("init", "-q");
             mkdirSync(join(dir, "graph-io"));
             writeFileSync(join(dir, "root.json"), '{"a": 1, "b": 2, "c": 3}\n');
             git("add", ".");
-            git("commit", "-q", "-m", "base");
-            git("checkout", "-q", "-b", "pr");
+            const before = git("write-tree");
             git("mv", "root.json", "graph-io/root.json");
-            git("commit", "-q", "-m", "move");
-            const changed = changedFiles("main", dir);
+            const after = git("write-tree");
+            const changed = changedFiles(`${before}..${after}`, dir);
             assert.deepEqual(changed.sort(), ["graph-io/root.json", "root.json"]);
             assert.deepEqual(skippedProjects({ ...base, changed }), []);
         } finally {

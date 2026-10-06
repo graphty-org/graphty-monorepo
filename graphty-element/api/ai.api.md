@@ -137,12 +137,13 @@ export class ApiKeyManager {
     constructor(options?: ApiKeyManagerOptions);
     clear(): void;
     disablePersistence(clearStorage?: boolean): void;
-    enablePersistence(config?: PersistenceConfig): void;
+    enablePersistence(config?: PersistenceConfig): Promise<void>;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
+    ready(): Promise<void>;
     removeKey(provider: ProviderType): void;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;

@@ -117,8 +117,9 @@ import {
 } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
-import { containerStart, identify } from "./proc.mjs";
+import { containerStart, identify, liveTickets } from "./proc.mjs";
 import { inferOwners, parseWorktrees, prActivity, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
+import { attributeTickets } from "./waits.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
 import {
@@ -1862,6 +1863,8 @@ export async function startDaemon({
         const facts = { root, ...(await (peers.ownerFacts ?? ownerFacts)()) };
         state.prInferred = inferOwners(state.prs ?? {}, facts);
         state.prActivity = prActivity(state.prs ?? {}, facts);
+        // Which held jobs only wait to push (waits.mjs): the push queue's tickets, by branch and session.
+        state.pushTickets = attributeTickets(liveTickets(root), facts);
         const lines = await askStep(state, {
             now: t,
             acting: writeMode("workers") === "acting",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "../lib/asks.mjs";
+import { askStep, atActiveCap, inviteStep, statusStep, tellAccepted, tellCancelled } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { jobInUse, prInUse } from "../lib/queue.mjs";
 
@@ -442,6 +442,62 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent.slice(1).map(([socket]) => socket)).toEqual(["/s1.sock", "/s2.sock"]);
     });
 
+    it("does not count jobs waiting in the push queue or for CI toward workers.maxActive", async () => {
+        const state = queued("issue-5");
+        const f = fake();
+        const config = { workers: { maxActive: 2 } };
+        const busy = () => SESSIONS.map((s) => ({ ...s, status: "busy" }));
+        state.capacity = { s2: { n: 1, at: NOW.toISOString() } };
+        const hold = (/** @type {string} */ id, /** @type {any} */ more = {}) => {
+            state.jobs[id] = {
+                ...newJob({ kind: "pr", target: "#9", id }, NOW),
+                state: "working",
+                holder: { session: "s2" },
+                ...more,
+            };
+        };
+        hold("pr-21", { pr: 21 });
+        hold("pr-22", { pr: 22 });
+        state.prs = { 21: { headRef: "feat/a", required: {} }, 22: { headRef: "feat/b", required: {} } };
+        expect(atActiveCap(state, "s2", config)).toMatch(/you hold 2 active jobs/);
+
+        // Both branches have tickets in the push queue: under the cap, and invited on its capacity.
+        state.pushTickets = [
+            { branch: "feat/a", cwd: "/r/.worktrees/feat-a", session: "s2" },
+            { branch: "feat/b", cwd: "/r/.worktrees/feat-b", session: "s2" },
+        ];
+        expect(atActiveCap(state, "s2", config)).toBeNull();
+        await inviteStep(state, { ...f.opts({ sessions: busy }), offered: offered.slice(0, 1), config });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+
+        // A job with no ticket still counts.
+        state.pushTickets = [{ branch: "feat/a", cwd: "/r/.worktrees/feat-a", session: "s2" }];
+        hold("pr-23", { pr: 23 });
+        state.prs[23] = { headRef: "feat/c", required: { "All Checks Pass": "FAILURE" } };
+        expect(atActiveCap(state, "s2", config)).toMatch(/you hold 2 active jobs/);
+        // Its CI running instead: it waits for CI and does not count.
+        state.prs[23].required = { "All Checks Pass": "PENDING" };
+        expect(atActiveCap(state, "s2", config)).toBeNull();
+    });
+
+    it("counts an issue job with no pull request as waiting only on its session's ticket and a status that says push", () => {
+        const state = queued();
+        const config = { workers: { maxActive: 1 } };
+        state.jobs["issue-314"] = {
+            ...newJob({ kind: "issue", target: "#314", id: "issue-314" }, NOW),
+            state: "working",
+            holder: { session: "s1" },
+            status: { at: NOW.toISOString(), text: "coded; agent waiting in the push queue" },
+        };
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+        state.pushTickets = [{ branch: "feat/ego", cwd: "/r/.worktrees/feat-ego", session: "s2" }];
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+        state.pushTickets.push({ branch: "feat/other", cwd: "/r/.worktrees/feat-other", session: "s1" });
+        expect(atActiveCap(state, "s1", config)).toBeNull();
+        state.jobs["issue-314"].status.text = "writing the tests";
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+    });
+
     it("does not mark a job invited while only a session that cannot claim it is idle", async () => {
         const state = ownReview();
         const f = fake();
@@ -478,6 +534,9 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent[0][1]).toContain("status check on the jobs this session holds:\n- issue-186 (#186)\n");
         expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
         expect(f.sent[0][1]).toContain("Can you take another job? Answer that with capacity set");
+        expect(f.sent[0][1]).toMatch(
+            /jobs that are only waiting to push or for CI do not use your capacity: count only jobs you are actively working when you answer capacity\./i,
+        );
         expect(f.sent[0][1]).not.toMatch(/minutes set|how long until/);
         expect(f.sent[0][1]).toContain("background subagents or workflows");
         expect(lines).toEqual([

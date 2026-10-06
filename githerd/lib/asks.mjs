@@ -25,6 +25,7 @@ import { askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, 
 import { ownerHeld } from "./board.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
+import { jobWaits } from "./waits.mjs";
 
 const MINUTE = 60 * 1000;
 
@@ -197,7 +198,8 @@ const DEFAULT_MAX_ACTIVE = 3;
 /**
  * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
  * actively working (working, starting, or waiting on its own local task). Blocked, parked,
- * verifying and other waiting jobs do not count. Applies whatever capacity the session reported.
+ * verifying and other waiting jobs do not count, nor does a job only waiting to push or for CI
+ * (`jobWaits` in waits.mjs). Applies whatever capacity the session reported.
  * @param {any} state the daemon state
  * @param {string} session the session id
  * @param {any} [config] the normalized config
@@ -205,8 +207,12 @@ const DEFAULT_MAX_ACTIVE = 3;
  */
 export function atActiveCap(state, session, config) {
     const max = config?.workers?.maxActive ?? DEFAULT_MAX_ACTIVE;
+    const waits = jobWaits(state);
     const active = Object.values(state.jobs ?? {}).filter(
-        (j) => j.holder?.session === session && (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
+        (j) =>
+            j.holder?.session === session &&
+            !waits.has(j.id) &&
+            (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
     ).length;
     return active >= max ? `you hold ${active} active jobs; finish or report one first` : null;
 }
@@ -366,6 +372,8 @@ function statusText(state, jobs, minutes) {
         "where it stands. " +
         "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
         "jobs this session can take now (0 if none); githerd invites a session with room to queued work even while it is busy. " +
+        "Jobs that are only waiting to push or for CI do not use your capacity: count only jobs you are actively " +
+        "working when you answer capacity. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +
         "Do the jobs' work in background subagents or workflows, so this conversation stays free to answer githerd."
     );

@@ -27,11 +27,20 @@
 //   --wheel x,y,delta      turns the mouse wheel at a point (negative delta zooms in)
 //   --key <Key>            a key or chord: Enter, Escape, Control+o, ...
 //   --type "<text>"        types into what has focus, a key at a time; nothing focused fails
-//   --upload <file>        answers the open file chooser (or the next one, for 3 s)
+//   --upload <file>        answers the open file chooser (or the next one, for 3 s), the app's
+//                          project-file picker included
+//   --reopen               closes the tab and opens the app again in a new one, same browser storage
 //   --drop <file>          drops a file on the middle of the window
 //   --wait <ms>            lets the app run on its own for a moment
 //   --expect | --expect-not "<text>"  (role=<role>, role=<role>:<name>, selected=N)
 // A file is a path, or a bare name from files/ beside this tool.
+//
+// Headless Chromium cancels the File System Access pickers at once, so the tool answers them: the
+// save picker with its suggested name, in the browser's private file system (a real handle, kept in
+// IndexedDB as Chromium keeps it), each save copied to <session dir>/saved/; the open picker with
+// the next --upload. While a dialog with aria-modal is open, names resolve only inside it (and in
+// the lists it opens). After every step, captures of the canvas half a second apart must stop
+// changing, or the step prints "the drawing is still moving".
 //
 // Every browser runs inside one of the shared browser slots (with-browser.sh beside this file), and
 // a session holds its slot until --end. The app is served from graphty/dist on a loopback port of
@@ -97,6 +106,7 @@ const ARITY = {
         ].map((k) => [k, 1]),
     ),
     "--drag": 2,
+    "--reopen": 0,
 };
 const KEYS = new Set([
     "Shift",
@@ -131,7 +141,7 @@ function parseSteps(list) {
     for (let i = 0; i < list.length; ) {
         const a = list[i];
         const n = ARITY[a];
-        if (!n) return { refused: `unknown step "${a}"; steps: ${Object.keys(ARITY).join(", ")}` };
+        if (n === undefined) return { refused: `unknown step "${a}"; steps: ${Object.keys(ARITY).join(", ")}` };
         const v = list.slice(i + 1, i + 1 + n);
         if (v.length < n || v.some((x) => x === undefined))
             return { refused: `${a} needs ${n === 1 ? "a value" : `${n} values`}` };
@@ -161,7 +171,7 @@ function parseSetup(text) {
         if (!line || line.startsWith("#")) continue;
         const m = line.match(/^(--[a-z-]+)\s*(.*)$/);
         if (!m) return { refused: `setup line is not a step: "${line}"` };
-        list.push(m[1], ...(m[1] === "--drag" ? m[2].split(/\s+/) : [m[2]]));
+        list.push(m[1], ...(ARITY[m[1]] === 0 ? [] : m[1] === "--drag" ? m[2].split(/\s+/) : [m[2]]));
     }
     return parseSteps(list);
 }
@@ -275,7 +285,9 @@ async function serve(dir) {
             body = await readFile(f);
         } catch {
             if (extname(f)) return res.writeHead(404).end();
-            body = await readFile(join(dist, "index.html"));
+            // a rebuild in progress removes the page for a moment; that must not kill the session
+            body = await readFile(join(dist, "index.html")).catch(() => null);
+            if (!body) return res.writeHead(503).end();
             type = "text/html";
         }
         res.writeHead(200, { "content-type": type }).end(body);
@@ -284,21 +296,9 @@ async function serve(dir) {
     const origin = `http://127.0.0.1:${http.address().port}`;
     const browser = await chromium.launch();
     const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, acceptDownloads: true });
-    const page = await context.newPage();
-    const s = { dir, page, origin, errors: [], downloads: [], chooser: null, saved: [] };
-    page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
-    page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
-    page.on(
-        "response",
-        (r) => r.status() >= 400 && s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
-    );
-    page.on("requestfailed", (r) =>
-        s.errors.push(`failed request: ${r.url().replace(origin, "")} (${r.failure()?.errorText})`),
-    );
-    page.on("filechooser", (c) => {
-        s.chooser = c;
-    });
-    page.on("download", (d) => s.downloads.push(saveDownload(s, d)));
+    const s = { dir, context, origin, errors: [], downloads: [], chooser: null, picker: null, picked: [], saved: {} };
+    await answerPickers(s);
+    await newTab(s);
 
     const sock = sockOf(dir);
     let queue = Promise.resolve();
@@ -332,6 +332,7 @@ async function serve(dir) {
                     if (req.op === "ping") r = { out: [], code: 0 };
                     else if (req.op === "start") r = await opStart(s, req.setup);
                     else if (req.op === "step") r = await opStep(s, req.steps);
+                    else if (req.op === "plant-spin") r = await plantSpin(s, req.on);
                     else if (req.op === "end") r = { out: [`session ended: ${dir}`], code: 0, end: true };
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
@@ -346,6 +347,78 @@ async function serve(dir) {
     await new Promise((ok) => server.listen(sock, ok));
     touch();
     for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, close);
+}
+
+// A tab of the session's browser: its errors, file choosers and downloads reported to the session
+async function newTab(s) {
+    const page = (s.page = await s.context.newPage());
+    const { origin } = s;
+    page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
+    page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
+    page.on(
+        "response",
+        (r) => r.status() >= 400 && s.errors.push(`failed request: ${r.status()} ${r.url().replace(origin, "")}`),
+    );
+    page.on("requestfailed", (r) =>
+        s.errors.push(`failed request: ${r.url().replace(origin, "")} (${r.failure()?.errorText})`),
+    );
+    page.on("filechooser", (c) => {
+        s.chooser = c;
+    });
+    page.on("download", (d) => s.downloads.push(saveDownload(s, d)));
+    return page;
+}
+
+// The app's project files go through showSaveFilePicker / showOpenFilePicker, which headless
+// Chromium cancels at once. These stand-ins answer them in the origin's private file system, so the
+// handles are real ones: writable, storable in IndexedDB, readable again after the tab is reopened.
+async function answerPickers(s) {
+    await s.context.exposeBinding("__studioPicker", (_src, req) => {
+        if (req.kind === "save") {
+            s.picked.push(`the save picker chose ${req.name}`);
+            return null;
+        }
+        // an open picker waits for --upload, as a file chooser does
+        return new Promise((answer) => (s.picker = { answer }));
+    });
+    await s.context.addInitScript(() => {
+        const root = () => navigator.storage.getDirectory();
+        window.showSaveFilePicker = async (o = {}) => {
+            const name = o.suggestedName || "untitled";
+            await window.__studioPicker({ kind: "save", name });
+            return (await root()).getFileHandle(name, { create: true });
+        };
+        window.showOpenFilePicker = async () => {
+            const f = await window.__studioPicker({ kind: "open" });
+            if (!f) throw new DOMException("The user aborted a request.", "AbortError");
+            const h = await (await root()).getFileHandle(f.name, { create: true });
+            const w = await h.createWritable();
+            await w.write(Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0)));
+            await w.close();
+            return [h];
+        };
+    });
+}
+// Copies every file the app wrote through a save picker into <session dir>/saved/ and says so
+async function copySaves(s, out) {
+    const now = await s.page
+        .evaluate(async () => {
+            const got = [];
+            for await (const [name, h] of await navigator.storage.getDirectory())
+                if (h.kind === "file") got.push([name, await (await h.getFile()).text()]);
+            return got;
+        })
+        .catch(() => []);
+    for (const [name, text] of now) {
+        if (s.saved[name] === text) continue;
+        s.saved[name] = text;
+        const path = join(s.dir, "saved", name);
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, text);
+        out.push(
+            `a project file was written: ${name}, ${Buffer.byteLength(text).toLocaleString("en-US")} bytes (${path})`,
+        );
+    }
 }
 
 async function saveDownload(s, d) {
@@ -370,25 +443,31 @@ const commitOf = () => {
         spawnSync("git", ["-C", repo, "status", "--porcelain", "--", "graphty", "graphty-element"], {
             encoding: "utf8",
         }).stdout.trim() !== "";
-    const stamp =
-        (readFileSync(join(dist, "index.html"), "utf8").match(/<meta name="graphty-build" content="([^"]*)"/) ||
-            [])[1] || null;
+    let stamp = null;
+    try {
+        stamp = readFileSync(join(dist, "index.html"), "utf8").match(/<meta name="graphty-build" content="([^"]*)"/)[1];
+    } catch {
+        // no stamp, or a rebuild in progress removed the page for a moment: unknown, not fatal
+    }
     return { sha, dirty, build: stamp };
 };
 
-async function opStart(s, setup) {
-    const out = [];
-    const { page } = s;
-    await page
+// Opens the app in the session's tab and waits for its window
+async function opening(s, out) {
+    await s.page
         .goto(s.origin + TIER1, { waitUntil: "networkidle", timeout: 60000 })
         .catch(() => out.push("the app did not finish loading in 60 s"));
-    await page
+    await s.page
         .waitForFunction(
             () => document.querySelector("#root")?.children.length > 0 && document.querySelector("main, [role=main]"),
             null,
             { timeout: 30000 },
         )
         .catch(() => out.push("the app never drew its window"));
+}
+async function opStart(s, setup) {
+    const out = [];
+    await opening(s, out);
     await settle(s, out);
     const commit = commitOf();
     await writeFile(
@@ -423,6 +502,18 @@ async function opStart(s, setup) {
     out.push(`commit ${commit.sha}${commit.dirty ? " (with uncommitted changes)" : ""}, build ${commit.build}`);
     out.push(await shot(s));
     return { out, code };
+}
+
+// --prove only: holds the orbit camera's yaw key on the focused canvas (or lets it go), a real spin
+async function plantSpin(s, on) {
+    if (on) {
+        await s.page.evaluate(() => {
+            const el = document.querySelector("graphty-element");
+            (el?.querySelector("canvas") || el?.shadowRoot?.querySelector("canvas"))?.focus();
+        });
+        await s.page.keyboard.down("a");
+    } else await s.page.keyboard.up("a");
+    return { out: [], code: 0 };
 }
 
 async function opStep(s, steps) {
@@ -463,6 +554,30 @@ async function settle(s, out, ms = 15000) {
         .catch(() => null);
     if (moving) out.push(`the drawing is still moving (${moving.split("\n")[0].slice(0, 160)})`);
     await page.evaluate(() => document.fonts.ready).catch(() => {});
+    // waitForStableFrame watches the layout, not the camera: captures of the canvas's area half a
+    // second apart catch a turning or drifting drawing it lets through
+    if (!moving && (await canvasMoves(page)))
+        out.push("the drawing is still moving (the canvas kept changing for a second with no input)");
+}
+// Only a plain capture of the window: hiding the rest with a style would blur the canvas, which
+// lets go of a held camera key and so stops the very spin this looks for
+async function canvasMoves(page) {
+    const clip = await page
+        .locator("graphty-element")
+        .first()
+        .boundingBox()
+        .catch(() => null);
+    if (!clip || clip.width < 1 || clip.height < 1) return false;
+    const grab = () => page.screenshot({ clip, animations: "disabled", timeout: 5000 }).catch(() => null);
+    // three captures, and moving only when each differs from the one before: a one-off change (a
+    // notice arriving over the canvas, a late repaint) is not motion, a spin or a drift changes every time
+    const shots = [];
+    for (let i = 0; i < 3; i++) {
+        if (i) await page.waitForTimeout(500);
+        shots.push(await grab());
+    }
+    const [a, b, c] = shots;
+    return !!a && !!b && !!c && !a.equals(b) && !b.equals(c);
 }
 
 // ---------- finding controls, nodes and points ----------
@@ -503,11 +618,17 @@ async function find(page, raw, out) {
                   page.getByText(name, { exact }),
               ];
         const seen = new Map(); // one entry per control: text inside a button is that button
+        let behind = 0; // controls of that name behind an open modal dialog, which a person cannot reach
         for (const loc of locs) {
             for (const el of await loc.filter({ visible: true }).elementHandles()) {
                 const [key, desc] = await el.evaluate((e, tip) => {
                     // a tooltip bubble, hidden text and the graph's canvas are not controls
                     if (e.closest(`${tip}, [aria-hidden=true], graphty-element, canvas`)) return [null];
+                    // with a modal dialog open, only it (and a list or menu it opened) can be used
+                    const modal = [...document.querySelectorAll("[aria-modal=true]")]
+                        .filter((m) => m.checkVisibility())
+                        .pop();
+                    if (modal && !modal.contains(e) && !e.closest("[role=listbox],[role=menu]")) return ["behind"];
                     const c =
                         e.closest(
                             "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
@@ -519,10 +640,13 @@ async function find(page, raw, out) {
                         .slice(0, 40);
                     return [c.dataset.tryKey, `${c.getAttribute("role") || c.tagName.toLowerCase()} "${said}"`];
                 }, TIP);
-                if (key && !seen.has(key)) seen.set(key, { el, desc });
+                if (key === "behind") behind++;
+                else if (key && !seen.has(key)) seen.set(key, { el, desc });
             }
         }
         let all = [...seen.values()];
+        if (!all.length && behind)
+            return { miss: `nothing in the open dialog is called "${name}" (a control behind the dialog is)` };
         if (!all.length && !role) all = await nodesNamed(page, name, exact);
         if (!all.length) continue;
         if (nth > all.length)
@@ -619,7 +743,7 @@ async function tooltip(page) {
 
 // Runs the steps; pushes what a participant would notice onto out; returns { code, missed }
 async function run(s, steps, out) {
-    const { page } = s;
+    let { page } = s;
     let code = 0,
         missed = 0;
     for (const [a, v, v2] of steps) {
@@ -756,17 +880,31 @@ async function run(s, steps, out) {
             await page.keyboard.type(v, { delay: 20 });
             await page.waitForTimeout(400);
         } else if (a === "--upload") {
-            for (let i = 0; !s.chooser && i < 30; i++) await page.waitForTimeout(100);
-            if (!s.chooser) {
+            for (let i = 0; !s.chooser && !s.picker && i < 30; i++) await page.waitForTimeout(100);
+            if (!s.chooser && !s.picker) {
                 out.push(`no file chooser is open; nothing was uploaded (click the control that opens one first)`);
                 code = 1;
                 continue;
             }
-            const c = s.chooser;
-            s.chooser = null;
-            await c.setFiles(fileArg(v));
+            if (s.picker) {
+                const bytes = readFileSync(fileArg(v));
+                s.saved[basename(v)] = bytes.toString(); // what goes in is not a save
+                s.picker.answer({ name: basename(v), b64: bytes.toString("base64") });
+                s.picker = null;
+            } else {
+                await s.chooser.setFiles(fileArg(v));
+                s.chooser = null;
+            }
             out.push(`chose the file ${basename(v)}`);
             await page.waitForTimeout(400);
+        } else if (a === "--reopen") {
+            // a picker left open dies with its tab
+            s.picker?.answer(null);
+            [s.picker, s.chooser] = [null, null];
+            await page.close();
+            page = await newTab(s);
+            await opening(s, out);
+            out.push("closed the tab and opened the app again in a new tab (the same browser storage)");
         } else if (a === "--drop") {
             const path = fileArg(v);
             const bytes = readFileSync(path).toString("base64");
@@ -793,9 +931,12 @@ async function run(s, steps, out) {
             out.push(`dropped the file ${basename(path)} on the middle of the window (${target})`);
             await page.waitForTimeout(400);
         }
-        if (s.chooser && a !== "--upload") out.push("a file chooser is open (answer it with --upload <file>)");
+        for (const p of s.picked.splice(0)) out.push(p);
+        if ((s.chooser || s.picker) && a !== "--upload")
+            out.push("a file chooser is open (answer it with --upload <file>)");
     }
     await settle(s, out);
+    await copySaves(s, out);
     // downloads that started during these steps: saved into the session folder and named
     if (s.downloads.length) {
         await page.waitForTimeout(300);
@@ -915,6 +1056,38 @@ async function prove() {
             x.code === 0 && /^a file was saved: .*\.png, \d+ x \d+/m.test(x.out),
             x.out,
         );
+        // with a modal dialog open, a name resolves inside it; a control behind it is out of reach
+        x = step(A, "--key", "Control+e", "--click", "Data");
+        check("a name resolves inside the open dialog first", x.code === 0 && !/ambiguous/.test(x.out), x.out);
+        x = step(A, "--click", "Graph");
+        check(
+            "a control behind an open dialog is a miss, said plainly",
+            /nothing in the open dialog is called "Graph"/.test(x.out),
+            x.out,
+        );
+        // the save picker is answered, the file lands in the session folder, and a new tab on the
+        // same storage lists it under Recent projects and reopens it
+        x = step(A, "--key", "Escape", "--key", "Control+s", "--click", "Save");
+        check(
+            "a first save is answered and its file copied to the session folder",
+            x.code === 0 &&
+                /the save picker chose florentine\.graphty\.json/.test(x.out) &&
+                existsSync(join(A, "saved/florentine.graphty.json")),
+            x.out,
+        );
+        x = step(A, "--reopen", "--click", "florentine", "--expect", "role=button:Project: florentine");
+        check(
+            "a reopened tab keeps the browser storage: Recent projects reopens the saved file",
+            x.code === 0 && /closed the tab and opened the app again/.test(x.out),
+            x.out,
+        );
+        // a planted spin (the camera's yaw key held on the canvas) must be reported
+        await ask(A, { op: "plant-spin", on: true });
+        x = step(A, "--wait", "100");
+        await ask(A, { op: "plant-spin", on: false });
+        check("a turning drawing is reported", /the drawing is still moving/.test(x.out), x.out);
+        x = step(A, "--wait", "2000");
+        check("a still drawing is not", !/the drawing is still moving/.test(x.out), x.out);
         x = step(A, "--click", "No such control at all");
         check(
             "a miss says nothing on screen is called that",

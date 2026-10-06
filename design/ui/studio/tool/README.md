@@ -47,7 +47,8 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 | `--wheel x,y,delta`                                                                 | Turns the wheel at a point; a negative delta zooms in.                                                                                                                                                                                               |
 | `--key <Key>`                                                                       | A key or chord: `Enter`, `Escape`, `ArrowDown`, `Control+o`.                                                                                                                                                                                         |
 | `--type "<text>"`                                                                   | Types into what has focus. With nothing that takes text focused, types nothing and fails.                                                                                                                                                            |
-| `--upload <file>`                                                                   | Answers the open file chooser (or the next one to open within 3 seconds).                                                                                                                                                                            |
+| `--upload <file>`                                                                   | Answers the open file chooser (or the next one to open within 3 seconds), including the app's project-file picker (Locate...).                                                                                                                       |
+| `--reopen`                                                                          | Closes the tab and opens the app again in a new tab with the same browser storage: Recent projects and the saved files are still there.                                                                                                              |
 | `--drop <file>`                                                                     | Drops the file on the middle of the window.                                                                                                                                                                                                          |
 | `--wait <ms>`                                                                       | Lets the app work on its own for a moment.                                                                                                                                                                                                           |
 | `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen. Also `role=<role>`, `role=<role>:<name>` and `selected=N`.                                                                                                                                           |
@@ -60,15 +61,41 @@ A file is a path, or a name from `files/`:
 | `florentine.gml`       | A small GML network: marriages between 15 Florentine families.          |
 | `club-members.graphml` | A GraphML file cut off part way through, which the app cannot read.     |
 
+## Names, dialogs and lists
+
+- While a dialog that blocks the page (`aria-modal`) is open, a name resolves only inside it and in a
+  list or menu it opened. A control of that name behind the dialog is a miss, printed as
+  `nothing in the open dialog is called "Data" (a control behind the dialog is)`.
+- A select (combobox) is clicked by its label, such as `--click "Method"`, not by the value it
+  shows; to change it again, click the label again, then the option.
+
+## Saving and reopening a project
+
+Headless Chromium cancels the browser's own save and open pickers at once, so the tool answers them
+itself. The save picker takes the name it suggests and writes the project into the browser's
+private storage, with a real file handle that Recent projects keeps as Chromium would; every file
+written that way is also copied to `saved/` in the session folder. The open picker (Locate...) waits
+for the next `--upload`, for example `--upload <session folder>/saved/<name>.graphty.json`.
+
+```bash
+node $T/real.mjs --step $S --key Control+s --click Save   # the save picker chose ...; saved/...
+node $T/real.mjs --step $S --reopen                       # a new tab: Recent projects lists it
+node $T/real.mjs --step $S --click "<project name>"       # reopens the saved file
+```
+
 ## What it prints
 
+- Only the screenshot path when a step just opens or closes something (a menu, a dialog, a panel)
+  and nothing else happened: look at the screenshot.
 - `tooltip: "..."` after every hover, or `tooltip: null`.
 - Misses: `nothing on screen is called "..."`, `only 2 controls are called ...`.
 - `ambiguous: ...` when a name is shared.
 - `at x,y: node "Medici"` (or `empty canvas`, or the control there) for every point step.
 - `a file chooser is open` when a click opened one.
 - `a file was saved: florentine_current-view.png, 1806 x 1720 (path)` for every download.
-- `the drawing is still moving` when the layout had not settled 15 seconds after the step.
+- `the save picker chose <name>` and `a project file was written: <name>, N bytes (path)` for a save.
+- `the drawing is still moving` when the layout had not settled 15 seconds after the step, or when
+  three captures of the canvas half a second apart keep changing (a turning camera, a drifting layout).
 - Every script error, `console.error` and failed request since the last step. In the real app
   each is a defect worth a bug report. They make the command exit 1.
 
@@ -85,6 +112,8 @@ node design/ui/studio/tool/real.mjs --prove
 ```
 
 Runs real sessions against the build: a start, clicks by control name and by a node's drawn
-label, a click at a point, a hover tooltip, typing, an upload, a download, setup starts (one that
-works, one that fails) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
+label, a click at a point, a hover tooltip, typing, an upload, a download, a name inside an open
+dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
+planted spin (a camera key held on the canvas) that must be reported, setup starts (one that works,
+one that fails) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`.

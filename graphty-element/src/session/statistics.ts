@@ -409,6 +409,13 @@ export function computeFingerprint(snapshot: GraphSnapshot): string {
         if (typeof id === "number") {
             mix(0x4e554d);
             mix(id | 0);
+            // An integer id past 32 bits (a millisecond timestamp, say) would otherwise hash the
+            // same as its low 32 bits. Folded only when nonzero, so every id within 32 bits keeps
+            // the fingerprint a saved project already recorded.
+            const high = Math.trunc(id / 2 ** 32);
+            if (high !== 0) {
+                mix(high);
+            }
             // The fractional half of a non-integer id would otherwise hash the same as its floor.
             mix(Math.round((id - Math.trunc(id)) * 0xffffff));
         } else {

@@ -202,12 +202,30 @@ describe("a second copy of graphty-element", () => {
     it("reaches the catalogue of an element the first copy defined, for every extension point", () => {
         const { catalog } = session;
 
-        assert.isDefined(catalog.palettes().find((entry) => entry.id === "second-copy-palette"), "palette");
-        assert.isDefined(catalog.cameras().find((entry) => entry.id === "second-copy-view"), "camera view");
-        assert.isDefined(catalog.logSinks().find((entry) => entry.id === "second-copy-sink"), "log sink");
-        assert.isDefined(catalog.layouts().find((entry) => entry.id === "second-copy-column"), "layout");
-        assert.isDefined(catalog.formats().find((entry) => entry.id === "second-copy-roll"), "format");
-        assert.isDefined(catalog.algorithms().find((entry) => entry.key === "second-copy-metric"), "algorithm");
+        assert.isDefined(
+            catalog.palettes().find((entry) => entry.id === "second-copy-palette"),
+            "palette",
+        );
+        assert.isDefined(
+            catalog.cameras().find((entry) => entry.id === "second-copy-view"),
+            "camera view",
+        );
+        assert.isDefined(
+            catalog.logSinks().find((entry) => entry.id === "second-copy-sink"),
+            "log sink",
+        );
+        assert.isDefined(
+            catalog.layouts().find((entry) => entry.id === "second-copy-column"),
+            "layout",
+        );
+        assert.isDefined(
+            catalog.formats().find((entry) => entry.id === "second-copy-roll"),
+            "format",
+        );
+        assert.isDefined(
+            catalog.algorithms().find((entry) => entry.key === "second-copy-metric"),
+            "algorithm",
+        );
     });
 
     it("hands the first copy the classes the second copy registered, so the element can build them", () => {
@@ -220,13 +238,28 @@ describe("a second copy of graphty-element", () => {
 
     it("lets a second copy's catalogue see what the first copy's classes published", async () => {
         type Descriptors = () => readonly { id?: string; key?: string }[];
-        const layouts = await secondCopy<{ registeredLayoutDescriptors: Descriptors }>("../../src/catalog/layoutRegistry.ts");
-        const formats = await secondCopy<{ registeredFormatDescriptors: Descriptors }>("../../src/catalog/formatRegistry.ts");
-        const algorithms = await secondCopy<{ registeredAlgorithmDescriptors: Descriptors }>("../../src/catalog/registry.ts");
+        const layouts = await secondCopy<{ registeredLayoutDescriptors: Descriptors }>(
+            "../../src/catalog/layoutRegistry.ts",
+        );
+        const formats = await secondCopy<{ registeredFormatDescriptors: Descriptors }>(
+            "../../src/catalog/formatRegistry.ts",
+        );
+        const algorithms = await secondCopy<{ registeredAlgorithmDescriptors: Descriptors }>(
+            "../../src/catalog/registry.ts",
+        );
 
-        assert.include(layouts.registeredLayoutDescriptors().map((d) => d.id), "second-copy-column");
-        assert.include(formats.registeredFormatDescriptors().map((d) => d.id), "second-copy-roll");
-        assert.include(algorithms.registeredAlgorithmDescriptors().map((d) => d.key), "second-copy-metric");
+        assert.include(
+            layouts.registeredLayoutDescriptors().map((d) => d.id),
+            "second-copy-column",
+        );
+        assert.include(
+            formats.registeredFormatDescriptors().map((d) => d.id),
+            "second-copy-roll",
+        );
+        assert.include(
+            algorithms.registeredAlgorithmDescriptors().map((d) => d.key),
+            "second-copy-metric",
+        );
     });
 
     it("shares the one accelerator registry the ./webgpu entry registers into", async () => {

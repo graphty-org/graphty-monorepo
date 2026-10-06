@@ -421,16 +421,15 @@ export class FormatRegistry {
     ): Promise<ImportGraphResult> {
         const opts = options as ImportGraphOptions;
         const picked = await this.choose(input, opts);
-        const unknown = this.unknownOptions(opts).map(
-            (name): ImportIssue =>
-                Object.freeze({
-                    category: "unsupported",
-                    severity: "warning",
-                    code: UNKNOWN_OPTION_CODE,
-                    message: unknownOptionText(name),
-                    line: null,
-                    element: name,
-                }),
+        const unknown = this.unknownOptions(opts).map((name): ImportIssue =>
+            Object.freeze({
+                category: "unsupported",
+                severity: "warning",
+                code: UNKNOWN_OPTION_CODE,
+                message: unknownOptionText(name),
+                line: null,
+                element: name,
+            }),
         );
         const chosen = unknown.length === 0 ? picked : { ...picked, warnings: [...picked.warnings, ...unknown] };
         const { importer } = chosen;

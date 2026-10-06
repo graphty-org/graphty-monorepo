@@ -47,7 +47,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 
 - [ ] M1 G1 to G16 (no selection, no notes).
 - [ ] M2 Insights strip cards for an undirected 20-node graph: Find groups, Who is most connected, Search for something you know; the Find groups line is the canonical Groups sentence (7.3, G11).
-- [ ] M3 Status bar reads "20 nodes  29 edges | Zoom 100% | 3D | Layout: Force-directed  Settled | AI: not configured" (5.1). Layout slot state is "Settled" only when convergence, not the step cap, stopped it.
+- [ ] M3 Status bar reads "20 nodes 29 edges | Zoom 100% | 3D | Layout: Force-directed Settled | AI: not configured" (5.1). Layout slot state is "Settled" only when convergence, not the step cap, stopped it.
 - [ ] M4 Legend blocks: "Size: most connected (degree)" with "1 to 4, sqrt scale", "Color: not encoded" (7.2, VOCAB 8 and 9).
 - [ ] M5 Explore panel tier 1 (the artboard's open panel): search field with prefix hint, scope toggle All nodes / Visible nodes, Zoom to selection (F, disabled), Select all visible (Coming), the Select split button, and the Notes section collapsed with "Notes 0" and the empty state "No notes yet. Select a node or edge and press N." (5.3 Explore).
 
@@ -61,7 +61,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 - [ ] A6 Graph statistics summary in the panel: remove the diameter row (instant rows only, 5.3 Analyze tier 1).
 - [ ] A7 Inspector result view mirrors the card: reading, caveats, run record, body, Remove result (5.4).
 - [ ] A8 Legend: "Color: Groups (communities, Louvain)" with the palette name and group labels from the result (5.3 Style legend).
-- [ ] A9 Question group headers carry the card count and cost class ("Find groups  3 cards  heavy") and a "Run all (3)" overflow (5.3 Analyze).
+- [ ] A9 Question group headers carry the card count and cost class ("Find groups 3 cards heavy") and a "Run all (3)" overflow (5.3 Analyze).
 
 ## ExplorerExpert (Result plus Selected, fraud ring)
 
@@ -71,7 +71,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 - [ ] E4 Section 9: a run record line under every result card (Shortest path, Bridges, Groups) with Copy as JSON / Copy as command / Copy methods text (5.3 Result shapes).
 - [ ] E5 Node metric body for Bridges: top 3 with "See all 200 ranked" opening the drawer sorted by betweenness; Select top N, Add top N to selection, Filter above threshold, Copy as TSV, Export ranked list (CSV); histogram caption states the scale; Encode as style primary (5.3 Result shapes).
 - [ ] E6 Path result body: ordered step list with edge type, weight and a time column per step (edges are timed), click a step to center; Highlight this path primary; Expand around path, Bookmark this path, Copy steps, Export CSV, Clear (5.3 Path shape). Bookmark this path and Export CSV are missing.
-- [ ] E7 Progress row for the running Influence (PageRank) card reads "Computing Influence (PageRank)... 42%  4.0 s  Cancel" with the 4px bar; the status bar running slot mirrors it: "Computing Influence (PageRank)... 42%  Cancel" (5.3 Running and scope, 5.1). Replace "0:04" with seconds.
+- [ ] E7 Progress row for the running Influence (PageRank) card reads "Computing Influence (PageRank)... 42% 4.0 s Cancel" with the 4px bar; the status bar running slot mirrors it: "Computing Influence (PageRank)... 42% Cancel" (5.3 Running and scope, 5.1). Replace "0:04" with seconds.
 - [ ] E8 Section 9: the node inspector shows the neighbor list: count with a per-type breakdown ("37: 21 transfer, 9 paid, 7 registered to"), In / Out / All tabs (directed), a sortable list (neighbor, edge type, weight, recency) with the top 10 by weight, "Show all in data table", per-row "Note this relationship"; the degree row reads "Incoming N / Outgoing N / Both N" (5.4).
 - [ ] E9 Inspector actions block (pinned at the bottom): Expand neighbors as a split button reading "Expand 37 neighbors", Select neighbors, Ego network, Frame this node, Radial layout around this node (rename from "Center on this node (radial)"), Use as root or focus, Pin or Unpin, Find path from here, Distance from here, Likely missing links from here, Simulate removing, Merge with..., Tag..., Bookmark this node, Show in table, More (Copy as JSON, Copy neighbor ids) (5.4).
 - [ ] E10 Inspector label row: copy-id icon and Locate icon; Key attributes pinned group; computed metrics as plain name with the technical field muted and "Rank 1 of 200" with percentile (5.4).
@@ -93,7 +93,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 - [ ] S8 Style presets are chips: Default, High contrast, Print, Colorblind safe, Presentation, with the note that presets never change the label visibility rule (5.3 Style tier 1).
 - [ ] S9 Inspector (layer): Which nodes builder with the Expression toggle at tier 3, helper "Matches 2 nodes: The_Vet, Mrs_Henderson." plus Preview matches and Use as filter; every encodable row has the Fixed / By attribute toggle (Color, Size, Opacity, Shape, Label text); Size By attribute shows Scale (Square root default) and the range line; Color By attribute shows the Palette select; Label gains "Show on"; Effects keep Glow, Outline, Wireframe, Flat shaded (5.4 Style layer).
 - [ ] S10 Legend: "Size: age (ageYears)" block names the scale and palette; add the "not measured" swatch if any node lacks ageYears (5.3 Style legend).
-- [ ] S11 Status bar layout slot names the engine and is clickable: "Layout: Force directed (ngraph)  Settled" (5.3 Style Layouts tier 1; 5.1 five states).
+- [ ] S11 Status bar layout slot names the engine and is clickable: "Layout: Force directed (ngraph) Settled" (5.3 Style Layouts tier 1; 5.1 five states).
 
 ## ExplorePanel (Selected, three nodes)
 
@@ -106,7 +106,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 - [ ] X7 Neighborhood expansion shows node and edge type checkboxes with counts, the preview line "Adds about 6 nodes", Collapse last, Collapse all (5.3 Explore tier 2).
 - [ ] X8 Find a pattern row: New pattern button, the text form of the pattern, Seeds: selection, Import and Export (5.3 Explore tier 2).
 - [ ] X9 Coming tags on filters, saved filters, neighborhood expansion, ego network, Select all visible, and on the multi-selection state itself (Explore status note, 5.4 last paragraph, 5.8).
-- [ ] X10 Status bar counts read "5 of 20 nodes  6 of 29 edges" while the filter is active; delete the separate "5 of 20 nodes, 6 of 29 edges match" text (5.1). The filter status strip under the Insights strip reads "Showing 5 of 20 nodes" (5.1).
+- [ ] X10 Status bar counts read "5 of 20 nodes 6 of 29 edges" while the filter is active; delete the separate "5 of 20 nodes, 6 of 29 edges match" text (5.1). The filter status strip under the Insights strip reads "Showing 5 of 20 nodes" (5.1).
 - [ ] X11 Inspector (multi): count "3 nodes, 0 edges"; statistics with the above or below marker against the whole graph; "Add a note to these 3 nodes"; actions Zoom to selection, Filter to selection, Save as subgraph, Save as set, Style selection, Select neighbors, Expand neighbors of all, Invert, Copy ids, Pin as A, Merge selected nodes, Simulate removing (3), Remove selected, Tag..., Set attribute on selection..., Pin selected positions, Layout selected nodes only, Pin to report, Show in table, Clear selection (5.4).
 
 ## AnalyzePanel (Loaded, full list)
@@ -120,7 +120,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 - [ ] N7 Every card carries a scope line "On 20 of 20 nodes" and Run; path cards have From and To pickers with Use selected and Run disabled "Pick a node first"; What breaks if removed keeps "Select nodes first" (5.3 Analyze tier 1, Path cards).
 - [ ] N8 Card descriptions domain-neutral (G11); Closest to everyone avoids the reserved word "reach": "Nodes that are the fewest steps away from everyone else." (6.3).
 - [ ] N9 Panel-level tier 2 settings row: Weight attribute "value", Treat as strength; no Direction on the undirected cat graph; per-card override only where a card differs (5.3 Analyze tier 2).
-- [ ] N10 Tier 2 sections: All statistics with the footer "Instant rows follow the data. Computed rows: 14:12  Recompute"; Metric histograms with "Compare two metrics"; History (renamed) with per-row Re-run, Re-run with changes, Copy as JSON, Copy as command and the section actions; More row: Compare, How it changed over time (needs a Time role), Remove several nodes at once (5.3 Analyze tier 2 and 3, G13).
+- [ ] N10 Tier 2 sections: All statistics with the footer "Instant rows follow the data. Computed rows: 14:12 Recompute"; Metric histograms with "Compare two metrics"; History (renamed) with per-row Re-run, Re-run with changes, Copy as JSON, Copy as command and the section actions; More row: Compare, How it changed over time (needs a Time role), Remove several nodes at once (5.3 Analyze tier 2 and 3, G13).
 - [ ] N11 Link prediction tier 2 (if opened): Method (Common neighbors, Adamic-Adar, Jaccard Coming, Preferential attachment Coming, Resource allocation Coming), Top N 50, Around the selection (5.3 Analyze).
 
 ## AiPanel (Result)
@@ -128,7 +128,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 - [ ] I1 G1 to G16, G18.
 - [ ] I2 Section 9: add the console row (tier 2): one-line input over the command registry with a completion hint, the transcript, and Run script; the backtick key chip in its tooltip; the Coming tag (5.3 AI tier 2, 5.8).
 - [ ] I3 Remove the follow-up chips "Select The_Vet" and "Undo styling": Select node, Undo, Filter and Expand tools do not appear until built (5.3 AI tier 1, 5.8).
-- [ ] I4 Each step row names its owning panel and carries a second muted line with scope and method: "Ran Groups (Communities, Louvain)  Analyze" then "on 20 nodes, exact, 12 ms"; "Styled nodes by bridge score  Style" shows the restyle progress row form when in flight (5.3 AI tier 1, 7.4).
+- [ ] I4 Each step row names its owning panel and carries a second muted line with scope and method: "Ran Groups (Communities, Louvain) Analyze" then "on 20 nodes, exact, 12 ms"; "Styled nodes by bridge score Style" shows the restyle progress row form when in flight (5.3 AI tier 1, 7.4).
 - [ ] I5 Input row: microphone button at the right (speech available) with a listening state; Cancel on the in-flight message; Retry on a failed one (5.3 AI tier 1).
 - [ ] I6 Tier 2: Provider status and model selector ("Anthropic, claude-sonnet-5, connected"), Voice input switch, then the console; tier 3 link "Provider keys and settings" to Settings > AI (5.3 AI).
 - [ ] I7 Inspector result view: reading first ("The_Vet is the main bridge. It sits on 35% of the shortest paths between other nodes. Simulate removing The_Vet to see what breaks."), caveats "Exact. Unweighted, direction ignored. Computed on all 20 nodes.", run record "Betweenness, normalized. Scope: visible, 20 of 20 nodes. 2026-09-04 14:12, 4 ms, algorithms 1.4.0" with the copy links; then the Node metric body (top 3, See all 20 ranked, histogram with scale caption, Select top N, Filter above threshold, Copy as TSV, Export ranked list); Encoded as node size, Change encoding, Remove result. Replace "Ran by AI, 20 nodes, 4 ms", "Caveats: exact (all 20 nodes)..." and "Parameters used: defaults" (5.3 Result shapes, 5.4, 7.5).
@@ -161,7 +161,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 
 - [ ] C1 G1 to G16. Remove "1 selected" (G7).
 - [ ] C2 Pill and palette input placeholder "Search commands, nodes and edges" (5.5).
-- [ ] C3 Result rows: plain name "Bridges" (not "Bridge"), technical "Betweenness centrality", the estimate as secondary text ("instant on 20 nodes") and a muted remembered-parameter summary ("normalized, weight value"); a key chip on the right where a binding exists; add the Advanced-group and method rows that match ("Bridge edges  Edge betweenness  Coming"); the hint reads "Enter to open, Cmd-Enter to run" (5.5).
+- [ ] C3 Result rows: plain name "Bridges" (not "Bridge"), technical "Betweenness centrality", the estimate as secondary text ("instant on 20 nodes") and a muted remembered-parameter summary ("normalized, weight value"); a key chip on the right where a binding exists; add the Advanced-group and method rows that match ("Bridge edges Edge betweenness Coming"); the hint reads "Enter to open, Cmd-Enter to run" (5.5).
 - [ ] C4 Group headers: Commands, Nodes (@ prefix hint), Docs; footer "Searches plain and technical names" stays (5.5).
 - [ ] C5 Insights strip and inspector behind the palette follow Main (M2, G8, G9).
 
@@ -175,7 +175,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 ## IpadInspector (1180 by 820, hub node)
 
 - [ ] R1 G1 to G18 in the iPad variant; the cluster is visible with Zoom to selection enabled; the legend shifts left of the inspector overlay (5.2, 5.1).
-- [ ] R2 Section 9: the node is a hub with 12,412 neighbors, so the dataset is not the cat network. Use the security-events sample from VOCAB 9 (41,200 nodes, 212,000 edges, above the large-graph threshold and under the iPad render ceiling): top bar name "security-events-41k.csv", status bar "41,200 nodes  212k edges | Zoom 100% | 3D | Positions from file | Performance mode: labels off, hover off | AI | 1 selected", minimap hidden (iPad above the threshold), Insights chips from the fixed cheap set (5.1, 5.2, 7.2, 7.3).
+- [ ] R2 Section 9: the node is a hub with 12,412 neighbors, so the dataset is not the cat network. Use the security-events sample from VOCAB 9 (41,200 nodes, 212,000 edges, above the large-graph threshold and under the iPad render ceiling): top bar name "security-events-41k.csv", status bar "41,200 nodes 212k edges | Zoom 100% | 3D | Positions from file | Performance mode: labels off, hover off | AI | 1 selected", minimap hidden (iPad above the threshold), Insights chips from the fixed cheap set (5.1, 5.2, 7.2, 7.3).
 - [ ] R3 Inspector header: label with copy-id and Locate icons, pin icon; subtitle "Selected 1 of 41,200 visible" (5.4).
 - [ ] R4 Attributes: Key attributes pinned group, first 10 rows with "Show all 52", type glyphs, Copy value / Copy path per cell (5.4).
 - [ ] R5 Computed metrics with percentile ("12,412, top 0.03%") and the rank in each result (5.4, 7.5).
@@ -196,7 +196,7 @@ IpadPanel, IpadInspector, InsightsWide, TimeSlider. Welcome has its own list.
 ## TimeSlider (Loaded, fraud ring, window active)
 
 - [ ] V1 G1 to G16. Remove "1 selected" (G7).
-- [ ] V2 Status bar viewing slot reads "Viewing: 2026-01-05 to 2026-02-04" (mirrors the overlay); counts "120 of 200 nodes  340 of 612 edges" stay (5.1, 5.3 Time slider).
+- [ ] V2 Status bar viewing slot reads "Viewing: 2026-01-05 to 2026-02-04" (mirrors the overlay); counts "120 of 200 nodes 340 of 612 edges" stay (5.1, 5.3 Time slider).
 - [ ] V3 Slider overlay: play, pause, step buttons; tick marks; the density sparkline of timestamps behind the track; Window and Step readouts inline-editable; Cumulative / Sliding toggle beside them; "Compare with another window" action; keyboard chips (comma, period) in tooltips (5.3 Time slider, 5.6).
 - [ ] V4 Cluster, minimap and legend sit above the full-width slider; the cluster sits above the minimap (5.1 overlays).
 - [ ] V5 Filter status strip under the Insights strip reads "Showing 120 of 200 nodes"; the Time chip in Explore reads "Time: 2026-01-05 to 2026-02-04" (5.1, 5.3 Explore).

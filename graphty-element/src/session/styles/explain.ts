@@ -375,14 +375,12 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         return NOTHING_PAINTED;
     }
 
-    const contributions = order.map(
-        (painting): StyleContribution => ({
-            layerId: painting.layer.id,
-            name: painting.layer.name,
-            properties: Object.freeze([...painting.properties]),
-            values: Object.freeze({ ...painting.values }),
-        }),
-    );
+    const contributions = order.map((painting): StyleContribution => ({
+        layerId: painting.layer.id,
+        name: painting.layer.name,
+        properties: Object.freeze([...painting.properties]),
+        values: Object.freeze({ ...painting.values }),
+    }));
 
     const channels: ChannelExplanation[] = [];
     for (const channel of CHANNELS) {

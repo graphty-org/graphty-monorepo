@@ -12,7 +12,7 @@ import { createMockGraph, type MockGraphOpts } from "../../helpers/mockGraph";
  * @param opts - which fixture to load
  * @returns the mock graph
  */
- 
+
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     return createMockGraph(opts);
 }
@@ -21,7 +21,7 @@ async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
  * A small graph for testing Floyd-Warshall, which is O(n^3): A -- B -- C -- D.
  * @returns the mock graph
  */
- 
+
 async function mockSmallGraph(): Promise<any> {
     return createMockGraph({
         nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],

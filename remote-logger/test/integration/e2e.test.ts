@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDualServer, type DualServerResult } from "../../src/server/dual-server.js";
 import { JsonlWriter } from "../../src/server/jsonl-writer.js";
 
-
 describe("E2E: Browser to Claude Code", () => {
     let dualServer: DualServerResult;
     let port: number;
@@ -29,10 +28,7 @@ describe("E2E: Browser to Claude Code", () => {
         port = 0;
 
         // Create unique temp directory
-        testBaseDir = path.join(
-            os.tmpdir(),
-            `e2e-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        );
+        testBaseDir = path.join(os.tmpdir(), `e2e-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
         // Create JSONL writer
         jsonlWriter = new JsonlWriter(testBaseDir);
@@ -110,7 +106,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-                        quiet: true,
+            quiet: true,
             jsonlWriter,
         });
 
@@ -151,7 +147,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-                        quiet: true,
+            quiet: true,
             jsonlWriter,
         });
 
@@ -190,7 +186,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-                        quiet: true,
+            quiet: true,
             jsonlWriter,
         });
 
@@ -242,7 +238,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-                        quiet: true,
+            quiet: true,
             jsonlWriter,
         });
 
@@ -294,7 +290,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-                        quiet: true,
+            quiet: true,
             jsonlWriter,
         });
 
@@ -318,7 +314,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-                        quiet: true,
+            quiet: true,
             jsonlWriter,
         });
 
@@ -360,7 +356,7 @@ describe("E2E: Browser to Claude Code", () => {
             httpHost: "127.0.0.1",
             httpEnabled: true,
             mcpEnabled: true,
-                        quiet: true,
+            quiet: true,
             jsonlWriter,
         });
 

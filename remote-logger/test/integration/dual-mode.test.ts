@@ -188,9 +188,11 @@ describe("Dual mode (HTTP + MCP)", () => {
         });
 
         // Send log via HTTP
-        await sendLogViaHttp("browser-session-123", [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "From browser via HTTP" },
-        ], "my-project");
+        await sendLogViaHttp(
+            "browser-session-123",
+            [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "From browser via HTTP" }],
+            "my-project",
+        );
 
         // Query storage directly (simulates what MCP tools do)
         const sessions = dualServer.storage.getSessions();
@@ -213,9 +215,11 @@ describe("Dual mode (HTTP + MCP)", () => {
         });
 
         // Add log directly to storage (simulates MCP logs_receive)
-        dualServer.storage.addLogs("mcp-session-456", [
-            { time: "2024-01-15T10:00:00Z", level: "DEBUG", message: "From MCP" },
-        ], { projectMarker: "mcp-project" });
+        dualServer.storage.addLogs(
+            "mcp-session-456",
+            [{ time: "2024-01-15T10:00:00Z", level: "DEBUG", message: "From MCP" }],
+            { projectMarker: "mcp-project" },
+        );
 
         // Query via HTTP
         const httpLogs = await getLogsViaHttp();

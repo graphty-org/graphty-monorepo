@@ -110,7 +110,7 @@ describe("vitest.config.ts under the GPU flag values CI sets", () => {
         );
     });
 
-    it.each(GPU_VALUES)("loads with GRAPHTY_BROWSER_GPU=%s, and asks Chromium for a GPU", async(value) => {
+    it.each(GPU_VALUES)("loads with GRAPHTY_BROWSER_GPU=%s, and asks Chromium for a GPU", async (value) => {
         const before = process.env.GRAPHTY_BROWSER_GPU;
         process.env.GRAPHTY_BROWSER_GPU = value;
 

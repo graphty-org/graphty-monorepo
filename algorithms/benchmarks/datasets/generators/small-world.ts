@@ -146,7 +146,9 @@ export function generateSmallWorldBenchmark(vertices: number): BenchmarkGraphImp
 
     // Ensure k is even and reasonable
     k = Math.max(2, Math.min(k, Math.floor(vertices / 10)));
-    if (k % 2 !== 0) {k--;}
+    if (k % 2 !== 0) {
+        k--;
+    }
 
     // Use rewiring probability of 0.1 (good small-world properties)
     const p = 0.1;

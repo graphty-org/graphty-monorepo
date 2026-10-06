@@ -65,10 +65,7 @@ export interface LogsReceiveOutput {
  * @param input - Input parameters
  * @returns Success status, count, and session ID
  */
-export function logsReceiveHandler(
-    storage: LogStorage,
-    input: LogsReceiveInput,
-): Promise<LogsReceiveOutput> {
+export function logsReceiveHandler(storage: LogStorage, input: LogsReceiveInput): Promise<LogsReceiveOutput> {
     storage.addLogs(input.sessionId, input.logs, {
         projectMarker: input.projectMarker,
         worktreePath: input.worktreePath,

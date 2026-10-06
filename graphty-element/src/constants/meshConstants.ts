@@ -60,4 +60,3 @@ export const EDGE_CONSTANTS = {
     BEZIER_CONTROL_POINT_OFFSET: 0.3,
     BEZIER_POINT_DENSITY: 8, // Lowered from 20 to reduce segment count and improve rendering
 } as const;
-

@@ -56,32 +56,64 @@ var<workgroup> tile: array<vec4<f32>, 256>;
 const mod = device.createShaderModule({ code });
 const pipe = device.createComputePipeline({ layout: "auto", compute: { module: mod, entryPoint: "main" } });
 // seeded LCG positions in [-1,1), masses degree-like 1..8
-let s = 12345 >>> 0; const lcg = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
-const pos = new Float32Array(3 * n); for (let i = 0; i < pos.length; i++) pos[i] = lcg() * 2 - 1;
-const mass = new Float32Array(n); for (let i = 0; i < n; i++) mass[i] = 1 + Math.floor(lcg() * 8);
+let s = 12345 >>> 0;
+const lcg = () => {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    return s / 4294967296;
+};
+const pos = new Float32Array(3 * n);
+for (let i = 0; i < pos.length; i++) pos[i] = lcg() * 2 - 1;
+const mass = new Float32Array(n);
+for (let i = 0; i < n; i++) mass[i] = 1 + Math.floor(lcg() * 8);
 const mk = (size, usage) => device.createBuffer({ size, usage });
-const posBuf = mk(pos.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST); device.queue.writeBuffer(posBuf, 0, pos);
-const massBuf = mk(mass.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST); device.queue.writeBuffer(massBuf, 0, mass);
+const posBuf = mk(pos.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+device.queue.writeBuffer(posBuf, 0, pos);
+const massBuf = mk(mass.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+device.queue.writeBuffer(massBuf, 0, mass);
 const forceBuf = mk(pos.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
 const swingBuf = mk(mass.byteLength, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC);
 const ub = mk(16, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-device.queue.writeBuffer(ub, 0, new Uint32Array([n, 0, 0, 0])); device.queue.writeBuffer(ub, 4, new Float32Array([2.0]));
-const bg = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [
-  { binding: 0, resource: { buffer: ub } }, { binding: 1, resource: { buffer: posBuf } }, { binding: 2, resource: { buffer: massBuf } },
-  { binding: 3, resource: { buffer: forceBuf } }, { binding: 4, resource: { buffer: swingBuf } } ] });
+device.queue.writeBuffer(ub, 0, new Uint32Array([n, 0, 0, 0]));
+device.queue.writeBuffer(ub, 4, new Float32Array([2.0]));
+const bg = device.createBindGroup({
+    layout: pipe.getBindGroupLayout(0),
+    entries: [
+        { binding: 0, resource: { buffer: ub } },
+        { binding: 1, resource: { buffer: posBuf } },
+        { binding: 2, resource: { buffer: massBuf } },
+        { binding: 3, resource: { buffer: forceBuf } },
+        { binding: 4, resource: { buffer: swingBuf } },
+    ],
+});
 const stF = mk(pos.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
 const stS = mk(mass.byteLength, GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST);
 const e = device.createCommandEncoder();
-const ps = e.beginComputePass(); ps.setPipeline(pipe); ps.setBindGroup(0, bg); ps.dispatchWorkgroups(Math.ceil(n / 256)); ps.end();
-e.copyBufferToBuffer(forceBuf, 0, stF, 0, pos.byteLength); e.copyBufferToBuffer(swingBuf, 0, stS, 0, mass.byteLength);
+const ps = e.beginComputePass();
+ps.setPipeline(pipe);
+ps.setBindGroup(0, bg);
+ps.dispatchWorkgroups(Math.ceil(n / 256));
+ps.end();
+e.copyBufferToBuffer(forceBuf, 0, stF, 0, pos.byteLength);
+e.copyBufferToBuffer(swingBuf, 0, stS, 0, mass.byteLength);
 device.queue.submit([e.finish()]);
-await stF.mapAsync(GPUMapMode.READ); await stS.mapAsync(GPUMapMode.READ);
-const fBytes = new Uint8Array(stF.getMappedRange()).slice(); const sBytes = new Uint8Array(stS.getMappedRange()).slice();
-stF.unmap(); stS.unmap();
-const f = new Float32Array(fBytes.buffer); const sw = new Float32Array(sBytes.buffer);
-let swingSum = 0; for (let i = 0; i < n; i++) swingSum += sw[i];
-console.log(JSON.stringify({ adapter: adapter.info.vendor + "/" + adapter.info.architecture, n,
-  forceSha256: createHash("sha256").update(fBytes).digest("hex").slice(0, 16),
-  swingSha256: createHash("sha256").update(sBytes).digest("hex").slice(0, 16),
-  swingSumF64: swingSum, f0: [f[0], f[1], f[2]] }));
+await stF.mapAsync(GPUMapMode.READ);
+await stS.mapAsync(GPUMapMode.READ);
+const fBytes = new Uint8Array(stF.getMappedRange()).slice();
+const sBytes = new Uint8Array(stS.getMappedRange()).slice();
+stF.unmap();
+stS.unmap();
+const f = new Float32Array(fBytes.buffer);
+const sw = new Float32Array(sBytes.buffer);
+let swingSum = 0;
+for (let i = 0; i < n; i++) swingSum += sw[i];
+console.log(
+    JSON.stringify({
+        adapter: adapter.info.vendor + "/" + adapter.info.architecture,
+        n,
+        forceSha256: createHash("sha256").update(fBytes).digest("hex").slice(0, 16),
+        swingSha256: createHash("sha256").update(sBytes).digest("hex").slice(0, 16),
+        swingSumF64: swingSum,
+        f0: [f[0], f[1], f[2]],
+    }),
+);
 device.destroy();

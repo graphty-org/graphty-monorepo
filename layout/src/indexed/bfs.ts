@@ -30,7 +30,7 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
     visited[start] = 1;
     let reached = 1;
     const layers: number[][] = [[start]];
-    for (let layer = layers[0]; ; ) {
+    for (let layer = layers[0]; ;) {
         const next: number[] = [];
         for (const u of layer) {
             for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {

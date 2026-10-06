@@ -86,7 +86,14 @@ describe("powerLawDegreeSequence", () => {
 
     it("makes the sum even by adjusting the last entry", () => {
         for (let seed = 0; seed < 20; seed++) {
-            const odd = powerLawDegreeSequence({ n: 11, exponent: 2, minDegree: 1, maxDegree: 5, evenSum: false, seed });
+            const odd = powerLawDegreeSequence({
+                n: 11,
+                exponent: 2,
+                minDegree: 1,
+                maxDegree: 5,
+                evenSum: false,
+                seed,
+            });
             const even = powerLawDegreeSequence({ n: 11, exponent: 2, minDegree: 1, maxDegree: 5, seed });
             expect(sum(even) % 2).toBe(0);
             expect(Array.from(even.subarray(0, 10))).toEqual(Array.from(odd.subarray(0, 10)));
@@ -99,15 +106,17 @@ describe("powerLawDegreeSequence", () => {
         }
         // a constant sequence with an odd sum cannot be fixed
         expect(() => powerLawDegreeSequence({ n: 3, exponent: 2, minDegree: 3, maxDegree: 3 })).toThrow(RangeError);
-        expect(Array.from(powerLawDegreeSequence({ n: 3, exponent: 2, minDegree: 3, maxDegree: 3, evenSum: false }))).toEqual([
-            3, 3, 3,
-        ]);
+        expect(
+            Array.from(powerLawDegreeSequence({ n: 3, exponent: 2, minDegree: 3, maxDegree: 3, evenSum: false })),
+        ).toEqual([3, 3, 3]);
         expect(powerLawDegreeSequence({ n: 0, exponent: 2, minDegree: 1, maxDegree: 3 }).length).toBe(0);
     });
 
     it("rejects bad options", () => {
         expect(() => powerLawDegreeSequence({ n: -1, exponent: 2, minDegree: 1, maxDegree: 3 })).toThrow(RangeError);
-        expect(() => powerLawDegreeSequence({ n: 5, exponent: Number.NaN, minDegree: 1, maxDegree: 3 })).toThrow(/exponent/);
+        expect(() => powerLawDegreeSequence({ n: 5, exponent: Number.NaN, minDegree: 1, maxDegree: 3 })).toThrow(
+            /exponent/,
+        );
         expect(() => powerLawDegreeSequence({ n: 5, exponent: 2, minDegree: 0, maxDegree: 3 })).toThrow(/minDegree/);
         expect(() => powerLawDegreeSequence({ n: 5, exponent: 2, minDegree: 4, maxDegree: 3 })).toThrow(/maxDegree/);
     });
@@ -174,7 +183,13 @@ describe("directedConfigurationModelGraph", () => {
     const inDegrees = [1, 3, 1, 2, 1, 3, 1];
 
     it("keeps exact in- and out-degrees with keep / keep, and pairs out-stubs in order", () => {
-        const g = directedConfigurationModelGraph({ outDegrees, inDegrees, selfLoops: "keep", multiEdges: "keep", seed: 4 });
+        const g = directedConfigurationModelGraph({
+            outDegrees,
+            inDegrees,
+            selfLoops: "keep",
+            multiEdges: "keep",
+            seed: 4,
+        });
         expect(g.directed).toBe(true);
         expect(directedDegrees(g)).toEqual([outDegrees, inDegrees]);
         expect(Array.from(g.src)).toEqual([0, 0, 2, 2, 2, 3, 4, 4, 4, 4, 6, 6]);
@@ -283,9 +298,9 @@ describe("degreeCorrectedSbmGraph", () => {
         const K = sum(kappa);
         const outside = (mixing * (K - sum(kappa.map((k) => (k * k) / K)))) / 2;
         const expectedInside = ((1 - mixing) * K) / 2;
-        expect(Math.abs(inside / (inside + (g.src.length - inside)) - expectedInside / (expectedInside + outside))).toBeLessThan(
-            0.03,
-        );
+        expect(
+            Math.abs(inside / (inside + (g.src.length - inside)) - expectedInside / (expectedInside + outside)),
+        ).toBeLessThan(0.03);
         expect(Math.abs(g.src.length - (expectedInside + outside)) / (expectedInside + outside)).toBeLessThan(0.05);
         expect(fromEdgeArrays(g).edgeCount).toBe(g.src.length);
     });
@@ -311,7 +326,9 @@ describe("degreeCorrectedSbmGraph", () => {
     });
 
     it("rejects bad options", () => {
-        expect(() => degreeCorrectedSbmGraph({ sizes: [2], expectedDegrees: [1, 1, 1], mixing: 0 })).toThrow(RangeError);
+        expect(() => degreeCorrectedSbmGraph({ sizes: [2], expectedDegrees: [1, 1, 1], mixing: 0 })).toThrow(
+            RangeError,
+        );
         expect(() => degreeCorrectedSbmGraph({ sizes: [3], expectedDegrees: [1, 1, 1], mixing: 2 })).toThrow(/mixing/);
         expect(() => degreeCorrectedSbmGraph({ sizes: [-1], expectedDegrees: [], mixing: 0 })).toThrow(/sizes\[0\]/);
     });
@@ -383,7 +400,9 @@ describe("determinism", () => {
     ];
 
     it("powerLawDegreeSequence reproduces its golden sequence", () => {
-        expect(graphHash({ directed: false, nodeCount: degs.length, src: degs, dst: degs })).toMatchInlineSnapshot(`"c936725d"`);
+        expect(graphHash({ directed: false, nodeCount: degs.length, src: degs, dst: degs })).toMatchInlineSnapshot(
+            `"c936725d"`,
+        );
     });
 
     it.each(cases)("%s reproduces its golden graph", (_name, make, hash) => {
@@ -397,12 +416,16 @@ describe("determinism", () => {
     it("unseeded equals seed 0 and a different seed differs", () => {
         const base = { degrees: degs };
         expectSameGraph(configurationModelGraph(base), configurationModelGraph({ ...base, seed: 0 }));
-        expect(graphHash(configurationModelGraph({ ...base, seed: 2 }))).not.toBe(graphHash(configurationModelGraph(base)));
+        expect(graphHash(configurationModelGraph({ ...base, seed: 2 }))).not.toBe(
+            graphHash(configurationModelGraph(base)),
+        );
         expectSameGraph(chungLuGraph({ expectedDegrees: degs }), chungLuGraph({ expectedDegrees: degs, seed: 0 }));
         expect(graphHash(chungLuGraph({ expectedDegrees: degs, seed: 2 }))).not.toBe(
             graphHash(chungLuGraph({ expectedDegrees: degs })),
         );
-        expect(graphHash(randomRegularGraph({ n: 50, d: 3, seed: 2 }))).not.toBe(graphHash(randomRegularGraph({ n: 50, d: 3 })));
+        expect(graphHash(randomRegularGraph({ n: 50, d: 3, seed: 2 }))).not.toBe(
+            graphHash(randomRegularGraph({ n: 50, d: 3 })),
+        );
         expect(Array.from(powerLawDegreeSequence({ n: 50, exponent: 2, minDegree: 1, maxDegree: 9 }))).toEqual(
             Array.from(powerLawDegreeSequence({ n: 50, exponent: 2, minDegree: 1, maxDegree: 9, seed: 0 })),
         );

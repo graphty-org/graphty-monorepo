@@ -225,6 +225,16 @@ describe("the inspector", () => {
         assert.notInclude(bar.textContent, "E_");
     });
 
+    it("names the Everything row once in its header, not again as its kind", async () => {
+        const { store } = await renderInspector();
+        act(() => {
+            store.set({ inspected: { kind: "everything-row" } });
+        });
+        await waitFor(() => {
+            assert.lengthOf(screen.getAllByText("Everything"), 1);
+        });
+    });
+
     it("gives no two reachable controls the same accessible name", async () => {
         const { session: on } = await renderInspector();
         for (const select of [

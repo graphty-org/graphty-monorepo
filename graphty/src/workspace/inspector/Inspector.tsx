@@ -203,9 +203,12 @@ export function Inspector(): React.JSX.Element {
                         </Text>
                     </Group>
                     <Group gap={6} wrap="nowrap">
-                        <Text size="xs" c="dimmed">
-                            {KIND_WORDS[kindId]}
-                        </Text>
+                        {/* The built-in rows' kind is their name: one "Everything", not two. */}
+                        {KIND_WORDS[kindId] !== header.name && (
+                            <Text size="xs" c="dimmed">
+                                {KIND_WORDS[kindId]}
+                            </Text>
+                        )}
                         {header.from?.open === undefined ? (
                             header.from !== undefined && (
                                 <Text size="xs" c="dimmed">

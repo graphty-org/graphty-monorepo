@@ -265,13 +265,14 @@ describe("checks", () => {
         expect(rec.required["All Checks Pass"]).toBe("PENDING");
         expect(rec.failingChecks).toEqual([]);
         // #1066: the ready run has not reported All Checks Pass yet, so the draft run's cancelled one
-        // is the newest of that name; the draft run is replaced all the same.
+        // is the newest of that name; it started before the PR was marked ready, so it is dropped.
         const suite = (/** @type {number} */ id) => ({
             checkSuite: { workflowRun: { databaseId: id, workflow: { name: "CI" } } },
         });
-        const early = withChecks(node(), [
-            run("All Checks Pass", "CANCELLED", { databaseId: 9, ...suite(100) }),
-            run("Build", null, { databaseId: 12, ...suite(101) }),
+        const ready = { timelineItems: { nodes: [{ createdAt: "2026-10-02T12:00:00Z" }] } };
+        const early = withChecks(node(ready), [
+            run("All Checks Pass", "CANCELLED", { databaseId: 9, startedAt: "2026-10-02T11:59:00Z", ...suite(100) }),
+            run("Build", null, { databaseId: 12, startedAt: "2026-10-02T12:00:30Z", ...suite(101) }),
         ]);
         const pending = polls([early])["704"];
         expect(pending.required["All Checks Pass"]).toBe("MISSING");
@@ -331,6 +332,14 @@ describe("checks", () => {
         expect(late.failingChecks).toEqual(["All Checks Pass"]);
         // a PR never drafted has no ready event: the same failure counts as before
         expect(polls([withChecks(node(), [draftFail])])["704"].failingChecks).toEqual(["All Checks Pass"]);
+        // #1107: the draft run has the higher workflow run id; the ready run's re-run passed. The
+        // re-run's check run is the newest of that name, whatever the workflow run ids say.
+        const draftRun = run("All Checks Pass", "FAILURE", { databaseId: 20, ...suite(200) });
+        const realRun = run("All Checks Pass", "FAILURE", { databaseId: 10, ...suite(100) });
+        const rerun = run("All Checks Pass", "SUCCESS", { databaseId: 30, ...suite(100) });
+        const passed = polls([withChecks(node(), [realRun, draftRun, rerun])])["704"];
+        expect(passed.required["All Checks Pass"]).toBe("SUCCESS");
+        expect(passed.failingChecks).toEqual([]);
     });
 
     it("the owner gate: the only failing required check failed at the visual step", () => {

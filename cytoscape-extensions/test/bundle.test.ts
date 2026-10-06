@@ -113,7 +113,8 @@ describe("a Vite production build whose entry module awaits a loading method at 
                 '    cy.add([{ data: { id: "a" } }, { data: { id: "b" } }, { data: { source: "a", target: "b" } }]);',
                 "    await cy.graphtyPageRankAsync();",
                 "} else {",
-                '    void cy.graphtyDataset("karate").then(() => console.log("nodes", cy.nodes().length));',
+                // one string: console.log colors a number argument when the runner sets FORCE_COLOR, as CI does
+                '    void cy.graphtyDataset("karate").then(() => console.log("nodes " + cy.nodes().length));',
                 "}",
                 "",
             ].join("\n"),

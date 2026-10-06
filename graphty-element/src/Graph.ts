@@ -79,7 +79,6 @@ import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
-import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -185,7 +184,7 @@ function isAbort(error: unknown): boolean {
 }
 
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
-const PROJECT_LAYOUT_KEYS: readonly string[] = ["preSteps", "stepMultiplier", "minDelta"];
+const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
@@ -307,7 +306,12 @@ export class Graph implements GraphContext {
     #autoFrame = true;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
-    needRays = true;
+    /**
+     * Has no effect: the element never reads it.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     */
+    needRays = false;
     // graph engine - delegate to LayoutManager
     pinOnDrag?: boolean;
     // graph
@@ -878,7 +882,6 @@ export class Graph implements GraphContext {
             this.scene,
             this.statsManager,
             contextConfig,
-            this.needRays,
         );
 
         // Set GraphContext on managers
@@ -1321,7 +1324,6 @@ export class Graph implements GraphContext {
             this.scene,
             this.statsManager,
             this.graphContext.getConfig(),
-            this.needRays,
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
@@ -1613,7 +1615,7 @@ export class Graph implements GraphContext {
      */
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
         const layout: Readonly<Record<string, unknown>> = behavior.layout ?? {};
-        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.includes(key)));
+        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.has(key)));
         // `layout.type` names the layout, whose one home is the `layout` slice.
         const { type } = layout;
         const current = this.viewSettings.behavior;
@@ -1623,7 +1625,7 @@ export class Graph implements GraphContext {
             layout: {
                 ...current.layout,
                 ...Object.fromEntries(
-                    Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.includes(key) && key !== "type"),
+                    Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.has(key) && key !== "type"),
                 ),
             },
             node: { ...current.node, ...behavior.node },
@@ -3766,20 +3768,25 @@ export class Graph implements GraphContext {
         // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
         // so we must explicitly dispose them before calling updateStyle()
         for (const edge of this.dataManager.edges.values()) {
-            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer)
-            if (edge.mesh instanceof PatternedLineMesh) {
+            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer).
+            // A batched line is not disposed here: `meshCache.clear()` above disposed the
+            // batch it belongs to, and `edge.mesh` then points at that disposed mesh, which
+            // is what tells `updateStyle()` below to build the line again.
+            if (edge.drawnLine !== null) {
+                // the batch this edge was drawn from is already gone
+            } else if (edge.mesh instanceof PatternedLineMesh) {
                 edge.mesh.dispose();
             } else if (!edge.mesh.isDisposed()) {
                 edge.mesh.dispose();
             }
 
             // Dispose arrow meshes too
-            if (edge.arrowMesh && !edge.arrowMesh.isDisposed()) {
-                edge.arrowMesh.dispose();
+            if (edge.arrowCap && !edge.arrowCap.isDisposed()) {
+                edge.arrowCap.dispose();
             }
 
-            if (edge.arrowTailMesh && !edge.arrowTailMesh.isDisposed()) {
-                edge.arrowTailMesh.dispose();
+            if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
+                edge.arrowTailCap.dispose();
             }
 
             edge.updateStyle();
@@ -3805,8 +3812,8 @@ export class Graph implements GraphContext {
             this.updateManager.redrawArrangement();
         }
 
-        // Now update edges to connect to the updated node positions
-        Edge.updateRays(this);
+        // Now update edges to connect to the updated node positions. Each one aims its own
+        // ray when it needs it, so there is nothing to prime here.
         for (const edge of this.dataManager.edges.values()) {
             edge.update();
         }
@@ -3876,14 +3883,6 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Check if ray updates are needed for edge arrows.
-     * @returns True if rays need updating
-     */
-    needsRayUpdate(): boolean {
-        return this.needRays;
-    }
-
-    /**
      * Get the current graph context configuration.
      * @returns The graph context configuration
      */
@@ -3893,6 +3892,16 @@ export class Graph implements GraphContext {
             enableDetailedProfiling: this.enableDetailedProfiling,
             xr: this.graphContext.getConfig().xr,
         };
+    }
+
+    /**
+     * Always false.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     * @returns false
+     */
+    needsRayUpdate(): boolean {
+        return false;
     }
 
     /**

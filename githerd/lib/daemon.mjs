@@ -621,8 +621,9 @@ export async function startDaemon({
     const voided = voidHolders(state, containerRestarted);
     requeueLostStarts(state, startedAtDate);
     // A stacked pull request's conflict with its base is a pr job now, never the owner's item.
-    for (const id of Object.keys(state.ownerItems ?? {}))
-        if (id.startsWith("stack-conflict:")) endItem(state, id, "cleared", now());
+    Object.keys(state.ownerItems ?? {})
+        .filter((id) => id.startsWith("stack-conflict:"))
+        .forEach((id) => endItem(state, id, "cleared", now()));
 
     let fenced = false;
     /** set once halt releases the lock: work that ends later must not write the state */
@@ -1014,6 +1015,18 @@ export async function startDaemon({
     }
 
     /**
+     * A new head's commit messages. GitHub lists at most 250 commits of a pull request; past that,
+     * the compare API has them all.
+     * @param {any} node the GraphQL node
+     * @returns {Promise<{messages: string[], truncated: boolean}>} the messages
+     */
+    async function readCommits(node) {
+        const list = await pages(`repos/${config.repo}/pulls/${node.number}/commits?per_page=100`, 3);
+        if (list.items.length >= 250) return allCommits(node);
+        return { messages: list.items.map((c) => c.commit.message), truncated: false };
+    }
+
+    /**
      * Every commit message of a pull request too long for its commit list, through the compare API
      * (base...head, the same commits), page by page. Read once per head, like the commit list.
      * @param {any} node the GraphQL node
@@ -1057,12 +1070,7 @@ export async function startDaemon({
             gateHead.files?.includes("nx.json") &&
             gateHead.nxReleaseChanged === undefined;
         if (prev?.breakingCheckedFor !== node.headRefOid || nxUnread) {
-            const list = await pages(`repos/${repo}/pulls/${n}/commits?per_page=100`, 3);
-            // GitHub lists at most 250 commits of a pull request; past that, the compare API has all.
-            detail.commits =
-                list.items.length >= 250
-                    ? await allCommits(node)
-                    : { messages: list.items.map((c) => c.commit.message), truncated: false };
+            detail.commits = await readCommits(node);
             const files = (await pages(`repos/${repo}/pulls/${n}/files?per_page=100`, 30)).items;
             detail.files = files.map((f) => f.filename);
             // GitHub lists at most 3000 files; past that an unseen file may touch anything.

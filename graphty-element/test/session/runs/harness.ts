@@ -259,7 +259,7 @@ export function stubResult(runId: RunId): RunResult {
             median: Number.NaN,
         }),
         ranking: () => [],
-        top: () => ({ entries: [], leftOut: null, reason: null }),
+        top: () => ({ entries: [], leftOut: null, reason: null, threshold: null }),
         histogram: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         groupSizes: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,

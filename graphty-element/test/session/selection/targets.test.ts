@@ -491,6 +491,39 @@ describe("a finished run's ranking", () => {
         harness.session.dispose();
     });
 
+    it("takes everything in a range, both ends included", () => {
+        const harness = line();
+        const selection = selectionOf(harness, { results: RESULTS });
+
+        selection.applyNow({ range: { run: "degree", field: "value", min: 2, max: 3 } });
+        assert.deepStrictEqual([...selection.nodes].sort(), ["b", "c"], "both 2 and 3 are in");
+
+        selection.applyNow({ range: { run: "degree", min: 3 } });
+        assert.deepStrictEqual([...selection.nodes].sort(), ["c", "d"], "a missing max is open");
+
+        selection.applyNow({ range: { run: "degree" } });
+        assert.strictEqual(selection.nodes.length, 4, "no bounds is every measured element");
+
+        selection.applyNow({ range: { run: "weight", min: 0 } });
+        assert.deepStrictEqual([...selection.nodes], [], "an edge metric's range selects edges");
+        assert.isAbove(selection.edges.length, 0);
+        harness.session.dispose();
+    });
+
+    it("refuses a range whose bounds are not finite or are crossed", () => {
+        const harness = line();
+        const selection = selectionOf(harness, { results: RESULTS });
+
+        for (const range of [{ min: Number.NaN }, { max: Number.POSITIVE_INFINITY }, { min: 3, max: 2 }]) {
+            assert.strictEqual(
+                codeOf(() => selection.applyNow({ range: { run: "degree", ...range } })),
+                "E_OPTION_RANGE",
+                JSON.stringify(range),
+            );
+        }
+        harness.session.dispose();
+    });
+
     it("selects edges when the run measured edges", () => {
         const harness = line();
         const selection = selectionOf(harness, { results: RESULTS });

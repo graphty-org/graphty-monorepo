@@ -118,6 +118,29 @@ export function balanceRefusal(f) {
 }
 
 /**
+ * Whether a run failed only for the rented runner's balance, and the balance is back: a failed job
+ * was refused (`balanceRefusal`), a job of each refused name got a runner after its refusal, and
+ * every other failed job started once the last refusal had ended (a gate that needs the refused
+ * job, such as "T4 GPU gate").
+ * @param {{name: string, id: number, refused: boolean, startedAt?: string | null,
+ *   completedAt?: string | null}[]} failed the run's failed jobs, `name` as `workflow / job`
+ * @param {(name: string) => number} ran the newest job of a name that got a runner, 0 for none
+ * @returns {boolean} true when re-running the run's failed jobs is all it needs
+ */
+export function refusedOnly(failed, ran) {
+    const refused = failed.filter((f) => f.refused);
+    const end = refused
+        .map((f) => f.completedAt ?? "")
+        .sort((a, b) => a.localeCompare(b))
+        .at(-1);
+    return (
+        refused.length > 0 &&
+        refused.every((f) => ran(f.name) > f.id) &&
+        failed.every((f) => f.refused || Boolean(end && f.startedAt && f.startedAt >= end))
+    );
+}
+
+/**
  * The text patterns, in class order. Only unambiguous failures with an obvious action are here
  * (the owner's decision of 2026-10-05): a credential, paid capacity, a runner lost mid-job, and the
  * known outside outages (a package server or mirror, DNS). Anything else on master is

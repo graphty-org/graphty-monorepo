@@ -30,6 +30,20 @@ const JOBS = {
             greenSha: "1a2b3c4".padEnd(40, "0"),
         },
     },
+    "incident-verdict-batch": {
+        kind: "incident",
+        target: "CI / Build / Lint all",
+        reason: "master failed on no known pattern: is it the code or the environment?",
+        facts: {
+            scope: "verdict",
+            lane: "ci",
+            runId: 37228458288,
+            jobId: 111465235371,
+            redSha: "b47c4e0".padEnd(40, "0"),
+            greenSha: "1a2b3c4".padEnd(40, "0"),
+            batch: [42, 43, 44],
+        },
+    },
     pr: { kind: "pr", target: "#412", reason: "own failure on the current head" },
     issue: { kind: "issue", target: "#737", reason: "high bug" },
     "issue-verify": {

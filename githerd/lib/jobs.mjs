@@ -272,6 +272,7 @@ function masterKeyJob(state, open, key, r) {
             jobId: ref?.id ?? null,
             redSha: lane?.sha ?? null,
             greenSha: open.lastGreenSha ?? null,
+            batch: open.redBatch ?? null,
         },
     };
 }

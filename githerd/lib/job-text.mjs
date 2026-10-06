@@ -65,7 +65,23 @@ function verdictLines(f) {
         `FAILURE KEY (pass exactly as key to githerd_verdict, or pass this job's id): ${f.key}`,
         `FAILED JOB: run ${f.runId ?? "unknown"}, job id ${f.jobId ?? "unknown"} (lane ${f.lane ?? "unknown"})`,
         `RED COMMIT: ${short(f.redSha)}; LAST GREEN COMMIT: ${short(f.greenSha)}`,
+        ...(f.batch?.length ? [batchLine(f.batch)] : []),
     ];
+}
+
+/**
+ * The line for a verdict job whose red commit is a Mergify merge-batch commit: the batch's tree is
+ * what the merge queue's checks passed, so what differs on master is looked at before any one pull
+ * request is blamed.
+ * @param {number[]} prs the batch's pull requests
+ * @returns {string} the line
+ */
+function batchLine(prs) {
+    return (
+        `BATCH COMMIT: the red commit merged ${prs.map((n) => `#${n}`).join(", ")} as one Mergify batch. ` +
+        'Its tree is exactly what "Queue Checks Pass" passed, so first check what runs only on master (the benchmarks and the other push-only jobs and steps) ' +
+        "and the known flaky tests (the FLAKY TESTS section of githerd_status) before blaming any one pull request in the batch."
+    );
 }
 
 /** The done-condition of every other kind. */

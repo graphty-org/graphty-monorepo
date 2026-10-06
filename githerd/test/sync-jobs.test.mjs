@@ -83,6 +83,30 @@ function issue(state, n, labels, over = {}) {
 const sync = (/** @type {any} */ state) => syncJobs(state, { config: CONFIG, now: NOW });
 
 describe("syncJobs: incidents", () => {
+    it("tells a verdict job when the red commit is a merge batch, and which pull requests it merged", () => {
+        const state = base();
+        state.master.lanes.ci = { sha: "c".repeat(40), redJobs: [{ id: 55, runId: 5, key: "CI / Build / Lint all" }] };
+        state.incidents.i1 = {
+            id: "i1",
+            status: "open",
+            openedAt: "2026-10-04T11:05:00Z",
+            lastGreenSha: "a".repeat(40),
+            redBatch: [42, 43],
+            keys: { "CI / Build / Lint all": { lane: "ci", outcome: "waiting" } },
+        };
+        sync(state);
+        const job = state.jobs["verdict-ci-build-lint-all"];
+        expect(job.facts.batch).toEqual([42, 43]);
+        expect(jobText(job)).toContain(
+            'BATCH COMMIT: the red commit merged #42, #43 as one Mergify batch. Its tree is exactly what "Queue Checks Pass" passed',
+        );
+        // A red commit that is no batch says nothing of one.
+        delete state.incidents.i1.redBatch;
+        delete state.jobs["verdict-ci-build-lint-all"];
+        sync(state);
+        expect(jobText(state.jobs["verdict-ci-build-lint-all"])).not.toContain("BATCH COMMIT");
+    });
+
     it("makes one urgent verdict job per key Claude has not judged, then a fix job once it is judged code", () => {
         const state = base();
         state.master.lanes.ci = {

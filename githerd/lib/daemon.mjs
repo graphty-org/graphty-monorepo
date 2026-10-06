@@ -91,6 +91,7 @@ import {
 import {
     LANE_CODE,
     buildFiles,
+    batchPrs,
     findSuspects,
     masterVerdict,
     rangeMissesLanes,
@@ -1625,6 +1626,8 @@ export async function startDaemon({
             redSha: first.sha,
             lastGreenSha: previousGreen,
             suspects: findSuspects(commits, previousGreen, first.sha),
+            // A merge-batch commit's pull requests (master.mjs): its verdict job triages the batch.
+            redBatch: batchPrs(commits, first.sha),
             runs: [],
             escalated: false,
             issue: null,

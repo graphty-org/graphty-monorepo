@@ -37,6 +37,10 @@ import { isSummaryJob } from "./lanes.mjs";
  *   run of a workflow on the head whose required checks were cancelled and nothing in it failed; `rerun`
  *   is set by the daemon: githerd re-ran it this poll, it was re-run before and is not re-run again, or
  *   it started while the pull request was a draft and a re-run would skip CI again
+ * @typedef {{workflow: string, cancelledAt: string | null, pending: boolean, failedAt: string[]}} RunNote
+ *   one workflow run of the head: the latest start of a cancelled required check of it (null when none
+ *   was cancelled, "" when it has no start time), whether a check of it is pending, and the starts of
+ *   its failed checks
  * @typedef {{
  *   verdict: "green" | "red" | "unknown", branch: string,
  *   fixedAt?: string | null, redKeys?: string[],
@@ -151,8 +155,8 @@ export function newestContexts(contexts) {
 
 /**
  * Notes one context in its workflow run's summary: a run is cancelled when a required check of it
- * was cancelled, and open while a check of it failed or is pending.
- * @param {Map<number, {workflow: string, cancelled: boolean, open: boolean}>} runs the runs, updated
+ * was cancelled, and open while a check of it is pending or failed (`runOpen` judges the failures).
+ * @param {Map<number, RunNote>} runs the runs, updated
  * @param {any} ctx the context
  * @param {CheckState} state its state
  * @param {boolean} isRequired whether its name is a required check
@@ -160,10 +164,31 @@ export function newestContexts(contexts) {
 function noteRun(runs, ctx, state, isRequired) {
     const wr = ctx.checkSuite?.workflowRun;
     if (!wr?.databaseId) return;
-    const r = runs.get(wr.databaseId) ?? { workflow: wr.workflow?.name ?? "", cancelled: false, open: false };
-    if (state === "CANCELLED" && isRequired) r.cancelled = true;
-    if (state === "FAILURE" || state === "PENDING") r.open = true;
+    const r = runs.get(wr.databaseId) ?? {
+        workflow: wr.workflow?.name ?? "",
+        cancelledAt: null,
+        pending: false,
+        failedAt: [],
+    };
+    if (state === "CANCELLED" && isRequired) {
+        const at = ctx.startedAt ?? "";
+        if (r.cancelledAt === null || at > r.cancelledAt) r.cancelledAt = at;
+    }
+    if (state === "PENDING") r.pending = true;
+    if (state === "FAILURE") r.failedAt.push(ctx.startedAt ?? "");
     runs.set(wr.databaseId, r);
+}
+
+/**
+ * Whether a run with a cancelled required check is still open: a check of it is pending, or one
+ * failed that started before the cancelled required check did. A failure that started at or after it
+ * is a job downstream of the cancellation (ci.yml's "Queue Checks Pass" fails whenever "All Checks
+ * Pass" did not succeed, #490), not a failure of the code.
+ * @param {RunNote} r the run's note
+ * @returns {boolean} true when the run is no re-run candidate
+ */
+function runOpen(r) {
+    return r.pending || r.failedAt.some((at) => !at || !r.cancelledAt || at < r.cancelledAt);
 }
 
 /**
@@ -191,7 +216,7 @@ function readChecks(node, requiredChecks) {
     const contexts = readyAt
         ? allContexts.filter((/** @type {any} */ c) => !(c.startedAt && c.startedAt < readyAt))
         : allContexts;
-    /** @type {Map<number, {workflow: string, cancelled: boolean, open: boolean}>} */
+    /** @type {Map<number, RunNote>} */
     const runs = new Map();
     for (const [name, ctx] of newestContexts(contexts)) {
         const state = contextState(ctx);
@@ -210,7 +235,7 @@ function readChecks(node, requiredChecks) {
         committedAt: commit?.committedDate ?? null,
         committer: commit?.committer?.email ?? null,
         cancelledRuns: [...runs]
-            .filter(([, r]) => r.cancelled && !r.open)
+            .filter(([, r]) => r.cancelledAt !== null && !runOpen(r))
             .map(([id, r]) => ({ id, workflow: r.workflow })),
     };
 }

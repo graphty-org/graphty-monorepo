@@ -9,6 +9,9 @@ storybook-static/
 # Generated files
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
 */api/*.api.md
+# graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
+# compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
+graphty-element/jsx.ts
 *.min.js
 *.bundle.js
 

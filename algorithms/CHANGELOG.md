@@ -1,3 +1,19 @@
+## 3.3.6 (2026-10-06)
+
+### 🩹 Fixes
+
+- **algorithms:** load the BFS browser benchmark's script with SRI ([#713](https://github.com/graphty-org/graphty-monorepo/issues/713))
+- **algorithms:** bisect grsbm clusters along the Fiedler vector ([#975](https://github.com/graphty-org/graphty-monorepo/issues/975))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.21
+- Updated graph-format to 1.3.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.5 (2026-10-05)
 
 ### 🧱 Updated Dependencies

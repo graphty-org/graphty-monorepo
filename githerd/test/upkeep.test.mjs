@@ -636,6 +636,23 @@ describe("updateDequeued", () => {
         expect(fake.writes()).toHaveLength(1);
     });
 
+    it("while master is red updates only a dequeued fix, and the rest once master is green", async () => {
+        const { heads, tip } = setup();
+        const fake = fakeGitHub();
+        const ctx = context(fake, "acting");
+        const recs = prs(heads);
+        Object.assign(recs[8], { labels: ["dequeued"] });
+        const done = {};
+        expect(await updateDequeued(ctx, { prs: recs, done, tip, masterRed: true, fixes: [8] })).toEqual([
+            { pr: 8, result: { path: "update-branch", result: "updated" } },
+        ]);
+        expect(await updateDequeued(ctx, { prs: recs, done, tip })).toEqual([
+            { pr: 7, result: { path: "update-branch", result: "updated" } },
+            { pr: 9, skipped: "draft" },
+        ]);
+        expect(fake.writes()).toHaveLength(2);
+    });
+
     it("records a would-do and writes nothing in dry-run", async () => {
         const { heads, tip } = setup();
         const fake = fakeGitHub();

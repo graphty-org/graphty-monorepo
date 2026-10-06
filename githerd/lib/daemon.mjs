@@ -2376,7 +2376,12 @@ export async function startDaemon({
             tip,
             releasePattern,
         });
-        await updateDequeued(ctx, { prs, done: state.dequeueUpdates, tip, releasePattern });
+        const fixes = [
+            ...(state.master.fixPrs ?? []).map((/** @type {any} */ f) => f.pr),
+            ...Object.values(state.sharedFailures ?? {}).map((/** @type {any} */ r) => r.fix?.pr),
+        ];
+        const masterRed = state.master.verdict === "red";
+        await updateDequeued(ctx, { prs, done: state.dequeueUpdates, tip, releasePattern, masterRed, fixes });
     }
 
     /**

@@ -23,16 +23,20 @@ import { Model, opsFor, Step } from "./refreeze-model";
 const TIMEOUT_MS = 60_000;
 
 describe("every kept set survives any sequence of edits and re-freezes", () => {
-    it("matches the model after every command", async () => {
-        const ops = opsFor({ embed: true, declared: true }).map((arb) => arb.map((op) => new Step(op)));
-        const { hits } = cacheCounters;
-        await fc.assert(
-            guardedAsyncProperty(fc.commands(ops, { maxCommands: 40, size: "+1" }), async (commands) => {
-                await fc.asyncModelRun(() => ({ model: new Model(), real: new TestGraph() }), commands);
-            }),
-            fcParams(1000),
-        );
-        // The served-equals-fresh check is vacuous unless something was served.
-        assert.isAbove(cacheCounters.hits - hits, 0);
-    }, TIMEOUT_MS);
+    it(
+        "matches the model after every command",
+        async () => {
+            const ops = opsFor({ embed: true, declared: true }).map((arb) => arb.map((op) => new Step(op)));
+            const { hits } = cacheCounters;
+            await fc.assert(
+                guardedAsyncProperty(fc.commands(ops, { maxCommands: 40, size: "+1" }), async (commands) => {
+                    await fc.asyncModelRun(() => ({ model: new Model(), real: new TestGraph() }), commands);
+                }),
+                fcParams(1000),
+            );
+            // The served-equals-fresh check is vacuous unless something was served.
+            assert.isAbove(cacheCounters.hits - hits, 0);
+        },
+        TIMEOUT_MS,
+    );
 });

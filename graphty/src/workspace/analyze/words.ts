@@ -52,6 +52,11 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "Which nodes sit on the most shortest paths between others.",
         aliases: ["brokers", "bridges", "gatekeepers", "bottlenecks"],
     },
+    "edge-betweenness": {
+        name: "Edge betweenness",
+        answers: "Which edges carry the most shortest paths between nodes.",
+        aliases: ["bridges", "busy edges", "bottlenecks", "edges that hold it together"],
+    },
     closeness: {
         name: "Closeness",
         answers: "Which nodes are, on average, nearest to all the others.",
@@ -99,6 +104,21 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "The groups left after removing the busiest edges.",
         aliases: ["communities", "divisive", "dendrogram"],
     },
+    "markov-clustering": {
+        name: "Markov clustering",
+        answers: "Groups where flow along the edges gets trapped.",
+        aliases: ["communities", "clusters", "groups", "flow", "mcl"],
+    },
+    "spectral-clustering": {
+        name: "Spectral clustering",
+        answers: "The nodes split into a chosen number of groups.",
+        aliases: ["communities", "clusters", "groups", "eigenvectors", "split"],
+    },
+    "hierarchical-clustering": {
+        name: "Hierarchical clustering",
+        answers: "Groups built by merging the closest nodes until a chosen number remain.",
+        aliases: ["communities", "clusters", "groups", "merge", "agglomerative", "dendrogram"],
+    },
     components: {
         name: "Connected components",
         answers: "Which parts of the graph are cut off from each other.",
@@ -109,6 +129,11 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         answers: "The fewest steps, or the lightest route, between two nodes.",
         aliases: ["route", "dijkstra", "how are they connected"],
         startHere: true,
+    },
+    astar: {
+        name: "Guided route",
+        answers: "A route between two nodes, optionally steered by where they are drawn.",
+        aliases: ["a*", "astar", "route", "path", "how are they connected"],
     },
     "all-pairs-distance": {
         name: "All-pairs distance",
@@ -253,7 +278,14 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "leiden.resolution": { label: "Resolution" },
     "label-propagation.maxIterations": { label: "Most rounds" },
     "girvan-newman.maxCommunities": { label: "Most groups" },
+    "markov-clustering.inflation": { label: "Sharpness" },
+    "spectral-clustering.clusters": { label: "Groups" },
+    "hierarchical-clustering.clusters": { label: "Groups" },
     "components.strength": { label: "Connected", choices: { weak: "Either direction", strong: "Both directions" } },
+    "astar.heuristic": {
+        label: "Steer by",
+        choices: { none: "Nothing (always shortest)", "layout-distance": "Distance on screen" },
+    },
     "min-cut.useGlobalMinCut": { label: "Weakest cut anywhere in the graph" },
     "link-prediction.method": {
         label: "Score",

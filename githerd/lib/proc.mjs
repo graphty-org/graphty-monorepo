@@ -79,12 +79,15 @@ export function containerStart() {
 const PUSH_QUEUE_SLOTS = 3;
 
 /**
- * The machine's push queue script of a repository: its own `tools/push-queue.sh`. githerd ships no
- * queue of its own; a repository without one pushes unqueued, which the board says (an escalation).
+ * The machine's push queue script of a repository, found where the sessions find it: the main
+ * checkout's `tools/push-queue.sh`, else its `tmp/push-queue.sh` (the live copy, used while the
+ * checked-out branch has no `tools/` one). githerd ships no queue of its own; a repository with
+ * neither pushes unqueued, which the board says.
  * @param {string} root the main checkout
- * @returns {string} the script's path
+ * @returns {string | null} the script's path, or null when there is none
  */
-export const pushQueueScript = (root) => join(root, "tools", "push-queue.sh");
+export const pushQueueScript = (root) =>
+    [join(root, "tools", "push-queue.sh"), join(root, "tmp", "push-queue.sh")].find((p) => existsSync(p)) ?? null;
 
 /**
  * The push queue every session pushes through (`tools/push-queue.sh`, design section 4.8): its
@@ -97,7 +100,7 @@ export const pushQueueScript = (root) => join(root, "tools", "push-queue.sh");
  *   queue script
  */
 export function pushQueueTickets(root) {
-    if (!existsSync(pushQueueScript(root))) return { holder: null, waiters: 0, missing: true };
+    if (!pushQueueScript(root)) return { holder: null, waiters: 0, missing: true };
     const live = liveTickets(root);
     const running = live.slice(0, PUSH_QUEUE_SLOTS).map((t) => `pid ${t.pid} (${basename(t.cwd)})`);
     return { holder: running.length ? running.join(", ") : null, waiters: Math.max(0, live.length - PUSH_QUEUE_SLOTS) };

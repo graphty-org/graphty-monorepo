@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 
 import { classify } from "./classify.mjs";
+import { pushQueueScript } from "./proc.mjs";
 import { parseDryRun } from "./release.mjs";
 
 const GIT_TIMEOUT_MS = 5 * 60_000;
@@ -438,8 +439,8 @@ export async function referenceGate(options) {
     const cached = options.state.reference.gate;
     if (cached?.sha === at.sha) return cached;
     // Through the machine's push queue, like every session's gate, when the repository has one.
-    const queue = join(options.root, "tools", "push-queue.sh");
-    const gate = existsSync(queue) ? [queue, "bash", "tools/prepush.sh"] : ["tools/prepush.sh"];
+    const queue = pushQueueScript(options.root);
+    const gate = queue ? [queue, "bash", "tools/prepush.sh"] : ["tools/prepush.sh"];
     const r = await run("bash", gate, {
         cwd: at.dir,
         timeoutMs: options.timeoutMs ?? GATE_TIMEOUT_MS,

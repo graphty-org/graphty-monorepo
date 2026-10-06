@@ -295,8 +295,9 @@ adopting it needs:
 - `.mcp.json` and the `.claude/settings.json` hooks of this repository, with
   `graphty-org_graphty-monorepo` replaced by its own `<owner>_<name>`;
 - `tools/push-queue.sh`, the push queue every session pushes through (this repository's own
-  tool). Without it githerd's pushes and its reference gate run unqueued: it still pushes, but the
-  board says so (`PUSH QUEUE: none` and a `no-push-queue` item) until the script exists. A copy of
+  tool; githerd also uses the main checkout's `tmp/push-queue.sh` when the checked-out branch has
+  no `tools/` copy). Without either, githerd's pushes and its reference gate run unqueued: it still
+  pushes, and the board's `PUSH QUEUE: none` line says so until a script exists. A copy of
   this repository's script works as it is: it keeps its tickets and its push log in its own main
   checkout's `tmp/`, so each repository has its own queue;
 - `tools/prepush.sh`, the gate the reference worktree runs, printing `Pre-push validation failed`

@@ -193,12 +193,7 @@ const ABOVE_THRESHOLD_DETERMINISTIC_SET: readonly InsightCapability[] = [
  * @param body - the one-sentence body.
  * @returns the card spec.
  */
-function buildCard(
-    capability: InsightCapability,
-    title: string,
-    technicalName: string,
-    body: string,
-): InsightCardSpec {
+function buildCard(capability: InsightCapability, title: string, technicalName: string, body: string): InsightCardSpec {
     return {
         id: capability,
         capability,

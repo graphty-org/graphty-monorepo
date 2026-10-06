@@ -335,9 +335,7 @@ describe("insightCandidates", () => {
         });
 
         it("draws the frozen Narrow the view copy, with the one-line comma collapse", () => {
-            const [narrow] = insightCandidates(largeShape()).filter(
-                (card) => card.capability === "narrow-the-view",
-            );
+            const [narrow] = insightCandidates(largeShape()).filter((card) => card.capability === "narrow-the-view");
 
             expect(narrow.title).toBe("Narrow the view");
             expect(narrow.technicalName).toBe("Filter builder, Explore");

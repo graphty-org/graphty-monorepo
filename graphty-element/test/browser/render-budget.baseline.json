@@ -1,15 +1,15 @@
 {
     "1000 nodes, 2000 edges": {
         "drawCalls": 3,
-        "activeMeshes": 5000,
-        "sceneMeshes": 5003,
+        "activeMeshes": 1002,
+        "sceneMeshes": 1003,
         "materials": 4,
         "textures": 0
     },
     "10000 nodes, 20000 edges": {
         "drawCalls": 3,
-        "activeMeshes": 50000,
-        "sceneMeshes": 50003,
+        "activeMeshes": 10002,
+        "sceneMeshes": 10003,
         "materials": 4,
         "textures": 0
     }

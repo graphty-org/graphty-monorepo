@@ -4054,7 +4054,7 @@ function refusedPrRuns(nodes, prs, { refused, ran }) {
             if (id > (newest.get(c.workflow) ?? 0)) newest.set(c.workflow, id);
         }
         for (const [workflow, id] of newest) {
-            const jobs = checks.filter((c) => c.checkSuite.workflowRun.databaseId === id);
+            const jobs = checks.filter((c) => c.checkSuite?.workflowRun?.databaseId === id);
             const failed = jobs
                 .filter((c) => RED_JOB.has(String(c.conclusion).toLowerCase()))
                 .map((c) => ({ ...c, name: c.job, id: c.databaseId, refused: refused(c.databaseId) }));

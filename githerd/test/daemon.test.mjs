@@ -2286,8 +2286,16 @@ describe("failure classes on master", () => {
             check(2, T4, ["11:00:00", "11:00:05"], 302),
             check(4, "T4 GPU gate", ["11:00:10", "11:00:15"], 302),
         ];
-        // #8's T4 got a runner (it ran 20 minutes) after the refusal: the balance is back.
-        const granted = () => pr(8, C, [check(3, T4, ["11:00:00", "11:20:00"], 303)]);
+        // #8's T4 got a runner (it ran 20 minutes) after the refusal: the balance is back. Beside it a
+        // check run no workflow made (Mergify's), which has no workflow run.
+        const granted = () =>
+            pr(8, C, [
+                check(3, T4, ["11:00:00", "11:20:00"], 303),
+                {
+                    ...check(7, "Mergify Merge Protections", ["11:00:00", "11:00:01"], 0),
+                    checkSuite: { workflowRun: null },
+                },
+            ]);
         const balanceReruns = async () =>
             (await readLedger(join(dir, ".githerd")))
                 .filter((e) => e.situation === "balance-refused-run")
@@ -2325,6 +2333,9 @@ describe("failure classes on master", () => {
             expect(await balanceReruns()).toEqual([
                 ["would-do", "worker-writes", "POST actions/runs/302/rerun-failed-jobs"],
             ]);
+            expect(daemon.state.ownerItems["runner-balance:GPU / Test (NVIDIA T4)"]).toMatchObject({
+                endedBy: "cleared",
+            });
             expect(gh.writes()).toEqual([]);
         });
 

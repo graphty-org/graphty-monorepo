@@ -213,9 +213,12 @@ async function keepAside(bad, at, errors) {
  * overwritten with its fields dropped.
  * @param {string} dir the .githerd directory
  * @param {{schema: number}} state the state
+ * @param {{durable?: boolean}} [options] `durable: false` skips the fsync of the temporary file (tests:
+ *   a fsync waits on the disk, which every other process writing to it slows down); the rename is
+ *   atomic either way
  * @returns {Promise<void>} resolves once the new file is in place
  */
-export function saveState(dir, state) {
+export function saveState(dir, state, { durable = true } = {}) {
     if (state?.schema !== STATE_SCHEMA) {
         return Promise.reject(
             new Error(`refusing to save state with schema ${state?.schema}; this code writes ${STATE_SCHEMA}`),
@@ -229,7 +232,7 @@ export function saveState(dir, state) {
             const handle = await open(tmp, "wx");
             try {
                 await handle.writeFile(text);
-                await handle.sync();
+                if (durable) await handle.sync();
             } finally {
                 await handle.close();
             }

@@ -761,3 +761,23 @@ describe("gmlExporter: dropped columns", () => {
         expect(diffs, describeDiffs(diffs)).toEqual([]);
     });
 });
+
+describe("gmlExporter: a column renamed after it was read from GML", () => {
+    it("is written under its new name, so an invalid new name is checked like any other", async () => {
+        for (const domain of ["nodes", "edges"] as const) {
+            const s = await importGml(
+                "graph [ node [ id 1 my_score 2 ] node [ id 2 my_score 3 ] edge [ source 1 target 2 my_score 4 ] ]",
+            );
+            s[domain].rename("my_score", "my score");
+            expect(codes(gmlExporter.check(s))).toContain(INVALID_KEY_CODE);
+            await expectExportError(s, undefined, "E_UNSUPPORTED");
+            expect(codes(gmlExporter.check(s, { sanitizeKeys: "mangle" }))).toContain(KEY_MANGLED_CODE);
+        }
+    });
+
+    it("writes a column read from GML under the key it was read from", async () => {
+        const s = await importGml('graph [ node [ id 1 label "a" ] edge [ source 1 target 1 my_key 1 ] ]');
+        const text = await gmlExporter.exportToString(s);
+        expect(lines(text)).toContain("my_key 1");
+    });
+});

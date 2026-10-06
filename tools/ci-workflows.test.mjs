@@ -155,6 +155,21 @@ describe("ci.yml", () => {
         assert.ok(ci.includes(`    MERGE_QUEUE: \${{ ${QUEUE} }}\n`), "the workflow names the merge queue once");
     });
 
+    it("never lets a draft run cancel a ready run, and never cancels a push to master (#1108)", () => {
+        // `opened` (draft: true) and `ready_for_review` (draft: false) fire a second apart. Sharing one
+        // group, whichever was queued second cancelled the other, which could leave only the draft's
+        // "draft: CI not run". A plain draft -- exactly the drafts the build job skips -- gets its own
+        // group; the merge queue's drafts are real runs and stay with the ready runs.
+        const block = ci.match(/^concurrency:\n((?: {4}.*\n)+)/m);
+        assert.ok(block, "ci.yml has a workflow-level concurrency block");
+        assert.equal(
+            block[1],
+            "    group: ci-${{ github.event.pull_request.number || github.sha }}-" +
+                `\${{ github.event.pull_request.draft && !(${QUEUE}) && 'draft' || 'run' }}\n` +
+                "    cancel-in-progress: ${{ github.event_name == 'pull_request' }}\n",
+        );
+    });
+
     it("fails, never skips, the summary checks on a draft", () => {
         // A skipped required check counts as passing, and the draft run's check stays on the head SHA
         // after "gh pr ready" until the new run reports.
@@ -393,7 +408,8 @@ describe("release.yml", () => {
         assert.match(train, /is still open; it must merge or close first/);
         assert.match(train, /node tools\/release-hold.mjs apply --only "\$PACKAGES"/);
         assert.match(train, /node tools\/release-diff.mjs "\$SHA" "\$COMMIT"/);
-        assert.match(train, /--label priority:critical/);
+        // the train is put first by .mergify.yml's "release train" priority rule, not a label
+        assert.doesNotMatch(train, /--label/);
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
@@ -412,6 +428,17 @@ describe("release.yml", () => {
         const rule = mergify.indexOf("- name: release");
         assert.ok(rule > 0 && rule < mergify.indexOf("- name: default"));
         assert.match(mergify.slice(rule), /^\s+- head~=\^release\/train-$/m);
+    });
+
+    it("puts the train first by its branch, and lets no priority rule interrupt the batches being checked", () => {
+        const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
+        const rules = mergify.slice(mergify.indexOf("priority_rules:"), mergify.indexOf("queue_rules:"));
+        assert.doesNotMatch(rules, /allow_checks_interruption: *true/);
+        const train = rules.slice(rules.indexOf("- name: release train"));
+        assert.match(train, /^\s+- head~=\^release\/train-$/m);
+        assert.match(train, /^\s+- author=github-actions\[bot\]$/m);
+        assert.match(train, /^\s+priority: high$/m);
+        assert.match(train, /^\s+allow_checks_interruption: false$/m);
     });
 
     it("deploys graphty.app from every green CI run of a push to master", () => {

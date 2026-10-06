@@ -175,7 +175,9 @@ describe("graphtyExport and graphtyImport", () => {
         const cy = core(sample());
         const err: unknown = await cy.graphtyImport("source,target\n,b\n", "csv").catch((e: unknown) => e);
         expect(err).toBeInstanceOf(ImportError);
-        expect((err as ImportError).message).toMatch(/^nothing could be read from the input as csv: E_MISSING_ENDPOINT/);
+        expect((err as ImportError).message).toMatch(
+            /^nothing could be read from the input as csv: E_MISSING_ENDPOINT/,
+        );
         expect((err as ImportError).report.errorCount).toBeGreaterThan(0);
         expect(cy.elements()).toHaveLength(5);
         // a file with nodes and a bad row still resolves, with the error in its report

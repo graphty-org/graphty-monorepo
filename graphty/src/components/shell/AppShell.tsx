@@ -3110,6 +3110,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     tiedAtMinimum: ranking.tiedAtMinimum,
                 };
 
+                /* The element's top at the render ceiling, when it left nodes out. */
+                const cutToDraw = ranking.drawable?.threshold === null ? undefined : ranking.drawable;
+
                 setActiveResult({
                     id: metric,
                     title: definition.plainName,
@@ -3135,11 +3138,11 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         kind: "metric",
                         bins: ranking.distribution.bins,
                         threshold: ranking.drawable?.threshold ?? ranking.minValue,
-                        ...(ranking.drawable === undefined || ranking.drawable.threshold === null
+                        ...(cutToDraw === undefined
                             ? {}
                             : {
                                   thresholdNote: `Starting where the result is drawable: ${formatCount(
-                                      ranking.drawable.entries.length,
+                                      cutToDraw.entries.length,
                                   )} of ${formatCount(ranking.rankedCount)} nodes.`,
                               }),
                     },

@@ -403,10 +403,10 @@ function mixturePoints(
 function nearestNeighbours(axes: Float64Array[], k: number): Uint32Array<ArrayBuffer> {
     const n = axes[0].length;
     const dimension = axes.length;
-    const result = new Uint32Array(n * k);
     if (k === 0) {
-        return result;
+        return new Uint32Array(0);
     }
+    const result = new Uint32Array(n * k);
     const lo = axes.map((axis) => axis.reduce((a, b) => Math.min(a, b), Infinity));
     const hi = axes.map((axis) => axis.reduce((a, b) => Math.max(a, b), -Infinity));
     const g = cellsPerAxis(Math.max(1, n / k), dimension);

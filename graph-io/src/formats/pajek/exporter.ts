@@ -528,7 +528,7 @@ function firstModeOf(snapshot: GraphSnapshot): number | null {
     if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= snapshot.nodeCount) {
         return value;
     }
-    return NaN;
+    return Number.NaN;
 }
 
 /**

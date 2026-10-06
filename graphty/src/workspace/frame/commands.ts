@@ -1,9 +1,9 @@
 import { defineRegistration } from "../commands/registry";
+import { unlessUnsaved } from "../project/actions";
+import { newProjectId } from "../state/store";
 
 /** Where Help > Documentation goes. */
 const DOCUMENTATION_URL = "https://graphty.app/docs/";
-
-let nextProjectId = 1;
 
 /**
  * The Frame's own commands: New project, Rename, Undo and Redo, the two places, clearing the
@@ -16,14 +16,15 @@ export const registration = defineRegistration({
             id: "project.new",
             label: "New project",
             group: "Project",
-            run: ({ workspace }) => {
-                nextProjectId += 1;
-                workspace.set({
-                    project: { name: "Untitled", id: nextProjectId },
-                    page: "panels",
-                    place: "graph",
-                    inspected: null,
-                    dialog: null,
+            run: (ctx) => {
+                unlessUnsaved(ctx, () => {
+                    ctx.workspace.set((state) => ({
+                        project: { name: "Untitled", id: newProjectId(state) },
+                        page: "panels",
+                        place: "graph",
+                        inspected: null,
+                        dialog: null,
+                    }));
                 });
             },
         },

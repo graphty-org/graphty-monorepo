@@ -3110,7 +3110,7 @@ export async function startDaemon({
                 usage: state.apiStop?.kind === "usage",
                 paused: mode() === "paused" || Boolean(state.settings?.paused),
             };
-            const steps = [...tickJobs(state, t, pauses), ...settleWaits(state, t, config)];
+            const steps = [...tickJobs(state, t, pauses), ...settleWaits(state, t)];
             for (const s of steps) void ledger(/** @type {any} */ (s.line));
             for (const s of steps) if (s.ring) await ringJob(state.jobs[s.job]);
             checkFaults(state, invariantReads(), t);

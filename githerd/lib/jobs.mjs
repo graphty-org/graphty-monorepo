@@ -32,9 +32,9 @@
  *   the next is made once that one leaves the queue, never one per backlog issue. An issue a session
  *   deferred (`state.deferred`, done.mjs) is left out until its revision changes. Only the types of
  *   `backlog.issueTypes` get a new job (bug and infrastructure by default) unless the owner picked the
- *   issue, even one master already references (`issueRefusal` in queue.mjs, the one rule); a queued,
- *   unheld job the rule refuses (its type, a `needs-*` or `blocked` label) is withdrawn
- *   (cancelled, `facts.withdrawn`) and made again once the rule allows it. An effort:low issue job
+ *   issue, even one master already references (`issueRefusal` in queue.mjs, the one rule). A job
+ *   already made is never cancelled because the rule changed (the owner, 2026-10-06): the rule
+ *   decides only which new jobs are made. An effort:low issue job
  *   may bundle up to `backlog.bundleMax - 1` more small issues of its type and package
  *   (`facts.batch`, the anchor first; `bundleOf`), fixed in one pull request: each is in use while
  *   the job is held, and none gets a job of its own until the bundle ends.
@@ -55,7 +55,6 @@
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
 import {
-    issueRefusal,
     issueRule,
     jobInUse,
     masterRefs,
@@ -596,7 +595,6 @@ function cancelClosedIssueJobs(state, cancel) {
 function issueJobs(state, config, now, add, cancel) {
     relandJobs(state, now, add);
     cancelClosedIssueJobs(state, cancel);
-    withdrawUnoffered(state, config, cancel);
     const deferred = endChangedDeferrals(state);
     for (const [n, revision] of Object.entries(state.unbundled ?? {}))
         if (state.issues?.byNumber?.[n]?.updatedAt !== revision) delete state.unbundled[n];
@@ -719,34 +717,6 @@ function bundleOf(state, config, now, top, candidates) {
         })
         .slice(0, bundleMax - 1)
         .map((r) => r.number);
-}
-
-/**
- * Withdraws every queued, unheld issue job `issueRefusal` refuses now (a type githerd does not
- * offer, a `needs-*` or `blocked` label), its own issue or any issue of its bundle, even one master
- * references: cancelled with `facts.withdrawn`, so it is made again once the rule allows it. A job
- * a session holds is finishing work in flight and stays, and so do a re-land and a promotion, and
- * a job whose issue githerd has not read.
- * @param {any} state the daemon state
- * @param {any} config the normalized config
- * @param {(job: any, reason: string) => void} cancel cancels a job
- */
-function withdrawUnoffered(state, config, cancel) {
-    for (const job of Object.values(state.jobs)) {
-        if (job.kind !== "issue" || job.state !== "queued" || job.holder) continue;
-        if (job.facts?.scope === "reland" || job.facts?.scope === "promote") continue;
-        const anchor = Number(String(job.target).replace(/^#/, ""));
-        const issues = [...new Set([anchor, ...(job.facts?.batch ?? []).map(Number)])];
-        const reason = issues
-            .map((n) => {
-                const why = state.issues?.byNumber?.[n] && issueRefusal(state, n, config);
-                return why && (n === anchor ? why : `#${n} of its bundle: ${why}`);
-            })
-            .find(Boolean);
-        if (!reason) continue;
-        job.facts = { ...job.facts, withdrawn: true };
-        cancel(job, reason);
-    }
 }
 
 /**

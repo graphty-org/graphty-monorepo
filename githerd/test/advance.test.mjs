@@ -141,19 +141,16 @@ describe("settleWaits", () => {
         expect(blocked).toMatchObject({ state: "queued", reason: "blocker push ended" });
     });
 
-    it("withdraws a blocked issue job whose blocker ended when githerd no longer offers its issue", () => {
+    it("re-queues a blocked issue job whose blocker ended even when githerd no longer offers its issue", () => {
         const other = working("other");
         const blocked = newJob({ kind: "issue", target: "#2", id: "issue-2" }, T0);
         move(blocked, "starting", T0);
         move(blocked, "blocked", T0, { waitingFor: { job: "other" } });
         const issue = { state: "open", author: "me", labels: ["enhancement"] };
         const state = { ...stateOf(other, blocked), trust: { login: "me" }, issues: { byNumber: { 2: issue } } };
-        const config = { labels: { types: ["bug", "enhancement"] }, backlog: { issueTypes: ["bug"] } };
         move(other, "cancelled", at(1));
-        expect(settleWaits(state, at(2), config).map((s) => s.line)).toEqual([
-            { kind: "job-cancelled", job: "issue-2", reason: "enhancements are not offered for now" },
-        ]);
-        expect(blocked).toMatchObject({ state: "cancelled", facts: { withdrawn: true } });
+        expect(settleWaits(state, at(2)).map((s) => s.line)).toEqual([{ kind: "job-unblocked", job: "issue-2" }]);
+        expect(blocked).toMatchObject({ state: "queued" });
     });
 });
 

@@ -587,7 +587,7 @@ describe("syncJobs: issues", () => {
         expect(state.jobs["issue-42"].facts.references).toEqual(["958d8e9c6"]);
     });
 
-    it("withdraws a queued verify job or bundle the rule refuses, and leaves a held one", () => {
+    it("never cancels a queued verify job or bundle the rule now refuses", () => {
         const state = base();
         for (const n of [42, 43]) issue(state, n, ["enhancement", "priority:high", "effort:low"]);
         issue(state, 44, ["bug", "priority:high", "effort:low"]);
@@ -607,15 +607,13 @@ describe("syncJobs: issues", () => {
         };
         state.issues.byNumber[45].labels.push("needs-decision");
         const out = sync(state);
-        expect(out.cancelled).toEqual([
-            { job: "issue-42", reason: "enhancements are not offered for now" },
-            { job: "issue-44", reason: "#45 of its bundle: the issue is labelled needs-decision" },
-        ]);
-        expect(state.jobs["issue-42"].facts.withdrawn).toBe(true);
+        expect(out.cancelled).toEqual([]);
+        expect(state.jobs["issue-42"].state).toBe("queued");
+        expect(state.jobs["issue-44"].state).toBe("queued");
         expect(state.jobs["issue-43"].state).toBe("working");
     });
 
-    it("withdraws a queued enhancement job, keeps a held one, and makes it again once enhancements are offered", () => {
+    it("keeps a queued enhancement job when enhancements stop being offered", () => {
         const withEnhancements = normalizeConfig({
             repo: "o/r",
             lanes: { ci: { workflow: "ci.yml", gating: "required" } },
@@ -630,12 +628,9 @@ describe("syncJobs: issues", () => {
         syncJobs(state, { config: withEnhancements, now: NOW });
         expect(state.jobs["issue-41"].state).toBe("queued");
         const out = sync(state);
-        expect(out.cancelled).toEqual([{ job: "issue-41", reason: "enhancements are not offered for now" }]);
-        expect(state.jobs["issue-41"]).toMatchObject({ state: "cancelled", facts: { withdrawn: true } });
-        expect(state.jobs["issue-40"].state).toBe("starting");
-        expect(sync(state).created).toEqual([]);
-        expect(syncJobs(state, { config: withEnhancements, now: NOW }).created).toEqual(["issue-41"]);
+        expect(out.cancelled).toEqual([]);
         expect(state.jobs["issue-41"].state).toBe("queued");
+        expect(state.jobs["issue-40"].state).toBe("starting");
     });
 
     it("never offers an issue labeled needs-decision, whatever its priority", () => {

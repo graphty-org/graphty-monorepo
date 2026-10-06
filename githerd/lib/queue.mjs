@@ -136,24 +136,27 @@ function ownerWait(number, rec, state) {
 /**
  * What one of the owner's open pull requests needs from a worker (design 5.1, `pr` jobs): an own
  * failing required check, a conflict seen twice, or an owner's visual reject. Null when it is
- * landing on its own, waits on the owner, is a draft, is stacked on another pull request, or is
- * not the owner's.
+ * landing on its own, waits on the owner, is a draft, or is not the owner's. A pull request stacked
+ * on another one needs a worker only for a conflict with its base: resolving it is a session's
+ * work, never the owner's decision.
  * @param {string} number the PR number
  * @param {any} rec the PR record
  * @param {any} state the daemon state
  * @returns {string | null} the need
  */
 export function prWork(number, rec, state) {
-    if (!byOwner(state, rec.author) || rec.draft || rec.stackedOn) return null;
+    if (!byOwner(state, rec.author) || rec.draft) return null;
     if (ownerWait(number, rec, state)) return null;
+    // GitHub's answer of this poll, read again every poll: it clears as soon as GitHub says so.
+    const github = rec.mergeState ?? rec.mergeable ?? "CONFLICTING";
+    const base = rec.stackedOn ? `its base #${rec.stackedOn}` : (rec.baseRef ?? "its base");
+    const conflict = (rec.conflictSightings ?? 0) >= 2 ? `conflicting with ${base} (GitHub: ${github})` : null;
+    if (rec.stackedOn) return conflict;
     const failing = failingRequired(rec);
     if (rec.ownerRejected) return "owner rejected images";
     if (rec.captureFailed?.length) return `visual capture failed: ${rec.captureFailed.join("; ")}`;
     if (failing.length && !rec.ownerGate) return `required check failing: ${failing.join(", ")}`;
-    // GitHub's answer of this poll, read again every poll: it clears as soon as GitHub says so.
-    const github = rec.mergeState ?? rec.mergeable ?? "CONFLICTING";
-    if ((rec.conflictSightings ?? 0) >= 2) return `conflicting with ${rec.baseRef ?? "its base"} (GitHub: ${github})`;
-    return null;
+    return conflict;
 }
 
 /**

@@ -12,8 +12,8 @@
  *   procedure did not end intermittent, and every open release escalation (a failed or stalled
  *   release).
  * - `incident-local-<step>`: the pre-push gate failing on the green commit (the reference worktree).
- * - `pr-<n>`: the owner's non-draft, non-stacked pull requests with an own failing required check,
- *   a conflict seen twice, or the owner's visual reject; never one that changes githerd's own
+ * - `pr-<n>`: the owner's non-draft pull requests with an own failing required check, a conflict
+ *   seen twice (the only work of a stacked one), or the owner's visual reject; never one that changes githerd's own
  *   config, hooks or worker instructions (those are listed for the owner's sessions).
  * - `title-<n>`: such a pull request whose only failing check is `Lint PR Title`.
  * - `review-<n>`: a pull request a githerd job made, at a patch id no review has seen.

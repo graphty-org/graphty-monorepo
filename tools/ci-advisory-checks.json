@@ -10,7 +10,6 @@
             "Install dependencies",
             "Plan affected projects and test shards",
             "CI workflow tests",
-            "Security audit",
             "Cache Nx",
             "Build affected (PR)",
             "Build the rest (PR), so every shard finds its artifact",

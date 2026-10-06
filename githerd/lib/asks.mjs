@@ -299,6 +299,8 @@ function room(state, session) {
 /** Job states a session is actively working in; a `waiting` job counts only while it waits on the session's own task. */
 const ACTIVE = new Set(["working", "starting"]);
 const DEFAULT_MAX_ACTIVE = 3;
+/** The capacity rule as sessions read it, in the status question and in the claim refusal alike. */
+const NOT_COUNTED = "Jobs that are only waiting to push or for CI do not count toward your capacity";
 
 /**
  * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
@@ -319,7 +321,7 @@ export function atActiveCap(state, session, config) {
             !waits.has(j.id) &&
             (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
     ).length;
-    return active >= max ? `you hold ${active} active jobs; finish or report one first` : null;
+    return active >= max ? `you hold ${active} active jobs; finish or report one first. ${NOT_COUNTED}.` : null;
 }
 
 /**
@@ -477,7 +479,7 @@ function statusText(state, jobs, minutes) {
         "where it stands. " +
         "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
         "jobs this session can take now (0 if none); githerd invites a session with room to queued work even while it is busy. " +
-        "Jobs that are only waiting to push or for CI do not use your capacity: count only jobs you are actively " +
+        `${NOT_COUNTED}: count only jobs you are actively ` +
         "working when you answer capacity. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +
         "Do the jobs' work in background subagents or workflows, so this conversation stays free to answer githerd."

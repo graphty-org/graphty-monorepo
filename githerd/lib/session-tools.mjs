@@ -17,7 +17,7 @@ import { join } from "node:path";
 import * as board from "./board.mjs";
 import { githerdDone, namesIssue, numberOf } from "./done.mjs";
 import { taskOutputPath } from "./hook.mjs";
-import { atActiveCap } from "./asks.mjs";
+import { atActiveCap, markMine } from "./asks.mjs";
 import { askOwner, recordOwner } from "./owner.mjs";
 import { jobText } from "./job-text.mjs";
 import { isMasterFix } from "./master-fix.mjs";
@@ -353,28 +353,9 @@ export function sessionToolSet(ctx) {
             if (client.job) throw new Error(`this worker works on ${client.job}; its pull request is its job's`);
             const rec = state.prs?.[String(args.pr)];
             if (!rec) throw new Error(`githerd knows no open pull request #${args.pr}`);
-            state.asks ??= {};
-            const ask = askFor(state, args.pr) ?? (state.asks[String(args.pr)] = { head: rec.headSha, sessions: [] });
-            if (ask.owner && ask.owner.session !== session) {
-                return {
-                    text: JSON.stringify({
-                        ok: false,
-                        reason: `session ${ask.owner.name} already said #${args.pr} is its`,
-                    }),
-                    isError: true,
-                };
-            }
-            const held = state.prOwners?.[String(args.pr)];
-            if (held && held.session !== session) {
-                const reason = `session ${held.name} owns #${args.pr}`;
-                return { text: JSON.stringify({ ok: false, reason }), isError: true };
-            }
             const name = registryName(ctx.home, client.pid ?? state.sessions?.[session]?.pid, session) ?? session;
-            const at = now.toISOString();
-            ask.owner = { session, name, at };
-            // The durable record (asks.mjs): a new push keeps it, the session's end or the close drops it.
-            state.prOwners ??= {};
-            state.prOwners[String(args.pr)] = { session, name, at, by: "tool" };
+            const refused = markMine(state, args.pr, { session, name, at: now.toISOString(), by: "tool" });
+            if (refused) return { text: JSON.stringify({ ok: false, reason: refused }), isError: true };
             await ctx.commit({ kind: "pr-mine", pr: args.pr, head: rec.headSha, session });
             return JSON.stringify({
                 ok: true,

@@ -10,7 +10,9 @@
  * - `POST /heartbeat`: `{session, cwd, branch, typedAt}` registers or refreshes a session;
  *   `typedAt`, when the owner last typed into a session there, counts as presence.
  * - `POST /owner`: the owner's CLI. `{op: "ack", key}` clears an escalation, `{op: "veto", id}`
- *   vetoes closing an issue or pull request (`issue:<n>` or `pr:<n>`) for good.
+ *   vetoes closing an issue or pull request (`issue:<n>` or `pr:<n>`) for good. `{op:
+ *   "session-mine" | "session-disown", pr, session}` is `githerd mine <pr>` or `githerd disown <pr>`
+ *   run from inside a Claude session, for that session (the CLI finds it up its process chain).
  *
  * Presence (design 11.3) is recorded only from a request whose `X-Githerd-Caller` is `owner`, which
  * the CLI sends for an owner command (`status`, `ack`, `veto`) run from a plain terminal and never
@@ -67,7 +69,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
+import { askStep, disown, inviteStep, markMine, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes, NO_PUSH_QUEUE } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -168,7 +170,7 @@ import { secretValues } from "./text.mjs";
 import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, statusData } from "./tools.mjs";
 import { ring as ringWorker, running } from "./tmux.mjs";
-import { readVersion } from "./version.mjs";
+import { PACKAGE_DIR, readVersion } from "./version.mjs";
 import { endRetired, watchPass, watchWanted } from "./watchdog.mjs";
 import { codeEnv, readSigningEnv } from "./worker-settings.mjs";
 import {
@@ -502,6 +504,19 @@ function requeueLostStarts(state, at) {
 }
 
 /**
+ * How a session without githerd's tools answers githerd (asks.mjs): this daemon's own command line,
+ * pointed at its state directory when that is not the default (the development daemon's).
+ * @param {string} root the main checkout
+ * @param {string} stateDir the daemon's state directory
+ * @param {string | undefined} home the home directory
+ * @returns {string} the command line, without its subcommand
+ */
+function sessionCli(root, stateDir, home) {
+    const flag = stateDir === defaultStateDir(root, home) ? "" : `GITHERD_STATE_DIR=${stateDir} `;
+    return `${flag}node ${join(PACKAGE_DIR, "bin", "githerd.mjs")}`;
+}
+
+/**
  * Starts the daemon.
  * @param {object} options what it runs on
  * @param {string} options.root the repository's main checkout
@@ -567,6 +582,7 @@ export async function startDaemon({
     const startedAt = startedAtDate.toISOString();
     const self = identify(process.pid);
     const { version, codeHash } = readVersion();
+    const cliCommand = sessionCli(root, stateDir, env.HOME);
     /** Resolves `done`. @type {(reason: {reason: string}) => void} */
     let finish = () => {};
     /** @type {Promise<{reason: string}>} */
@@ -1926,7 +1942,7 @@ export async function startDaemon({
      */
     async function askOwners(t) {
         const facts = { root, ...(await (peers.ownerFacts ?? ownerFacts)()) };
-        state.prInferred = inferOwners(state.prs ?? {}, facts);
+        state.prInferred = inferOwners(state.prs ?? {}, { ...facts, disowned: state.prDisowned ?? {} });
         state.prActivity = prActivity(state.prs ?? {}, facts);
         // Which held jobs only wait to push (waits.mjs): the push queue's tickets, by branch and session.
         state.pushTickets = attributeTickets(liveTickets(root), facts);
@@ -1936,6 +1952,7 @@ export async function startDaemon({
             sessions: liveInRepo,
             transport: peers.transport ?? socketTransport(),
             sessionGone: ownerSessionGone,
+            cli: cliCommand,
         });
         for (const line of lines) void ledger(line);
     }
@@ -1998,6 +2015,7 @@ export async function startDaemon({
             transport: peers.transport ?? socketTransport(),
             minutes: config.workers.statusMinutes,
             owners: liveInRepo,
+            cli: cliCommand,
         });
         for (const line of lines) void ledger(line);
     }
@@ -3035,7 +3053,10 @@ export async function startDaemon({
      *   jobs an answer sent back to work
      */
     function owner(cmd, worker) {
-        if (worker && ["ack", "veto", "policy-end", "mine", "mine-drop"].includes(cmd?.op)) {
+        if (
+            worker &&
+            ["ack", "veto", "policy-end", "mine", "mine-drop", "session-mine", "session-disown"].includes(cmd?.op)
+        ) {
             return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
         }
         if (cmd?.op === "ack") {
@@ -3049,6 +3070,7 @@ export async function startDaemon({
         }
         if (cmd?.op === "veto") return ownerVeto(String(cmd.id));
         if (["mine", "mine-list", "mine-drop"].includes(cmd?.op)) return ownerMine(cmd);
+        if (cmd?.op === "session-mine" || cmd?.op === "session-disown") return sessionAnswer(cmd);
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -3058,7 +3080,8 @@ export async function startDaemon({
         return {
             status: 400,
             text:
-                "op must be ack, veto, mine, mine-list, mine-drop, answer, order, policy, policy-end, pause, resume, " +
+                "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, answer, order, policy, " +
+                "policy-end, pause, resume, " +
                 "workers, keep or release",
         };
     }
@@ -3106,6 +3129,48 @@ export async function startDaemon({
             status: 200,
             text: `#${pr} is ${s.name}'s until that session ends or the pull request closes`,
             entry: { kind: "pr-owner", pr: Number(pr), session: s.sessionId, name: s.name, by: "cli" },
+        };
+    }
+
+    /**
+     * `githerd mine <pr>` and `githerd disown <pr>` run from inside a Claude session: the answer
+     * that session would give with `githerd_mine`, or its release of the pull request (asks.mjs
+     * markMine and disown). The CLI names the session it runs under, found up its own process
+     * chain; it must be a live entry in Claude Code's session registry. It acts for that session
+     * only.
+     * @param {any} cmd `{op: "session-mine" | "session-disown", pr, session}`
+     * @returns {any} the answer
+     */
+    function sessionAnswer(cmd) {
+        const pr = String(cmd.pr ?? "");
+        const verb = cmd.op === "session-mine" ? "mine" : "disown";
+        if (!/^\d+$/.test(pr)) return { status: 400, text: `${verb} takes a pull request number, not ${pr}` };
+        if (!state.prs?.[pr]) return { status: 404, text: `githerd knows no open pull request #${pr}` };
+        const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
+        const s = (peers.registered ?? registeredSessions)({ sessionsDir }).find((x) => x.sessionId === cmd.session);
+        if (!s) return { status: 404, text: `no live Claude Code session ${cmd.session} in the session registry` };
+        const at = now().toISOString();
+        if (verb === "mine") {
+            const refused = markMine(state, pr, { session: s.sessionId, name: s.name, at, by: "session" });
+            if (refused) return { status: 409, text: refused };
+            return {
+                status: 200,
+                text: `#${pr} is ${s.name}'s until that session ends or the pull request closes`,
+                entry: {
+                    kind: "pr-mine",
+                    pr: Number(pr),
+                    head: state.prs[pr].headSha,
+                    session: s.sessionId,
+                    by: "cli",
+                },
+            };
+        }
+        const gave = disown(state, pr, { session: s.sessionId, name: s.name, at });
+        const what = gave.length ? `${s.name} gave up ${gave.join(" and ")}` : `${s.name} held nothing on it`;
+        return {
+            status: 200,
+            text: `#${pr} disowned: ${what}; only a new push, a claim or mine by ${s.name} makes it its again`,
+            entry: { kind: "pr-disowned", pr: Number(pr), session: s.sessionId, name: s.name },
         };
     }
 

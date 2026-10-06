@@ -16,6 +16,7 @@ import { join, resolve } from "node:path";
 import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
 import { originHead, repoRoot } from "./config.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
+import { callingSession } from "./owners.mjs";
 import {
     daemonStartArgs,
     ensureDaemon,
@@ -54,6 +55,10 @@ const USAGE = `usage: githerd <command>
   mine <pr> <session-name>                 that live Claude session owns the pull request until it
                                            ends or the pull request closes: never offered or asked about
   mine --list | mine --drop <pr>           the owner records, or remove one
+  mine <pr> | disown <pr>                  from inside a Claude session, for that session only: it
+                                           is working on the pull request (githerd_mine), or gives
+                                           it up now, and githerd does not infer it back from
+                                           earlier pushes
   answer <item> <words>                    answer an owner item ("not yet" keeps it open)
   order <N...> <words>                     record an order: these issues, in this order
   policy [freeze-merges | park-gate <lane> | hold-package <name>] <words>
@@ -101,6 +106,9 @@ const LOWER_MODES = new Set(["dry-run", "paused"]);
  * @property {AbortSignal} [signal] ends `githerd board` (otherwise SIGINT does)
  * @property {typeof runSelftest} [selftest] runs the self-test (tests replace it)
  * @property {boolean} [tty] a person's terminal is attached; default whether standard input is one
+ * @property {{pid?: number, procDir?: string, sessionsDir?: string}} [session] where `mine <pr>`
+ *   and `disown <pr>` look for the calling Claude session: this process, /proc and
+ *   `~/.claude/sessions` by default (tests replace them)
  */
 
 /**
@@ -268,6 +276,7 @@ function daemonEnv(record, stateDir) {
  * @property {AbortSignal} [signal] ends `githerd board`
  * @property {typeof runSelftest} selftest runs the self-test
  * @property {boolean} tty a person's terminal is attached
+ * @property {() => {sessionId: string, name: string} | null} session the Claude session this runs under
  */
 
 /**
@@ -288,6 +297,7 @@ export async function runCli(argv, options = {}) {
         signal,
         selftest = runSelftest,
         tty = Boolean(process.stdin.isTTY),
+        session: where = {},
     } = options;
     const [command, ...rest] = argv;
 
@@ -329,6 +339,12 @@ export async function runCli(argv, options = {}) {
         signal,
         selftest,
         tty,
+        session: () =>
+            callingSession({
+                pid: where.pid ?? process.pid,
+                procDir: where.procDir,
+                sessionsDir: where.sessionsDir ?? join(env.HOME ?? homedir(), ".claude", "sessions"),
+            }),
     });
 }
 
@@ -423,7 +439,9 @@ async function cmdOwner(c) {
 
 /**
  * `mine <pr> <session-name>`, `mine --list` and `mine --drop <pr>`: who owns a pull request,
- * recorded through the daemon, which resolves the name in Claude Code's session registry.
+ * recorded through the daemon, which resolves the name in Claude Code's session registry. `mine
+ * <pr>` and `disown <pr>` act for the Claude session this command runs under, found up its process
+ * chain: there is no way to name another session.
  * @param {Command} c the command
  * @returns {Promise<number>} the exit code
  */
@@ -432,11 +450,24 @@ async function cmdMine(c) {
     const drop = typeof c.flags.drop === "string" ? c.flags.drop : null;
     const [n, name] = c.positional;
     let cmd = null;
-    if (c.flags.list) cmd = { op: "mine-list" };
+    if (c.name === "disown" || (c.name === "mine" && n && !name && !c.flags.list && !drop)) {
+        if (!n || c.positional.length > 1) {
+            c.err("usage: githerd disown <pr>, from inside a Claude session");
+            return 2;
+        }
+        const s = c.session();
+        if (!s) {
+            c.err(
+                `githerd ${c.name} <pr> acts for the Claude session it runs under, and none is up this process chain`,
+            );
+            return 2;
+        }
+        cmd = { op: `session-${c.name}`, pr: pr(n), session: s.sessionId };
+    } else if (c.flags.list) cmd = { op: "mine-list" };
     else if (drop) cmd = { op: "mine-drop", pr: pr(drop) };
     else if (n && name) cmd = { op: "mine", pr: pr(n), name };
     if (!cmd) {
-        c.err("usage: githerd mine <pr> <session-name> | mine --list | mine --drop <pr>");
+        c.err("usage: githerd mine <pr> [<session-name>] | disown <pr> | mine --list | mine --drop <pr>");
         return 2;
     }
     const port = await daemonPort(c);
@@ -837,6 +868,7 @@ const HANDLERS = {
     ack: cmdOwner,
     veto: cmdOwner,
     mine: cmdMine,
+    disown: cmdMine,
     answer: cmdRecord,
     order: cmdRecord,
     policy: cmdRecord,

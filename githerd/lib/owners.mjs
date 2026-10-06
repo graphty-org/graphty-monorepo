@@ -18,6 +18,8 @@
  * push of it), else by a live session present in its worktree. The result, `state.prInferred[<pr>]`, is
  * recomputed every poll, so ownership lapses the poll after the session exits. `prInUse` reads it
  * after the explicit records of `githerd_mine` and `githerd mine` (`state.prOwners`), which win.
+ * A session that disowned a pull request (`githerd disown`, `state.prDisowned`) is never inferred
+ * its owner again from a push made before it disowned it, nor from its worktree.
  */
 
 import { readdirSync, readFileSync, readlinkSync } from "node:fs";
@@ -25,8 +27,8 @@ import { open, readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
 /**
- * `noTools`: the session's claude process runs no githerd MCP server, so it cannot answer githerd's
- * questions; its ownership lasts while it lives (asks.mjs brokenOwner).
+ * `noTools`: the session's claude process runs no githerd MCP server, so githerd's questions tell it
+ * to answer with the githerd command line instead (asks.mjs brokenText).
  * @typedef {{session: string, name: string, evidence: string, noTools?: boolean}} InferredOwner
  */
 /**
@@ -35,6 +37,7 @@ import { join, relative, sep } from "node:path";
  */
 /** @typedef {{pid: number, ppid: number, cwd: string | null, cmd?: string}} Proc */
 /** @typedef {{pid: number, sessionId: string, name: string, cwd?: string}} Registered */
+/** @typedef {Record<string, {session: string, at: string}>} Disowned the disowning session, by pull request */
 /**
  * What the transcripts of one session have shown so far: the bytes read of each file (by path
  * relative to the session's transcript, `""` for the transcript itself) and the latest push time of
@@ -318,12 +321,13 @@ export function parseWorktrees(porcelain) {
  * The inferred owner of each open pull request that has one.
  * @param {Record<string, {headRef?: string}>} prs the open pull requests
  * @param {{root: string, pushLog: PushLine[], sessions: Registered[], procs: Proc[],
- *   worktrees: {dir: string, branch: string}[], transcripts?: Record<string, TranscriptScan>}} facts
- *   the main checkout, the push log, the live registered Claude Code sessions, the process table,
- *   the worktrees and what their transcripts showed (`scanTranscripts`)
+ *   worktrees: {dir: string, branch: string}[], transcripts?: Record<string, TranscriptScan>,
+ *   disowned?: Disowned}} facts the main checkout, the push log, the live registered Claude Code
+ *   sessions, the process table, the worktrees, what their transcripts showed (`scanTranscripts`)
+ *   and who disowned what (`state.prDisowned`)
  * @returns {Record<string, InferredOwner>} the owners, by pull request
  */
-export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, transcripts = {} }) {
+export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, transcripts = {}, disowned = {} }) {
     const live = new Map(sessions.map((s) => [s.sessionId, s]));
     /** @type {Map<string, PushLine>} */
     const lastPush = new Map();
@@ -340,10 +344,17 @@ export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, tr
     for (const [n, rec] of Object.entries(prs ?? {})) {
         if (!rec?.headRef) continue;
         const push = lastPush.get(rec.headRef);
+        const d = disowned[n];
+        // A session that disowned it owns it again only by a push made after it disowned it.
+        /**
+         * Whether a session may own it by a push at a time.
+         * @type {(session: string, at?: string) => boolean}
+         */
+        const may = (session, at) => d?.session !== session || (at !== undefined && Date.parse(at) > Date.parse(d.at));
         const owner =
-            pushLogOwner(push, live) ??
-            transcriptOwner(rec.headRef, push, transcripts, live) ??
-            worktreeOwner(rec.headRef, { root, ownWorktrees, byPid, cwds });
+            pushLogOwner(push, live, may) ??
+            transcriptOwner(rec.headRef, push, transcripts, live, may) ??
+            worktreeOwner(rec.headRef, { root, ownWorktrees, byPid, cwds, may });
         if (!owner) continue;
         const pid = live.get(owner.session)?.pid;
         out[n] = pid !== undefined && tools(pid) === false ? { ...owner, noTools: true } : owner;
@@ -429,11 +440,12 @@ function cwdsUnder(procs) {
  * The owner by the push log: the live session that last pushed the branch.
  * @param {PushLine | undefined} push the branch's last push
  * @param {Map<string, Registered>} live the live sessions by id
+ * @param {(session: string, at?: string) => boolean} may whether a session may own it by a push at a time
  * @returns {InferredOwner | null} the owner
  */
-function pushLogOwner(push, live) {
+function pushLogOwner(push, live, may) {
     const pusher = push?.sessionId ? live.get(push.sessionId) : undefined;
-    if (!pusher || !push) return null;
+    if (!pusher || !push || !may(pusher.sessionId, push.at)) return null;
     const sha = push.sha ? ` ${push.sha.slice(0, 7)}` : "";
     const verb = push.exit === 0 ? "pushed" : "tried to push";
     const at = push.at ? ` at ${push.at.slice(11, 16)} UTC` : "";
@@ -447,16 +459,17 @@ function pushLogOwner(push, live) {
  * @param {PushLine | undefined} push the branch's last push in the push log
  * @param {Record<string, TranscriptScan>} transcripts what the transcripts showed, by session
  * @param {Map<string, Registered>} live the live sessions by id
+ * @param {(session: string, at?: string) => boolean} may whether a session may own it by a push at a time
  * @returns {InferredOwner | null} the owner
  */
-function transcriptOwner(branch, push, transcripts, live) {
+function transcriptOwner(branch, push, transcripts, live, may) {
     const since = push?.at ? Date.parse(push.at) : -Infinity;
     /** @type {{s: Registered, at: string} | undefined} */
     let best;
     for (const [id, scan] of Object.entries(transcripts)) {
         const at = scan.pushes[branch];
         const s = live.get(id);
-        if (!s || !at || Date.parse(at) < since) continue;
+        if (!s || !at || Date.parse(at) < since || !may(id, at)) continue;
         if (!best || Date.parse(at) > Date.parse(best.at)) best = { s, at };
     }
     if (!best) return null;
@@ -469,14 +482,48 @@ function transcriptOwner(branch, push, transcripts, live) {
  * that has the branch checked out.
  * @param {string} branch the branch
  * @param {{root: string, ownWorktrees: {dir: string, branch: string}[], byPid: Registered[],
- *   cwds: (pid: number) => string[]}} where the main checkout, the worktrees sessions may own, the
- *   live sessions by pid and the cwds of a process's tree
+ *   cwds: (pid: number) => string[], may: (session: string) => boolean}} where the main checkout,
+ *   the worktrees sessions may own, the live sessions by pid, the cwds of a process's tree and
+ *   whether a session may own it (not one that disowned it)
  * @returns {InferredOwner | null} the owner
  */
-function worktreeOwner(branch, { root, ownWorktrees, byPid, cwds }) {
+function worktreeOwner(branch, { root, ownWorktrees, byPid, cwds, may }) {
     for (const w of ownWorktrees.filter((x) => x.branch === branch)) {
-        const s = byPid.find((x) => cwds(x.pid).some((c) => c === w.dir || c.startsWith(w.dir + sep)));
+        const s = byPid.find(
+            (x) => may(x.sessionId) && cwds(x.pid).some((c) => c === w.dir || c.startsWith(w.dir + sep)),
+        );
         if (s) return { session: s.sessionId, name: s.name, evidence: `working in ${relative(root, w.dir)}` };
+    }
+    return null;
+}
+
+/**
+ * The Claude Code session a process runs under: the first process up its parent chain (itself
+ * included) with an entry `<pid>.json` in Claude Code's session registry whose `procStart` is that
+ * process's start time (field 22 of its stat), so a reused pid is not mistaken for it. The lookup
+ * `tools/push-queue.sh` makes for the push log.
+ * @param {{pid: number, procDir?: string, sessionsDir: string}} opts the process, the proc file
+ *   system and the registry directory
+ * @returns {{sessionId: string, name: string} | null} the session, or null outside one
+ */
+export function callingSession({ pid, procDir = "/proc", sessionsDir }) {
+    for (let p = pid, hops = 0; p > 1 && hops < 64; hops++) {
+        let fields;
+        try {
+            const stat = readFileSync(join(procDir, String(p), "stat"), "utf8");
+            fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+        } catch {
+            return null;
+        }
+        try {
+            const e = JSON.parse(readFileSync(join(sessionsDir, `${p}.json`), "utf8"));
+            if (typeof e.sessionId === "string" && String(e.procStart ?? fields[19]) === fields[19]) {
+                return { sessionId: e.sessionId, name: typeof e.name === "string" ? e.name : `pid ${p}` };
+            }
+        } catch {
+            // No entry for this process.
+        }
+        p = Number(fields[1]);
     }
     return null;
 }

@@ -99,12 +99,36 @@ Claude session working in this repository once per failed head, through Claude C
 messaging ("githerd: CI failed on #710 ... call the githerd_mine tool with pr 710 ..."). A session
 that is working on it calls `githerd_mine` (or claims the job), which keeps the pull request for it
 until the session ends or the pull request closes, across new pushes; a session without githerd's
-tools is named from the owner's terminal with `githerd mine <pr> <session-name>` instead; with no answer within `workers.askMinutes` (default 10) githerd offers it as a job. In dry-run the question is a `would-do` line, and since nobody heard it the pull request stays in use rather than being offered. A head that conflicts with master is asked about the same way. `githerd_next` lists
+tools answers from its shell instead (below), or the owner names it from his terminal with
+`githerd mine <pr> <session-name>`; with no answer within `workers.askMinutes` (default 10) githerd offers it as a job. In dry-run the question is a `would-do` line, and since nobody heard it the pull request stays in use rather than being offered. A head that conflicts with master is asked about the same way. `githerd_next` lists
 in-use jobs with the reason, and `githerd status` shows it on the pull request's line. A held (`hold`)
 pull request that is broken is still offered; the label only keeps it from merging. Pushes go through
 `githerd_push`, which runs the push and its pre-push gate through the machine's push queue
 (`tools/push-queue.sh`). `githerd_wait` declares a wait the daemon watches and ends with a
 doorbell; `githerd_done` is checked against GitHub before the job counts as done.
+
+githerd also infers whose a pull request is, from the push log, the sessions' transcripts and who
+works in its worktree, and asks the owner of a broken one "are you fixing it?" every
+`workers.statusMinutes`. An owner that neither answers nor shows activity (a process in the
+branch's worktree, a push) loses it to the queue until its next push. A session without githerd's
+MCP tools (one started before githerd was set up) is asked the same way and answers from its own
+shell, with the command line the question prints:
+
+```bash
+node <githerd>/bin/githerd.mjs mine 710     # this session is working on #710: keep it
+node <githerd>/bin/githerd.mjs disown 710   # this session gives #710 up now
+```
+
+`<githerd>` is the directory the running daemon's code is in (a checkout's `githerd/` for the
+development daemon, the installed copy otherwise), and the development daemon's question prefixes
+`GITHERD_STATE_DIR=<its state directory>` so the command finds it. Both act only for the session
+the command runs under: the CLI walks its own parent processes to the first one with an entry in
+Claude Code's session registry (`~/.claude/sessions/<pid>.json`, its `procStart` matching), the
+lookup `tools/push-queue.sh` makes for the push log, so no session can answer for another. `mine`
+is the `githerd_mine` answer. `disown` ends the session's owner record and inferred ownership at
+once, and githerd never infers it back from that session's earlier pushes or its worktree; only a
+new push, a claim of the pull request's job or `mine` by that session makes it its own again. The
+board shows "disowned by <session>" on the pull request's line.
 
 ## Flaky tests
 
@@ -149,6 +173,7 @@ githerd ack <key>                # clear an escalation
 githerd veto <proposal id>       # stop a pending close or revert
 githerd mine <pr> <session-name> # that live session owns the pull request: never offered or asked about
 githerd mine --list | --drop <pr> # the owner records, or remove one
+githerd mine <pr> | disown <pr>   # from inside a Claude session: for that session only
 githerd install                  # prepare the daemon and print the servherd command that starts it
 githerd ensure                   # find or start the daemon, e.g. after a container restart
 githerd restart                  # servherd restart githerd

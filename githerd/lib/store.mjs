@@ -372,6 +372,7 @@ export const RECORDED = [
     "vetoes",
     "settings",
     "prOwners",
+    "prDisowned",
     "deferred",
 ];
 

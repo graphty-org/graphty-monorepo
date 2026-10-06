@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, atActiveCap, inviteStep, statusStep, tellAccepted, tellCancelled } from "../lib/asks.mjs";
+import {
+    askStep,
+    atActiveCap,
+    disown,
+    inviteStep,
+    markMine,
+    statusStep,
+    tellAccepted,
+    tellCancelled,
+} from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { jobInUse, prInUse } from "../lib/queue.mjs";
 
@@ -100,7 +109,8 @@ describe("asking the live sessions whose a failed pull request is", () => {
         const lines = await askStep(state, f.opts());
         const text =
             "githerd: CI failed on #710 (feat/cytoscape-adapter) at aaaaaaa: All Checks Pass. If you are working on " +
-            "it, call the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim). Otherwise ignore this.";
+            "it, call the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim); a session without " +
+            "githerd's tools runs `githerd mine 710` instead. Otherwise ignore this.";
         expect(f.sent).toEqual([
             ["/s1.sock", text],
             ["/s2.sock", text],
@@ -164,7 +174,8 @@ describe("asking the live sessions whose a failed pull request is", () => {
         await askStep(state, f.opts());
         expect(f.sent[0][1]).toBe(
             "githerd: #710 (feat/cytoscape-adapter) at aaaaaaa conflicts with master. If you are working on it, call " +
-                "the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim). Otherwise ignore this.",
+                "the githerd_mine tool with pr 710 (or claim job pr-710 with githerd_claim); a session without " +
+                "githerd's tools runs `githerd mine 710` instead. Otherwise ignore this.",
         );
         expect(prInUse(state, 710, { now: NOW })).toBe(
             "aaaaaaa conflicts with master; asked 2 sessions at 12:04 UTC; no owner yet",
@@ -766,7 +777,8 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
     const at = (/** @type {string} */ hm) => new Date(`2026-10-05T${hm}:00Z`);
     const QUESTION =
         "githerd: #710 is broken: required check failing: All Checks Pass. Are you fixing it? " +
-        "Answer with githerd_mine pr 710 to keep it, or ignore to release it to other sessions.";
+        "Answer with githerd_mine pr 710 to keep it, or ignore to release it to other sessions " +
+        "(`githerd disown 710` releases it now).";
     /**
      * #710 failing, inferred to be graphty-14's (it last pushed), with its pr job queued.
      * @returns {any} the state
@@ -873,34 +885,65 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toHaveLength(2);
     });
 
-    it("never asks or releases an owner without githerd's tools while it lives, and frees it when it exits", async () => {
+    it("asks an owner without githerd's tools with the command lines, and releases it on silence", async () => {
         const f = fake();
         const state = owned();
         state.prInferred[710].noTools = true;
-        for (const hm of ["12:00", "12:15", "12:30"]) {
-            expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
-        }
-        expect(f.sent).toEqual([]);
-        expect(prInUse(state, 710, { now: at("12:30") })).toBe("session graphty-14 owns it (pushed)");
-        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:30") })).not.toBeNull();
-        // The session exits: inferOwners drops it, and the pull request is asked about as usual.
-        delete state.prInferred[710];
-        expect(prInUse(state, 710, { now: at("12:31") })).not.toBe("session graphty-14 owns it (pushed)");
+        const cli = "GITHERD_STATE_DIR=/d node /g/bin/githerd.mjs";
+        expect(await statusStep(state, opts(f, { now: at("12:00"), cli }))).toMatchObject([{ prs: [710] }]);
+        expect(f.sent).toEqual([
+            [
+                "/s2.sock",
+                "githerd: #710 is broken: required check failing: All Checks Pass. Are you fixing it? This session " +
+                    `has no githerd tools, so answer from your shell: run \`${cli} mine 710\` to keep it, or ` +
+                    `\`${cli} disown 710\` to release it to other sessions now. No answer releases it too.`,
+            ],
+        ]);
+        expect(prInUse(state, 710, { now: at("12:00") })).toBe("session graphty-14 owns it (pushed)");
+        // No answer and no activity: released like any other owner, and its job is offered.
+        expect(await statusStep(state, opts(f, { now: at("12:15"), cli }))).toMatchObject([
+            { kind: "pr-released", pr: 710, session: "s2" },
+        ]);
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15") })).toBeNull();
     });
 
-    it("gives a pull request released under the old rule back to an owner without githerd's tools", async () => {
+    it("keeps it for an owner without githerd's tools that answers with githerd mine from its shell", async () => {
         const f = fake();
         const state = owned();
-        await statusStep(state, opts(f, { now: at("12:00") }));
-        await statusStep(state, opts(f, { now: at("12:15") }));
-        expect(state.prReleased[710]).toBe(HEAD);
-        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15") })).toBeNull();
-        // The next poll learns the owner has no githerd tools: owned again, its job not offered.
         state.prInferred[710].noTools = true;
-        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:16") })).toBe("session graphty-14 owns it (pushed)");
-        expect(await statusStep(state, opts(f, { now: at("12:16") }))).toEqual([]);
-        expect(state.prReleased[710]).toBeUndefined();
-        expect(f.sent).toHaveLength(1);
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        const by = { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "session" };
+        expect(markMine(state, 710, by)).toBeNull();
+        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toEqual([]);
+        expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (it said so)");
+        // Another session cannot take it over by saying so too.
+        const other = { ...by, session: "s1", name: "graphty-13" };
+        expect(markMine(state, 710, other)).toBe("session graphty-14 already said #710 is its");
+    });
+
+    it("releases a disowned pull request at once, and only for the session that disowned it", async () => {
+        const f = fake();
+        const state = owned();
+        state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T11:00:00.000Z", by: "tool" } };
+        // Another session disowning it changes nothing that is graphty-14's.
+        expect(disown(state, 710, { session: "s1", name: "graphty-13", at: "2026-10-05T11:59:00.000Z" })).toEqual([]);
+        expect(prInUse(state, 710, { now: at("12:00") })).toBe("session graphty-14 owns it (it said so)");
+        expect(state.prInferred[710].session).toBe("s2");
+        // graphty-14 disowns it: no owner record, no inferred owner, and the job is offered.
+        expect(disown(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:00:00.000Z" })).toEqual([
+            "its owner record",
+            "its inferred ownership (pushed)",
+        ]);
+        expect(state.prDisowned[710]).toMatchObject({ session: "s2", name: "graphty-14" });
+        expect(state.prOwners).toEqual({});
+        expect(state.prInferred).toEqual({});
+        expect(await statusStep(state, opts(f, { now: at("12:00") }))).toEqual([]);
+        expect(f.sent).toEqual([]);
+        // Nobody owns it now: githerd asks the sessions whose it is, as for any broken pull request.
+        expect(prInUse(state, 710, { now: at("12:00") })).toMatch(/githerd is asking the sessions/);
+        // Saying it is its own again ends the disown.
+        markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:10:00.000Z", by: "session" });
+        expect(state.prDisowned).toEqual({});
     });
 
     it("holds an answer while the same failure stands, and asks again when another check fails", async () => {

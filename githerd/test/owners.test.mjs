@@ -9,6 +9,7 @@ import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { askStep } from "../lib/asks.mjs";
 import { newJob } from "../lib/board.mjs";
 import {
+    callingSession,
     inferOwners,
     parseWorktrees,
     prActivity,
@@ -120,6 +121,26 @@ describe("inferOwners", () => {
         expect(inferOwners(PRS, facts({ procs: [{ pid: 100, ppid: 1, cwd: `${ROOT}/.worktrees/xy` }] }))).toEqual({});
     });
 
+    it("never gives a disowned pull request back to its session from a push before the disown, nor its worktree", () => {
+        const disowned = { 710: { session: "sa", at: "2026-10-05T21:50:00Z" } };
+        const old = { sa: { files: {}, pushes: { "feat/x": "2026-10-03T10:00:00Z" } } };
+        const procs = [{ pid: 100, ppid: 1, cwd: `${ROOT}/.worktrees/x` }];
+        // Its old transcript push, its earlier push-log push and its presence in the worktree: none counts.
+        expect(inferOwners(PRS, facts({ transcripts: old, disowned }))).toEqual({});
+        expect(inferOwners(PRS, facts({ pushLog: [push(ALICE)], disowned }))).toEqual({});
+        expect(inferOwners(PRS, facts({ procs, disowned }))).toEqual({});
+        // Without the disown, each of them would make it the owner.
+        expect(inferOwners(PRS, facts({ transcripts: old }))[710].session).toBe("sa");
+        // A new push after the disown makes it its own again, by the push log or the transcript.
+        const later = push(ALICE, { at: "2026-10-05T21:55:00Z" });
+        expect(inferOwners(PRS, facts({ pushLog: [later], disowned }))[710].session).toBe("sa");
+        const fresh = { sa: { files: {}, pushes: { "feat/x": "2026-10-05T21:56:00Z" } } };
+        expect(inferOwners(PRS, facts({ transcripts: fresh, disowned }))[710].session).toBe("sa");
+        // Another session's disown changes nothing for this one.
+        const bobs = { 710: { session: "sb", at: "2026-10-05T21:50:00Z" } };
+        expect(inferOwners(PRS, facts({ pushLog: [push(ALICE)], disowned: bobs }))[710].session).toBe("sa");
+    });
+
     it("parses git's worktree list and reads a push log with a torn line", () => {
         const porcelain = `worktree ${ROOT}\nHEAD ${SHA}\nbranch refs/heads/master\n\nworktree ${ROOT}/.worktrees/d\nHEAD ${SHA}\ndetached\n\nworktree ${ROOT}/.worktrees/x\nHEAD ${SHA}\nbranch refs/heads/feat/x\n`;
         expect(parseWorktrees(porcelain)).toEqual(WORKTREES);
@@ -130,6 +151,56 @@ describe("inferOwners", () => {
             expect(readPushLog(join(dir, "missing"))).toEqual([]);
         } finally {
             rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("callingSession", () => {
+    /**
+     * A /proc and a session registry: each process `[pid, ppid, start time]`, each entry `{pid, ...}`.
+     * @param {number[][]} procs the processes
+     * @param {any[]} entries the registry entries
+     * @returns {{procDir: string, sessionsDir: string, dir: string}} the directories
+     */
+    const world = (procs, entries) => {
+        const dir = mkdtempSync(join(tmpdir(), "githerd-calling-"));
+        for (const [pid, ppid, start] of procs) {
+            mkdirSync(join(dir, "proc", String(pid)), { recursive: true });
+            // Fields 3 on: the state, the parent, 17 more, then field 22, the start time.
+            const rest = ["S", ppid, ...Array(17).fill(0), start, 0].join(" ");
+            writeFileSync(join(dir, "proc", String(pid), "stat"), `${pid} (claude (x)) ${rest}\n`);
+        }
+        mkdirSync(join(dir, "sessions"));
+        for (const e of entries) writeFileSync(join(dir, "sessions", `${e.pid}.json`), JSON.stringify(e));
+        return { procDir: join(dir, "proc"), sessionsDir: join(dir, "sessions"), dir };
+    };
+
+    it("finds the first process up the chain with a registry entry whose procStart matches", () => {
+        // 300 (the CLI) under 250 (a shell) under 200 (claude, session b) under 100 (claude, session a).
+        const w = world(
+            [
+                [100, 1, 1000],
+                [200, 100, 2000],
+                [250, 200, 2500],
+                [300, 250, 3000],
+            ],
+            [
+                { pid: 100, sessionId: "sa", name: "graphty-a", procStart: "1000" },
+                { pid: 200, sessionId: "sb", name: "graphty-b", procStart: "2000" },
+            ],
+        );
+        try {
+            expect(callingSession({ pid: 300, ...w })).toEqual({ sessionId: "sb", name: "graphty-b" });
+            // A reused pid: the entry's procStart is another process's, so it is skipped.
+            writeFileSync(
+                join(w.sessionsDir, "200.json"),
+                JSON.stringify({ pid: 200, sessionId: "sb", procStart: "9" }),
+            );
+            expect(callingSession({ pid: 300, ...w })).toEqual({ sessionId: "sa", name: "graphty-a" });
+            // No session up the chain: a plain terminal.
+            expect(callingSession({ pid: 300, procDir: w.procDir, sessionsDir: join(w.dir, "none") })).toBeNull();
+        } finally {
+            rmSync(w.dir, { recursive: true, force: true });
         }
     });
 });

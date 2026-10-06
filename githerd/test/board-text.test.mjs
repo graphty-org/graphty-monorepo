@@ -173,6 +173,12 @@ describe("renderBoard", () => {
             NOW,
         );
         expect(fixing).toContain("-- being fixed: graphty-9 active in .worktrees/x");
+        state.prDisowned = { 8: { session: "s-4", name: "graphty-d2", at: NOW.toISOString() } };
+        const disowned = renderBoard(
+            view(state, { prs: [{ number: 8, decision: { state: "pending", description: "", line: null } }] }),
+            NOW,
+        );
+        expect(disowned).toContain("-- disowned by graphty-d2");
         expect(text).toContain("SESSIONS (1):\n  s-2\n");
         expect(text).toContain("  order o1: #4 #5\n  policy p1: freeze-merges\n");
         expect(text).not.toContain("policy p2");

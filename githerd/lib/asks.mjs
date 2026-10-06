@@ -16,12 +16,18 @@
  * it is neither offered nor asked about. Nor is a pull request with an inferred owner
  * (`state.prInferred`, owners.mjs): the session that last pushed it, or works in its worktree.
  *
+ * A session without githerd's tools answers from its shell instead: `githerd mine <pr>` and
+ * `githerd disown <pr>` act for the session the command runs under (owners.mjs callingSession), as
+ * `markMine` and `disown` here. A disown is kept in `state.prDisowned[<pr>]` = `{session, name, at}`
+ * until the pull request closes or that session says it is its own again (`mine`, or claiming its
+ * job); inference skips that session for every push before it.
+ *
  * The same messaging asks each owner session holding a job for its status and whether it can take
  * another job (`statusStep`), asks the owner of a broken pull request whether it is fixing it
  * (`brokenOwned`), and invites sessions with room to pull work (`inviteStep`).
  */
 
-import { askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
+import { askFor, askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, prWork } from "./queue.mjs";
 import { ownerHeld } from "./board.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
@@ -29,22 +35,94 @@ import { jobWaits } from "./waits.mjs";
 
 const MINUTE = 60 * 1000;
 
+/** The command line a session without githerd's tools answers with, when the daemon names none. */
+const DEFAULT_CLI = "githerd";
+
+/**
+ * Records that a session is working on pull request `n` (`githerd_mine`, or `githerd mine <pr>` run
+ * from inside that session): the answer to githerd's question, and the durable owner record. It
+ * ends a disown by the same session.
+ * @param {any} state the daemon state, changed in place
+ * @param {string | number} n the pull request, open
+ * @param {{session: string, name: string, at: string, by: string}} who the session, its name, the
+ *   time and how it said so
+ * @returns {string | null} why it was refused (another session said so first), or null when recorded
+ */
+export function markMine(state, n, { session, name, at, by }) {
+    const pr = String(n);
+    const rec = state.prs[pr];
+    state.asks ??= {};
+    const ask = askFor(state, pr) ?? (state.asks[pr] = { head: rec.headSha, sessions: [] });
+    if (ask.owner && ask.owner.session !== session) {
+        return `session ${ask.owner.name} already said #${pr} is its`;
+    }
+    const held = state.prOwners?.[pr];
+    if (held && held.session !== session) return `session ${held.name} owns #${pr}`;
+    ask.owner = { session, name, at };
+    // The durable record: a new push keeps it, the session's end or the close drops it.
+    state.prOwners ??= {};
+    state.prOwners[pr] = { session, name, at, by };
+    if (state.prDisowned?.[pr]?.session === session) delete state.prDisowned[pr];
+    return null;
+}
+
+/**
+ * A session gives up pull request `n` now (`githerd disown <pr>` run from inside it): its owner
+ * record, its answer to githerd's question and its inferred ownership end, and inference does not
+ * give it back from a push made before now. Only what is that session's changes.
+ * @param {any} state the daemon state, changed in place
+ * @param {string | number} n the pull request, open
+ * @param {{session: string, name: string, at: string}} who the session, its name and the time
+ * @returns {string[]} what it gave up, empty when it held nothing
+ */
+export function disown(state, n, { session, name, at }) {
+    const pr = String(n);
+    const gave = [];
+    if (state.prOwners?.[pr]?.session === session) {
+        delete state.prOwners[pr];
+        gave.push("its owner record");
+    }
+    if (state.asks?.[pr]?.owner?.session === session) state.asks[pr].owner = null;
+    if (state.prInferred?.[pr]?.session === session) {
+        gave.push(`its inferred ownership (${state.prInferred[pr].evidence})`);
+        delete state.prInferred[pr];
+    }
+    if (state.brokenAsks?.[pr]?.session === session) delete state.brokenAsks[pr];
+    state.prDisowned ??= {};
+    state.prDisowned[pr] = { session, name, at };
+    return gave;
+}
+
+/**
+ * Drops each disown whose pull request closed, or whose session claimed a job on it since.
+ * @param {any} state the daemon state, changed in place
+ */
+function settleDisowned(state) {
+    for (const [n, d] of Object.entries(state.prDisowned ?? {})) {
+        const claimed = Object.values(state.jobs ?? {}).some(
+            (j) => String(prOf(j)) === n && j.claim?.session === d.session && j.claim.at > d.at,
+        );
+        if ((state.prs && !state.prs[n]) || claimed) delete state.prDisowned[n];
+    }
+}
+
 /**
  * The question for one pull request.
  * @param {string} n the pull request
  * @param {any} rec its record
  * @param {string[]} failing its failing required checks
  * @param {string} job the job githerd would offer
+ * @param {string} cli the githerd command line a session without githerd's tools runs
  * @returns {string} the message
  */
-function askText(n, rec, failing, job) {
+function askText(n, rec, failing, job, cli) {
     const at = `#${n} (${rec.headRef}) at ${String(rec.headSha).slice(0, 7)}`;
     const checks = failingRequired(rec);
     const what = checks.length ? `CI failed on ${at}: ${checks.join(", ")}.` : `${at} ${failing.join(", ")}.`;
     return (
         `githerd: ${what} ` +
-        `If you are working on it, call the githerd_mine tool with pr ${n} (or claim job ${job} with githerd_claim). ` +
-        "Otherwise ignore this."
+        `If you are working on it, call the githerd_mine tool with pr ${n} (or claim job ${job} with githerd_claim); ` +
+        `a session without githerd's tools runs \`${cli} mine ${n}\` instead. Otherwise ignore this.`
     );
 }
 
@@ -119,14 +197,16 @@ function questionFor(state, job, acting) {
  * `questionFor` names.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
- *   transport: import("./peers.mjs").Transport, sessionGone: (session: string) => boolean}} opts
- *   the clock, whether the `workers` write group acts (else each send is a would-do line), the live
- *   sessions in this repository, the transport, and whether a session ended
+ *   transport: import("./peers.mjs").Transport, sessionGone: (session: string) => boolean,
+ *   cli?: string}} opts the clock, whether the `workers` write group acts (else each send is a
+ *   would-do line), the live sessions in this repository, the transport, whether a session ended,
+ *   and the githerd command line a session without githerd's tools answers with
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function askStep(state, { now, acting, sessions, transport, sessionGone }) {
+export async function askStep(state, { now, acting, sessions, transport, sessionGone, cli = DEFAULT_CLI }) {
     state.asks ??= {};
     const lines = [...settleOwners(state, sessionGone), ...settleAsks(state, sessionGone)];
+    settleDisowned(state);
     for (const session of Object.keys(state.capacity ?? {})) if (sessionGone(session)) delete state.capacity[session];
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
@@ -136,7 +216,7 @@ export async function askStep(state, { now, acting, sessions, transport, session
         live ??= sessions();
         const names = live.map((s) => s.name);
         const out = acting
-            ? await tellSessions(live, askText(q.n, q.rec, q.failing, job.id), transport)
+            ? await tellSessions(live, askText(q.n, q.rec, q.failing, job.id, cli), transport)
             : { sent: [], failed: [] };
         state.asks[q.n] = {
             head: q.rec.headSha,
@@ -423,7 +503,8 @@ function brokenAnswered(state, n, ask) {
  * @param {{now: Date, minutes: number, owners: () => import("./peers.mjs").PeerSession[]}} opts the
  *   clock, the cadence and every live session in this repository
  * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
- * @returns {Map<string, {n: string, why: string}[]>} the pull requests to ask about, by session
+ * @returns {Map<string, {n: string, why: string, noTools?: boolean}[]>} the pull requests to ask
+ *   about, by session
  */
 function brokenOwned(state, { now, minutes, owners }, lines) {
     state.brokenAsks ??= {};
@@ -431,7 +512,7 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
     for (const [n, head] of Object.entries(state.prReleased)) {
         if (state.prs?.[n]?.headSha !== head) delete state.prReleased[n];
     }
-    /** @type {Map<string, {n: string, why: string}[]>} */
+    /** @type {Map<string, {n: string, why: string, noTools?: boolean}[]>} */
     const due = new Map();
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
@@ -441,7 +522,7 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
     };
     for (const [n, rec] of Object.entries(state.prs ?? {})) {
         const ask = brokenAskDue(state, n, rec, { now, minutes, live: liveOwners }, lines);
-        if (ask) due.set(ask.session, [...(due.get(ask.session) ?? []), { n, why: ask.why }]);
+        if (ask) due.set(ask.session, [...(due.get(ask.session) ?? []), { n, why: ask.why, noTools: ask.noTools }]);
     }
     return due;
 }
@@ -457,14 +538,8 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
 function brokenOwner(state, n, rec) {
     // A session that says it is its own after the release owns it again.
     if (state.prOwners?.[n]) delete state.prReleased[n];
+    // An owner without githerd's tools is asked like any other: it answers from its shell.
     const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
-    // An owner without githerd's tools cannot answer, so it is never asked and never released for
-    // silence: it keeps the pull request while it lives (inferOwners drops it when it exits).
-    if (owner?.noTools) {
-        delete state.prReleased[n];
-        delete state.brokenAsks[n];
-        return null;
-    }
     // Its owner working in its worktree again owns it again (a new push already ends the release).
     if (owner && state.prActivity?.[n]?.present?.[owner.session]) delete state.prReleased[n];
     const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;
@@ -485,7 +560,8 @@ function brokenOwner(state, n, rec) {
  * @param {{now: Date, minutes: number, live: () => import("./peers.mjs").PeerSession[]}} opts the
  *   clock, the cadence and every live session in this repository
  * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
- * @returns {{session: string, why: string} | null} the session to ask and why
+ * @returns {{session: string, why: string, noTools?: boolean} | null} the session to ask, why, and
+ *   whether it has no githerd tools
  */
 function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
     const found = brokenOwner(state, n, rec);
@@ -518,7 +594,7 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
         lines.push({ kind: "pr-released", pr: Number(n), head: rec.headSha, session: owner.session, reason });
         return null;
     }
-    return { session: owner.session, why };
+    return { session: owner.session, why, ...(owner.noTools ? { noTools: true } : {}) };
 }
 
 /**
@@ -544,13 +620,20 @@ function activity(state, n, rec, owner, ask) {
 }
 
 /**
- * The question to the owner of a broken pull request.
- * @param {{n: string, why: string}} pr the pull request and why it is broken
+ * The question to the owner of a broken pull request. An owner without githerd's tools is told the
+ * command lines that answer it from its shell.
+ * @param {{n: string, why: string, noTools?: boolean}} pr the pull request, why it is broken, and
+ *   whether its owner has no githerd tools
+ * @param {string} cli the githerd command line
  * @returns {string} the message line
  */
-const brokenText = ({ n, why }) =>
+const brokenText = ({ n, why, noTools }, cli) =>
     `githerd: #${n} is broken: ${why}. Are you fixing it? ` +
-    `Answer with githerd_mine pr ${n} to keep it, or ignore to release it to other sessions.`;
+    (noTools
+        ? `This session has no githerd tools, so answer from your shell: run \`${cli} mine ${n}\` to keep it, ` +
+          `or \`${cli} disown ${n}\` to release it to other sessions now. No answer releases it too.`
+        : `Answer with githerd_mine pr ${n} to keep it, or ignore to release it to other sessions ` +
+          `(\`${cli} disown ${n}\` releases it now).`);
 
 /** The states in which a holder works on its job; a `verifying` job is githerd's to settle. */
 const ASKED = new Set(["starting", "working", "waiting"]);
@@ -584,13 +667,17 @@ function githerdWatches(job) {
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport, minutes: number,
- *   owners?: () => import("./peers.mjs").PeerSession[]}} opts the clock, whether the `workers`
- *   write group acts (else each send is a would-do line), the sessions githerd may message, the
- *   transport, how often to ask (`workers.statusMinutes`), and every live session in this
- *   repository (`sessions` when absent)
+ *   owners?: () => import("./peers.mjs").PeerSession[], cli?: string}} opts the clock, whether the
+ *   `workers` write group acts (else each send is a would-do line), the sessions githerd may
+ *   message, the transport, how often to ask (`workers.statusMinutes`), every live session in this
+ *   repository (`sessions` when absent), and the githerd command line a session without githerd's
+ *   tools answers with
  * @returns {Promise<({kind: string} & Record<string, unknown>)[]>} the ledger lines
  */
-export async function statusStep(state, { now, acting, sessions, transport, minutes, owners = sessions }) {
+export async function statusStep(
+    state,
+    { now, acting, sessions, transport, minutes, owners = sessions, cli = DEFAULT_CLI },
+) {
     const lines = [];
     const due = dueJobs(state, now, minutes, lines);
     const prsDue = brokenOwned(state, { now, minutes, owners }, lines);
@@ -604,7 +691,7 @@ export async function statusStep(state, { now, acting, sessions, transport, minu
             prs: prsDue.get(session) ?? [],
             target: jobTarget.length ? jobTarget : everyone.filter((s) => s.sessionId === session),
         };
-        await askSession(state, asked, { now, acting, transport, minutes }, lines);
+        await askSession(state, asked, { now, acting, transport, minutes, cli }, lines);
     }
     return lines;
 }
@@ -657,14 +744,15 @@ const askedSince = (job) => Date.parse(job.statusAsk?.at ?? job.claim?.at ?? job
  * Sends one session the status question for its due jobs and the broken pull requests it owns (a
  * would-do line in dry-run), and records the question on each.
  * @param {any} state the daemon state, changed in place
- * @param {{session: string, jobs: any[], prs: {n: string, why: string}[],
+ * @param {{session: string, jobs: any[], prs: {n: string, why: string, noTools?: boolean}[],
  *   target: import("./peers.mjs").PeerSession[]}} asked the session, what to ask it about, and its
  *   live entries
- * @param {{now: Date, acting: boolean, transport: import("./peers.mjs").Transport, minutes: number}} opts
- *   the clock, whether the `workers` write group acts, the transport and how often to ask
+ * @param {{now: Date, acting: boolean, transport: import("./peers.mjs").Transport, minutes: number,
+ *   cli: string}} opts the clock, whether the `workers` write group acts, the transport, how often
+ *   to ask and the githerd command line
  * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
  */
-async function askSession(state, { session, jobs, prs, target }, { now, acting, transport, minutes }, lines) {
+async function askSession(state, { session, jobs, prs, target }, { now, acting, transport, minutes, cli }, lines) {
     if (!target.length || (!jobs.length && !prs.length)) return;
     const ids = jobs.map((j) => j.id);
     const nums = prs.map((p) => Number(p.n));
@@ -673,7 +761,10 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
         const op = `ask ${target[0].name} for ${what.join(", ")}`;
         lines.push({ kind: "would-do", group: "workers", op, jobs: ids });
     }
-    const text = [...(jobs.length ? [statusText(state, jobs, minutes)] : []), ...prs.map(brokenText)].join("\n");
+    const text = [
+        ...(jobs.length ? [statusText(state, jobs, minutes)] : []),
+        ...prs.map((p) => brokenText(p, cli)),
+    ].join("\n");
     const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
     const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
     for (const job of jobs) job.statusAsk = { ...ask };

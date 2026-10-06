@@ -106,9 +106,11 @@ function writeConfig(overrides = {}) {
  * @param {() => Date} [options.now] the clock
  * @param {number} [options.signTimeoutMs] the signing timeout
  * @param {boolean} [options.tty] a terminal is attached (the owner's own shell)
+ * @param {{pid?: number, procDir?: string, sessionsDir?: string}} [options.session] where the CLI
+ *   looks for the Claude session it runs under
  * @returns {Promise<{code: number, out: string, err: string}>} the exit code and the output
  */
-async function cli(argv, { extraEnv = {}, now, signTimeoutMs, tty = true } = {}) {
+async function cli(argv, { extraEnv = {}, now, signTimeoutMs, tty = true, session } = {}) {
     const out = [];
     const err = [];
     const code = await runCli(argv, {
@@ -118,6 +120,7 @@ async function cli(argv, { extraEnv = {}, now, signTimeoutMs, tty = true } = {})
         err: (l) => err.push(l),
         healthWaitMs: 15_000,
         tty,
+        ...(session ? { session } : {}),
         ...(now ? { now } : {}),
         ...(signTimeoutMs ? { signTimeoutMs } : {}),
     });
@@ -478,6 +481,78 @@ describe("mine", () => {
         // The owner's words count only from his own terminal.
         expect((await cli(["mine", "942", "graphty-7c"], { tty: false })).code).toBe(1);
         expect(d.state.prOwners).toEqual({});
+    });
+});
+
+describe("mine and disown from inside a Claude session", () => {
+    /**
+     * A /proc where the CLI (pid 30) runs under a shell (20) under session s14's claude (10), and a
+     * registry naming s14 and s13 (pid 11, elsewhere).
+     * @returns {{pid: number, procDir: string, sessionsDir: string}} where the CLI looks
+     */
+    const inSession = () => {
+        const procDir = join(dir, "proc");
+        for (const [pid, ppid] of [
+            [10, 1],
+            [11, 1],
+            [20, 10],
+            [30, 20],
+        ]) {
+            mkdirSync(join(procDir, String(pid)), { recursive: true });
+            const rest = ["S", ppid, ...Array(17).fill(0), pid * 100, 0].join(" ");
+            writeFileSync(join(procDir, String(pid), "stat"), `${pid} (node) ${rest}\n`);
+        }
+        const sessionsDir = join(dir, "registry");
+        mkdirSync(sessionsDir, { recursive: true });
+        writeFileSync(join(sessionsDir, "10.json"), JSON.stringify({ pid: 10, sessionId: "s14", procStart: "1000" }));
+        writeFileSync(join(sessionsDir, "11.json"), JSON.stringify({ pid: 11, sessionId: "s13", procStart: "1100" }));
+        return { pid: 30, procDir, sessionsDir };
+    };
+    const registered = [
+        { pid: 10, sessionId: "s14", name: "graphty-14", cwd: root },
+        { pid: 11, sessionId: "s13", name: "graphty-13", cwd: root },
+    ];
+
+    it("acts for the session the command runs under, from an agent's shell, and never for another", async () => {
+        const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
+        const head = "a".repeat(40);
+        d.state.prs = { 710: { headSha: head, headRef: "feat/x" }, 702: { headSha: head } };
+        d.state.prInferred = { 710: { session: "s14", name: "graphty-14", evidence: "pushed feat/x (transcript)" } };
+        d.state.prOwners = { 702: { session: "s13", name: "graphty-13", at: "2026-10-05T00:00:00.000Z", by: "tool" } };
+        const session = inSession();
+        const agent = { session, tty: false, extraEnv: { CLAUDECODE: "1" } };
+
+        expect(await cli(["disown", "710"], agent)).toMatchObject({ code: 0 });
+        expect(d.state.prInferred).toEqual({});
+        expect(d.state.prDisowned[710]).toMatchObject({ session: "s14", name: "graphty-14" });
+        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "pr-disowned", pr: 710, session: "s14" });
+
+        // Disowning graphty-13's #702 from graphty-14 only records graphty-14's disown.
+        expect((await cli(["disown", "#702"], agent)).out).toMatch(/^#702 disowned: graphty-14 held nothing on it/);
+        expect(d.state.prOwners[702]).toMatchObject({ session: "s13" });
+        // Nor can it say #702 is its own while graphty-13 owns it.
+        expect(await cli(["mine", "702"], agent)).toMatchObject({ code: 1, err: "session graphty-13 owns #702" });
+
+        expect(await cli(["mine", "710"], agent)).toMatchObject({
+            code: 0,
+            out: "#710 is graphty-14's until that session ends or the pull request closes",
+        });
+        expect(d.state.prOwners[710]).toMatchObject({ session: "s14", by: "session" });
+        expect(d.state.prDisowned[710]).toBeUndefined();
+    });
+
+    it("refuses outside a Claude session, and refuses a worker", async () => {
+        const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
+        d.state.prs = { 710: { headSha: "a".repeat(40) } };
+        const none = { pid: 30, procDir: join(dir, "no-proc"), sessionsDir: join(dir, "no-registry") };
+        expect(await cli(["disown", "710"], { session: none })).toMatchObject({
+            code: 2,
+            err: "githerd disown <pr> acts for the Claude session it runs under, and none is up this process chain",
+        });
+        expect((await cli(["disown"], { session: inSession() })).code).toBe(2);
+        const worker = { session: inSession(), tty: false, extraEnv: { GITHERD_JOB: "pr-710" } };
+        expect((await cli(["disown", "710"], worker)).code).toBe(1);
+        expect(d.state.prDisowned).toBeUndefined();
     });
 });
 

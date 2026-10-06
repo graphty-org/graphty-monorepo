@@ -163,7 +163,7 @@ function prData(number, pr, owned, full, inUse) {
  */
 export function statusData(state, ctx, { section = "all", pr } = {}) {
     if (!SECTIONS.has(section)) throw new Error(`unknown section: ${section}`);
-    const { now, startedAt } = ctx;
+    const { now } = ctx;
     const owned = (/** @type {string | null | undefined} */ who) => board.byOwner(state, who);
     const want = (/** @type {string} */ name) => pr === undefined && (section === "all" || section === name);
     // Only a pull request githerd would otherwise offer is "in use"; CI runs on every other one too.
@@ -218,9 +218,12 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
         };
     }
     if (want("sessions")) {
-        out.sessions = Object.entries(state.sessions ?? {})
-            .filter(([id]) => board.holderAlive(state, id, now, startedAt))
-            .map(([id, s]) => ({ id, name: s.name ?? id, branch: s.branch ?? null }));
+        // Every poll forgets the sessions Claude Code's registry no longer names (board.expire).
+        out.sessions = Object.entries(state.sessions ?? {}).map(([id, s]) => ({
+            id,
+            name: s.name ?? id,
+            branch: s.branch ?? null,
+        }));
     }
     if (want("owner")) {
         out.owner = Object.values(state.escalations ?? {})

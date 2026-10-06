@@ -76,7 +76,7 @@ import { createGitHub, GitHubError, notSent } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
 import { syncJobs } from "./jobs.mjs";
-import { checkFaults, noteGitHubChanges, settleWaits, tickJobs, waitNews } from "./advance.mjs";
+import { checkFaults, settleWaits, tickJobs, waitNews } from "./advance.mjs";
 import {
     endIdleSessions,
     fillSlots,
@@ -93,6 +93,7 @@ import {
     masterVerdict,
     rangeMissesLanes,
     releaseState,
+    starvedLanes,
     updateLane,
 } from "./master.mjs";
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
@@ -167,8 +168,6 @@ import {
     removeJobWorktree,
 } from "./worktrees.mjs";
 
-/** A green commit older than this, while merges go on past it, holds merges (design 4.7). */
-const STARVATION_MS = 6 * 3_600_000;
 /** How the reference worktree is installed and built (design 4.9). */
 const REFERENCE_SETUP = ["sh", "-c", "pnpm install --frozen-lockfile && pnpm exec nx run-many -t build"];
 /** How often the watchdog looks at the workers (design 7.5). */
@@ -503,9 +502,12 @@ function requeueLostStarts(state, at) {
  * @param {import("./merge-status.mjs").NpmLookup} [options.npm] whether npm knows a package; the
  *   registry by default
  * @param {{sessions?: typeof import("./peers.mjs").liveSessions,
+ *   registered?: typeof import("./peers.mjs").registeredSessions,
  *   transport?: import("./peers.mjs").Transport,
  *   ownerFacts?: () => Promise<Omit<Parameters<typeof inferOwners>[1], "root">>}} [options.peers]
- *   the live Claude sessions of this repository, the messaging transport (asks.mjs), and what
+ *   the live Claude sessions of this repository, every live entry in Claude Code's session registry
+ *   (what ends a session's claims and its place on the session list), the messaging transport
+ *   (asks.mjs), and what
  *   pull request ownership is inferred from (owners.mjs); the registry, the sockets, the push log,
  *   /proc and git by default
  * @returns {Promise<Daemon>} the running daemon
@@ -1243,8 +1245,9 @@ export async function startDaemon({
      * top-up), never while one of its runs is in flight or no runner picks its jobs up. A new
      * commit needs none: its push starts the lane's run by itself. None of them is a code
      * incident: no revert, no intermittent issue, no merge hold.
-     * ponytail: outside lanes are parked (no incident, no hold) and only ledgered; their re-run
-     * after 15 minutes, and a worker job for an environment failure, come with the worker platform.
+     * ponytail: outside lanes are parked (no incident, no hold) and only ledgered; the next
+     * commit's run clears them. A worker job for an environment failure comes with the worker
+     * platform.
      * @param {ReturnType<typeof createIncidentActions>} actions the incident actions
      */
     async function parkedLanes(actions) {
@@ -1554,6 +1557,8 @@ export async function startDaemon({
             Object.assign(m, masterVerdict(m.lanes, config, { headSha: m.headSha, commits, greenSha: previousGreen }));
         else m.verdict = "unknown";
         if (m.verdict !== previousVerdict) m.since = iso;
+        // When the green commit moved: a failure key counts as shared only from here on (classify.mjs).
+        if (m.greenSha && m.greenSha !== previousGreen) m.greenAt = iso;
         await track(m, previousGreen, iso);
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
@@ -1805,6 +1810,21 @@ export async function startDaemon({
     function ownerSessionGone(session) {
         const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
         return !(peers.sessions ?? liveSessions)({ sessionsDir, root }).some((s) => s.sessionId === session);
+    }
+
+    /**
+     * Whether any session ended: neither a live peer of this repository nor any live entry in
+     * Claude Code's session registry names it, wherever it runs. What ends a session's place on the
+     * session list and its claims; no heartbeat window decides it.
+     * @param {string} session the session
+     * @returns {boolean} it ended
+     */
+    function sessionGone(session) {
+        const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
+        return (
+            ownerSessionGone(session) &&
+            !(peers.registered ?? registeredSessions)({ sessionsDir }).some((s) => s.sessionId === session)
+        );
     }
 
     /**
@@ -2069,24 +2089,26 @@ export async function startDaemon({
     }
 
     /**
-     * The starvation hold (design 4.7): the green commit is older than 6 hours while merges go on
-     * past it and every gating lane is progressing, so merges wait until the slowest lane completes
-     * on master's head. A lane that is not progressing (queued past its bound, out of balance, an
-     * outage) never causes it.
+     * The starvation hold (design 4.7): merges go on past the green commit faster than a gating
+     * lane finishes, so since green that lane has finished on no commit and its runs there were
+     * superseded, while every gating lane is progressing; merges then wait until the slowest lane
+     * completes on master's head. A lane that is not progressing (queued past its bound, out of
+     * balance, an outage) never causes it, and no age of the green commit does.
      * @returns {string | null} the hold's reason, or null
      */
     function starvation() {
         const m = state.master;
         if (!m.greenSha || !m.pending || m.verdict === "red") return null;
-        const green = commits.find((c) => c.sha === m.greenSha);
-        // Not among the recent commits: more merges than the commit list holds went on past it.
-        const at = Date.parse(green?.commit?.committer?.date ?? "");
-        // An unknown date must not count as starved.
-        if (green && (Number.isNaN(at) || now().getTime() - at < STARVATION_MS)) return null;
         const lanes = Object.entries(m.lanes).filter(([name]) => gatingLane(name));
         const stuck = lanes.some(([, l]) => l.notProgressing || (l.verdict === "red" && !codeRed(l)));
         if (stuck) return null;
-        return `the green commit ${m.greenSha.slice(0, 9)} is over 6 hours old; merges wait for every lane on master's head`;
+        const starved = starvedLanes(m.lanes, gatingLane, { headSha: m.headSha, commits, greenSha: m.greenSha });
+        if (!starved.length) return null;
+        const runs = starved.map((s) => `${s.lane} ${s.superseded}`).join(", ");
+        return (
+            `no gating lane run finished since the green commit ${m.greenSha.slice(0, 9)} ` +
+            `(superseded: ${runs}); merges wait for every lane on master's head`
+        );
     }
 
     /** @type {Promise<void> | null} the reference worktree's work, while it runs */
@@ -2241,7 +2263,7 @@ export async function startDaemon({
         const prs = updatePrs(state.prs, nodes, view, config, iso);
         for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;
         await rerunCancelled(gh, prs, iso);
-        for (const ended of board.expire(state, t, startedAtDate)) {
+        for (const ended of board.expire(state, sessionGone)) {
             void ledger({
                 kind: "release",
                 target: ended.target,
@@ -2471,7 +2493,6 @@ export async function startDaemon({
                 paused: mode() === "paused" || Boolean(state.settings?.paused),
             };
             const steps = [...tickJobs(state, t, pauses), ...settleWaits(state, t)];
-            noteGitHubChanges(state, t);
             for (const s of steps) void ledger(/** @type {any} */ (s.line));
             for (const s of steps) if (s.ring) await ringJob(state.jobs[s.job]);
             checkFaults(state, invariantReads(), t);
@@ -2543,14 +2564,11 @@ export async function startDaemon({
      * @returns {import("./board.mjs").Reads} the reads
      */
     function invariantReads() {
-        const t = now();
         return {
             sessionAlive: (session) => {
                 const job = Object.values(state.jobs ?? {}).find((j) => j.holder?.session === session);
                 if (job?.holder?.pid) return running(job.holder.pid, job.holder.startTime);
-                return job && board.ownerHeld(job)
-                    ? !ownerSessionGone(session)
-                    : board.holderAlive(state, session, t, startedAtDate);
+                return !sessionGone(session);
             },
             recovering: (id) => tasks.has(id) || !state.jobs?.[id]?.holder,
             waitPending: (job) =>

@@ -4,8 +4,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { checkFaults, noteGitHubChanges, settleWaits, tickJobs } from "../lib/advance.mjs";
-import { move, newJob } from "../lib/board.mjs";
+import { checkFaults, settleWaits, tickJobs } from "../lib/advance.mjs";
+import { move, newJob, startPhase } from "../lib/board.mjs";
 
 const T0 = new Date("2026-10-04T12:00:00Z");
 const MIN = 60_000;
@@ -32,25 +32,36 @@ function working(id, over = {}) {
  */
 const stateOf = (...jobs) => ({ jobs: Object.fromEntries(jobs.map((j) => [j.id, j])), prs: {}, master: { lanes: {} } });
 
+/**
+ * A starting job whose window is open: its registry deadline runs.
+ * @param {string} id the job id
+ * @returns {any} the job
+ */
+function starting(id) {
+    const job = newJob({ kind: "issue", target: "#1", id }, T0);
+    move(job, "starting", T0, { holder: { session: null, pane: "%2" } });
+    startPhase(job, "registry", T0);
+    return job;
+}
+
 describe("tickJobs", () => {
-    it("rings a wait past its bound and ends an attempt with no GitHub change, retiring its session", () => {
+    it("never wakes a wait or ends a worker's attempt on elapsed time; a start deadline still fires", () => {
         const wait = working("w");
         move(wait, "waiting", T0, { waitingFor: { checks: HEAD } });
-        const stuck = working("x");
-        const state = stateOf(wait, stuck);
-        expect(tickJobs(state, at(9), {})).toEqual([]);
-        const fired = tickJobs(state, at(10), {});
-        expect(fired.map((f) => [f.job, f.action, f.ring])).toEqual([["w", "doorbell", true]]);
-        expect(wait.state).toBe("working");
-        // The rung job works again on a fresh 4-hour clock; the other one's ran out.
-        const later = tickJobs(state, at(4 * 60), {});
-        expect(later.map((f) => [f.job, f.action])).toEqual([["x", "requeue"]]);
-        expect(stuck).toMatchObject({ state: "queued", fresh: true, holder: null });
-        expect(state.retiring.map((r) => r.job)).toEqual(["x"]);
+        const busy = working("x");
+        const start = starting("s");
+        const state = stateOf(wait, busy, start);
+        expect(tickJobs(state, at(0.5), {})).toEqual([]);
+        expect(tickJobs(state, at(1), {}).map((f) => [f.job, f.action])).toEqual([["s", "start-failure"]]);
+        expect(state.retiring.map((r) => r.job)).toEqual(["s"]);
+        // A year later the wait still waits and the attempt still runs: no clock ends either.
+        expect(tickJobs(state, at(365 * 24 * 60), {})).toEqual([]);
+        expect(wait).toMatchObject({ state: "waiting", attempts: [] });
+        expect(busy).toMatchObject({ state: "working", attempts: [], holder: { session: "s-x" } });
     });
 
     it("counts no time while GitHub is unknown, a usage stop holds or githerd is paused", () => {
-        const job = working("x");
+        const job = starting("x");
         const state = stateOf(job);
         tickJobs(state, at(60), { unknown: true });
         tickJobs(state, at(120), { usage: true });
@@ -145,25 +156,23 @@ describe("a wait on a local task", () => {
         expect(job).toMatchObject({ state: "working" });
         expect(job.news.at(-1).text).toBe("task b1 finished with exit code 0");
     });
-});
 
-describe("noteGitHubChanges", () => {
-    it("restarts a working job's no-change clock when its pull request's head or checks move", () => {
-        const job = working("x", { pr: 7 });
+    it("settles when the session that ran the task is gone, with no exit recorded", () => {
+        const output = join(mkdtempSync(join(tmpdir(), "githerd-task-")), "b2.output");
+        writeFileSync(output, "still running\n");
+        const job = working("local");
+        move(job, "waiting", T0, { waitingFor: { local: "b2", output } });
         const state = stateOf(job);
-        state.prs[7] = { headSha: HEAD, required: { "All Checks Pass": "PENDING" } };
-        noteGitHubChanges(state, T0);
-        tickJobs(state, at(60), {});
-        expect(job.clock.usedMs).toBe(60 * MIN);
-        state.prs[7].required = { "All Checks Pass": "SUCCESS" };
-        noteGitHubChanges(state, at(60));
-        expect(job.clock.usedMs).toBe(0);
+        expect(settleWaits(state, at(365 * 24 * 60))).toEqual([]);
+        job.holder = null;
+        expect(settleWaits(state, at(1)).map((s) => s.job)).toEqual(["local"]);
+        expect(job.news.at(-1).text).toBe("task b2 ended with its session");
     });
 });
 
 describe("checkFaults", () => {
     it("keeps the faults for every surface, pages one that lasted a day, and ends it when it clears", () => {
-        const job = working("x");
+        const job = starting("x");
         job.clock = null;
         const state = {
             ...stateOf(job),
@@ -176,10 +185,10 @@ describe("checkFaults", () => {
             itemOpen: () => true,
         };
         expect(checkFaults(state, reads, T0)).toEqual([
-            { record: "job x", problem: "working with no deadline" },
+            { record: "job x", problem: "starting with no deadline" },
             { record: "pr 7", problem: "no status" },
         ]);
-        expect(state.invariants.faults).toEqual([{ record: "job x", problem: "working with no deadline" }]);
+        expect(state.invariants.faults).toEqual([{ record: "job x", problem: "starting with no deadline" }]);
         expect(state.ownerItems).toBeUndefined();
         checkFaults(state, reads, at(24 * 60));
         expect(Object.keys(state.ownerItems)).toEqual(["fault:job x", "fault:pr 7"]);

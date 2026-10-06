@@ -276,7 +276,7 @@ describe("a push", () => {
     it("runs the gate as a hook, pushes the head and delivers the result as news", async () => {
         const { job, head } = workingJob("a");
         const r = await queue.request({ job: "a", branch: "githerd/a", expectHead: head }, "s-a");
-        expect(r).toEqual({ queued: true, position: 1, estimateMinutes: 30 });
+        expect(r).toEqual({ queued: true, position: 1 });
         expect(job.state).toBe("waiting");
         expect(job.waitingFor).toEqual({ push: "push-1" });
         await queue.drain();
@@ -413,6 +413,23 @@ describe("gate failures", () => {
         await queue.drain();
         expect(b.job.news.at(-1).text).toMatch(/^gate failed local \/ gate \/ Lint failed \(shared: the same key on 1/);
         expect(entries.filter((e) => e.kind === "push-failed").map((e) => e.class)).toEqual(["own", "shared"]);
+    });
+
+    it("counts another job's failure on the key since master's green commit last moved, whatever its age", async () => {
+        gate("fail");
+        const day = 24 * 3_600_000;
+        state.pushQueue.failures = [{ key: "local / gate / Lint failed", job: "old", at: now.getTime() - 30 * day }];
+        state.master = { greenAt: new Date(now.getTime() - 31 * day).toISOString() };
+        const a = workingJob("a");
+        await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
+        await queue.drain();
+        expect(a.job.news.at(-1).text).toMatch(/\(shared: the same key on 1 other/);
+        // Green moved after both failures: neither says anything about the next one.
+        state.master.greenAt = new Date(now.getTime() + 1).toISOString();
+        const b = workingJob("b");
+        await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b");
+        await queue.drain();
+        expect(b.job.news.at(-1).text).toBe("gate failed local / gate / Lint failed (own: no other class matched)");
     });
 
     it("calls a gate failure shared when the same step fails on the green commit", async () => {
@@ -585,18 +602,21 @@ describe("the gate runs as for a person", () => {
         expect(() => makeQueue({ env: /** @type {any} */ (undefined) })).toThrow(/allow-listed environment/);
     });
 
-    it("bounds a push at twice the longest recent gate, never below twice the default", async () => {
+    it("answers with the queue position only, no time estimate, and puts no clock on the wait", async () => {
         gate("wait");
-        state.pushQueue.gateRuns = [60_000];
+        state.pushQueue.gateRuns = [50 * 60_000];
         const a = workingJob("a");
-        const r = await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a");
-        expect(r).toMatchObject({ estimateMinutes: 30 });
-        expect(a.job.clock.budgetMs).toBe(2 * 30 * 60_000);
-        state.pushQueue.gateRuns = [60_000, 50 * 60_000, 60_000];
-        const b = workingJob("b");
-        expect(await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b")).toMatchObject({
-            estimateMinutes: 100,
+        expect(await queue.request({ job: "a", branch: "githerd/a", expectHead: a.head }, "s-a")).toEqual({
+            queued: true,
+            position: 1,
         });
+        const b = workingJob("b");
+        expect(await queue.request({ job: "b", branch: "githerd/b", expectHead: b.head }, "s-b")).toEqual({
+            queued: true,
+            position: 2,
+        });
+        // The push's result ends the wait, not a bound computed from past gates.
+        for (const j of [a.job, b.job]) expect(j).toMatchObject({ state: "waiting", clock: null, deadline: null });
         writeFileSync(join(repo.tmp, "go"), "");
     });
 });

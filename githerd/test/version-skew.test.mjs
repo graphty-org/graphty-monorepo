@@ -143,7 +143,8 @@ describe("an old client against a new daemon", () => {
         const state = workerState();
         state.sessions.w1.protocol = OLD;
         expect(servedProtocols(state.sessions, NEW)).toEqual([NEW, OLD]);
-        expire(state, new Date(STARTED.getTime() + 20 * 60_000), STARTED);
+        // The registry no longer names w1: its session ended.
+        expire(state, (session) => session === "w1");
         expect(servedProtocols(state.sessions, NEW)).toEqual([NEW]);
     });
 });

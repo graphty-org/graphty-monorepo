@@ -253,6 +253,7 @@ async function start({ peers, ...options } = {}) {
         // back the real ownerFacts (a scan of up to 256 MB of the owner's transcripts every poll).
         peers: {
             sessions: () => [],
+            registered: () => [],
             transport: { send: async () => {} },
             ownerFacts: async () => ({ pushLog: [], sessions: [], procs: [], worktrees: [] }),
             ...peers,
@@ -1239,19 +1240,54 @@ describe("the poll loop", () => {
         expect(daemon.state.mergeGate.posted["7"]).toMatchObject({ state: "success" });
     });
 
-    it("holds every pull request while the green commit is over 6 hours old and merges go on past it", async () => {
+    it("holds every pull request once a gating lane's runs since the green commit were all superseded", async () => {
         scene.prs = [{ ...gatedPr(), id: "PR_7" }];
-        scene.head = B;
-        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
-        scene.ci = [run(101, B, null), run(100, A, "success")];
-        clock = new Date("2026-10-02T19:00:00Z");
+        scene.head = C;
+        scene.commits = [
+            commit(C, B, "Merge pull request #3 from o/y"),
+            commit(B, A, "Merge pull request #2 from o/x"),
+            commit(A, null, "first"),
+        ];
+        // B's run was cancelled by C's: the lane has finished on no commit since green.
+        scene.ci = [run(102, C, null), run(101, B, "cancelled"), run(100, A, "success")];
         const daemon = await start();
         await poll(daemon);
         expect(daemon.state.master).toMatchObject({ greenSha: A, pending: true });
         expect(daemon.state.mergeGate.posted["7"]).toMatchObject({
             state: "failure",
-            description: expect.stringMatching(/^held: starvation hold \(the green commit a{9} is over 6 hours old/),
+            description: expect.stringMatching(
+                /^held: starvation hold \(no gating lane run finished since the green commit a{9}/,
+            ),
         });
+    });
+
+    it("keeps a session and its claim while the registry names it, and ends both when it does not", async () => {
+        let registered = [{ pid: 1, sessionId: "s-1", name: "s", cwd: "/elsewhere" }];
+        const daemon = await start({ peers: { registered: () => registered } });
+        daemon.state.sessions = { "s-1": { lastSeen: clock.toISOString() } };
+        daemon.state.claims = { "pr:7": { target: "pr:7", holder: "s-1" } };
+        // A day of silence ends nothing: the registry still names the session.
+        clock = new Date(clock.getTime() + 24 * 3_600_000);
+        await poll(daemon);
+        expect(Object.keys(daemon.state.sessions)).toEqual(["s-1"]);
+        expect(Object.keys(daemon.state.claims)).toEqual(["pr:7"]);
+        registered = [];
+        await poll(daemon);
+        expect(daemon.state.sessions).toEqual({});
+        expect(daemon.state.claims).toEqual({});
+    });
+
+    it("does not hold for starvation on the green commit's age alone", async () => {
+        scene.prs = [{ ...gatedPr(), id: "PR_7" }];
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, null), run(100, A, "success")];
+        // A day after the green commit, with the head's run still going and nothing superseded.
+        clock = new Date("2026-10-03T12:00:00Z");
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.master).toMatchObject({ greenSha: A, pending: true });
+        expect(daemon.state.mergeGate.posted["7"].description).not.toMatch(/starvation/);
     });
 
     it("holds a pull request that changes a package the owner holds, until the policy ends", async () => {

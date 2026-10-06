@@ -413,7 +413,8 @@ export const TOOLS = [
         name: "githerd_wait",
         description:
             "Declare what you are waiting for (checks, a lane, a release, another job, or a local background task you " +
-            "started), then stop. githerd watches it and wakes this session when it changes. Refused if it is already settled.",
+            "started), then stop. githerd watches it and wakes this session when it settles; no timer ends the wait. " +
+            "Answers ok; refused if it is already settled.",
         inputSchema: object(
             {
                 job: JOB,
@@ -446,7 +447,7 @@ export const TOOLS = [
         name: "githerd_push",
         description:
             "Push your job's branch through githerd's queue and the pre-push gate. expectHead is your local HEAD. " +
-            "Answers with your place in the queue; the result arrives later as news.",
+            "Answers with your place in the queue (position), not a time; the result arrives later as news.",
         inputSchema: object(
             { job: JOB, branch: { type: "string", pattern: "^[A-Za-z0-9._/-]{1,200}$" }, expectHead: SHA },
             ["job", "branch", "expectHead"],

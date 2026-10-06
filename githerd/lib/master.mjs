@@ -306,6 +306,32 @@ export function masterVerdict(lanes, config, { headSha, commits, greenSha = null
 }
 
 /**
+ * The lanes starved since the green commit (design 4.7): a lane whose runs on the first-parent
+ * commits after `greenSha` were all superseded (they ended neither green nor red, cancelled by the
+ * next merge's run) and at least one was, so it has finished on no commit since green. A green
+ * commit not among `commits` means more merges went on past it than the list holds; the whole
+ * list is counted then. Event-based: no age of the green commit decides it.
+ * @param {Record<string, LaneRecord>} lanes the lane records
+ * @param {(name: string) => boolean} gating whether a lane gates merges now
+ * @param {{headSha: string, commits: Commit[], greenSha: string}} branch the branch's head, its
+ *   recent commits, and the green commit
+ * @returns {{lane: string, superseded: number}[]} the starved lanes and their superseded runs
+ */
+export function starvedLanes(lanes, gating, { headSha, commits, greenSha }) {
+    const chain = firstParent(commits, headSha);
+    const end = chain.findIndex((c) => c.sha === greenSha);
+    const since = (end === -1 ? chain : chain.slice(0, end)).map((c) => c.sha);
+    const starved = [];
+    for (const [name, lane] of Object.entries(lanes)) {
+        if (!gating(name)) continue;
+        const outcomes = since.map((sha) => lane.shas?.[sha]);
+        const superseded = outcomes.filter((o) => o === "neutral").length;
+        if (superseded && !outcomes.some((o) => o === "green" || o === "red")) starved.push({ lane: name, superseded });
+    }
+    return starved;
+}
+
+/**
  * The pull request a first-parent commit landed, from its message.
  * @param {string} message the commit message
  * @returns {number | null} the PR number of a merge commit or a squash merge, else null

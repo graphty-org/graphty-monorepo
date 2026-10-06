@@ -21,10 +21,27 @@ const prJobs = readFileSync(new URL("pr-failed-jobs.jsonl", DATA), "utf8")
 /** @type {Record<string, string[]>} */
 const prFiles = JSON.parse(readFileSync(new URL("pr-files.json", DATA), "utf8"));
 const HOUR = 3_600_000;
+/**
+ * When master's green commit moved, in order: every successful CI run on master, at its finish
+ * (`runs-master.jsonl`). A sighting counts toward shared only from the last one before it.
+ */
+const greenMoves = readFileSync(new URL("runs-master.jsonl", DATA), "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
+    .filter((r) => r.name === "CI" && r.conclusion === "success")
+    .map((r) => Date.parse(r.updated_at))
+    .sort((a, b) => a - b);
+/**
+ * When master's green commit last moved before a time, or null before the first.
+ * @param {number} at the time, in ms
+ * @returns {number | null} the move, in ms
+ */
+const greenAt = (at) => greenMoves.findLast((g) => g <= at) ?? null;
 
 /**
  * Every pull request failure in time order, classified as the daemon would have on first sight:
- * other open pull requests' failures within the window make it shared.
+ * other open pull requests' failures on its key since master's green commit last moved make it shared.
  * @param {ReturnType<typeof createReplay>["record"]["prs"]} prs the recorded pull requests
  * @returns {{at: number, pr: number, branch: string, job: string, verdict: ReturnType<typeof classify>}[]}
  *   one entry per failed job, `All Checks Pass` left out (it only repeats the others)
@@ -48,6 +65,7 @@ function replayPullRequests(prs) {
         const others = othersWithKey(
             seen.filter((s) => isOpen(s.pr, at)),
             { key, pr: j.pr, at },
+            greenAt(at),
         );
         seen.push({ key, pr: j.pr, at });
         return { at, pr: j.pr, branch: j.branch, job: j.job, verdict: classify(f, { others }) };

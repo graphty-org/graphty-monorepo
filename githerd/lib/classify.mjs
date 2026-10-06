@@ -28,9 +28,6 @@ import { failureKey } from "./lanes.mjs";
 /** The prefix of a runner label served by the rented GPU provider (`runs-on: machine/...` in `gpu.yml`). */
 const RENTED_PREFIX = "machine/";
 
-/** How far back another pull request's failure on the same key still makes this one shared. */
-export const SHARED_WINDOW_MS = 6 * 3_600_000;
-
 /** Files that decide what `pnpm audit` reads: the manifests, the lockfile and the overrides. */
 const DEPENDENCY_FILE = /(?:^|\/)(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc)$/;
 
@@ -52,8 +49,8 @@ const NOT_BUILT = /^(?:design|\.claude)\//;
  * @typedef {object} Context facts about the failure that are not in its text
  * @property {"pr" | "master"} [where] where the failure ran; `pr` by default
  * @property {Iterable<string>} [masterRed] the keys red on master now
- * @property {number} [others] other open pull requests with the same key within `SHARED_WINDOW_MS`
- *   (`othersWithKey`)
+ * @property {number} [others] other open pull requests that failed on the same key since master's
+ *   last green commit (`othersWithKey`)
  * @property {boolean} [failsOnGreen] a local gate key that also fails on the green commit
  * @property {Iterable<string>} [intermittent] the keys named by open `intermittent` issues
  */
@@ -218,16 +215,20 @@ export function classify(f, ctx = {}) {
  */
 
 /**
- * The number of OTHER pull requests that failed on the same key within `SHARED_WINDOW_MS` before
- * (or at) this failure. The caller passes only sightings of pull requests that are still open.
+ * The number of OTHER pull requests that failed on the same key since master's last green commit
+ * and before (or at) this failure. A failure before green ran on code the green commit may have
+ * fixed, so it says nothing about this one; no age decides it. The caller passes only sightings of
+ * pull requests that are still open.
  * @param {Sighting[]} seen earlier sightings
  * @param {Sighting} now this failure
+ * @param {number | null} [greenAt] when master's green commit last moved, in ms; null counts every
+ *   sighting
  * @returns {number} distinct other pull requests
  */
-export function othersWithKey(seen, now) {
+export function othersWithKey(seen, now, greenAt = null) {
     const prs = new Set();
     for (const s of seen) {
-        if (s.key === now.key && s.pr !== now.pr && s.at <= now.at && now.at - s.at <= SHARED_WINDOW_MS) prs.add(s.pr);
+        if (s.key === now.key && s.pr !== now.pr && s.at <= now.at && s.at >= (greenAt ?? -Infinity)) prs.add(s.pr);
     }
     return prs.size;
 }

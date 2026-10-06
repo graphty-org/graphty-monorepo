@@ -13,7 +13,7 @@ it is bundled in `graphty/src/data/sampleGraphs.ts` and loads inline.
 
 - Nodes: 34
 - Edges: 78
-- Source: http://www-personal.umich.edu/~mejn/netdata/
+- Source: https://www-personal.umich.edu/~mejn/netdata/
 - License: Academic
 - Credit shown in the app: Zachary 1977
 - Copied from: graphty-element/test/helpers/corpus/gml/karate.gml
@@ -25,7 +25,7 @@ two, and the classic test case for community detection.
 
 - Nodes: 115
 - Edges: 613
-- Source: http://www-personal.umich.edu/~mejn/netdata/
+- Source: https://www-personal.umich.edu/~mejn/netdata/
 - License: Academic
 - Credit shown in the app: Girvan and Newman 2002
 - Copied from: graphty-element/test/helpers/corpus/gml/football.gml

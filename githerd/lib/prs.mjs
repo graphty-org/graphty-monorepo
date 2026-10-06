@@ -121,25 +121,17 @@ function contextState(ctx) {
 }
 
 /**
- * The newest context of each name: a context of a workflow run that a newer run of the same
- * workflow replaced is dropped, and of a name reported twice (a re-run) the newest counts.
+ * The newest context of each name: of a name reported twice the highest check run id counts, which
+ * a re-run attempt raises, as GitHub's own required-check rule does. Workflow run ids say nothing
+ * about order: a draft-event run and a ready run made in the same second can come in either order
+ * (#1107).
  * @param {any[]} contexts CheckRun and StatusContext nodes
  * @returns {Map<string, any>} the newest context by name
  */
 function newestContexts(contexts) {
-    /** @type {Map<string, number>} */
-    const latestRun = new Map();
-    for (const ctx of contexts) {
-        const run = ctx.checkSuite?.workflowRun;
-        if (!run) continue;
-        const name = run.workflow?.name ?? "";
-        latestRun.set(name, Math.max(latestRun.get(name) ?? 0, run.databaseId ?? 0));
-    }
     /** @type {Map<string, any>} */
     const newest = new Map();
     for (const ctx of contexts) {
-        const run = ctx.checkSuite?.workflowRun;
-        if (run && (run.databaseId ?? 0) < (latestRun.get(run.workflow?.name ?? "") ?? 0)) continue;
         const name = ctx.__typename === "StatusContext" ? ctx.context : ctx.name;
         const prev = newest.get(name);
         if (!prev || (ctx.databaseId ?? 0) > (prev.databaseId ?? 0)) newest.set(name, ctx);
@@ -180,10 +172,8 @@ function readChecks(node, requiredChecks) {
     const required = Object.fromEntries(requiredChecks.map((n) => [n, "MISSING"]));
     const failing = [];
     let startedAt = null;
-    // A workflow run on this head that a newer run of the same workflow replaced (the run made while
-    // a draft, once it is marked ready) says nothing any more, even before the newer run reports
-    // the same check. Of what is left, a name reported twice (a re-run) counts by its newest run, as
-    // GitHub's own required-check rule does.
+    // A name reported twice (a re-run) counts by its newest check run, as GitHub's own
+    // required-check rule does.
     // A check run that started before the PR was last marked ready ran on the draft: it says nothing
     // about the ready PR, even while the ready run is queued and has reported no check (#1080). A
     // StatusContext has no start time and is kept.

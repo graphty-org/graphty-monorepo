@@ -117,7 +117,7 @@ let clock;
 /**
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
  *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
- *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: {filename: string, patch?: string}[],
+ *   jobs?: Record<string, any[]>, job?: Record<string, any>, logs?: Record<string, string>, compare?: {filename: string, patch?: string}[],
  *   runAttempt?: number, run?: Record<string, unknown>, prCommits?: string[], compareCommits?: string[],
  *   files?: Record<string, string>}} `files` the default branch's files `git show` reads
  */
@@ -221,7 +221,9 @@ function respond({ args, input }) {
     const log = /\/actions\/jobs\/(\d+)\/logs$/.exec(path);
     if (log)
         return httpOutput({ status: 200, body: scene.logs?.[log[1]] ?? "<Error><Code>BlobNotFound</Code></Error>" });
-    if (/\/actions\/jobs\/\d+$/.test(path)) {
+    const oneJob = /\/actions\/jobs\/(\d+)$/.exec(path);
+    if (oneJob && scene.job?.[oneJob[1]]) return ok(scene.job[oneJob[1]]);
+    if (oneJob) {
         return ok({ steps: [{ name: "Check visual changes were accepted", conclusion: "failure" }] });
     }
     if (/\/issues\/\d+\/comments\?/.test(path)) return ok(scene.comments ?? []);
@@ -2165,6 +2167,71 @@ describe("failure classes on master", () => {
         clock = new Date("2026-10-03T12:54:00Z");
         await poll(daemon);
         expect(daemon.state.ownerItems["paid-capacity:gpu"]).toMatchObject({ endedBy: "cleared" });
+    });
+
+    it("asks the owner once to top up a rented runner a pull request's job was refused on, and ends it when one runs", async () => {
+        gpuConfig();
+        const REFUSED = "Machine: Insufficient balance to run job. Current balance: $-6.2450. Minimum required: $0.05.";
+        const t4 = (/** @type {number} */ id, /** @type {string} */ conclusion, /** @type {string} */ ran) => ({
+            __typename: "CheckRun",
+            name: "Test (NVIDIA T4)",
+            status: "COMPLETED",
+            conclusion,
+            startedAt: "2026-10-02T11:00:00Z",
+            completedAt: `2026-10-02T11:${ran}Z`,
+            databaseId: id,
+            checkSuite: { workflowRun: { databaseId: 300 + id, workflow: { name: "GPU" } } },
+        });
+        const pr = (/** @type {number} */ number, /** @type {string} */ head, /** @type {any} */ ctx) => {
+            const node = { ...gatedPr(), number, headRefName: `fix/${number}`, headRefOid: head };
+            node.commits.nodes[0].commit.statusCheckRollup.contexts.nodes = [ctx];
+            return node;
+        };
+        const refused = (/** @type {number} */ id) => ({
+            id,
+            run_id: 300 + id,
+            name: "Test (NVIDIA T4)",
+            conclusion: "failure",
+            labels: [RENTED],
+            steps: [
+                { name: "Set up Worker", conclusion: "success" },
+                { name: REFUSED, conclusion: "failure" },
+            ],
+        });
+        scene.job = { 1: refused(1), 2: refused(2) };
+        scene.prs = [pr(8, C, t4(1, "FAILURE", "00:04")), pr(9, D, t4(2, "FAILURE", "00:05"))];
+        const daemon = await start();
+        for (const at of ["12:00", "12:03", "12:06"]) {
+            clock = new Date(`2026-10-02T${at}:00Z`);
+            await poll(daemon);
+        }
+        const id = "runner-balance:GPU / Test (NVIDIA T4)";
+        const items = Object.keys(daemon.state.ownerItems ?? {}).filter((k) => k.startsWith("runner-balance:"));
+        expect(items).toEqual([id]);
+        expect(daemon.state.ownerItems[id]).toMatchObject({
+            blocks: "release",
+            question:
+                "machine.dev balance is $-6.2450: GPU / Test (NVIDIA T4) cannot run, and the release waits for it; top up the account (https://github.com/o/r/actions/runs/302/job/2)",
+        });
+        expect(daemon.state.ownerItems[id].endedAt).toBeUndefined();
+        expect(pages().filter((p) => p.message.includes("machine.dev balance"))).toHaveLength(1);
+        // Each refused job is read once.
+        const paths = gh.calls.map((c) => c.args.at(-1) ?? "");
+        expect(paths.filter((p) => /\/actions\/jobs\/[12]$/.test(p))).toHaveLength(2);
+        expect(Object.keys(daemon.state.jobs).filter((j) => j.startsWith("pr-") || j.startsWith("incident"))).toEqual(
+            [],
+        );
+
+        // The job runs on a granted runner: the item ends by itself.
+        scene.prs = [pr(8, C, t4(3, "FAILURE", "20:00")), pr(9, D, t4(2, "FAILURE", "00:05"))];
+        clock = new Date("2026-10-02T12:30:00Z");
+        await poll(daemon);
+        expect(daemon.state.ownerItems[id]).toMatchObject({ endedBy: "cleared" });
+        // The old refusal still on #9 does not raise it again.
+        clock = new Date("2026-10-02T12:33:00Z");
+        await poll(daemon);
+        expect(daemon.state.ownerItems[id].endedAt).toBeDefined();
+        expect(gh.writes()).toEqual([]);
     });
 
     /**

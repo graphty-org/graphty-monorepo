@@ -21,7 +21,7 @@
 import { execFileSync } from "node:child_process";
 
 import { advisoryFailure, advisoryWords, utcDay } from "./advisory.mjs";
-import { classify } from "./classify.mjs";
+import { balanceRefusal, classify } from "./classify.mjs";
 import { failureKey, isSummaryJob } from "./lanes.mjs";
 
 /**
@@ -58,12 +58,13 @@ import { failureKey, isSummaryJob } from "./lanes.mjs";
  *   cancelledRuns: CancelledRun[],
  *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
  *   underlying?: Underlying | null, inherited?: string[] | null, advisory?: string[],
- *   failureKeys?: string[] | null, shared?: string[] | null,
+ *   failureKeys?: string[] | null, shared?: string[] | null, outside?: string[] | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
  * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head; `inherited` the
  *   master keys every failure under its failing summary checks is red on, when that is all that fails;
  *   `failureKeys` the keys of those failures when only summary checks fail; `shared` the board's
- *   words for them when every one is shared across pull requests (shared.mjs);
+ *   words for them when every one is shared across pull requests (shared.mjs); `outside` their keys
+ *   when every one is a rented runner refused for its balance, which only the owner can clear;
  *   `advisory` the advisory checks failing on the head, in the board's words (they count as passed)
  */
 
@@ -292,7 +293,10 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
     const byHead = new Map(nodes.map((n) => [n.headRefName, n.number]));
     for (const node of nodes) {
         const rec = foldPr(node, saved[node.number], config, now);
-        const own = warnAdvisory(rec, master.advisory, utcDay(now));
+        const read = warnAdvisory(rec, master.advisory, utcDay(now));
+        // A job the rented runner refused for its balance is no pull request's to fix (classify.mjs).
+        const own = read && { ...read, failures: read.failures.filter((f) => !balanceRefusal(f)) };
+        rec.outside = own && !own.failures.length ? summaryKeys(rec.required, read) : null;
         rec.inherited = inheritedKeys(rec.required, own, master.redKeys ?? []);
         rec.failureKeys = summaryKeys(rec.required, own);
         rec.shared = null; // shared.mjs `markShared` decides it over every pull request
@@ -606,6 +610,8 @@ function failingReasons(rec, master) {
     if (!failing.length) return [];
     const reasons = rec.ownerGate ? [] : [`required check failing: ${failing.join(", ")}`];
     if (rec.inherited?.length) reasons.splice(0, reasons.length, `inherited from master: ${rec.inherited.join(", ")}`);
+    else if (rec.outside?.length)
+        reasons.splice(0, reasons.length, `outside cause, for the owner: ${rec.outside.join(", ")}`);
     else if (rec.shared?.length) reasons.splice(0, reasons.length, ...rec.shared);
     if (master.fixedAt && rec.failingStartedAt && rec.failingStartedAt < master.fixedAt) {
         reasons.push("failure predates master fix");

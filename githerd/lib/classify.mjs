@@ -97,6 +97,27 @@ const RUNNER_LOST = /received a shutdown signal|lost communication with the serv
 const HOSTED_LOST = /was not acquired by Runner of type hosted|hosted runner.*lost communication with the server/;
 
 /**
+ * The rented provider's refusal of a job for the account's balance. It is only the name of the job's
+ * failed step: the job has no log and no annotation [PF 9.5].
+ */
+const BALANCE = /^Machine: Insufficient balance to run job\.(?: Current balance: \$(-?\d+(?:\.\d+)?))?/;
+
+/**
+ * The provider's refusal of a job for its balance, from the job's failed step names: no code
+ * change can fix it, only the owner topping the account up.
+ * @param {Failure} f the failure
+ * @returns {{provider: string, balance: string | null} | null} the provider and the balance it
+ *   reported (null when it named none), or null when the job was not refused for its balance
+ */
+export function balanceRefusal(f) {
+    for (const step of f.steps) {
+        const m = BALANCE.exec(step);
+        if (m) return { provider: "machine.dev", balance: m[1] ?? null };
+    }
+    return null;
+}
+
+/**
  * The text patterns, in class order. Only unambiguous failures with an obvious action are here
  * (the owner's decision of 2026-10-05): a credential, paid capacity, a runner lost mid-job, and the
  * known outside outages (a package server or mirror, DNS). Anything else on master is
@@ -117,7 +138,7 @@ export const PATTERNS = /** @type {Pattern[]} */ ([
         test: line(/gpg failed to sign|gpg: signing failed|ssh-keygen.*(?:error|failed)/i),
     },
     { class: "credential", name: "Claude authentication failed", test: line(/\bauthentication_failed\b/) },
-    { class: "paid-capacity", name: "rented runner balance", test: line(/Insufficient balance/) },
+    { class: "paid-capacity", name: "rented runner balance", test: (f) => balanceRefusal(f) !== null },
     { class: "paid-capacity", name: "rented runner time limit", test: line(/limited to 30 minutes/) },
     { class: "paid-capacity", name: "rented runner concurrency limit", test: line(/Concurrent runner limit reached/) },
     { class: "paid-capacity", name: "Claude billing error", test: line(/\bbilling_error\b/) },

@@ -573,3 +573,40 @@ describe("advisory checks", () => {
         expect(askProblems(both)).toEqual(["All Checks Pass"]);
     });
 });
+
+describe("a rented runner refused for its balance", () => {
+    const owner = { trust: { login: "apowers313" }, escalations: {} };
+    const BALANCE = "Machine: Insufficient balance to run job. Current balance: $-6.2450. Minimum required: $0.05.";
+    const T4 = { workflow: "GPU", job: "Test (NVIDIA T4)", steps: [BALANCE] };
+    const LINT = { workflow: "CI", job: "Build", steps: ["Lint"] };
+    const failing = (failures) =>
+        withChecks(
+            node({
+                detail: {
+                    commits: { messages: ["fix(graphty-element): trim edges"] },
+                    files: ["graphty-element/src/Edge.ts"],
+                    underlying: { for: "1", failures },
+                },
+            }),
+            [run("All Checks Pass", "FAILURE"), run("Lint PR Title", "SUCCESS")],
+        );
+    const poll = (n) => updatePrs({}, [n], GREEN, config, NOW)["704"];
+
+    it("is an outside cause: no job, no question, no key for the shared count", () => {
+        const rec = poll(failing([T4]));
+        expect(rec.outside).toEqual([`GPU / Test (NVIDIA T4) / ${BALANCE}`]);
+        expect(rec.failureKeys).toBeNull();
+        expect(prWork("704", rec, owner)).toBeNull();
+        expect(askProblems(rec)).toEqual([]);
+        expect(whyStuck(704, rec, { master: GREEN, config, login: "apowers313", now: Date.parse(NOW) })).toContain(
+            `outside cause, for the owner: GPU / Test (NVIDIA T4) / ${BALANCE}`,
+        );
+    });
+
+    it("leaves the pull request's own failure beside it its own", () => {
+        const rec = poll(failing([T4, LINT]));
+        expect(rec.outside).toBeNull();
+        expect(rec.failureKeys).toEqual(["CI / Build / Lint"]);
+        expect(prWork("704", rec, owner)).toBe("required check failing: All Checks Pass");
+    });
+});

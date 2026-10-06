@@ -113,7 +113,7 @@ import {
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying, recheckRefused } from "./done.mjs";
 import { labelMasterFixes, linkMasterFix } from "./master-fix.mjs";
-import { classify, isNoLog } from "./classify.mjs";
+import { balanceRefusal, classify, isNoLog } from "./classify.mjs";
 import { flakePoll, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
 import { markShared } from "./shared.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
@@ -219,6 +219,31 @@ const NOT_DONE = "not done yet: ";
 const MAX_BODY = 1024 * 1024;
 
 const RED_JOB = new Set(["failure", "timed_out", "startup_failure"]);
+/** A job that ran this long had a runner: one refused for its balance fails within seconds [PF 9.6]. */
+const RAN_MS = 60_000;
+
+/**
+ * A pull request's newest check runs, each with its workflow's name and its `workflow / job` name.
+ * @param {any} node the GraphQL pull request
+ * @returns {any[]} the check runs
+ */
+const newestCheckRuns = (node) =>
+    [...newestContexts(node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? []).values()]
+        .filter((c) => c.__typename === "CheckRun" && c.databaseId)
+        .map((c) => {
+            const workflow = c.checkSuite?.workflowRun?.workflow?.name ?? "";
+            return { ...c, workflow, job: `${workflow} / ${c.name}` };
+        });
+
+/**
+ * Whether a check run got a runner: it passed, or ran (or runs) for `RAN_MS`.
+ * @param {any} c the GraphQL check run
+ * @param {number} ms the poll's time
+ * @returns {boolean} true when it had a runner
+ */
+const hadRunner = (c, ms) =>
+    c.conclusion === "SUCCESS" ||
+    (Boolean(c.startedAt) && (c.completedAt ? Date.parse(c.completedAt) : ms) - Date.parse(c.startedAt) >= RAN_MS);
 /**
  * The least a queued job waits before its lane counts as not progressing: the worst pickup seen on
  * the rented GPU label from 09-18 to 10-03, 926 s (design 3.10). A label whose worst pickup is
@@ -271,7 +296,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
           committer { email }
           statusCheckRollup { contexts(first: 100) { nodes {
             __typename
-            ... on CheckRun { name status conclusion startedAt databaseId
+            ... on CheckRun { name status conclusion startedAt completedAt databaseId
               checkSuite { workflowRun { databaseId workflow { name } } } }
             ... on StatusContext { context state }
           } } }
@@ -2620,6 +2645,7 @@ export async function startDaemon({
             advisory: state.advisory ?? null,
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);
+        await runnerRefusals(gh, nodes, t.getTime());
         const shared = markShared(state, prs, nodes, { threshold: config.sharedFailurePrs, at: iso });
         for (const key of shared.declared) event("shared-failure", { key, prs: state.sharedFailures[key].prs });
         for (const end of shared.ended) event("shared-failure-ended", end);
@@ -2650,6 +2676,90 @@ export async function startDaemon({
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };
         await checkOverrides();
+    }
+
+    /**
+     * The open pull requests' jobs a rented runner refused for its balance (classify.mjs
+     * `balanceRefusal`): no code change fixes one, so it is one owner item per job name, raised by
+     * the newest refusal and paged once, and ended when a job of that name next gets a runner
+     * (`hadRunner`). A pull request closed meanwhile ends nothing: there is no evidence then. Each
+     * failed job that did not get a runner is read once.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {any[]} nodes the open pull requests
+     * @param {number} ms the poll's time
+     */
+    async function runnerRefusals(gh, nodes, ms) {
+        const read = state.refusalsRead ?? {};
+        /** @type {Record<string, any>} */
+        const live = {};
+        /** @type {Map<string, {refused: any, ran: number}>} */
+        const byJob = new Map();
+        for (const c of nodes.flatMap(newestCheckRuns)) {
+            const j = byJob.get(c.job) ?? { refused: null, ran: 0 };
+            byJob.set(c.job, j);
+            if (hadRunner(c, ms)) {
+                j.ran = Math.max(j.ran, c.databaseId);
+                continue;
+            }
+            if (c.conclusion !== "FAILURE") continue;
+            const id = String(c.databaseId);
+            live[id] = id in read ? read[id] : await refusalOf(gh, c.workflow, c.databaseId);
+            if (live[id]?.job > (j.refused?.job ?? 0)) j.refused = live[id];
+        }
+        state.refusalsRead = live;
+        for (const [name, j] of byJob) balanceItem(name, j);
+    }
+
+    /**
+     * Reads one failed job and says whether its rented runner was refused for its balance.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {string} workflow the workflow's name
+     * @param {number} id the job
+     * @returns {Promise<any>} the refusal with its job id and link, null when it was not one, or
+     *   undefined when the job could not be read (read again next poll)
+     */
+    async function refusalOf(gh, workflow, id) {
+        try {
+            const j = (await gh.get(`repos/${config.repo}/actions/jobs/${id}`)).body ?? {};
+            const steps = (j.steps ?? []).filter((/** @type {any} */ s) => RED_JOB.has(s.conclusion));
+            const refusal = balanceRefusal({
+                workflow,
+                job: j.name,
+                steps: steps.map((/** @type {any} */ s) => s.name),
+            });
+            const url = `https://github.com/${config.repo}/actions/runs/${j.run_id}/job/${id}`;
+            return refusal && { ...refusal, job: id, url };
+        } catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * Raises or ends the balance item of one job name (`runnerRefusals`). A refusal the item was
+     * already raised for raises nothing after the owner answers it; nor does one while the master
+     * lane's parked item asks the same (`parkLane`).
+     * @param {string} name `workflow / job`
+     * @param {{refused: any, ran: number}} j its newest refusal, and its newest job that had a runner
+     */
+    function balanceItem(name, j) {
+        const id = `runner-balance:${name}`;
+        const item = state.ownerItems?.[id];
+        if (j.ran > (j.refused?.job ?? 0)) {
+            endItem(state, id, "cleared", now());
+            return;
+        }
+        if (!j.refused || (item && (!item.endedAt || item.refusedJob >= j.refused.job))) return;
+        const workflow = name.split(" / ")[0];
+        const lane = Object.entries(state.master?.lanes ?? {}).find(
+            ([n, l]) => /** @type {any} */ (l.workflowName ?? n) === workflow,
+        )?.[0];
+        const parked = state.ownerItems?.[`paid-capacity:${lane}`];
+        if (parked && !parked.endedAt) return;
+        const { provider, balance, url } = j.refused;
+        const amount = balance === null ? "below its minimum" : `$${balance}`;
+        const question = `${provider} balance is ${amount}: ${name} cannot run, and the release waits for it; top up the account (${url})`;
+        raiseItem(state, { id, kind: "paid-capacity", question, blocks: "release" }, now());
+        state.ownerItems[id].refusedJob = j.refused.job;
     }
 
     /**

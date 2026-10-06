@@ -35,7 +35,7 @@ export function escapeXmlText(text: string): string {
     if (hasIllegalXmlChar(text)) {
         throw illegalXml(text);
     }
-    return text.replace(XML_TEXT_SPECIAL, (c) => XML_REPLACEMENTS[c]);
+    return text.replaceAll(XML_TEXT_SPECIAL, (c) => XML_REPLACEMENTS[c]);
 }
 
 /**
@@ -49,7 +49,7 @@ export function escapeXmlAttribute(text: string): string {
     if (hasIllegalXmlChar(text)) {
         throw illegalXml(text);
     }
-    return text.replace(XML_ATTR_SPECIAL, (c) => XML_REPLACEMENTS[c]);
+    return text.replaceAll(XML_ATTR_SPECIAL, (c) => XML_REPLACEMENTS[c]);
 }
 
 /**
@@ -76,7 +76,7 @@ const GML_SPECIAL = /["&]|[^ -~]/gu;
  * @category Plugin helpers
  */
 export function quoteGmlString(text: string): string {
-    const escaped = text.replace(GML_SPECIAL, (c) => {
+    const escaped = text.replaceAll(GML_SPECIAL, (c) => {
         const code = c.codePointAt(0);
         if (code === undefined) {
             return c;
@@ -127,7 +127,7 @@ const GML_NAMED: ReadonlyMap<string, string> = (() => {
  * @category Plugin helpers
  */
 export function decodeGmlString(body: string, onUnknown?: (entity: string) => void): string {
-    return body.replace(GML_ENTITY, (whole, entity: string) => {
+    return body.replaceAll(GML_ENTITY, (whole, entity: string) => {
         if (entity.startsWith("#")) {
             const code = entity.startsWith("#x") ? Number.parseInt(entity.slice(2), 16) : Number(entity.slice(1));
             if (code <= 0x10ffff) {
@@ -212,7 +212,8 @@ export function quoteDotId(text: string): string {
     if (isBareDotId(text)) {
         return text;
     }
-    return `"${text.replace(/"/g, '\\"')}"`;
+    const escaped = text.replaceAll('"', String.raw`\"`);
+    return `"${escaped}"`;
 }
 
 /**

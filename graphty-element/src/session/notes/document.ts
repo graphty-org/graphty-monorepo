@@ -700,5 +700,5 @@ export function writeMember(
         ...(name === undefined ? {} : { name }),
         ...(description === undefined ? {} : { description }),
         notes: Object.freeze(ordered),
-    }) as NotesDocument;
+    });
 }

@@ -829,7 +829,7 @@ describe("checking a layer before it is committed", () => {
             name: "Marker",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.marker": "star" } as LayerSpec["set"],
+            set: { "node.marker": "star" },
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSUPPORTED"]);

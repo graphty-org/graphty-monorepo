@@ -92,7 +92,7 @@ async function busySession(): Promise<Harness> {
         { src: "b", dst: "c", kind: "wire" },
         { src: "c", dst: "d", kind: "radio" },
     ]);
-    await session.runs.start("degree", undefined, { as: "links" as RunId, style: false });
+    await session.runs.start("degree", undefined, { as: "links", style: false });
     await session.styles.encode({ run: "links" as RunId, channel: "node.color" });
     await session.styles.add({
         name: "Hosts in orange",
@@ -199,7 +199,7 @@ describe("the project file", () => {
             session.runs.list().map((run) => run.id),
             ["links"],
         );
-        const result = session.results.get("links" as RunId);
+        const result = session.results.get("links");
         assert.strictEqual(result?.node("b")?.value, 2);
         assert.strictEqual(result?.node("d")?.value, Number.POSITIVE_INFINITY, "a typed column keeps Infinity");
 
@@ -242,7 +242,7 @@ describe("the project file", () => {
         const report = await session.project.open(text, { discard: true });
         assert.deepStrictEqual(report.problems, []);
 
-        const result = session.results.get("links" as RunId);
+        const result = session.results.get("links");
         for (const edge of session.data.edges()) {
             assert.strictEqual(result?.edge(edge.id)?.from, edge.source, "each edge keeps its own value");
         }
@@ -258,7 +258,7 @@ describe("the project file", () => {
         const { session } = harness;
         await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
         const core = session.sets.create({ kind: "fixed", nodes: ["a", "b"], reading: "induced" }, { name: "Core" });
-        await session.runs.start("degree", undefined, { as: "in_core" as RunId, style: false, scope: { set: core } });
+        await session.runs.start("degree", undefined, { as: "in_core", style: false, scope: { set: core } });
         await session.visibility.set({ kind: "member", of: { set: core } });
         await session.styles.add({
             name: "Core in red",
@@ -405,7 +405,7 @@ describe("the project file", () => {
         const { harness } = withDegree();
         const { session } = harness;
         await session.data.addNodes([{ id: "a" }]);
-        const pending = session.runs.start("degree", undefined, { as: "later" as RunId, style: false });
+        const pending = session.runs.start("degree", undefined, { as: "later", style: false });
         const { report } = await session.project.save();
         assert.deepStrictEqual(report.leftOut, [{ code: "W_RUN_PENDING", params: { slice: "runs", id: "later" } }]);
         await pending;
@@ -435,7 +435,7 @@ describe("the project file", () => {
             { code: "W_UNKNOWN_KIND", params: { index: 7, kind: "org.example.bookmarks" } },
             { code: "W_DATA_DIFFERS", params: { slice: "runs", id: "links" } },
         ]);
-        const result = harness.session.results.get("links" as RunId);
+        const result = harness.session.results.get("links");
         assert.strictEqual(result?.node("b")?.value, 2, "node values are keyed by id and survive");
         assert.isUndefined(result?.edge(harness.session.data.edges()[0].id), "edge values are left out");
 

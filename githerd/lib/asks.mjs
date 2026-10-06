@@ -189,15 +189,70 @@ function room(state, session) {
 }
 
 /**
+ * A session's room as invitations see it, recorded in `state.inviteRooms[session]` =
+ * `{room, at, said}`: the room it reported (its capacity answer less claims, `room`, at least 1
+ * while it is idle in the registry), when that room last rose from 0 or from fewer than the jobs
+ * queued for it to more (`at`, empty while it never did), and the capacity answer last read
+ * (`said`). A new capacity answer replaces the room; the session going busy without one does not
+ * lower it, so a session's turns ending and starting never read as fresh room.
+ * @param {any} state the daemon state, changed in place
+ * @param {import("./peers.mjs").PeerSession} s the session
+ * @param {number} able how many queued jobs it could claim
+ * @param {Date} now the clock
+ * @returns {{free: boolean, at: string}} whether it has room now, and since when its room rose
+ */
+function inviteRoom(state, s, able, now) {
+    const cur = Math.max(room(state, s.sessionId) ?? 0, 0);
+    const idle = s.status === "idle";
+    const eff = idle ? Math.max(cur, 1) : cur;
+    const said = state.capacity?.[s.sessionId]?.at ?? null;
+    const rec = state.inviteRooms[s.sessionId] ?? { room: 0, at: "", said: null };
+    let next = rec;
+    if (eff > rec.room) next = { room: eff, at: rec.room < able ? now.toISOString() : rec.at, said };
+    else if (said !== rec.said) next = { ...rec, room: idle ? rec.room : eff, said };
+    state.inviteRooms[s.sessionId] = next;
+    return { free: eff > 0, at: next.at };
+}
+
+/**
+ * The sessions due an invitation to each queued job: those with room (`inviteRoom`) that could
+ * claim it and have not heard it since their room last rose.
+ * @param {any} state the daemon state, changed in place
+ * @param {{job: string}[]} queue the queued jobs githerd would offer
+ * @param {import("./peers.mjs").PeerSession[]} live the sessions githerd may invite
+ * @param {{config?: any, now: Date}} opts the config and the clock
+ * @returns {Map<string, import("./peers.mjs").PeerSession[]>} the sessions due, by job
+ */
+function dueInvites(state, queue, live, { config, now }) {
+    /** @type {Map<string, import("./peers.mjs").PeerSession[]>} */
+    const due = new Map();
+    for (const s of live) {
+        const able = queue.filter(
+            ({ job }) => !jobInUse(state, state.jobs[job], { config, now, session: s.sessionId }),
+        );
+        const { free, at } = inviteRoom(state, s, able.length, now);
+        if (!free) continue;
+        for (const { job: id } of able) {
+            const job = state.jobs[id];
+            const heard = job.invited?.[s.sessionId] ?? job.invitedAt;
+            if (heard === undefined || heard < at) due.set(id, [...(due.get(id) ?? []), s]);
+        }
+    }
+    return due;
+}
+
+/**
  * Invites the Claude sessions in this repository that have room to pull work (the owner's
- * decisions of 2026-10-05): each queued job no worker slot took is announced once, to every session
- * whose registry status is `idle` or whose last capacity answer leaves room (`room`); a session that
- * never answered is invited only while idle. githerd's own workers are never among them (`liveSessions` leaves
- * them out). A job is marked (`invitedAt`) only once a session was there to hear it, so a job
- * queued while every session is busy is announced when one goes idle. A session is invited only to
- * a job it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim
- * apply), so a review is never announced to the pull request's author. The last invitation is kept
- * in `state.invited` for the board.
+ * decisions of 2026-10-05): every pass, each queued job no worker slot took is announced to every
+ * session whose registry status is `idle` or whose last capacity answer leaves room (`room`) and
+ * that has not heard it since its room last rose (`inviteRoom`). So a session that heard a job and
+ * did not take it hears it again only after reporting more room: a capacity answer above its last,
+ * or going idle after reporting none. Who heard which job is kept on the job, `job.invited` =
+ * `{[session]: at}` (a job's older `invitedAt` counts as heard by every session). githerd's own
+ * workers are never among them (`liveSessions` leaves them out). A session is invited only to a job
+ * it could claim (`jobInUse` with that session, the rule githerd_next and githerd_claim apply), so a
+ * review is never announced to the pull request's author. The last invitation is kept in
+ * `state.invited` for the board.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, acting: boolean, sessions: () => import("./peers.mjs").PeerSession[],
  *   transport: import("./peers.mjs").Transport, offered: {job: string, reason: string}[],
@@ -208,23 +263,28 @@ function room(state, session) {
  */
 export async function inviteStep(state, { now, acting, sessions, transport, offered, config }) {
     const lines = [];
-    /** @type {import("./peers.mjs").PeerSession[] | null} read once, when an invitation is due */
-    let free = null;
-    for (const { job: id, reason } of offered) {
-        const job = state.jobs?.[id];
-        if (job?.state !== "queued" || job.invitedAt) continue;
-        free ??= sessions().filter((s) => s.status === "idle" || (room(state, s.sessionId) ?? 0) > 0);
-        if (!free.length) break;
-        const able = free.filter((s) => !jobInUse(state, job, { config, now, session: s.sessionId }));
-        if (!able.length) continue;
-        const names = able.map((s) => s.name);
-        job.invitedAt = now.toISOString();
+    const queue = offered.filter(({ job }) => state.jobs?.[job]?.state === "queued");
+    if (!queue.length) return lines;
+    const live = sessions();
+    state.inviteRooms ??= {};
+    for (const id of Object.keys(state.inviteRooms)) {
+        if (!live.some((s) => s.sessionId === id)) delete state.inviteRooms[id];
+    }
+    const due = dueInvites(state, queue, live, { config, now });
+    for (const { job: id, reason } of queue) {
+        const to = due.get(id);
+        if (!to) continue;
+        const job = state.jobs[id];
+        const names = to.map((s) => s.name);
+        const at = now.toISOString();
+        job.invited ??= {};
+        for (const s of to) job.invited[s.sessionId] = at;
         if (!acting) {
             const op = `invite ${names.length} idle session(s) to take ${id}`;
             lines.push({ kind: "would-do", group: "workers", op, job: id });
         }
-        const out = acting ? await tellSessions(able, inviteText(id, reason), transport) : { sent: [], failed: [] };
-        state.invited = { at: job.invitedAt, count: acting ? out.sent.length : names.length, acting };
+        const out = acting ? await tellSessions(to, inviteText(id, reason), transport) : { sent: [], failed: [] };
+        state.invited = { at, count: acting ? out.sent.length : names.length, acting };
         lines.push({ kind: "sessions-invited", job: id, sessions: names, ...out });
     }
     return lines;

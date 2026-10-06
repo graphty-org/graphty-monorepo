@@ -1083,15 +1083,17 @@ describe("the poll loop", () => {
         expect(daemon.state.escalations["config-refused"].resolvedAt).not.toBeNull();
     });
 
-    it("says on the board, without a page, that a repository with no push queue script pushes unqueued", async () => {
+    it("never puts a missing push queue script on the owner's list, and resolves an item an older daemon raised", async () => {
         const daemon = await start();
         await poll(daemon);
-        expect(daemon.state.escalations["no-push-queue"]).toMatchObject({ kind: "blocked", resolvedAt: null });
-        expect(daemon.state.escalations["no-push-queue"].summary).toContain("no tools/push-queue.sh");
+        expect(daemon.state.escalations?.["no-push-queue"]).toBeUndefined();
         expect(pages().filter((p) => p.message.includes("push-queue"))).toEqual([]);
 
-        mkdirSync(join(dir, "tools"), { recursive: true });
-        writeFileSync(join(dir, "tools", "push-queue.sh"), '#!/bin/sh\nexec "$@"\n');
+        (daemon.state.escalations ??= {})["no-push-queue"] = {
+            key: "no-push-queue",
+            kind: "blocked",
+            resolvedAt: null,
+        };
         clock = new Date("2026-10-02T12:03:00Z");
         scene.head = B;
         await poll(daemon);

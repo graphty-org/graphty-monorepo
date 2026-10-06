@@ -81,7 +81,7 @@ import {
     tellCancelled,
 } from "./asks.mjs";
 import * as board from "./board.mjs";
-import { groupModes, NO_PUSH_QUEUE } from "./board-text.mjs";
+import { groupModes } from "./board-text.mjs";
 import { stuckJobs, writeHeartbeat } from "./heartbeat.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
@@ -131,7 +131,7 @@ import {
 } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
-import { containerStart, identify, liveTickets, pushQueueScript } from "./proc.mjs";
+import { containerStart, identify, liveTickets } from "./proc.mjs";
 import {
     inferOwners,
     inRepository,
@@ -896,14 +896,13 @@ export async function startDaemon({
     }
 
     /**
-     * Says on the board when the repository has no push queue script, so a push outside the
-     * machine's queue is never silent (README, "Adopting githerd in another repository").
+     * A repository with no push queue script is githerd's own condition, not the owner's: githerd
+     * pushes unqueued and the board's PUSH QUEUE line says so. An owner item an older daemon raised
+     * for it is resolved.
      */
     function checkPushQueue() {
         const open = state.escalations?.["no-push-queue"];
-        if (!existsSync(pushQueueScript(root))) {
-            raise({ key: "no-push-queue", kind: "blocked", summary: NO_PUSH_QUEUE, detail: NO_PUSH_QUEUE });
-        } else if (open && !open.resolvedAt) board.resolve(state, { key: "no-push-queue" }, now());
+        if (open && !open.resolvedAt) board.resolve(state, { key: "no-push-queue" }, now());
     }
 
     const notifier = createNotifier({

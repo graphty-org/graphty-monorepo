@@ -207,10 +207,15 @@ describe("a repository with no push queue script", () => {
                 "push",
             );
         expect(board()).toContain(
-            "PUSH QUEUE: none -- this repository has no tools/push-queue.sh, so githerd's pushes and its reference gate run unqueued",
+            "PUSH QUEUE: none -- this repository has no tools/push-queue.sh or tmp/push-queue.sh, so githerd's pushes and its reference gate run unqueued",
         );
-        mkdirSync(join(a, "tools"));
-        writeFileSync(pushQueueScript(a), '#!/bin/sh\nexec "$@"\n');
+        expect(pushQueueScript(a)).toBeNull();
+        mkdirSync(join(a, "tmp"));
+        writeFileSync(join(a, "tmp", "push-queue.sh"), '#!/bin/sh\nexec "$@"\n');
+        expect(pushQueueScript(a)).toBe(join(a, "tmp", "push-queue.sh"));
         expect(board()).toContain("PUSH QUEUE: free, 0 waiting");
+        mkdirSync(join(a, "tools"));
+        writeFileSync(join(a, "tools", "push-queue.sh"), '#!/bin/sh\nexec "$@"\n');
+        expect(pushQueueScript(a)).toBe(join(a, "tools", "push-queue.sh"));
     });
 });

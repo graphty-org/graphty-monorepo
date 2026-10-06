@@ -41,9 +41,9 @@ const GROUPS = {
     "worker-writes": "workerWrites",
 };
 
-/** What the board says when the repository has no `tools/push-queue.sh`. */
-export const NO_PUSH_QUEUE =
-    "this repository has no tools/push-queue.sh, so githerd's pushes and its reference gate run unqueued";
+/** What the board says when the repository has no push queue script. */
+const NO_PUSH_QUEUE =
+    "this repository has no tools/push-queue.sh or tmp/push-queue.sh, so githerd's pushes and its reference gate run unqueued";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;

@@ -19,7 +19,7 @@ import { stripVTControlCharacters } from "node:util";
 import { move, TERMINAL } from "../board.mjs";
 import { classify } from "../classify.mjs";
 import { isMasterFix } from "../master-fix.mjs";
-import { identify } from "../proc.mjs";
+import { identify, pushQueueScript } from "../proc.mjs";
 import { checkOutgoing } from "../text.mjs";
 import { git as gitIn, run as exec } from "../worktrees.mjs";
 
@@ -209,8 +209,8 @@ const rank = (state, job) => {
  *   (`codeEnv` in worker-settings.mjs), never the daemon's own, which holds the notify keys;
  *   `secrets` are the values the outgoing check refuses; `hooksPath` the hooks the push runs, the
  *   main checkout's `.husky/_` by default, never the worktree's; `queueScript` the machine's push
- *   queue that every session pushes through, the main checkout's `tools/push-queue.sh` by default
- *   (a repository without it pushes directly); `protectedPaths` reads the config's list, refused
+ *   queue that every session pushes through, `pushQueueScript` of the main checkout by default
+ *   (a repository without one pushes directly); `protectedPaths` reads the config's list, refused
  *   like the gate's own paths; `others` lists every other in-flight job's worktree and every
  *   owner session with the files each is changing (design 8.2)
  * @returns {{
@@ -235,7 +235,7 @@ export function createPushQueue({
     env,
     secrets = {},
     hooksPath = join(root, ".husky", "_"),
-    queueScript = join(root, "tools", "push-queue.sh"),
+    queueScript,
     protectedPaths = () => [],
     defaultGateMs = DEFAULT_GATE_MS,
     now = () => new Date(),
@@ -509,9 +509,10 @@ export function createPushQueue({
                 remote,
                 `${e.head}:refs/heads/${e.branch}`,
             ];
-            const queued = existsSync(queueScript);
+            const queue = queueScript ?? pushQueueScript(root);
+            const queued = Boolean(queue);
             const critical = isMasterFix(state, state.jobs?.[e.job]);
-            const child = spawn(queued ? "bash" : "git", queued ? [queueScript, ...push] : push.slice(1), {
+            const child = spawn(queue ? "bash" : "git", queue ? [queue, ...push] : push.slice(1), {
                 cwd: e.worktree,
                 env: { ...env, ...(critical ? { PUSH_QUEUE_PRIORITY: "critical" } : {}) },
                 detached: true,

@@ -243,7 +243,7 @@ export function touchesPackage(files, pkg, ws) {
  * @param {Workspace} ws the workspace
  * @returns {string[]} the tests' ids
  */
-export function recordTests(store, tests, occ, ws) {
+function recordTests(store, tests, occ, ws) {
     const { files, ...where } = occ;
     store.jobs[String(occ.jobId)] = occ.at;
     const ids = Object.keys(store.jobs);
@@ -285,7 +285,7 @@ const short = (/** @type {string} */ sha) => sha.slice(0, 9);
  * @param {Pass[]} passes the jobs seen passing this poll
  * @param {Record<string, string>} heads each open pull request's head
  */
-export function provePasses(store, passes, heads) {
+function provePasses(store, passes, heads) {
     for (const t of Object.values(store.tests)) {
         for (const o of t.occurrences) {
             for (const p of passes) {
@@ -329,7 +329,7 @@ function passProof(o, p, heads) {
  *   files: (base: string, head: string) => Promise<string[] | null>}} facts master's lane records and
  *   commits (head first), the workspace, and the files a range of commits changes
  */
-export async function proveMaster(store, { lanes, commits, ws, files }) {
+async function proveMaster(store, { lanes, commits, ws, files }) {
     const chain = commits.length ? firstParent(commits, commits[0].sha).map((c) => c.sha) : [];
     for (const t of Object.values(store.tests)) {
         for (const o of t.occurrences) {
@@ -366,7 +366,7 @@ function nextGreen(chain, shas, sha) {
  * Proof (4): the test failed on two or more pull requests whose changes do not touch its package.
  * @param {Store} store the record
  */
-export function provePrs(store) {
+function provePrs(store) {
     for (const t of Object.values(store.tests)) {
         const prs = [...new Set(t.occurrences.filter((o) => o.where === "pr" && o.touched === false).map((o) => o.pr))];
         const list = prs.map((n) => "#" + n).join(", ");
@@ -380,7 +380,7 @@ export function provePrs(store) {
  * @param {Test} t the test
  * @returns {string} the label
  */
-export function priorityFor(t) {
+function priorityFor(t) {
     if (t.occurrences.some((o) => o.where !== "pr")) return PRIORITIES[0];
     return new Set(t.occurrences.map((o) => o.pr)).size >= 2 ? PRIORITIES[1] : PRIORITIES[2];
 }
@@ -391,7 +391,7 @@ export function priorityFor(t) {
  * @param {Record<string, any>} [issues] `state.issues.byNumber`
  * @returns {Map<string, number>} issue by test id
  */
-export function knownFlakes(store, issues = {}) {
+function knownFlakes(store, issues = {}) {
     const out = new Map();
     for (const t of Object.values(store.tests)) {
         if (t.issue && issues[t.issue]?.state !== "closed") out.set(t.id, t.issue);
@@ -573,7 +573,7 @@ export function createFlakeIssues({ github, repo, store, now = Date.now }) {
  *   and failing tests, the record, the known flakes, the red range's files, and the workspace
  * @returns {{issues: number[]} | null} the issues of its known flakes, or null when it is not one
  */
-export function masterFlake({ lane, workflow, tests, store, known, files, ws }) {
+function masterFlake({ lane, workflow, tests, store, known, files, ws }) {
     if (NO_RERUN.has(lane) || NO_RERUN.has(workflow) || !tests?.length) return null;
     const ok = tests.every(
         (id) => known.has(id) || touchesPackage(files, store.tests[id]?.package ?? null, ws) === false,
@@ -592,7 +592,7 @@ export function masterFlake({ lane, workflow, tests, store, known, files, ws }) 
  *   key and the time
  * @returns {Promise<boolean>} true when a re-run was sent
  */
-export async function rerunFlake({ github, repo, state, job, sha, key, now }) {
+async function rerunFlake({ github, repo, state, job, sha, key, now }) {
     const store = flakeStore(state);
     state.incidentActions ??= {};
     state.incidentActions.reruns ??= {};
@@ -643,7 +643,7 @@ export async function rerunFlake({ github, repo, state, job, sha, key, now }) {
  *   request's changed files at a head, the client's read, the job log reader and `owner/name`
  * @returns {Promise<{passes: Pass[], heads: Record<string, string>}>} the passes and each head
  */
-export async function observeRollups({ nodes, store, ws, required, at, files, get, log, repo }) {
+async function observeRollups({ nodes, store, ws, required, at, files, get, log, repo }) {
     /** @type {Pass[]} */
     const passes = [];
     /** @type {Record<string, string>} */
@@ -728,7 +728,7 @@ const runOf = (c) => c.checkSuite?.workflowRun?.databaseId;
  * @param {string[]} required the required checks
  * @returns {{job: string, tests: string[]}[]} the failing jobs that are not summaries
  */
-export function headFailures(store, node, required) {
+function headFailures(store, node, required) {
     return checkRuns(node)
         .filter((c) => FAILED.has(c.conclusion) && !isSummaryJob(c.name, required))
         .map((/** @type {any} */ c) => ({
@@ -791,7 +791,7 @@ export function flakeLines(tests) {
  * @param {string} head the newer commit
  * @returns {Promise<string[] | null>} the paths
  */
-export async function rangeFiles(store, github, repo, base, head) {
+async function rangeFiles(store, github, repo, base, head) {
     const id = `${base}...${head}`;
     if (!(id in store.ranges)) {
         const listed = (await github.get(`repos/${repo}/compare/${id}`)).body?.files;

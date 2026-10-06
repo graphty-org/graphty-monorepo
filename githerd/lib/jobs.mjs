@@ -127,7 +127,7 @@ export function syncJobs(state, { config, now, sessionGone = () => false }) {
  * @param {string} raw the id as made from its fact
  * @returns {string} the id
  */
-export function jobId(raw) {
+function jobId(raw) {
     return raw
         .toLowerCase()
         .split(/[^a-z0-9]+/)

@@ -180,7 +180,7 @@ export function ownerWaitingPrs(state, now) {
  * @param {any} config the normalized config
  * @returns {string | null} the effort
  */
-export function issueEffort(labels, config) {
+function issueEffort(labels, config) {
     const label = (config.labels?.efforts ?? []).find((/** @type {string} */ e) => labels.includes(e));
     return label ? label.replace(/^[^:]*:/, "") : null;
 }
@@ -412,7 +412,7 @@ function askInUse(ask, what, { config, now, session }) {
  * @param {number | string} n the pull request
  * @returns {Set<string>} the session ids
  */
-export function prAuthors(state, n) {
+function prAuthors(state, n) {
     const authors = new Set();
     for (const j of Object.values(state.jobs ?? {})) {
         if (j.kind !== "review" && String(prOf(j)) === String(n)) for (const s of j.sessions ?? []) authors.add(s);
@@ -423,7 +423,7 @@ export function prAuthors(state, n) {
 }
 
 /** Why a session may not review its own pull request. */
-export const SELF_REVIEW = "you wrote this pull request";
+const SELF_REVIEW = "you wrote this pull request";
 
 /**
  * Why a job is in use (its pull request is, by someone else), or null. With the asking session: a

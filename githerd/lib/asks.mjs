@@ -73,7 +73,7 @@ function settleAsks(state, sessionGone) {
  * @param {(session: string) => boolean} sessionGone whether a session ended
  * @returns {({kind: string} & Record<string, unknown>)[]} the ledger lines
  */
-export function settleOwners(state, sessionGone) {
+function settleOwners(state, sessionGone) {
     const lines = [];
     for (const [n, rec] of Object.entries(state.prOwners ?? {})) {
         let reason = null;

@@ -762,7 +762,7 @@ function releaseSafe(pr, ctx) {
  * @param {string | null | undefined} pattern the config's `release.commitPattern`
  * @returns {boolean} it is
  */
-export function isReleaseTrain(pr, pattern) {
+function isReleaseTrain(pr, pattern) {
     return (
         Boolean(pattern) &&
         pr.author === "github-actions" &&

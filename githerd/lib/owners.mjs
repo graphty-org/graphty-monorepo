@@ -39,7 +39,7 @@ import { join, relative, sep } from "node:path";
  */
 
 /** Bytes of transcript read per poll, across every session. */
-export const TRANSCRIPT_BUDGET = 256 * 1024 * 1024;
+const TRANSCRIPT_BUDGET = 256 * 1024 * 1024;
 const CHUNK = 8 * 1024 * 1024;
 /** A line longer than this (a giant tool result) is skipped unread. */
 const MAX_LINE = 64 * 1024 * 1024;

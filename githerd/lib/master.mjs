@@ -331,30 +331,54 @@ export function starvedLanes(lanes, gating, { headSha, commits, greenSha }) {
     return starved;
 }
 
+/** A Mergify merge-batch commit's subject: "Merged #42, #43, #44" (.mergify.yml). */
+const BATCH = /^Merged #\d/;
+
 /**
- * The pull request a first-parent commit landed, from its message.
+ * The pull requests a first-parent commit landed, from its message: one for GitHub's "Merge pull
+ * request #12 from ..." or a squash merge's "(#12)" suffix, every one for a Mergify merge-batch
+ * commit ("Merged #42, #43, #44"). A batch branch's inner "Merge of #42" commits are not landings.
+ * Mirrors `mergedPrs` of tools/master-guard.mjs.
  * @param {string} message the commit message
- * @returns {number | null} the PR number of a merge commit or a squash merge, else null
+ * @returns {number[]} the pull request numbers; empty for another commit
  */
-function prOf(message) {
+export function mergedPrs(message) {
     const subject = message.split("\n", 1)[0];
+    if (BATCH.test(subject)) return [...subject.matchAll(/#(\d+)/g)].map((m) => Number(m[1]));
     const m = /^Merge pull request #(\d+)/.exec(subject) ?? /\(#(\d+)\)\s*$/.exec(subject);
-    return m ? Number(m[1]) : null;
+    return m ? [Number(m[1])] : [];
+}
+
+/**
+ * The pull requests of a merge-batch commit, by its sha among `commits`.
+ * @param {Commit[]} commits commits, as `GET repos/{repo}/commits` returns them
+ * @param {string} sha the commit
+ * @returns {number[] | null} the batch's pull requests; null when it is no batch commit or unknown
+ */
+export function batchPrs(commits, sha) {
+    const message = commits.find((c) => c.sha === sha)?.commit.message ?? "";
+    return BATCH.test(message) ? mergedPrs(message) : null;
 }
 
 /**
  * The commits that could have turned the branch red: the first-parent chain from the red commit
- * back to, but not including, the last green one.
+ * back to, but not including, the last green one. A merge-batch commit is one suspect per pull
+ * request it landed, each marked `batch`.
  * @param {Commit[]} commits commits, as `GET repos/{repo}/commits` returns them
  * @param {string | null} lastGreenSha the last commit verified green
  * @param {string} redSha the commit a lane went red on
- * @returns {{sha: string, pr: number | null}[]} the suspects, newest first; every given commit on
- *   the chain when the last green one is not among them
+ * @returns {{sha: string, pr: number | null, batch?: true}[]} the suspects, newest first; every
+ *   given commit on the chain when the last green one is not among them
  */
 export function findSuspects(commits, lastGreenSha, redSha) {
     const chain = firstParent(commits, redSha);
     const end = chain.findIndex((c) => c.sha === lastGreenSha);
-    return chain.slice(0, end === -1 ? chain.length : end).map((c) => ({ sha: c.sha, pr: prOf(c.commit.message) }));
+    return chain.slice(0, end === -1 ? chain.length : end).flatMap((c) => {
+        const prs = mergedPrs(c.commit.message);
+        if (!prs.length) return [{ sha: c.sha, pr: null }];
+        if (!BATCH.test(c.commit.message)) return [{ sha: c.sha, pr: prs[0] }];
+        return prs.map((pr) => ({ sha: c.sha, pr, batch: /** @type {const} */ (true) }));
+    });
 }
 
 /**

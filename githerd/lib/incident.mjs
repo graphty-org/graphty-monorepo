@@ -13,8 +13,10 @@
  */
 
 /**
- * @typedef {{sha: string, pr: number | null}} Suspect a first-parent commit between green and red;
- *   `pr` the pull request it merged, null for a commit that merged none (a release commit)
+ * @typedef {{sha: string, pr: number | null, batch?: true}} Suspect a first-parent commit between green
+ *   and red; `pr` the pull request it merged, null for a commit that merged none (a release commit).
+ *   A merge-batch commit is one suspect per pull request, each `batch`, so a batch of several is
+ *   never one merge to revert
  * @typedef {{
  *   outcome: "waiting", waitingFor: "red-head" | "parent"
  * } | {

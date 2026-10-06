@@ -5,14 +5,17 @@ import { normalizeConfig } from "../lib/config.mjs";
 import {
     buildFiles,
     rangeMissesLanes,
+    batchPrs,
     findSuspects,
     masterVerdict,
+    mergedPrs,
     releaseState,
     SIGHTING_MEMORY,
     sightRuns,
     stuckLaneRuns,
     updateLane,
 } from "../lib/master.mjs";
+import { incidentOutcome } from "../lib/incident.mjs";
 import { fixture } from "./helpers/fake-gh.mjs";
 
 // graphty's real lanes: ci and gpu required, hosts path-filtered, release watched.
@@ -291,6 +294,35 @@ describe("findSuspects", () => {
             { sha: "m1", pr: null },
             { sha: "m0", pr: null },
         ]);
+    });
+});
+
+describe("merge-batch commits", () => {
+    it("reads every pull request of a Mergify batch, one of a merge or a squash, none of an inner commit", () => {
+        expect(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue")).toEqual([42, 43, 44]);
+        expect(mergedPrs("Merged #42")).toEqual([42]);
+        expect(mergedPrs("Merge pull request #718 from graphty-org/fix/x")).toEqual([718]);
+        expect(mergedPrs("fix(layout): squashed (#710)")).toEqual([710]);
+        expect(mergedPrs("Merge of #42")).toEqual([]);
+        expect(mergedPrs("chore(release): publish [skip ci]")).toEqual([]);
+    });
+
+    it("names every pull request of a red batch commit as a suspect, so none is reverted alone", () => {
+        const commits = [
+            commit("b2", "b1", "Merged #42, #43\n\nMerged by Mergify Merge Queue"),
+            commit("b1", "g", "Merge pull request #40 from graphty-org/fix/y"),
+            commit("g", null),
+        ];
+        expect(findSuspects(commits, "g", "b2")).toEqual([
+            { sha: "b2", pr: 42, batch: true },
+            { sha: "b2", pr: 43, batch: true },
+            { sha: "b1", pr: 40 },
+        ]);
+        const suspects = findSuspects(commits, "b1", "b2");
+        expect(incidentOutcome({ redHead: "failure", parent: "success", suspects }).outcome).toBe("suspects");
+        expect(batchPrs(commits, "b2")).toEqual([42, 43]);
+        expect(batchPrs(commits, "b1")).toBeNull();
+        expect(batchPrs(commits, "unknown")).toBeNull();
     });
 });
 

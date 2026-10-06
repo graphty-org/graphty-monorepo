@@ -567,6 +567,18 @@ function endChangedDeferrals(state) {
 }
 
 /**
+ * Cancels each issue job whose issue closed; a re-land or a promotion is not an issue's own job.
+ * @param {any} state the daemon state
+ * @param {(job: any, reason: string) => void} cancel cancels a job whose cause ended
+ */
+function cancelClosedIssueJobs(state, cancel) {
+    for (const job of Object.values(state.jobs)) {
+        if (job.kind !== "issue" || job.facts?.scope === "reland" || job.facts?.scope === "promote") continue;
+        if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
+    }
+}
+
+/**
  * The issue jobs: one queued at a time, for the issue at the front (an open order first, then the
  * ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
  * closed is cancelled.
@@ -578,10 +590,7 @@ function endChangedDeferrals(state) {
  */
 function issueJobs(state, config, now, add, cancel) {
     relandJobs(state, now, add);
-    for (const job of Object.values(state.jobs)) {
-        if (job.kind !== "issue" || job.facts?.scope === "reland" || job.facts?.scope === "promote") continue;
-        if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
-    }
+    cancelClosedIssueJobs(state, cancel);
     withdrawUnoffered(state, config, cancel);
     const deferred = endChangedDeferrals(state);
     for (const [n, revision] of Object.entries(state.unbundled ?? {}))

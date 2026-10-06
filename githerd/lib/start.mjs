@@ -23,7 +23,7 @@ import * as board from "./board.mjs";
 import { LAUNCH_PROMPT } from "./hook.mjs";
 import { startFailed } from "./advance.mjs";
 import { endItem, raiseItem } from "./notify.mjs";
-import { jobInUse, jobOrder } from "./queue.mjs";
+import { issueTypes, jobInUse, jobOrder } from "./queue.mjs";
 import { resumeVerified, runSelftest } from "./selftest.mjs";
 import { listWindows, startWorker, tmuxSocket } from "./tmux.mjs";
 import { codeEnv, loginPath, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
@@ -426,7 +426,10 @@ export async function fillSlots(ctx) {
             .filter((j) => j.state === "working" && !j.holder && !ctx.tasks.has(j.id))
             .sort((a, b) => Number(isUrgent(b)) - Number(isUrgent(a)) || a.id.localeCompare(b.id)),
         // A job whose start task still runs (its deadline requeued it meanwhile) is not admitted twice.
-        ...jobOrder(state.jobs ?? {}, { inUse: (j) => jobInUse(state, j, { config: ctx.config, now: t }) })
+        ...jobOrder(state.jobs ?? {}, {
+            inUse: (j) => jobInUse(state, j, { config: ctx.config, now: t }),
+            issueTypes: issueTypes(ctx.config),
+        })
             .items.map((i) => state.jobs[i.job])
             // A pull request that changes githerd itself is the owner's sessions' (jobs.mjs prJobs).
             .filter((j) => !ctx.tasks.has(j.id) && !j.facts?.ownerOnly),

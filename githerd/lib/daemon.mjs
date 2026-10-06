@@ -141,7 +141,7 @@ import {
     whyStuck,
 } from "./prs.mjs";
 import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
-import { jobInUse, jobOrder, NEXT, SKIP } from "./queue.mjs";
+import { issueTypes, jobInUse, jobOrder, NEXT, SKIP } from "./queue.mjs";
 import {
     appendLedger,
     clearFatal,
@@ -1972,6 +1972,7 @@ export async function startDaemon({
     async function inviteIdle(t) {
         const offered = jobOrder(state.jobs ?? {}, {
             inUse: (j) => jobInUse(state, j, { config, now: t }),
+            issueTypes: issueTypes(config),
         }).items;
         const lines = await inviteStep(state, {
             now: t,

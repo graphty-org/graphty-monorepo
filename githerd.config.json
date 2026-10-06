@@ -45,7 +45,7 @@
         "waiting": 6,
         "hoursPerDay": 10
     },
-    "backlog": { "agingDays": 60 },
+    "backlog": { "agingDays": 60, "issueTypes": ["bug", "infrastructure"] },
     "notify": {
         "command": [
             "/home/apowers/.claude/scripts/claude-notify.sh",

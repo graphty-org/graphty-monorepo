@@ -45,11 +45,23 @@ unlabeled issues, and a refresh after every 20 merges and a full pass after ever
 merges count); one issue job for the front of the backlog; and a re-land job after a revert. A
 queued job whose target closed or no longer needs work is cancelled.
 
-The queue order is design section 5.4, and every job carries a one-line reason: incidents first
-(master and release, then shared ones), reviews, pull requests oldest first, titles, triage of new
-issues, approved majors, then issues (an open order first, then priority, bugs first, oldest), then
-refresh passes and low-priority incidents. The owner steers with two labels: `githerd:next` puts an
-issue or pull request first in its kind, `githerd:skip` takes it out. Both count only when the
+The queue order is design section 5.4, and every job carries a one-line reason. Three tiers,
+highest first, each finishing work in flight before starting new work:
+
+1. Keep things running: incidents (master and release, then shared ones), reviews, broken pull
+   requests oldest first (held breaking ones get fix-only jobs), titles, issues master already
+   names (verify the fix), re-lands, then triage of new issues and approved majors.
+2. Bugs (type label `bug`): by priority (critical, high, medium, low, none last), then effort low
+   before high, then oldest.
+3. Infrastructure (type label `infrastructure`: CI, tooling, build, test infrastructure, githerd,
+   repository maintenance), ordered the same way.
+
+Refresh passes and low-priority incidents come last. The issue tiers are `backlog.issueTypes` in
+the config, default `["bug", "infrastructure"]`: an issue of any other type (enhancements for now)
+gets no new job, and a queued one nobody holds is withdrawn ("enhancements are not offered for
+now"). Add `"enhancement"` to the list to offer them again. The type label is set by a triage
+session's judgment, never inferred from paths. The owner steers with two labels: `githerd:next` puts an
+issue or pull request first in its kind, even an enhancement, `githerd:skip` takes it out. Both count only when the
 owner's account added them.
 
 Workers start while a slot is free: 3 working sessions, one more for urgent work, at most 6 idle

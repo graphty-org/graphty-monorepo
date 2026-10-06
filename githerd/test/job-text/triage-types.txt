@@ -1,9 +1,11 @@
-JOB triage-20 new issues since 2026-10-03
-TARGET: issue batch 20 new issues since 2026-10-03
+JOB triage-2 issues: #5 #9
+TARGET: issue batch 2 issues: #5 #9
 WHAT FOR: Label and judge each issue in this batch. Change no code.
+WHY NOW: re-judge each issue's type label now that infrastructure exists
 DONE WHEN: each issue in the batch has exactly one type, one priority (critical, high, medium, low) and one effort (high, medium, low) label from the labels the repository already has, and a verdict: keep, duplicate (of which issue), obsolete or fixed (with evidence).
 TO FINISH: Call githerd_done with outcome done and result set to one entry per issue.
 TYPE LABELS: use infrastructure for CI, tooling, build, test infrastructure, flaky tests, githerd and repository maintenance (SonarQube burn-down, dependency hygiene); use bug for a defect a user of the packages or the app can see. githerd works bugs first, then infrastructure, and offers no other type for now.
+TYPE REFRESH: the infrastructure type label is new. Re-judge each issue's type label and change it where another type fits better; keep its priority and effort unless they are wrong.
 RULES:
   - Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.
   - Never write ACTION NEEDED. Skills that ask the user a question are answered by you.

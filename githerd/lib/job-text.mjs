@@ -200,6 +200,17 @@ function earlier(job) {
     return lines;
 }
 
+/** How a triage session chooses an issue's type label (owner decision 2026-10-06). */
+const TRIAGE_TYPES =
+    "TYPE LABELS: use infrastructure for CI, tooling, build, test infrastructure, flaky tests, githerd and repository maintenance " +
+    "(SonarQube burn-down, dependency hygiene); use bug for a defect a user of the packages or the app can see. " +
+    "githerd works bugs first, then infrastructure, and offers no other type for now.";
+
+/** What a type-refresh triage batch asks (jobs.mjs triageJobs). */
+const TYPE_REFRESH =
+    "TYPE REFRESH: the infrastructure type label is new. Re-judge each issue's type label and change it where another type fits better; " +
+    "keep its priority and effort unless they are wrong.";
+
 /**
  * The lines a job's facts add for its worker: a refresh's merges and issues, the label kinds a new
  * triage batch lacks, where a verdict job's failure is, and that a held pull request stays held.
@@ -208,11 +219,14 @@ function earlier(job) {
  * @returns {string[]} the lines
  */
 function factLines(job, { refresh, verdict }) {
-    if (refresh) return refreshLines(job.facts);
+    if (refresh) return [TRIAGE_TYPES, ...refreshLines(job.facts)];
     if (verdict) return verdictLines({ key: job.target, ...job.facts });
     if (job.kind === "pr") return job.facts?.held ? [HELD] : [];
-    if (job.kind !== "triage" || !job.facts?.missing) return [];
+    if (job.kind !== "triage") return [];
+    if (job.facts?.scope === "types") return [TRIAGE_TYPES, TYPE_REFRESH];
+    if (!job.facts?.missing) return [TRIAGE_TYPES];
     return [
+        TRIAGE_TYPES,
         "MISSING LABELS (add only these kinds; keep the labels each issue already has):",
         ...Object.entries(job.facts.missing).map(
             ([n, kinds]) => `  #${n}: ${/** @type {string[]} */ (kinds).join(", ")}`,

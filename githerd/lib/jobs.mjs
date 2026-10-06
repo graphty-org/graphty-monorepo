@@ -23,10 +23,15 @@
  *   then a refresh after 20 merges, and a full pass over every open issue after 100 merges (20 per
  *   job). A refresh job is given the merged pull requests with their changed files and the open
  *   issues; its session judges which issues the merges affect. The issues a merge mentions without
- *   closing are in its batch. No clock: merges count.
+ *   closing are in its batch. No clock: merges count. Once, a `types` pass over every open issue
+ *   (20 per job) re-judges each type label now that `infrastructure` exists (owner decision
+ *   2026-10-06; `state.triagePasses.typesQueued`).
  * - `issue-<n>`: one queued issue job at a time, for the issue at the front of the ranked list;
  *   the next is made once that one leaves the queue, never one per backlog issue. An issue a session
- *   deferred (`state.deferred`, done.mjs) is left out until its revision changes.
+ *   deferred (`state.deferred`, done.mjs) is left out until its revision changes. Only the types of
+ *   `backlog.issueTypes` get a new job (bug and infrastructure by default) unless the owner picked the
+ *   issue or master already references it; a queued, unheld job of another type is withdrawn
+ *   (cancelled, `facts.withdrawn`) and made again once its type is offered.
  * - `issue-reland-<n>`: a pull request a revert took out, once the revert left the queue of open
  *   pull requests.
  *
@@ -38,7 +43,19 @@
 
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
-import { issueRule, mergeHeld, missingLabelKinds, NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
+import {
+    issueRule,
+    issueType,
+    issueTypes,
+    masterRefs,
+    mergeHeld,
+    missingLabelKinds,
+    NEXT,
+    ownerLabel,
+    prWork,
+    readyIssues,
+    SKIP,
+} from "./queue.mjs";
 import { touches } from "./prs.mjs";
 
 /** Issues in one triage job (design 8.1). */
@@ -423,7 +440,9 @@ function triageJobs(state, config, now, add) {
               )
             : null;
     const lacks = missing ? batch.map((n) => "#" + n + " " + missing[n].join("+")) : [];
-    const reason = missing ? `missing labels: ${lacks.join(", ")}` : `${scope} pass after merges`;
+    const reason = missing
+        ? `missing labels: ${lacks.join(", ")}`
+        : (PASS_REASONS[scope] ?? `${scope} pass after merges`);
     add({
         id: `triage-${scope}-${passes.seq}`,
         kind: "triage",
@@ -433,8 +452,15 @@ function triageJobs(state, config, now, add) {
     });
 }
 
+/** The reason of a triage pass that merges did not call for. */
+const PASS_REASONS = /** @type {Record<string, string>} */ ({
+    types: "re-judge each issue's type label now that infrastructure exists",
+});
+
 /**
- * Queues a full triage pass once enough merges landed since the last one, or else a refresh pass.
+ * Queues a full triage pass once enough merges landed since the last one, or else a refresh pass;
+ * and once, a `types` pass over every open issue to re-judge its type now that `infrastructure`
+ * exists (owner decision 2026-10-06).
  * @param {any} state the daemon state
  * @param {any} passes the triage passes' record
  * @param {{number: number}[]} open the open issues
@@ -451,6 +477,10 @@ function schedulePasses(state, passes, open, merges) {
         if (merged.length && open.some((i) => !closed.has(i.number))) passes.queue.push({ scope: "refresh", merged });
         state.merged.pending = [];
         passes.refreshAt = merges;
+    }
+    if (!passes.typesQueued && open.length) {
+        passes.queue.push({ scope: "types", issues: open.map((i) => i.number) });
+        passes.typesQueued = true;
     }
 }
 
@@ -538,13 +568,17 @@ function issueJobs(state, config, now, add, cancel) {
         if (job.kind !== "issue" || job.facts?.scope === "reland") continue;
         if (state.issues?.byNumber?.[String(job.target).slice(1)]?.state === "closed") cancel(job, "the issue closed");
     }
+    withdrawUnoffered(state, config, cancel);
     const deferred = endChangedDeferrals(state);
     const queued = Object.values(state.jobs).some((j) => j.kind === "issue" && j.state === "queued");
     if (queued) return;
     const priorities = config.labels?.priorities ?? [];
     const candidates = readyIssues(state, config, now)
-        .ranked.filter((r) => !state.jobs[`issue-${r.number}`] && !deferred[r.number])
-        .map((r) => ({ ...r, order: orderPosition(state, r.number) }));
+        .ranked.map((r) => ({ ...r, order: orderPosition(state, r.number) }))
+        .filter((r) => {
+            const old = state.jobs[`issue-${r.number}`];
+            return (!old || old.facts?.withdrawn) && !deferred[r.number] && (r.offered || r.order !== null);
+        });
     // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
     candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
     const top = candidates[0];
@@ -552,12 +586,9 @@ function issueJobs(state, config, now, add, cancel) {
     const issue = state.issues.byNumber[top.number];
     const label = priorities[top.priority];
     const priority = label ? label.replace(/^[^:]*:/, "") : null;
-    const type = (config.labels?.types ?? []).find((/** @type {string} */ t) => (issue.labels ?? []).includes(t));
-    const ranking = { bug: top.bug, type: type ?? null, effort: top.effort };
+    const ranking = { bug: top.bug, type: top.type, effort: top.effort };
     // A commit or merged pull request on master already names the issue: the worker verifies first.
-    const references = [
-        ...new Set([...(state.merged?.commitRefs?.[top.number] ?? []), ...(state.merged?.refs?.[top.number] ?? [])]),
-    ];
+    const references = masterRefs(state, top.number);
     add({
         id: `issue-${top.number}`,
         kind: "issue",
@@ -577,4 +608,30 @@ function issueJobs(state, config, now, add, cancel) {
             ...(top.order === null ? {} : { order: top.order }),
         },
     });
+}
+
+/**
+ * Withdraws every queued, unheld issue job of a type githerd does not offer now
+ * (`backlog.issueTypes`), judged by its issue's current type label: cancelled with
+ * `facts.withdrawn`, so it is made again once its type is offered. A job a session holds is finishing work in flight and stays, and so do a re-land, a job
+ * master already references, and one the owner picked (`githerd:next`, an open order).
+ * @param {any} state the daemon state
+ * @param {any} config the normalized config
+ * @param {(job: any, reason: string) => void} cancel cancels a job
+ */
+function withdrawUnoffered(state, config, cancel) {
+    const types = issueTypes(config);
+    for (const job of Object.values(state.jobs)) {
+        if (job.kind !== "issue" || job.state !== "queued" || job.holder || job.facts?.scope === "reland") continue;
+        const n = Number(String(job.target).replace(/^#/, ""));
+        const issue = state.issues?.byNumber?.[n];
+        const type = issue ? issueType(issue.labels ?? [], config) : null;
+        if (!type || types.includes(type) || masterRefs(state, n).length || job.facts?.references?.length) continue;
+        if (ownerLabel(issue, NEXT) || orderPosition(state, n) !== null) continue;
+        job.facts = { ...job.facts, withdrawn: true };
+        cancel(
+            job,
+            type === "enhancement" ? "enhancements are not offered for now" : `${type} issues are not offered for now`,
+        );
+    }
 }

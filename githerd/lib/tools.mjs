@@ -10,7 +10,7 @@
 import * as board from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
 import { GRACE_DAYS } from "./proposals.mjs";
-import { jobInUse, jobOrder, ownerWaitingPrs, prInUse, prOf } from "./queue.mjs";
+import { issueTypes, jobInUse, jobOrder, ownerWaitingPrs, prInUse, prOf } from "./queue.mjs";
 
 /** Escalation kinds the owner must act on; others are listed as notes. */
 const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approval", "master-red"]);
@@ -207,7 +207,10 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
             .map(([n, p]) => prData(n, p, owned(p.author), false, inUse(n)));
     }
     if (want("queue")) {
-        const order = jobOrder(state.jobs ?? {}, { inUse: (j) => jobInUse(state, j, { config: ctx.config, now }) });
+        const order = jobOrder(state.jobs ?? {}, {
+            inUse: (j) => jobInUse(state, j, { config: ctx.config, now }),
+            issueTypes: issueTypes(ctx.config),
+        });
         const inFlight = Object.values(state.jobs ?? {})
             .filter((j) => j.state !== "queued" && !board.TERMINAL.includes(j.state))
             .sort((a, b) => a.id.localeCompare(b.id))

@@ -982,25 +982,42 @@ attempt given the old theories. Session deaths are not attempts, but a third dea
 
 ### 5.4 Queue order
 
-Finish before starting. Urgent incidents first (verdicts, master and release incidents, then shared
-incidents; oldest red first). Then by the owner's priority label (critical, high, medium, low):
-an issue's priority, a pull request's own `priority:*` label. `githerd:next` or a place in an open
-order puts a job in the top priority; a pull request with no priority label, and the daemon's own
-triage and major jobs, are in the top priority too; an issue with none comes last. Within one
-priority, work that finishes what is in flight comes before work that starts something new:
+The owner's order (2026-10-06), highest tier first. Within every tier, work that finishes what is
+in flight comes before work that starts something new.
 
-- Finishing: `review` (an incident fix's review uses the urgent slot); `pr`, oldest pull request
-  first, a stacked one blocked until its base merges; `title`; an `issue` that master already names
-  (verify the fix) and a re-land.
-- Starting: `triage` of new issues; `major` jobs the owner approved; a fresh `issue`: issues in an
-  open order first, then bug before other types, low effort before high, oldest first [OD 4].
+1. **Keep things running.** Urgent incidents first (verdicts, master and release incidents, a
+   stuck release train, then shared incidents; oldest red first). Then finishing: `review` (an
+   incident fix's review uses the urgent slot); `pr` for a broken pull request (conflicting,
+   failing, or needing a re-run; a held breaking pull request gets a fix-only job), oldest first, a
+   stacked one blocked until its base merges; `title`; an `issue` that master already names
+   (verify the fix) and a re-land. Then starting: `triage` of new issues and the one-time type
+   refresh; `major` jobs the owner approved. A pull request's own `priority:*` label orders it
+   within the tier; one with none, and the daemon's own jobs, rank as top priority.
+2. **Bugs** (type label `bug`), by the owner's priority label (critical, high, medium, low,
+   unlabeled last), then effort low before medium before high, then oldest first [OD 4].
+3. **Infrastructure** (type label `infrastructure`), ordered the same way inside the tier.
+
+`githerd:next` or a place in an open order puts an issue at the front of the bug tier, whatever its
+type. The tiers after the first follow `backlog.issueTypes` in the config, default
+`["bug", "infrastructure"]`. An issue of any other type (enhancement, documentation, research) gets
+no new job and is not offered, unless the owner picked it (`githerd:next`, an open order) or master
+already names it. A queued, unheld job of such a type is withdrawn: cancelled with the reason
+"enhancements are not offered for now" and `facts.withdrawn`, kept in history, and made again once
+its type is listed. A job a session already holds stays: finishing it is work in flight. To bring
+enhancements back, add `"enhancement"` to `backlog.issueTypes`.
+
+The type label is Claude's judgment in a triage job, never inferred by code from files or paths:
+`infrastructure` for CI, tooling, build, test infrastructure, flaky tests, githerd and repository
+maintenance (SonarQube burn-down, dependency hygiene); `bug` for a defect a user can see. When
+`infrastructure` arrived, githerd queued one type-refresh triage pass over every open issue (20 per
+job, `triage-types-<seq>`, `state.triagePasses.typesQueued`).
 
 Skipped: issues labelled `blocked`, `needs-decision`, `research`, an open owner item; and, while the
 review queue is at its limit, issues whose claimed packages have a Storybook. Last: `triage` refresh
 and full passes; low-priority incidents on non-gating workflows.
 
 Each reason names the rule: "finishes #710: conflicting with master", "starts #322: high
-enhancement, effort low". A pull request that changes githerd itself (`githerd/`, its config,
+infrastructure, effort low". A pull request that changes githerd itself (`githerd/`, its config,
 `.claude/`, `.mcp.json`, `CLAUDE.md`) gets a `pr` job marked `ownerOnly`: offered to the owner's
 sessions, never started as a githerd worker.
 

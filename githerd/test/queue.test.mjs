@@ -65,7 +65,7 @@ describe("jobOrder: the order of design 5.4", () => {
         expect(order.skipped).toEqual([{ job: "issue-7", reason: "labelled needs-decision" }]);
     });
 
-    it("issues: open order, then priority, bug first, oldest; githerd:next first of all", () => {
+    it("issues: githerd:next and open order first, then bugs by priority, then other types, oldest first", () => {
         const jobs = jobsOf(
             { kind: "issue", target: "1", priority: "low", facts: { since: "2026-01-01" } },
             { kind: "issue", target: "2", priority: "high", facts: { since: "2026-09-01" } },
@@ -80,8 +80,8 @@ describe("jobOrder: the order of design 5.4", () => {
         expect(order.map((i) => i.job)).toEqual([
             "issue-7",
             "issue-6",
-            "issue-5",
             "issue-4",
+            "issue-5",
             "issue-3",
             "issue-2",
             "issue-1",
@@ -89,7 +89,7 @@ describe("jobOrder: the order of design 5.4", () => {
         ]);
         expect(order[0].reason).toBe("githerd:next (owner), starts #7: unprioritized issue");
         expect(order[1].reason).toBe("in open order, position 1, starts #6: low issue");
-        expect(order[3].reason).toBe("starts #4: high bug, open since 2026-09-15");
+        expect(order[2].reason).toBe("starts #4: high bug, open since 2026-09-15");
     });
 
     it("finishes before starting within a priority: a broken pull request before a new issue", () => {
@@ -112,13 +112,41 @@ describe("jobOrder: the order of design 5.4", () => {
         ]);
     });
 
-    it("the owner's priority still decides first: a higher-priority new issue before a lower-priority pull request", () => {
+    it("keeps things running first, then bugs, then infrastructure, each by priority then effort (owner 2026-10-06)", () => {
         const jobs = jobsOf(
+            { kind: "issue", target: "#20", priority: "critical", facts: { type: "infrastructure", effort: "low" } },
+            { kind: "issue", target: "#21", priority: "high", facts: { type: "infrastructure", effort: "low" } },
+            { kind: "issue", target: "#11", priority: "low", facts: { bug: true, type: "bug", effort: "low" } },
+            { kind: "issue", target: "#12", priority: "high", facts: { bug: true, type: "bug", effort: "high" } },
+            { kind: "issue", target: "#13", priority: "high", facts: { bug: true, type: "bug", effort: "low" } },
+            { kind: "issue", target: "#14", facts: { bug: true, type: "bug", effort: "low" } },
+            { kind: "issue", target: "#5", priority: "low", facts: { type: "infrastructure", references: ["#6"] } },
+            { kind: "triage", target: "types", facts: { scope: "types" } },
             { kind: "pr", target: "#9", facts: { labels: ["priority:low"] } },
-            { kind: "issue", target: "#5", priority: "medium" },
-            { kind: "issue", target: "#6", priority: "low" },
+            { kind: "incident", target: "release", facts: { scope: "release" } },
         );
-        expect(jobOrder(jobs).items.map((i) => i.job)).toEqual(["issue-#5", "pr-#9", "issue-#6"]);
+        expect(jobOrder(jobs).items).toEqual([
+            { job: "incident-release", reason: "release incident" },
+            { job: "pr-#9", reason: "finishes #9: pull request, low priority" },
+            { job: "issue-#5", reason: "finishes #5: verify the fix, low infrastructure" },
+            { job: "triage-types", reason: "triage: re-judge issue types" },
+            { job: "issue-#13", reason: "starts #13: high bug, effort low" },
+            { job: "issue-#12", reason: "starts #12: high bug, effort high" },
+            { job: "issue-#11", reason: "starts #11: low bug, effort low" },
+            { job: "issue-#14", reason: "starts #14: unprioritized bug, effort low" },
+            { job: "issue-#20", reason: "starts #20: critical infrastructure, effort low" },
+            { job: "issue-#21", reason: "starts #21: high infrastructure, effort low" },
+        ]);
+    });
+
+    it("orders issue types by the configured issueTypes: infrastructure first when the config says so", () => {
+        const jobs = jobsOf(
+            { kind: "issue", target: "#1", priority: "critical", facts: { bug: true, type: "bug" } },
+            { kind: "issue", target: "#2", priority: "low", facts: { type: "infrastructure" } },
+        );
+        expect(jobOrder(jobs).items.map((i) => i.job)).toEqual(["issue-#1", "issue-#2"]);
+        const flipped = jobOrder(jobs, { issueTypes: ["infrastructure", "bug"] });
+        expect(flipped.items.map((i) => i.job)).toEqual(["issue-#2", "issue-#1"]);
     });
 
     it("lists only queued jobs, and skips with a reason", () => {

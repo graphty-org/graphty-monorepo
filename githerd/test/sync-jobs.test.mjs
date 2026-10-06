@@ -12,7 +12,7 @@ const CONFIG = normalizeConfig({
     repo: "o/r",
     lanes: { ci: { workflow: "ci.yml", gating: "required" } },
     labels: {
-        types: ["bug", "enhancement"],
+        types: ["bug", "enhancement", "infrastructure"],
         priorities: ["priority:critical", "priority:high", "priority:medium", "priority:low"],
         efforts: ["effort:high", "effort:medium", "effort:low"],
     },
@@ -33,6 +33,8 @@ function base() {
         issues: { byNumber: {} },
         mergeGate: { heads: {} },
         merged: { count: 0, pending: [], closed: [] },
+        // The one-time type-refresh pass is done; its own test removes this.
+        triagePasses: { refreshAt: 0, fullAt: 0, queue: [], seq: 0, typesQueued: true },
         jobs: {},
     };
 }
@@ -472,6 +474,30 @@ describe("syncJobs: triage", () => {
     });
 });
 
+describe("syncJobs: the one-time type refresh (owner decision 2026-10-06)", () => {
+    it("re-judges every open issue's type once, 20 per job, after the new issues' triage", () => {
+        const state = base();
+        delete state.triagePasses;
+        for (let n = 1; n <= 22; n++) issue(state, n, LABELED);
+        issue(state, 30, []);
+        expect(sync(state).created).toEqual(["triage-new-1", "issue-9"]);
+        move(state.jobs["triage-new-1"], "cancelled", NOW);
+        state.issues.byNumber[30].labels = LABELED;
+        expect(sync(state).created).toEqual(["triage-types-2"]);
+        const job = state.jobs["triage-types-2"];
+        expect(job.reason).toBe("re-judge each issue's type label now that infrastructure exists");
+        expect(job.facts.batch).toHaveLength(20);
+        expect(jobText(job)).toContain("TYPE REFRESH");
+        move(job, "cancelled", NOW);
+        expect(sync(state).created).toEqual(["triage-types-3"]);
+        expect(state.jobs["triage-types-3"].facts.batch).toEqual([21, 22, 30]);
+        move(state.jobs["triage-types-3"], "cancelled", NOW);
+        // Once only.
+        expect(sync(state).created).toEqual([]);
+        expect(state.triagePasses.typesQueued).toBe(true);
+    });
+});
+
 describe("syncJobs: issues", () => {
     it("keeps one issue job queued: an open order first, then priority and bugs first", () => {
         const state = base();
@@ -488,24 +514,76 @@ describe("syncJobs: issues", () => {
         expect(state.jobs["issue-3"].facts.order).toBe(0);
     });
 
-    it("offers a critical bug before a high enhancement, a low-effort bug before a high-effort one", () => {
+    it("offers bugs, then infrastructure, each by priority and effort, and never an enhancement", () => {
+        const state = base();
+        issue(state, 40, ["enhancement", "priority:critical", "effort:low"]);
+        issue(state, 50, ["infrastructure", "priority:critical", "effort:low"]);
+        issue(state, 125, ["bug", "priority:high", "effort:high"]);
+        issue(state, 123, ["bug", "priority:high", "effort:low"]);
+        issue(state, 126, ["bug", "priority:low", "effort:low"]);
+        const order = [];
+        for (let i = 0; i < 6; i++) {
+            const made = sync(state).created;
+            order.push(...made);
+            for (const id of made) move(state.jobs[id], "starting", NOW);
+        }
+        expect(order).toEqual(["issue-123", "issue-125", "issue-126", "issue-50"]);
+        expect(state.jobs["issue-123"].reason).toBe("front of the issue queue: high bug, effort low");
+        expect(state.jobs["issue-50"].reason).toBe("front of the issue queue: critical infrastructure, effort low");
+        expect(state.jobs["issue-40"]).toBeUndefined();
+    });
+
+    it("offers an enhancement only when backlog.issueTypes names it, the owner picks it, or master names it", () => {
+        const withEnhancements = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            backlog: { issueTypes: ["bug", "infrastructure", "enhancement"] },
+        });
         const state = base();
         issue(state, 40, ["enhancement", "priority:high", "effort:low"]);
-        issue(state, 125, ["bug", "priority:critical", "effort:high"]);
-        issue(state, 123, ["bug", "priority:critical", "effort:low"]);
-        expect(sync(state).created).toEqual(["issue-123"]);
-        expect(state.jobs["issue-123"].reason).toBe("front of the issue queue: critical bug, effort low");
-        move(state.jobs["issue-123"], "starting", NOW);
-        expect(sync(state).created).toEqual(["issue-125"]);
-        move(state.jobs["issue-125"], "starting", NOW);
-        expect(sync(state).created).toEqual(["issue-40"]);
-        expect(state.jobs["issue-40"].reason).toBe("front of the issue queue: high enhancement, effort low");
+        expect(sync(state).created).toEqual([]);
+        expect(syncJobs(state, { config: withEnhancements, now: NOW }).created).toEqual(["issue-40"]);
+
+        const picked = base();
+        issue(picked, 41, ["enhancement", "priority:low", "effort:low"]);
+        picked.orders = [{ id: "order-1", issues: [41] }];
+        expect(sync(picked).created).toEqual(["issue-41"]);
+
+        const fixed = base();
+        issue(fixed, 42, ["enhancement", "priority:low", "effort:low"]);
+        fixed.merged.commitRefs = commitRefs("958d8e9c6\tfeat: a thing (#42)", [42]);
+        expect(sync(fixed).created).toEqual(["issue-42"]);
+        expect(fixed.jobs["issue-42"].facts.references).toEqual(["958d8e9c6"]);
+    });
+
+    it("withdraws a queued enhancement job, keeps a held one, and makes it again once enhancements are offered", () => {
+        const withEnhancements = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            backlog: { issueTypes: ["bug", "infrastructure", "enhancement"] },
+        });
+        const state = base();
+        issue(state, 40, ["enhancement", "priority:high", "effort:low"]);
+        issue(state, 41, ["enhancement", "priority:high", "effort:medium"]);
+        syncJobs(state, { config: withEnhancements, now: NOW });
+        move(state.jobs["issue-40"], "starting", NOW, { holder: { session: "s1", startedBy: "owner" } });
+        syncJobs(state, { config: withEnhancements, now: NOW });
+        expect(state.jobs["issue-41"].state).toBe("queued");
+        const out = sync(state);
+        expect(out.cancelled).toEqual([{ job: "issue-41", reason: "enhancements are not offered for now" }]);
+        expect(state.jobs["issue-41"]).toMatchObject({ state: "cancelled", facts: { withdrawn: true } });
+        expect(state.jobs["issue-40"].state).toBe("starting");
+        expect(sync(state).created).toEqual([]);
+        expect(syncJobs(state, { config: withEnhancements, now: NOW }).created).toEqual(["issue-41"]);
+        expect(state.jobs["issue-41"].state).toBe("queued");
     });
 
     it("never offers an issue labeled needs-decision, whatever its priority", () => {
         const state = base();
         issue(state, 1, ["bug", "priority:critical", "effort:low", "needs-decision"]);
-        issue(state, 2, ["enhancement", "priority:low", "effort:high"]);
+        issue(state, 2, ["infrastructure", "priority:low", "effort:high"]);
         expect(sync(state).created).toEqual(["issue-2"]);
         move(state.jobs["issue-2"], "starting", NOW);
         expect(sync(state).created).toEqual([]);

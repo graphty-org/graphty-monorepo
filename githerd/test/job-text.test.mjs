@@ -39,6 +39,12 @@ const JOBS = {
         facts: { references: ["958d8e9c6", "#550"] },
     },
     triage: { kind: "triage", target: "20 new issues since 2026-10-03" },
+    "triage-types": {
+        kind: "triage",
+        target: "2 issues: #5 #9",
+        reason: "re-judge each issue's type label now that infrastructure exists",
+        facts: { scope: "types", batch: [5, 9] },
+    },
     "triage-refresh": {
         kind: "triage",
         target: "2 merges against 2 open issues",
@@ -106,6 +112,17 @@ describe("jobText", () => {
         await expect(text).toMatchFileSnapshot("job-text/issue-later-attempt.txt");
         expect(text).not.toContain("an ended policy");
         expect(text).not.toContain("3.");
+    });
+
+    it("tells every triage session when an issue is infrastructure and when it is a bug", () => {
+        for (const name of ["triage", "triage-refresh", "triage-types"]) {
+            const text = jobText(newJob(JOBS[name], NOW));
+            expect(text).toContain(
+                "use infrastructure for CI, tooling, build, test infrastructure, flaky tests, githerd",
+            );
+            expect(text).toContain("use bug for a defect a user");
+        }
+        expect(jobText(newJob(JOBS["triage-types"], NOW))).toContain("TYPE REFRESH");
     });
 
     it("leaves the earlier-attempts and policies sections out of a first attempt", () => {

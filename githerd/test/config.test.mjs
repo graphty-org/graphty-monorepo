@@ -64,6 +64,20 @@ describe("normalizeConfig", () => {
         expect(c.lanes.ci).toEqual({ workflow: "ci.yml", gating: "required", maxMinutes: null });
     });
 
+    it("offers bug and infrastructure issues by default, and takes another list in backlog.issueTypes", () => {
+        expect(normalizeConfig(MINIMAL).backlog).toEqual({ agingDays: 60, issueTypes: ["bug", "infrastructure"] });
+        expect(with_({ backlog: { agingDays: 30 } }).backlog.issueTypes).toEqual(["bug", "infrastructure"]);
+        expect(with_({ backlog: { issueTypes: ["bug", "infrastructure", "enhancement"] } }).backlog).toEqual({
+            agingDays: 60,
+            issueTypes: ["bug", "infrastructure", "enhancement"],
+        });
+        expect(() => with_({ backlog: { issueTypes: "bug" } })).toThrow(/backlog.issueTypes must be an array/);
+        expect(() => with_({ backlog: { types: [] } })).toThrow(/backlog\.types/);
+        const a = normalizeConfig(MINIMAL);
+        a.backlog.issueTypes.push("enhancement");
+        expect(normalizeConfig(MINIMAL).backlog.issueTypes).toEqual(["bug", "infrastructure"]);
+    });
+
     it("does not share default objects between results", () => {
         const a = normalizeConfig(MINIMAL);
         a.workers.slots = 7;

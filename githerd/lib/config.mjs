@@ -57,7 +57,9 @@ export const DEFAULTS = Object.freeze({
         maxActive: 3,
         sessions: null,
     },
-    backlog: { agingDays: 60 },
+    // The issue types githerd makes issue jobs for, in tier order (design 5.4, owner decision
+    // 2026-10-06): bugs, then infrastructure. Add "enhancement" to offer enhancements again.
+    backlog: { agingDays: 60, issueTypes: ["bug", "infrastructure"] },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
 });
@@ -112,7 +114,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
  *     askMinutes: number, statusMinutes: number, maxActive: number, sessions: string[] | null },
- *   backlog: { agingDays: number },
+ *   backlog: { agingDays: number, issueTypes: string[] },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
  * }} Config
@@ -318,6 +320,22 @@ function workers(raw) {
 }
 
 /**
+ * The `backlog` section: how fast an untouched issue ages up, and the issue types githerd offers.
+ * @param {unknown} raw the section as written
+ * @returns {Config["backlog"]} the section
+ */
+function backlog(raw) {
+    const d = DEFAULTS.backlog;
+    if (raw === undefined) return { agingDays: d.agingDays, issueTypes: [...d.issueTypes] };
+    const { issueTypes, ...rest } = /** @type {any} */ (object(raw, "backlog"));
+    onlyKeys(raw, Object.keys(d), "backlog.");
+    return {
+        ...numbers(rest, { agingDays: d.agingDays }, "backlog", { agingDays: days }),
+        issueTypes: issueTypes === undefined ? [...d.issueTypes] : strings(issueTypes, "backlog.issueTypes"),
+    };
+}
+
+/**
  * Checks a parsed config and fills in the defaults.
  * @param {unknown} input the parsed JSON
  * @returns {Config} the settings
@@ -377,7 +395,7 @@ export function normalizeConfig(input) {
         protectedPaths: withDefaults(raw.protectedPaths, DEFAULT_PROTECTED, "protectedPaths"),
         actions,
         workers: workers(raw.workers),
-        backlog: numbers(raw.backlog, DEFAULTS.backlog, "backlog", { agingDays: days }),
+        backlog: backlog(raw.backlog),
         notify: {
             command:
                 notifyRaw.command === undefined || notifyRaw.command === null

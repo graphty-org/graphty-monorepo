@@ -459,7 +459,7 @@ export class EventManager implements Manager {
      * @param type - Node event type
      * @param eventData - Event data (excluding type field)
      */
-    emitNodeEvent(type: NodeEvent["type"], eventData: Omit<NodeEvent, "type">): void {
+    emitNodeEvent(type: NodeEvent["type"], eventData: object): void {
         const event = { type, ...eventData } as NodeEvent;
         this.nodeObservable.notifyObservers(event);
     }
@@ -471,7 +471,7 @@ export class EventManager implements Manager {
      * @param type - Edge event type
      * @param eventData - Event data (excluding type field)
      */
-    emitEdgeEvent(type: EdgeEvent["type"], eventData: Omit<EdgeEvent, "type">): void {
+    emitEdgeEvent(type: EdgeEvent["type"], eventData: object): void {
         const event = { type, ...eventData } as EdgeEvent;
         this.edgeObservable.notifyObservers(event);
     }

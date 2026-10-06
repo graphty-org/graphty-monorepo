@@ -1,10 +1,4 @@
-import {
-    KeyboardEventTypes,
-    type KeyboardInfo as BabylonKeyboardInfo,
-    PointerEventTypes,
-    PointerInfo,
-    Scene,
-} from "@babylonjs/core";
+import { KeyboardEventTypes, PointerEventTypes, PointerInfo, Scene } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { Graph } from "../../src/Graph";
@@ -151,7 +145,7 @@ describe("Input System Architecture", () => {
                     altKey: false,
                     metaKey: false,
                 } as KeyboardEvent,
-            } as unknown as BabylonKeyboardInfo);
+            });
 
             scene.onKeyboardObservable.notifyObservers({
                 type: KeyboardEventTypes.KEYUP,
@@ -163,7 +157,7 @@ describe("Input System Architecture", () => {
                     altKey: false,
                     metaKey: false,
                 } as KeyboardEvent,
-            } as unknown as BabylonKeyboardInfo);
+            });
 
             // Verify events were converted and emitted
             assert.equal(keyboardEvents.length, 2, "Should have received 2 keyboard events");

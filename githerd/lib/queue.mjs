@@ -117,6 +117,19 @@ export const askProblems = (rec) => [
     ...((rec.conflictSightings ?? 0) >= 2 ? [`conflicts with ${rec.baseRef ?? "its base"}`] : []),
 ];
 
+const HELD_FOR_MAJOR = "waiting on owner: held for a major";
+
+/**
+ * Whether a PR is held from merging: breaking (held for a grouped major) or labeled `hold` or
+ * `breaking-hold`. Held means "do not merge yet", not "do not work on it": a held PR that conflicts
+ * or fails still gets a `pr` job, whose text says it stays held.
+ * @param {any} rec the PR record
+ * @returns {boolean} true when held
+ */
+export const mergeHeld = (rec) =>
+    Boolean(rec.breaking) ||
+    (rec.labels ?? []).some((/** @type {string} */ l) => l === "hold" || l === "breaking-hold");
+
 /**
  * Why a PR waits on the owner, or null.
  * @param {string} number the PR number
@@ -126,7 +139,7 @@ export const askProblems = (rec) => [
  */
 function ownerWait(number, rec, state) {
     if (rec.ownerGate && !rec.ownerRejected) return "waiting on owner: visual review";
-    if (rec.breaking || (rec.labels ?? []).includes("breaking-hold")) return "waiting on owner: held for a major";
+    if (rec.breaking || (rec.labels ?? []).includes("breaking-hold")) return HELD_FOR_MAJOR;
     const decision = Object.values(state.escalations ?? {}).some(
         (e) => !e.resolvedAt && e.kind === "decision" && e.target === `pr:${number}`,
     );
@@ -136,7 +149,8 @@ function ownerWait(number, rec, state) {
 /**
  * What one of the owner's open pull requests needs from a worker (design 5.1, `pr` jobs): an own
  * failing required check, a conflict seen twice, or an owner's visual reject. Null when it is
- * landing on its own, waits on the owner, is a draft, or is not the owner's. A pull request stacked
+ * landing on its own, waits on the owner (a merge hold is no wait: `mergeHeld`), is a draft, or is
+ * not the owner's. A pull request stacked
  * on another one needs a worker only for a conflict with its base: resolving it is a session's
  * work, never the owner's decision.
  * @param {string} number the PR number
@@ -146,7 +160,9 @@ function ownerWait(number, rec, state) {
  */
 export function prWork(number, rec, state) {
     if (!byOwner(state, rec.author) || rec.draft) return null;
-    if (ownerWait(number, rec, state)) return null;
+    const wait = ownerWait(number, rec, state);
+    // A merge hold is not a work hold: a held PR that is broken still gets fixed (mergeHeld).
+    if (wait && wait !== HELD_FOR_MAJOR) return null;
     // GitHub's answer of this poll, read again every poll: it clears as soon as GitHub says so.
     const github = rec.mergeState ?? rec.mergeable ?? "CONFLICTING";
     const base = rec.stackedOn ? `its base #${rec.stackedOn}` : (rec.baseRef ?? "its base");

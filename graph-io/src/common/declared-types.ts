@@ -324,7 +324,7 @@ export function parseDecimalText(text: string, kind: ValueKind = "double"): numb
         case "-Infinity":
             return -Infinity;
         case "NaN":
-            return NaN;
+            return Number.NaN;
         default:
             throw typeError(text, kind);
     }

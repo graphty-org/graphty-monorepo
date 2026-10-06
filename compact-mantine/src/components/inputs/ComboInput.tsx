@@ -153,7 +153,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         document.querySelector(`[id="${listId}"] [data-combobox-selected]`)?.id || undefined;
 
     const currentText = String(current);
-    const numberValue = numeric && currentText !== "" ? parse(currentText) : NaN;
+    const numberValue = numeric && currentText !== "" ? parse(currentText) : Number.NaN;
     const number = useNumberField({
         value: Number.isNaN(numberValue) ? null : numberValue,
         display: currentText,

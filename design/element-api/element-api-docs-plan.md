@@ -1266,9 +1266,7 @@ export interface CommandDescriptor {
     readonly since: string; // "2.0.0"
 }
 
-export const commandDescriptors: readonly CommandDescriptor[] = [
-    /* one per op */
-];
+export const commandDescriptors: readonly CommandDescriptor[] = [/* one per op */];
 ```
 
 **Three artifacts are emitted from that one array** by

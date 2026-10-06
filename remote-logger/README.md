@@ -109,14 +109,15 @@ Logs appear in the server terminal with colors and session info:
 ```
 
 Log levels are displayed with the following colors:
-| Level | Color |
-|-------|-------|
-| ERROR | White text on red background |
-| WARN/WARNING | Bold text on yellow background |
-| INFO | Blue |
-| DEBUG | Cyan |
-| TRACE | Dim/gray |
-| LOG (default) | Green |
+
+| Level         | Color                          |
+| ------------- | ------------------------------ |
+| ERROR         | White text on red background   |
+| WARN/WARNING  | Bold text on yellow background |
+| INFO          | Blue                           |
+| DEBUG         | Cyan                           |
+| TRACE         | Dim/gray                       |
+| LOG (default) | Green                          |
 
 ## Debugging Third-Party Sites
 
@@ -418,13 +419,14 @@ The MCP server provides 9 tools for log management:
 Get recent logs from the server, sorted by time (oldest first).
 
 **Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `count` | `number` | `50` | Number of logs to return (max 500) |
-| `projectMarker` | `string` | - | Filter by project marker |
-| `workingDirectory` | `string` | - | Derive marker from path (e.g., `/path/.worktrees/my-branch`) |
-| `level` | `string` | - | Filter by log level (ERROR, WARN, INFO, DEBUG) |
-| `since` | `string` | - | Only logs after this ISO timestamp |
+
+| Parameter          | Type     | Default | Description                                                  |
+| ------------------ | -------- | ------- | ------------------------------------------------------------ |
+| `count`            | `number` | `50`    | Number of logs to return (max 500)                           |
+| `projectMarker`    | `string` | -       | Filter by project marker                                     |
+| `workingDirectory` | `string` | -       | Derive marker from path (e.g., `/path/.worktrees/my-branch`) |
+| `level`            | `string` | -       | Filter by log level (ERROR, WARN, INFO, DEBUG)               |
+| `since`            | `string` | -       | Only logs after this ISO timestamp                           |
 
 **Example usage in Claude Code:**
 
@@ -451,10 +453,11 @@ Get the status of the remote log server.
 List all logging sessions with their metadata.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `projectMarker` | `string` | Filter by project marker |
-| `hasErrors` | `boolean` | Only show sessions with errors |
+
+| Parameter       | Type      | Description                    |
+| --------------- | --------- | ------------------------------ |
+| `projectMarker` | `string`  | Filter by project marker       |
+| `hasErrors`     | `boolean` | Only show sessions with errors |
 
 **Returns:** Array of sessions with:
 
@@ -470,21 +473,23 @@ List all logging sessions with their metadata.
 Store logs from a browser or application session.
 
 **Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `sessionId` | `string` | Yes | Unique session identifier |
-| `logs` | `array` | Yes | Array of log entries |
-| `projectMarker` | `string` | No | Project identifier |
-| `worktreePath` | `string` | No | Full worktree path |
-| `pageUrl` | `string` | No | Browser page URL |
+
+| Parameter       | Type     | Required | Description               |
+| --------------- | -------- | -------- | ------------------------- |
+| `sessionId`     | `string` | Yes      | Unique session identifier |
+| `logs`          | `array`  | Yes      | Array of log entries      |
+| `projectMarker` | `string` | No       | Project identifier        |
+| `worktreePath`  | `string` | No       | Full worktree path        |
+| `pageUrl`       | `string` | No       | Browser page URL          |
 
 #### `logs_get_all`
 
 Get all logs grouped by session.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
+
+| Parameter       | Type     | Description              |
+| --------------- | -------- | ------------------------ |
 | `projectMarker` | `string` | Filter by project marker |
 
 **Returns:** Object mapping session IDs to log arrays
@@ -494,10 +499,11 @@ Get all logs grouped by session.
 Get only ERROR level logs.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `projectMarker` | `string` | Filter by project marker |
-| `since` | `string` | Only errors after this timestamp |
+
+| Parameter       | Type     | Description                      |
+| --------------- | -------- | -------------------------------- |
+| `projectMarker` | `string` | Filter by project marker         |
+| `since`         | `string` | Only errors after this timestamp |
 
 **Example usage:**
 
@@ -508,11 +514,12 @@ Get only ERROR level logs.
 Clear logs from the server.
 
 **Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `confirm` | `boolean` | Yes | Must be `true` to proceed |
-| `projectMarker` | `string` | No | Only clear this project's logs |
-| `sessionId` | `string` | No | Only clear this session's logs |
+
+| Parameter       | Type      | Required | Description                    |
+| --------------- | --------- | -------- | ------------------------------ |
+| `confirm`       | `boolean` | Yes      | Must be `true` to proceed      |
+| `projectMarker` | `string`  | No       | Only clear this project's logs |
+| `sessionId`     | `string`  | No       | Only clear this session's logs |
 
 **Example usage:**
 
@@ -523,13 +530,14 @@ Clear logs from the server.
 Search logs by text pattern.
 
 **Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | `string` | required | Search text or regex pattern |
-| `regex` | `boolean` | `false` | Treat query as regex |
-| `projectMarker` | `string` | - | Filter by project |
-| `level` | `string` | - | Filter by log level |
-| `limit` | `number` | `100` | Max results (max 1000) |
+
+| Parameter       | Type      | Default  | Description                  |
+| --------------- | --------- | -------- | ---------------------------- |
+| `query`         | `string`  | required | Search text or regex pattern |
+| `regex`         | `boolean` | `false`  | Treat query as regex         |
+| `projectMarker` | `string`  | -        | Filter by project            |
+| `level`         | `string`  | -        | Filter by log level          |
+| `limit`         | `number`  | `100`    | Max results (max 1000)       |
 
 **Example usage:**
 
@@ -541,9 +549,10 @@ Search logs by text pattern.
 Get the file path to the JSONL log file for a project.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `projectMarker` | `string` | Project marker |
+
+| Parameter          | Type     | Description             |
+| ------------------ | -------- | ----------------------- |
+| `projectMarker`    | `string` | Project marker          |
 | `workingDirectory` | `string` | Derive marker from path |
 
 **Returns:** File path, existence status, and size

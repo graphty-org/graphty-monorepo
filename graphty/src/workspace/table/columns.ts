@@ -93,15 +93,13 @@ export function columnChoices(session: GraphSession, kind: RecordKind): TableCol
                 attribute.origin !== "result" &&
                 !KEYS[kind].some((key) => key.id === attribute.name),
         )
-        .map(
-            (attribute): TableColumnChoice => ({
-                id: `a:${attribute.name}`,
-                header: attribute.name,
-                group: "attribute",
-                numeric: attribute.type === "number" || attribute.type === "integer",
-                attribute: attribute.name,
-            }),
-        );
+        .map((attribute): TableColumnChoice => ({
+            id: `a:${attribute.name}`,
+            header: attribute.name,
+            group: "attribute",
+            numeric: attribute.type === "number" || attribute.type === "integer",
+            attribute: attribute.name,
+        }));
     const results = session.runs.list().flatMap((run): TableColumnChoice[] => {
         const column = resultColumn(session, run, kind);
         if (column === undefined) {

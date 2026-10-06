@@ -306,11 +306,9 @@ export function update3DPositions(
             const targetId = line.userData.target as number;
 
             const sourceMesh = scene3D.nodeGroup.children.find((m) => m.userData.nodeId === sourceId) as
-                | THREE.Mesh
-                | undefined;
+                THREE.Mesh | undefined;
             const targetMesh = scene3D.nodeGroup.children.find((m) => m.userData.nodeId === targetId) as
-                | THREE.Mesh
-                | undefined;
+                THREE.Mesh | undefined;
 
             if (sourceMesh && targetMesh) {
                 const { geometry } = line as THREE.Line;

@@ -76,11 +76,7 @@ interface ViewImmersiveCommand {
 
 /** Every layout op. */
 export type LayoutCommand =
-    | LayoutSetCommand
-    | LayoutScopeCommand
-    | ViewDimensionCommand
-    | LayoutTransportCommand
-    | ViewImmersiveCommand;
+    LayoutSetCommand | LayoutScopeCommand | ViewDimensionCommand | LayoutTransportCommand | ViewImmersiveCommand;
 
 /** The renderer's layout, as the layout ops reach it. A session that draws nothing has none. */
 export interface LayoutService {

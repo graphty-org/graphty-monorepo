@@ -619,13 +619,13 @@ Per iteration, repulsion work:
   comment.
 - grid pyramid (cosmos structure as compute): O(n _ (K_far + occ_near)) with
   `K_far = |coarsest grid| - 9 + 27 _ (levels - 1)`(for 4^2 coarsest and a
-512^2 finest: 7 + 27*7 = 196 centroid evaluations per point in 2D) and`occ_near`= points in the 3x3 finest neighbourhood (mean ~2.25 at 1/4
+  512^2 finest: 7 + 27*7 = 196 centroid evaluations per point in 2D) and`occ_near`= points in the 3x3 finest neighbourhood (mean ~2.25 at 1/4
   point per cell; hub cells are the tail). Build: O(n) cell ids + histogram
     - scan over`cells` + scatter + O(cells \* levels) downsample. At n = 1M
-  in 2D this is ~2 x 10^8 far-field evaluations, comparable to GraphWaGu's
-  measured 160 ms/iteration budget at 1.1M but with coherent, branch-free
-  memory access; a few tens of ms is a reasonable expectation on the 4070
-  SUPER (UNVERIFIED until the walking skeleton measures it).
+      in 2D this is ~2 x 10^8 far-field evaluations, comparable to GraphWaGu's
+      measured 160 ms/iteration budget at 1.1M but with coherent, branch-free
+      memory access; a few tens of ms is a reasonable expectation on the 4070
+      SUPER (UNVERIFIED until the walking skeleton measures it).
 - Barnes-Hut tree: O(n log n) with a large constant from divergent
   traversal (GraphWaGu: 3 ms of 8 ms at 37k; 160 ms at 1.1M with theta 2;
   Brinkmann/Burtscher kernels: 231 ms at 1.13M on a 2015 GPU). Memory

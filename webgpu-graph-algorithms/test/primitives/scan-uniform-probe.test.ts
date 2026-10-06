@@ -252,13 +252,11 @@ function buildPipeline(ctx: GpuContext, spec: PipelineSpec): ProbePipeline {
         ctx.device.createBindGroupLayout({ label: `${spec.label}/layout0`, entries: [] }),
         ctx.device.createBindGroupLayout({
             label: `${spec.label}/layout1`,
-            entries: spec.storage.map(
-                (type, binding): GPUBindGroupLayoutEntry => ({
-                    binding,
-                    visibility: ShaderStage.COMPUTE,
-                    buffer: { type },
-                }),
-            ),
+            entries: spec.storage.map((type, binding): GPUBindGroupLayoutEntry => ({
+                binding,
+                visibility: ShaderStage.COMPUTE,
+                buffer: { type },
+            })),
         }),
     ];
     if (spec.uniform) {

@@ -70,14 +70,7 @@ export interface CoreBinding {
  */
 export interface ViewBinding {
     readonly view:
-        | "reverse"
-        | "coo"
-        | "edgeList"
-        | "outDegree"
-        | "inDegree"
-        | "degreeOrder"
-        | "reverseDegreeOrder"
-        | "mate";
+        "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate";
     readonly bindings: Readonly<Record<string, Binding>>;
     readonly scalars: Readonly<Record<string, readonly number[]>>;
 }

@@ -27,9 +27,7 @@ export type EdgeSpec = readonly [number, number] | readonly [number, number, num
 
 /** A column given to the helper: a typed array, a ColumnInput, or a JS array with a declaration. */
 type ColumnSpec =
-    | TypedArrayData
-    | ColumnInput
-    | { readonly values: readonly unknown[]; readonly decl?: ColumnDeclPatch };
+    TypedArrayData | ColumnInput | { readonly values: readonly unknown[]; readonly decl?: ColumnDeclPatch };
 
 /** The description of a test graph. */
 export interface GraphSpec {

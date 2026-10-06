@@ -111,8 +111,7 @@ describe("BellmanFordAlgorithm", () => {
 
             for (const node of fakeGraph.nodes.values()) {
                 const distPct = getNodeResult(algo, node.id, "graphty", "bellman-ford", "distancePct") as
-                    | number
-                    | undefined;
+                    number | undefined;
                 if (distPct !== undefined && isFinite(distPct)) {
                     assert.isAtLeast(distPct, 0);
                     assert.isAtMost(distPct, 1);

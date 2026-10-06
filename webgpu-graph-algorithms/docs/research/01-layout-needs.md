@@ -129,11 +129,11 @@ oldPos + update`: `swingVector = oldPos - newPos = -update`,
 sqrt(optJitter)`; `maxJitter = 10`; `minSpeedEfficiency = 0.05`; `other
 = min(maxJitter, optJitter * traction / n^2)`; `jitter = jitterTolerance
     - max(minJitter, other)`; if `swing / traction > 2`: halve
-   `speedEfficiency`(floor 0.05) and`jitter = max(jitter,
+`speedEfficiency`(floor 0.05) and`jitter = max(jitter,
       jitterTolerance)`; `targetSpeed = swing === 0 ? +Inf : jitter _
       speedEfficiency _ traction / swing`; if `swing > jitter _ traction`:
-   `speedEfficiency _= 0.7`(floor 0.05) else if`speed < 1000`:
-   `speedEfficiency _= 1.3`; `speed += min(targetSpeed - speed, 0.5 _
+`speedEfficiency _= 0.7`(floor 0.05) else if`speed < 1000`:
+`speedEfficiency _= 1.3`; `speed += min(targetSpeed - speed, 0.5 _
       speed)`. State carried across iterations: `speed`(init 1),`speedEfficiency` (init 1).
 9. Apply (lines 403-428): per node `swinging = mass_i * |update_i|`;
    `factor = speed / (1 + sqrt(speed * swinging))`; with `adjustSizes`:
@@ -200,13 +200,13 @@ same signature order, same `estimate_factor`, same `1e-10` break, same
 `degree + 1` mass, same `[-1, 1)` initial positions via `random_layout`
 semantics). Three places differ, and each changes the picture:
 
-| Quantity         | NetworkX (upstream)                                                                                                                                  | graphty port                                                                                            | Consequence                                                                               |
+| Quantity | NetworkX (upstream) | graphty port | Consequence |
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | --- | -------------------------------------------------------------------------------------------------- |
-| Repulsion        | `repulsion = einsum(diff, mass_i mass_j / d^2 * k)` = magnitude `k m_i m_j / d` (the FA2 paper's law)                                                | `direction * factor` with `factor = k m_i m_j / d^2` = magnitude `k m_i m_j / d^2` (lines 322-329)      | the port's repulsion decays one power faster; layouts are tighter and hubs less separated |
-| Swing / traction | `swing += sum(mass * norm(pos - update))`, `traction += sum(0.5 mass norm(pos + update))`, ACCUMULATED across iterations from `swing = traction = 1` | `sum mass * norm(update)` and `sum 0.5 mass norm(2 pos + update)`, RESET each iteration (lines 370-390) | different adaptive speed trajectory; the port converges differently                       |
-| `adjust_sizes`   | `distance += -size_i - size_j`                                                                                                                       | `dist -= size[i] - size[j]` (line 318)                                                                  | the port subtracts `size_i` and ADDS `size_j`; sizes are not symmetric                    |
-| Distance floor   | none (diagonal only)                                                                                                                                 | `max(d, 0.01)` (line 266) and again after the size correction (line 319)                                | harmless; keep                                                                            |
-| Weights          | `to_numpy_array(G, weight)`                                                                                                                          | `getEdgeData(...)                                                                                       |                                                                                           | 1`  | same "0 means 1" semantics through the fallback, but the port also treats a missing attribute as 1 |
+| Repulsion | `repulsion = einsum(diff, mass_i mass_j / d^2 * k)` = magnitude `k m_i m_j / d` (the FA2 paper's law) | `direction * factor` with `factor = k m_i m_j / d^2` = magnitude `k m_i m_j / d^2` (lines 322-329) | the port's repulsion decays one power faster; layouts are tighter and hubs less separated |
+| Swing / traction | `swing += sum(mass * norm(pos - update))`, `traction += sum(0.5 mass norm(pos + update))`, ACCUMULATED across iterations from `swing = traction = 1` | `sum mass * norm(update)` and `sum 0.5 mass norm(2 pos + update)`, RESET each iteration (lines 370-390) | different adaptive speed trajectory; the port converges differently |
+| `adjust_sizes` | `distance += -size_i - size_j` | `dist -= size[i] - size[j]` (line 318) | the port subtracts `size_i` and ADDS `size_j`; sizes are not symmetric |
+| Distance floor | none (diagonal only) | `max(d, 0.01)` (line 266) and again after the size correction (line 319) | harmless; keep |
+| Weights | `to_numpy_array(G, weight)` | `getEdgeData(...)                                                                                       |                                                                                           | 1` | same "0 means 1" semantics through the fallback, but the port also treats a missing attribute as 1 |
 
 Recommendation for the plan: settle these in the section-14.3 CPU rewrite
 (which is the parity target for the GPU kernel) BEFORE writing WGSL, and

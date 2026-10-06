@@ -5,12 +5,13 @@
 The graphty-element package currently produces a ~4.2MB JavaScript bundle (30MB with source maps). The primary contributor is Babylon.js, which is included due to non-optimal import patterns. This document outlines a comprehensive strategy to reduce bundle size by 50-70% through import path optimization, lazy loading patterns, and architectural improvements.
 
 **Estimated Impact:**
-| Strategy | Effort | Bundle Reduction | Priority |
-|----------|--------|------------------|----------|
-| Import Path Optimization | Medium | ~1.5-2MB (35-50%) | **P0** |
-| Lazy Engine Initialization | High | Variable | P1 |
-| Multiple Entry Points | Medium | N/A (consumer benefit) | P2 |
-| Consumer-side Code Splitting | Low | Variable | P2 |
+
+| Strategy                     | Effort | Bundle Reduction       | Priority |
+| ---------------------------- | ------ | ---------------------- | -------- |
+| Import Path Optimization     | Medium | ~1.5-2MB (35-50%)      | **P0**   |
+| Lazy Engine Initialization   | High   | Variable               | P1       |
+| Multiple Entry Points        | Medium | N/A (consumer benefit) | P2       |
+| Consumer-side Code Splitting | Low    | Variable               | P2       |
 
 ---
 

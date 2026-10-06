@@ -897,6 +897,46 @@ The board's `flakes` section lists each tracked test with its occurrences, proof
 
 ---
 
+### 4.13 CI's own signals
+
+The CI plan (`design/ci/ci-cd-plan.md`) adds four signals githerd follows. All are built in
+`lib/advisory.mjs`, `lib/master.mjs`, `lib/heartbeat.mjs` and `lib/board.mjs`.
+
+- **Advisory checks.** `tools/ci-advisory-checks.json` lists new checks under `advisory`
+  (`{job, step?, added, enforce, issue}`, `enforce` a UTC date). githerd reads it and ci.yml from
+  the default branch after each fetch (the path that reads `.mergify.yml`), and maps each job id to
+  its check run names (`name:`, a `${{ }}` expression matching any text). While `enforce` is after
+  today (UTC; the CI's own rule), a failed job of a whole-job entry, or a job whose failed steps are
+  all advisory steps, is a warning: it leaves the pull request's failing checks, a summary check
+  failing only on such jobs counts as passed, so there is no broken pull request, no `pr` job, no
+  ownership question and no merge hold, and on master it is no key (class `advisory`, which parks
+  the lane). The board shows `advisory: <check> (enforced from <date>)`. A lane classified with an
+  advisory job is classified again once that date comes.
+- **Promotion.** The CI workflow tests warn "move it into required and drop its warning wiring"
+  from three days before `enforce` (`tools/ci-workflows.test.mjs`); from the same day githerd makes
+  one `issue` job with scope `promote` per entry, `issue-promote-<check>`, targeting the entry's
+  issue. It finishes work in flight (tier 1). It edits `.github/workflows/`, which a worker's
+  settings deny, so it is `ownerOnly`. A done one is never made again; one whose entry left the
+  advisory list is cancelled. It holds no place in the one-queued-issue-job rule.
+- **Merge batches.** Mergify's merge-batch commit ("Merged #42, #43, #44", body "Merged by Mergify
+  Merge Queue") lands every pull request it names (`mergedPrs`, mirroring `tools/master-guard.mjs`);
+  each is a suspect of its own, so a batch of several is never one merge to revert. The batch
+  branch's inner "Merge of #42" commits are not landings. An incident on a batch commit records
+  `redBatch`, and its verdict jobs say the batch's tree is what "Queue Checks Pass" passed: look at
+  master-only jobs and known flakes before blaming a pull request.
+- **Heartbeat.** For `.github/workflows/githerd-watchdog.yml`, which alarms the owner while the dev
+  machine may be off: the first write opens one issue labelled `githerd-heartbeat` and pins it
+  (GraphQL `pinIssue`); later writes replace its body (no comments, no notifications) every 15
+  minutes, a cadence, and at once when a line other than the times changes. Line 1 is `alive: <ISO
+  UTC>`; then `mode:`, `paused:`, one `stuck:` per faulted job (oldest last, the line the watchdog
+  keeps), `stopped:` on a clean stop, `fatal:` once in fatal mode, `version:`. An open labelled
+  issue is reused, never a second opened. Write group `owner-items`, acting in the live config
+  today: in dry-run each change is one `would-do` and GitHub is not asked; a development daemon
+  writes only with `GITHERD_DEV_ACT=1`. The issue is kept out of the issue records, so it is never
+  work. The watchdog's comments (`<!-- watchdog:` or `<!-- master-clock:`) are never the owner's
+  word, whoever posted them (`isWatchdogComment`): no owner answer, no proposal veto, no worker
+  reads them.
+
 ## 5. Job model and lifecycle
 
 ### 5.1 Kinds
@@ -907,7 +947,7 @@ A kind exists only if GitHub or the machine can check its done-condition.
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `incident` | An unclassified key on master, scope `verdict`, done when `githerd_verdict` recorded its verdict or the lane is no longer red (4.4); a key judged code on master (4.5); a shared or master-side key (4.4); a release half-state or a real pending release; a visual coverage gap on master; a required check that never reports; a matched advisory failing the audit; a red non-gating master workflow (low priority); a shared local gate key | one key or one named condition            | Master: the failing workflow's newest master run is green at a commit containing the recorded fix. Shared: the key passes on master's fix and on one canary pull request updated and green. Release: npm has the tagged versions and master the version commit. Local: the gate passes on the green commit                                                                                                                                                                                              |
 | `pr`       | An own failure; a conflict the tools cannot resolve; an owner's visual reject [R14]                                                                                                                                                                                                                                                                                                                                                             | one pull request                          | Required checks green on the current head (base master, not draft), or waiting only on the owner (visual review, owner item)                                                                                                                                                                                                                                                                                                                                                                            |
-| `issue`    | A labelled, unclaimed issue at the front of the queue; a re-land after a revert; an `intermittent` issue; an audit ignore to remove                                                                                                                                                                                                                                                                                                             | one issue or a triage group               | A pull request referencing the issue, base master, not draft, whose head equals `git ls-remote` of its branch, required checks green or waiting only on the owner, and `githerd/merge` not failing on a line the worker can fix (section 4.6 lines 3, a breaking commit under a title without `!`; 4, a package npm does not know; 8, the issue revision acknowledged). Or closed through the propose, confirm and grace path, or split into filed children. Every listed defect has an issue or commit |
+| `issue`    | A labelled, unclaimed issue at the front of the queue; a re-land after a revert; an `intermittent` issue; an audit ignore to remove; an advisory CI check due for promotion (4.13)                                                                                                                                                                                                                                                              | one issue or a triage group               | A pull request referencing the issue, base master, not draft, whose head equals `git ls-remote` of its branch, required checks green or waiting only on the owner, and `githerd/merge` not failing on a line the worker can fix (section 4.6 lines 3, a breaking commit under a title without `!`; 4, a package npm does not know; 8, the issue revision acknowledged). Or closed through the propose, confirm and grace path, or split into filed children. Every listed defect has an issue or commit |
 | `triage`   | New or changed issues (20 per job); a refresh after 20 merges; a full pass after 100 merges                                                                                                                                                                                                                                                                                                                                                     | a batch                                   | Each issue has one type, priority and effort label from the existing set and a recorded verdict                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `review`   | A githerd pull request has a new patch id; a sensitive-path pull request (4.6 line 6)                                                                                                                                                                                                                                                                                                                                                           | one diff                                  | A verdict for that patch id                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `title`    | A title commitlint rejects for length or scope, when the session that made the pull request is not open                                                                                                                                                                                                                                                                                                                                         | one pull request title                    | `Lint PR Title` green. No worktree                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -990,7 +1030,7 @@ in flight comes before work that starts something new.
    incident fix's review uses the urgent slot); `pr` for a broken pull request (conflicting,
    failing, or needing a re-run; a held breaking pull request gets a fix-only job), oldest first, a
    stacked one blocked until its base merges; `title`; an `issue` that master already names
-   (verify the fix) and a re-land. Then starting: `triage` of new issues and the one-time type
+   (verify the fix), a re-land and an advisory check's promotion (4.13). Then starting: `triage` of new issues and the one-time type
    refresh; `major` jobs the owner approved. A pull request's own `priority:*` label orders it
    within the tier; one with none, and the daemon's own jobs, rank as top priority.
 2. **Bugs** (type label `bug`), by the owner's priority label (critical, high, medium, low,

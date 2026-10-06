@@ -25,7 +25,9 @@ every poll (the user endpoint). It is not configured anywhere, and `githerd.conf
 pull requests by anyone else, Dependabot and other bots included, get no job. Even on the owner's
 own items, comments, reviews and review comments by other accounts never reach a worker:
 `githerd_read` returns only the owner's text plus a count of what it hid, and the guard refuses a
-worker's direct reads of comments and reviews through `gh api`. `githerd status` shows those counts on its TRUST line, so
+worker's direct reads of comments and reviews through `gh api`. The GitHub watchdog's alarm comments
+(those carrying `<!-- watchdog:` or `<!-- master-clock:`) are never the owner's word, whichever
+account posted them: they answer no owner item, veto nothing and reach no worker. `githerd status` shows those counts on its TRUST line, so
 nothing disappears silently. If the login cannot be resolved, githerd makes no job, starts no
 worker and raises a `login-unresolved` escalation.
 
@@ -42,15 +44,17 @@ master and each failed or stalled release; a `pr` job for each of the owner's pu
 its own failing check, a second conflict sighting or a visual reject; a `title` job when only
 `Lint PR Title` fails; a `review` of each new patch a job pushed; a triage job of at most 20
 unlabeled issues, and a refresh after every 20 merges and a full pass after every 100 (no clock:
-merges count); one issue job for the front of the backlog; and a re-land job after a revert. A
-queued job whose target closed or no longer needs work is cancelled.
+merges count); one issue job for the front of the backlog; a re-land job after a revert; and one
+promotion job per advisory CI check that is due (below). A queued job whose target closed or no
+longer needs work is cancelled.
 
 The queue order is design section 5.4, and every job carries a one-line reason. Three tiers,
 highest first, each finishing work in flight before starting new work:
 
 1. Keep things running: incidents (master and release, then shared ones), reviews, broken pull
    requests oldest first (held breaking ones get fix-only jobs), titles, issues master already
-   names (verify the fix), re-lands, then triage of new issues and approved majors.
+   names (verify the fix), re-lands, advisory check promotions, then triage of new issues and
+   approved majors.
 2. Bugs (type label `bug`): by priority (critical, high, medium, low, none last), then effort low
    before high, then oldest.
 3. Infrastructure (type label `infrastructure`: CI, tooling, build, test infrastructure, githerd,
@@ -155,6 +159,42 @@ job only, through `worker-writes`) before anything moves toward a revert, and th
 the issue. The GPU lane is never re-run for this; its failures are only recorded. There are no
 retries, skips or quarantines in the test runners. `githerd board flakes` lists every tracked test
 with its failures, proof and issue. Design section 4.12 has the details.
+
+## CI's own signals
+
+**Advisory checks.** `tools/ci-advisory-checks.json` on the default branch lists new CI checks
+under `advisory`, each with the date it becomes required (`enforce`, UTC). githerd reads it, and
+`.github/workflows/ci.yml` to know each job's check run names, after every fetch of the default
+branch. Before the enforce date a failing advisory check is a warning: it makes no pull request
+broken, no `pr` job, no ownership question and no merge hold, it is never an incident key on
+master, and the board shows `advisory: <check> (enforced from <date>)` on the pull request's line
+or under MASTER. From the enforce date, and for every check under `required`, a failure counts as
+usual.
+
+**Promotion.** The CI workflow tests ask for an entry's promotion from three days before its
+enforce date (`tools/ci-workflows.test.mjs`). From then githerd makes one job for it,
+`issue-promote-<check>`, in the keep-things-running tier: open one pull request that moves the
+entry into `required` and removes its `continue-on-error` and warning step from ci.yml, fixing the
+check first if it still fails. The job edits `.github/workflows/`, which a worker may not, so it is
+offered to the owner's sessions only. It is made once per entry, never again after it was done,
+and cancelled once the entry leaves the advisory list.
+
+**Merge batches.** A Mergify merge-batch commit on master ("Merged #42, #43, #44") names every pull
+request in it as a suspect of a red master, so no one of them is reverted alone; the batch
+branch's inner "Merge of #42" commits are not landings. The verdict job of a red batch commit
+tells its session that the batch's tree is exactly what "Queue Checks Pass" passed, so it checks
+master-only jobs (benchmarks, push-only steps) and the known flaky tests before blaming any one
+pull request.
+
+**Heartbeat.** githerd's first write opens one issue labelled `githerd-heartbeat` and pins it;
+after that it rewrites the issue's body, never a comment, every 15 minutes and at once when a line
+changes. Line 1 is `alive: <ISO time>`, then `mode:`, `paused:` while paused, one `stuck:` per job
+githerd could not start, `stopped:` on a clean stop, `fatal:` in fatal mode, and `version:`. An
+open labelled issue is reused; a second is never opened. The writes are the `owner-items` write
+group, so in dry-run each change is one `would-do` line and GitHub is asked nothing, and only the
+live daemon writes (a development daemon only with `GITHERD_DEV_ACT=1`). The issue is no work:
+githerd makes no job or triage of it. `.github/workflows/githerd-watchdog.yml` reads it to alarm the
+owner when githerd stops while the dev machine is off.
 
 ## Commands
 

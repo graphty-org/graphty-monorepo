@@ -127,6 +127,16 @@ describe("jobText", () => {
         expect(verdicts).toEqual([`"enum":${JSON.stringify(REVIEW_RUBRIC.map(([v]) => v))}`]);
     });
 
+    it("teaches the wait-on-issue claim, and when to use it, in the job text and the claim tool", () => {
+        const claim = 'overlap {decision: "wait", with: "#736", reason}';
+        const text = jobText(newJob(JOBS.issue, NOW));
+        expect(text).toContain(claim);
+        expect(text).toContain("cannot go on until another job or issue lands first");
+        const tool = TOOLS.find((t) => t.name === "githerd_claim");
+        expect(tool?.description).toContain(claim);
+        expect(tool?.description).toContain("Use wait when your job cannot go on");
+    });
+
     it("writes plain ASCII in lines a pane shows whole", () => {
         for (const spec of Object.values(JOBS)) {
             const text = jobText(newJob(spec, NOW), { policies: [{ text: "p" }] });

@@ -386,6 +386,9 @@ export const TOOLS = [
             'decision "wait" blocks your job on the job named in `with`, or on an issue written "#736", until that job ends ' +
             "(no time limit): githerd makes " +
             "that issue's job when none exists (only for an open issue by the owner) and offers it next. " +
+            "Use wait when your job cannot go on until another job or issue lands first (you need its change, or it " +
+            'rewrites what you would change), e.g. overlap {decision: "wait", with: "#736", reason}; do not claim ' +
+            "independent and sit idle. " +
             "Refused when the snapshot is stale or the wait would make a cycle; the refusal carries a fresh snapshot.",
         inputSchema: object(
             {

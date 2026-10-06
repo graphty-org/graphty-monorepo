@@ -211,7 +211,7 @@ const writes = (/** @type {ReturnType<typeof fakeRepo>} */ repo) =>
 
 describe("failingTests: occurrence extraction", () => {
     it("reads the failing test of a real CI log, with its package from the job's shard", () => {
-        const log = fixture("flakes/ci-webgpu-node-failed.log");
+        const log = fixture("flakes/ci-webgpu-node-failed.txt");
         const tests = failingTests(log, {
             job: "Test (webgpu-graph-algorithms-node)",
             workflow: "CI",

@@ -154,6 +154,11 @@ const RENDER = {
         const verdict = red.length ? "red on " + red.join(", ") : "green";
         const lines = [`MASTER: ${verdict}`];
         for (const n of names) lines.push(...laneLines(n, v.lanes.lanes[n]));
+        // Failures of checks in their warning period (advisory.mjs): shown, never a key.
+        for (const l of Object.values(v.state?.master?.lanes ?? {})) {
+            for (const r of /** @type {any} */ (l).redJobs ?? [])
+                if (r.class === "advisory") lines.push(`  ${r.reason}`);
+        }
         const short = (/** @type {string | null} */ s) => s?.slice(0, 8) ?? "none";
         lines.push(`  green commit ${short(v.lanes.greenSha)}; CI-green commit ${short(v.lanes.ciGreenSha)}`);
         return lines;
@@ -212,6 +217,8 @@ const RENDER = {
                 if (d) owned += ` -- disowned by ${d.name}`;
                 const fixing = v.state?.brokenAsks?.[p.number]?.active;
                 if (fixing) owned += ` -- being fixed: ${fixing}`;
+                const advisory = v.state?.prs?.[p.number]?.advisory ?? [];
+                if (advisory.length) owned += ` -- ${advisory.join("; ")}`;
                 return `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}${owned}`;
             }),
         ];

@@ -118,7 +118,8 @@ let clock;
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
  *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
  *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: {filename: string, patch?: string}[],
- *   runAttempt?: number, run?: Record<string, unknown>, prCommits?: string[], compareCommits?: string[]}}
+ *   runAttempt?: number, run?: Record<string, unknown>, prCommits?: string[], compareCommits?: string[],
+ *   files?: Record<string, string>}} `files` the default branch's files `git show` reads
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -254,7 +255,8 @@ async function start({ peers, ...options } = {}) {
         token: gh.token,
         git: async (args) => {
             gitCalls.push(args);
-            return { code: 0, stdout: "", stderr: "" };
+            const shown = args[0] === "show" ? scene.files?.[args[1].replace(/^[^:]*:/, "")] : undefined;
+            return { code: 0, stdout: shown ?? "", stderr: "" };
         },
         now: () => clock,
         env: { GITHERD_CONFIG: configFile, PATH: process.env.PATH },
@@ -875,15 +877,50 @@ describe("the poll loop", () => {
             ["incidents", "POST actions/jobs/900/rerun", "red-head-rerun", "ci / Build / "],
         ]);
         // git ran with no prompt, only to fetch the default branch when its head moved and to read
-        // its .mergify.yml after each fetch and once per start
+        // its .mergify.yml and advisory checks after each fetch and once per start
         expect(gitCalls.filter((a) => a[0] === "fetch")).toEqual([
             ["fetch", "origin", "master"],
             ["fetch", "origin", "master"],
             ["fetch", "origin", "master"],
         ]);
+        const shown = [".mergify.yml", "tools/ci-advisory-checks.json", ".github/workflows/ci.yml"];
         expect(
-            gitCalls.filter((a) => a[0] !== "fetch").every((a) => a.join(" ") === "show origin/master:.mergify.yml"),
+            gitCalls
+                .filter((a) => a[0] !== "fetch")
+                .every((a) => shown.map((f) => `show origin/master:${f}`).includes(a.join(" "))),
         ).toBe(true);
+    });
+
+    it("takes a master failure of an advisory check for a warning: no incident, no hold, until its enforce date", async () => {
+        scene.files = {
+            "tools/ci-advisory-checks.json": JSON.stringify({
+                advisory: [{ job: "links", added: "2026-09-30", enforce: "2026-10-03", issue: 1120 }],
+            }),
+            ".github/workflows/ci.yml": "jobs:\n    links:\n        name: Links\n",
+        };
+        scene.jobs = { 101: [{ id: 950, run_attempt: 1, name: "Links", conclusion: "failure", steps: [] }] };
+        const daemon = await start();
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["2026-10-02T12:03:00Z", "2026-10-02T12:06:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        expect(daemon.state.advisory.entries.map((/** @type {any} */ e) => e.id)).toEqual(["links"]);
+        expect(daemon.state.master.lanes.ci).toMatchObject({
+            verdict: "red",
+            redClass: "advisory",
+            redJobs: [{ name: "Links", class: "advisory", reason: "advisory: links (enforced from 2026-10-03)" }],
+        });
+        expect(Object.values(daemon.state.incidents)).toEqual([]);
+        // From the enforce date the same run is read again and counts as usual.
+        clock = new Date("2026-10-03T00:03:00Z");
+        await poll(daemon);
+        expect(daemon.state.master.lanes.ci.redClass).not.toBe("advisory");
+        expect(Object.values(daemon.state.incidents)).toHaveLength(1);
+        await daemon.shutdown();
     });
 
     it("holds every page in dry-run: written to the ledger as not delivered, the notify command never run", async () => {

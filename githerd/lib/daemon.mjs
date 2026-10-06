@@ -69,6 +69,7 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
+import { advisoryFailure, advisoryWords, CI_FILE, readAdvisory, REGISTRY_FILE, utcDay } from "./advisory.mjs";
 import { askStep, disown, inviteStep, markMine, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes, NO_PUSH_QUEUE } from "./board-text.mjs";
@@ -686,6 +687,8 @@ export async function startDaemon({
     const workspace = readWorkspace(root);
     /** @type {string | null | undefined} `.mergify.yml` on the default branch; undefined until read */
     let mergify;
+    /** Whether the advisory checks (advisory.mjs) were read at the default branch's last fetch. */
+    let advisoryRead = false;
     let busy = false;
     /** @type {string | null} */
     let loopTickAt = null;
@@ -1231,11 +1234,33 @@ export async function startDaemon({
             // A cancelled or skipped run after the red one leaves the verdict, and its class, as they were.
             if (!gatingLane(name) || lane.verdict !== "red" || !lane.runId || !RED_JOB.has(lane.conclusion)) continue;
             const at = `${lane.runId}/${lane.attempt}`;
-            if (lane.classifiedFor === at) continue;
+            const today = utcDay(now());
+            // A job read as advisory is read again once its enforce date came: it counts as usual then.
+            const enforced = (lane.redJobs ?? []).some((/** @type {any} */ r) => r.enforce && r.enforce <= today);
+            if (lane.classifiedFor === at && !enforced) continue;
             const workflow = lane.workflowName ?? name;
             const refs = [];
             for (const j of await failingJobs(lane.runId)) {
                 const steps = (j.steps ?? []).filter((/** @type {any} */ x) => RED_JOB.has(x.conclusion));
+                // A check in its warning period (advisory.mjs) is no key: no incident, no hold.
+                const advisory = advisoryFailure(state.advisory, today, {
+                    job: j.name,
+                    steps: steps.map((/** @type {any} */ x) => x.name),
+                });
+                if (advisory) {
+                    refs.push({
+                        id: j.id,
+                        runId: lane.runId,
+                        attempt: j.run_attempt ?? 1,
+                        name: j.name,
+                        step: steps[0]?.name ?? "",
+                        class: "advisory",
+                        reason: advisory.map(advisoryWords).join("; "),
+                        enforce: advisory.map((e) => e.enforce).sort((a, b) => a.localeCompare(b))[0],
+                        tests: [],
+                    });
+                    continue;
+                }
                 const annotations = (
                     (await github().get(`repos/${config.repo}/check-runs/${j.id}/annotations?per_page=100`)).body ?? []
                 ).map((/** @type {any} */ a) => String(a.message ?? ""));
@@ -2117,12 +2142,17 @@ export async function startDaemon({
             if (fetched.code === 0) {
                 m.configPending = false;
                 mergify = undefined;
+                advisoryRead = false;
                 fetchedNow = true;
             } else say("error", `git fetch origin ${branch}: ${fetched.stderr.trim() || "exit " + fetched.code}`);
             const configFatal = await readConfig();
             if (configFatal) enterFatal(configFatal);
         }
         if (mergify === undefined) mergify = await readMergify(branch);
+        if (!advisoryRead) {
+            state.advisory = readAdvisory(await showMaster(branch, REGISTRY_FILE), await showMaster(branch, CI_FILE));
+            advisoryRead = true;
+        }
         await followRefs(gh, branch, fetchedNow);
     }
 
@@ -2168,7 +2198,17 @@ export async function startDaemon({
      * @returns {Promise<string | null>} the file, or null when it could not be read
      */
     async function readMergify(branch) {
-        const shown = await runGit(["show", `origin/${branch}:.mergify.yml`]);
+        return showMaster(branch, ".mergify.yml");
+    }
+
+    /**
+     * A file on the default branch as last fetched.
+     * @param {string} branch the default branch
+     * @param {string} path the file
+     * @returns {Promise<string | null>} the file, or null when it could not be read
+     */
+    async function showMaster(branch, path) {
+        const shown = await runGit(["show", `origin/${branch}:${path}`]);
         return shown.code === 0 ? shown.stdout : null;
     }
 
@@ -2473,6 +2513,7 @@ export async function startDaemon({
             redKeys: Object.values(m.lanes ?? {})
                 .filter((/** @type {any} */ l) => l.verdict === "red")
                 .flatMap((/** @type {any} */ l) => (l.redJobs ?? []).map((/** @type {any} */ r) => r.key)),
+            advisory: state.advisory ?? null,
         };
         const prs = updatePrs(state.prs, nodes, view, config, iso);
         for (const node of nodes) if (node.detail.gateJob) prs[node.number].gateJob = node.detail.gateJob;

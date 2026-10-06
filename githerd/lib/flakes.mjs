@@ -31,6 +31,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { advisoryFailure, utcDay } from "./advisory.mjs";
 import { classify } from "./classify.mjs";
 import { notSent } from "./github.mjs";
 import { isSummaryJob } from "./lanes.mjs";
@@ -889,7 +890,10 @@ export async function flakePoll({ state, nodes, ws, config, github, log, commits
         const rec = state.prs?.[node.number];
         if (!rec) continue;
         delete rec.knownFlake;
-        const failures = headFailures(store, node, config.requiredChecks);
+        // A check in its warning period (advisory.mjs) is no failure of the pull request's.
+        const failures = headFailures(store, node, config.requiredChecks).filter(
+            (f) => !advisoryFailure(state.advisory, utcDay(at), { job: f.job }),
+        );
         const verdicts = failures.map((f) =>
             classify({ workflow: "", job: f.job, steps: [], tests: f.tests }, { flakyTests: [...known.keys()] }),
         );

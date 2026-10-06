@@ -20,6 +20,7 @@
 
 import { execFileSync } from "node:child_process";
 
+import { advisoryFailure, advisoryWords, utcDay } from "./advisory.mjs";
 import { classify } from "./classify.mjs";
 import { isSummaryJob } from "./lanes.mjs";
 
@@ -43,9 +44,10 @@ import { isSummaryJob } from "./lanes.mjs";
  *   its failed checks
  * @typedef {{
  *   verdict: "green" | "red" | "unknown", branch: string,
- *   fixedAt?: string | null, redKeys?: string[],
+ *   fixedAt?: string | null, redKeys?: string[], advisory?: import("./advisory.mjs").Advisory | null,
  * }} MasterView `branch` is the default branch; `fixedAt` when
- *   the commit that ended the last incident was made; `redKeys` the failure keys red on it now
+ *   the commit that ended the last incident was made; `redKeys` the failure keys red on it now;
+ *   `advisory` the default branch's advisory checks (advisory.mjs)
  * @typedef {{
  *   headSha: string, headRef: string, baseRef: string, draft: boolean, readyAt: string | null, author: string | null,
  *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null, headCommitter: string | null,
@@ -55,10 +57,11 @@ import { isSummaryJob } from "./lanes.mjs";
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   cancelledRuns: CancelledRun[],
  *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
- *   underlying?: Underlying | null, inherited?: string[] | null,
+ *   underlying?: Underlying | null, inherited?: string[] | null, advisory?: string[],
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
  * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head; `inherited` the
- *   master keys every failure under its failing summary checks is red on, when that is all that fails
+ *   master keys every failure under its failing summary checks is red on, when that is all that fails;
+ *   `advisory` the advisory checks failing on the head, in the board's words (they count as passed)
  */
 
 // CANCELLED is not here: a run cancelled because no runner took it (a GitHub outage) is no verdict
@@ -275,11 +278,50 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
     const byHead = new Map(nodes.map((n) => [n.headRefName, n.number]));
     for (const node of nodes) {
         const rec = foldPr(node, saved[node.number], config, now);
-        rec.inherited = inheritedKeys(rec.required, rec.underlying, master.redKeys ?? []);
+        const own = warnAdvisory(rec, master.advisory, utcDay(now));
+        rec.inherited = inheritedKeys(rec.required, own, master.redKeys ?? []);
         if (node.baseRefName !== master.branch) rec.stackedOn = byHead.get(node.baseRefName) ?? null;
         out[node.number] = rec;
     }
     return out;
+}
+
+/**
+ * Takes the advisory checks out of a pull request's failures (advisory.mjs): a failed check run of
+ * a job in its warning period leaves `failingChecks`, and a failing summary check whose failed
+ * jobs are all advisory counts as passed, so none makes the pull request broken, a job, an
+ * ownership question or a merge hold. What was taken out is `rec.advisory`, in the board's words.
+ * `rec.underlying` stays as read (the daemon reuses it while the summary checks do not change, and
+ * the dates move); the failures that count are returned.
+ * @param {PrRecord} rec the record, changed in place
+ * @param {import("./advisory.mjs").Advisory | null | undefined} advisory the registry as read
+ * @param {string} today the UTC day
+ * @returns {Underlying | null} the underlying failures that count
+ */
+function warnAdvisory(rec, advisory, today) {
+    /** @type {Map<string, import("./advisory.mjs").Entry>} */
+    const warned = new Map();
+    const warns = (/** @type {{job: string, steps?: string[]}} */ f) => {
+        const entries = advisoryFailure(advisory, today, f);
+        for (const e of entries ?? []) warned.set(e.id, e);
+        return entries !== null;
+    };
+    rec.failingChecks = rec.failingChecks.filter((name) => !warns({ job: name }));
+    let own = rec.underlying ?? null;
+    if (own) {
+        const failures = own.failures.filter((f) => !warns(f));
+        if (failures.length < own.failures.length) {
+            own = { ...own, failures };
+            if (!failures.length) {
+                for (const [name, state] of Object.entries(rec.required)) {
+                    if (state === "FAILURE" && isSummaryJob(name)) rec.required[name] = "SUCCESS";
+                }
+                rec.failingChecks = rec.failingChecks.filter((name) => !isSummaryJob(name));
+            }
+        }
+    }
+    rec.advisory = [...warned.values()].map(advisoryWords);
+    return own;
 }
 
 /**

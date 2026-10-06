@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { readAdvisory } from "../lib/advisory.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { captureFailures, countsAsBreaking, decideBreaking, touches, updatePrs, whyStuck } from "../lib/prs.mjs";
 import { askProblems, ownerWaitingPrs, prWork } from "../lib/queue.mjs";
@@ -519,5 +520,56 @@ describe("whyStuck", () => {
             "checks pending",
             "worked by session s",
         ]);
+    });
+});
+
+describe("advisory checks", () => {
+    const CI = "jobs:\n    links:\n        name: Links\n    test:\n        name: Test (${{ matrix.shard }})\n";
+    const REGISTRY = JSON.stringify({
+        advisory: [{ job: "links", added: "2026-10-01", enforce: "2026-10-15", issue: 1120 }],
+    });
+    const advisory = readAdvisory(REGISTRY, CI);
+    const owner = { trust: { login: "apowers313" }, escalations: {} };
+    // "All Checks Pass" failed, and the one job under it that failed is the advisory Links job.
+    const failing = (failures) =>
+        withChecks(
+            node({
+                detail: {
+                    commits: { messages: ["fix(graphty-element): trim edges"] },
+                    files: ["graphty-element/src/Edge.ts"],
+                    underlying: { for: "1", failures },
+                },
+            }),
+            [run("All Checks Pass", "FAILURE"), run("Lint PR Title", "SUCCESS"), run("Links", "FAILURE")],
+        );
+    const poll = (n, now) => updatePrs({}, [n], { ...GREEN, advisory }, config, now)["704"];
+
+    it("is a warning before its enforce date: not broken, no job, no question, on the board", () => {
+        const rec = poll(failing([{ workflow: "CI", job: "Links", steps: ["Check links"] }]), NOW);
+        expect(rec.failingChecks).toEqual([]);
+        expect(rec.required["All Checks Pass"]).toBe("SUCCESS");
+        expect(rec.advisory).toEqual(["advisory: links (enforced from 2026-10-15)"]);
+        expect(prWork("704", rec, owner)).toBeNull();
+        expect(askProblems(rec)).toEqual([]);
+        // The read failures are kept as read, for the next poll's dates.
+        expect(rec.underlying.failures).toHaveLength(1);
+    });
+
+    it("counts as usual from its enforce date, and beside another failure", () => {
+        const late = poll(failing([{ workflow: "CI", job: "Links", steps: ["Check links"] }]), "2026-10-15T00:00:00Z");
+        expect(late.failingChecks).toEqual(["All Checks Pass", "Links"]);
+        expect(late.required["All Checks Pass"]).toBe("FAILURE");
+        expect(late.advisory).toEqual([]);
+        expect(prWork("704", late, owner)).toBe("required check failing: All Checks Pass");
+        const both = poll(
+            failing([
+                { workflow: "CI", job: "Links", steps: ["Check links"] },
+                { workflow: "CI", job: "Build", steps: ["Lint"] },
+            ]),
+            NOW,
+        );
+        expect(both.required["All Checks Pass"]).toBe("FAILURE");
+        expect(both.advisory).toEqual(["advisory: links (enforced from 2026-10-15)"]);
+        expect(askProblems(both)).toEqual(["All Checks Pass"]);
     });
 });

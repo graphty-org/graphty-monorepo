@@ -98,6 +98,29 @@ describe("renderBoard", () => {
         expect(SECTIONS.every((s) => typeof renderBoard(view({}), NOW, s) === "string")).toBe(true);
     });
 
+    it("shows an advisory check's failure as a warning on its pull request and on master", () => {
+        const lanes = {
+            lanes: { CI: { verdict: "green", newest: null, redSince: null, keys: {} } },
+            shas: {},
+            greenSha: null,
+            ciGreenSha: null,
+        };
+        const state = {
+            prs: { 704: { advisory: ["advisory: links (enforced from 2026-10-15)"] } },
+            master: {
+                lanes: {
+                    ci: { redJobs: [{ class: "advisory", reason: "advisory: test/Types (enforced from 2026-10-08)" }] },
+                },
+            },
+        };
+        const text = renderBoard(
+            view(state, { lanes, prs: [{ number: 704, title: "fix: x", decision: { state: "success" } }] }),
+            NOW,
+        );
+        expect(text).toContain("  advisory: test/Types (enforced from 2026-10-08)\n  green commit none");
+        expect(text).toMatch(/#704 fix: x -- .* -- advisory: links \(enforced from 2026-10-15\)/);
+    });
+
     it("shows a green master, release half-states, empty pull requests, a held push lock", () => {
         const lanes = {
             lanes: { CI: { verdict: "green", newest: null, redSince: null, keys: {} } },

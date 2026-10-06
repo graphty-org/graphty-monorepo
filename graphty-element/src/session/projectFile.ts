@@ -981,16 +981,13 @@ async function readProject(
     const state = first("graphty-session");
 
     await clearInto(tx);
-    await attempt(opening, "config", () =>
-        tx.config.set({ ...(isObject(state.config) ? state.config : {}), name } as ProjectConfigPatch),
-    );
+    await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
     const edgeIds = await importInto(tx, graph, source);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
 
     const layout = state.layout as
-        | { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" }
-        | undefined;
+        { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" } | undefined;
     if (layout !== undefined) {
         await attempt(opening, "layout", async () => {
             await tx.layout.set(layout.id, { engine: layout.engine, options: layout.options });
@@ -1017,8 +1014,7 @@ async function readProject(
 
     // Before the runs: a run over the selection reads it. The selection is not project state.
     const view = doc.members.get("graphty-view-state")?.[0]?.selection as
-        | { nodes?: NodeId[]; edges?: number[] }
-        | undefined;
+        { nodes?: NodeId[]; edges?: number[] } | undefined;
     if (view !== undefined) {
         try {
             await tx.selection.apply({
@@ -1188,7 +1184,7 @@ function rowsOf<Key, Id extends NodeId>(
         }
 
         if (id !== undefined && Object.keys(values).length > 0) {
-            out.push({ id, values } as ResultElementValues<Id>);
+            out.push({ id, values });
         }
     });
     return out;
@@ -1311,7 +1307,7 @@ export function projectOf(
             return isDirty();
         },
         rename(name) {
-            return session.config.set({ name } as ProjectConfigPatch);
+            return session.config.set({ name });
         },
         save(options = {}) {
             const { document, leftOut } = write(session, dispatcher, isDerived, options);

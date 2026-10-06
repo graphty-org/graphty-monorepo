@@ -381,10 +381,11 @@ export function narrowedAtCompileTime(parts: {
     session: GraphSession;
 }): void {
     const { graph, dataManager, layoutManager, engine, node, edge, session } = parts;
+    const { styles } = graph;
     // @ts-expect-error `Graph.styles` is readonly
-    graph.styles = null as unknown as typeof graph.styles;
+    graph.styles = styles;
     // @ts-expect-error `Graph.operationQueue` is private
-    void graph.operationQueue;
+    const _queue = graph.operationQueue;
     // @ts-expect-error the node map is read-only
     dataManager.nodes.set(node.id, node);
     // @ts-expect-error the edge map is read-only

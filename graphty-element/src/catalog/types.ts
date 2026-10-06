@@ -127,6 +127,11 @@ export const KNOWN_ALGORITHMS = [
     "prim",
     "bipartite-matching",
     "link-prediction",
+    "markov-clustering",
+    "spectral-clustering",
+    "hierarchical-clustering",
+    "astar",
+    "edge-betweenness",
 ] as const;
 
 /**
@@ -1267,7 +1272,7 @@ export type PathKind = "simple" | "trail" | "walk" | "cycle";
 /**
  * The catalogue: everything the element can offer, as data.
  *
- * `session.catalog` implements every method here except the six named in
+ * `session.catalog` implements every method here except the ones named in
  * {@link DeprecatedCatalogMethod}, which nothing implements yet.
  */
 export interface CatalogApi {
@@ -1306,9 +1311,16 @@ export interface CatalogApi {
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
-     * The options for one algorithm or layout, with data-dependent bounds resolved.
-     * @deprecated Not implemented; `algorithms()` and `layouts()` carry the static option
-     * descriptors. Removed at the next major release unless it is implemented first (issue #336).
+     * The options for one algorithm or layout, with data-dependent bounds resolved for a scope.
+     *
+     * A bound written as an {@link OptionBound} reference (or as the bare reference string) comes
+     * back as the number measured over the scope, and a "node-id" or "node-set" option comes back
+     * with `values`: one choice per node in the scope, its value and label the node id as a
+     * string. Every other field is the static descriptor's.
+     * @param key - An algorithm key, looked for first, or a layout id.
+     * @param scope - What to measure; the session's default run scope when absent.
+     * @returns The options, in declaration order.
+     * @throws `E_UNKNOWN_ALGORITHM` when no algorithm or layout is registered under `key`.
      */
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
 }
@@ -1319,13 +1331,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod =
-    | "themes"
-    | "functions"
-    | "timeAttributes"
-    | "applicable"
-    | "validate"
-    | "optionsFor";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
 
 // ---------------------------------------------------------------------------------------------
 // Guards

@@ -443,7 +443,8 @@ jobs:
                   tools/release-held.sh close \
                       "The full CI suite, the T4 GPU lane, Hosts and the security audit passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases everything that was held."
 
-    # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch.
+    # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
+    # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.
     publish:
         name: Publish the release
         if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '/release/train-') }}

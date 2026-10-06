@@ -90,7 +90,7 @@ export const eventWaitingDecorator = (story: any): any => {
                     // This is critical for stories like Selection that return a container div
                     const graphtyElements = node.querySelectorAll("graphty-element");
                     graphtyElements.forEach((el) => {
-                        setupEventListenersForElement(el as HTMLElement);
+                        setupEventListenersForElement(el);
                     });
                 }
             });

@@ -111,6 +111,31 @@ parameters -- and never:
 A fact about the data (what a column measures, what an algorithm returns) is graphty-element's. How
 a reader sees it is the application's.
 
+### graphty-element offers choices; consumers make them
+
+**graphty-element exposes an option for every behavior a consumer might reasonably want either
+way, and its default is the neutral behavior of the mechanism underneath -- never one consumer's
+preference.** A consumer that wants something particular sets the option itself.
+
+The owner's rule (2026-10-06), on making the default force layout seeded: "the app shouldn't force
+opinions on graphty-element. if the app wants a consistent seed it should set a consistent seed."
+So the default force layout stays unseeded, and the graphty app or a story that wants the same
+drawing on every load passes a seed.
+
+This does not weaken self-sufficiency; it draws the line inside it:
+
+- A **capability** is graphty-element's. If getting a behavior would make a consumer write code --
+  detection, construction, sequencing, recovery -- that code belongs in the element. Making a
+  passed seed give the same drawing however the data arrives (in one write or split across frames)
+  is a capability, so it is the element's job.
+- A **choice** is the consumer's. If getting a behavior only takes setting a value, and another
+  reasonable consumer would set a different one, it is an option with a neutral default: a seed, a
+  palette, a starting camera, how much detail to draw.
+
+The test: would a different reasonable consumer want a different value? Then it is a choice, the
+element exposes it and documents it, and the default does nothing opinionated. A need that only
+the graphty app has is the app's to set, never a reason to change the element's default.
+
 ### Easy things easy, hard things possible
 
 Every public API and extension point has a simple path and an advanced path. The simple path's
@@ -501,6 +526,7 @@ CI, and Mergify queues only ready pull requests.
 | `gpu-weekly-paired.yml` | Weekly (Mondays), dispatch; never on PRs | The full paired benchmark of webgpu-graph-algorithms on the T4: master's tip against the latest release, every group; a regression fails the run and files one issue |
 | `hosts.yml` | PR touching `webgpu-graph-algorithms/` or `graph-format/`, nightly, dispatch, called by `release.yml`; never on a push to master | Host matrix: Dawn on Metal + WebKit (macOS), Dawn on D3D12 WARP + Chromium (Windows; a PR runs the 15-minute `windows-scan-questions` scope, advisory); a red run on the release candidate holds the release |
 | `master-guard.yml` | After CI (the build) or the nightly Hosts on master | CI red on master: freezes the Mergify queue (only `priority:critical` PRs merge), opens a revert of the commit when its parent was green, and a `priority:critical` issue; the next green master CI lifts the freeze. Hosts red: a `priority:critical` issue naming the merges since the lane's last green run; never a freeze (`tools/master-guard.mjs`) |
+| `githerd-watchdog.yml` | Twice an hour, after CI on master, dispatch | Alarms the owner by an issue comment when githerd's heartbeat issue (label `githerd-heartbeat`, written by githerd every 15 minutes) is over an hour old, stuck, fatal or missing (green until githerd first writes it), and when master CI has been red for over 2 hours. Works with the dev machine off (`tools/githerd-watchdog.mjs`) |
 
 ### Dead Links
 
@@ -913,6 +939,8 @@ the queue never asks for a new approval. Nobody turns on auto-merge by hand.
 
 - To keep a pull request from merging, add the `hold` label; removing it releases the pull request.
   Adding `hold` also takes an already-queued pull request out of the queue.
+- To move a pull request ahead of ordinary ones, add the `queue:next` label: it goes behind the
+  release train and red-master fixes, and never interrupts a batch already being checked.
 - Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
   request with it on would merge anyway.
 

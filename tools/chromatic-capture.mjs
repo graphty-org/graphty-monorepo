@@ -86,7 +86,7 @@ function sessionCookie() {
             .find((l) => l.startsWith("CHROMATIC_SESSION_COOKIE="));
         value = line?.slice("CHROMATIC_SESSION_COOKIE=".length);
     }
-    value = value?.trim().replace(/^["']|["']$/g, "");
+    value = value?.trim().replaceAll(/(?:^["'])|(?:["']$)/g, "");
     if (!value) {
         die(`no CHROMATIC_SESSION_COOKIE: ${COOKIE_HELP}`);
     }
@@ -157,7 +157,7 @@ try {
         if (!res?.ok()) {
             continue;
         }
-        const name = (s.alt || s.src.split("/").pop()).replace(/[^a-z0-9.-]+/gi, "-").slice(0, 80);
+        const name = (s.alt || s.src.split("/").pop()).replaceAll(/[^a-z0-9.-]+/gi, "-").slice(0, 80);
         writeFileSync(join(OUT, name), await res.body());
         console.error(`saved ${join(OUT, name)} (${s.w}x${s.h})`);
     }

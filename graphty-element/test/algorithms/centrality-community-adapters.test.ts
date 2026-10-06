@@ -258,7 +258,7 @@ describe("centrality and community adapters on the index-based ports", () => {
             const s = referenceSnapshot(graph.getDataManager(), "undirected");
             const reference = byId(s, betweennessCentrality(s).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
-                close(values.get(id), reference.get(id) as number, `betweenness of ${String(id)}`);
+                close(values.get(id), reference.get(id), `betweenness of ${String(id)}`);
             }
             assert.strictEqual(precision, "f64");
         });
@@ -269,7 +269,7 @@ describe("centrality and community adapters on the index-based ports", () => {
             const s = referenceSnapshot(graph.getDataManager(), "undirected");
             const reference = byId(s, closenessCentrality(s).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
-                close(values.get(id), reference.get(id) as number, `closeness of ${String(id)}`);
+                close(values.get(id), reference.get(id), `closeness of ${String(id)}`);
             }
         });
 
@@ -284,7 +284,7 @@ describe("centrality and community adapters on the index-based ports", () => {
                         .scores,
                 );
                 for (const id of graph.getDataManager().nodes.keys()) {
-                    close(values.get(id), reference.get(id) as number, `eigenvector of ${String(id)}`);
+                    close(values.get(id), reference.get(id), `eigenvector of ${String(id)}`);
                 }
             }
         });
@@ -447,7 +447,7 @@ describe("centrality and community adapters on the index-based ports", () => {
             const s = referenceSnapshot(graph.getDataManager(), "directed");
             const reference = byId(s, eigenvectorCentrality(s, { maxIterations: 1000, tolerance: 1e-6, mode }).scores);
             for (const id of graph.getDataManager().nodes.keys()) {
-                close(values.get(id), reference.get(id) as number, `eigenvector ${mode} of ${String(id)}`);
+                close(values.get(id), reference.get(id), `eigenvector ${mode} of ${String(id)}`);
             }
         }
     });
@@ -476,7 +476,7 @@ describe("centrality and community adapters on the index-based ports", () => {
             }).scores,
         );
         for (const id of graph.getDataManager().nodes.keys()) {
-            close(values.get(id), reference.get(id) as number, `eigenvector of ${String(id)}`);
+            close(values.get(id), reference.get(id), `eigenvector of ${String(id)}`);
         }
     });
 

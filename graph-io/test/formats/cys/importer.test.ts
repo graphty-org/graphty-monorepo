@@ -9,7 +9,7 @@ import { readBytes } from "../../../src/common/input.js";
 import { CYS_ISSUE } from "../../../src/formats/cys/constants.js";
 import { cysImporter, sniffCys } from "../../../src/formats/cys/importer.js";
 import { urlDecode } from "../../../src/formats/cys/session.js";
-import { importAllGraphs, importGraph, type ImportGraphOptions, listGraphs, registry } from "../../../src/registry.js";
+import { importAllGraphs, importGraph, listGraphs, registry } from "../../../src/registry.js";
 import { ImportError, type ImportReport } from "../../../src/types.js";
 import { makeZip, type ZipInput } from "../../helpers/zip.js";
 
@@ -177,19 +177,19 @@ describe("cysImporter: the archive", () => {
             importGraph(fixture("authored/base-3x.cys"), {
                 format: "cys",
                 maxUncompressedBytes: 500,
-            } as ImportGraphOptions),
+            }),
         );
         expect(codes(err.report)).toContain(CYS_ISSUE.TOO_LARGE);
         await expect(
             importGraph(fixture("authored/base-3x.cys"), {
                 format: "cys",
                 maxUncompressedBytes: -1,
-            } as ImportGraphOptions),
+            }),
         ).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
         await expect(
-            importGraph(fixture("authored/base-3x.cys"), { format: "cys", zAs: "depth" } as ImportGraphOptions),
+            importGraph(fixture("authored/base-3x.cys"), { format: "cys", zAs: "depth" }),
         ).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
@@ -311,7 +311,7 @@ describe("cysImporter: a 3.x network", () => {
             format: "cys",
             graphName: "Alpha",
             zAs: "position",
-        } as ImportGraphOptions);
+        });
         expect(cell(zInPosition.snapshot, "nodes", "position", "22")).toEqual([30.5, 40, 2]);
         const noViews = await importGraph(fixture("authored/no-views.cys"), { format: "cys" });
         expect(noViews.snapshot.nodes.byRole("position")).toBeNull();

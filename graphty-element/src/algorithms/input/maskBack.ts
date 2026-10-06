@@ -156,7 +156,7 @@ export function checkNodeOptions(
                 continue;
             }
 
-            const row = graph.ids.indexOf(value as NodeId);
+            const row = graph.ids.indexOf(value);
             if (row !== INVALID_INDEX && !has(resolution.nodes, row, graph.nodeCount)) {
                 throw new GraphtyError({
                     code: "E_OPTION_RANGE",

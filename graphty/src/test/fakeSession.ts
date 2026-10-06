@@ -749,7 +749,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 delete (merged as { set?: unknown }).set;
             }
 
-            layers[at] = merged as Layer;
+            layers[at] = merged;
             publish();
             record(`Changed layer ${layers[at].name}`, "style.patch", ["styles"]);
 

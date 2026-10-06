@@ -25,7 +25,7 @@ async function refusalOf(call: () => Promise<unknown>): Promise<Refusal | null> 
             throw error;
         }
 
-        return { code: error.code, details: (error.details ?? {}) as Record<string, unknown> };
+        return { code: error.code, details: error.details ?? {} };
     }
 
     return null;

@@ -66,7 +66,7 @@ function radialRings(g: GraphSnapshot, root: number | null): number[][] {
     const visited = new Uint8Array(n);
     visited[root] = 1;
     const rings: number[][] = [[root]];
-    for (let ring = rings[0]; ring.length > 0; ) {
+    for (let ring = rings[0]; ring.length > 0;) {
         const next: number[] = [];
         for (const u of ring) {
             for (const v of neighboursByEdge(g, u)) {

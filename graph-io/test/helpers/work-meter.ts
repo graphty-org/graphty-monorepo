@@ -114,13 +114,22 @@ export async function arrayReadsOfLength(length: number, body: () => Promise<voi
     const OriginalArray = globalThis.Array;
     globalThis.Array = new Proxy(OriginalArray, {
         construct(target, args: unknown[], newTarget): object {
-            const array = Reflect.construct(target, args, newTarget === globalThis.Array ? target : newTarget) as unknown[];
+            const array = Reflect.construct(
+                target,
+                args,
+                newTarget === globalThis.Array ? target : newTarget,
+            ) as unknown[];
             if (args.length !== 1 || args[0] !== length) {
                 return array;
             }
             return new Proxy(array, {
                 get(inner, key, receiver): unknown {
-                    if (typeof key === "string" && key.length > 0 && key.charCodeAt(0) >= 48 && key.charCodeAt(0) <= 57) {
+                    if (
+                        typeof key === "string" &&
+                        key.length > 0 &&
+                        key.charCodeAt(0) >= 48 &&
+                        key.charCodeAt(0) <= 57
+                    ) {
                         reads++;
                     }
                     return Reflect.get(inner, key, receiver);

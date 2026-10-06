@@ -277,7 +277,17 @@ it. Where a later phase edits one of them, the edit is named in section 7.
         "url": "git+https://github.com/graphty-org/webgpu-graph-algorithms.git",
         "directory": "packages/webgpu-graph-algorithms"
     },
-    "keywords": ["graph", "webgpu", "wgsl", "gpu", "graph-algorithms", "force-directed", "forceatlas2", "layout", "graph-format"],
+    "keywords": [
+        "graph",
+        "webgpu",
+        "wgsl",
+        "gpu",
+        "graph-algorithms",
+        "force-directed",
+        "forceatlas2",
+        "layout",
+        "graph-format"
+    ],
     "license": "MIT",
     "bugs": { "url": "https://github.com/graphty-org/webgpu-graph-algorithms/issues" },
     "homepage": "https://github.com/graphty-org/webgpu-graph-algorithms/tree/master/packages/webgpu-graph-algorithms#readme",
@@ -340,15 +350,42 @@ publishing repository; W1 rewrites them to the monorepo (spec 3.1's
             "options": { "command": "npm run build:all", "cwd": "webgpu-graph-algorithms" },
             "dependsOn": ["^build"]
         },
-        "test": { "executor": "nx:run-commands", "options": { "command": "npm run test:run", "cwd": "webgpu-graph-algorithms" } },
-        "test:node": { "executor": "nx:run-commands", "options": { "command": "npm run test:node", "cwd": "webgpu-graph-algorithms" } },
-        "test:browser": { "executor": "nx:run-commands", "options": { "command": "npm run test:browser:ci", "cwd": "webgpu-graph-algorithms" } },
-        "test:limits": { "executor": "nx:run-commands", "options": { "command": "npm run test:limits", "cwd": "webgpu-graph-algorithms" } },
-        "test:ui": { "executor": "nx:run-commands", "options": { "command": "vitest --ui", "cwd": "webgpu-graph-algorithms" } },
-        "coverage": { "executor": "nx:run-commands", "options": { "command": "npm run coverage", "cwd": "webgpu-graph-algorithms" } },
-        "lint": { "executor": "nx:run-commands", "options": { "command": "npm run lint", "cwd": "webgpu-graph-algorithms" } },
-        "typecheck": { "executor": "nx:run-commands", "options": { "command": "npm run typecheck", "cwd": "webgpu-graph-algorithms" } },
-        "benchmark": { "executor": "nx:run-commands", "options": { "command": "npm run bench", "cwd": "webgpu-graph-algorithms" } }
+        "test": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run test:run", "cwd": "webgpu-graph-algorithms" }
+        },
+        "test:node": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run test:node", "cwd": "webgpu-graph-algorithms" }
+        },
+        "test:browser": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run test:browser:ci", "cwd": "webgpu-graph-algorithms" }
+        },
+        "test:limits": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run test:limits", "cwd": "webgpu-graph-algorithms" }
+        },
+        "test:ui": {
+            "executor": "nx:run-commands",
+            "options": { "command": "vitest --ui", "cwd": "webgpu-graph-algorithms" }
+        },
+        "coverage": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run coverage", "cwd": "webgpu-graph-algorithms" }
+        },
+        "lint": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run lint", "cwd": "webgpu-graph-algorithms" }
+        },
+        "typecheck": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run typecheck", "cwd": "webgpu-graph-algorithms" }
+        },
+        "benchmark": {
+            "executor": "nx:run-commands",
+            "options": { "command": "npm run bench", "cwd": "webgpu-graph-algorithms" }
+        }
     }
 }
 ```
@@ -378,7 +415,13 @@ repository, exactly as graph-io's is; `packages/README.md` move checklist).
             "@graphty/graph-format": ["../graph-format/src/index.ts"]
         }
     },
-    "include": ["src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.d.ts", "../graph-format/src/**/*.ts"],
+    "include": [
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "benchmarks/**/*.ts",
+        "scripts/**/*.d.ts",
+        "../graph-format/src/**/*.ts"
+    ],
     "exclude": ["node_modules", "dist", "coverage", "tmp"]
 }
 ```
@@ -507,7 +550,20 @@ function zone(files, higher) {
 // The type-only zone of src/types/**: every layer above errors.ts / constants.ts, values forbidden, `import type` allowed.
 const TYPES_PATTERNS = [
     {
-        group: [...UP.context, ...UP.memory, ...UP.kernel, ...UP.registry, ...UP.wgsl, ...UP.primitives, ...UP.algorithms, ...UP.layouts, ...UP.accelerator, ...UP.entries, ...UP.barrel, "../device/*"],
+        group: [
+            ...UP.context,
+            ...UP.memory,
+            ...UP.kernel,
+            ...UP.registry,
+            ...UP.wgsl,
+            ...UP.primitives,
+            ...UP.algorithms,
+            ...UP.layouts,
+            ...UP.accelerator,
+            ...UP.entries,
+            ...UP.barrel,
+            "../device/*",
+        ],
         message: TYPES_MESSAGE,
         allowTypeImports: true,
     },
@@ -516,17 +572,70 @@ const TYPES_PATTERNS = [
 export default tseslint.config(
     ...root,
     // ---- layer zones (spec 3.2: device < context < memory < kernel < kernels.ts < primitives < algorithms / layouts < accelerator)
-    zone(["src/errors.ts", "src/constants.ts"], ["context", "memory", "kernel", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
-    zone(["src/device/**/*.ts"], ["context", "memory", "kernel", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
-    zone(["src/memory/**/*.ts"], ["context", "kernel", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
-    zone(["src/kernel/**/*.ts"], ["context", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
+    zone(
+        ["src/errors.ts", "src/constants.ts"],
+        [
+            "context",
+            "memory",
+            "kernel",
+            "registry",
+            "wgsl",
+            "primitives",
+            "algorithms",
+            "layouts",
+            "accelerator",
+            "entries",
+            "barrel",
+        ],
+    ),
+    zone(
+        ["src/device/**/*.ts"],
+        [
+            "context",
+            "memory",
+            "kernel",
+            "registry",
+            "wgsl",
+            "primitives",
+            "algorithms",
+            "layouts",
+            "accelerator",
+            "entries",
+            "barrel",
+        ],
+    ),
+    zone(
+        ["src/memory/**/*.ts"],
+        [
+            "context",
+            "kernel",
+            "registry",
+            "wgsl",
+            "primitives",
+            "algorithms",
+            "layouts",
+            "accelerator",
+            "entries",
+            "barrel",
+        ],
+    ),
+    zone(
+        ["src/kernel/**/*.ts"],
+        ["context", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"],
+    ),
     zone(["src/kernels.ts"], ["context", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
-    zone(["src/context.ts"], ["registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
+    zone(
+        ["src/context.ts"],
+        ["registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"],
+    ),
     zone(["src/primitives/**/*.ts"], ["context", "wgsl", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
     zone(["src/algorithms/**/*.ts"], ["wgsl", "layouts", "accelerator", "entries", "barrel"]),
     zone(["src/layouts/**/*.ts"], ["wgsl", "algorithms", "accelerator", "entries", "barrel"]),
     zone(["src/accelerator.ts"], ["wgsl", "entries", "barrel"]),
-    zone(["src/browser/**/*.ts", "src/node/**/*.ts"], ["memory", "kernel", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "barrel"]),
+    zone(
+        ["src/browser/**/*.ts", "src/node/**/*.ts"],
+        ["memory", "kernel", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "barrel"],
+    ),
     // src/types/** holds types only: it may `import type` from anywhere below the accelerator (GpuContext, GraphResidency), never a value;
     // the SAME options object also carries the CPU-package ban (one options object per rule id per file set, see the note above)
     {
@@ -539,7 +648,10 @@ export default tseslint.config(
     {
         files: ["src/types/accelerator.ts"],
         rules: {
-            "@typescript-eslint/no-restricted-imports": ["error", { paths: CPU_PATHS_TYPES_ALLOWED, patterns: TYPES_PATTERNS }],
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { paths: CPU_PATHS_TYPES_ALLOWED, patterns: TYPES_PATTERNS },
+            ],
         },
     },
     // ---- the entries are imported by nothing else in src/ (the zones above already forbid them; the barrel is the remaining file)
@@ -574,7 +686,14 @@ export default tseslint.config(
         files: ["src/**/*.ts"],
         ignores: ["src/node/**/*.ts"],
         rules: {
-            "no-restricted-globals": ["error", { name: "process", message: "the core never references process (spec 2.1); env vars are read by test/setup and scripts only (spec 2.3)" }],
+            "no-restricted-globals": [
+                "error",
+                {
+                    name: "process",
+                    message:
+                        "the core never references process (spec 2.1); env vars are read by test/setup and scripts only (spec 2.3)",
+                },
+            ],
         },
     },
     // ---- test relaxations beyond the root's: tests may import any layer and any global; setup files read process.env
@@ -616,7 +735,12 @@ import { defineConfig } from "vitest/config";
  * @public exported for scripts/run-browser-project.js and the CLAUDE.md "Verified Platform Facts" table
  */
 export const BROWSER_FLAGS = Object.freeze({
-    nvidia: Object.freeze(["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"]),
+    nvidia: Object.freeze([
+        "--enable-unsafe-webgpu",
+        "--enable-features=Vulkan",
+        "--use-angle=vulkan",
+        "--disable-vulkan-surface",
+    ]),
     swiftshader: Object.freeze(["--enable-unsafe-webgpu", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]),
 });
 
@@ -677,7 +801,10 @@ const thresholdsActive = projects.length === 1 && projects[0] === "node" && proc
  * @param payload - the browser session: gpu summary, runner class, results
  * @returns the path of the file written
  */
-async function appendBenchRecord(_context: unknown, payload: { runnerClass: string; session: unknown }): Promise<string> {
+async function appendBenchRecord(
+    _context: unknown,
+    payload: { runnerClass: string; session: unknown },
+): Promise<string> {
     const dir = resolve(here, "benchmarks/out");
     mkdirSync(dir, { recursive: true });
     const file = resolve(dir, `${payload.runnerClass.replace(/[^A-Za-z0-9_.-]/g, "_")}.json`);
@@ -697,7 +824,10 @@ async function appendBenchRecord(_context: unknown, payload: { runnerClass: stri
  * @param payload - the raw output of one kernel on one adapter
  * @returns the path written, or ""
  */
-async function writeNoiseFixture(_context: unknown, payload: { kernel: string; fixture: string; adapterClass: string; values: readonly number[]; dtype: "f32" | "u32" }): Promise<string> {
+async function writeNoiseFixture(
+    _context: unknown,
+    payload: { kernel: string; fixture: string; adapterClass: string; values: readonly number[]; dtype: "f32" | "u32" },
+): Promise<string> {
     if (noiseFloorWrite !== "1") {
         return "";
     }
@@ -705,7 +835,10 @@ async function writeNoiseFixture(_context: unknown, payload: { kernel: string; f
     mkdirSync(dir, { recursive: true });
     const safe = (s: string): string => s.replace(/[^A-Za-z0-9_.-]/g, "_");
     const file = resolve(dir, `${safe(payload.kernel)}-${safe(payload.fixture)}-${safe(payload.adapterClass)}.json`);
-    writeFileSync(file, `${JSON.stringify({ kernel: payload.kernel, fixture: payload.fixture, adapterClass: payload.adapterClass, dtype: payload.dtype, values: payload.values }, null, 4)}\n`);
+    writeFileSync(
+        file,
+        `${JSON.stringify({ kernel: payload.kernel, fixture: payload.fixture, adapterClass: payload.adapterClass, dtype: payload.dtype, values: payload.values }, null, 4)}\n`,
+    );
     return file;
 }
 
@@ -738,7 +871,7 @@ export default defineConfig({
             reporter: ["text", "json-summary", "json", "lcov", "html"],
             reportsDirectory: process.env.COVERAGE_DIR ?? "coverage",
             include: ["src/**/*.ts"],
-            exclude: ["**/*.d.ts", "**/*.test.ts", "src/index.ts", "src/wgsl/**"],   // only the root barrel and the template strings (spec 11.8): src/node/index.ts and src/browser/index.ts carry logic and count
+            exclude: ["**/*.d.ts", "**/*.test.ts", "src/index.ts", "src/wgsl/**"], // only the root barrel and the template strings (spec 11.8): src/node/index.ts and src/browser/index.ts carry logic and count
             thresholds: thresholdsActive ? { lines: 80, functions: 80, branches: 75, statements: 80 } : undefined,
         },
         projects: [
@@ -783,7 +916,11 @@ export default defineConfig({
                     include: ["test/browser/**/*.test.ts"],
                     testTimeout: 120_000,
                     hookTimeout: 120_000,
-                    env: { GRAPHTY_GPU_REQUIRE: gpuRequire, GRAPHTY_BROWSER_GPU: browserGpu, GRAPHTY_NOISE_FLOOR_WRITE: noiseFloorWrite },
+                    env: {
+                        GRAPHTY_GPU_REQUIRE: gpuRequire,
+                        GRAPHTY_BROWSER_GPU: browserGpu,
+                        GRAPHTY_NOISE_FLOOR_WRITE: noiseFloorWrite,
+                    },
                     setupFiles: ["test/setup/browser.ts"],
                     browser: {
                         enabled: true,
@@ -791,7 +928,12 @@ export default defineConfig({
                         provider: "playwright",
                         fileParallelism: false,
                         commands: { appendBenchRecord, writeNoiseFixture, recordNoiseRow },
-                        instances: [{ browser: "chromium", launch: { args: [...BROWSER_FLAGS[browserGpu]], env: browserLaunchEnv() } }],
+                        instances: [
+                            {
+                                browser: "chromium",
+                                launch: { args: [...BROWSER_FLAGS[browserGpu]], env: browserLaunchEnv() },
+                            },
+                        ],
                     },
                 },
             },
@@ -945,7 +1087,7 @@ jobs:
         name: Test (software adapters)
         runs-on: ubuntu-latest
         timeout-minutes: 30
-        defaults: { run: { working-directory: packages, shell: bash } }   # shell: bash = pipefail, so a piped step cannot mask a non-zero exit
+        defaults: { run: { working-directory: packages, shell: bash } } # shell: bash = pipefail, so a piped step cannot mask a non-zero exit
         steps:
             - uses: actions/checkout@v4
             - uses: pnpm/action-setup@v4
@@ -955,8 +1097,8 @@ jobs:
             - run: pnpm install --frozen-lockfile
             - name: Install Mesa lavapipe (software Vulkan ICD for Dawn-in-Node; not preinstalled on ubuntu-24.04)
               run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1
-            - run: pnpm run build                    # = pnpm -r run build:all (tsc + the vite bundle): dist/browser.js, dist/node.js and their d.ts shims exist only after the bundle step (2.5)
-            - run: pnpm -r run lint                  # eslint + tsc --noEmit + the strict-consumer compile (3.1)
+            - run: pnpm run build # = pnpm -r run build:all (tsc + the vite bundle): dist/browser.js, dist/node.js and their d.ts shims exist only after the bundle step (2.5)
+            - run: pnpm -r run lint # eslint + tsc --noEmit + the strict-consumer compile (3.1)
             - run: pnpm exec knip
             - name: Node suite on lavapipe (coverage with thresholds; subgroup twins in-process, plus the no-subgroups pass)
               working-directory: packages/webgpu-graph-algorithms
@@ -971,7 +1113,11 @@ jobs:
             - name: Cache Playwright browsers
               id: pw
               uses: actions/cache@v4
-              with: { path: ~/.cache/ms-playwright, key: "playwright-${{ runner.os }}-${{ hashFiles('packages/pnpm-lock.yaml') }}" }
+              with:
+                  {
+                      path: ~/.cache/ms-playwright,
+                      key: "playwright-${{ runner.os }}-${{ hashFiles('packages/pnpm-lock.yaml') }}",
+                  }
             - if: steps.pw.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium --with-deps
             - if: steps.pw.outputs.cache-hit == 'true'
@@ -979,10 +1125,16 @@ jobs:
             - name: Browser smoke on SwiftShader
               working-directory: packages/webgpu-graph-algorithms
               env: { GRAPHTY_BROWSER_GPU: swiftshader, GRAPHTY_GPU_REQUIRE: any }
-              run: node scripts/run-browser-project.js   # timeout -k 10 600 around vitest --project=browser --reporter=json; exit 124 passes iff the JSON has numTotalTests > 0 and numFailedTests === 0 (11.6, the browser.close() hang)
+              run: node scripts/run-browser-project.js # timeout -k 10 600 around vitest --project=browser --reporter=json; exit 124 passes iff the JSON has numTotalTests > 0 and numFailedTests === 0 (11.6, the browser.close() hang)
             - uses: actions/upload-artifact@v4
               if: ${{ !cancelled() }}
-              with: { name: coverage-webgpu-graph-algorithms, path: packages/webgpu-graph-algorithms/coverage/lcov.info, retention-days: 1, if-no-files-found: error, overwrite: true }   # overwrite: a re-run of the job would otherwise fail with "artifact already exists" (v4 artifacts are immutable per run)
+              with: {
+                      name: coverage-webgpu-graph-algorithms,
+                      path: packages/webgpu-graph-algorithms/coverage/lcov.info,
+                      retention-days: 1,
+                      if-no-files-found: error,
+                      overwrite: true,
+                  } # overwrite: a re-run of the job would otherwise fail with "artifact already exists" (v4 artifacts are immutable per run)
 ```
 
 `gpu.yml` as spec 12.3 gives it:
@@ -1134,7 +1286,12 @@ export type WebGpuGraphErrorCode =
     | "E_ABORTED";
 
 /** The graph-format error codes a public call lets propagate unchanged (D12, spec 5.7): raised by accessors the package calls on the caller's behalf. */
-export const PASSTHROUGH_FORMAT_CODES: readonly ["E_GPU_INELIGIBLE", "E_UNKNOWN_NODE", "E_UNKNOWN_COLUMN", "E_COLUMN_LENGTH"];
+export const PASSTHROUGH_FORMAT_CODES: readonly [
+    "E_GPU_INELIGIBLE",
+    "E_UNKNOWN_NODE",
+    "E_UNKNOWN_COLUMN",
+    "E_COLUMN_LENGTH",
+];
 
 /** The one error class the package throws for conditions it detects itself: a stable `code` and frozen `details` (spec 3.3). */
 export class WebGpuGraphError extends Error {
@@ -1255,7 +1412,7 @@ export const FA2_FLAG_FIRST = 1;
 
 Throws: none.
 
-### 3.3 src/types/*.ts (spec 2.2, 3.3, 7.14, 7.19, 9.2, 9.3, D27)
+### 3.3 src/types/\*.ts (spec 2.2, 3.3, 7.14, 7.19, 9.2, 9.3, D27)
 
 #### src/types/context.ts -- P1-T1
 
@@ -1582,23 +1739,64 @@ export interface LayoutAccelerator {
 // ---- mirrors of @graphty/algorithms (spec 9.2); the option types named there do not exist before A2, so they are mirrored as empty-extensible records
 /** Placeholder for the CPU option types the AlgorithmAccelerator methods take before A2 lands (spec 9.2: "the accelerator methods reuse the indexed.* option types"). */
 export type CpuAlgorithmOptions = Readonly<Record<string, unknown>>;
-export interface ScoresResultLike { readonly scores: NumericVector; readonly iterations: number; readonly converged: boolean; }
-export interface PageRankResultLike extends ScoresResultLike { readonly danglingMass?: number | undefined; }
-export interface HitsResultLike { readonly hubs: NumericVector; readonly authorities: NumericVector; readonly iterations: number; readonly converged: boolean; }
-export interface LabelResultLike { readonly labels: U32; readonly count: number; groups(): U32[]; }
-export interface BfsResultLike { readonly depth: U32; readonly parent: U32; readonly order: U32; readonly visitedCount: number; }
-export interface SsspResultLike { readonly dist: NumericVector; readonly predArc: U32; }
-export interface BellmanFordResultLike extends SsspResultLike { readonly hasNegativeCycle: boolean; }
-export interface EdgeScoresResultLike { readonly scores: NumericVector; }
-export interface ApspResultLike { readonly dist: NumericVector; readonly n: number; }
-export interface CorenessResultLike { readonly coreness: U32; }
-export interface MstResultLike { readonly edges: U32; readonly totalWeight: number; }
-export interface CommunityResultLike extends LabelResultLike { readonly modularity: number; }
+export interface ScoresResultLike {
+    readonly scores: NumericVector;
+    readonly iterations: number;
+    readonly converged: boolean;
+}
+export interface PageRankResultLike extends ScoresResultLike {
+    readonly danglingMass?: number | undefined;
+}
+export interface HitsResultLike {
+    readonly hubs: NumericVector;
+    readonly authorities: NumericVector;
+    readonly iterations: number;
+    readonly converged: boolean;
+}
+export interface LabelResultLike {
+    readonly labels: U32;
+    readonly count: number;
+    groups(): U32[];
+}
+export interface BfsResultLike {
+    readonly depth: U32;
+    readonly parent: U32;
+    readonly order: U32;
+    readonly visitedCount: number;
+}
+export interface SsspResultLike {
+    readonly dist: NumericVector;
+    readonly predArc: U32;
+}
+export interface BellmanFordResultLike extends SsspResultLike {
+    readonly hasNegativeCycle: boolean;
+}
+export interface EdgeScoresResultLike {
+    readonly scores: NumericVector;
+}
+export interface ApspResultLike {
+    readonly dist: NumericVector;
+    readonly n: number;
+}
+export interface CorenessResultLike {
+    readonly coreness: U32;
+}
+export interface MstResultLike {
+    readonly edges: U32;
+    readonly totalWeight: number;
+}
+export interface CommunityResultLike extends LabelResultLike {
+    readonly modularity: number;
+}
 /** Spec 9.2 AlgorithmAccelerator, verbatim (every member optional; option types are CpuAlgorithmOptions until A2). */
 export interface AlgorithmAccelerator {
     readonly kind: string;
     pageRank?(s: GraphSnapshot, options?: CpuAlgorithmOptions): Promise<PageRankResultLike>;
-    personalizedPageRank?(s: GraphSnapshot, personalization: F32 | F64, options?: CpuAlgorithmOptions): Promise<PageRankResultLike>;
+    personalizedPageRank?(
+        s: GraphSnapshot,
+        personalization: F32 | F64,
+        options?: CpuAlgorithmOptions,
+    ): Promise<PageRankResultLike>;
     hits?(s: GraphSnapshot, options?: CpuAlgorithmOptions): Promise<HitsResultLike>;
     eigenvectorCentrality?(s: GraphSnapshot, options?: CpuAlgorithmOptions): Promise<ScoresResultLike>;
     katzCentrality?(s: GraphSnapshot, options?: CpuAlgorithmOptions): Promise<ScoresResultLike>;
@@ -1623,7 +1821,12 @@ export interface AlgorithmAccelerator {
 /** Spec 3.3 AcceleratorOptions, verbatim. */
 export interface AcceleratorOptions {
     readonly layout?: GpuLayoutTuning | undefined;
-    readonly algorithms?: { readonly betweenness?: { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined } | undefined } | undefined;
+    readonly algorithms?:
+        | {
+              readonly betweenness?:
+                  { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined } | undefined;
+          }
+        | undefined;
 }
 /** The injectable object (spec 3.3); at P3 it carries forceAtlas2, release and dispose -- the algorithm members arrive with P7+. */
 export interface GpuAccelerator extends AlgorithmAccelerator, LayoutAccelerator {
@@ -1643,7 +1846,7 @@ this package and are not needed before P7; at W1 they become
 and structural, so `GpuAccelerator` stays assignable to the real interface
 in both directions once the real option types are substituted.
 
-### 3.4 src/device/*.ts (spec 2.1, 2.2, 2.6, 5.7, D26)
+### 3.4 src/device/\*.ts (spec 2.1, 2.2, 2.6, 5.7, D26)
 
 #### src/device/webgpu-constants.ts -- P0-T3
 
@@ -1651,7 +1854,18 @@ Imports: none.
 
 ```ts
 /** GPUBufferUsage bits as numbers so the core never reads the global at module top level (spec 2.1 rule 1). */
-export const BufferUsage: Readonly<{ MAP_READ: 0x0001; MAP_WRITE: 0x0002; COPY_SRC: 0x0004; COPY_DST: 0x0008; INDEX: 0x0010; VERTEX: 0x0020; UNIFORM: 0x0040; STORAGE: 0x0080; INDIRECT: 0x0100; QUERY_RESOLVE: 0x0200 }>;
+export const BufferUsage: Readonly<{
+    MAP_READ: 0x0001;
+    MAP_WRITE: 0x0002;
+    COPY_SRC: 0x0004;
+    COPY_DST: 0x0008;
+    INDEX: 0x0010;
+    VERTEX: 0x0020;
+    UNIFORM: 0x0040;
+    STORAGE: 0x0080;
+    INDIRECT: 0x0100;
+    QUERY_RESOLVE: 0x0200;
+}>;
 /** GPUMapMode bits. */
 export const MapMode: Readonly<{ READ: 0x0001; WRITE: 0x0002 }>;
 /** GPUShaderStage bits. */
@@ -1677,7 +1891,11 @@ export function requestAdapter(gpu: GPU, powerPreference: GPUPowerPreference): P
 /** Step 3 of create(): the requiredLimits record for a policy, clamped to the adapter; an explicit value above the adapter -> E_NO_DEVICE { reason: "limit" }. */
 export function buildRequiredLimits(adapter: GPUAdapter, policy: LimitPolicy): Record<string, number>;
 /** Step 3 of create(): the requiredFeatures list = required + (optional intersect adapter.features); a missing required feature -> E_NO_DEVICE { reason: "feature" }. */
-export function buildRequiredFeatures(adapter: GPUAdapter, required: readonly GPUFeatureName[], optional: readonly GPUFeatureName[]): GPUFeatureName[];
+export function buildRequiredFeatures(
+    adapter: GPUAdapter,
+    required: readonly GPUFeatureName[],
+    optional: readonly GPUFeatureName[],
+): GPUFeatureName[];
 /** Step 3 of create(): requestDevice; a rejection -> E_NO_DEVICE with the adapter summary ("consumed" when the adapter already created a device, detected by the OperationError message or a prior-use record). */
 export function requestDevice(adapter: GPUAdapter, descriptor: GPUDeviceDescriptor): Promise<GPUDevice>;
 ```
@@ -1688,7 +1906,12 @@ Throws: `E_NO_ADAPTER`, `E_NO_DEVICE`.
 
 ```ts
 /** Step 4 of create(): the GpuCaps of a DEVICE (device.limits, never adapter.limits) with the adapter info and the runtime tag. */
-export function captureCaps(device: GPUDevice, info: AdapterInfoLike, runtime: "browser" | "node" | "unknown", wgslFeatures: Iterable<string>): GpuCaps;
+export function captureCaps(
+    device: GPUDevice,
+    info: AdapterInfoLike,
+    runtime: "browser" | "node" | "unknown",
+    wgslFeatures: Iterable<string>,
+): GpuCaps;
 /** GpuContext.from(device, info?): caps from device.limits / device.features and the partial info given; software false and runtime "unknown" unless given. */
 export function capsFromDevice(device: GPUDevice, info: Partial<GpuCaps> | undefined): GpuCaps;
 /** Asserts the two facts the planners bake in: maxComputeWorkgroupsPerDimension === MAX_WORKGROUPS_PER_DIM and WG is a power of two >= 64 (spec 2.2, 5.2). */
@@ -1739,9 +1962,16 @@ export class PendingErrorSlot {
     readonly pending: boolean;
 }
 /** Installs the uncapturederror listener: each event becomes E_VALIDATION { label, message } (or E_OUT_OF_MEMORY for GPUOutOfMemoryError) routed to `onError`, else stored in `slot`. Returns the uninstaller. */
-export function installUncapturedErrorSink(device: GPUDevice, slot: PendingErrorSlot, onError: ((error: WebGpuGraphError) => void) | null): () => void;
+export function installUncapturedErrorSink(
+    device: GPUDevice,
+    slot: PendingErrorSlot,
+    onError: ((error: WebGpuGraphError) => void) | null,
+): () => void;
 /** Chains device.lost into `onLost` exactly once; returns the promise the context exposes as `ctx.lost`. */
-export function watchDeviceLost(device: GPUDevice, onLost: (info: GPUDeviceLostInfo) => void): Promise<GPUDeviceLostInfo>;
+export function watchDeviceLost(
+    device: GPUDevice,
+    onLost: (info: GPUDeviceLostInfo) => void,
+): Promise<GPUDeviceLostInfo>;
 /** The E_DEVICE_LOST error for a lost-info record. */
 export function deviceLostError(info: GPUDeviceLostInfo): WebGpuGraphError;
 ```
@@ -1872,7 +2102,7 @@ export function dawnFlags(options: NodeGpuOptions | undefined): string[];
 Throws: `E_NO_WEBGPU { reason, hint }` (module missing, glibc too old, or
 the module lacks `create`), plus everything `GpuContext.create` throws.
 
-### 3.8 src/memory/*.ts (spec 4.1-4.5)
+### 3.8 src/memory/\*.ts (spec 4.1-4.5)
 
 #### src/memory/upload-plan.ts -- P1-T2 (spec 4.2; pure)
 
@@ -1940,7 +2170,8 @@ export interface CoreBinding {
 }
 /** A view's arrays on the device plus the CPU-side scalars (degreeOrder's segmentOffsets) (spec 4.3). */
 export interface ViewBinding {
-    readonly view: "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate";
+    readonly view:
+        "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate";
     readonly bindings: Readonly<Record<string, Binding>>;
     readonly scalars: Readonly<Record<string, readonly number[]>>;
 }
@@ -1964,15 +2195,29 @@ export interface ResidencyStats {
     readonly buffers: number;
     readonly bytes: number;
     readonly snapshots: number;
-    readonly perSnapshot: readonly { readonly serial: number; readonly label: string | null; readonly bytes: number; readonly buffers: number }[];
+    readonly perSnapshot: readonly {
+        readonly serial: number;
+        readonly label: string | null;
+        readonly bytes: number;
+        readonly buffers: number;
+    }[];
 }
 /** The upload cache (spec 4.1): WeakMap on array objects, WeakMap on snapshots, a strong Map by serial; @internal (reached as ctx.residency). */
 export class GraphResidency {
-    constructor(device: GPUDevice, caps: PlanCaps, allocator: AllocationTracker, options: { readonly warnUnreleasedSnapshots: number; readonly warn?: ((message: string) => void) | undefined });
+    constructor(
+        device: GPUDevice,
+        caps: PlanCaps,
+        allocator: AllocationTracker,
+        options: { readonly warnUnreleasedSnapshots: number; readonly warn?: ((message: string) => void) | undefined },
+    );
     /** Uploads (or finds) the core; `need` defaults to ["rowPtr", "colIdx", "weights"]; cold segments on demand (spec 4.2). Never materialises an identity permutation. */
     core(s: GraphSnapshot, need?: readonly CoreArrayName[] | undefined): CoreBinding;
     /** Uploads (or finds) a view; P1-P3 support outDegree / inDegree / degreeOrder / reverseDegreeOrder; the others -> E_UNSUPPORTED until P7. packViews is accepted and ignored until P7. */
-    view(s: GraphSnapshot, name: "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate", options?: { readonly packViews?: boolean | undefined } | undefined): ViewBinding;
+    view(
+        s: GraphSnapshot,
+        name: "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate",
+        options?: { readonly packViews?: boolean | undefined } | undefined,
+    ): ViewBinding;
     /** gpuView(name) + column.version; re-uploads in place when the version changed and the byte length did not (spec 4.3). CONTRACT DECISION: `owner` is required so release(owner) can find the buffer (a table has no back-reference to its snapshot). */
     column(table: AttributeTable, name: string, owner: GraphSnapshot): ColumnBinding;
     /** Any format array keyed on the object; registered against `owner` when given (spec 4.1). */
@@ -2014,7 +2259,12 @@ Imports: `../constants.js`, `../errors.js`, `AllocationTracker`, `BufferUsage`; 
 ```ts
 /** Size-class pool of GPUBuffers by usage (spec 4.4). */
 export class BufferPool {
-    constructor(device: GPUDevice, allocator: AllocationTracker, maxBufferSize: number, options?: { readonly maxIdlePerClass?: number | undefined } | undefined);
+    constructor(
+        device: GPUDevice,
+        allocator: AllocationTracker,
+        maxBufferSize: number,
+        options?: { readonly maxIdlePerClass?: number | undefined } | undefined,
+    );
     /** The size class a byte length rounds up to: powers of two from 4 KiB to 64 MiB, then 16 MiB steps (pure, static). */
     static sizeClass(byteLength: number): number;
     /** Acquires a buffer of at least byteLength (an idle one of the class and usage, else a new one through the allocator); E_TOO_LARGE above maxBufferSize. */
@@ -2047,9 +2297,18 @@ export interface StagingSlot {
 }
 /** The staging ring (spec 4.4): default 3 slots; grows when every slot is busy; always unmaps and destroys its own buffers. */
 export class Readback {
-    constructor(device: GPUDevice, allocator: AllocationTracker, options?: { readonly slots?: number | undefined; readonly slotBytes?: number | undefined } | undefined);
+    constructor(
+        device: GPUDevice,
+        allocator: AllocationTracker,
+        options?: { readonly slots?: number | undefined; readonly slotBytes?: number | undefined } | undefined,
+    );
     /** Copies `byteLength` bytes from `src` at `srcOffset` (own encoder, own submit), maps, copies out BEFORE unmap; resolves the bytes (a fresh ArrayBuffer, or `dest.buffer` after `dest.set` when given). Requests above the slot size are chunked. */
-    read(src: GPUBuffer, byteLength: number, dest?: ArrayBufferView | undefined, srcOffset?: number | undefined): Promise<ArrayBuffer>;
+    read(
+        src: GPUBuffer,
+        byteLength: number,
+        dest?: ArrayBufferView | undefined,
+        srcOffset?: number | undefined,
+    ): Promise<ArrayBuffer>;
     /** Reads one u32 counter through the same ring. */
     readU32(src: GPUBuffer, byteOffset: number): Promise<number>;
     /** Borrows an unmapped slot of at least byteLength (grows the ring when none is free); the borrower ALWAYS returns it (spec 4.4). */
@@ -2094,7 +2353,7 @@ export class Lease {
 
 Throws: what `BufferPool.acquire` throws; `E_DISPOSED` after `release()`.
 
-### 3.9 src/kernel/*.ts (spec 3.5, 5.1-5.5, 5.8; D20)
+### 3.9 src/kernel/\*.ts (spec 3.5, 5.1-5.5, 5.8; D20)
 
 #### src/kernel/wgsl.ts -- P1-T3 (spec 3.5)
 
@@ -2122,7 +2381,7 @@ export interface WgslModuleSpec {
     readonly bindings: readonly BindingDecl[];
     readonly overrideDecls: readonly OverrideDecl[];
     readonly overrides: Readonly<Record<string, number | boolean>>;
-    readonly needs: readonly ("subgroups")[];
+    readonly needs: readonly "subgroups"[];
     readonly uniforms: readonly UniformBlock[];
     readonly snippets?: Readonly<Record<string, string>> | undefined;
 }
@@ -2211,7 +2470,12 @@ export type UniformValues = Readonly<Record<string, number | readonly number[]>>
 /** A generated struct: the padded WGSL text and the byte writer / reader share one field table, so they cannot disagree (D20). */
 export class UniformBlock {
     /** Declares a block; fields are laid out in order with 16-byte alignment for vec4 / the struct, 8 for vec2, 4 for scalars; the total is padded to 16 (uniform, storage) or to `padTo` when given. */
-    static define(name: string, fields: readonly UniformField[], options?: { readonly layout?: "uniform" | "storage" | undefined; readonly padTo?: number | undefined } | undefined): UniformBlock;
+    static define(
+        name: string,
+        fields: readonly UniformField[],
+        options?:
+            { readonly layout?: "uniform" | "storage" | undefined; readonly padTo?: number | undefined } | undefined,
+    ): UniformBlock;
     readonly name: string;
     readonly layout: "uniform" | "storage";
     readonly fields: readonly UniformField[];
@@ -2277,7 +2541,13 @@ export interface BoundKernel {
 }
 /** A compiled pipeline plus the binding list of its spec (spec 5.1). */
 export class Kernel {
-    constructor(device: GPUDevice, spec: WgslModuleSpec, composed: ComposedModule, pipeline: GPUComputePipeline, layouts: readonly GPUBindGroupLayout[]);
+    constructor(
+        device: GPUDevice,
+        spec: WgslModuleSpec,
+        composed: ComposedModule,
+        pipeline: GPUComputePipeline,
+        layouts: readonly GPUBindGroupLayout[],
+    );
     readonly spec: WgslModuleSpec;
     readonly pipeline: GPUComputePipeline;
     readonly layouts: readonly GPUBindGroupLayout[];
@@ -2286,7 +2556,12 @@ export class Kernel {
     /** Creates (or reuses, keyed by every buffer identity + offset + size) the bind groups, each labelled `<spec.id>/<group>`; a missing or extra name is E_INVALID_ARGUMENT; two bindings of one call whose ranges intersect on one buffer while either slot is `storage` (read_write) is E_INVALID_ARGUMENT { argument: "aliasing" } (the host-side mirror of WebGPU's writable buffer-binding-aliasing rule, 3.10.1, so the failure is synchronous and labelled). CONTRACT DECISION: bind() is synchronous, so a createBindGroup validation error (a wrong-size uniform binding, a usage mismatch) is NOT thrown here -- it reaches the pending-error slot as E_VALIDATION { label: "<spec.id>/<group>" } and is thrown by the batch's readback (Dawn-node) or the next assertReady() (browser), spec 5.7. An empty bind group is created for every empty layout index so setBindGroup is called for 0..maxGroup. */
     bind(resources: KernelBindings): BoundKernel;
     /** setPipeline + setBindGroup for every group (dynamic offsets in dynamicGroups order) + dispatchWorkgroups(plan.x, plan.y, 1); a plan with x === 0 records nothing (spec 5.6). */
-    dispatch(pass: GPUComputePassEncoder, bound: BoundKernel, plan: DispatchPlan, dynamicOffsets?: readonly number[] | undefined): void;
+    dispatch(
+        pass: GPUComputePassEncoder,
+        bound: BoundKernel,
+        plan: DispatchPlan,
+        dynamicOffsets?: readonly number[] | undefined,
+    ): void;
     /** Drops cached bind groups (a layout's buffers changed). */
     invalidate(): void;
 }
@@ -2471,7 +2746,7 @@ export interface KernelEntry {
     readonly overrideDecls: readonly OverrideDecl[];
     readonly uniforms: readonly UniformBlock[];
     /** ["subgroups"] when the body calls a reduction helper (the twin axis), else []. */
-    readonly needs: readonly ("subgroups")[];
+    readonly needs: readonly "subgroups"[];
     /** The snippet marker names the body carries (segmented-reduce: ["VALUE"]). */
     readonly snippetSlots: readonly string[];
     /** The phase the entry landed in (documentation and the compile-matrix filter). */
@@ -2480,13 +2755,25 @@ export interface KernelEntry {
 /** THE registry (spec 3.5): every entry, keyed by id. */
 export const KERNELS: Readonly<Record<KernelId, KernelEntry>>;
 /** A WgslModuleSpec for a variant: the entry plus the overrides / snippets given; unknown override names are rejected at compose time. A body override installed by setKernelBodyOverride is used instead of the entry's body. */
-export function kernelSpec(id: KernelId, overrides?: Readonly<Record<string, number | boolean>> | undefined, snippets?: Readonly<Record<string, string>> | undefined): WgslModuleSpec;
+export function kernelSpec(
+    id: KernelId,
+    overrides?: Readonly<Record<string, number | boolean>> | undefined,
+    snippets?: Readonly<Record<string, string>> | undefined,
+): WgslModuleSpec;
 /** @internal the sabotage seam (spec 11.9 item 1): replaces an entry's body for specs created afterwards (null restores). Tests use a FRESH context per mutation because the pipeline key does not include the body. */
 export function setKernelBodyOverride(id: KernelId, body: string | null): void;
 /** The group-0 graph bindings of a core with the dummy rules applied (spec 3.5, 4.1): colIdx <- rowPtr when null, weights <- colIdx ?? rowPtr when null, perm <- rowPtr when null. `weights` is the binding to use in the weights slot: omitted -> core.weights (degree, segmented-reduce); a layout passes its RESOLVED weights (ModelResources.weights, 3.13), null meaning "attract with 1.0" even on a weighted snapshot. */
-export function graphBindings(core: CoreBinding, perm: Binding | null, weights?: Binding | null | undefined): Readonly<Record<"rowPtr" | "colIdx" | "weights" | "perm", Binding>>;
+export function graphBindings(
+    core: CoreBinding,
+    perm: Binding | null,
+    weights?: Binding | null | undefined,
+): Readonly<Record<"rowPtr" | "colIdx" | "weights" | "perm", Binding>>;
 /** The override values graphBindings implies: USE_PERM = perm !== null, HAS_WEIGHTS = (weights === undefined ? core.weights : weights) !== null. */
-export function graphOverrides(core: CoreBinding, perm: Binding | null, weights?: Binding | null | undefined): Readonly<{ USE_PERM: boolean; HAS_WEIGHTS: boolean }>;
+export function graphOverrides(
+    core: CoreBinding,
+    perm: Binding | null,
+    weights?: Binding | null | undefined,
+): Readonly<{ USE_PERM: boolean; HAS_WEIGHTS: boolean }>;
 // ---- the generated blocks (spec 5.3); field lists in 3.10.2
 export const RANGE_PARAMS: UniformBlock;
 export const REDUCE_PARAMS: UniformBlock;
@@ -2515,18 +2802,18 @@ only `degree` / `segmented-reduce` take the core's.
 
 #### 3.10.1 Binding tables (the `bindings` of each entry; group 0 = graph, 1 = state, 2 = params, 3 = cold)
 
-| id | group.binding name : kind : wgslType | overrideDecls (type = default) | uniforms | needs | phase |
-| --- | --- | --- | --- | --- | --- |
-| `degree` | 0.0 rowPtr : storage-ro : array<u32>; 0.1 colIdx : storage-ro : array<u32>; 0.2 weights : storage-ro : array<f32>; 0.3 perm : storage-ro : array<u32>; 1.0 out : storage : array<u32>; 2.0 P : uniform : RangeParams | none (USE_PERM, HAS_WEIGHTS standard) | RANGE_PARAMS | [] | P1 |
-| `reduce` | 1.0 src : storage-ro : array<u32>; 1.1 out : storage : array<u32>; 2.0 P : uniform : ReduceParams | OP u32 = 0; DTYPE u32 = 0; FINAL bool = false | REDUCE_PARAMS | ["subgroups"] | P1 |
-| `fill` | 1.0 dst : storage : array<u32>; 2.0 P : uniform : FillParams | none | FILL_PARAMS | [] | P1 |
-| `segmented-reduce` | 0.0 rowPtr; 0.1 colIdx; 0.2 weights; 0.3 perm (as degree); 1.0 out : storage : array<f32>; 2.0 P : uniform : RangeParams | OP u32 = 0; TIER u32 = 0 | RANGE_PARAMS | [] | P2 |
-| `fa2-stats-finalize` (K1) | 1.0 partials : storage-ro : array<Fa2Partial>; 1.1 S : storage : Fa2State; 1.2 T : storage : array<Fa2Trace>; 2.0 P : uniform : Fa2Params | none | FA2_PARAMS, FA2_STATE, FA2_TRACE, FA2_PARTIAL | ["subgroups"] | P3 |
-| `fa2-attraction` (K2) | 0.0 rowPtr; 0.1 colIdx; 0.2 weights; 0.3 perm; 1.0 pos : storage-ro : array<vec4f>; 1.1 force : storage : array<f32>; 2.0 P : uniform : Fa2Params | LINLOG bool = false; DISTRIBUTED bool = false; TIER u32 = 0 | FA2_PARAMS | [] | P3 |
-| `fa2-repulsion-exact` (K3) | 1.0 pos : storage-ro : array<vec4f>; 1.1 S : storage : Fa2State; 1.2 force : storage : array<f32>; 1.3 oldForce : storage-ro : array<f32>; 1.4 fixedMask : storage-ro : array<u32>; 1.5 partials : storage : array<Fa2Partial>; 2.0 P : uniform : Fa2Params | SWING_MODE u32 = 0; STRONG_GRAVITY bool = false; GRAVITY_CENTER u32 = 0 | FA2_PARAMS, FA2_STATE, FA2_PARTIAL | ["subgroups"] | P1 |
-| `fa2-speed-finalize` (K4) | 1.0 partials : storage-ro : array<Fa2Partial>; 1.1 S : storage : Fa2State; 1.2 T : storage : array<Fa2Trace>; 2.0 P : uniform : Fa2Params | SWING_MODE u32 = 0 | FA2_PARAMS, FA2_STATE, FA2_TRACE, FA2_PARTIAL | ["subgroups"] | P1 |
-| `fa2-integrate` (K5) | 1.0 force : storage-ro : array<f32>; 1.1 oldForce : storage : array<f32>; 1.2 fixedMask : storage-ro : array<u32>; 1.3 S : storage : Fa2State; 1.4 pos : storage : array<vec4f>; 1.5 partials : storage : array<Fa2Partial>; 2.0 P : uniform : Fa2Params | SWING_MODE u32 = 0 | FA2_PARAMS, FA2_STATE, FA2_PARTIAL | ["subgroups"] | P3 |
-| `fa2-to-scene` | 1.0 pos : storage-ro : array<vec4f>; 1.1 scene : storage : array<f32>; 2.0 P : uniform : Fa2Params | none | FA2_PARAMS | [] | P3 |
+| id                         | group.binding name : kind : wgslType                                                                                                                                                                                                                        | overrideDecls (type = default)                                          | uniforms                                      | needs         | phase |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------- | ------------- | ----- |
+| `degree`                   | 0.0 rowPtr : storage-ro : array<u32>; 0.1 colIdx : storage-ro : array<u32>; 0.2 weights : storage-ro : array<f32>; 0.3 perm : storage-ro : array<u32>; 1.0 out : storage : array<u32>; 2.0 P : uniform : RangeParams                                        | none (USE_PERM, HAS_WEIGHTS standard)                                   | RANGE_PARAMS                                  | []            | P1    |
+| `reduce`                   | 1.0 src : storage-ro : array<u32>; 1.1 out : storage : array<u32>; 2.0 P : uniform : ReduceParams                                                                                                                                                           | OP u32 = 0; DTYPE u32 = 0; FINAL bool = false                           | REDUCE_PARAMS                                 | ["subgroups"] | P1    |
+| `fill`                     | 1.0 dst : storage : array<u32>; 2.0 P : uniform : FillParams                                                                                                                                                                                                | none                                                                    | FILL_PARAMS                                   | []            | P1    |
+| `segmented-reduce`         | 0.0 rowPtr; 0.1 colIdx; 0.2 weights; 0.3 perm (as degree); 1.0 out : storage : array<f32>; 2.0 P : uniform : RangeParams                                                                                                                                    | OP u32 = 0; TIER u32 = 0                                                | RANGE_PARAMS                                  | []            | P2    |
+| `fa2-stats-finalize` (K1)  | 1.0 partials : storage-ro : array<Fa2Partial>; 1.1 S : storage : Fa2State; 1.2 T : storage : array<Fa2Trace>; 2.0 P : uniform : Fa2Params                                                                                                                   | none                                                                    | FA2_PARAMS, FA2_STATE, FA2_TRACE, FA2_PARTIAL | ["subgroups"] | P3    |
+| `fa2-attraction` (K2)      | 0.0 rowPtr; 0.1 colIdx; 0.2 weights; 0.3 perm; 1.0 pos : storage-ro : array<vec4f>; 1.1 force : storage : array<f32>; 2.0 P : uniform : Fa2Params                                                                                                           | LINLOG bool = false; DISTRIBUTED bool = false; TIER u32 = 0             | FA2_PARAMS                                    | []            | P3    |
+| `fa2-repulsion-exact` (K3) | 1.0 pos : storage-ro : array<vec4f>; 1.1 S : storage : Fa2State; 1.2 force : storage : array<f32>; 1.3 oldForce : storage-ro : array<f32>; 1.4 fixedMask : storage-ro : array<u32>; 1.5 partials : storage : array<Fa2Partial>; 2.0 P : uniform : Fa2Params | SWING_MODE u32 = 0; STRONG_GRAVITY bool = false; GRAVITY_CENTER u32 = 0 | FA2_PARAMS, FA2_STATE, FA2_PARTIAL            | ["subgroups"] | P1    |
+| `fa2-speed-finalize` (K4)  | 1.0 partials : storage-ro : array<Fa2Partial>; 1.1 S : storage : Fa2State; 1.2 T : storage : array<Fa2Trace>; 2.0 P : uniform : Fa2Params                                                                                                                   | SWING_MODE u32 = 0                                                      | FA2_PARAMS, FA2_STATE, FA2_TRACE, FA2_PARTIAL | ["subgroups"] | P1    |
+| `fa2-integrate` (K5)       | 1.0 force : storage-ro : array<f32>; 1.1 oldForce : storage : array<f32>; 1.2 fixedMask : storage-ro : array<u32>; 1.3 S : storage : Fa2State; 1.4 pos : storage : array<vec4f>; 1.5 partials : storage : array<Fa2Partial>; 2.0 P : uniform : Fa2Params    | SWING_MODE u32 = 0                                                      | FA2_PARAMS, FA2_STATE, FA2_PARTIAL            | ["subgroups"] | P3    |
+| `fa2-to-scene`             | 1.0 pos : storage-ro : array<vec4f>; 1.1 scene : storage : array<f32>; 2.0 P : uniform : Fa2Params                                                                                                                                                          | none                                                                    | FA2_PARAMS                                    | []            | P3    |
 
 Storage-buffer counts per stage: degree 5, reduce 2, fill 1,
 segmented-reduce 5, K1 3, K2 6, K3 6, K4 3, K5 6, toScene 2 -- all under
@@ -2602,26 +2889,26 @@ exactly representable f32 <= 256, written by K5).
 
 Throws (kernels.ts): `E_SHADER_COMPILE` (via composeWgsl), `E_INVALID_ARGUMENT` (unknown KernelId).
 
-### 3.11 src/wgsl/*.wgsl.ts and src/primitives/*.ts
+### 3.11 src/wgsl/_.wgsl.ts and src/primitives/_.ts
 
-#### src/wgsl/*.wgsl.ts (spec 3.5, D9)
+#### src/wgsl/\*.wgsl.ts (spec 3.5, D9)
 
 Each file exports ONE constant, the kernel BODY (no `@group(`, no `override
 `; function declarations and `var<workgroup>` declarations allowed; exactly
 one `@compute` entry point). Export name and entry point:
 
-| file | export | entry point | phase / task |
-| --- | --- | --- | --- |
-| `degree.wgsl.ts` | `degreeWgsl` | `degree` | P1-T4 |
-| `reduce.wgsl.ts` | `reduceWgsl` | `reduce` | P1-T4 |
-| `fill.wgsl.ts` | `fillWgsl` | `fill` | P1-T4 |
-| `fa2-repulsion-exact.wgsl.ts` | `fa2RepulsionExactWgsl` | `repulsion` | P1-T4 |
-| `fa2-speed-finalize.wgsl.ts` | `fa2SpeedFinalizeWgsl` | `speed_finalize` | P1-T4 |
-| `segmented-reduce.wgsl.ts` | `segmentedReduceWgsl` | `segmented_reduce` | P2-T2 |
-| `fa2-stats-finalize.wgsl.ts` | `fa2StatsFinalizeWgsl` | `stats_finalize` | P3-T2 |
-| `fa2-attraction.wgsl.ts` | `fa2AttractionWgsl` | `attraction` | P3-T2 |
-| `fa2-integrate.wgsl.ts` | `fa2IntegrateWgsl` | `integrate` | P3-T2 |
-| `fa2-to-scene.wgsl.ts` | `fa2ToSceneWgsl` | `to_scene` | P3-T2 |
+| file                          | export                  | entry point        | phase / task |
+| ----------------------------- | ----------------------- | ------------------ | ------------ |
+| `degree.wgsl.ts`              | `degreeWgsl`            | `degree`           | P1-T4        |
+| `reduce.wgsl.ts`              | `reduceWgsl`            | `reduce`           | P1-T4        |
+| `fill.wgsl.ts`                | `fillWgsl`              | `fill`             | P1-T4        |
+| `fa2-repulsion-exact.wgsl.ts` | `fa2RepulsionExactWgsl` | `repulsion`        | P1-T4        |
+| `fa2-speed-finalize.wgsl.ts`  | `fa2SpeedFinalizeWgsl`  | `speed_finalize`   | P1-T4        |
+| `segmented-reduce.wgsl.ts`    | `segmentedReduceWgsl`   | `segmented_reduce` | P2-T2        |
+| `fa2-stats-finalize.wgsl.ts`  | `fa2StatsFinalizeWgsl`  | `stats_finalize`   | P3-T2        |
+| `fa2-attraction.wgsl.ts`      | `fa2AttractionWgsl`     | `attraction`       | P3-T2        |
+| `fa2-integrate.wgsl.ts`       | `fa2IntegrateWgsl`      | `integrate`        | P3-T2        |
+| `fa2-to-scene.wgsl.ts`        | `fa2ToSceneWgsl`        | `to_scene`         | P3-T2        |
 
 The bodies are normative in section 4.5. Prelude helper functions a body may
 call: `linear_id`, `group_id`, `lowbias32`, `mask_bit`, `unpack_u8`,
@@ -2679,7 +2966,11 @@ export interface SegmentedReduceOptions {
     readonly accumulate?: boolean | undefined;
 }
 /** Prepares the thread-per-row pipeline for a snapshot's dummy pattern (USE_PERM, HAS_WEIGHTS) and snippet. */
-export function prepareSegmentedReduce(scope: ReduceScope, core: CoreBinding, options: SegmentedReduceOptions): Promise<SegmentedReducePlanner>;
+export function prepareSegmentedReduce(
+    scope: ReduceScope,
+    core: CoreBinding,
+    options: SegmentedReduceOptions,
+): Promise<SegmentedReducePlanner>;
 /** A prepared segmented reduce (P2-P3: the thread-per-row tier only; `tiers !== null` -> E_UNSUPPORTED { feature: "segmentedReduce.tiers" } until P4). */
 export interface SegmentedReducePlanner {
     /** Records one dispatch over rows [0, n) (tiers null) writing out[i] (f32) per row; a row with no arcs gets the identity element. */
@@ -2702,7 +2993,7 @@ Contract: `ctx.assertReady()`; `nodeCount === 0` -> `new Uint32Array(0)` (or `de
 
 Throws: `E_DEVICE_LOST`, `E_DISPOSED`, `E_RELEASED`, `E_ABORTED`, `E_INVALID_ARGUMENT`, `E_TOO_LARGE`, `E_OUT_OF_MEMORY`, `E_VALIDATION`, `E_SHADER_COMPILE`, `E_SNAPSHOT`.
 
-### 3.13 src/layouts/*.ts (spec 7.2-7.6, 7.9-7.19; D8, D23, D25, D28)
+### 3.13 src/layouts/\*.ts (spec 7.2-7.6, 7.9-7.19; D8, D23, D25, D28)
 
 #### src/layouts/seed.ts -- P3-T1 (spec 7.2, 9.3, 7.19)
 
@@ -2720,10 +3011,18 @@ export class Lcg {
     next(): number;
 }
 /** Seeds the unseeded rows of the owner's stride-3 SCENE array in index order (spec 9.3 seedPositions, 7.14 `pos`, 7.19 topology change): a row is unseeded when any of its `dim` components is NaN; every unseeded component draws one LCG value; when EVERY row is unseeded the draw is uniform in [-1, 1) layout units per axis (`range: "fa2"`; `"fr"` is [0, 1)), otherwise uniform inside the [min, max] box of the finite rows per axis (an axis with no finite value falls back to [-1, 1]); the value is written as `v * scale + center[axis]`; in 2D the third component is written as center[2]. Finite components are never changed. */
-export function seedPositions(s: GraphSnapshot, positions: F32, seed: number | null, dim: 2 | 3, scale: number, center: ArrayLike<number> | null, range: "fa2" | "fr"): void;
+export function seedPositions(
+    s: GraphSnapshot,
+    positions: F32,
+    seed: number | null,
+    dim: 2 | 3,
+    scale: number,
+    center: ArrayLike<number> | null,
+    range: "fa2" | "fr",
+): void;
 ```
 
-Throws: `E_INVALID_ARGUMENT` (positions.length !== 3 * s.nodeCount, scale <= 0, a non-finite center).
+Throws: `E_INVALID_ARGUMENT` (positions.length !== 3 \* s.nodeCount, scale <= 0, a non-finite center).
 
 #### src/layouts/inputs.ts -- P3-T1 (spec 7.14, D28)
 
@@ -2731,7 +3030,10 @@ Imports: graph-format `GraphSnapshot`, `Column`, `F32`, `NodeId`, `NumericVector
 
 ```ts
 /** nodeMass resolution by ROLE (spec 7.14): null -> the role-"mass" node column when present (any numeric dtype through gpuView, converted to a fresh F32 when not f32), else outDegree()[i] + 1; an F32 of length n -> as is; a column NAME -> nodes.get(name) (numeric); a Record -> E_UNSUPPORTED with the spec's message. Always returns n values. */
-export function resolveNodeMass(s: GraphSnapshot, spec: F32 | string | Readonly<Record<NodeId, number>> | null | undefined): F32;
+export function resolveNodeMass(
+    s: GraphSnapshot,
+    spec: F32 | string | Readonly<Record<NodeId, number>> | null | undefined,
+): F32;
 /** What resolveWeights found. */
 export interface ResolvedWeights {
     readonly data: F32 | null;
@@ -2767,7 +3069,11 @@ export interface RepulsionExactOverrides {
 /** K3 (tiled all-pairs repulsion + gravity + the swing / traction epilogue) followed by K4 (the one-workgroup speed finalize) (spec 7.6, 7.10). */
 export class RepulsionExact {
     /** Compiles both kernels through the cache (the twin is selected by caps.features). */
-    static create(pipelines: PipelineCache, caps: PlanCaps, overrides: RepulsionExactOverrides): Promise<RepulsionExact>;
+    static create(
+        pipelines: PipelineCache,
+        caps: PlanCaps,
+        overrides: RepulsionExactOverrides,
+    ): Promise<RepulsionExact>;
     /** The two specs (for warm() and the compile matrix). */
     static specs(overrides: RepulsionExactOverrides): readonly [WgslModuleSpec, WgslModuleSpec];
     readonly overrides: RepulsionExactOverrides;
@@ -2846,8 +3152,17 @@ export interface ForceModel<Options, Stats extends LayoutStatsBase> {
     readStats(state: DataView, trace: DataView): Stats;
 }
 /** The shared layout state machine (spec 7.19): buffers, in-flight batches, readback, settle window, fixed mask, setPosition overrides, trace, batch driver; consumes a ForceModel by composition. */
-export class ForceSimulation<Options extends CommonLayoutOptions & SimulationOptions, Stats extends LayoutStatsBase> implements GpuLayoutSimulation<Options, Stats> {
-    constructor(ctx: GpuContext, model: ForceModel<Options, Stats>, options: Options, tuning: ResolvedLayoutTuning, resolve: (patch: Partial<Options>, current: Options) => Options);
+export class ForceSimulation<
+    Options extends CommonLayoutOptions & SimulationOptions,
+    Stats extends LayoutStatsBase,
+> implements GpuLayoutSimulation<Options, Stats> {
+    constructor(
+        ctx: GpuContext,
+        model: ForceModel<Options, Stats>,
+        options: Options,
+        tuning: ResolvedLayoutTuning,
+        resolve: (patch: Partial<Options>, current: Options) => Options,
+    );
     readonly ctx: GpuContext;
     readonly model: ForceModel<Options, Stats>;
     /** "created" | "loaded" | "disposed". */
@@ -2894,12 +3209,12 @@ Method-level contracts (spec 7.19, 7.12, 7.17, 7.18):
   `E_SNAPSHOT { reason: "directed" }` ("pass toUndirected().snapshot",
   Q-11); `positions.length !== 3 * nodeCount` or a SharedArrayBuffer ->
   `E_INVALID_ARGUMENT`; `nodeCount > MAX_1D_ITEMS` -> `E_TOO_LARGE { path:
-  "partials" }` (the third partials level is P4); `generation++`; in-flight
+"partials" }` (the third partials level is P4); `generation++`; in-flight
   batches are discarded; the core is uploaded through `ctx.residency.core`
   (the previous core's bindings are dropped, never released -- the owner
   releases); `model.inputs(snapshot, options)` resolves mass and weights (a
   `source: "column"` array is registered with `residency.array(expanded,
-  "weights", snapshot)` and re-expanded only when `column.version` changed;
+"weights", snapshot)` and re-expanded only when `column.version` changed;
   `ModelResources.weights` and the `USE_PERM` / `HAS_WEIGHTS` overrides
   follow 3.10); when `n` or the snapshot serial changed the fixed words and the
   override list are cleared and every buffer is (re)allocated (`positions`
@@ -2920,7 +3235,7 @@ Method-level contracts (spec 7.19, 7.12, 7.17, 7.18):
   `E_NOT_LOADED`; "disposed" -> `E_DISPOSED`; the residency tombstoned the
   serial -> `E_RELEASED`; `k < 1` or `k > MAX_ITERATIONS_PER_STEP` ->
   `E_INVALID_ARGUMENT`; `settled` -> resolve at once; `inFlight >=
-  maxInFlight` -> return the OLDEST pending batch's promise (coalesce;
+maxInFlight` -> return the OLDEST pending batch's promise (coalesce;
   `coalesced++`, the @internal counter declared above); await
   the bind / warm promise and `allocator.check()` (an OOM here destroys
   every simulation buffer, returns the state to "created" and rejects
@@ -2934,8 +3249,8 @@ Method-level contracts (spec 7.19, 7.12, 7.17, 7.18):
   readback, then: stale generation -> discard; else copy the scene bytes
   into the owner's array row by row skipping rows in the override list
   whose `afterBatch >= batch.id`, clear overrides with `afterBatch <
-  batch.id`, decode `stats` through `model.readStats`, `iterationsDone +=
-  k`, `settled = iterationsDone >= maxIter || settledCount >= settleWindow`,
+batch.id`, decode `stats` through `model.readStats`, `iterationsDone +=
+k`, `settled = iterationsDone >= maxIter || settledCount >= settleWindow`,
   `inFlight--`. Errors (`E_VALIDATION`, `E_DEVICE_LOST`) reject the promise
   and leave `inFlight` consistent.
 - `setFixed(mask)`: `mask.length < ceil(n / 32)` -> `E_INVALID_ARGUMENT`;
@@ -2944,7 +3259,7 @@ Method-level contracts (spec 7.19, 7.12, 7.17, 7.18):
 - `setPosition(i, x, y, z)`: `i >= n` -> `E_INVALID_ARGUMENT`; writes the
   three floats into the owner's array; converts to layout units (z forced to
   0 in 2D) and `queue.writeBuffer(positions, 16 * i, 12 bytes)`; records `{
-  i -> lastSubmittedBatchId }` in the override list; `reheat()`.
+i -> lastSubmittedBatchId }` in the override list; `reheat()`.
 - `reheat()`: `iterationsDone = 0`, `settledCount = 0` (a state write),
   `model.onReheat(writer)`; nothing else (D8).
 - `setParams(patch)`: `dim` in the patch (differing from the current) ->
@@ -3001,11 +3316,17 @@ export class ForceAtlas2Model implements ForceModel<ForceAtlas2Options, ForceAtl
     readStats(state: DataView, trace: DataView): ForceAtlas2Stats;
 }
 /** Applies FA2_DEFAULTS to the option record; validates ranges. */
-export function resolveForceAtlas2Options(options: ForceAtlas2Options | undefined, previous?: ResolvedForceAtlas2Options | undefined): ResolvedForceAtlas2Options;
+export function resolveForceAtlas2Options(
+    options: ForceAtlas2Options | undefined,
+    previous?: ResolvedForceAtlas2Options | undefined,
+): ResolvedForceAtlas2Options;
 /** Applies LAYOUT_TUNING_DEFAULTS. */
 export function resolveLayoutTuning(tuning: GpuLayoutTuning | undefined): ResolvedLayoutTuning;
 /** Spec 3.3 createForceAtlas2, verbatim. */
-export function createForceAtlas2(ctx: GpuContext, options?: (ForceAtlas2Options & GpuLayoutTuning) | undefined): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
+export function createForceAtlas2(
+    ctx: GpuContext,
+    options?: (ForceAtlas2Options & GpuLayoutTuning) | undefined,
+): GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
 ```
 
 Contracts: `repulsion: "grid"` or `"auto"` with `n > exactMaxNodes` ->
@@ -3356,19 +3677,19 @@ Bind-group convention applied (spec 3.5, 7.4): group 0 = the graph
 group 1 = state, group 2 = the params uniform with a dynamic offset into
 the UniformRing, group 3 = cold arrays (unused in P0-P3).
 
-| Kernel | Dispatch | Reads | Writes |
-| --- | --- | --- | --- |
-| `degree` | plan1d(rows of [start, end)) | rowPtr, colIdx (bounds-checked targets), perm when USE_PERM, P | out[i] (overwrite, or += when accumulate) |
-| `reduce` level 1 | plan1d(count) | src, P | out[outOffset + group] |
-| `reduce` FINAL | 1 workgroup | src (the partials), P | out[outOffset] |
-| `fill` | plan1d(count) | P | dst[i] |
-| `segmented-reduce` | plan1d(rows) | rowPtr, colIdx, weights when HAS_WEIGHTS, perm when USE_PERM, P | out[i] |
-| K1 `fa2-stats-finalize` | 1 workgroup | partials (sum / min / max / dispFree of the previous integrate; skipped on FA2_FLAG_FIRST), S.settledCount, S.iteration, P | S.centroid, S.rmsRadius, S.radius, S.min, S.max, S.meanDisplacement, S.settledCount, S.iteration; T[iterationIndex].meanDisplacement / settledCount / iteration |
-| K2 `fa2-attraction` | plan1d(tierEnd - tierStart) (P3: [0, n)); skipped when arcCount === 0 (fill zeroes force instead) | rowPtr, colIdx, weights when HAS_WEIGHTS, perm when USE_PERM, pos (xyz, and .w when DISTRIBUTED), P | force (overwrite: the first writer each iteration) |
-| K3 `fa2-repulsion-exact` | plan1d(n) | pos (whole array through the tile), S.centroid (GRAVITY_CENTER 0), force, oldForce (SWING_MODE 0), fixedMask (SWING_MODE 0), P | force (+= repulsion + gravity), partials[g].swingTraction |
-| K4 `fa2-speed-finalize` | 1 workgroup | partials[*].swingTraction, S.speed, S.speedEfficiency, S.swing / S.traction (SWING_MODE 1 accumulates), P | S.swing, S.traction, S.speed, S.speedEfficiency; T[iterationIndex].swing / traction / speed / speedEfficiency |
-| K5 `fa2-integrate` | plan1d(n) | force, oldForce (SWING_MODE 0), fixedMask, S.speed, S.centroid, pos, P | pos, oldForce (SWING_MODE 0), partials[g].sum / min / max / dispFree |
-| `fa2-to-scene` | plan1d(n) | pos, P.scale, P.center, P.dim | scene[3i .. 3i+2] |
+| Kernel                   | Dispatch                                                                                          | Reads                                                                                                                          | Writes                                                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `degree`                 | plan1d(rows of [start, end))                                                                      | rowPtr, colIdx (bounds-checked targets), perm when USE_PERM, P                                                                 | out[i] (overwrite, or += when accumulate)                                                                                                                       |
+| `reduce` level 1         | plan1d(count)                                                                                     | src, P                                                                                                                         | out[outOffset + group]                                                                                                                                          |
+| `reduce` FINAL           | 1 workgroup                                                                                       | src (the partials), P                                                                                                          | out[outOffset]                                                                                                                                                  |
+| `fill`                   | plan1d(count)                                                                                     | P                                                                                                                              | dst[i]                                                                                                                                                          |
+| `segmented-reduce`       | plan1d(rows)                                                                                      | rowPtr, colIdx, weights when HAS_WEIGHTS, perm when USE_PERM, P                                                                | out[i]                                                                                                                                                          |
+| K1 `fa2-stats-finalize`  | 1 workgroup                                                                                       | partials (sum / min / max / dispFree of the previous integrate; skipped on FA2_FLAG_FIRST), S.settledCount, S.iteration, P     | S.centroid, S.rmsRadius, S.radius, S.min, S.max, S.meanDisplacement, S.settledCount, S.iteration; T[iterationIndex].meanDisplacement / settledCount / iteration |
+| K2 `fa2-attraction`      | plan1d(tierEnd - tierStart) (P3: [0, n)); skipped when arcCount === 0 (fill zeroes force instead) | rowPtr, colIdx, weights when HAS_WEIGHTS, perm when USE_PERM, pos (xyz, and .w when DISTRIBUTED), P                            | force (overwrite: the first writer each iteration)                                                                                                              |
+| K3 `fa2-repulsion-exact` | plan1d(n)                                                                                         | pos (whole array through the tile), S.centroid (GRAVITY_CENTER 0), force, oldForce (SWING_MODE 0), fixedMask (SWING_MODE 0), P | force (+= repulsion + gravity), partials[g].swingTraction                                                                                                       |
+| K4 `fa2-speed-finalize`  | 1 workgroup                                                                                       | partials[*].swingTraction, S.speed, S.speedEfficiency, S.swing / S.traction (SWING_MODE 1 accumulates), P                      | S.swing, S.traction, S.speed, S.speedEfficiency; T[iterationIndex].swing / traction / speed / speedEfficiency                                                   |
+| K5 `fa2-integrate`       | plan1d(n)                                                                                         | force, oldForce (SWING_MODE 0), fixedMask, S.speed, S.centroid, pos, P                                                         | pos, oldForce (SWING_MODE 0), partials[g].sum / min / max / dispFree                                                                                            |
+| `fa2-to-scene`           | plan1d(n)                                                                                         | pos, P.scale, P.center, P.dim                                                                                                  | scene[3i .. 3i+2]                                                                                                                                               |
 
 Per-iteration order (spec 7.4): K1, K2 (or fill), K3, K4, K5; per batch:
 k x (that sequence), then toScene, then the staging copies of
@@ -3817,7 +4138,7 @@ runs its kernel twice and asserts bitwise equality before comparing; every
 `uncapturederror` fails the current test. Test files are in the relaxed
 lint block of the root config but keep the ASCII rule and the house style.
 
-### 5.1 test/setup/*.ts
+### 5.1 test/setup/\*.ts
 
 #### test/setup/gpu.ts -- P0-T3 / P1-T1 (spec 11.2, 2.3, D16, D19)
 
@@ -3835,7 +4156,19 @@ export function requireGpu(t: TestContext): void;
 /** 1 on hardware, 1 / 50 on a software adapter (spec 11.2); scales fixture sizes and iteration counts. */
 export function gpuScale(): number;
 /** A FRESH adapter and device (raised limits) with NO context around them; registered for destroy() in afterAll. */
-export function acquireRaw(options?: { readonly limits?: LimitPolicy | undefined; readonly optionalFeatures?: readonly GPUFeatureName[] | undefined } | undefined): Promise<{ readonly gpu: GPU; readonly adapter: GPUAdapter; readonly device: GPUDevice; readonly info: GPUAdapterInfo }>;
+export function acquireRaw(
+    options?:
+        | {
+              readonly limits?: LimitPolicy | undefined;
+              readonly optionalFeatures?: readonly GPUFeatureName[] | undefined;
+          }
+        | undefined,
+): Promise<{
+    readonly gpu: GPU;
+    readonly adapter: GPUAdapter;
+    readonly device: GPUDevice;
+    readonly info: GPUAdapterInfo;
+}>;
 /** Options of acquire(). `subgroups` defaults to GRAPHTY_GPU_NO_SUBGROUPS !== "1"; false -> optionalFeatures []. */
 export interface AcquireOptions {
     readonly subgroups?: boolean | undefined;
@@ -3905,7 +4238,13 @@ P0 form (no imports: benchmarks/harness.ts does not exist yet):
 declare module "@vitest/browser/context" {
     interface BrowserCommands {
         appendBenchRecord(payload: { readonly runnerClass: string; readonly session: unknown }): Promise<string>;
-        writeNoiseFixture(payload: { readonly kernel: string; readonly fixture: string; readonly adapterClass: string; readonly values: readonly number[]; readonly dtype: "f32" | "u32" }): Promise<string>;
+        writeNoiseFixture(payload: {
+            readonly kernel: string;
+            readonly fixture: string;
+            readonly adapterClass: string;
+            readonly values: readonly number[];
+            readonly dtype: "f32" | "u32";
+        }): Promise<string>;
         recordNoiseRow(row: Record<string, unknown>): Promise<string>;
     }
 }
@@ -3923,25 +4262,46 @@ BrowserBenchPayload)`; `recordNoiseRow(row: NoiseRow)` with `NoiseRow` from
 `noise-floor-browser.ts` (a type import only, so the browser bundle never
 pulls `node:fs`).
 
-### 5.2 test/helpers/*.ts
+### 5.2 test/helpers/\*.ts
 
 ```ts
 // test/helpers/device.ts -- P1-T2
 /** A STORAGE | COPY_SRC | COPY_DST buffer holding `data` (one writeBuffer). */
-export function uploadBuffer(ctx: GpuContext, data: ArrayBufferView, label: string, extraUsage?: number | undefined): GPUBuffer;
+export function uploadBuffer(
+    ctx: GpuContext,
+    data: ArrayBufferView,
+    label: string,
+    extraUsage?: number | undefined,
+): GPUBuffer;
 /** A zeroed STORAGE | COPY_SRC | COPY_DST buffer of byteLength. */
 export function scratchBuffer(ctx: GpuContext, byteLength: number, label: string): GPUBuffer;
 /** Whole-buffer Binding. */
 export function bindingOf(buffer: GPUBuffer): Binding;
 /** Reads a buffer back as U32 / F32 through ctx.readback. */
-export function readU32(ctx: GpuContext, buffer: GPUBuffer, count: number, byteOffset?: number | undefined): Promise<U32>;
-export function readF32(ctx: GpuContext, buffer: GPUBuffer, count: number, byteOffset?: number | undefined): Promise<F32>;
+export function readU32(
+    ctx: GpuContext,
+    buffer: GPUBuffer,
+    count: number,
+    byteOffset?: number | undefined,
+): Promise<U32>;
+export function readF32(
+    ctx: GpuContext,
+    buffer: GPUBuffer,
+    count: number,
+    byteOffset?: number | undefined,
+): Promise<F32>;
 /** Runs `fn` with a context from acquire(options) and disposes it afterwards (also on throw). */
 export function withContext<T>(options: AcquireOptions | undefined, fn: (ctx: GpuContext) => Promise<T>): Promise<T>;
 
 // test/helpers/kernel.ts -- P1-T3 (imports only src/kernel/** and src/context.js, so P1-T2's helpers and P1-T3's stay independent)
 /** Records one dispatch of a kernel with the given bindings and params values into a fresh encoder and submits (P1's pre-CommandBatch driver); the params slot is a fresh UNIFORM | COPY_DST buffer of the block's byteLength. */
-export function runKernel(ctx: GpuContext, spec: WgslModuleSpec, bindings: KernelBindings, plan: DispatchPlan, params?: { readonly block: UniformBlock; readonly values: UniformValues } | undefined): Promise<void>;
+export function runKernel(
+    ctx: GpuContext,
+    spec: WgslModuleSpec,
+    bindings: KernelBindings,
+    plan: DispatchPlan,
+    params?: { readonly block: UniformBlock; readonly values: UniformValues } | undefined,
+): Promise<void>;
 
 // test/helpers/linear-id.ts -- P1-T4 (the constants the node AND browser 17M-item tests share, spec 11.5)
 /** 16,776,961 = MAX_1D_ITEMS + 1: the first item count that needs the 2D dispatch. */
@@ -3983,17 +4343,32 @@ export function snapshotOf(edges: readonly EdgeSpec[], options?: SnapshotOptions
 /** The same graph through fromCsr on SEPARATE arrays (arena === null). */
 export function csrSnapshotOf(edges: readonly EdgeSpec[], options?: SnapshotOptions | undefined): GraphSnapshot;
 /** The named fixtures of spec 11.3 / 11.4 sized by gpuScale(): "empty", "one", "self-loop", "karate", "grid10", "path1k", "star200", "complete6", "random1k", "hub10k" (a 10k-degree star inside a random graph), "coincident" (karate with two node pairs at equal positions, positions supplied), "isolated" (giant component + 1% isolated + 100 small components), "parallel" (with parallels and zero weights). */
-export function fixture(name: string, scale?: number | undefined): { readonly snapshot: GraphSnapshot; readonly positions: F32 | null; readonly name: string };
+export function fixture(
+    name: string,
+    scale?: number | undefined,
+): { readonly snapshot: GraphSnapshot; readonly positions: F32 | null; readonly name: string };
 export const FIXTURE_NAMES: readonly string[];
 
 // test/helpers/matchers.ts -- P1-T2
-export interface Tolerance { readonly rel: number; readonly abs: number; }
+export interface Tolerance {
+    readonly rel: number;
+    readonly abs: number;
+}
 /** |a - e| <= abs + rel * |e| element-wise; reports the worst index. */
-export function expectAllClose(actual: ArrayLike<number>, expected: ArrayLike<number>, tolerance: Tolerance, label?: string | undefined): void;
+export function expectAllClose(
+    actual: ArrayLike<number>,
+    expected: ArrayLike<number>,
+    tolerance: Tolerance,
+    label?: string | undefined,
+): void;
 /** Bitwise equality of two typed arrays (Object.is on every element, so NaN patterns and -0 count). */
 export function expectBitwiseEqual(a: TypedArrayData, b: TypedArrayData, label?: string | undefined): void;
 /** The 11.4 per-node relative error with the floored denominator max(|F_cpu(i)|, floorFraction * max_j |F_cpu(j)|), over stride-3 vectors. */
-export function flooredRelError(gpu: ArrayLike<number>, cpu: ArrayLike<number>, floorFraction: number): { readonly max: number; readonly argmax: number; readonly rms: number; readonly p99: number };
+export function flooredRelError(
+    gpu: ArrayLike<number>,
+    cpu: ArrayLike<number>,
+    floorFraction: number,
+): { readonly max: number; readonly argmax: number; readonly rms: number; readonly p99: number };
 /** max_i |a_i - e_i| / max(|e_i|, absFloor). */
 export function maxRelError(actual: ArrayLike<number>, expected: ArrayLike<number>, absFloor: number): number;
 
@@ -4012,14 +4387,18 @@ export class LeakCounter {
 }
 
 // test/helpers/caps-tables.ts -- P1-T2 (lead b; spec 5.2, note 05 section 4); P2-T2 adds CAPS_INTEL_XE
-export const CAPS_SPEC_DEFAULT: PlanCaps;    // 256 MiB buffer, 128 MiB binding, 8 storage buffers, 65535, 256 invocations, 16 KiB workgroup storage; no subgroups; software false
-export const CAPS_SWIFTSHADER: PlanCaps;     // Chromium SwiftShader: spec defaults, subgroups 4/4, software true
-export const CAPS_LAVAPIPE: PlanCaps;        // Dawn llvmpipe: 256 MiB / 128 MiB (not raisable), subgroups 8/8, software true
-export const CAPS_NVIDIA_4070: PlanCaps;     // raised: 2 GiB binding, 1 TiB maxBufferSize clamped to the device value recorded at G1, 32/32, software false
-export const CAPS_INTEL_XE: PlanCaps;        // subgroups 8/32 (min != max), otherwise defaults (P2)
+export const CAPS_SPEC_DEFAULT: PlanCaps; // 256 MiB buffer, 128 MiB binding, 8 storage buffers, 65535, 256 invocations, 16 KiB workgroup storage; no subgroups; software false
+export const CAPS_SWIFTSHADER: PlanCaps; // Chromium SwiftShader: spec defaults, subgroups 4/4, software true
+export const CAPS_LAVAPIPE: PlanCaps; // Dawn llvmpipe: 256 MiB / 128 MiB (not raisable), subgroups 8/8, software true
+export const CAPS_NVIDIA_4070: PlanCaps; // raised: 2 GiB binding, 1 TiB maxBufferSize clamped to the device value recorded at G1, 32/32, software false
+export const CAPS_INTEL_XE: PlanCaps; // subgroups 8/32 (min != max), otherwise defaults (P2)
 export const CAPS_TABLES: readonly { readonly name: string; readonly caps: PlanCaps }[];
 /** A table with some limits overridden. */
-export function fakeCaps(base: PlanCaps, overrides: Partial<PlanLimits>, flags?: Partial<Pick<PlanCaps, "software" | "subgroupMinSize" | "subgroupMaxSize">> | undefined): PlanCaps;
+export function fakeCaps(
+    base: PlanCaps,
+    overrides: Partial<PlanLimits>,
+    flags?: Partial<Pick<PlanCaps, "software" | "subgroupMinSize" | "subgroupMaxSize">> | undefined,
+): PlanCaps;
 
 // test/helpers/override-matrix.ts -- P2-T2 (spec 5.1, 11.3)
 /** One compile case: an id, an override set and whether the subgroup axis applies. */
@@ -4032,7 +4411,10 @@ export interface OverrideCase {
 /** The bounded, explicit table: every entry's defaults, each override toggled alone, and the exact combinations the factories emit. */
 export const OVERRIDE_MATRIX: readonly OverrideCase[];
 /** True when every key in `keys` (PipelineCache.key strings) is produced by some case of the matrix on `caps`. */
-export function matrixCovers(keys: Iterable<string>, caps: PlanCaps): { readonly ok: boolean; readonly missing: readonly string[] };
+export function matrixCovers(
+    keys: Iterable<string>,
+    caps: PlanCaps,
+): { readonly ok: boolean; readonly missing: readonly string[] };
 
 // test/helpers/sabotage.ts -- P1-T5 (degree, reduce, K3, K4 rows) / P2-T2 (segmented-reduce rows) / P3-T5 (K1, K2, K5 rows) (spec 11.9 item 1, 13 rule f)
 /** One named mutation of a kernel body: a unique `find` string replaced by `replace`, and the minimum factor by which it must break the named test's tolerance. */
@@ -4058,9 +4440,18 @@ export function withSabotage<T>(id: KernelId, mutation: Mutation, fn: (ctx: GpuC
 /** Where a per-adapter raw output lives: test/fixtures/noise/<kernel>-<fixture>-<adapterClass>.json. */
 export function noiseFixturePath(kernel: string, fixture: string, adapterClass: string): string;
 /** Writes this adapter's raw output (only when GRAPHTY_NOISE_FLOOR_WRITE=1) in the same JSON shape as the vitest.config.ts `writeNoiseFixture` command (2.5). */
-export function writeNoiseFixture(kernel: string, fixture: string, adapterClass: string, values: ArrayLike<number>, dtype: "f32" | "u32"): void;
+export function writeNoiseFixture(
+    kernel: string,
+    fixture: string,
+    adapterClass: string,
+    values: ArrayLike<number>,
+    dtype: "f32" | "u32",
+): void;
 /** Every committed adapter output for (kernel, fixture). */
-export function readNoiseFixtures(kernel: string, fixture: string): readonly { readonly adapterClass: string; readonly values: Float64Array; readonly dtype: "f32" | "u32" }[];
+export function readNoiseFixtures(
+    kernel: string,
+    fixture: string,
+): readonly { readonly adapterClass: string; readonly values: Float64Array; readonly dtype: "f32" | "u32" }[];
 /** A noise-floor row (5.6 schema); appended to benchmarks/results/noise-floor.json when GRAPHTY_NOISE_FLOOR_WRITE=1 (a row with the same id is replaced). */
 export function recordNoiseRow(row: NoiseRow): void;
 /** The committed tolerance of a test id and its basis row; throws when the id is unknown (a tolerance without a floor is a finding). */
@@ -4070,7 +4461,13 @@ export function adapterClass(caps: GpuCaps): string;
 
 // test/helpers/noise-floor-browser.ts -- P1-T7 (the browser twin of the two writers; imports nothing from node:*)
 /** commands.writeNoiseFixture(...) through the Vitest bridge (2.5); resolves the path written, or "" when GRAPHTY_NOISE_FLOOR_WRITE is not "1". */
-export function writeNoiseFixtureBrowser(kernel: string, fixture: string, adapterClass: string, values: ArrayLike<number>, dtype: "f32" | "u32"): Promise<string>;
+export function writeNoiseFixtureBrowser(
+    kernel: string,
+    fixture: string,
+    adapterClass: string,
+    values: ArrayLike<number>,
+    dtype: "f32" | "u32",
+): Promise<string>;
 /** commands.recordNoiseRow(row) through the bridge. */
 export function recordNoiseRowBrowser(row: NoiseRow): Promise<string>;
 /** The same <vendor>-<architecture>-<runtime> string as adapterClass() (duplicated 3-line function; test/browser/skeleton.test.ts asserts it equals the Node form on a faked GpuCaps). */
@@ -4085,7 +4482,15 @@ export interface FrameLoopOptions {
     readonly pauseAt?: number | null | undefined;
     readonly pauseTicks?: number | undefined;
     /** setPosition calls to issue at given ticks. */
-    readonly setPositionAt?: readonly { readonly tick: number; readonly index: number; readonly x: number; readonly y: number; readonly z: number }[] | undefined;
+    readonly setPositionAt?:
+        | readonly {
+              readonly tick: number;
+              readonly index: number;
+              readonly x: number;
+              readonly y: number;
+              readonly z: number;
+          }[]
+        | undefined;
     readonly onTick?: ((tick: number) => void) | undefined;
 }
 export interface FrameLoopReport {
@@ -4100,19 +4505,32 @@ export interface FrameLoopReport {
     readonly submissionsDuringPause: number;
 }
 /** The element's bridge (spec 7.19): one synchronous step(k) per tick, .catch attached once per DISTINCT promise, ticks separated by a macrotask so readbacks land; never awaits step(). */
-export function runFrameLoop(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>, positions: F32, options: FrameLoopOptions): Promise<FrameLoopReport>;
+export function runFrameLoop(
+    sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>,
+    positions: F32,
+    options: FrameLoopOptions,
+): Promise<FrameLoopReport>;
 
 // test/helpers/metrics.ts -- P3-T5 (spec 11.4 distributional parity)
 export function stress(s: GraphSnapshot, positions: ArrayLike<number>, dim: 2 | 3): number;
-export function edgeLengthQuantiles(s: GraphSnapshot, positions: ArrayLike<number>, dim: 2 | 3, quantiles: readonly number[]): number[];
+export function edgeLengthQuantiles(
+    s: GraphSnapshot,
+    positions: ArrayLike<number>,
+    dim: 2 | 3,
+    quantiles: readonly number[],
+): number[];
 export function nearestNeighbourHistogram(positions: ArrayLike<number>, n: number, dim: 2 | 3, bins: number): number[];
 export function componentSeparation(s: GraphSnapshot, positions: ArrayLike<number>, dim: 2 | 3): number;
 export function spread(positions: ArrayLike<number>, n: number, dim: 2 | 3): number;
 /** Every metric above as one record, for the "within 10%" comparisons. */
-export function layoutMetrics(s: GraphSnapshot, positions: ArrayLike<number>, dim: 2 | 3): Readonly<Record<string, number>>;
+export function layoutMetrics(
+    s: GraphSnapshot,
+    positions: ArrayLike<number>,
+    dim: 2 | 3,
+): Readonly<Record<string, number>>;
 ```
 
-### 5.3 test/oracle/*.ts (spec 11.3, 11.4, 11.9 item 2)
+### 5.3 test/oracle/\*.ts (spec 11.3, 11.4, 11.9 item 2)
 
 ```ts
 // test/oracle/degree.ts -- P1-T5
@@ -4121,11 +4539,19 @@ export function outDegreeOracle(s: GraphSnapshot): U32;
 
 // test/oracle/reduce.ts -- P1-T5
 /** f64 sequential reduction of f32 / u32 / vec4f inputs; sum returns the f64 total (tests scale the tolerance by count); min / max exact. */
-export function reduceOracle(values: ArrayLike<number>, op: ReduceOp, dtype: ReduceDtype): number | readonly [number, number, number, number];
+export function reduceOracle(
+    values: ArrayLike<number>,
+    op: ReduceOp,
+    dtype: ReduceDtype,
+): number | readonly [number, number, number, number];
 
 // test/oracle/segmented-reduce.ts -- P2-T2
 /** Per-row f64 reduction of value(row, arc, target, weight) over the CSR rows (the TypeScript callback keeps `target`; only the WGSL snippet vocabulary says `nbr`, 4.5). */
-export function segmentedReduceOracle(s: GraphSnapshot, value: (row: number, arc: number, target: number, weight: number) => number, op: ReduceOp): Float64Array;
+export function segmentedReduceOracle(
+    s: GraphSnapshot,
+    value: (row: number, arc: number, target: number, weight: number) => number,
+    op: ReduceOp,
+): Float64Array;
 
 // test/oracle/forceatlas2.ts -- P3-T4 (the SPEC of the L1 ForceAtlas2Simulation; index-based; the 7.2 table with the 4.6 corrections)
 export interface OracleOptions extends ForceAtlas2Options {
@@ -4147,7 +4573,16 @@ export interface OracleStages {
     readonly swingPerNode: Float64Array;
     readonly tractionPerNode: Float64Array;
     readonly displacement: Float64Array;
-    readonly partials: { readonly swing: number; readonly traction: number; readonly sum: readonly [number, number, number]; readonly sumSq: number; readonly min: readonly [number, number, number]; readonly max: readonly [number, number, number]; readonly disp: number; readonly free: number };
+    readonly partials: {
+        readonly swing: number;
+        readonly traction: number;
+        readonly sum: readonly [number, number, number];
+        readonly sumSq: number;
+        readonly min: readonly [number, number, number];
+        readonly max: readonly [number, number, number];
+        readonly disp: number;
+        readonly free: number;
+    };
 }
 export interface OracleTraceRecord extends ForceAtlas2TraceRecord {
     readonly rmsRadius: number;
@@ -4181,9 +4616,20 @@ export class ForceAtlas2Oracle {
     reheat(): void;
 }
 /** Positions in SCENE units for a snapshot: seedPositions into a fresh F32 (the same LCG start as the GPU, spec 11.4 "same start"). */
-export function seededScenePositions(s: GraphSnapshot, seed: number | null, dim: 2 | 3, scale: number, center: ArrayLike<number> | null): F32;
+export function seededScenePositions(
+    s: GraphSnapshot,
+    seed: number | null,
+    dim: 2 | 3,
+    scale: number,
+    center: ArrayLike<number> | null,
+): F32;
 /** Runs the oracle for `iterations` from a scene-unit array and returns the scene-unit result (the toScene inverse applied). */
-export function forceAtlas2Oracle(s: GraphSnapshot, scenePositions: F32, options: OracleOptions, iterations: number): { readonly positions: F32; readonly trace: readonly OracleTraceRecord[]; readonly oracle: ForceAtlas2Oracle };
+export function forceAtlas2Oracle(
+    s: GraphSnapshot,
+    scenePositions: F32,
+    options: OracleOptions,
+    iterations: number,
+): { readonly positions: F32; readonly trace: readonly OracleTraceRecord[]; readonly oracle: ForceAtlas2Oracle };
 ```
 
 Oracle contract: implements exactly the 7.2 table as the WGSL of section
@@ -4221,9 +4667,26 @@ version is `>= 3.4`. Fixture JSON schema (one file):
     "pythonVersion": "3.10.12",
     "command": "python generate.py --out ... --graph karate --iters 1 5 50 --seed 7",
     "graph": { "name": "karate", "directed": false, "nodeCount": 34, "src": [0, 0], "dst": [1, 2], "weights": null },
-    "options": { "max_iter": 5, "jitter_tolerance": 1.0, "scaling_ratio": 2.0, "gravity": 1.0, "distributed_action": false, "strong_gravity": false, "linlog": false, "dissuade_hubs": false, "weight": null, "dim": 2 },
-    "initialPositions": [[0.1, -0.3], [0.5, 0.2]],
-    "positions": [[0.12, -0.31], [0.49, 0.21]],
+    "options": {
+        "max_iter": 5,
+        "jitter_tolerance": 1.0,
+        "scaling_ratio": 2.0,
+        "gravity": 1.0,
+        "distributed_action": false,
+        "strong_gravity": false,
+        "linlog": false,
+        "dissuade_hubs": false,
+        "weight": null,
+        "dim": 2
+    },
+    "initialPositions": [
+        [0.1, -0.3],
+        [0.5, 0.2]
+    ],
+    "positions": [
+        [0.12, -0.31],
+        [0.49, 0.21]
+    ],
     "rescaled": false
 }
 ```
@@ -4239,88 +4702,88 @@ and is not performed).
 
 P0 (all P0-T3):
 
-| File | Project | Asserts |
-| --- | --- | --- |
-| `test/errors.test.ts` | node | WebGpuGraphError: code, message, frozen details copy, name, isWebGpuGraphError / hasErrorCode across a structural clone; PASSTHROUGH_FORMAT_CODES contents |
-| `test/device/constants.test.ts` | node | after createNodeGpu installed the globals, BufferUsage / MapMode / ShaderStage equal GPUBufferUsage / GPUMapMode / GPUShaderStage field by field |
-| `test/device/acquire.test.ts` | node | requireGpu; acquireRaw gives an adapter; two acquireRaw calls give distinct adapters; isSoftwareAdapter(info) matches the policy expectation (hardware / nvidia -> false, GRAPHTY_GPU_ADAPTER=llvmpipe -> true); summarizeAdapter shape; info and the four limits printed |
-| `test/device/policy.test.ts` | node | parseGpuRequire over unset / "" / any / hardware / nvidia / intel; checkAdapter over faked infos (software under any -> ok; under hardware -> not ok; vendor mismatch; browser isFallbackAdapter); scripts/gpu-policy.js's isSoftwareInfo agrees with src isSoftwareAdapter on a 6-row table; scripts/runner-class.js's runnerClass over a 4-row table (NVIDIA "NVIDIA GeForce RTX 4070 SUPER ... 580.173.02" -> `nvidia-ada-lovelace-driver580`, lavapipe -> `mesa-software-driver<mesa major>`, a description with no digits -> `...-driver0`, a vendor with a space -> `_`) and the GRAPHTY_RUNNER_CLASS override returning the env value verbatim (6.1, 6.6) |
-| `test/browser/webgpu-check.test.ts` | browser | navigator.gpu present; requestAdapter non-null; isSoftwareAdapter vs browserPolicy (nvidia -> false and isFallbackAdapter false); import.meta.env.GRAPHTY_BROWSER_GPU equals the flag set in use |
-| `test/index.test.ts` | node | the value export list of 3.15 (P0 list) exactly; no default export |
-| `test/build-output.test.ts` | node | package.json shape (name, type, main, types, sideEffects false, exports keys == Object.keys(ENTRIES) with "." for the root, types condition first, no require), files, publishConfig, engines; devDependencies include webgpu (exact 0.4.0) and @vitest/browser; tsconfig.build stripInternal true; dist checks (P1-T7 adds the specifier assertions; hard-fail under CI when dist is absent, skip locally) |
-| `test/layers.test.ts` | node | the import graph of src/**/*.ts parsed with ts.createSourceFile (NOT ts.preProcessFile, which does not distinguish `import type`): VALUE edges only -- ImportDeclaration / ExportDeclaration nodes with `isTypeOnly` and type-only specifiers are skipped -- has no cycle (the three declared type-only pairs buffer-pool <-> lease, batch <-> profiler, types/layout <-> types/accelerator are listed in the test with the side that must stay `import type`, and a second assertion checks that side IS type-only); every relative import (type edges included) respects the layer order of 2.4 (a table in the test); src/wgsl/** imported only by src/kernels.ts; src/browser and src/node imported by nothing else in src; "navigator" appears only under src/browser; "process." appears only under src/node; the string `"webgpu"` as an import specifier appears only in src/node/index.ts inside `import(`; the literal `caps.software` (a grep) appears in src/ only in src/kernel/dispatch.ts (planGridStride) -- `summary.software` / `info.software` in src/device/acquire.ts, src/context.ts (probe's rejectSoftware) and the AdapterSummary writers are outside the rule (spec 2.4 restricts `caps.software`); `ESLint.calculateConfigForFile("src/types/context.ts")` yields `@typescript-eslint/no-restricted-imports` options carrying BOTH `paths` (the CPU ban) and `patterns` (the types zone), and the same for `src/types/accelerator.ts` with `allowTypeImports` on its paths (2.4: flat config replaces rule options, so a later block must not clobber the zone) |
-| `test/types/public-api.test-d.ts` | strict-consumer tsc (not vitest) | imports the three entries from their package names; constructs a WebGpuGraphError; narrows a code; uses the constants; under noUncheckedIndexedAccess + exactOptionalPropertyTypes |
+| File                                | Project                          | Asserts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test/errors.test.ts`               | node                             | WebGpuGraphError: code, message, frozen details copy, name, isWebGpuGraphError / hasErrorCode across a structural clone; PASSTHROUGH_FORMAT_CODES contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `test/device/constants.test.ts`     | node                             | after createNodeGpu installed the globals, BufferUsage / MapMode / ShaderStage equal GPUBufferUsage / GPUMapMode / GPUShaderStage field by field                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `test/device/acquire.test.ts`       | node                             | requireGpu; acquireRaw gives an adapter; two acquireRaw calls give distinct adapters; isSoftwareAdapter(info) matches the policy expectation (hardware / nvidia -> false, GRAPHTY_GPU_ADAPTER=llvmpipe -> true); summarizeAdapter shape; info and the four limits printed                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `test/device/policy.test.ts`        | node                             | parseGpuRequire over unset / "" / any / hardware / nvidia / intel; checkAdapter over faked infos (software under any -> ok; under hardware -> not ok; vendor mismatch; browser isFallbackAdapter); scripts/gpu-policy.js's isSoftwareInfo agrees with src isSoftwareAdapter on a 6-row table; scripts/runner-class.js's runnerClass over a 4-row table (NVIDIA "NVIDIA GeForce RTX 4070 SUPER ... 580.173.02" -> `nvidia-ada-lovelace-driver580`, lavapipe -> `mesa-software-driver<mesa major>`, a description with no digits -> `...-driver0`, a vendor with a space -> `_`) and the GRAPHTY_RUNNER_CLASS override returning the env value verbatim (6.1, 6.6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `test/browser/webgpu-check.test.ts` | browser                          | navigator.gpu present; requestAdapter non-null; isSoftwareAdapter vs browserPolicy (nvidia -> false and isFallbackAdapter false); import.meta.env.GRAPHTY_BROWSER_GPU equals the flag set in use                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `test/index.test.ts`                | node                             | the value export list of 3.15 (P0 list) exactly; no default export                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `test/build-output.test.ts`         | node                             | package.json shape (name, type, main, types, sideEffects false, exports keys == Object.keys(ENTRIES) with "." for the root, types condition first, no require), files, publishConfig, engines; devDependencies include webgpu (exact 0.4.0) and @vitest/browser; tsconfig.build stripInternal true; dist checks (P1-T7 adds the specifier assertions; hard-fail under CI when dist is absent, skip locally)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `test/layers.test.ts`               | node                             | the import graph of src/**/\*.ts parsed with ts.createSourceFile (NOT ts.preProcessFile, which does not distinguish `import type`): VALUE edges only -- ImportDeclaration / ExportDeclaration nodes with `isTypeOnly` and type-only specifiers are skipped -- has no cycle (the three declared type-only pairs buffer-pool <-> lease, batch <-> profiler, types/layout <-> types/accelerator are listed in the test with the side that must stay `import type`, and a second assertion checks that side IS type-only); every relative import (type edges included) respects the layer order of 2.4 (a table in the test); src/wgsl/** imported only by src/kernels.ts; src/browser and src/node imported by nothing else in src; "navigator" appears only under src/browser; "process." appears only under src/node; the string `"webgpu"` as an import specifier appears only in src/node/index.ts inside `import(`; the literal `caps.software` (a grep) appears in src/ only in src/kernel/dispatch.ts (planGridStride) -- `summary.software` / `info.software` in src/device/acquire.ts, src/context.ts (probe's rejectSoftware) and the AdapterSummary writers are outside the rule (spec 2.4 restricts `caps.software`); `ESLint.calculateConfigForFile("src/types/context.ts")` yields `@typescript-eslint/no-restricted-imports` options carrying BOTH `paths` (the CPU ban) and `patterns` (the types zone), and the same for `src/types/accelerator.ts` with `allowTypeImports` on its paths (2.4: flat config replaces rule options, so a later block must not clobber the zone) |
+| `test/types/public-api.test-d.ts`   | strict-consumer tsc (not vitest) | imports the three entries from their package names; constructs a WebGpuGraphError; narrows a code; uses the constants; under noUncheckedIndexedAccess + exactOptionalPropertyTypes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 P1:
 
-| File | Task | Asserts |
-| --- | --- | --- |
-| `test/device/context.test.ts` | P1-T1 | probe (OK / software / rejectSoftware -> E_SOFTWARE_ONLY, gpu undefined -> E_NO_WEBGPU); create with gpu / adapter / device; "raise" gives >= default limits; an explicit limit above the adapter -> E_NO_DEVICE { reason: "limit" }; a consumed adapter -> E_NO_DEVICE { reason: "consumed" }; optionalFeatures [] -> features lacks subgroups; caps from device.limits (never the adapter's 1 TiB); runtime tag; from(device) runtime "unknown"; state transitions; dispose idempotent; assertReady after dispose -> E_DISPOSED; onError sink receives an uncaptured error from a deliberately broken bind group (and the afterEach hook does not fire because onError consumed it) |
-| `test/device/lost.test.ts` | P1-T1 | device.destroy() mid-readback -> the pending read rejects E_DEVICE_LOST, ctx.state "lost", residency cleared without uncaptured errors; a new context from a fresh adapter uploads and runs degree afterwards |
-| `test/device/error-scope.test.ts` | P1-T1 | withValidationScope surfaces a bad bind group as E_VALIDATION with the label; AllocationTracker: below the threshold no scope, above it the pop is collected, check() resolves; resident / liveBuffers bookkeeping; formatCompilationInfo subtracts the prelude |
-| `test/node/entry.test.ts` | P1-T1 | createNodeGpu / createNodeGpuContext / probeNodeWebGpu; dawnFlags mapping; loadModule rejecting -> E_NO_WEBGPU with the install hint; installGlobals false leaves globalThis untouched; ctx.dispose() disposes the handle (the process-exit rule cannot be asserted, documented) |
-| `test/memory/upload-plan.test.ts` | P1-T2 | planUpload over CAPS_TABLES x { arena, no arena } x { fits, exceeds buffer, exceeds binding }: the hot prefix by default, the full arena when a cold segment is needed and fits, perArray when the arena exceeds maxBufferSize, windowed when an array exceeds the binding; the 10M / 100M arithmetic of spec 4.2's table (25 windows); planArcWindows: start % 64 === 0 via `%`, a hub row split across windows, a synthetic rowPtr above 2^31 arcs; arcsPerWindowFor |
-| `test/memory/residency.test.ts` | P1-T2 | the upload contract of spec 11.3 ported from gpu-upload.test.ts: arena bindings equal CPU views; perArray on fromCsr and transpose(); arena.byteOffset !== 0 from fromBytes (rich-v1.gsnp); packed u8 / bool columns through column(); identity permutations never materialised (byteLength({ views: true }) unchanged after core()); the same array object uploads once (view "outDegree" twice -> one buffer); column version bump re-uploads in place; ctx.release destroys every buffer (stats().buffers 0, allocator.liveBuffers 0, no uncaptured error) and trims the pool (pool.idleBytes === 0 after a scratch acquire / release preceded it); E_RELEASED on the next core() of a live user (isReleased); release idempotent and safe on an unknown snapshot; siblings via withColumns share one record; the once-only warning at warnUnreleasedSnapshots + 1 |
-| `test/memory/buffer-pool.test.ts` | P1-T2 | sizeClass table (4 KiB .. 64 MiB powers of two, then 16 MiB steps); acquire / release reuse; maxIdlePerClass eviction; trim; liveBytes / idleBytes; E_TOO_LARGE above maxBufferSize |
-| `test/memory/readback.test.ts` | P1-T2 | 100 back-to-back read() calls reuse slots without validation errors; chunking above slotBytes; readU32; dest given -> dest.buffer returned; borrowSlot grows the ring when every slot is busy and returnSlot frees it |
-| `test/kernel/wgsl.test.ts` | P1-T3 | composeWgsl emits the exact format of 4.2 for a two-binding spec; unknown override -> E_SHADER_COMPILE { stage: "compose" }; snippet without marker and marker without snippet -> E_SHADER_COMPILE; a body containing `@group(` or `override ` -> E_SHADER_COMPILE; a body or snippet using a WGSL reserved word (`let target = 0u;`) -> E_SHADER_COMPILE { slot: "reserved:target" } while a comment containing the word passes; the subgroup block is spliced iff needs and caps agree, with SUBGROUP_MAX and SUBGROUP_MIN set (fakeCaps min 8 / max 32 -> SG_SLOTS >= WG / 8 from the composed overrides; min 0 -> SUBGROUP_MIN 4); the literal grep over src/wgsl/** and src/kernel/prelude.ts (no `65535u`, `256u`, `0xFFFFFFFFu`) |
-| `test/kernel/struct-block.test.ts` | P1-T3 | offsets of a mixed block (u32 x5, f32, vec4f, vec2f) equal the WGSL strict layout; byteLength padded to 16; write / read round trip; padTo; E_INVALID_ARGUMENT cases; the FA2 blocks' offsets equal 3.10.2 |
-| `test/kernel/pipeline-cache.test.ts` | P1-T3 | key format and stability (JSON key order independent); get twice -> one pipeline; a body with a WGSL error -> E_SHADER_COMPILE { stage: "compile", messages } with body-relative lines; warm compiles every spec once; keys() |
-| `test/kernel/kernel.test.ts` | P1-T3 | bind creates one group per layout incl. empty ones, labelled `<id>/<group>`; the same buffers -> the same bind groups; a missing name -> E_INVALID_ARGUMENT; one buffer bound to a `storage` slot and to any other slot of the same call with intersecting ranges -> E_INVALID_ARGUMENT { argument: "aliasing" } synchronously (disjoint ranges of one buffer are accepted); a wrong-size uniform binding -> bind() returns, and the E_VALIDATION carrying the `<id>/<group>` label is delivered through the pending-error slot: under Dawn-node thrown by the next assertReady() after a submit (P2: the batch's readback), in the browser (browser/batch.test.ts, P2-T1) by assertReady() after onSubmittedWorkDone(); dispatch of an empty plan records nothing |
-| `test/kernel/dispatch.test.ts` | P1-T3 | plan1d(16_776_960) is 1D and plan1d(16_776_961) is 2D with wg 256 (NOT 2^24); plan1d(0) -> x 0; y above the limit -> E_TOO_LARGE; plan2d; planGridStride / planIndirect -> E_UNSUPPORTED; groupsOf; every CAPS_TABLES entry incl. CAPS_INTEL_XE gives the same plans (no dependence on subgroup sizes) |
-| `test/kernel/registry.test.ts` | P1-T4 | every KERNELS entry has a unique id, one entry point (entryPointOf agrees), <= 8 storage bindings per stage, the binding tables of 3.10.1 exactly; no entry's `body` contains `@group(` or `override ` (a direct string assertion over every entry, independent of the composer -- the unit test of spec 3.5); kernelSpec applies overrides / snippets; setKernelBodyOverride changes the body seen by kernelSpec; graphBindings / graphOverrides dummy rules on a weighted, an unweighted and an arcCount === 0 core, and with an explicit `weights` argument (null on a weighted core -> HAS_WEIGHTS false and colIdx in the slot; a binding on an unweighted core -> HAS_WEIGHTS true) |
-| `test/kernel/compile.test.ts` | P1-T4 | every P1 entry compiles with its defaults on the real device (acquire()) AND on Dawn `backend=null` (acquireNullBackend(), 5.1), with and without subgroups (twin), through PipelineCache |
-| `test/kernel/linear-id.test.ts` | P1-T4 | fill mode 1 over LINEAR_ID_ITEMS = 16,776,961 items (2D dispatch, 68 MB) on the current adapter: the LINEAR_ID_SAMPLES positions across the 1D / 2D boundary equal i + LINEAR_ID_VALUE and linearIdChecksum(result) === LINEAR_ID_CHECKSUM (test/helpers/linear-id.ts, shared with the browser skeleton so the two cannot drift; bitwise across adapters) |
-| `test/primitives/reduce.test.ts` | P1-T5 | sum / min / max x f32 / u32 / vec4f over sizes 0, 1, 255, 256, 257, 4097, 65_536 x 256 + 1 (three levels; scaled by gpuScale) vs reduceOracle (u32 exact; f32 within count x 2^-24 relative); both twins in-process (acquire({ subgroups: false })) within 1e-6; two runs bitwise identical; lastDispatches 2 or 3 as expected; the f32 sum over random1k written as a cross-adapter noise fixture (`reduce-random1k-<class>.json`) and compared within the derived floor (u32 bitwise) |
-| `test/algorithms/degree.test.ts` | P1-T5 | every named fixture incl. empty / one / self-loop / parallel / arcCount 0 / directed vs outDegreeOracle bitwise; dest honoured and returned; a wrong dest -> E_INVALID_ARGUMENT; signal pre-aborted -> E_ABORTED; twice bitwise; cross-adapter noise fixture written / compared bitwise (u32); a fromCsr snapshot (perArray) equal to the arena path |
-| `test/sabotage/degree.test.ts` | P1-T5 | the SABOTAGE.degree mutations (`n` -> `n - 1` last workgroup skip: `P.end` -> `P.end - 1u`; swapped USE_PERM select; ignored rebase `arc - P.arcBase` -> `arc`; `nbr < P.n` -> `nbr <= P.n` on a fixture with a neighbour == n impossible, so replaced by counting `2u`) each FAIL the degree test |
-| `test/sabotage/reduce.test.ts` | P1-T5 | the SABOTAGE.reduce mutations (the FINAL level writes `out[0]` instead of `out[P.outOffset + g]`, i.e. `P.outOffset + g` -> `g`; the min identity swapped: `return U32_MAX;` -> `return 0u;` and `return F32_MAX;` -> `return 0.0;`; the level-1 bound `i < P.count` -> `i <= P.count`) each FAIL the reduce test by >= minFactor |
-| `test/sabotage/coverage.test.ts` | P1-T5 | for every KERNELS entry whose `phase` is in SABOTAGE_PHASES and whose id is not in SABOTAGE_EXEMPT, SABOTAGE[id] has >= 3 rows, every `find` occurs exactly once in the entry's body, every `test` names an existing test file (spec 13 rule f; the P2 / P3 tasks extend SABOTAGE_PHASES when their rows land) |
-| `test/layouts/skeleton.test.ts` | P1-T6 | one exact-tile iteration (K3 then K4) on karate in both modes from host-written state, fixed mask all clear: force after K3 equals the f64 pair sum (k m m / d law + gravity) within 1e-5 relative / 1e-6 absolute; the trace slot's (swing, traction, speed, speedEfficiency) equal hand-computed values from the same forces (estimateFactor in TypeScript); twice bitwise; twin within 1e-6; cross-adapter within 1e-5 through the noise fixtures |
-| `test/sabotage/fa2-skeleton.test.ts` | P1-T6 | SABOTAGE["fa2-repulsion-exact"] (gravity sign flipped; `k / d2` -> `k / (d2 * length(d))` i.e. 1/d^2; the `jj != i` guard removed; mass lane `.w` -> `.x`) and SABOTAGE["fa2-speed-finalize"] (`* 0.5` -> `* 0.9`; the 1.3 rise removed; the swing / traction swap) each fail the skeleton test by >= 10x its tolerance |
-| `test/noise-floor.test.ts` | P1-T6 | for each (kernel, fixture) of the noise set: writes this adapter's raw output when GRAPHTY_NOISE_FLOOR_WRITE=1, compares against every committed adapter output (u32 bitwise; f32 max relative error recorded as a row), and asserts every tolerance in noise-floor.json is >= its basis row and <= 10x it |
-| `test/leak.test.ts` | P1-T7 | LeakCounter around a fresh device: after degree + release + dispose, live === 0; mapAsync count per degree call === 1 |
-| `test/browser/entry.test.ts` | P1-T7 | probeBrowserWebGpu (software flag vs the policy); requestGpuContext; GpuContext.probe({ gpu: undefined }) -> E_NO_WEBGPU |
-| `test/browser/skeleton.test.ts` | P1-T7 | the 11.5 skeleton in the browser: arena + fromCsr upload; degree on karate, random1k and arcCount 0 vs outDegreeOracle bitwise; fill mode 1 over LINEAR_ID_ITEMS (the 2D dispatch), the LINEAR_ID_SAMPLES equal i + LINEAR_ID_VALUE and linearIdChecksum(result) === LINEAR_ID_CHECKSUM (the SwiftShader / NVIDIA-Chromium leg of spec 11.5's "17M-item map bitwise across adapters"); the K3 + K4 iteration on karate in paper mode from host-written state: force vs the f64 pair sum and the trace slot vs the hand-computed controller values within the noise-floor tolerance (`fa2-skeleton.force`), twice bitwise; asserts `ctx.caps.features.has("subgroups")` (both CI browser adapters expose it: SwiftShader size 4, NVIDIA 32) so the subgroup twin is the form exercised (spec 11.6 item 5; the workgroup twin is covered by browser/compile-matrix.test.ts at P2); writes the SwiftShader / NVIDIA-Chromium noise fixtures for degree (random1k), reduce (random1k f32 sum), the 17M map and the K3 + K4 force / trace through writeNoiseFixtureBrowser when GRAPHTY_NOISE_FLOOR_WRITE=1; adapterClassBrowser equals adapterClass on a faked GpuCaps; release leaves no buffers |
-| `benchmarks/*` | P1-T7 | see section 6 |
+| File                                 | Task  | Asserts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test/device/context.test.ts`        | P1-T1 | probe (OK / software / rejectSoftware -> E_SOFTWARE_ONLY, gpu undefined -> E_NO_WEBGPU); create with gpu / adapter / device; "raise" gives >= default limits; an explicit limit above the adapter -> E_NO_DEVICE { reason: "limit" }; a consumed adapter -> E_NO_DEVICE { reason: "consumed" }; optionalFeatures [] -> features lacks subgroups; caps from device.limits (never the adapter's 1 TiB); runtime tag; from(device) runtime "unknown"; state transitions; dispose idempotent; assertReady after dispose -> E_DISPOSED; onError sink receives an uncaptured error from a deliberately broken bind group (and the afterEach hook does not fire because onError consumed it)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `test/device/lost.test.ts`           | P1-T1 | device.destroy() mid-readback -> the pending read rejects E_DEVICE_LOST, ctx.state "lost", residency cleared without uncaptured errors; a new context from a fresh adapter uploads and runs degree afterwards                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `test/device/error-scope.test.ts`    | P1-T1 | withValidationScope surfaces a bad bind group as E_VALIDATION with the label; AllocationTracker: below the threshold no scope, above it the pop is collected, check() resolves; resident / liveBuffers bookkeeping; formatCompilationInfo subtracts the prelude                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `test/node/entry.test.ts`            | P1-T1 | createNodeGpu / createNodeGpuContext / probeNodeWebGpu; dawnFlags mapping; loadModule rejecting -> E_NO_WEBGPU with the install hint; installGlobals false leaves globalThis untouched; ctx.dispose() disposes the handle (the process-exit rule cannot be asserted, documented)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `test/memory/upload-plan.test.ts`    | P1-T2 | planUpload over CAPS_TABLES x { arena, no arena } x { fits, exceeds buffer, exceeds binding }: the hot prefix by default, the full arena when a cold segment is needed and fits, perArray when the arena exceeds maxBufferSize, windowed when an array exceeds the binding; the 10M / 100M arithmetic of spec 4.2's table (25 windows); planArcWindows: start % 64 === 0 via `%`, a hub row split across windows, a synthetic rowPtr above 2^31 arcs; arcsPerWindowFor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `test/memory/residency.test.ts`      | P1-T2 | the upload contract of spec 11.3 ported from gpu-upload.test.ts: arena bindings equal CPU views; perArray on fromCsr and transpose(); arena.byteOffset !== 0 from fromBytes (rich-v1.gsnp); packed u8 / bool columns through column(); identity permutations never materialised (byteLength({ views: true }) unchanged after core()); the same array object uploads once (view "outDegree" twice -> one buffer); column version bump re-uploads in place; ctx.release destroys every buffer (stats().buffers 0, allocator.liveBuffers 0, no uncaptured error) and trims the pool (pool.idleBytes === 0 after a scratch acquire / release preceded it); E_RELEASED on the next core() of a live user (isReleased); release idempotent and safe on an unknown snapshot; siblings via withColumns share one record; the once-only warning at warnUnreleasedSnapshots + 1                                                                                                                                                                                                                                                                                                                         |
+| `test/memory/buffer-pool.test.ts`    | P1-T2 | sizeClass table (4 KiB .. 64 MiB powers of two, then 16 MiB steps); acquire / release reuse; maxIdlePerClass eviction; trim; liveBytes / idleBytes; E_TOO_LARGE above maxBufferSize                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `test/memory/readback.test.ts`       | P1-T2 | 100 back-to-back read() calls reuse slots without validation errors; chunking above slotBytes; readU32; dest given -> dest.buffer returned; borrowSlot grows the ring when every slot is busy and returnSlot frees it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `test/kernel/wgsl.test.ts`           | P1-T3 | composeWgsl emits the exact format of 4.2 for a two-binding spec; unknown override -> E_SHADER_COMPILE { stage: "compose" }; snippet without marker and marker without snippet -> E_SHADER_COMPILE; a body containing `@group(` or `override ` -> E_SHADER_COMPILE; a body or snippet using a WGSL reserved word (`let target = 0u;`) -> E_SHADER_COMPILE { slot: "reserved:target" } while a comment containing the word passes; the subgroup block is spliced iff needs and caps agree, with SUBGROUP_MAX and SUBGROUP_MIN set (fakeCaps min 8 / max 32 -> SG_SLOTS >= WG / 8 from the composed overrides; min 0 -> SUBGROUP_MIN 4); the literal grep over src/wgsl/\*\* and src/kernel/prelude.ts (no `65535u`, `256u`, `0xFFFFFFFFu`)                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `test/kernel/struct-block.test.ts`   | P1-T3 | offsets of a mixed block (u32 x5, f32, vec4f, vec2f) equal the WGSL strict layout; byteLength padded to 16; write / read round trip; padTo; E_INVALID_ARGUMENT cases; the FA2 blocks' offsets equal 3.10.2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `test/kernel/pipeline-cache.test.ts` | P1-T3 | key format and stability (JSON key order independent); get twice -> one pipeline; a body with a WGSL error -> E_SHADER_COMPILE { stage: "compile", messages } with body-relative lines; warm compiles every spec once; keys()                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `test/kernel/kernel.test.ts`         | P1-T3 | bind creates one group per layout incl. empty ones, labelled `<id>/<group>`; the same buffers -> the same bind groups; a missing name -> E_INVALID_ARGUMENT; one buffer bound to a `storage` slot and to any other slot of the same call with intersecting ranges -> E_INVALID_ARGUMENT { argument: "aliasing" } synchronously (disjoint ranges of one buffer are accepted); a wrong-size uniform binding -> bind() returns, and the E_VALIDATION carrying the `<id>/<group>` label is delivered through the pending-error slot: under Dawn-node thrown by the next assertReady() after a submit (P2: the batch's readback), in the browser (browser/batch.test.ts, P2-T1) by assertReady() after onSubmittedWorkDone(); dispatch of an empty plan records nothing                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `test/kernel/dispatch.test.ts`       | P1-T3 | plan1d(16_776_960) is 1D and plan1d(16_776_961) is 2D with wg 256 (NOT 2^24); plan1d(0) -> x 0; y above the limit -> E_TOO_LARGE; plan2d; planGridStride / planIndirect -> E_UNSUPPORTED; groupsOf; every CAPS_TABLES entry incl. CAPS_INTEL_XE gives the same plans (no dependence on subgroup sizes)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `test/kernel/registry.test.ts`       | P1-T4 | every KERNELS entry has a unique id, one entry point (entryPointOf agrees), <= 8 storage bindings per stage, the binding tables of 3.10.1 exactly; no entry's `body` contains `@group(` or `override ` (a direct string assertion over every entry, independent of the composer -- the unit test of spec 3.5); kernelSpec applies overrides / snippets; setKernelBodyOverride changes the body seen by kernelSpec; graphBindings / graphOverrides dummy rules on a weighted, an unweighted and an arcCount === 0 core, and with an explicit `weights` argument (null on a weighted core -> HAS_WEIGHTS false and colIdx in the slot; a binding on an unweighted core -> HAS_WEIGHTS true)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `test/kernel/compile.test.ts`        | P1-T4 | every P1 entry compiles with its defaults on the real device (acquire()) AND on Dawn `backend=null` (acquireNullBackend(), 5.1), with and without subgroups (twin), through PipelineCache                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `test/kernel/linear-id.test.ts`      | P1-T4 | fill mode 1 over LINEAR_ID_ITEMS = 16,776,961 items (2D dispatch, 68 MB) on the current adapter: the LINEAR_ID_SAMPLES positions across the 1D / 2D boundary equal i + LINEAR_ID_VALUE and linearIdChecksum(result) === LINEAR_ID_CHECKSUM (test/helpers/linear-id.ts, shared with the browser skeleton so the two cannot drift; bitwise across adapters)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `test/primitives/reduce.test.ts`     | P1-T5 | sum / min / max x f32 / u32 / vec4f over sizes 0, 1, 255, 256, 257, 4097, 65_536 x 256 + 1 (three levels; scaled by gpuScale) vs reduceOracle (u32 exact; f32 within count x 2^-24 relative); both twins in-process (acquire({ subgroups: false })) within 1e-6; two runs bitwise identical; lastDispatches 2 or 3 as expected; the f32 sum over random1k written as a cross-adapter noise fixture (`reduce-random1k-<class>.json`) and compared within the derived floor (u32 bitwise)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `test/algorithms/degree.test.ts`     | P1-T5 | every named fixture incl. empty / one / self-loop / parallel / arcCount 0 / directed vs outDegreeOracle bitwise; dest honoured and returned; a wrong dest -> E_INVALID_ARGUMENT; signal pre-aborted -> E_ABORTED; twice bitwise; cross-adapter noise fixture written / compared bitwise (u32); a fromCsr snapshot (perArray) equal to the arena path                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `test/sabotage/degree.test.ts`       | P1-T5 | the SABOTAGE.degree mutations (`n` -> `n - 1` last workgroup skip: `P.end` -> `P.end - 1u`; swapped USE_PERM select; ignored rebase `arc - P.arcBase` -> `arc`; `nbr < P.n` -> `nbr <= P.n` on a fixture with a neighbour == n impossible, so replaced by counting `2u`) each FAIL the degree test                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `test/sabotage/reduce.test.ts`       | P1-T5 | the SABOTAGE.reduce mutations (the FINAL level writes `out[0]` instead of `out[P.outOffset + g]`, i.e. `P.outOffset + g` -> `g`; the min identity swapped: `return U32_MAX;` -> `return 0u;` and `return F32_MAX;` -> `return 0.0;`; the level-1 bound `i < P.count` -> `i <= P.count`) each FAIL the reduce test by >= minFactor                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `test/sabotage/coverage.test.ts`     | P1-T5 | for every KERNELS entry whose `phase` is in SABOTAGE_PHASES and whose id is not in SABOTAGE_EXEMPT, SABOTAGE[id] has >= 3 rows, every `find` occurs exactly once in the entry's body, every `test` names an existing test file (spec 13 rule f; the P2 / P3 tasks extend SABOTAGE_PHASES when their rows land)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `test/layouts/skeleton.test.ts`      | P1-T6 | one exact-tile iteration (K3 then K4) on karate in both modes from host-written state, fixed mask all clear: force after K3 equals the f64 pair sum (k m m / d law + gravity) within 1e-5 relative / 1e-6 absolute; the trace slot's (swing, traction, speed, speedEfficiency) equal hand-computed values from the same forces (estimateFactor in TypeScript); twice bitwise; twin within 1e-6; cross-adapter within 1e-5 through the noise fixtures                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `test/sabotage/fa2-skeleton.test.ts` | P1-T6 | SABOTAGE["fa2-repulsion-exact"] (gravity sign flipped; `k / d2` -> `k / (d2 * length(d))` i.e. 1/d^2; the `jj != i` guard removed; mass lane `.w` -> `.x`) and SABOTAGE["fa2-speed-finalize"] (`* 0.5` -> `* 0.9`; the 1.3 rise removed; the swing / traction swap) each fail the skeleton test by >= 10x its tolerance                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `test/noise-floor.test.ts`           | P1-T6 | for each (kernel, fixture) of the noise set: writes this adapter's raw output when GRAPHTY_NOISE_FLOOR_WRITE=1, compares against every committed adapter output (u32 bitwise; f32 max relative error recorded as a row), and asserts every tolerance in noise-floor.json is >= its basis row and <= 10x it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `test/leak.test.ts`                  | P1-T7 | LeakCounter around a fresh device: after degree + release + dispose, live === 0; mapAsync count per degree call === 1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `test/browser/entry.test.ts`         | P1-T7 | probeBrowserWebGpu (software flag vs the policy); requestGpuContext; GpuContext.probe({ gpu: undefined }) -> E_NO_WEBGPU                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `test/browser/skeleton.test.ts`      | P1-T7 | the 11.5 skeleton in the browser: arena + fromCsr upload; degree on karate, random1k and arcCount 0 vs outDegreeOracle bitwise; fill mode 1 over LINEAR_ID_ITEMS (the 2D dispatch), the LINEAR_ID_SAMPLES equal i + LINEAR_ID_VALUE and linearIdChecksum(result) === LINEAR_ID_CHECKSUM (the SwiftShader / NVIDIA-Chromium leg of spec 11.5's "17M-item map bitwise across adapters"); the K3 + K4 iteration on karate in paper mode from host-written state: force vs the f64 pair sum and the trace slot vs the hand-computed controller values within the noise-floor tolerance (`fa2-skeleton.force`), twice bitwise; asserts `ctx.caps.features.has("subgroups")` (both CI browser adapters expose it: SwiftShader size 4, NVIDIA 32) so the subgroup twin is the form exercised (spec 11.6 item 5; the workgroup twin is covered by browser/compile-matrix.test.ts at P2); writes the SwiftShader / NVIDIA-Chromium noise fixtures for degree (random1k), reduce (random1k f32 sum), the 17M map and the K3 + K4 force / trace through writeNoiseFixtureBrowser when GRAPHTY_NOISE_FLOOR_WRITE=1; adapterClassBrowser equals adapterClass on a faked GpuCaps; release leaves no buffers |
+| `benchmarks/*`                       | P1-T7 | see section 6                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 P2:
 
-| File | Task | Asserts |
-| --- | --- | --- |
-| `test/memory/lease.test.ts` | P2-T1 | storage / uniform / acquire go back to the pool on release (also on a thrown error in a try / finally pattern); count; E_DISPOSED after release |
-| `test/kernel/batch.test.ts` | P2-T1 | a batch of 8 dispatches submits once; readback resolves the bytes of two requests at their offsets; a deliberately bad bind group rejects THE SAME batch's readback with E_VALIDATION { batchId } under Dawn-node (synchronous delivery) and is thrown from the next assertReady() in the browser (browser/batch.test.ts); discard() returns the slot after mapAsync (readback.borrowed returns to 0); generation carried; submit twice -> E_INVALID_ARGUMENT; dispatches count |
-| `test/kernel/uniform-ring.test.ts` | P2-T1 | offsetOf(k) === 256 k; reserve wraps; write + flush + a kernel reading slot k sees the right values through the dynamic offset; count > slots -> E_INVALID_ARGUMENT |
-| `test/kernel/profiler.test.ts` | P2-T1 | with timestamp-query granted: a pass timing per pass label, ns > 0, quantised false under Dawn; without the feature: enabled false and every method a no-op |
-| `test/kernel/state-roundtrip.test.ts` | P2-T1 | Fa2State written by the host through FA2_STATE.write, incremented by a one-workgroup kernel, read back through FA2_STATE.read: every field round-trips at the 3.10.2 offsets (both runtimes: browser/state-roundtrip.test.ts) |
-| `test/device/lost.test.ts` (extended) | P2-T1 | mid-batch device loss rejects the batch readback with E_DEVICE_LOST; the residency warning; residentBytes accounting |
-| `test/browser/lost.test.ts` | P2-T1 | the browser leg of spec 5.7 / 11.3 "both runtimes": device.destroy() mid-batch (a submitted CommandBatch whose readback is pending) rejects that readback with E_DEVICE_LOST, ctx.state is "lost", residency cleared without uncaptured errors, every registered onLost listener ran; a new context from requestGpuContext() (a fresh adapter) uploads karate and runs degree afterwards; the afterEach pending-error drain sees nothing |
-| `test/memory/residency.test.ts` (extended) | P2-T1 | residentBytes equals the sum of uploaded byte lengths; stats().perSnapshot |
-| `test/browser/uniform-layout.test.ts` | P2-T1 | a hand-written misaligned uniform struct (a vec3f followed by an f32 declared with @size(12)) is REJECTED by Chromium's createShaderModule / pipeline creation while UniformBlock's generated text for the same fields compiles (spec 5.3, R-10); the same test on Dawn-node (kernel/uniform-layout.test.ts) records that Dawn accepts it |
+| File                                       | Task  | Asserts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test/memory/lease.test.ts`                | P2-T1 | storage / uniform / acquire go back to the pool on release (also on a thrown error in a try / finally pattern); count; E_DISPOSED after release                                                                                                                                                                                                                                                                                                                                                |
+| `test/kernel/batch.test.ts`                | P2-T1 | a batch of 8 dispatches submits once; readback resolves the bytes of two requests at their offsets; a deliberately bad bind group rejects THE SAME batch's readback with E_VALIDATION { batchId } under Dawn-node (synchronous delivery) and is thrown from the next assertReady() in the browser (browser/batch.test.ts); discard() returns the slot after mapAsync (readback.borrowed returns to 0); generation carried; submit twice -> E_INVALID_ARGUMENT; dispatches count                |
+| `test/kernel/uniform-ring.test.ts`         | P2-T1 | offsetOf(k) === 256 k; reserve wraps; write + flush + a kernel reading slot k sees the right values through the dynamic offset; count > slots -> E_INVALID_ARGUMENT                                                                                                                                                                                                                                                                                                                            |
+| `test/kernel/profiler.test.ts`             | P2-T1 | with timestamp-query granted: a pass timing per pass label, ns > 0, quantised false under Dawn; without the feature: enabled false and every method a no-op                                                                                                                                                                                                                                                                                                                                    |
+| `test/kernel/state-roundtrip.test.ts`      | P2-T1 | Fa2State written by the host through FA2_STATE.write, incremented by a one-workgroup kernel, read back through FA2_STATE.read: every field round-trips at the 3.10.2 offsets (both runtimes: browser/state-roundtrip.test.ts)                                                                                                                                                                                                                                                                  |
+| `test/device/lost.test.ts` (extended)      | P2-T1 | mid-batch device loss rejects the batch readback with E_DEVICE_LOST; the residency warning; residentBytes accounting                                                                                                                                                                                                                                                                                                                                                                           |
+| `test/browser/lost.test.ts`                | P2-T1 | the browser leg of spec 5.7 / 11.3 "both runtimes": device.destroy() mid-batch (a submitted CommandBatch whose readback is pending) rejects that readback with E_DEVICE_LOST, ctx.state is "lost", residency cleared without uncaptured errors, every registered onLost listener ran; a new context from requestGpuContext() (a fresh adapter) uploads karate and runs degree afterwards; the afterEach pending-error drain sees nothing                                                       |
+| `test/memory/residency.test.ts` (extended) | P2-T1 | residentBytes equals the sum of uploaded byte lengths; stats().perSnapshot                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `test/browser/uniform-layout.test.ts`      | P2-T1 | a hand-written misaligned uniform struct (a vec3f followed by an f32 declared with @size(12)) is REJECTED by Chromium's createShaderModule / pipeline creation while UniformBlock's generated text for the same fields compiles (spec 5.3, R-10); the same test on Dawn-node (kernel/uniform-layout.test.ts) records that Dawn accepts it                                                                                                                                                      |
 | `test/primitives/segmented-reduce.test.ts` | P2-T2 | thread-per-row sum / min / max with `v = weight;` and `v = 1.0;` vs segmentedReduceOracle over the fixtures incl. all-equal weights, one hub row (star 10k scaled), empty rows, arcCount 0; USE_PERM false always; tiers !== null -> E_UNSUPPORTED; twice bitwise; a bad snippet identifier (incl. `target`) -> E_SHADER_COMPILE; the weighted f32 sum over random1k written as a cross-adapter noise fixture (`segmented-reduce-random1k-<class>.json`) and compared within the derived floor |
-| `test/sabotage/segmented-reduce.test.ts` | P2-T2 | the SABOTAGE["segmented-reduce"] mutations (the row bound off by one: `row >= P.end` -> `row > P.end`; the `//@@VALUE@@` weight read replaced: `weight = weights[arc - P.arcBase]` -> `weight = 1.0`; the HAS_WEIGHTS select inverted: `if (HAS_WEIGHTS)` -> `if (!HAS_WEIGHTS)`) each FAIL the segmented-reduce test by >= minFactor; SABOTAGE_PHASES gains "P2" in the same task so coverage.test.ts covers the entry |
-| `test/kernel/wgsl-compile.test.ts` | P2-T2 | every OVERRIDE_MATRIX case compiles on the real device (acquire()) and on Dawn backend=null (acquireNullBackend()); the browser twin (browser/compile-matrix.test.ts) on Chromium; the matrix is bounded (a fixed count asserted) |
-| `test/kernel/bind-group-budget.test.ts` | P2-T2 | every bind-group-layout descriptor of every KERNELS entry has <= 8 storage entries per stage; the counts of 3.10.1 exactly |
-| `test/setup/global.ts` teardown | P2-T2 | every PipelineCache key seen by the node suite is covered by OVERRIDE_MATRIX |
-| `test/kernel/determinism.test.ts` | P2-T2 | reduce and segmented-reduce: two runs bitwise identical on both twins; the subgroup form's slot-sorting verified by a kernel that records the slot order (an ad hoc spec built in the test) |
-| `test/limits/README.md` | P2-T2 | placeholder naming the P4 tests (no test file) |
+| `test/sabotage/segmented-reduce.test.ts`   | P2-T2 | the SABOTAGE["segmented-reduce"] mutations (the row bound off by one: `row >= P.end` -> `row > P.end`; the `//@@VALUE@@` weight read replaced: `weight = weights[arc - P.arcBase]` -> `weight = 1.0`; the HAS_WEIGHTS select inverted: `if (HAS_WEIGHTS)` -> `if (!HAS_WEIGHTS)`) each FAIL the segmented-reduce test by >= minFactor; SABOTAGE_PHASES gains "P2" in the same task so coverage.test.ts covers the entry                                                                        |
+| `test/kernel/wgsl-compile.test.ts`         | P2-T2 | every OVERRIDE_MATRIX case compiles on the real device (acquire()) and on Dawn backend=null (acquireNullBackend()); the browser twin (browser/compile-matrix.test.ts) on Chromium; the matrix is bounded (a fixed count asserted)                                                                                                                                                                                                                                                              |
+| `test/kernel/bind-group-budget.test.ts`    | P2-T2 | every bind-group-layout descriptor of every KERNELS entry has <= 8 storage entries per stage; the counts of 3.10.1 exactly                                                                                                                                                                                                                                                                                                                                                                     |
+| `test/setup/global.ts` teardown            | P2-T2 | every PipelineCache key seen by the node suite is covered by OVERRIDE_MATRIX                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `test/kernel/determinism.test.ts`          | P2-T2 | reduce and segmented-reduce: two runs bitwise identical on both twins; the subgroup form's slot-sorting verified by a kernel that records the slot order (an ad hoc spec built in the test)                                                                                                                                                                                                                                                                                                    |
+| `test/limits/README.md`                    | P2-T2 | placeholder naming the P4 tests (no test file)                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 P3:
 
 | File | Task | Asserts |
-| --- | --- | --- |
+| ------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------- | --- | ------------------------------------------------------------------------------------------------ |
 | `test/layouts/force-simulation.test.ts` | P3-T1 | with a FAKE ForceModel (one kernel that adds a constant to every position, a trivial state block): state machine transitions and every error of 3.13 (E_NOT_LOADED, E_DISPOSED, E_RELEASED after release during a live simulation, E_SNAPSHOT on a directed input, E_INVALID_ARGUMENT cases); coalescing at maxInFlight (the coalesced counter); maxInFlight 3 with step(256) three times back to back (the fake model writes its params slot value into every position): each batch's readback shows ITS OWN params, i.e. the ring never rewrote a slot a submitted batch still read; setParams({ maxInFlight }) -> E_INVALID_ARGUMENT; generation discard on load() with a batch in flight; the override list (a setPosition during flight survives the older batch); settled at maxIter and at settleWindow; reheat resets only the two counters; flush(); run() with signal -> E_ABORTED; dispose leak 0 (LeakCounter); device loss -> disposed and pending promises E_DEVICE_LOST |
 | `test/layouts/seed.test.ts` | P3-T1 | Lcg constants and the first 10 draws of seed 42 equal the port's values (hard-coded); seed 0 / null draws a random seed; seedPositions: all-NaN rows -> [-1, 1) x scale + center in index order, partial rows keep finite axes, the bbox rule when some rows are finite, 2D writes center.z, E_INVALID_ARGUMENT cases |
 | `test/layouts/inputs.test.ts` | P3-T1 | resolveNodeMass: null with a role-mass column (f32, f64, u32), null without -> outDegree + 1, F32 as is, name -> column, Record -> E_UNSUPPORTED with the hint, wrong length / non-numeric / non-positive -> E_INVALID_ARGUMENT; resolveWeights: true weighted / unweighted, a column name (f32 and f64) expanded through expandEdges, null; E_INVALID_ARGUMENT on a missing column; pass-through E_GPU_INELIGIBLE on a string column |
 | `test/layouts/fa2-options.test.ts` | P3-T2 | resolveForceAtlas2Options defaults and every E_INVALID_ARGUMENT range; nodeSize -> E_UNSUPPORTED { option }; repulsion "grid" / auto above exactMaxNodes -> E_UNSUPPORTED { feature } at load; dissuadeHubs ignored; setParams({ dim }) and setParams({ maxInFlight }) -> E_INVALID_ARGUMENT; setParams of a law recompiles and resets speed, a numeric tweak does not; arcCount 0 runs (force zeroed, positions only move by gravity); the weights axis (3.10 CONTRACT DECISION): a weighted snapshot with `weight: false` produces the same one-iteration positions as the same graph built unweighted (bitwise on one device: both compile HAS_WEIGHTS false), `weight: true` on it differs, and an UNWEIGHTED snapshot with `weight: "<f32 edge column>"` equals the weighted snapshot carrying the same values as arc weights (bitwise); stats shape (grid fields null, repulsionTier "exact", trace length k; layoutRadius and rmsRadius equal the f64 oracle's `layoutRadius` / `rmsRadius` of the same iteration -- both about the previous centroid, 4.5 K1 -- within the traced tolerance) |
 | `test/oracle/forceatlas2-networkx.test.ts` | P3-T4 | the oracle in compat "networkx" (gravityCenter 1, f64) reproduces every committed fixture: 1e-9 at 1 and 5 iterations, 1e-6 at 50, raw positions; the iteration-0 FORCES of compat "paper" equal the networkx run's (same laws) on every fixture; the fixtures' preconditions (no pair under 0.01, no node under 0.01 of the origin along the trajectory) hold in the oracle's run |
-| `test/oracle/swing-mode.test.ts` | P3-T4 | on a three-node path with hand-computed forces: paper-mode per-node swing / traction (force form, fixed node excluded), networkx-mode (position-mixed, accumulated from 1, every node), the local factor in both modes (m|F - Fold| vs m|F|), and estimateFactor's outputs for two iterations, all against hand-written numbers in the test |
+| `test/oracle/swing-mode.test.ts` | P3-T4 | on a three-node path with hand-computed forces: paper-mode per-node swing / traction (force form, fixed node excluded), networkx-mode (position-mixed, accumulated from 1, every node), the local factor in both modes (m | F - Fold | vs m | F | ), and estimateFactor's outputs for two iterations, all against hand-written numbers in the test |
 | `test/layouts/fa2-force-parity.test.ts` | P3-T5 | one iteration K2 + K3: `force` via inspect() vs the f64 oracle's `force` stage with the floored denominator at 1e-4 (DEPARTURE-6) on karate, grid10, star200, random1k x { weights, linlog, distributed, strong, gravity 0, nodeMass F32, 2D / 3D, compat paper / networkx, one pinned node }; tolerance traced to noise-floor.json |
 | `test/layouts/fa2-trace-parity.test.ts` | P3-T5 | 50 x step(1) on 10-1,000-node graphs in both modes, twice bitwise; CONTRACT DECISION (P3-T5 PLAN DECISION 17; G3.md G3-F3): in BOTH modes the RE-SYNCHRONISED legs -- a fresh f32 and a fresh f64 oracle seeded with the GPU's iteration-start state before every iteration (`ForceAtlas2Oracle.resync()`), K4's controller fields and K1's fold of the same iteration within `fa2-trace-parity.resync.f32` / `.resync.f64` (cap 1e-4 each) -- and the free-running legs of spec 11.4 (the trace vs the f32 oracle within 1e-4 for the first 10 iterations, vs the f64 oracle within 5e-2 through 50) asserted in `compat: "networkx"` and printed in `compat: "paper"`, whose free-running trajectory is chaotic beyond any derivable tolerance (the f64 oracle misses both caps against itself under a one-ulp start perturbation); tolerances traced |
 | `test/layouts/fa2-distributional.test.ts` | P3-T5 | same seed, 100 iterations: layoutMetrics of GPU vs the f64 oracle within 10% (coordinates never compared) on the cases whose metrics the f64 oracle reproduces within a third of the cap under one-ulp start perturbations (CONTRACT DECISION, P3-T5 PLAN DECISION 18; G3.md G3-F4: the 10 x 10 grid and the paper-mode isolated fixture land in different basins run to run and are not cases) |
 | `test/layouts/fa2-behaviour.test.ts` | P3-T5 | the behaviour pins of 11.4: empty graph (load + step resolve, no GPU work), single node, disconnected components separated by > 0.03 after 100 iterations, maxIter respected, completeGraph(6) spread > 0.3, same seed -> bitwise same layout on the same device, different seeds differ; z === center.z in 2D whatever z was uploaded |
-| `test/layouts/fa2-properties.test.ts` | P3-T5 | fast-check (numRuns 200): fixed nodes never move (random setFixed between steps incl. the all-fixed mask, which settles within settleWindow steps); setPosition visible in the next readback and never clobbered by an older batch; settled within maxIter; reheat on unpin / setPosition / load, not on pin; speed NOT reset by setPosition (D8: untouched at the call, and the next iteration continues from it -- proved through the re-synchronised oracle, P3-T5 PLAN DECISIONS 13 / 17); pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A still fixed; results ArrayBuffer-typed of exact length; per-node displacement <= speed |F| / (1 + sqrt(speed swing_i)) |
-| `test/layouts/fa2-force-sum.test.ts` | P3-T5 | gravity 0 and distributedAction false: after one iteration |sum_i F_i| <= 1e-4 sum_i |F_i| on every fixture incl. "coincident" |
+| `test/layouts/fa2-properties.test.ts` | P3-T5 | fast-check (numRuns 200): fixed nodes never move (random setFixed between steps incl. the all-fixed mask, which settles within settleWindow steps); setPosition visible in the next readback and never clobbered by an older batch; settled within maxIter; reheat on unpin / setPosition / load, not on pin; speed NOT reset by setPosition (D8: untouched at the call, and the next iteration continues from it -- proved through the re-synchronised oracle, P3-T5 PLAN DECISIONS 13 / 17); pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A still fixed; results ArrayBuffer-typed of exact length; per-node displacement <= speed | F | / (1 + sqrt(speed swing_i)) |
+| `test/layouts/fa2-force-sum.test.ts` | P3-T5 | gravity 0 and distributedAction false: after one iteration | sum_i F_i | <= 1e-4 sum_i | F_i | on every fixture incl. "coincident" |
 | `test/layouts/fa2-twins.test.ts` | P3-T5 | K1 / K3 / K4 / K5 with and without subgroups in-process: every stage's output of one iteration, and one iteration from each of ten oracle-trajectory states, within the traced twin tolerances (1e-6 relative for the trace record); the workgroup twin's 50-iteration trajectory against the re-synchronised oracles; the free-running 10-iteration trace within 1e-6 in `compat: "networkx"`, printed in `compat: "paper"` (CONTRACT DECISION, P3-T5 PLAN DECISION 17) |
 | `test/layouts/fa2-lifecycle.test.ts` | P3-T5 | dispose leak 0; release(snapshot) during a live simulation -> the next step rejects E_RELEASED; residency.stats().snapshots === 1 after load + release of a previous snapshot; device loss mid-run |
 | `test/layouts/fa2-inspect.test.ts` | P3-T5 | debugRunStages("K2") then inspect("force") equals the oracle's attraction stage; after "K3" the force stage and the partials' swing / traction; after "K4" the state's controller fields; after "K5" positions, partials A / C; after "toScene" scenePositions; each at the traced tolerance |
@@ -4342,11 +4805,49 @@ lavapipe Dawn, SwiftShader Chromium) and extended at P3-T5 with K1-K5:
 ```json
 {
     "recordedAt": "2026-09-20T00:00:00.000Z",
-    "adapters": [{ "class": "nvidia-ada-lovelace-node", "vendor": "nvidia", "architecture": "ada-lovelace", "description": "...", "runtime": "node" }],
+    "adapters": [
+        {
+            "class": "nvidia-ada-lovelace-node",
+            "vendor": "nvidia",
+            "architecture": "ada-lovelace",
+            "description": "...",
+            "runtime": "node"
+        }
+    ],
     "rows": [
-        { "id": "fa2-skeleton.force.twin", "kernel": "fa2-repulsion-exact", "fixture": "karate", "comparison": "twin", "a": "nvidia-ada-lovelace-node", "b": "nvidia-ada-lovelace-node/no-subgroups", "maxRelError": 3.1e-7, "maxAbsError": 2.0e-6, "samples": 102 },
-        { "id": "fa2-skeleton.force.cross", "kernel": "fa2-repulsion-exact", "fixture": "karate", "comparison": "cross-adapter", "a": "nvidia-ada-lovelace-node", "b": "mesa-software-node", "maxRelError": 1.2e-6, "maxAbsError": 3.0e-6, "samples": 102 },
-        { "id": "degree.cross", "kernel": "degree", "fixture": "random1k", "comparison": "cross-adapter", "a": "nvidia-ada-lovelace-node", "b": "google-swiftshader-browser", "maxRelError": 0, "maxAbsError": 0, "samples": 1000 }
+        {
+            "id": "fa2-skeleton.force.twin",
+            "kernel": "fa2-repulsion-exact",
+            "fixture": "karate",
+            "comparison": "twin",
+            "a": "nvidia-ada-lovelace-node",
+            "b": "nvidia-ada-lovelace-node/no-subgroups",
+            "maxRelError": 3.1e-7,
+            "maxAbsError": 2.0e-6,
+            "samples": 102
+        },
+        {
+            "id": "fa2-skeleton.force.cross",
+            "kernel": "fa2-repulsion-exact",
+            "fixture": "karate",
+            "comparison": "cross-adapter",
+            "a": "nvidia-ada-lovelace-node",
+            "b": "mesa-software-node",
+            "maxRelError": 1.2e-6,
+            "maxAbsError": 3.0e-6,
+            "samples": 102
+        },
+        {
+            "id": "degree.cross",
+            "kernel": "degree",
+            "fixture": "random1k",
+            "comparison": "cross-adapter",
+            "a": "nvidia-ada-lovelace-node",
+            "b": "google-swiftshader-browser",
+            "maxRelError": 0,
+            "maxAbsError": 0,
+            "samples": 1000
+        }
     ],
     "tolerances": {
         "fa2-skeleton.force": { "value": 1e-5, "basis": "fa2-skeleton.force.cross", "factor": 8.3 },
@@ -4392,7 +4893,12 @@ export interface BenchOptions {
     readonly unit?: string | undefined;
 }
 /** One warm-up then `runs` timed runs; the timer brackets `await run(input); await device.queue.onSubmittedWorkDone()`; median of the runs. */
-export function bench<T>(group: string, name: string, benchCase: BenchCase<T>, options: BenchOptions): Promise<BenchResult>;
+export function bench<T>(
+    group: string,
+    name: string,
+    benchCase: BenchCase<T>,
+    options: BenchOptions,
+): Promise<BenchResult>;
 /** Aligned table of a group's results. */
 export function printTable(results: readonly BenchResult[]): void;
 /** The gpu field of a session (spec 11.7): adapter identity, driver, the requested limits, software flag, runtime. */
@@ -4402,7 +4908,12 @@ export interface GpuSessionInfo {
     readonly device: string;
     readonly description: string;
     readonly driver: string;
-    readonly limits: { readonly maxBufferSize: number; readonly maxStorageBufferBindingSize: number; readonly maxStorageBuffersPerShaderStage: number; readonly maxComputeWorkgroupsPerDimension: number };
+    readonly limits: {
+        readonly maxBufferSize: number;
+        readonly maxStorageBufferBindingSize: number;
+        readonly maxStorageBuffersPerShaderStage: number;
+        readonly maxComputeWorkgroupsPerDimension: number;
+    };
     readonly software: boolean;
     readonly runtime: "node" | "browser";
     readonly subgroupMaxSize: number;
@@ -4428,7 +4939,11 @@ export { runnerClass } from "../scripts/runner-class.js";
 /** The GpuSessionInfo of a context. */
 export function gpuSessionInfo(ctx: GpuContext): GpuSessionInfo;
 /** Appends a session to benchmarks/out/<runnerClass>.json (created when absent); returns the path. */
-export function appendSession(results: readonly BenchResult[], gpu: GpuSessionInfo, options?: { readonly dir?: string | undefined } | undefined): string;
+export function appendSession(
+    results: readonly BenchResult[],
+    gpu: GpuSessionInfo,
+    options?: { readonly dir?: string | undefined } | undefined,
+): string;
 /** xorshift32, graph-format's. */
 export function makeRandom(seed: number): () => number;
 ```
@@ -4436,7 +4951,12 @@ export function makeRandom(seed: number): () => number;
 ### 6.2 benchmarks/datasets.ts -- P1-T7 (spec 11.7)
 
 ```ts
-export interface EdgeArrays { readonly nodeCount: number; readonly src: U32; readonly dst: U32; readonly weights: F32; }
+export interface EdgeArrays {
+    readonly nodeCount: number;
+    readonly src: U32;
+    readonly dst: U32;
+    readonly weights: F32;
+}
 /** G(n, m) with self-loops and parallels, weights 1..10 (graph-format's). */
 export function randomEdges(nodeCount: number, edgeCount: number, seed?: number | undefined): EdgeArrays;
 /** R-MAT-like hub graph (0.57 / 0.19 / 0.19 / 0.05), no self-loops. */
@@ -4448,7 +4968,10 @@ export const KARATE_EDGES: EdgeArrays;
 /** The design-15.3 tiers as (nodes, edges) pairs: 10k/100k, 100k/1M, 1M/10M. */
 export const TIERS: readonly { readonly name: string; readonly nodes: number; readonly edges: number }[];
 /** An undirected weighted fromEdgeArrays snapshot of an EdgeArrays. */
-export function snapshotOf(edges: EdgeArrays, options?: { readonly directed?: boolean | undefined; readonly label?: string | undefined } | undefined): GraphSnapshot;
+export function snapshotOf(
+    edges: EdgeArrays,
+    options?: { readonly directed?: boolean | undefined; readonly label?: string | undefined } | undefined,
+): GraphSnapshot;
 ```
 
 ### 6.3 benchmarks/run.ts and the group files
@@ -4463,11 +4986,11 @@ selected groups (unknown group -> exit 1), prints one table per group,
 appends the session unless `--no-save`, disposes the context. Groups and
 the T-targets they record:
 
-| Group file | Export | Contents | Target |
-| --- | --- | --- | --- |
-| `upload.bench.ts` (P1-T7) | `runUploadBenchmarks(ctx): Promise<BenchResult[]>` | residency.core of the 100k / 1M and 1M / 10M weighted hot prefixes (fresh snapshot per run; release in teardown) | T-1 |
-| `roundtrip.bench.ts` (P1-T7) | `runRoundtripBenchmarks(ctx)` | degree + 400 KB readback at 100k; an empty submit + 4-byte readU32 | T-2, T-3 |
-| `layout-exact.bench.ts` (P3-T7) | `runLayoutExactBenchmarks(ctx)` | createForceAtlas2 step(1) per-iteration wall time at the exact ladder 1k / 4k / 8k / 16k / 32k / 65k (E = 10n), 2D, after warm; the per-frame cost step(1) + readback at 10k | T-4 (and the Node side of T-5) |
+| Group file                      | Export                                             | Contents                                                                                                                                                                     | Target                         |
+| ------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `upload.bench.ts` (P1-T7)       | `runUploadBenchmarks(ctx): Promise<BenchResult[]>` | residency.core of the 100k / 1M and 1M / 10M weighted hot prefixes (fresh snapshot per run; release in teardown)                                                             | T-1                            |
+| `roundtrip.bench.ts` (P1-T7)    | `runRoundtripBenchmarks(ctx)`                      | degree + 400 KB readback at 100k; an empty submit + 4-byte readU32                                                                                                           | T-2, T-3                       |
+| `layout-exact.bench.ts` (P3-T7) | `runLayoutExactBenchmarks(ctx)`                    | createForceAtlas2 step(1) per-iteration wall time at the exact ladder 1k / 4k / 8k / 16k / 32k / 65k (E = 10n), 2D, after warm; the per-frame cost step(1) + readback at 10k | T-4 (and the Node side of T-5) |
 
 `layout-run.ts` (P3-T7): `tsx benchmarks/layout-run.ts --nodes N --edges M
 [--iterations 100] [--batch 8] [--seed 1] [--dim 2] [--compat paper]` lays
@@ -4504,9 +5027,21 @@ export interface GpuPolicy {
 /** unset / "" -> skip; "any"; "hardware"; any other string -> vendor (lower-cased). */
 export function parseGpuRequire(value: string | undefined): GpuPolicy;
 /** architecture "software" | "swiftshader" or isFallbackAdapter === true (a copy of src isSoftwareAdapter; test/device/policy.test.ts keeps them equal). */
-export function isSoftwareInfo(info: { readonly vendor: string; readonly architecture: string; readonly isFallbackAdapter?: boolean | undefined }): boolean;
+export function isSoftwareInfo(info: {
+    readonly vendor: string;
+    readonly architecture: string;
+    readonly isFallbackAdapter?: boolean | undefined;
+}): boolean;
 /** The policy verdict for an adapter (null info = no adapter): skip -> { ok: false, reason, skip: true } when absent; any -> ok iff present; hardware -> ok iff !software; vendor -> ok iff vendor === policy.vendor and (browser ? isFallbackAdapter === false : true). */
-export function checkAdapter(info: { readonly vendor: string; readonly architecture: string; readonly isFallbackAdapter?: boolean | undefined } | null, policy: GpuPolicy, options?: { readonly browser?: boolean | undefined } | undefined): { readonly ok: boolean; readonly skip: boolean; readonly reason: string | null };
+export function checkAdapter(
+    info: {
+        readonly vendor: string;
+        readonly architecture: string;
+        readonly isFallbackAdapter?: boolean | undefined;
+    } | null,
+    policy: GpuPolicy,
+    options?: { readonly browser?: boolean | undefined } | undefined,
+): { readonly ok: boolean; readonly skip: boolean; readonly reason: string | null };
 ```
 
 ### 6.6 scripts/gpu-report.js -- P0-T2 (spec 12.3)
@@ -4528,11 +5063,36 @@ stdout:
 {
     "ok": true,
     "policy": { "level": "vendor", "vendor": "nvidia", "raw": "nvidia" },
-    "adapter": { "vendor": "nvidia", "architecture": "ada-lovelace", "device": "", "description": "NVIDIA GeForce RTX 4070 SUPER ...", "software": false, "subgroupMinSize": 32, "subgroupMaxSize": 32, "features": ["subgroups", "timestamp-query"], "limits": { "maxBufferSize": 268435456, "maxStorageBufferBindingSize": 134217728, "maxStorageBuffersPerShaderStage": 8, "maxComputeWorkgroupsPerDimension": 65535 } },
-    "deviceLimits": { "maxBufferSize": 2147483648, "maxStorageBufferBindingSize": 2147483648, "maxStorageBuffersPerShaderStage": 8, "maxComputeWorkgroupsPerDimension": 65535 },
+    "adapter": {
+        "vendor": "nvidia",
+        "architecture": "ada-lovelace",
+        "device": "",
+        "description": "NVIDIA GeForce RTX 4070 SUPER ...",
+        "software": false,
+        "subgroupMinSize": 32,
+        "subgroupMaxSize": 32,
+        "features": ["subgroups", "timestamp-query"],
+        "limits": {
+            "maxBufferSize": 268435456,
+            "maxStorageBufferBindingSize": 134217728,
+            "maxStorageBuffersPerShaderStage": 8,
+            "maxComputeWorkgroupsPerDimension": 65535
+        }
+    },
+    "deviceLimits": {
+        "maxBufferSize": 2147483648,
+        "maxStorageBufferBindingSize": 2147483648,
+        "maxStorageBuffersPerShaderStage": 8,
+        "maxComputeWorkgroupsPerDimension": 65535
+    },
     "roundTripMs": 0.04,
     "runnerClass": "nvidia-ada-lovelace-driver580",
-    "nvidiaSmi": { "available": true, "samples": [{ "utilizationGpu": 0, "memoryUsedMiB": 512 }], "maxUtilization": 0, "maxMemoryUsedMiB": 512 },
+    "nvidiaSmi": {
+        "available": true,
+        "samples": [{ "utilizationGpu": 0, "memoryUsedMiB": 512 }],
+        "maxUtilization": 0,
+        "maxMemoryUsedMiB": 512
+    },
     "webgpu": "0.4.0",
     "node": "v22.22.1",
     "reason": null
@@ -4593,7 +5153,10 @@ export interface RunnerClassInfo {
     readonly description: string;
 }
 /** `env.GRAPHTY_RUNNER_CLASS` when set and non-empty (the T4 lane fixes `gpu-linux-t4`, 6.4), else `<vendor>-<architecture>-driver<major>` (spec 10.4). CONTRACT DECISION: `major` = the first run of digits in `description`, "0" when none (Dawn's NVIDIA description carries the driver version; SwiftShader / lavapipe carry Mesa's); every character outside [A-Za-z0-9_.-] becomes "_"; lower-cased. */
-export function runnerClass(info: RunnerClassInfo, env?: Readonly<Record<string, string | undefined>> | undefined): string;
+export function runnerClass(
+    info: RunnerClassInfo,
+    env?: Readonly<Record<string, string | undefined>> | undefined,
+): string;
 ```
 
 `env` defaults to `process.env` in the `.js`; the test passes explicit
@@ -4613,12 +5176,12 @@ box (NVIDIA) and with `GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any`
 
 ### 7.1 P0 -- reset + package skeleton (spec 13 row P0; gate G0)
 
-| Task | Title | Files (created unless "edit") | Depends on | Parallel |
-| --- | --- | --- | --- | --- |
-| P0-T1 | Scaffold triage, root rewrite, docs move | deletes the root scaffold list of 1.1; edits `/README.md`, `/.gitignore`; `git mv HEADLESS_GPU_REPORT.md` -> `packages/webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md`; copies `tmp/webgpu-plan/*.md` and `review/` -> `docs/research/` (1.1) | -- | with T2 |
-| P0-T2 | Manifest, configs, scripts, CI, workspace entries | `package.json` (replaces the placeholder), `project.json`, `tsconfig.json`, `tsconfig.build.json`, `tsconfig.strict-consumer.json`, `eslint.config.js`, `vitest.config.ts`, `scripts/entries.js`, `scripts/build-bundle.js`, `scripts/bundle-types.js`, `scripts/gpu-policy.js`, `scripts/gpu-policy.d.ts`, `scripts/runner-class.js`, `scripts/runner-class.d.ts`, `scripts/gpu-report.js`, `scripts/run-browser-project.js`, `scripts/bench-compare.js` (stub rule), `benchmarks/run.ts` (stub), `.github/workflows/ci.yml`, `.github/workflows/gpu.yml`; edits `packages/pnpm-workspace.yaml`, `packages/knip.config.ts`, `packages/package.json` (description), `packages/.gitignore`; runs `pnpm install` at `packages/` (lockfile updated) | -- | with T1 |
-| P0-T3 | src skeleton, test setup, first device tests, index / build-output / layers tests, package CLAUDE.md / README | `src/index.ts`, `src/errors.ts`, `src/constants.ts`, `src/device/webgpu-constants.ts`, `src/device/acquire.ts` (isSoftwareAdapter, summarizeAdapter), `src/browser/index.ts` (empty), `src/node/index.ts` (createNodeGpu, NodeGpuOptions, NodeGpuHandle, dawnFlags), `src/types/context.ts` (AdapterInfoLike, AdapterSummary only at P0; P1-T1 completes), `test/setup/gpu.ts` (P0 form), `test/setup/browser.ts`, `test/setup/global.ts` (empty), `test/setup/browser-commands.d.ts` (P0 form, 5.1), `test/errors.test.ts`, `test/device/constants.test.ts`, `test/device/acquire.test.ts`, `test/device/policy.test.ts`, `test/browser/webgpu-check.test.ts`, `test/index.test.ts`, `test/build-output.test.ts`, `test/layers.test.ts`, `test/types/public-api.test-d.ts`, `README.md`, `CLAUDE.md` (spec 3.1 sections, the verified `launch` spelling of 2.5, the env table of spec 12.2) | T2 | -- |
-| P0-T4 | Owner checklist (G0) | `docs/decisions/G0.md`; edit `CLAUDE.md` ("Verified Platform Facts": the spec 12.2 image facts from the first gpu.yml dispatch -- modprobe needed or not, Xvfb needed or not, libegl1 present, the image's Ubuntu release / glibc / driver -- and the `test.env` vs `define` outcome of section 9 item 4; T3 leaves the section with "unverified" placeholders and T4 is strictly after T3, so the lead-d parallel-edit hazard does not arise); `tmp/commit-p0.sh` (drafted by T3's author, run by the owner) | T1, T2, T3 | -- |
+| Task  | Title                                                                                                         | Files (created unless "edit")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Depends on | Parallel |
+| ----- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | -------- |
+| P0-T1 | Scaffold triage, root rewrite, docs move                                                                      | deletes the root scaffold list of 1.1; edits `/README.md`, `/.gitignore`; `git mv HEADLESS_GPU_REPORT.md` -> `packages/webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md`; copies `tmp/webgpu-plan/*.md` and `review/` -> `docs/research/` (1.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | --         | with T2  |
+| P0-T2 | Manifest, configs, scripts, CI, workspace entries                                                             | `package.json` (replaces the placeholder), `project.json`, `tsconfig.json`, `tsconfig.build.json`, `tsconfig.strict-consumer.json`, `eslint.config.js`, `vitest.config.ts`, `scripts/entries.js`, `scripts/build-bundle.js`, `scripts/bundle-types.js`, `scripts/gpu-policy.js`, `scripts/gpu-policy.d.ts`, `scripts/runner-class.js`, `scripts/runner-class.d.ts`, `scripts/gpu-report.js`, `scripts/run-browser-project.js`, `scripts/bench-compare.js` (stub rule), `benchmarks/run.ts` (stub), `.github/workflows/ci.yml`, `.github/workflows/gpu.yml`; edits `packages/pnpm-workspace.yaml`, `packages/knip.config.ts`, `packages/package.json` (description), `packages/.gitignore`; runs `pnpm install` at `packages/` (lockfile updated)                                                                                                                                             | --         | with T1  |
+| P0-T3 | src skeleton, test setup, first device tests, index / build-output / layers tests, package CLAUDE.md / README | `src/index.ts`, `src/errors.ts`, `src/constants.ts`, `src/device/webgpu-constants.ts`, `src/device/acquire.ts` (isSoftwareAdapter, summarizeAdapter), `src/browser/index.ts` (empty), `src/node/index.ts` (createNodeGpu, NodeGpuOptions, NodeGpuHandle, dawnFlags), `src/types/context.ts` (AdapterInfoLike, AdapterSummary only at P0; P1-T1 completes), `test/setup/gpu.ts` (P0 form), `test/setup/browser.ts`, `test/setup/global.ts` (empty), `test/setup/browser-commands.d.ts` (P0 form, 5.1), `test/errors.test.ts`, `test/device/constants.test.ts`, `test/device/acquire.test.ts`, `test/device/policy.test.ts`, `test/browser/webgpu-check.test.ts`, `test/index.test.ts`, `test/build-output.test.ts`, `test/layers.test.ts`, `test/types/public-api.test-d.ts`, `README.md`, `CLAUDE.md` (spec 3.1 sections, the verified `launch` spelling of 2.5, the env table of spec 12.2) | T2         | --       |
+| P0-T4 | Owner checklist (G0)                                                                                          | `docs/decisions/G0.md`; edit `CLAUDE.md` ("Verified Platform Facts": the spec 12.2 image facts from the first gpu.yml dispatch -- modprobe needed or not, Xvfb needed or not, libegl1 present, the image's Ubuntu release / glibc / driver -- and the `test.env` vs `define` outcome of section 9 item 4; T3 leaves the section with "unverified" placeholders and T4 is strictly after T3, so the lead-d parallel-edit hazard does not arise); `tmp/commit-p0.sh` (drafted by T3's author, run by the owner)                                                                                                                                                                                                                                                                                                                                                                                | T1, T2, T3 | --       |
 
 P0-T4 items the OWNER performs and G0.md records (spec 12.4, 13 row P0):
 create the public repository and push; `repository.url` confirmed; the
@@ -4638,15 +5201,15 @@ P1-T7 when P0 has no benchmarks: G0 records "no baseline yet").
 
 ### 7.2 P1 -- walking skeleton (spec 13 row P1; gate G1)
 
-| Task | Title | Files | Depends on | Parallel |
-| --- | --- | --- | --- | --- |
-| P1-T1 | Device layer, context, entries | edit `src/device/acquire.ts`; `src/device/caps.ts`, `src/device/error-scope.ts`, `src/device/lost.ts`, `src/context.ts`, edit `src/types/context.ts` (complete), `src/types/run.ts`, `src/types/memory.ts`, `src/kernel/profiler.ts` (shell), edit `src/browser/index.ts`, edit `src/node/index.ts`, edit `test/setup/gpu.ts` (acquire -> GpuContext, acquireNullBackend, uncaptured hook, inspect flag, key log), edit `test/setup/browser.ts` (acquireBrowser), `test/device/context.test.ts`, `test/device/lost.test.ts`, `test/device/error-scope.test.ts`, `test/node/entry.test.ts` | -- (P0 done) | with T2 and T3: the three form ONE integration unit (below) |
-| P1-T2 | Upload planner, residency, pool, readback, caps tables, upload-contract tests | `src/memory/upload-plan.ts`, `src/memory/residency.ts`, `src/memory/buffer-pool.ts`, `src/memory/readback.ts`, `test/helpers/caps-tables.ts`, `test/helpers/device.ts`, `test/helpers/graphs.ts`, `test/helpers/matchers.ts`, `test/fixtures/rich-v1.gsnp` (copy), `test/memory/upload-plan.test.ts`, `test/memory/residency.test.ts`, `test/memory/buffer-pool.test.ts`, `test/memory/readback.test.ts` | T1's `src/types/memory.ts` text (copied from 3.3) | with T1 and T3 |
-| P1-T3 | WGSL composer, prelude, UniformBlock, PipelineCache, Kernel, dispatch, their tests, the kernel test helper | `src/kernel/wgsl.ts`, `src/kernel/prelude.ts`, `src/kernel/struct-block.ts`, `src/kernel/pipeline-cache.ts`, `src/kernel/kernel.ts`, `src/kernel/dispatch.ts`, `test/helpers/kernel.ts`, `test/kernel/wgsl.test.ts`, `test/kernel/struct-block.test.ts`, `test/kernel/pipeline-cache.test.ts`, `test/kernel/kernel.test.ts`, `test/kernel/dispatch.test.ts` | T1's `src/types/memory.ts` text | with T1 and T2 |
-| P1-T4 | kernels.ts registry, the P1 WGSL bodies and blocks, compile and registry tests, the 17M linear_id test and its shared constants | `src/kernels.ts`, `src/wgsl/degree.wgsl.ts`, `src/wgsl/reduce.wgsl.ts`, `src/wgsl/fill.wgsl.ts`, `src/wgsl/fa2-repulsion-exact.wgsl.ts`, `src/wgsl/fa2-speed-finalize.wgsl.ts`, `test/helpers/linear-id.ts`, `test/kernel/registry.test.ts`, `test/kernel/compile.test.ts`, `test/kernel/linear-id.test.ts` | T1 + T2 + T3 (the integration unit green) | -- |
-| P1-T5 | degree kernel driver, reduce primitive, oracles, degree / reduce tests, the sabotage table (degree, reduce, K3, K4 rows) and its coverage test, the noise-floor helpers | `src/primitives/reduce.ts`, `src/algorithms/degree.ts`, `test/oracle/degree.ts`, `test/oracle/reduce.ts`, `test/helpers/sabotage.ts` (every P1 row: the K3 / K4 `find` strings come from the normative bodies of 4.5; `SABOTAGE_PHASES = ["P1"]`), `test/helpers/noise-floor.ts`, `test/fixtures/noise/degree-*.json`, `test/fixtures/noise/reduce-*.json`, `test/primitives/reduce.test.ts`, `test/algorithms/degree.test.ts`, `test/sabotage/degree.test.ts`, `test/sabotage/reduce.test.ts`, `test/sabotage/coverage.test.ts` | T4 | with T6 |
-| P1-T6 | The FA2 skeleton iteration (K3 + K4 stage), its tests, the K3 / K4 sabotage test, the noise-floor file and test | `src/layouts/repulsion-exact.ts`, `test/fixtures/noise/fa2-*.json` (this adapter's), `benchmarks/results/noise-floor.json`, `test/layouts/skeleton.test.ts`, `test/sabotage/fa2-skeleton.test.ts`, `test/noise-floor.test.ts` | T4; T5 for `test/helpers/sabotage.ts` and `noise-floor.ts` (its src work starts in parallel with T5) | with T5 (src); after T5 (tests) |
-| P1-T7 | Leak counter, benchmarks harness + upload / roundtrip groups, bench-compare, build-output bundle assertions, browser skeleton (incl. the SwiftShader noise fixtures and the 17M map), index exports, coverage, G1 record | `test/helpers/leak-counter.ts`, `test/helpers/noise-floor-browser.ts`, edit `test/setup/browser-commands.d.ts` (NoiseRow), `test/leak.test.ts`, `benchmarks/harness.ts`, `benchmarks/datasets.ts`, edit `benchmarks/run.ts`, `benchmarks/upload.bench.ts`, `benchmarks/roundtrip.bench.ts`, `benchmarks/results/<nvidia class>.json`, edit `scripts/bench-compare.js` (full rule), edit `test/build-output.test.ts`, `test/browser/entry.test.ts`, `test/browser/skeleton.test.ts`, edit `src/index.ts` (the P1 list), edit `test/index.test.ts`, edit `test/types/public-api.test-d.ts`, edit `README.md`, edit `CLAUDE.md`, `docs/decisions/G1.md` (T-1 / T-2 / T-3 recorded; cross-adapter results; coverage numbers), `tmp/commit-p1.sh` | T5, T6 | -- |
+| Task  | Title                                                                                                                                                                                                                    | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Depends on                                                                                           | Parallel                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| P1-T1 | Device layer, context, entries                                                                                                                                                                                           | edit `src/device/acquire.ts`; `src/device/caps.ts`, `src/device/error-scope.ts`, `src/device/lost.ts`, `src/context.ts`, edit `src/types/context.ts` (complete), `src/types/run.ts`, `src/types/memory.ts`, `src/kernel/profiler.ts` (shell), edit `src/browser/index.ts`, edit `src/node/index.ts`, edit `test/setup/gpu.ts` (acquire -> GpuContext, acquireNullBackend, uncaptured hook, inspect flag, key log), edit `test/setup/browser.ts` (acquireBrowser), `test/device/context.test.ts`, `test/device/lost.test.ts`, `test/device/error-scope.test.ts`, `test/node/entry.test.ts`                                                                                                                                                    | -- (P0 done)                                                                                         | with T2 and T3: the three form ONE integration unit (below) |
+| P1-T2 | Upload planner, residency, pool, readback, caps tables, upload-contract tests                                                                                                                                            | `src/memory/upload-plan.ts`, `src/memory/residency.ts`, `src/memory/buffer-pool.ts`, `src/memory/readback.ts`, `test/helpers/caps-tables.ts`, `test/helpers/device.ts`, `test/helpers/graphs.ts`, `test/helpers/matchers.ts`, `test/fixtures/rich-v1.gsnp` (copy), `test/memory/upload-plan.test.ts`, `test/memory/residency.test.ts`, `test/memory/buffer-pool.test.ts`, `test/memory/readback.test.ts`                                                                                                                                                                                                                                                                                                                                     | T1's `src/types/memory.ts` text (copied from 3.3)                                                    | with T1 and T3                                              |
+| P1-T3 | WGSL composer, prelude, UniformBlock, PipelineCache, Kernel, dispatch, their tests, the kernel test helper                                                                                                               | `src/kernel/wgsl.ts`, `src/kernel/prelude.ts`, `src/kernel/struct-block.ts`, `src/kernel/pipeline-cache.ts`, `src/kernel/kernel.ts`, `src/kernel/dispatch.ts`, `test/helpers/kernel.ts`, `test/kernel/wgsl.test.ts`, `test/kernel/struct-block.test.ts`, `test/kernel/pipeline-cache.test.ts`, `test/kernel/kernel.test.ts`, `test/kernel/dispatch.test.ts`                                                                                                                                                                                                                                                                                                                                                                                  | T1's `src/types/memory.ts` text                                                                      | with T1 and T2                                              |
+| P1-T4 | kernels.ts registry, the P1 WGSL bodies and blocks, compile and registry tests, the 17M linear_id test and its shared constants                                                                                          | `src/kernels.ts`, `src/wgsl/degree.wgsl.ts`, `src/wgsl/reduce.wgsl.ts`, `src/wgsl/fill.wgsl.ts`, `src/wgsl/fa2-repulsion-exact.wgsl.ts`, `src/wgsl/fa2-speed-finalize.wgsl.ts`, `test/helpers/linear-id.ts`, `test/kernel/registry.test.ts`, `test/kernel/compile.test.ts`, `test/kernel/linear-id.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                  | T1 + T2 + T3 (the integration unit green)                                                            | --                                                          |
+| P1-T5 | degree kernel driver, reduce primitive, oracles, degree / reduce tests, the sabotage table (degree, reduce, K3, K4 rows) and its coverage test, the noise-floor helpers                                                  | `src/primitives/reduce.ts`, `src/algorithms/degree.ts`, `test/oracle/degree.ts`, `test/oracle/reduce.ts`, `test/helpers/sabotage.ts` (every P1 row: the K3 / K4 `find` strings come from the normative bodies of 4.5; `SABOTAGE_PHASES = ["P1"]`), `test/helpers/noise-floor.ts`, `test/fixtures/noise/degree-*.json`, `test/fixtures/noise/reduce-*.json`, `test/primitives/reduce.test.ts`, `test/algorithms/degree.test.ts`, `test/sabotage/degree.test.ts`, `test/sabotage/reduce.test.ts`, `test/sabotage/coverage.test.ts`                                                                                                                                                                                                             | T4                                                                                                   | with T6                                                     |
+| P1-T6 | The FA2 skeleton iteration (K3 + K4 stage), its tests, the K3 / K4 sabotage test, the noise-floor file and test                                                                                                          | `src/layouts/repulsion-exact.ts`, `test/fixtures/noise/fa2-*.json` (this adapter's), `benchmarks/results/noise-floor.json`, `test/layouts/skeleton.test.ts`, `test/sabotage/fa2-skeleton.test.ts`, `test/noise-floor.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | T4; T5 for `test/helpers/sabotage.ts` and `noise-floor.ts` (its src work starts in parallel with T5) | with T5 (src); after T5 (tests)                             |
+| P1-T7 | Leak counter, benchmarks harness + upload / roundtrip groups, bench-compare, build-output bundle assertions, browser skeleton (incl. the SwiftShader noise fixtures and the 17M map), index exports, coverage, G1 record | `test/helpers/leak-counter.ts`, `test/helpers/noise-floor-browser.ts`, edit `test/setup/browser-commands.d.ts` (NoiseRow), `test/leak.test.ts`, `benchmarks/harness.ts`, `benchmarks/datasets.ts`, edit `benchmarks/run.ts`, `benchmarks/upload.bench.ts`, `benchmarks/roundtrip.bench.ts`, `benchmarks/results/<nvidia class>.json`, edit `scripts/bench-compare.js` (full rule), edit `test/build-output.test.ts`, `test/browser/entry.test.ts`, `test/browser/skeleton.test.ts`, edit `src/index.ts` (the P1 list), edit `test/index.test.ts`, edit `test/types/public-api.test-d.ts`, edit `README.md`, edit `CLAUDE.md`, `docs/decisions/G1.md` (T-1 / T-2 / T-3 recorded; cross-adapter results; coverage numbers), `tmp/commit-p1.sh` | T5, T6                                                                                               | --                                                          |
 
 The P1 integration unit (CONTRACT DECISION; the section 7 per-task green
 rule applies to T4-T7 individually): `src/context.ts` (T1) constructs
@@ -4681,11 +5244,11 @@ K3 and K4 sabotage mutations failing their tests by >= 10x
 
 ### 7.3 P2 -- batch + dispatch infrastructure (spec 13 row P2; gate G2)
 
-| Task | Title | Files | Depends on | Parallel |
-| --- | --- | --- | --- | --- |
-| P2-T1 | Lease, CommandBatch, UniformRing, Profiler, warm, device-loss propagation, residentBytes warning, and their tests | `src/memory/lease.ts`, edit `src/memory/buffer-pool.ts` (lease()), `src/kernel/batch.ts`, `src/kernel/uniform-ring.ts`, edit `src/kernel/profiler.ts` (full), edit `src/context.ts` (BatchHost members, profiler creation, onLost fan-out), edit `src/memory/residency.ts` (residentBytes warning, clearOnLoss), `test/memory/lease.test.ts`, `test/kernel/batch.test.ts`, `test/kernel/uniform-ring.test.ts`, `test/kernel/profiler.test.ts`, `test/kernel/state-roundtrip.test.ts`, `test/kernel/uniform-layout.test.ts`, edit `test/device/lost.test.ts`, edit `test/memory/residency.test.ts`, `test/browser/batch.test.ts`, `test/browser/lost.test.ts`, `test/browser/state-roundtrip.test.ts`, `test/browser/uniform-layout.test.ts` | -- (P1 done) | with T2 |
-| P2-T2 | segmentedReduce thread-per-row + twin, its sabotage rows and noise fixtures, oracle skeleton, override matrix, compile matrix on both runtimes, bind-group budget, determinism, the key-log teardown | `src/wgsl/segmented-reduce.wgsl.ts`, edit `src/kernels.ts` (the entry), `src/primitives/segmented-reduce.ts`, `test/oracle/segmented-reduce.ts`, `test/helpers/override-matrix.ts`, edit `test/helpers/caps-tables.ts` (CAPS_INTEL_XE), edit `test/helpers/sabotage.ts` (the segmented-reduce rows; `SABOTAGE_PHASES` gains "P2"), edit `test/setup/global.ts` (the coverage teardown), `test/fixtures/noise/segmented-reduce-*.json`, edit `benchmarks/results/noise-floor.json` (the segmented-reduce rows), `test/primitives/segmented-reduce.test.ts`, `test/sabotage/segmented-reduce.test.ts`, `test/kernel/wgsl-compile.test.ts`, `test/kernel/bind-group-budget.test.ts`, `test/kernel/determinism.test.ts`, `test/browser/compile-matrix.test.ts`, `test/limits/README.md` | -- (P1 done) | with T1 |
-| P2-T3 | Default-lane time budget check and the G2 record | `docs/decisions/G2.md` (lane durations from the GitHub run, the `gpu-report.json` upload, every G2 item mapped to its test), edit `CLAUDE.md` (Verified Platform Facts: the synchronous uncapturederror order, the negative uniform test outcome per runtime), `tmp/commit-p2.sh` | T1, T2 | -- |
+| Task  | Title                                                                                                                                                                                                | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Depends on   | Parallel |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | -------- |
+| P2-T1 | Lease, CommandBatch, UniformRing, Profiler, warm, device-loss propagation, residentBytes warning, and their tests                                                                                    | `src/memory/lease.ts`, edit `src/memory/buffer-pool.ts` (lease()), `src/kernel/batch.ts`, `src/kernel/uniform-ring.ts`, edit `src/kernel/profiler.ts` (full), edit `src/context.ts` (BatchHost members, profiler creation, onLost fan-out), edit `src/memory/residency.ts` (residentBytes warning, clearOnLoss), `test/memory/lease.test.ts`, `test/kernel/batch.test.ts`, `test/kernel/uniform-ring.test.ts`, `test/kernel/profiler.test.ts`, `test/kernel/state-roundtrip.test.ts`, `test/kernel/uniform-layout.test.ts`, edit `test/device/lost.test.ts`, edit `test/memory/residency.test.ts`, `test/browser/batch.test.ts`, `test/browser/lost.test.ts`, `test/browser/state-roundtrip.test.ts`, `test/browser/uniform-layout.test.ts`                                         | -- (P1 done) | with T2  |
+| P2-T2 | segmentedReduce thread-per-row + twin, its sabotage rows and noise fixtures, oracle skeleton, override matrix, compile matrix on both runtimes, bind-group budget, determinism, the key-log teardown | `src/wgsl/segmented-reduce.wgsl.ts`, edit `src/kernels.ts` (the entry), `src/primitives/segmented-reduce.ts`, `test/oracle/segmented-reduce.ts`, `test/helpers/override-matrix.ts`, edit `test/helpers/caps-tables.ts` (CAPS_INTEL_XE), edit `test/helpers/sabotage.ts` (the segmented-reduce rows; `SABOTAGE_PHASES` gains "P2"), edit `test/setup/global.ts` (the coverage teardown), `test/fixtures/noise/segmented-reduce-*.json`, edit `benchmarks/results/noise-floor.json` (the segmented-reduce rows), `test/primitives/segmented-reduce.test.ts`, `test/sabotage/segmented-reduce.test.ts`, `test/kernel/wgsl-compile.test.ts`, `test/kernel/bind-group-budget.test.ts`, `test/kernel/determinism.test.ts`, `test/browser/compile-matrix.test.ts`, `test/limits/README.md` | -- (P1 done) | with T1  |
+| P2-T3 | Default-lane time budget check and the G2 record                                                                                                                                                     | `docs/decisions/G2.md` (lane durations from the GitHub run, the `gpu-report.json` upload, every G2 item mapped to its test), edit `CLAUDE.md` (Verified Platform Facts: the synchronous uncapturederror order, the negative uniform test outcome per runtime), `tmp/commit-p2.sh`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | T1, T2       | --       |
 
 G2 checklist: `planUpload` unit tests for every path x caps table; the
 1D / 2D boundary and the WGSL linear_id test; reduce and thread-per-row
@@ -4703,15 +5266,15 @@ recorded from the three adapters; the GPU lane green with
 
 ### 7.4 P3 -- ForceAtlas2, exact tier (spec 13 row P3; gate G3)
 
-| Task | Title | Files | Depends on | Parallel |
-| --- | --- | --- | --- | --- |
-| P3-T1 | seed.ts, inputs.ts, the three type files, ForceSimulation core, the fake-model test | `src/layouts/seed.ts`, `src/layouts/inputs.ts`, `src/types/options.ts`, `src/types/layout.ts`, `src/types/accelerator.ts`, `src/layouts/force-simulation.ts`, `test/layouts/force-simulation.test.ts`, `test/layouts/seed.test.ts`, `test/layouts/inputs.test.ts` | -- (P2 done) | with T4 (the oracle depends only on the option TYPES; T4 may start from this contract's type text and rebase on T1's file) |
-| P3-T2 | The FA2 model: K1 / K2 / K5 / toScene bodies and registry entries, ForceAtlas2Model, createForceAtlas2, the repulsion stage wired in, option tests | `src/wgsl/fa2-stats-finalize.wgsl.ts`, `src/wgsl/fa2-attraction.wgsl.ts`, `src/wgsl/fa2-integrate.wgsl.ts`, `src/wgsl/fa2-to-scene.wgsl.ts`, edit `src/kernels.ts` (the four entries; `fill` reuse), edit `src/layouts/repulsion-exact.ts` (recordRepulsion / recordSpeedFinalize split, model wiring), `src/layouts/forceatlas2.ts`, `test/layouts/fa2-options.test.ts` | T1 | -- |
-| P3-T3 | createAccelerator, index exports, type tests, strict-consumer sample | `src/accelerator.ts`, edit `src/index.ts` (the P3 list), `test/accelerator.test.ts`, `test/types/accelerator.test-d.ts`, `test/types/options.test-d.ts`, edit `test/types/public-api.test-d.ts`, edit `test/index.test.ts` | T2 | with T4-T7 |
-| P3-T4 | The f64 / f32 FA2 oracle, the NetworkX fixture generator, the committed fixtures, oracle-vs-NetworkX tests, the SWING_MODE unit test | `test/oracle/forceatlas2.ts`, `test/fixtures/networkx/generate.py`, `test/fixtures/networkx/*.json`, `test/oracle/forceatlas2-networkx.test.ts`, `test/oracle/swing-mode.test.ts` (creates `tmp/nx-venv` with `networkx>=3.4`; the venv is gitignored) | T1 (types) | with T2, T3 |
-| P3-T5 | Parity tests, sabotage matrix K1-K5, inspect stage parity, noise-floor tracing, metrics | `test/helpers/metrics.ts`, edit `test/helpers/sabotage.ts` (K1 / K2 / K5 rows; `SABOTAGE_PHASES` gains "P3"), edit `test/fixtures/noise/*.json` (K1-K5 rows), edit `benchmarks/results/noise-floor.json`, edit `test/noise-floor.test.ts`, `test/layouts/fa2-force-parity.test.ts`, `test/layouts/fa2-trace-parity.test.ts`, `test/layouts/fa2-distributional.test.ts`, `test/layouts/fa2-behaviour.test.ts`, `test/layouts/fa2-properties.test.ts`, `test/layouts/fa2-force-sum.test.ts`, `test/layouts/fa2-twins.test.ts`, `test/layouts/fa2-lifecycle.test.ts`, `test/layouts/fa2-inspect.test.ts`, `test/sabotage/fa2.test.ts` | T2, T4 | with T3, T6, T7 |
-| P3-T6 | Frame-loop helper and test (node + browser), browser smoke (3), the bench-tagged T-5 test, the bridge types | `test/helpers/frame-loop.ts`, `test/layouts/frame-loop.test.ts`, `test/browser/forceatlas2.test.ts`, `test/browser/bench.test.ts`, edit `test/setup/browser-commands.d.ts` (BrowserBenchPayload; the `appendBenchRecord` command itself ships in vitest.config.ts at P0-T2, 2.5) | T2 | with T3, T5, T7 |
-| P3-T7 | layout-exact benchmarks, layout-run.ts, the T-4 ladder, the exactMaxNodes re-fix, the lavapipe budget, README / CLAUDE.md, G3 record | `benchmarks/layout-exact.bench.ts`, `benchmarks/layout-run.ts`, edit `benchmarks/run.ts` (the group), edit `benchmarks/results/<nvidia class>.json`, edit `src/constants.ts` (EXACT_MAX_NODES re-fixed by the 7.8 rule with the benchmark session cited in the JSDoc), edit `README.md` (the Node and browser recipes, the performance table from results/), edit `CLAUDE.md` (Adding a Layout Model recipe; Verified Platform Facts), `docs/decisions/G3.md` (T-4 ladder, T-5 at 10k, the crossover decision, the lavapipe suite time, every 11.4 tolerance with its noise-floor basis), `tmp/commit-p3.sh` | T2, T3, T5, T6 | -- |
+| Task  | Title                                                                                                                                              | Files                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Depends on     | Parallel                                                                                                                   |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| P3-T1 | seed.ts, inputs.ts, the three type files, ForceSimulation core, the fake-model test                                                                | `src/layouts/seed.ts`, `src/layouts/inputs.ts`, `src/types/options.ts`, `src/types/layout.ts`, `src/types/accelerator.ts`, `src/layouts/force-simulation.ts`, `test/layouts/force-simulation.test.ts`, `test/layouts/seed.test.ts`, `test/layouts/inputs.test.ts`                                                                                                                                                                                                                                                                                                                                                                  | -- (P2 done)   | with T4 (the oracle depends only on the option TYPES; T4 may start from this contract's type text and rebase on T1's file) |
+| P3-T2 | The FA2 model: K1 / K2 / K5 / toScene bodies and registry entries, ForceAtlas2Model, createForceAtlas2, the repulsion stage wired in, option tests | `src/wgsl/fa2-stats-finalize.wgsl.ts`, `src/wgsl/fa2-attraction.wgsl.ts`, `src/wgsl/fa2-integrate.wgsl.ts`, `src/wgsl/fa2-to-scene.wgsl.ts`, edit `src/kernels.ts` (the four entries; `fill` reuse), edit `src/layouts/repulsion-exact.ts` (recordRepulsion / recordSpeedFinalize split, model wiring), `src/layouts/forceatlas2.ts`, `test/layouts/fa2-options.test.ts`                                                                                                                                                                                                                                                           | T1             | --                                                                                                                         |
+| P3-T3 | createAccelerator, index exports, type tests, strict-consumer sample                                                                               | `src/accelerator.ts`, edit `src/index.ts` (the P3 list), `test/accelerator.test.ts`, `test/types/accelerator.test-d.ts`, `test/types/options.test-d.ts`, edit `test/types/public-api.test-d.ts`, edit `test/index.test.ts`                                                                                                                                                                                                                                                                                                                                                                                                         | T2             | with T4-T7                                                                                                                 |
+| P3-T4 | The f64 / f32 FA2 oracle, the NetworkX fixture generator, the committed fixtures, oracle-vs-NetworkX tests, the SWING_MODE unit test               | `test/oracle/forceatlas2.ts`, `test/fixtures/networkx/generate.py`, `test/fixtures/networkx/*.json`, `test/oracle/forceatlas2-networkx.test.ts`, `test/oracle/swing-mode.test.ts` (creates `tmp/nx-venv` with `networkx>=3.4`; the venv is gitignored)                                                                                                                                                                                                                                                                                                                                                                             | T1 (types)     | with T2, T3                                                                                                                |
+| P3-T5 | Parity tests, sabotage matrix K1-K5, inspect stage parity, noise-floor tracing, metrics                                                            | `test/helpers/metrics.ts`, edit `test/helpers/sabotage.ts` (K1 / K2 / K5 rows; `SABOTAGE_PHASES` gains "P3"), edit `test/fixtures/noise/*.json` (K1-K5 rows), edit `benchmarks/results/noise-floor.json`, edit `test/noise-floor.test.ts`, `test/layouts/fa2-force-parity.test.ts`, `test/layouts/fa2-trace-parity.test.ts`, `test/layouts/fa2-distributional.test.ts`, `test/layouts/fa2-behaviour.test.ts`, `test/layouts/fa2-properties.test.ts`, `test/layouts/fa2-force-sum.test.ts`, `test/layouts/fa2-twins.test.ts`, `test/layouts/fa2-lifecycle.test.ts`, `test/layouts/fa2-inspect.test.ts`, `test/sabotage/fa2.test.ts` | T2, T4         | with T3, T6, T7                                                                                                            |
+| P3-T6 | Frame-loop helper and test (node + browser), browser smoke (3), the bench-tagged T-5 test, the bridge types                                        | `test/helpers/frame-loop.ts`, `test/layouts/frame-loop.test.ts`, `test/browser/forceatlas2.test.ts`, `test/browser/bench.test.ts`, edit `test/setup/browser-commands.d.ts` (BrowserBenchPayload; the `appendBenchRecord` command itself ships in vitest.config.ts at P0-T2, 2.5)                                                                                                                                                                                                                                                                                                                                                   | T2             | with T3, T5, T7                                                                                                            |
+| P3-T7 | layout-exact benchmarks, layout-run.ts, the T-4 ladder, the exactMaxNodes re-fix, the lavapipe budget, README / CLAUDE.md, G3 record               | `benchmarks/layout-exact.bench.ts`, `benchmarks/layout-run.ts`, edit `benchmarks/run.ts` (the group), edit `benchmarks/results/<nvidia class>.json`, edit `src/constants.ts` (EXACT_MAX_NODES re-fixed by the 7.8 rule with the benchmark session cited in the JSDoc), edit `README.md` (the Node and browser recipes, the performance table from results/), edit `CLAUDE.md` (Adding a Layout Model recipe; Verified Platform Facts), `docs/decisions/G3.md` (T-4 ladder, T-5 at 10k, the crossover decision, the lavapipe suite time, every 11.4 tolerance with its noise-floor basis), `tmp/commit-p3.sh`                       | T2, T3, T5, T6 | --                                                                                                                         |
 
 G3 checklist (spec 13 row P3): 11.4 layout parity in full (oracle
 independence vs the NetworkX fixtures at 1 / 5 / 50 iterations in networkx
@@ -4730,25 +5293,25 @@ file.
 
 ## 8. Environment and toolchain facts
 
-| Fact | Value | Verified |
-| --- | --- | --- |
-| Node | 22.22.1 | given (2026-09-14) |
-| pnpm | 10.0.0 (`packages/package.json` packageManager) | read |
-| vitest / @vitest/browser | 3.2.7 in the packages lockfile (`^3.2.4` declared); @vitest/browser 3.2.7 is NOT installed under `packages/` today -- P0-T2's `pnpm install` adds it; the root scaffold's node_modules holds an unrelated @vitest/browser 2.1.9 that P0-T1 deletes | read |
-| Per-instance Playwright launch spelling (Vitest 3.2.7 types + @vitest/browser 3.2.4, the nearest installed copy) | `browser.instances: [{ browser: "chromium", launch: { args, env } }]` -- `BrowserInstanceOption extends BrowserProviderOptions` (vitest 3.2.7 `reporters.d.BuRON0I0.d.ts` line 2412; `browser.fileParallelism` line 2477; `commands` line 2539), and `providers/playwright.d.ts` augments `BrowserProviderOptions` with `launch?: LaunchOptions`; `BrowserProviderOptions` is `{}` unless that file is referenced (hence the triple-slash reference in 2.5) | `packages/node_modules/vitest/dist/chunks/reporters.d.BuRON0I0.d.ts` and `~/Projects/pupt-monorepo/node_modules/.pnpm/@vitest+browser@3.2.4_*/node_modules/@vitest/browser/providers/playwright.d.ts` (no 3.2.7 copy of @vitest/browser exists on the machine; re-read the 3.2.7 file after P0-T2's `pnpm install` and record any difference in CLAUDE.md) |
-| Browser commands bridge | config `test.browser.commands: Record<string, BrowserCommand>`; browser side `import { commands } from "@vitest/browser/context"` ("a shortcut to `server.commands`") | same files (`context.d.ts` line 551) |
-| `test.env` in browser mode | `env?: Partial<NodeJS.ProcessEnv>` populates Node workers' `process.env`; the contract forwards to the browser with `define` (2.5) and P0-T3 verifies `import.meta.env` receives it | types read; runtime to verify at G0 |
-| webgpu (Dawn) | 0.4.0 installed for graph-format (`packages/node_modules/.pnpm/webgpu@0.4.0`; 0.6.1 is also in the store but needs glibc 2.38); `types.d.ts`: `create(options: string[]): GPU`, `globals: Object` | read |
-| @webgpu/types | 0.1.72; `GPUSupportedLimits`, `GPUAdapterInfo` are `__brand`ed (hence `PlanCaps` / `AdapterInfoLike`); `GPUAdapterInfo.isFallbackAdapter: boolean`, `subgroupMinSize?` / `subgroupMaxSize?` | read |
-| TypeScript | 5.9.3 (`Uint32Array<ArrayBuffer>` generics available) | read |
-| Playwright | 1.54.1 at the root scaffold (deleted); `^1.54.1` declared for the package; Chromium build 1181 (Chromium 139) present in `~/.cache/ms-playwright/chromium-1181` | read |
-| OS / glibc / Mesa | Ubuntu 22.04, glibc 2.35, Mesa lavapipe ICD `/usr/share/vulkan/icd.d/lvp_icd.x86_64.json` | given |
-| NVIDIA | RTX 4070 SUPER, driver 580.173.02; headless Chromium reaches it only with `LD_LIBRARY_PATH=/home/apowers/Projects/webgpu-graph-algorithms/tmp/egl/root/usr/lib/x86_64-linux-gnu` (libEGL.so.1) and the four flags `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface` | given (HEADLESS_GPU_REPORT.md) |
-| SwiftShader flags | `--enable-unsafe-webgpu --use-angle=swiftshader --enable-unsafe-swiftshader` | given |
-| Python / NetworkX | Python 3.10; system networkx 3.1 has NO `forceatlas2_layout`; the fixture generator uses `tmp/nx-venv` with `networkx>=3.4` (P3-T4 creates it); the 3.4.2 source was read from the networkx-3.4.2 tag for section 4.6 | read (`tmp/.../scratchpad/nx-layout-3.4.2.py` lines 1250-1505) |
-| graph-format API used | `INVALID_INDEX`, `GraphSnapshot`, `fromEdgeArrays`, `fromCsr`, `fromRecords`, `fromBytes`, `expandEdges`, `foldArcs`, `makeMask` / `maskTest` / `maskSet` / `maskCount`, `paddedU32View`, `renumberPartition`, `GraphFormatError`, `GraphBuilder`; types `F32` / `U32` / `NodeMask` / `TypedArrayData` / `ViewName` / `CoreArrayName` / `AttributeTable` / `Column` / `ArenaLayout` / `SnapshotFlags` / `NumericVector` / `KnownColumnRole` / `NodeId` / `GpuEligibility` -- all present in `packages/graph-format/src/index.ts` | read |
-| Repository | `graphty-org/webgpu-graph-algorithms` exists as origin; CI has not run; the 0.0.0 placeholder package is committed at `packages/webgpu-graph-algorithms/` (package.json, README.md, LICENSE) | given / read |
-| Root ESLint config | ignores `**/scripts/**`, `**/benchmarks/**`, `**/docs/**`, `**/*.config.*`; relaxes `**/test/**`; no `eslint-plugin-import` (hence the core `no-restricted-imports` zones, lead a) | read |
+| Fact                                                                                                             | Value                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Verified                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node                                                                                                             | 22.22.1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | given (2026-09-14)                                                                                                                                                                                                                                                                                                                                         |
+| pnpm                                                                                                             | 10.0.0 (`packages/package.json` packageManager)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | read                                                                                                                                                                                                                                                                                                                                                       |
+| vitest / @vitest/browser                                                                                         | 3.2.7 in the packages lockfile (`^3.2.4` declared); @vitest/browser 3.2.7 is NOT installed under `packages/` today -- P0-T2's `pnpm install` adds it; the root scaffold's node_modules holds an unrelated @vitest/browser 2.1.9 that P0-T1 deletes                                                                                                                                                                                                                                                                               | read                                                                                                                                                                                                                                                                                                                                                       |
+| Per-instance Playwright launch spelling (Vitest 3.2.7 types + @vitest/browser 3.2.4, the nearest installed copy) | `browser.instances: [{ browser: "chromium", launch: { args, env } }]` -- `BrowserInstanceOption extends BrowserProviderOptions` (vitest 3.2.7 `reporters.d.BuRON0I0.d.ts` line 2412; `browser.fileParallelism` line 2477; `commands` line 2539), and `providers/playwright.d.ts` augments `BrowserProviderOptions` with `launch?: LaunchOptions`; `BrowserProviderOptions` is `{}` unless that file is referenced (hence the triple-slash reference in 2.5)                                                                      | `packages/node_modules/vitest/dist/chunks/reporters.d.BuRON0I0.d.ts` and `~/Projects/pupt-monorepo/node_modules/.pnpm/@vitest+browser@3.2.4_*/node_modules/@vitest/browser/providers/playwright.d.ts` (no 3.2.7 copy of @vitest/browser exists on the machine; re-read the 3.2.7 file after P0-T2's `pnpm install` and record any difference in CLAUDE.md) |
+| Browser commands bridge                                                                                          | config `test.browser.commands: Record<string, BrowserCommand>`; browser side `import { commands } from "@vitest/browser/context"` ("a shortcut to `server.commands`")                                                                                                                                                                                                                                                                                                                                                            | same files (`context.d.ts` line 551)                                                                                                                                                                                                                                                                                                                       |
+| `test.env` in browser mode                                                                                       | `env?: Partial<NodeJS.ProcessEnv>` populates Node workers' `process.env`; the contract forwards to the browser with `define` (2.5) and P0-T3 verifies `import.meta.env` receives it                                                                                                                                                                                                                                                                                                                                              | types read; runtime to verify at G0                                                                                                                                                                                                                                                                                                                        |
+| webgpu (Dawn)                                                                                                    | 0.4.0 installed for graph-format (`packages/node_modules/.pnpm/webgpu@0.4.0`; 0.6.1 is also in the store but needs glibc 2.38); `types.d.ts`: `create(options: string[]): GPU`, `globals: Object`                                                                                                                                                                                                                                                                                                                                | read                                                                                                                                                                                                                                                                                                                                                       |
+| @webgpu/types                                                                                                    | 0.1.72; `GPUSupportedLimits`, `GPUAdapterInfo` are `__brand`ed (hence `PlanCaps` / `AdapterInfoLike`); `GPUAdapterInfo.isFallbackAdapter: boolean`, `subgroupMinSize?` / `subgroupMaxSize?`                                                                                                                                                                                                                                                                                                                                      | read                                                                                                                                                                                                                                                                                                                                                       |
+| TypeScript                                                                                                       | 5.9.3 (`Uint32Array<ArrayBuffer>` generics available)                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | read                                                                                                                                                                                                                                                                                                                                                       |
+| Playwright                                                                                                       | 1.54.1 at the root scaffold (deleted); `^1.54.1` declared for the package; Chromium build 1181 (Chromium 139) present in `~/.cache/ms-playwright/chromium-1181`                                                                                                                                                                                                                                                                                                                                                                  | read                                                                                                                                                                                                                                                                                                                                                       |
+| OS / glibc / Mesa                                                                                                | Ubuntu 22.04, glibc 2.35, Mesa lavapipe ICD `/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`                                                                                                                                                                                                                                                                                                                                                                                                                                        | given                                                                                                                                                                                                                                                                                                                                                      |
+| NVIDIA                                                                                                           | RTX 4070 SUPER, driver 580.173.02; headless Chromium reaches it only with `LD_LIBRARY_PATH=/home/apowers/Projects/webgpu-graph-algorithms/tmp/egl/root/usr/lib/x86_64-linux-gnu` (libEGL.so.1) and the four flags `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface`                                                                                                                                                                                                                  | given (HEADLESS_GPU_REPORT.md)                                                                                                                                                                                                                                                                                                                             |
+| SwiftShader flags                                                                                                | `--enable-unsafe-webgpu --use-angle=swiftshader --enable-unsafe-swiftshader`                                                                                                                                                                                                                                                                                                                                                                                                                                                     | given                                                                                                                                                                                                                                                                                                                                                      |
+| Python / NetworkX                                                                                                | Python 3.10; system networkx 3.1 has NO `forceatlas2_layout`; the fixture generator uses `tmp/nx-venv` with `networkx>=3.4` (P3-T4 creates it); the 3.4.2 source was read from the networkx-3.4.2 tag for section 4.6                                                                                                                                                                                                                                                                                                            | read (`tmp/.../scratchpad/nx-layout-3.4.2.py` lines 1250-1505)                                                                                                                                                                                                                                                                                             |
+| graph-format API used                                                                                            | `INVALID_INDEX`, `GraphSnapshot`, `fromEdgeArrays`, `fromCsr`, `fromRecords`, `fromBytes`, `expandEdges`, `foldArcs`, `makeMask` / `maskTest` / `maskSet` / `maskCount`, `paddedU32View`, `renumberPartition`, `GraphFormatError`, `GraphBuilder`; types `F32` / `U32` / `NodeMask` / `TypedArrayData` / `ViewName` / `CoreArrayName` / `AttributeTable` / `Column` / `ArenaLayout` / `SnapshotFlags` / `NumericVector` / `KnownColumnRole` / `NodeId` / `GpuEligibility` -- all present in `packages/graph-format/src/index.ts` | read                                                                                                                                                                                                                                                                                                                                                       |
+| Repository                                                                                                       | `graphty-org/webgpu-graph-algorithms` exists as origin; CI has not run; the 0.0.0 placeholder package is committed at `packages/webgpu-graph-algorithms/` (package.json, README.md, LICENSE)                                                                                                                                                                                                                                                                                                                                     | given / read                                                                                                                                                                                                                                                                                                                                               |
+| Root ESLint config                                                                                               | ignores `**/scripts/**`, `**/benchmarks/**`, `**/docs/**`, `**/*.config.*`; relaxes `**/test/**`; no `eslint-plugin-import` (hence the core `no-restricted-imports` zones, lead a)                                                                                                                                                                                                                                                                                                                                               | read                                                                                                                                                                                                                                                                                                                                                       |
 
 ## 9. Open items the plan writers must resolve
 
@@ -4772,7 +5335,7 @@ file.
    record says so and the `env` line stays for the Node projects only.
 5. The `gpu-linux-t4` runner class (6.4) is fixed by the environment
    variable `GRAPHTY_RUNNER_CLASS` that gpu.yml sets -- P0-T2 adds `env:
-   GRAPHTY_RUNNER_CLASS: gpu-linux-t4` to the `test-gpu` job (P0 delta 7,
+GRAPHTY_RUNNER_CLASS: gpu-linux-t4` to the `test-gpu` job (P0 delta 7,
    listed here because section 2.9's delta list was written before 6.4).
 6. Whether the owner wants `benchmarks/results/<nvidia class>.json` committed
    from the dev box at P1-T7 (spec 12.1 says the T-table is measured there

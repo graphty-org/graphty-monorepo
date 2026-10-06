@@ -12,14 +12,14 @@ Welcome.
 
 ## 1. What was measured, before
 
-| thing | values in the set |
-|---|---|
+| thing                      | values in the set                                                                                                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | trailing cluster inventory | 7 -- `Copy reading, Toggle` (15), `Pin as A, Toggle` (9), `Toggle` (9), `Copy reading, Pin as A, Toggle` (4), `Style selection, Toggle` (1), `Pin as A, Close (Esc)` (1), `Copy reading, Pin as A` (1) |
-| row right padding | 2 -- 8px on 21 boards, 12px on 19 |
-| left-group gap | 3 -- 8px on 38, 6px on MultiSelection, 4px on FilterBuilderExpert |
-| cluster gap | 2 -- 4px on 39, 0px on FilterBuilderExpert |
-| leading glyph | 5 -- the inspector rect (32), the Analyze bar chart (2), a table glyph (1), the register's PIN glyph drawn as decoration (3), none (2) |
-| name band | **6** -- 141, 145, 169, 173, 195, 197 |
+| row right padding          | 2 -- 8px on 21 boards, 12px on 19                                                                                                                                                                      |
+| left-group gap             | 3 -- 8px on 38, 6px on MultiSelection, 4px on FilterBuilderExpert                                                                                                                                      |
+| cluster gap                | 2 -- 4px on 39, 0px on FilterBuilderExpert                                                                                                                                                             |
+| leading glyph              | 5 -- the inspector rect (32), the Analyze bar chart (2), a table glyph (1), the register's PIN glyph drawn as decoration (3), none (2)                                                                 |
+| name band                  | **6** -- 141, 145, 169, 173, 195, 197                                                                                                                                                                  |
 
 Measured by rendering all 48 boards and reading `clientWidth` against
 `scrollWidth` on every span of every inspector title row: **one board's name
@@ -73,33 +73,34 @@ and any string one word longer landed on a different board each time.
   FilterBuilderExpert already used 4.
 - **No leading glyph.** This is the one deletion this pass makes, and it is
   what buys the fit. Four reasons, each checkable:
-  1. It had five spellings across 40 boards and no rule saying which kind gets
-     which. It was itself one of the drifting things in this row.
-  2. On ExplorerAfterCard, ExplorerExpert and GroupProfilePopout it was the
-     register's PIN verb glyph, drawn non-interactively, in the same 36px row
-     as the real `Pin as A` control -- one verb, two drawings, one board, which
-     is the defect REGISTER section 9 names.
-  3. On 32 boards it was the register's `toggle inspector` rect: the same glyph
-     the top bar draws for the same surface, and draws ACTIVE in blue whenever
-     the inspector is open. The inspector's identity is already marked, in
-     colour, 900px away. A second, grey, non-clickable copy of it beside text
-     that says what is selected is decoration.
-  4. It cost 22px (14 glyph + 8 gap) of the one row in the shell where 6.3 says
-     the plain name must never truncate, and those 22px are exactly what makes
-     all 40 name pairs fit at 280 with no truncation anywhere.
+    1. It had five spellings across 40 boards and no rule saying which kind gets
+       which. It was itself one of the drifting things in this row.
+    2. On ExplorerAfterCard, ExplorerExpert and GroupProfilePopout it was the
+       register's PIN verb glyph, drawn non-interactively, in the same 36px row
+       as the real `Pin as A` control -- one verb, two drawings, one board, which
+       is the defect REGISTER section 9 names.
+    3. On 32 boards it was the register's `toggle inspector` rect: the same glyph
+       the top bar draws for the same surface, and draws ACTIVE in blue whenever
+       the inspector is open. The inspector's identity is already marked, in
+       colour, 900px away. A second, grey, non-clickable copy of it beside text
+       that says what is selected is decoration.
+    4. It cost 22px (14 glyph + 8 gap) of the one row in the shell where 6.3 says
+       the plain name must never truncate, and those 22px are exactly what makes
+       all 40 name pairs fit at 280 with no truncation anywhere.
 
-  This is not a new move. FilterBuilderExpert had already dropped it alone, for
-  this reason, and its comment says so: "the 14px pane glyph that used to lead
-  the row is dropped". CompareSplit had dropped it too. The pass generalises
-  what two boards had already concluded.
+    This is not a new move. FilterBuilderExpert had already dropped it alone, for
+    this reason, and its comment says so: "the 14px pane glyph that used to lead
+    the row is dropped". CompareSplit had dropped it too. The pass generalises
+    what two boards had already concluded.
 
-  The activity panel header keeps its leading glyph and should: five activities
-  share one 280px column, so the glyph says which one is open and pairs with the
-  rail's highlighted item. The inspector is one surface. There is nothing to
-  disambiguate, so the asymmetry is earned rather than arbitrary.
+    The activity panel header keeps its leading glyph and should: five activities
+    share one 280px column, so the glyph says which one is open and pairs with the
+    rail's highlighted item. The inspector is one surface. There is nothing to
+    disambiguate, so the asymmetry is earned rather than arbitrary.
+
 - **No Coming tag in this row.** ExplorePanel and FilterBuilderExpert tagged the
   title row for unshipped multi-selection. REGISTER 15.3's rule is "one tag, one
-  control", and 5.4's sentence is that mockups mark multi-selection *controls*
+  control", and 5.4's sentence is that mockups mark multi-selection _controls_
   Coming -- the surface header is neither. MultiSelection had already made this
   exact call in writing ("the Coming tag stays on the Explore panel's Selection
   section header ... dropped from this row so the size reads in full"). Both
@@ -113,15 +114,15 @@ and any string one word longer landed on a different board each time.
 Three slots, always in this order, and **nothing else is ever in this row** --
 see the 2026-09-12 override at the end of this section, which adds a fourth:
 
-| # | verb | glyph (REGISTER) | drawn when |
-|---|---|---|---|
-| 1 | `Copy reading` | 1.2 `copy`, 14px | the surface's own content is a reading (7.5 / RT-10) |
-| 2 | `Pin as A` | 1.2 `pin`, 14px | a node, edge, selection or result is shown (5.4, verbatim) |
-| 3 | `Toggle inspector (D)` | 12px closed disclosure caret (registered by this pass, section 5) | always, on every desktop inspector |
-| 3 | `Close (Esc)` | 1.1 `close (dialog, overlay, ...)`, 12px | instead of 3, on the iPad inspector, which is an overlay (5.2) |
+| #   | verb                   | glyph (REGISTER)                                                  | drawn when                                                     |
+| --- | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| 1   | `Copy reading`         | 1.2 `copy`, 14px                                                  | the surface's own content is a reading (7.5 / RT-10)           |
+| 2   | `Pin as A`             | 1.2 `pin`, 14px                                                   | a node, edge, selection or result is shown (5.4, verbatim)     |
+| 3   | `Toggle inspector (D)` | 12px closed disclosure caret (registered by this pass, section 5) | always, on every desktop inspector                             |
+| 3   | `Close (Esc)`          | 1.1 `close (dialog, overlay, ...)`, 12px                          | instead of 3, on the iPad inspector, which is an overlay (5.2) |
 
-The order is 6.8's own panel-header row read for this surface -- *view toggles,
-pin, overflow, close*. The inspector header has no view toggle. `Copy reading`
+The order is 6.8's own panel-header row read for this surface -- _view toggles,
+pin, overflow, close_. The inspector header has no view toggle. `Copy reading`
 is not a fourth kind: it is the collapsed head of the surface's copy group under
 6.8's collapse clause, whose menu carries `Copy reading`, `Copy as TSV` and that
 surface's export and record copies, and it sits where a collapsed group sits, at
@@ -134,7 +135,7 @@ truncates `Categories for group 3`, which is the whole reason this pass exists.
 The copy control is already the collapsed menu, so a kebab beside it would be a
 second menu in a 36px row. Nothing needed a home it could not reach: the one
 one-off verb that was in the row, DataTableDrawer's `Style selection`, is a
-multi-selection *action* in 5.4 and its home is that board's pinned action
+multi-selection _action_ in 5.4 and its home is that board's pinned action
 block, which already ends in a `More` row -- 6.8 point 4's non-hover twin. It
 left the header and did not need an overflow to leave into.
 
@@ -143,13 +144,13 @@ left the header and did not need an overflow to leave into.
 - Pin. 5.4: "a pin icon appears whenever a node, edge, selection or result is
   shown". So: Node, Selection and Result rows draw it; Graph summary and Style
   layer do not. On MultiSelection it is drawn ENGAGED (`background: #28364e;
-  color: #4a7ee8`) because card A is pinned, and the title stays `Pin as A` --
+color: #4a7ee8`) because card A is pinned, and the title stays `Pin as A` --
   an active toggle does not rename itself (REGISTER 10.2).
 - Copy reading. Drawn where the surface's own content is a reading. Rendering
   all 40 inspectors and looking for an RT-10 reading (12px / 1.5 / `#a3a8b1`)
   found one on 37 of them -- every kind including a single node ("Linked to
   37 others, more than 99% of nodes. Rank 1 of 200 by Bridges.") -- and none on
-  StylePanel, StyleLibrary or StyleDiverging. StyleFromAnalysis *does* show a
+  StylePanel, StyleLibrary or StyleDiverging. StyleFromAnalysis _does_ show a
   reading, and still draws no copy control: that reading is in its Source
   section and belongs to the run that made the layer, not to the layer, and 5.4
   gives "Open result" as the route to the run's own surface, where the copy
@@ -158,11 +159,11 @@ left the header and did not need an overflow to leave into.
 
 Cluster widths, and the name band each leaves:
 
-| row state | cluster | band | boards | longest name in that state |
-|---|---|---|---|---|
-| Copy + Pin + close | 3 x 24 + 2 x 4 = 80 | **167** | 16 | MultiSelection, `Selection  7 nodes, 4 edges`, 153 |
-| Copy + close | 2 x 24 + 4 = 52 | **195** | 20 | `Graph summary`, 97 |
-| close alone | 24 | **223** | 4 | StyleFromAnalysis, `Style layer  Groups (granularity 2.5)`, 201 |
+| row state          | cluster             | band    | boards | longest name in that state                                      |
+| ------------------ | ------------------- | ------- | ------ | --------------------------------------------------------------- |
+| Copy + Pin + close | 3 x 24 + 2 x 4 = 80 | **167** | 16     | MultiSelection, `Selection  7 nodes, 4 edges`, 153              |
+| Copy + close       | 2 x 24 + 4 = 52     | **195** | 20     | `Graph summary`, 97                                             |
+| close alone        | 24                  | **223** | 4      | StyleFromAnalysis, `Style layer  Groups (granularity 2.5)`, 201 |
 
 Band = 279 (280 less the 1px border) - 16 left pad - 8 right pad - 8 row gap -
 cluster. Three bands, and each one is decided by the row's own state rather than
@@ -187,9 +188,9 @@ freezes the content, one holds the surface.
 
 What it costs, measured against the table above rather than asserted:
 
-| row state | cluster | band | change |
-|---|---|---|---|
-| Copy + Keep open + close | 3 x 24 + 2 x 4 = 80 | **167** | was Copy + close at 52 / 195 |
+| row state                      | cluster              | band    | change                             |
+| ------------------------------ | -------------------- | ------- | ---------------------------------- |
+| Copy + Keep open + close       | 3 x 24 + 2 x 4 = 80  | **167** | was Copy + close at 52 / 195       |
 | Copy + Pin + Keep open + close | 4 x 24 + 3 x 4 = 108 | **139** | was Copy + Pin + close at 80 / 167 |
 
 So the always-drawn cluster takes the 80 / 167 numbers the three-icon state
@@ -213,13 +214,13 @@ measurements above are what that decision costs.
 
 The title row's collapse control is drawn with the **12px closed disclosure
 caret** and titled `Toggle inspector (D)`, on 39 boards. The register's
-`toggle inspector` row (1.1) carries the *rect* glyph, which is the top bar's
+`toggle inspector` row (1.1) carries the _rect_ glyph, which is the top bar's
 drawing. So the drawing this row actually uses was unregistered. It is added
 to REGISTER-1.5 as its own row in 1.1 and recorded in section 8 as a documented
 reuse, not as drift:
 
-| Verb | 16px stroke glyph (inner SVG) | Title |
-|---|---|---|
+| Verb                                                             | 16px stroke glyph (inner SVG)                  | Title                  |
+| ---------------------------------------------------------------- | ---------------------------------------------- | ---------------------- |
 | collapse inspector (the inspector title row's own control, 12px) | `<polyline points="6,4 10,8 6,12"></polyline>` | `Toggle inspector (D)` |
 
 One verb, two positions, one binding. The top bar's rect is the switch and says
@@ -293,7 +294,7 @@ has the full 256px band.
    register, not to this row.
 4. **The result's own name is not in the header.** On the six Result boards the
    header says `Result` and the run's 6.3 pair (`Bridges (Betweenness
-   centrality)`, `Groups (Communities, Louvain)`) renders in the body one line
+centrality)`, `Groups (Communities, Louvain)`) renders in the body one line
    below. That is the right place for it -- the body band is 256px and the
    header band is 167 -- but it does mean the header's kind word and the body's
    first line sit 8px apart. Whether the header should carry the run name is a

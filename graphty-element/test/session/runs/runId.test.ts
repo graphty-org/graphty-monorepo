@@ -218,7 +218,7 @@ describe("computeScopeDigest", () => {
         assert.notStrictEqual(computeScopeDigest("visible", ["a"], []), computeScopeDigest("graph", ["a"], []));
     });
 
-    it("tells the node 1 apart from the node \"1\"", () => {
+    it('tells the node 1 apart from the node "1"', () => {
         assert.notStrictEqual(computeScopeDigest(spec, [1], []), computeScopeDigest(spec, ["1"], []));
     });
 

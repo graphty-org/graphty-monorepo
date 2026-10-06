@@ -285,7 +285,8 @@ export function metricCostFromEstimate(metric: NodeMetricId, cost: CostEstimate)
     const { seconds } = cost;
 
     if (!Number.isFinite(seconds)) {
-        const warningSentence = "How long this will take at this size is not known. Filter to a part, and run it there.";
+        const warningSentence =
+            "How long this will take at this size is not known. Filter to a part, and run it there.";
 
         return {
             metric,

@@ -33,7 +33,7 @@ the session had visited, and `warm()` would have to guess which counts to prebui
 The rejected argument was to keep the override the design names:
 
 > [...] per cell `F += d * (k m_i M_cell / (\|d\|^2 + state.eps^2))` with `d = p_i -
-> centroid_cell` (mass-weighted centroid, Gephi `Region` semantics); loop bounds are compile-time
+centroid_cell` (mass-weighted centroid, Gephi `Region` semantics); loop bounds are compile-time
 > per `override LEVELS`
 
 It is right that a compile-time bound lets the compiler unroll the level loop and hoist the

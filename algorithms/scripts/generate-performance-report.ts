@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 // Script to generate HTML performance report from benchmark JSON data
-import { existsSync,mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 
 import { BenchmarkSession } from "../benchmarks/benchmark-result";

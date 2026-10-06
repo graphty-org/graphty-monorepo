@@ -196,11 +196,7 @@ interface DataSetSourceCommand {
 
 /** Every data op. */
 export type DataCommand =
-    | DataApplyCommand
-    | DataImportCommand
-    | DataExpandCommand
-    | DataDeclareCommand
-    | DataSetSourceCommand;
+    DataApplyCommand | DataImportCommand | DataExpandCommand | DataDeclareCommand | DataSetSourceCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);

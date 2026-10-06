@@ -17,15 +17,15 @@ design-canvas format; the files render correctly without them.
 The design system these screens are drawn from. Read these before changing a
 screen, and update these rather than a screen when a rule changes.
 
-| File | What it governs |
-|---|---|
-| `VOCAB.md` | Palette, type ramp, control sizes, component snippets, canvas ink |
-| `REGISTER-1.5.md` | One glyph and one tooltip string per verb |
-| `COMPACTION-1.6.md` | The ten row types and the routing rules |
-| `FIXTURES.md` | Canonical numbers for the three sample datasets |
-| `LEGEND-1.8.md` | The legend component |
-| `DECISIONS-1.5/1.7/1.8.md` | Why each revision decided what it did |
-| `ARTBOARD-FORMAT.md` | The file format every artboard must follow |
+| File                       | What it governs                                                   |
+| -------------------------- | ----------------------------------------------------------------- |
+| `VOCAB.md`                 | Palette, type ramp, control sizes, component snippets, canvas ink |
+| `REGISTER-1.5.md`          | One glyph and one tooltip string per verb                         |
+| `COMPACTION-1.6.md`        | The ten row types and the routing rules                           |
+| `FIXTURES.md`              | Canonical numbers for the three sample datasets                   |
+| `LEGEND-1.8.md`            | The legend component                                              |
+| `DECISIONS-1.5/1.7/1.8.md` | Why each revision decided what it did                             |
+| `ARTBOARD-FORMAT.md`       | The file format every artboard must follow                        |
 
 ## Rebuilding the canvas
 

@@ -1,7 +1,7 @@
 # Check report -- fix verification for webgpu-acceleration-plan.md
 
 Document: /home/apowers/Projects/webgpu-graph-algorithms/design/webgpu-acceleration-plan.md
-Inputs: fix-report.md and the six *-verdicts.md files under
+Inputs: fix-report.md and the six \*-verdicts.md files under
 /home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/review/.
 Date: 2026-09-14.
 
@@ -61,7 +61,7 @@ should have caught.
 
 ## Applied ids: where the fix lives (spot references, post-edit line numbers approximate)
 
-PERF-1 7.7 extent table (min(bbox, extentFactor * rmsRadius), outside
+PERF-1 7.7 extent table (min(bbox, extentFactor \* rmsRadius), outside
 pseudo-cell), 7.3 partials `.w`, 3.3 `outsideGrid`, 11.4 isolated-node
 fixture, R-3. PERF-2 D24, 7.7 sorted-order paragraph and G6 / G7 rows,
 7.21 "conservative". PERF-3 7.17 RMS normaliser, R-24. PERF-4 8.2 eight
@@ -216,8 +216,7 @@ COMPLETE-M6 7.3 trace record, 7.10, 3.3.
   mapping table has exactly one row per applied id. Note that three
   verdict files carry a summary line that disagrees with their own
   per-finding tallies (DESIGN "17 confirmed" is 19; VERIFY "12 confirmed,
-  8 downgraded" is 15 / 6; COMPLETE "15 confirmed, 5 downgraded" is 18 /
-  4) -- the Review log follows the per-finding verdicts, which is correct.
+  8 downgraded" is 15 / 6; COMPLETE "15 confirmed, 5 downgraded" is 18 / 4) -- the Review log follows the per-finding verdicts, which is correct.
 
 ## Reported, not edited (owner decisions or nits)
 

@@ -1121,8 +1121,8 @@ them; `list` takes several targets and a `targetKind`; `counts()` gives "noted e
 - _Applying the first 10,000 notes of an oversized member_: conflicts with
   all-or-nothing merging; the limit is documented as fixed for version 1 instead.
 - _`graphty.notes._`in every query, including scopes and set definitions*: would make notes an
-input to results and set membership with no dependency tracking. The
-studio's counts come from`counts()`and`list({ targetKind })` instead.
+  input to results and set membership with no dependency tracking. The
+  studio's counts come from`counts()`and`list({ targetKind })` instead.
 - _A data-load report field counting newly missing notes_: not added now; the app can
   show `list({ missing: true }).length`, which the element computes. Adding the report field later
   is an addition.

@@ -331,6 +331,9 @@ export class Ingest<K extends KnownEdge> {
     /** The tally the load in progress is counting into, or null outside a load. */
     private loadTally: ImportTally | null = null;
 
+    /** Endpoints an edge of the load in progress created with no node record to draw them from. */
+    private readonly loadMadeEndpoints = new Set<NodeIdType>();
+
     /** The load in progress drops an edge naming a node no node record holds. */
     private leaveOutUnmatched = false;
 
@@ -674,7 +677,15 @@ export class Ingest<K extends KnownEdge> {
 
             // The STORE takes the edge now, whether or not the endpoints have render objects:
             // the builder creates a missing endpoint itself, so the snapshot is complete while
-            // the scene is still catching up.
+            // the scene is still catching up. A load remembers which, to draw them at its end.
+            if (this.loadTally !== null) {
+                for (const id of [srcNodeId, dstNodeId]) {
+                    if (isStorableId(id) && !this.host.store().builder.hasNode(id)) {
+                        this.loadMadeEndpoints.add(id);
+                    }
+                }
+            }
+
             const { index: edgeIndex, edgeId } = writer.addEdge(
                 srcNodeId,
                 dstNodeId,
@@ -1155,6 +1166,7 @@ export class Ingest<K extends KnownEdge> {
                     this.host.progress?.(loadProgressChange(progress, "progress"));
                 }
 
+                this.drawMadeEndpoints(writer);
                 const errors = reader.getErrorAggregator();
                 if (errors.getErrorCount() > 0) {
                     this.host.loadErrors(type, errors);
@@ -1273,6 +1285,29 @@ export class Ingest<K extends KnownEdge> {
             // its own tally.
             this.loadTally = null;
             this.loadEndpoints = null;
+            this.loadMadeEndpoints.clear();
+        }
+    }
+
+    /**
+     * Draw the nodes the load's edges created and no node record of the load named, as a node
+     * holding only its id, which is what a file of edges alone means by them. Without this the
+     * store holds them and nothing draws them, nor the edges waiting on them.
+     * @param writer - the graph primitives to write through
+     */
+    private drawMadeEndpoints(writer: GraphWriter): void {
+        let drawn = 0;
+        for (const id of this.loadMadeEndpoints) {
+            if (!this.host.hasNode(id)) {
+                const record = frozenRecord({ id });
+                const { index } = writer.addNode(id, record, null);
+                this.host.nodeStored(id, record, index);
+                drawn++;
+            }
+        }
+
+        if (drawn > 0) {
+            this.host.nodesArrived(drawn);
         }
     }
 

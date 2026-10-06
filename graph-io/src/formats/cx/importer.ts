@@ -554,7 +554,7 @@ function parseScalar(
         }
         default: {
             if (value === "NaN" || value === "nan") {
-                return NaN;
+                return Number.NaN;
             }
             if (value === "Infinity" || value === "-Infinity") {
                 return Number(value);
@@ -624,7 +624,7 @@ function parseValue(
     for (const item of value as unknown[]) {
         let parsed = item === null ? UNSET : parseScalar(item, type.scalar, long, onPrecision);
         if (parsed === UNSET) {
-            parsed = type.scalar === "double" ? NaN : BAD;
+            parsed = type.scalar === "double" ? Number.NaN : BAD;
         }
         if (parsed === BAD) {
             return BAD;

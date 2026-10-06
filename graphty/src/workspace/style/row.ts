@@ -115,7 +115,7 @@ function without<T>(
     key: Channel,
 ): Partial<Record<Channel, T>> | undefined {
     const rest = Object.fromEntries(Object.entries(record ?? {}).filter(([channel]) => channel !== key));
-    return Object.keys(rest).length === 0 ? undefined : (rest as Partial<Record<Channel, T>>);
+    return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
 /**

@@ -223,7 +223,7 @@ describe("bytes in, graph-io decodes", () => {
         assert.strictEqual(new TextDecoder().decode(handed.input as Uint8Array), "SHELF");
 
         await read("acme-shelf", { data: "SHELF" });
-        assert.strictEqual(handed.input as unknown, "SHELF");
+        assert.strictEqual<unknown>(handed.input, "SHELF");
     });
 
     it("a hand-written reader still gets text from bytes through getContent", async () => {

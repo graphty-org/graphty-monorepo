@@ -728,7 +728,7 @@ export class Draft implements LoadDraft {
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
         const value = (row: Readonly<Record<string, unknown>>, expression: string): unknown =>
-            readEndpoint(row as Record<string, unknown>, expression);
+            readEndpoint(row, expression);
         const picked: number[] = [];
         if (roles.rowsAre === "nodes") {
             if (only !== "unmatched") {
@@ -764,7 +764,7 @@ export class Draft implements LoadDraft {
         held.rows.forEach((row, index) => {
             const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
             const rejected = !ends.every(isStorableId);
-            const unmatched = matching && !rejected && ends.some((end) => !known.has(end) && !graph.has(end as NodeId));
+            const unmatched = matching && !rejected && ends.some((end) => !known.has(end) && !graph.has(end));
             // ponytail: "loaded" counts every repeat as its own edge, as the default `keep` policy
             // does; a folding policy would have to fold repeats here too.
             const loaded = !rejected && !(unmatched && choices.unmatched === "leave-out");

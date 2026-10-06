@@ -6,6 +6,7 @@
 
 import { AbstractMesh } from '@babylonjs/core';
 import { Camera } from '@babylonjs/core';
+import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
@@ -20,6 +21,7 @@ import { GraphSnapshot } from '@graphty/graph-format';
 import { InstancedMesh } from '@babylonjs/core';
 import { LitElement } from 'lit';
 import { LossNote } from '@graphty/graph-io';
+import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
 import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -28,6 +30,7 @@ import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { Observer } from '@babylonjs/core';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';

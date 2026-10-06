@@ -81,7 +81,6 @@ export type NodeActionId =
  * @public
  */
 const DEFAULT_NODE_COMING_ACTIONS: readonly NodeActionId[] = [
-    "egoNetwork",
     "radialLayout",
     "distanceFromHere",
     "likelyMissingLinks",

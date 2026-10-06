@@ -20,8 +20,9 @@
  * dry-run, whatever the config says, and pages go to the ledger only (as `delivered: false`), so
  * a second daemon never duplicates the shared daemon's pages; `GITHERD_DEV_NOTIFY=1` delivers
  * them, for testing the notifier. The `quiet` option (the one-poll check) does the same.
- * `GITHERD_DEV_ACT=1` lets the development daemon act as its config says, so the working tree's
- * githerd can run as the live one while it is iterated on; only one daemon may act at a time.
+ * `GITHERD_DEV_ACT=1` lets the development daemon act as its config says, pages included, so the
+ * working tree's githerd can run as the live one while it is iterated on; only one daemon may act
+ * at a time.
  *
  * Pages reach the owner's phone only while the `owner-items` write group is acting; until then
  * each one is recorded in the ledger as `delivered: false`, held. The one exception is the fatal
@@ -522,7 +523,8 @@ export async function startDaemon({
     fatalOnUncaught = false,
     autoPoll = true,
     log = (line) => process.stdout.write(`${line}\n`),
-    quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1",
+    // An acting development daemon is the live one, so it pages as its owner-items group says.
+    quiet = Boolean(env.GITHERD_DEV) && env.GITHERD_DEV_NOTIFY !== "1" && env.GITHERD_DEV_ACT !== "1",
     workers: workersOn = true,
     platform: platformOptions = {},
     npm = npmLookup(),

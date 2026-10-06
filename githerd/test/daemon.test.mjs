@@ -933,6 +933,28 @@ describe("the poll loop", () => {
         expect(phone().filter((p) => p.message.startsWith("master red"))).toHaveLength(1);
     });
 
+    it("pages from a development daemon run with GITHERD_DEV_ACT=1 once owner items act", async () => {
+        writeConfig({ mode: "acting", actions: { ownerItems: true } });
+        // A group switches to acting only once the ledger shows it ran dry (config-adopt.mjs).
+        mkdirSync(join(dir, ".githerd"), { recursive: true });
+        writeFileSync(
+            join(dir, ".githerd", "ledger.jsonl"),
+            `${JSON.stringify({ ts: clock.toISOString(), kind: "would-do", group: "owner-items", op: "earlier" })}\n`,
+        );
+        const daemon = await start({
+            env: { GITHERD_CONFIG: configFile, PATH: process.env.PATH, GITHERD_DEV: "1", GITHERD_DEV_ACT: "1" },
+        });
+        await poll(daemon);
+        scene.head = B;
+        scene.commits = [commit(B, A, "Merge pull request #2 from o/x"), commit(A, null, "first")];
+        scene.ci = [run(101, B, "failure"), run(100, A, "success")];
+        for (const at of ["2026-10-02T12:03:00Z", "2026-10-02T12:06:00Z"]) {
+            clock = new Date(at);
+            await poll(daemon);
+        }
+        expect(phone().filter((p) => p.message.startsWith("master red"))).toHaveLength(1);
+    });
+
     it("runs the reference worktree's work in a development daemon only when it acts", async () => {
         writeConfig({ mode: "acting", actions: { workers: true }, workers: { slots: 0, urgent: 0 } });
         // A group switches to acting only once the ledger shows it ran dry (config-adopt.mjs).

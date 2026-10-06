@@ -1578,6 +1578,35 @@ export async function startDaemon({
     }
 
     /**
+     * Settles the done reports githerd has not accepted yet: checks every unsettled claim again
+     * (`pollVerifying`, ringing a worker sent back to work), and every kept refused report whose
+     * daemon or facts changed (`recheckRefused`), telling an owner session whose report it accepted.
+     * @param {Date} t the poll's time
+     */
+    async function settleReports(t) {
+        for (const change of await pollVerifying(state, { config, io: doneReader(), now: t })) {
+            void ledger({ kind: "done-verify", ...change });
+            if (change.action === "working") await ringJob(state.jobs[change.job]);
+        }
+        const accepted = await recheckRefused(state, { config, io: doneReader(), now: t });
+        for (const a of accepted) void ledger({ kind: "done-recheck-accepted", ...a });
+        const told = await tellAccepted(accepted, {
+            acting: writeMode("workers") === "acting",
+            sessions: messageable,
+            transport: peers.transport ?? socketTransport(),
+        });
+        for (const line of told) void ledger(line);
+    }
+
+    /**
+     * Links the red master's fix pull requests (master-fix.mjs), recording each new link.
+     * @param {any[]} nodes the open pull requests
+     */
+    function linkFixes(nodes) {
+        for (const link of linkMasterFix(state, nodes)) event("master-fix-linked", link);
+    }
+
+    /**
      * One poll of GitHub (design section 6).
      * @returns {Promise<string | null>} why nothing was asked of GitHub (a back-off), or null
      */
@@ -1617,9 +1646,7 @@ export async function startDaemon({
         if (m.verdict !== previousVerdict) m.since = iso;
         noteGreenMove(m, previousGreen, iso);
         await track(m, previousGreen, iso);
-        for (const link of linkMasterFix(state, prList.repository.pullRequests.nodes)) {
-            event("master-fix-linked", link);
-        }
+        linkFixes(prList.repository.pullRequests.nodes);
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
@@ -1655,18 +1682,7 @@ export async function startDaemon({
             void ledger({ kind: "owner-answered", job: r.job });
             await ringJob(state.jobs[r.job]);
         }
-        for (const change of await pollVerifying(state, { config, io: doneReader(), now: t })) {
-            void ledger({ kind: "done-verify", ...change });
-            if (change.action === "working") await ringJob(state.jobs[change.job]);
-        }
-        const accepted = await recheckRefused(state, { config, io: doneReader(), now: t });
-        for (const a of accepted) void ledger({ kind: "done-recheck-accepted", ...a });
-        const told = await tellAccepted(accepted, {
-            acting: writeMode("workers") === "acting",
-            sessions: messageable,
-            transport: peers.transport ?? socketTransport(),
-        });
-        for (const line of told) void ledger(line);
+        await settleReports(t);
         await stacks(prList.repository.pullRequests.nodes, branch);
         if (state.trust.login) {
             const openPrs = new Set(prList.repository.pullRequests.nodes.map((/** @type {any} */ n) => n.number));

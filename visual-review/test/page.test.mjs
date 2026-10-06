@@ -23,6 +23,7 @@ import {
     FIXTURE,
     fakeGh,
     git,
+    interceptedPage,
     isolateGit,
     job,
     makeRepo,
@@ -86,7 +87,7 @@ async function open(
         ...options(r),
     });
     server.on("request", app);
-    page = await browser.newPage({ viewport, hasTouch: touch, isMobile: touch });
+    page = await interceptedPage(browser, { viewport, hasTouch: touch, isMobile: touch });
     dialogs = [];
     // The page asks in its own dialog (ask in review.js). Accept all, Undo and Exclude are
     // confirmed; Finish is refused unless a test sets confirmFinish.
@@ -2863,6 +2864,26 @@ describe("review page: the inbox", () => {
         // The notifier's link carries no token: a browser that used the page before still opens it.
         await page.goto(`${origin}/`);
         await expect.poll(() => page.locator(".inbox-row").count()).toBe(2);
+    });
+
+    it("shows coupled pull requests as one group, and Review together decides a shared image on both", async () => {
+        await open((r) => ({ gh: twoPrs(r, capturedItems()) }), { review: false });
+        const group = page.locator(".inbox-group");
+        await group.waitFor();
+        expect(await group.locator(".group-head strong").textContent()).toBe("Coupled: #123, #124 (oldest first)");
+        expect(await group.locator(".inbox-fold").textContent()).toBe("Suggestion for the agents: fold #124 into #123");
+        expect(await group.locator(".inbox-row").count()).toBe(2);
+        await group.getByRole("button", { name: "Review together" }).click();
+        await page.locator("#app.story-screen").waitFor();
+        await ready();
+        await page.keyboard.press("a");
+        await expect.poll(status).toMatch(/^Accepted \S+ \(also on #124\)\. Now /);
+        const { decisions } = await page.evaluate(
+            async (token) =>
+                (await fetch("/api/pr/124/compact-mantine", { headers: { "x-review-token": token } })).json(),
+            TOKEN,
+        );
+        expect(Object.values(decisions)).toEqual([expect.objectContaining({ decision: "accept" })]);
     });
 
     it("lists a pull request with a failed story under Not ready with its reason, never as ready", async () => {

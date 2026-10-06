@@ -418,7 +418,7 @@ export class Graphty extends LitElement {
                         "so the value was lost. This happens when a framework renders the tag before " +
                         "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
                         'customElements.whenDefined("graphty-element"). See ' +
-                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                        "https://graphty.app/docs/graphty-element/guide/frameworks/react#load-the-element-before-react-renders-it",
                 );
             }
         }
@@ -2829,13 +2829,14 @@ export class Graphty extends LitElement {
 
     /**
      * Pin or release the nodes that answer to these ids, in either spelling, as one step. An id
-     * nothing answers to is skipped, as it always has been.
+     * nothing answers to is skipped, as it always has been; `session.positions.pin` is the verb
+     * that reports one.
      * @param ids - One node id, or several.
      * @param pinned - Pin, or release.
      */
     #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
-        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).map(
-            (id) => this.#graph.getNode(id)?.id ?? id,
+        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).flatMap(
+            (id) => this.#graph.getNode(id)?.id ?? [],
         );
         void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });
     }

@@ -9,17 +9,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { isolateGit } from "../../tools/isolated-git-env.mjs";
 import { CONFIG_FILE, normalizeConfig } from "../trusted/lib/config.mjs";
+
+// Every test file already runs isolated (vitest.config.mjs's setup file); kept for the files that call it.
+export { isolateGit };
 
 export const FIXTURE = fileURLToPath(new URL("fixtures/results/", import.meta.url));
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
-
-// Inside a git hook (the pre-push gate runs these tests) git exports GIT_DIR and friends, which
-// point every git command here, even one run in a temporary directory, at the real repository:
-// `git init --bare` there turned the developer's checkout bare. Drop them before any git runs.
-for (const name of execFileSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).split("\n")) {
-    if (name) delete process.env[name];
-}
 
 /** The monorepo's own visual-review.config.json: default branch master, workflow ci.yml. */
 const CONFIG_TEXT = readFileSync(join(ROOT, CONFIG_FILE), "utf8");
@@ -49,17 +46,6 @@ export const LFS_ATTRIBUTES = readFileSync(join(ROOT, ".gitattributes"), "utf8")
  * @returns {string} the path
  */
 export const lfsObject = (remote, oid) => join(remote, "lfs/objects", oid.slice(0, 2), oid.slice(2, 4), oid);
-
-/**
- * Keeps the developer's own git configuration (signing, hooks, aliases) out of the tests. Every
- * git process the code under test starts inherits this environment.
- */
-export function isolateGit() {
-    const home = mkdtempSync(join(tmpdir(), "vr-home-"));
-    writeFileSync(join(home, "gitconfig"), "");
-    process.env.GIT_CONFIG_GLOBAL = join(home, "gitconfig");
-    process.env.GIT_CONFIG_NOSYSTEM = "1";
-}
 
 /**
  * Runs git and returns its trimmed output.
@@ -292,3 +278,20 @@ export const withMoved = (r, extra = []) => {
     const at = { commit: r.head, headSha: r.head };
     return onePr({ results: { "visual-compact-mantine-1": { ...at, items }, "visual-graphty-element-1": at } })(r);
 };
+
+/**
+ * A new tab whose request interception is on for its whole life, so a `page.route` holds the very
+ * next request the page sends. Playwright turns Chromium's interception on with a page's first
+ * route and off with its last unroute, and the renderer takes that switch asynchronously: a
+ * request sent right after `await page.route(...)` can still go out unintercepted (about one in
+ * ten on a CPU throttled sixfold, as a slow CI runner is). With this never-matching route held,
+ * later routes only change what Playwright matches, which is in force before `page.route` returns.
+ * @param {import("playwright").Browser} browser the browser to open it in
+ * @param {import("playwright").BrowserContextOptions} options the viewport and the rest, as for newPage
+ * @returns {Promise<import("playwright").Page>} the tab
+ */
+export async function interceptedPage(browser, options) {
+    const page = await browser.newPage(options);
+    await page.route("**/interception-stays-on", (route) => route.continue());
+    return page;
+}

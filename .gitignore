@@ -131,6 +131,8 @@ gh-pages/
 docs/graphty-element/
 docs/algorithms/
 docs/layout/
+docs/graph-io/
+docs/public/
 docs/visual-review/
 
 # Layout package specific

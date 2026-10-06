@@ -207,6 +207,29 @@ const PIN_N1: SessionCommand = { op: "positions.pin", ids: ["n1"], pinned: true 
 /** Releasing node n1. */
 const UNPIN_N1: SessionCommand = { op: "positions.pin", ids: ["n1"], pinned: false };
 
+/**
+ * The element's pin and unpin, called once node n1 is in the graph: they skip an id nothing
+ * answers to, and the rows before them clear the graph and set `nodeIdPath` to `key`.
+ * @param expect - The command the call must dispatch.
+ * @returns The door.
+ */
+function pinsN1(expect: SessionCommand): Door {
+    return {
+        kind: "dispatches",
+        op: expect.op,
+        call: {
+            kind: "call",
+            args: [["n1"]],
+            around: async (target) => {
+                const element = target as { addNodes(records: unknown[]): Promise<void> };
+                await element.addNodes([{ id: "n1", key: "n1" }]);
+                return () => Promise.resolve();
+            },
+        },
+        expect: [expect],
+    };
+}
+
 /** The element's and `Graph`'s node removal. */
 const REMOVE_NODES = calls([["n3"]], [removes("remove-nodes", ["n3"])]);
 
@@ -664,8 +687,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addDataFromSource: ADD_FROM_SOURCE,
             loadFromUrl: LOAD_FROM_URL_ELEMENT,
             loadFromFile: LOAD_FROM_FILE,
-            pin: calls([["n1"]], [PIN_N1]),
-            unpin: calls([["n1"]], [UNPIN_N1]),
+            pin: pinsN1(PIN_N1),
+            unpin: pinsN1(UNPIN_N1),
             isPinned: READ,
             pinnedNodes: READ,
             getNode: READ,

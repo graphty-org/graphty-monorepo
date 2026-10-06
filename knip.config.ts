@@ -31,9 +31,6 @@ const config: KnipConfig = {
                 // Nx plugins are used dynamically
                 "@nx/react",
                 "@nx/js",
-                // Documentation tools
-                "typedoc-plugin-markdown",
-                "typedoc-vitepress-theme",
                 // Coverage merging (used in tools/merge-coverage.sh via pnpm exec)
                 "lcov-result-merger",
                 // Secret scan (used in tools/scan-secrets.sh via pnpm exec; the preset is named
@@ -178,6 +175,9 @@ const config: KnipConfig = {
                     : []),
                 // The self-contained bundle's entry, built by vite.bundle.config.ts.
                 "bundle.ts!",
+                // The types-only ./jsx entry. Its exports map entry names only a .d.ts, which knip
+                // does not map back to a source file, so it is listed for both runs.
+                "jsx.ts!",
                 "test/**/*.test.ts",
                 "test/**/*.ts",
                 "stories/**/*.stories.ts",
@@ -208,6 +208,10 @@ const config: KnipConfig = {
                 "@ai-sdk/openai",
                 "ai",
                 "encrypt-storage",
+                // The optional peer that types React's JSX namespace for the types-only ./jsx entry
+                // (jsx.ts imports "react", whose types it provides). A devDependency too, for the
+                // package's own type checks.
+                "@types/react",
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // Only `lint:knip:prod` would report them, as unlisted.

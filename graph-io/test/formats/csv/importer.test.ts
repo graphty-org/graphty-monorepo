@@ -543,7 +543,7 @@ describe("csvImporter: ids, weights and direction", () => {
         expect(numbers.snapshot.edgeCount).toBe(2);
         expect(codes(numbers.report)).toEqual([ID_MERGED_CODE, ID_MERGED_CODE]);
         expect(numbers.report.issues[0].line).toBe(2);
-        expect(numbers.report.issues[1].message).toContain("2 id cell(s)");
+        expect(numbers.report.issues[1].message).toContain("2 id cells");
     });
 
     it("rejects a non-numeric id under ids number per row and continues", async () => {
@@ -1111,6 +1111,48 @@ describe("csvImporter: row-number ids", () => {
         await expect(
             load("title,score\nA,1\n", { table: "nodes", rowNumberIds: "yes" as unknown as boolean }),
         ).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+    });
+});
+
+describe("csvImporter: labelColumn", () => {
+    it("takes labels from the named column, and node ids from it under nodeIdFrom label", async () => {
+        const { importGraph } = await import("../../../src/index.js");
+        const nodes = "key;name\n1;Alice\n2;Bob\n";
+        const labelled = await importGraph(nodes, { format: "csv", table: "nodes", labelColumn: "name" });
+        expect(labelled.snapshot.nodes.byRole("label")?.meta.name).toBe("name");
+        const byLabel = await importGraph("source;target\nAlice;Bob\n", {
+            format: "csv",
+            nodes,
+            labelColumn: "name",
+            nodeIdFrom: "label",
+        });
+        expect(byLabel.snapshot.ids.toArray()).toEqual(["Alice", "Bob"]);
+        expect(byLabel.snapshot.edgeCount).toBe(1);
+        const err = await importGraph(nodes, { format: "csv", table: "nodes", nodeIdFrom: "label" }).catch(
+            (e: unknown) => e,
+        );
+        expect((err as Error).message).toContain("pass labelColumn");
+    });
+});
+
+describe("csvImporter: decimal", () => {
+    it("reads decimal commas as numbers and never takes the comma as the delimiter", async () => {
+        const { importGraph } = await import("../../../src/index.js");
+        const { snapshot, report } = await importGraph("source;target;weight;score\na;b;2,5;1,5e2\nb;c;3;x,y\n", {
+            format: "csv",
+            decimal: ",",
+        });
+        expect([...(snapshot.edgeList().weights ?? [])]).toEqual([2.5, 3]);
+        // a text column keeps the cell as text, with the decimal comma read as a point
+        expect(snapshot.edges.value("score", 0)).toBe("1.5e2");
+        expect(snapshot.edges.value("score", 1)).toBe("x,y");
+        expect(report.errorCount).toBe(0);
+        await expect(importGraph("a,b\n", { format: "csv", decimal: ",", delimiter: "," })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+        await expect(importGraph("a,b\n", { format: "csv", decimal: "x" as "," })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
     });

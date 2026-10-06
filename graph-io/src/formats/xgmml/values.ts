@@ -7,7 +7,10 @@
 
 import { type AttRec } from "./document.js";
 
-/** The scalar kinds of a column, in widening order (string beats everything). */
+/**
+ * The scalar kinds of a column, in widening order (string beats everything).
+ * @category Plugin helpers
+ */
 export type ScalarKind = "bool" | "int" | "long" | "real" | "string";
 
 /** What one att declares. */
@@ -49,6 +52,7 @@ const XGMML_TYPES: Readonly<Record<string, DeclaredKind>> = {
  * whose name ends in `.SUID` is a long (Cytoscape keeps SUID references as Long).
  * @param att - the att
  * @returns the declared kind
+ * @category Plugin helpers
  */
 export function attType(att: AttRec): AttType {
     let kind: DeclaredKind | undefined;
@@ -77,6 +81,7 @@ export function attType(att: AttRec): AttType {
  * The scalar kind a list element type names (`cy:elementType`), or null when it names none.
  * @param text - the element type text
  * @returns the kind, or null
+ * @category Plugin helpers
  */
 export function elementKind(text: string | null): ScalarKind | null {
     if (text === null) {
@@ -92,6 +97,7 @@ export function elementKind(text: string | null): ScalarKind | null {
  * @param a - one kind
  * @param b - the other
  * @returns the kind both fit
+ * @category Plugin helpers
  */
 export function widenScalar(a: ScalarKind, b: ScalarKind): ScalarKind {
     if (a === b) {
@@ -109,7 +115,8 @@ export function widenScalar(a: ScalarKind, b: ScalarKind): ScalarKind {
 const INTEGER_TEXT = /^[+-]?[0-9]+$/;
 
 /** Java's Double.valueOf forms that Cytoscape writes: no hex, no `d` / `f` suffix. */
-const REAL_TEXT = /^[+-]?(NaN|Infinity|([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?)$/;
+const REAL_TEXT = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
+const NON_FINITE_TEXT = /^[+-]?(?:NaN|Infinity)$/;
 
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;
@@ -129,6 +136,7 @@ interface ParsedScalar {
  * @param kind - the declared kind
  * @param unescape - decode Cytoscape's two-character `\n` and `\t` in strings
  * @returns the value, or null when the text does not parse as the kind
+ * @category Plugin helpers
  */
 export function parseScalar(text: string, kind: ScalarKind, unescape: boolean): ParsedScalar | null {
     switch (kind) {
@@ -158,7 +166,7 @@ export function parseScalar(text: string, kind: ScalarKind, unescape: boolean): 
         }
         case "real": {
             const t = text.trim();
-            if (!REAL_TEXT.test(t)) {
+            if (!REAL_TEXT.test(t) && !NON_FINITE_TEXT.test(t)) {
                 return null;
             }
             const n = Number(t);

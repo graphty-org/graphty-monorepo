@@ -6,14 +6,19 @@ import { type CommonImportOptions, ImportError } from "../../../src/types.js";
 import { malformedFiles, readMalformedBytes } from "../../helpers/corpus.js";
 
 /** What each malformed case does under the default options: fatal at once, or recovered with error issues. */
-const CASES: Record<string, { fatal: string } | { recovered: string; nodes: number; edges: number }> = {
+const CASES: Record<
+    string,
+    | { fatal: string }
+    | { recovered: string; nodes: number; edges: number }
+    | { warned: string; nodes: number; edges: number }
+> = {
     "edges-not-array.json": { fatal: JSON_ISSUE.SHAPE },
     "empty-file.json": { fatal: JSON_ISSUE.EMPTY_INPUT },
     "invalid-json.json": { fatal: JSON_ISSUE.SYNTAX },
-    "missing-edges.json": { recovered: JSON_ISSUE.MISSING_SECTION, nodes: 3, edges: 0 },
+    "missing-edges.json": { warned: JSON_ISSUE.MISSING_SECTION, nodes: 3, edges: 0 },
     "missing-edge-source.json": { recovered: JSON_ISSUE.MISSING_ENDPOINT, nodes: 2, edges: 1 },
     "missing-node-id.json": { recovered: JSON_ISSUE.MISSING_ID, nodes: 2, edges: 1 },
-    "missing-nodes.json": { recovered: JSON_ISSUE.MISSING_SECTION, nodes: 3, edges: 2 },
+    "missing-nodes.json": { warned: JSON_ISSUE.MISSING_SECTION, nodes: 3, edges: 2 },
     "nodes-not-array.json": { fatal: JSON_ISSUE.SHAPE },
     "not-json.json": { fatal: JSON_ISSUE.SYNTAX },
     "wrong-structure.json": { fatal: JSON_ISSUE.DIALECT },
@@ -42,6 +47,16 @@ describe("malformed corpus", () => {
 
     for (const name of malformedFiles("json")) {
         const expected = CASES[name];
+
+        if ("warned" in expected) {
+            it(`${name}: reads with ${expected.warned} as a warning, since nothing is skipped`, async () => {
+                const { error, b } = await attempt(name, { errorLimit: 0 });
+                expect(error).toBeNull();
+                const s = b.freeze();
+                expect([s.nodeCount, s.edgeCount]).toEqual([expected.nodes, expected.edges]);
+            });
+            continue;
+        }
 
         it(`${name}: throws ImportError with a report under errorLimit 0`, async () => {
             const { error } = await attempt(name, { errorLimit: 0 });

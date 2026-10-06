@@ -121,6 +121,8 @@ export interface CanvasFilterStatusConfig {
     readonly note?: FilterStatusNote | null;
     /** Opens Explore, where the chips live while that panel is open. */
     readonly onOpenExplore?: () => void;
+    /** Controls an active filter draws after the chips. */
+    readonly controls?: React.ReactNode;
 }
 
 /**
@@ -467,6 +469,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                                     chips={filterStatus.chips}
                                     note={filterStatus.note}
                                     onOpenExplore={filterStatus.onOpenExplore}
+                                    controls={filterStatus.controls}
                                 />
                             )}
                         </div>

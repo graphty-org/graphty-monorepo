@@ -22,7 +22,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { localShards, shardEnv, startRule } from "./prepush-tests.mjs";
+import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -114,13 +114,86 @@ describe("the pre-push gate matches CI", () => {
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
         assert.match(
             prepush,
-            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' node tools\/prepush-tests.mjs '\$PROJECTS'"/,
+            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' node tools\/prepush-tests.mjs '\$PROJECTS' '\$\{BASE:-\}'"/,
         );
         // No test command of its own, which could drift from CI's.
         assert.doesNotMatch(prepush, /vitest|test:run|test:prepush|nx run-many -t test|:coverage/);
         const ci = workflow("ci.yml");
         assert.match(job(ci, "build"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
         assert.match(job(ci, "test"), /run: \$\{\{ matrix.test-command \}\}/);
+    });
+
+    describe("each shard's local policy", () => {
+        const element = localShards(["graphty-element"]);
+        const long = element.filter((s) => s.local === "when-paths-change").map((s) => s.shard);
+        // What vitest answers for each shard, made up: one test file per shard, the shared setup file.
+        const triggersOf = (s) => ({
+            specs: new Set([`graphty-element/test/${s.shard}.test.ts`]),
+            config: ["graphty-element/vitest.config.ts", "graphty-element/test/setup.ts", ...(s["local-paths"] ?? [])],
+        });
+        const run = (changed) => gateShards(element, changed, triggersOf).map((s) => s.shard);
+
+        it("is always, when-paths-change or never, and CI runs every shard whatever it is", () => {
+            for (const s of SHARDS) {
+                assert.ok([undefined, "always", "when-paths-change", "never"].includes(s.local), s.shard);
+            }
+            assert.deepEqual(long.sort(), [
+                ...[1, 2, 3, 4, 5].map((n) => `graphty-element-browser-${n}`),
+                ...[1, 2, 3, 4].map((n) => `graphty-element-storybook-${n}`),
+            ]);
+            const ci = plan(["graphty-element"]).map((e) => e.shard);
+            for (const shard of long) {
+                assert.ok(ci.includes(shard), `CI runs ${shard}`);
+            }
+        });
+
+        it("skips graphty-element's long shards for a change none of them tests", () => {
+            assert.deepEqual(run(["graphty-element/src/Graph.ts", "graphty/src/App.tsx"]), ["graphty-element-default"]);
+            assert.deepEqual(run([]), ["graphty-element-default"]);
+        });
+
+        it("runs the one shard whose test file changed", () => {
+            assert.deepEqual(run(["graphty-element/test/graphty-element-browser-3.test.ts"]).sort(), [
+                "graphty-element-browser-3",
+                "graphty-element-default",
+            ]);
+            // A story is a test file of one storybook shard, though it sits under stories/, a local path
+            // of every storybook shard.
+            const story = "graphty-element/stories/Data.stories.ts";
+            const withStory = (s) => {
+                const t = triggersOf(s);
+                return s.shard === "graphty-element-storybook-2" ? { ...t, specs: new Set([story]) } : t;
+            };
+            assert.deepEqual(
+                gateShards(element, [story], withStory)
+                    .map((s) => s.shard)
+                    .sort(),
+                ["graphty-element-default", "graphty-element-storybook-2"],
+            );
+        });
+
+        it("runs every shard of a family when its config, setup or a local path changes", () => {
+            const browsers = long.filter((n) => n.includes("browser"));
+            const stories = long.filter((n) => n.includes("storybook"));
+            assert.deepEqual(
+                run(["graphty-element/test/setup.ts"]).sort(),
+                [...long, "graphty-element-default"].sort(),
+            );
+            assert.deepEqual(
+                run(["graphty-element/test/helpers/graph.ts"]).sort(),
+                [...browsers, "graphty-element-default"].sort(),
+            );
+            assert.deepEqual(
+                run(["graphty-element/.storybook/main.ts"]).sort(),
+                [...stories, "graphty-element-default"].sort(),
+            );
+        });
+
+        it("runs every shard but a never one when there is nothing to compare with (PREPUSH_ALL=1)", () => {
+            assert.deepEqual(gateShards(element, null, null), element);
+            const never = { ...element[0], local: "never" };
+            assert.deepEqual(gateShards([never, element[1]], null, null), [element[1]]);
+        });
     });
 
     it("runs each shard in CI's environment, moving only where a shared package writes its coverage", () => {

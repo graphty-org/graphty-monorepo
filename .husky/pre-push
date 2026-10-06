@@ -1,8 +1,9 @@
 #!/bin/sh
 # Pre-push hook.
 #
-# Runs tools/prepush.sh for the packages this push affects: build, lint, knip, every test shard the
-# pull request's CI runs (with CI's commands, from tools/ci-test-matrix.mjs), and the screenshots of
+# Runs tools/prepush.sh for the packages this push affects: build, lint, knip, the test shards the
+# pull request's CI runs (with CI's commands, from tools/ci-test-matrix.mjs; graphty-element's long
+# browser and storybook shards only when the push changes a file they test), and the screenshots of
 # the affected Storybooks on this commit merged into origin/master (tools/visual-preview.sh --head),
 # which become the pull request's local preview on the owner's review page.
 #

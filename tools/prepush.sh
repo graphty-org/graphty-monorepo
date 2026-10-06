@@ -1,6 +1,7 @@
 #!/bin/bash
 # Pre-push validation script
-# Runs build, lint (including knip), every CI test shard and the screenshots -- for the packages
+# Runs build, lint (including knip), the CI test shards (graphty-element's long browser and storybook shards
+# only when the push changes a file they test) and the screenshots -- for the packages
 # this push AFFECTS only. "Affected" is nx's answer for
 # the commits since this branch left origin/master: a package whose files changed, and
 # every package that depends on one -- the same set a pull request's CI tests.
@@ -291,15 +292,17 @@ SCREENSHOTS_PGID=$!
 SCREENSHOTS_STAGED=1
 echo ""
 
-# Tests: every test shard CI's test job runs for this push, with CI's commands and environment, read
+# Tests: the test shards CI's test job runs for this push, with CI's commands and environment, read
 # from tools/ci-test-matrix.mjs (the list ci.yml plans from) by tools/prepush-tests.mjs, so this gate
-# and CI cannot drift. Browser shards share the machine's four-browser cap; the first failing shard
+# and CI cannot drift -- except the shards whose "local" policy there leaves them to CI: graphty-element's
+# ten browser and storybook shards (about 15 minutes) run here only when the push changes a file they
+# test, compared with $BASE (PREPUSH_ALL=1 has no base and runs them all). Browser shards share the machine's four-browser cap; the first failing shard
 # stops the rest. Each shard's log is in tmp/prepush-tests/. The whole stage fails past
 # PREPUSH_TESTS_TIMEOUT (default 90m), counted from its start, so time spent queued for a browser slot
 # counts too; --foreground keeps Ctrl-C reaching it, and on the timeout's SIGTERM prepush-tests.mjs
 # stops every shard's process group itself.
 run_step "Tests (the CI shards of the affected packages)" \
-    "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' node tools/prepush-tests.mjs '$PROJECTS'"
+    "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' node tools/prepush-tests.mjs '$PROJECTS' '${BASE:-}'"
 
 echo -e "${YELLOW}> Screenshots${NC}"
 if wait "$SCREENSHOTS_PGID"; then

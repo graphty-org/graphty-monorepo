@@ -10,8 +10,12 @@
  * here too. CI folds short shards into group jobs (GROUPS) to save runners; a group only runs its
  * members one after another, so here each member runs on its own.
  *
- * Usage: node tools/prepush-tests.mjs <affected-projects-json>
- *   the JSON array `nx show projects --affected --json` prints
+ * Usage: node tools/prepush-tests.mjs <affected-projects-json> [<base>]
+ *   the JSON array `nx show projects --affected --json` prints, and the commit the push is compared
+ *   with. A shard whose "local" policy is "when-paths-change" (graphty-element's ten browser and
+ *   storybook shards) runs only when a file changed since <base> is one it tests, as vitest itself
+ *   resolves its command (gateShards below); without <base> (PREPUSH_ALL=1) every shard runs. One
+ *   whose policy is "never" never runs here. CI runs them all either way.
  *
  * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
  * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
@@ -37,8 +41,9 @@
 
 import { spawn, execFileSync } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { SHARDS } from "./ci-test-matrix.mjs";
 
@@ -54,6 +59,68 @@ export function localShards(affected) {
     const dirs = new Set(affected.map((p) => p.replace(/^@graphty\//, "")));
     const shards = SHARDS.filter((s) => dirs.has(s.package));
     return [...shards.filter((s) => s["needs-browser"]), ...shards.filter((s) => !s["needs-browser"])];
+}
+
+/**
+ * The shards this push runs, by each one's "local" policy (tools/ci-test-matrix.mjs).
+ * @param shards the shards CI would run (localShards)
+ * @param changed repo-relative paths changed by the push, or null to run every shard but "never"
+ * @param triggersOf for a "when-paths-change" shard: `{ specs, config }`, the repo-relative test
+ *   files its command runs and its setup, config and "local-paths" entries ("dir/" = a prefix)
+ * @returns the shards to run, in the given order
+ */
+export function gateShards(shards, changed, triggersOf) {
+    const policy = (s) => s.local ?? "always";
+    const watched = shards.filter((s) => policy(s) === "when-paths-change");
+    // A test file belongs to its own shard only, even when it sits under another one's prefix.
+    const tested = new Set(changed === null ? [] : watched.flatMap((s) => [...triggersOf(s).specs]));
+    return shards.filter((s) => {
+        if (policy(s) !== "when-paths-change" || changed === null) {
+            return policy(s) !== "never";
+        }
+        const { specs, config } = triggersOf(s);
+        const configured = (f) => config.some((c) => (c.endsWith("/") ? f.startsWith(c) : f === c));
+        return changed.some((f) => specs.has(f) || (!tested.has(f) && configured(f)));
+    });
+}
+
+/**
+ * What a shard's vitest command tests, asked of vitest itself: for each `vitest run` in the command,
+ * the test files of its --project list cut to its --shard slice (vitest's own sequencer), the
+ * projects' setup files and config files, and the shard's "local-paths". Runs in a child process
+ * (`--triggers`): creating a Vitest sets NODE_ENV and VITEST*, which the shards must not inherit.
+ * @param shard a SHARDS entry whose command starts `cd <package> && `
+ * @returns `{ specs: string[], config: string[] }`, repo-relative
+ */
+async function vitestTriggers(shard) {
+    const pkg = join(ROOT, /^cd (\S+) && /.exec(shard["test-command"])[1]);
+    const { createVitest } = await import(
+        pathToFileURL(createRequire(join(pkg, "package.json")).resolve("vitest/node"))
+    );
+    process.chdir(pkg);
+    const rel = (f) => relative(ROOT, f);
+    const specs = new Set();
+    const config = new Set(shard["local-paths"] ?? []);
+    for (const run of shard["test-command"].split("vitest run").slice(1)) {
+        const project = [...run.matchAll(/--project=(\S+)/g)].map((m) => m[1]);
+        const shardArg = /--shard=(\S+)/.exec(run)?.[1];
+        const vitest = await createVitest("test", { project, shard: shardArg, watch: false }, {}, {});
+        try {
+            let files = await vitest.globTestSpecifications();
+            if (vitest.config.shard) {
+                files = await new vitest.config.sequence.sequencer(vitest).shard(files);
+            }
+            files.forEach((f) => specs.add(rel(f.moduleId)));
+            config.add(rel(vitest.vite.config.configFile));
+            for (const p of vitest.projects) {
+                [p.vite.config.configFile, ...p.config.setupFiles].filter(Boolean).forEach((f) => config.add(rel(f)));
+            }
+        } finally {
+            await vitest.close();
+        }
+    }
+    process.chdir(ROOT);
+    return { specs: [...specs], config: [...config] };
 }
 
 /**
@@ -94,15 +161,66 @@ export function startRule(shards) {
     };
 }
 
-function main() {
-    const [affectedArg] = process.argv.slice(2);
+/**
+ * The "when-paths-change" shards' triggers, from one child process running `--triggers`.
+ * @param shards the shards of this run
+ * @param changed the changed paths
+ * @returns a triggersOf function for gateShards
+ */
+function childTriggers(shards, changed) {
+    // A package none of whose files changed needs no vitest to know its shards are not triggered.
+    const asked = shards.filter(
+        (s) => s.local === "when-paths-change" && changed.some((f) => f.startsWith(`${s.package}/`)),
+    );
+    const found =
+        asked.length === 0
+            ? {}
+            : JSON.parse(
+                  execFileSync(
+                      process.execPath,
+                      [fileURLToPath(import.meta.url), "--triggers", ...asked.map((s) => s.shard)],
+                      {
+                          cwd: ROOT,
+                          encoding: "utf8",
+                          stdio: ["ignore", "pipe", "inherit"],
+                      },
+                  )
+                      .trim()
+                      .split("\n")
+                      .at(-1),
+              );
+    return (s) => ({ specs: new Set(found[s.shard]?.specs ?? []), config: found[s.shard]?.config ?? [] });
+}
+
+async function main() {
+    if (process.argv[2] === "--triggers") {
+        const out = {};
+        for (const name of process.argv.slice(3)) {
+            out[name] = await vitestTriggers(SHARDS.find((s) => s.shard === name));
+        }
+        console.log(JSON.stringify(out));
+        process.exit(0);
+    }
+    const [affectedArg, base] = process.argv.slice(2);
     if (affectedArg === undefined) {
-        console.error("usage: node tools/prepush-tests.mjs <affected-projects-json>");
+        console.error("usage: node tools/prepush-tests.mjs <affected-projects-json> [<base>]");
         process.exit(2);
     }
-    const shards = localShards(JSON.parse(affectedArg));
+    const all = localShards(JSON.parse(affectedArg));
+    const changed = base
+        ? execFileSync("git", ["diff", "--name-only", base, "HEAD"], { cwd: ROOT, encoding: "utf8" })
+              .split("\n")
+              .filter(Boolean)
+        : null;
+    const shards = gateShards(all, changed, changed === null ? null : childTriggers(all, changed));
+    const skipped = all.filter((s) => !shards.includes(s));
+    if (skipped.length > 0) {
+        console.log(
+            `Left to CI (this push changes none of the files they test): ${skipped.map((s) => s.shard).join(", ")}`,
+        );
+    }
     if (shards.length === 0) {
-        console.log("No affected package has a test shard.");
+        console.log("No affected package has a test shard to run here.");
         return;
     }
     const main = dirname(
@@ -225,5 +343,5 @@ function main() {
 
 // Run only as the entry point, not when imported.
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    main();
+    await main();
 }

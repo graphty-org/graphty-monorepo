@@ -418,7 +418,7 @@ export class Graphty extends LitElement {
                         "so the value was lost. This happens when a framework renders the tag before " +
                         "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
                         'customElements.whenDefined("graphty-element"). See ' +
-                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                        "https://graphty.app/docs/graphty-element/guide/frameworks/react#load-the-element-before-react-renders-it",
                 );
             }
         }

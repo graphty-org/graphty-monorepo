@@ -8,6 +8,8 @@ import "@graphty/graphty-element";
 // `capabilities.acceleration`. Nothing in this application touches WebGPU.
 import "@graphty/graphty-element/webgpu";
 
+// Types the <graphty-element> tag for JSX, as any React 19 consumer opts in.
+import type {} from "@graphty/graphty-element/jsx"; // NOSONAR(S7787): the element's documented JSX opt-in, a types-only import
 import { MantineProvider, Tooltip } from "@mantine/core";
 import React from "react";
 import ReactDOM from "react-dom/client";

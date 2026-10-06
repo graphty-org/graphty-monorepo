@@ -116,8 +116,13 @@ describe("the pre-push gate matches CI", () => {
             prepush,
             /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' node tools\/prepush-tests.mjs '\$PROJECTS' '\$\{BASE:-\}'"/,
         );
-        // No test command of its own, which could drift from CI's.
-        assert.doesNotMatch(prepush, /vitest|test:run|test:prepush|nx run-many -t test|:coverage/);
+        // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
+        const nvidia = /\n {4}run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \\\n.*\n/;
+        assert.match(prepush, nvidia);
+        assert.doesNotMatch(
+            prepush.replace(nvidia, "\n"),
+            /vitest|test:run|test:prepush|nx run-many -t test|:coverage/,
+        );
         const ci = workflow("ci.yml");
         assert.match(job(ci, "build"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
         assert.match(job(ci, "test"), /run: \$\{\{ matrix.test-command \}\}/);
@@ -232,6 +237,18 @@ describe("the pre-push gate matches CI", () => {
         assert.ok(afterBrowser.includes("graphty-element-storybook-1"));
         const all = ["graphty-element-browser", "graphty-element-storybook", "graphty-element-default"];
         assert.equal(startable([pick("graphty-element-browser-1")], all).length, shards.length - 1);
+    });
+
+    it("runs webgpu-graph-algorithms on the local NVIDIA GPU after the CI shards, requiring nvidia", () => {
+        const prepush = code(tool("prepush.sh"));
+        const tests = prepush.indexOf("node tools/prepush-tests.mjs");
+        const gpu = prepush.indexOf('run_step "webgpu-graph-algorithms on the local NVIDIA GPU"');
+        assert.ok(tests > 0 && gpu > tests, "after the Tests step");
+        assert.match(
+            prepush,
+            /\nif affected webgpu-graph-algorithms; then\n[\s\S]*?GRAPHTY_EGL_LIB_DIR[\s\S]*?LD_LIBRARY_PATH='\$EGL_LIB_DIR[^']*' GRAPHTY_GPU_REQUIRE=nvidia npm run test:run\)"\nfi/,
+        );
+        assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
     });
 
     it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {

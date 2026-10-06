@@ -304,6 +304,18 @@ echo ""
 run_step "Tests (the CI shards of the affected packages)" \
     "timeout --foreground --kill-after=60s '${PREPUSH_TESTS_TIMEOUT:-90m}' node tools/prepush-tests.mjs '$PROJECTS' '${BASE:-}'"
 
+# The real-GPU half: the paid T4 runs only on the daily release, so this is the only NVIDIA run before it.
+# CI's webgpu-graph-algorithms-node shard (above, through run-tests.sh) runs on Mesa lavapipe; this runs
+# the same node projects on this machine's NVIDIA card through the libEGL tree (GRAPHTY_EGL_LIB_DIR, else
+# the main checkout's gitignored tmp/egl/; webgpu-graph-algorithms/CLAUDE.md). GRAPHTY_GPU_REQUIRE=nvidia,
+# not any: a missing EGL tree fails loudly here instead of passing on lavapipe a second time. "Affected"
+# is nx's, so a change to graph-format or the lockfile runs it too.
+if affected webgpu-graph-algorithms; then
+    EGL_LIB_DIR="${GRAPHTY_EGL_LIB_DIR:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/tmp/egl/root/usr/lib/x86_64-linux-gnu}"
+    run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \
+        "(cd webgpu-graph-algorithms && LD_LIBRARY_PATH='$EGL_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}' GRAPHTY_GPU_REQUIRE=nvidia npm run test:run)"
+fi
+
 echo -e "${YELLOW}> Screenshots${NC}"
 if wait "$SCREENSHOTS_PGID"; then
     cat "$SCREENSHOTS_LOG"

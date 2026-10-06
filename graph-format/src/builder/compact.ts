@@ -54,6 +54,27 @@ import { type MutableColumnParts } from "../types/internal.js";
 const EMPTY_LIST: readonly unknown[] = Object.freeze([]);
 
 /**
+ * The most ids one id-to-index Map holds: V8 caps a Map at 2^24 entries and throws a bare
+ * RangeError beyond it. Anonymous nodes (id === index) need no Map entry and are not capped here.
+ */
+// ponytail: one Map per builder; shard the id map when graphs past 16.7M explicit ids matter
+const MAX_ID_MAP_SIZE = 2 ** 24;
+
+/**
+ * E_TOO_LARGE when the id map would grow past MAX_ID_MAP_SIZE, before anything is mutated.
+ * @param size - the id map size the caller is about to reach
+ */
+function checkIdMapSize(size: number): void {
+    if (size > MAX_ID_MAP_SIZE) {
+        throw new GraphFormatError(
+            "E_TOO_LARGE",
+            `node count ${size} exceeds the ${MAX_ID_MAP_SIZE} nodes with explicit ids one builder can hold`,
+            { count: size, max: MAX_ID_MAP_SIZE },
+        );
+    }
+}
+
+/**
  * The E_COLUMN_TYPE error for a value a column cannot hold.
  * @param meta - the column
  * @param row - the row
@@ -1184,6 +1205,7 @@ export class Staging {
             return;
         }
         const bound = this.nodeBound;
+        checkIdMapSize(bound);
         const ids = new Array<NodeId>(bound);
         const map = new Map<NodeId, number>();
         for (let i = 0; i < bound; i++) {
@@ -1200,6 +1222,9 @@ export class Staging {
      * @returns the new index
      */
     pushNode(id: NodeId | null): number {
+        if (this.idToIndex !== null) {
+            checkIdMapSize(this.idToIndex.size + 1);
+        }
         const index = this.nodeAlive.push(true);
         this.firstOut.push(INVALID_INDEX);
         this.firstIn.push(INVALID_INDEX);

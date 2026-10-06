@@ -304,10 +304,11 @@ function factLines(job, { refresh, verdict }) {
 function bundleLine(job) {
     const [anchor, ...rest] = job.facts.batch.map((/** @type {number} */ n) => `#${n}`);
     const pkg = job.facts.package ? ` in ${job.facts.package}` : "";
+    const fixes = job.facts.batch.map((/** @type {number} */ n) => `Fixes #${n}`).join(", ");
     return (
         `BUNDLE: githerd offers ${anchor} with ${rest.join(", ")}: small fixes (effort:low, the same type${pkg}). ` +
         "First judge whether they truly belong together. Fix them in ONE pull request whose description closes each one it fixes, one line each " +
-        `(${job.facts.batch.map((/** @type {number} */ n) => `Fixes #${n}`).join(", ")}): one CI run and one merge instead of several. ` +
+        `(${fixes}): one CI run and one merge instead of several. ` +
         "Leave an issue out if it turns out to need a visual review, a breaking change, an owner decision or much more work than the rest, " +
         "and name it in your findings with why (deferred or split); githerd then offers it alone. " +
         `${anchor} must be in the pull request; if it is the one to leave out, report this job deferred or split as usual, and githerd offers the others again.`

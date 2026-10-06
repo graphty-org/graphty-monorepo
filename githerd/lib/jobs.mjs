@@ -592,21 +592,7 @@ function issueJobs(state, config, now, add, cancel) {
     );
     if (queued) return;
     const priorities = config.labels?.priorities ?? [];
-    // An issue in a live job's bundle is that job's until it ends.
-    const bundled = new Set(
-        Object.values(state.jobs)
-            .filter((j) => j.kind === "issue" && !TERMINAL.includes(j.state))
-            .flatMap((j) => (j.facts?.batch ?? []).map(Number)),
-    );
-    const candidates = readyIssues(state, config, now)
-        .ranked.map((r) => ({ ...r, order: orderPosition(state, r.number) }))
-        .filter((r) => {
-            const old = state.jobs[`issue-${r.number}`];
-            const free = (!old || old.facts?.withdrawn) && !deferred[r.number] && !bundled.has(r.number);
-            return free && (r.offered || r.order !== null);
-        });
-    // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
-    candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+    const candidates = issueCandidates(state, config, now, deferred);
     const top = candidates[0];
     if (!top) return;
     const issue = state.issues.byNumber[top.number];
@@ -616,7 +602,8 @@ function issueJobs(state, config, now, add, cancel) {
     // A commit or merged pull request on master already names the issue: the worker verifies first.
     const references = masterRefs(state, top.number);
     const batch = references.length ? [] : bundleOf(state, config, now, top, candidates);
-    const also = batch.length ? `; bundled with ${batch.map((n) => `#${n}`).join(", ")}` : "";
+    const bundledWith = batch.map((n) => `#${n}`).join(", ");
+    const also = batch.length ? `; bundled with ${bundledWith}` : "";
     add({
         id: `issue-${top.number}`,
         kind: "issue",
@@ -637,6 +624,34 @@ function issueJobs(state, config, now, add, cancel) {
             ...(top.order === null ? {} : { order: top.order }),
         },
     });
+}
+
+/**
+ * The ready issues free for a new job, in queue order: offered or picked by an open order, with no
+ * live job, not deferred and in no live job's bundle.
+ * @param {any} state the daemon state
+ * @param {any} config the normalized config
+ * @param {Date} now the clock
+ * @param {Record<string, any>} deferred the deferrals still standing
+ * @returns {any[]} the ranked entries, each with its open-order position
+ */
+function issueCandidates(state, config, now, deferred) {
+    // An issue in a live job's bundle is that job's until it ends.
+    const bundled = new Set(
+        Object.values(state.jobs)
+            .filter((j) => j.kind === "issue" && !TERMINAL.includes(j.state))
+            .flatMap((j) => (j.facts?.batch ?? []).map(Number)),
+    );
+    const candidates = readyIssues(state, config, now)
+        .ranked.map((r) => ({ ...r, order: orderPosition(state, r.number) }))
+        .filter((r) => {
+            const old = state.jobs[`issue-${r.number}`];
+            const free = (!old || old.facts?.withdrawn) && !deferred[r.number] && !bundled.has(r.number);
+            return free && (r.offered || r.order !== null);
+        });
+    // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
+    candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
+    return candidates;
 }
 
 /** Labels that keep an issue out of a bundle: it must not merge, or needs a person's eyes. */
@@ -673,7 +688,7 @@ function bundleOf(state, config, now, top, candidates) {
     const { bundle = true, bundleMax = 4 } = config.backlog ?? {};
     const anchor = state.issues.byNumber[top.number];
     const pkg = issuePackage(anchor);
-    const critical = (/** @type {any} */ r) => /critical$/.test(config.labels?.priorities?.[r.priority] ?? "");
+    const critical = (/** @type {any} */ r) => (config.labels?.priorities?.[r.priority] ?? "").endsWith("critical");
     // An issue left out of a bundle is offered alone until it changes.
     const leftOut = (/** @type {number} */ n) => state.unbundled?.[n] === state.issues.byNumber[n].updatedAt;
     const held = (/** @type {any} */ issue) =>

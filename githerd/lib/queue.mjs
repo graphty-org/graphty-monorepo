@@ -27,7 +27,7 @@ export const NEXT = "githerd:next";
 export const SKIP = "githerd:skip";
 const DEFAULT_AGING_DAYS = 60;
 /** The issue types githerd offers, in tier order (owner decision 2026-10-06): bugs, then infrastructure. */
-export const DEFAULT_ISSUE_TYPES = ["bug", "infrastructure"];
+const DEFAULT_ISSUE_TYPES = ["bug", "infrastructure"];
 /** Issue efforts, cheapest first: within a priority and type, cheap fixes go first. */
 const EFFORTS = ["low", "medium", "high"];
 const MINUTE = 60 * 1000;

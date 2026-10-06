@@ -20,7 +20,7 @@ export const REGISTRY_FILE = "tools/ci-advisory-checks.json";
 /** The workflow whose jobs and steps the registry names. */
 export const CI_FILE = ".github/workflows/ci.yml";
 /** Days before an entry's enforce date from which the CI workflow tests ask for its promotion. */
-export const PROMOTE_LEAD_DAYS = 3;
+const PROMOTE_LEAD_DAYS = 3;
 
 const DAY = 24 * 60 * 60_000;
 

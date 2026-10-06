@@ -555,10 +555,7 @@ function parseStored(value: unknown): StoredKeys | null {
     }
 
     return {
-        keys: Object.fromEntries(Object.entries(keys).filter(([, key]) => typeof key === "string")) as Record<
-            string,
-            string
-        >,
+        keys: Object.fromEntries(Object.entries(keys).filter(([, key]) => typeof key === "string")),
         defaultProvider: typeof defaultProvider === "string" ? (defaultProvider as ProviderType) : null,
     };
 }

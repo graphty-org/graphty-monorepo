@@ -35,6 +35,15 @@ import type { LogDestinationDefinition, LogLevelName, PlainLogRecord } from "./t
 /** The five level words, in the order of `LogLevel` from ERROR (1) to TRACE (5). */
 const LEVELS: readonly LogLevelName[] = ["error", "warn", "info", "debug", "trace"];
 
+/** Each level word's `LogLevel`. */
+const LEVEL_OF: Readonly<Record<LogLevelName, LogLevel>> = {
+    error: LogLevel.ERROR,
+    warn: LogLevel.WARN,
+    info: LogLevel.INFO,
+    debug: LogLevel.DEBUG,
+    trace: LogLevel.TRACE,
+};
+
 /** How many records may wait behind the one being sent. */
 const QUEUE_LIMIT = 1000;
 
@@ -160,7 +169,7 @@ function createSimpleSink(id: string, definition: LogDestinationDefinition): Sin
 
     return {
         name: id,
-        level: (LEVELS.indexOf(definition.level ?? "warn") + 1) as LogLevel,
+        level: LEVEL_OF[definition.level ?? "warn"],
         ...(definition.categories === undefined ? {} : { categories: [...definition.categories] }),
         write(record: LogRecord): void {
             if (closed) {

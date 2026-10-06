@@ -286,7 +286,7 @@ export function WelcomeState(props: WelcomeStateProps): React.JSX.Element {
                                     padding: 0,
                                     border: "none",
                                     background: "transparent",
-                                    color: PANEL_INK.ACCENT,
+                                    color: PANEL_INK.BRAND_TEXT,
                                     fontSize: CANVAS_TYPE.SMALL,
                                     lineHeight: CANVAS_LEADING.TIGHT,
                                     cursor: "pointer",

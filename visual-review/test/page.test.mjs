@@ -521,9 +521,10 @@ describe("review page: the Focus point, on an iPad", () => {
             await page.keyboard.press("o");
             await expect.poll(() => focus().getAttribute("aria-pressed")).toBe("true");
             expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("focus")).toBe("on");
-            // The changed area [160, 80, 40, 40] has its middle at (180, 100), in both panes.
-            await expect.poll(() => centeredOn([180, 100])).toBe(true);
-            expect((await panes()).length).toBe(2);
+            // The changed area [160, 80, 40, 40] has its middle at (180, 100), in both panes. The
+            // stage redraws its frames on the zoom, so wait for both to hold a picture again: one
+            // centered pane alone is a frame caught halfway through that redraw.
+            await expect.poll(async () => (await panes()).length === 2 && (await centeredOn([180, 100]))).toBe(true);
             expect(await scrolled()).toBe(true);
             await ready();
             // Whether the next item's new image is already scrolled in the first frame that draws it.
@@ -2864,6 +2865,26 @@ describe("review page: the inbox", () => {
         // The notifier's link carries no token: a browser that used the page before still opens it.
         await page.goto(`${origin}/`);
         await expect.poll(() => page.locator(".inbox-row").count()).toBe(2);
+    });
+
+    it("shows coupled pull requests as one group, and Review together decides a shared image on both", async () => {
+        await open((r) => ({ gh: twoPrs(r, capturedItems()) }), { review: false });
+        const group = page.locator(".inbox-group");
+        await group.waitFor();
+        expect(await group.locator(".group-head strong").textContent()).toBe("Coupled: #123, #124 (oldest first)");
+        expect(await group.locator(".inbox-fold").textContent()).toBe("Suggestion for the agents: fold #124 into #123");
+        expect(await group.locator(".inbox-row").count()).toBe(2);
+        await group.getByRole("button", { name: "Review together" }).click();
+        await page.locator("#app.story-screen").waitFor();
+        await ready();
+        await page.keyboard.press("a");
+        await expect.poll(status).toMatch(/^Accepted \S+ \(also on #124\)\. Now /);
+        const { decisions } = await page.evaluate(
+            async (token) =>
+                (await fetch("/api/pr/124/compact-mantine", { headers: { "x-review-token": token } })).json(),
+            TOKEN,
+        );
+        expect(Object.values(decisions)).toEqual([expect.objectContaining({ decision: "accept" })]);
     });
 
     it("lists a pull request with a failed story under Not ready with its reason, never as ready", async () => {

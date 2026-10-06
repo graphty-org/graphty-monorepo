@@ -1,4 +1,4 @@
-import { AbstractMesh, Mesh, Quaternion, Ray, Vector3 } from "@babylonjs/core";
+import { AbstractMesh, Ray, Vector3 } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
@@ -10,11 +10,11 @@ import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
 import type { GraphContext } from "./managers/GraphContext";
 import { bootstrapEdgePaint, type EdgePaint } from "./managers/StylePainter";
+import type { ArrowCap } from "./meshes/ArrowCapBatch";
+import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
-import { FilledArrowRenderer } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
-import { Simple2DLineRenderer } from "./meshes/Simple2DLineRenderer";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
 
@@ -72,8 +72,44 @@ const ARROW_CAPTION_OFFSET = 0.3;
  * @param cap - The arrow mesh at that end, which is null when the end is drawn with no arrow.
  * @returns The block when a caption should be drawn from it, and undefined otherwise.
  */
-function captionWanted(block: RichTextStyleType | undefined, cap: AbstractMesh | null): RichTextStyleType | undefined {
+function captionWanted(block: RichTextStyleType | undefined, cap: ArrowCap | null): RichTextStyleType | undefined {
     return cap !== null && block?.enabled === true ? block : undefined;
+}
+
+/**
+ * The frame each node mesh's world matrix was last recomputed for.
+ *
+ * Keyed on the MESH rather than on the node, so a node that is given a new mesh -- a reshape --
+ * starts with no entry and is recomputed rather than skipped on a stamp its old mesh earned.
+ */
+const worldMatrixFrame = new WeakMap<AbstractMesh, number>();
+
+/** Scratch ends of one curve segment, so placing a curve allocates nothing per segment. */
+const curveFrom = new Vector3();
+const curveTo = new Vector3();
+
+/**
+ * Make sure a node mesh's world matrix is this frame's, and only compute it once per frame.
+ *
+ * WHY IT HAS TO BE FRESH. Trimming an edge at the node surface intersects a ray with the node's
+ * mesh, and that test reads the mesh's world matrix -- which is stale from the moment the frame
+ * moved the node until something recomputes it.
+ *
+ * WHY IT IS COUNTED. A node with twenty edges on it would otherwise be recomputed twenty times a
+ * frame. This used to be paid for by a separate pass over every edge in the graph that collected
+ * the meshes into a set first, which cost a set of its own and a walk of every edge whether or
+ * not any of them had moved. Asking here means it is paid once per node, and only for the nodes
+ * an edge that actually moved is about to intersect.
+ * @param mesh - The node mesh about to be intersected.
+ * @param frame - The scene's current frame id.
+ */
+function freshenWorldMatrix(mesh: AbstractMesh, frame: number): void {
+    if (worldMatrixFrame.get(mesh) === frame) {
+        return;
+    }
+
+    worldMatrixFrame.set(mesh, frame);
+    mesh.computeWorldMatrix(true);
 }
 
 interface EdgeOpts {
@@ -168,9 +204,59 @@ export class Edge {
 
     /** The record, as the graph last handed it over. */
     #record: AdHocData;
+    /**
+     * The mesh this edge's line is drawn by.
+     *
+     * NOT ALWAYS THIS EDGE'S OWN MESH ANY MORE. Every line but a patterned one -- straight or
+     * curved, 2D or 3D -- is drawn as thin instances of a batch shared by every edge of the same
+     * appearance, and this then points at
+     * the batch's mesh -- so it still answers what the line is drawn as, and it is still the
+     * thing to ask whether the renderer's geometry has been disposed under it, but disposing it
+     * or enabling it would reach every other edge in the batch. This edge's private `lineBatch` says
+     * which of the two an edge is, and every write below is routed through it.
+     */
     mesh: AbstractMesh | PatternedLineMesh; // PHASE 5: Support both solid lines and patterned lines
+    /**
+     * This edge's head cap, as a slot in the batch that draws every cap of its appearance, and
+     * null when the style asks for none.
+     *
+     * NOT A MESH ANY MORE. A cap was a `Mesh` with a `ShaderMaterial` of its own, then an
+     * `InstancedMesh` of a shared source, and is now sixteen floats in a shared array plus the
+     * seven the billboard shader reads -- so there is nothing per cap in the scene to position,
+     * enable or dispose. An `ArrowCap` -- a slot in `ArrowCapBatch` -- is what an edge holds instead,
+     * and every question the renderer asks of a cap is answered off its batch.
+     */
+    arrowCap: ArrowCap | null = null;
+
+    /** This edge's tail cap, the same way. */
+    arrowTailCap: ArrowCap | null = null;
+
+    /**
+     * Never set by the element: an arrowhead is a slot in a shared batch now, not a mesh.
+     * @deprecated Use {@link Edge.arrowCap}. Will be removed in graphty-element 4.0.
+     */
     arrowMesh: AbstractMesh | null = null;
+
+    /**
+     * Never set by the element: an arrow tail is a slot in a shared batch now, not a mesh.
+     * @deprecated Use {@link Edge.arrowTailCap}. Will be removed in graphty-element 4.0.
+     */
     arrowTailMesh: AbstractMesh | null = null;
+
+    /**
+     * The batch this edge's line is drawn from, or null for a patterned line, whose elements are
+     * slots in batches of their own (see `PatternedLineMesh`). See {@link EdgeMesh.lineBatch}.
+     */
+    private lineBatch: EdgeLineBatch | null = null;
+
+    /**
+     * Which slots of {@link Edge.lineBatch} draw this edge: one for a straight line, and one per
+     * segment of a curve, which is a run of straight segments. Empty when there is no batch.
+     */
+    private lineSlots: number[] = [];
+
+    /** Whether this edge's line is a curve, drawn as a run of slots rebuilt as its ends move. */
+    private lineIsCurve = false;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -291,6 +377,118 @@ export class Edge {
     }
 
     /**
+     * What this edge's line is drawn as, when it is drawn from a shared batch.
+     *
+     * THE ONLY READING OF A BATCHED LINE THERE IS. A line drawn as a thin instance has no mesh of
+     * its own in the scene and no material of its own, so the scene walk that reads an edge's
+     * appearance off `scene.meshes` -- which is how the story assertions have always read it --
+     * finds one batch where it used to find one mesh per edge. The edge itself is where the
+     * answer moved to: the batch's name carries the interned appearance, exactly as the instance
+     * name did, and the length is the drawn extent the bounding box used to carry.
+     * @returns The appearance, or null for a patterned line, whose elements are read through
+     *     {@link Edge.drawnPattern}.
+     */
+    get drawnLine(): { name: string; length: number; visibility: number; centre: Vector3 } | null {
+        if (this.lineBatch === null) {
+            return null;
+        }
+
+        const batch = this.lineBatch;
+
+        return {
+            name: batch.name,
+            // A curve's length is its whole run's.
+            length: this.lineSlots.reduce((sum, slot) => sum + batch.lengthOf(slot), 0),
+            visibility: batch.mesh.visibility,
+            centre: this.curveMiddle(batch),
+        };
+    }
+
+    /**
+     * The middle of this edge's run of slots: the middle of its one slot for a straight line, and
+     * for a curve the middle of its middle segment, or the joint between its two middle ones.
+     * @param batch - The batch the slots are in.
+     * @returns The point, as a fresh vector.
+     */
+    private curveMiddle(batch: EdgeLineBatch): Vector3 {
+        const n = this.lineSlots.length;
+
+        return n % 2 === 1 ? batch.centreOf(this.lineSlots[(n - 1) / 2]) : batch.endsOf(this.lineSlots[n / 2])[0];
+    }
+
+    /**
+     * The points this edge's curve is drawn through, or null when its line is not a curve.
+     *
+     * A curve is a run of slots in a shared batch and has no mesh of its own whose vertices say
+     * how far it bows, so the points are read back out of the slots: where each segment starts,
+     * and where the last one ends.
+     * @returns The points, in order along the curve, as fresh vectors.
+     */
+    get drawnCurve(): Vector3[] | null {
+        const batch = this.lineBatch;
+        const last = this.lineSlots.at(-1);
+
+        if (batch === null || !this.lineIsCurve || last === undefined) {
+            return null;
+        }
+
+        const points = this.lineSlots.map((slot) => batch.endsOf(slot)[0]);
+        points.push(batch.endsOf(last)[1]);
+
+        return points;
+    }
+
+    /**
+     * The elements a patterned line is drawn as -- each dash, dot or segment, in order along the
+     * line -- and none for any other line. Each is a slot in a batch shared by every element of
+     * its shape, so this is the only place to ask which shapes an edge draws.
+     * @returns The elements.
+     */
+    get drawnPattern(): readonly ArrowCap[] {
+        return this.mesh instanceof PatternedLineMesh ? this.mesh.elements : [];
+    }
+
+    /**
+     * Where this edge's line is drawn, as the middle of the segment on screen.
+     *
+     * ONE ANSWER FOR BOTH RENDERERS, which is the point of it. A patterned line carries the
+     * middle of its segment in its wrapper's position, and an edge drawn as slots in a batch
+     * carries it in the slots' matrices -- for a curve, the middle of the curve, not of its first
+     * segment. Asking the edge rather than its mesh gets the right number either way, and is the
+     * only way to get it for a batched edge, whose mesh sits at the origin and is shared with
+     * every other edge of the same appearance.
+     * @returns The middle of the drawn line.
+     */
+    get drawnCentre(): Vector3 {
+        return this.drawnLine?.centre ?? this.mesh.position;
+    }
+
+    /**
+     * What this edge's arrow caps are drawn as.
+     *
+     * THE ONLY READING OF A CAP THERE IS. A cap drawn as a thin instance has no mesh of its own
+     * in the scene and no material of its own, so the scene walk that read a cap's shape off
+     * `scene.meshes` by name -- which is how the story assertions have always read one -- finds
+     * one batch where it used to find one mesh per cap, and a batch's name deliberately does not
+     * say "arrow". The edge is where the answer moved to: the shape is the name the cap's mesh
+     * carried, the span is the reading a story used to take off its bounding box, and the
+     * visibility is the opacity the cap is drawn at.
+     * @returns One entry per cap this edge draws, head before tail.
+     */
+    get drawnCaps(): { end: "arrowHead" | "arrowTail"; name: string; span: number; visibility: number }[] {
+        const caps: { end: "arrowHead" | "arrowTail"; cap: ArrowCap | null }[] = [
+            { end: "arrowHead", cap: this.arrowCap },
+            { end: "arrowTail", cap: this.arrowTailCap },
+        ];
+
+        return caps.flatMap(({ end, cap }) =>
+            cap === null || cap.isDisposed()
+                ? []
+                : [{ end, name: cap.name, span: cap.span, visibility: cap.visibility }],
+        );
+    }
+
+    /**
      * How many edges share this edge's ordered endpoint pair, including this one.
      * @returns the count
      */
@@ -361,7 +559,7 @@ export class Edge {
         this.drawnStyle = style;
 
         // create arrow mesh if needed
-        this.arrowMesh = EdgeMesh.createArrowHead(
+        this.arrowCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             paint.meshKey,
             {
@@ -375,7 +573,7 @@ export class Edge {
         );
 
         // create arrow tail mesh if needed
-        this.arrowTailMesh = EdgeMesh.createArrowHead(
+        this.arrowTailCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             `${paint.meshKey}-tail`,
             {
@@ -390,42 +588,11 @@ export class Edge {
 
         // create edge line mesh
         // Note: Edge.transformArrowCap() provides start/end positions already adjusted for node surfaces and arrows
-        this.mesh = EdgeMesh.create(
-            this.context.getMeshCache(),
-            {
-                styleId: paint.meshKey,
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.line?.color ?? "#FFFFFF",
-            },
+        this.mesh = this.createLine(paint.meshKey, style);
 
-            style,
-            this.context.getScene(),
-        );
-
-        this.mesh.isPickable = false;
-        this.mesh.metadata = this.mesh.metadata ?? {};
-        this.mesh.metadata.parentEdge = this;
-
-        // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
-        const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
-        if (graphRoot) {
-            if (this.mesh instanceof PatternedLineMesh) {
-                // PatternedLineMesh is a wrapper with an array of meshes
-                for (const mesh of this.mesh.meshes) {
-                    mesh.parent = graphRoot;
-                }
-            } else {
-                this.mesh.parent = graphRoot;
-            }
-
-            if (this.arrowMesh) {
-                this.arrowMesh.parent = graphRoot;
-            }
-
-            if (this.arrowTailMesh) {
-                this.arrowTailMesh.parent = graphRoot;
-            }
-        }
+        // Nothing is parented to graph-root here. Every line, pattern element and cap is a slot in
+        // a batch, and a batch parents its one mesh when it is built, which puts every edge in it
+        // under the graph's transform for XR gestures.
 
         // create the label and the arrow glyphs if configured
         this.syncContent(style, true);
@@ -462,17 +629,33 @@ export class Edge {
         // A DELIBERATELY disposed edge must never rebuild itself. UpdateManager iterates the
         // LAYOUT ENGINE's edge list every frame, and DataManager.clear() does not notify the
         // layout engine (its own standing TODO), so this method keeps being called on edges whose
-        // dataset was dropped. Without this guard the bezier branch below would build a brand new
-        // line mesh for an edge nobody owns.
+        // dataset was dropped. Without this guard the style branch below would take a brand new
+        // slot (or build a patterned line) for an edge nobody owns.
         if (this.disposed) {
             return;
         }
 
         // A hidden edge costs nothing per frame. It is also what keeps the arrow-cap branches
-        // below from re-enabling an arrowhead on an edge the mask has taken off screen: those
-        // branches call setEnabled(true) as part of recomputing a cap, and they run on any frame
-        // an endpoint moves.
+        // below from putting an arrowhead back on screen for an edge the mask has taken off it:
+        // placing a cap IS showing it -- the collapsed matrix the mask wrote is overwritten by
+        // the placement -- and those branches run on any frame an endpoint moves.
         if (!this.renderVisible) {
+            return;
+        }
+
+        // DIRTY TRACKING FIRST, BEFORE ANYTHING THAT COSTS. On a still graph this comparison is
+        // the whole of an edge's frame, and the update pass walks every edge in the graph on
+        // every frame -- so whatever sits above this line is paid a million times a second at the
+        // render ceiling for edges that are not going to move. It used to sit below a timing call
+        // and a lookup into the layout engine, neither of which the early exit needs: the
+        // engine's answer is only read further down, for an edge that IS moving.
+        const srcPos = this.srcNode.mesh.position;
+        const dstPos = this.dstNode.mesh.position;
+
+        const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
+        const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
+
+        if (!srcMoved && !dstMoved) {
             return;
         }
 
@@ -484,53 +667,11 @@ export class Edge {
             return;
         }
 
-        // Dirty tracking: Check if nodes have moved significantly
-        const srcPos = this.srcNode.mesh.position;
-        const dstPos = this.dstNode.mesh.position;
-
-        const srcMoved = !(this._lastSrcPos?.equalsWithEpsilon(srcPos, 0.001) ?? false);
-        const dstMoved = !(this._lastDstPos?.equalsWithEpsilon(dstPos, 0.001) ?? false);
-
-        if (!srcMoved && !dstMoved) {
-            this.context.getStatsManager().endMeasurement("Edge.update");
-            return;
-        }
-
         const { srcPoint, dstPoint } = this.transformArrowCap();
         const finalSrcPoint = srcPoint ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
         const finalDstPoint = dstPoint ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
 
-        // PHASE 5: Bezier curves need geometry recreation (can't transform)
-        const style = this.currentStyle;
-        if (style.line?.bezier) {
-            // Dispose old mesh
-            if (this.mesh instanceof PatternedLineMesh) {
-                this.mesh.dispose();
-            } else if (!this.mesh.isDisposed()) {
-                this.mesh.dispose();
-            }
-
-            // Create new bezier mesh with current positions
-            this.mesh = EdgeMesh.create(
-                this.context.getMeshCache(),
-                {
-                    styleId: this.meshKey,
-                    width: style.line.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                    color: style.line.color ?? "#FFFFFF",
-                },
-                style,
-                this.context.getScene(),
-                finalSrcPoint,
-                finalDstPoint,
-            );
-
-            this.mesh.isPickable = false;
-            this.mesh.metadata = this.mesh.metadata ?? {};
-            this.mesh.metadata.parentEdge = this;
-        } else {
-            // Non-bezier edges: Transform existing mesh
-            this.transformEdgeMesh(finalSrcPoint, finalDstPoint);
-        }
+        this.transformEdgeMesh(finalSrcPoint, finalDstPoint);
 
         // Update label position if exists
         if (this.label) {
@@ -543,18 +684,18 @@ export class Edge {
         }
 
         // Update arrow head caption position if exists
-        if (this.arrowHeadText && this.arrowMesh) {
+        if (this.arrowHeadText && this.arrowCap) {
             this.arrowHeadText.attachTo(
-                this.arrowMesh.position,
+                this.arrowCap.position,
                 this._arrowHeadTextAttachPosition,
                 this._arrowHeadTextOffset,
             );
         }
 
         // Update arrow tail caption position if exists
-        if (this.arrowTailText && this.arrowTailMesh) {
+        if (this.arrowTailText && this.arrowTailCap) {
             this.arrowTailText.attachTo(
-                this.arrowTailMesh.position,
+                this.arrowTailCap.position,
                 this._arrowTailTextAttachPosition,
                 this._arrowTailTextOffset,
             );
@@ -621,11 +762,10 @@ export class Edge {
     private paintFrom(meshKey: string, style: EdgeStyleConfig): void {
         // Only skip update if the source mesh is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
-        // PHASE 5: PatternedLineMesh doesn't have isDisposed(), check if it's AbstractMesh first
-        const meshDisposed =
-            this.mesh instanceof PatternedLineMesh
-                ? false // PatternedLineMesh is always "alive" (check individual meshes if needed)
-                : this.mesh.isDisposed();
+        // A patterned line says so with a flag rather than a method. It used to be read as always
+        // alive, so a view-mode switch -- which disposes it and repaints the edge with the same
+        // style -- skipped the rebuild and left the line disposed.
+        const meshDisposed = this.mesh instanceof PatternedLineMesh ? this.mesh.isDisposed : this.mesh.isDisposed();
 
         // WHAT THIS RETURN MAY AND MAY NOT SKIP. The mesh key is minted from the channels whose
         // role is `mesh`, with the colour and the opacity folded back into the string by
@@ -660,21 +800,17 @@ export class Edge {
         this._lastSrcPos = null;
         this._lastDstPos = null;
         // PHASE 5: Dispose pattern lines or solid lines appropriately
-        if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.dispose(); // PatternedLineMesh has its own dispose logic
-        } else if (!this.mesh.isDisposed()) {
-            this.mesh.dispose();
-        }
+        this.releaseLine();
 
         // recreate arrow mesh if needed. A cap is an instance of its scene's batch, and the batch
         // owns the material: disposing an instance's material would dispose the material every
         // other cap in the batch draws with. The batch disposes it with its last instance
         // (FilledArrowRenderer.instanceOf).
-        if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose();
+        if (this.arrowCap && !this.arrowCap.isDisposed()) {
+            this.arrowCap.dispose();
         }
 
-        this.arrowMesh = EdgeMesh.createArrowHead(
+        this.arrowCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             meshKey,
             {
@@ -688,11 +824,11 @@ export class Edge {
         );
 
         // recreate arrow tail mesh if needed
-        if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose();
+        if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
+            this.arrowTailCap.dispose();
         }
 
-        this.arrowTailMesh = EdgeMesh.createArrowHead(
+        this.arrowTailCap = EdgeMesh.createArrowHead(
             this.context.getMeshCache(),
             `${meshKey}-tail`,
             {
@@ -705,57 +841,13 @@ export class Edge {
             this.context.getScene(),
         );
 
-        // recreate edge line mesh
-        // PHASE 5: For bezier curves, need to pass current positions
-        let srcPoint: Vector3 | undefined;
-        let dstPoint: Vector3 | undefined;
-        if (style.line?.bezier) {
-            const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
-            if (lnk) {
-                const { srcPoint: arrowSrc, dstPoint: arrowDst } = this.transformArrowCap();
-                srcPoint = arrowSrc ?? new Vector3(lnk.src.x, lnk.src.y, lnk.src.z);
-                dstPoint = arrowDst ?? new Vector3(lnk.dst.x, lnk.dst.y, lnk.dst.z);
-            }
-        }
+        // recreate edge line mesh; the next update places it, because the endpoint cache was
+        // invalidated above
+        this.mesh = this.createLine(meshKey, style);
 
-        this.mesh = EdgeMesh.create(
-            this.context.getMeshCache(),
-            {
-                styleId: meshKey,
-                width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
-                color: style.line?.color ?? "#FFFFFF",
-            },
-
-            style,
-            this.context.getScene(),
-            srcPoint,
-            dstPoint,
-        );
-
-        this.mesh.isPickable = false;
-        this.mesh.metadata = this.mesh.metadata ?? {};
-        this.mesh.metadata.parentEdge = this;
-
-        // Parent edge meshes to graph-root for XR gesture support (zoom, rotate, pan)
-        const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");
-        if (graphRoot) {
-            if (this.mesh instanceof PatternedLineMesh) {
-                // PatternedLineMesh is a wrapper with an array of meshes
-                for (const mesh of this.mesh.meshes) {
-                    mesh.parent = graphRoot;
-                }
-            } else {
-                this.mesh.parent = graphRoot;
-            }
-
-            if (this.arrowMesh) {
-                this.arrowMesh.parent = graphRoot;
-            }
-
-            if (this.arrowTailMesh) {
-                this.arrowTailMesh.parent = graphRoot;
-            }
-        }
+        // Nothing is parented to graph-root here. Every line, pattern element and cap is a slot in
+        // a batch, and a batch parents its one mesh when it is built, which puts every edge in it
+        // under the graph's transform for XR gestures.
 
         // Update the label and the arrow glyphs.
         //
@@ -767,6 +859,65 @@ export class Edge {
         // Every mesh above is new, so whatever the visibility mask said about this edge has to be
         // said again -- otherwise a restyle silently puts a filtered-out edge back on screen.
         this.applyRenderState();
+    }
+
+    /**
+     * Build this edge's line, as a slot in a shared batch when the style allows one and as a mesh
+     * of this edge's own otherwise.
+     *
+     * {@link EdgeMesh.lineBatch} makes the choice, and it makes it from the style and the scene,
+     * so one call site cannot get a different answer from another. What comes back is what
+     * {@link Edge.mesh} points at either way: the batch's mesh, or the pattern's own wrapper.
+     * @param meshKey - Which appearance this edge is drawn with.
+     * @param style - The resolved style to draw from.
+     * @returns What the line is drawn by.
+     */
+    private createLine(meshKey: string, style: EdgeStyleConfig): AbstractMesh | PatternedLineMesh {
+        const options = {
+            styleId: meshKey,
+            width: style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+            color: style.line?.color ?? "#FFFFFF",
+        };
+
+        this.lineBatch = EdgeMesh.lineBatch(this.context.getMeshCache(), options, style, this.context.getScene());
+
+        if (this.lineBatch) {
+            // A curve's run of slots is sized to its length when it is first placed.
+            this.lineIsCurve = style.line?.bezier === true;
+            this.lineSlots = [this.lineBatch.acquire()];
+
+            // No per-edge mesh to make unpickable and nothing to hang `parentEdge` on: the batch
+            // is unpickable as a whole, and the back-reference was only ever written and never
+            // read -- reproducing it would be an array of Edge references one per edge, which is
+            // the kind of per-edge object a batch exists to remove.
+            return this.lineBatch.mesh;
+        }
+
+        return EdgeMesh.createPatternedLine(options, style, this.context.getScene());
+    }
+
+    /**
+     * Stop drawing this edge's line, whichever of the two it is.
+     *
+     * A BATCH IS SHARED, so a batched line is handed its slot back rather than disposed -- calling
+     * `dispose()` on what {@link Edge.mesh} points at would take every other edge of the same
+     * appearance off the screen with it.
+     */
+    private releaseLine(): void {
+        if (this.lineBatch) {
+            for (const slot of this.lineSlots) {
+                this.lineBatch.release(slot);
+            }
+
+            this.lineBatch = null;
+            this.lineSlots = [];
+            return;
+        }
+
+        // PatternedLineMesh has its own dispose logic, so it is called whatever the state.
+        if (this.mesh instanceof PatternedLineMesh || !this.mesh.isDisposed()) {
+            this.mesh.dispose();
+        }
     }
 
     /**
@@ -812,7 +963,7 @@ export class Edge {
             rebuilt = true;
         }
 
-        const wantedHead = captionWanted(style.arrowHead?.text, this.arrowMesh);
+        const wantedHead = captionWanted(style.arrowHead?.text, this.arrowCap);
 
         if (rebuild || !isEqual(wantedHead, this.drawnArrowHeadText)) {
             this.arrowHeadText?.dispose();
@@ -829,7 +980,7 @@ export class Edge {
             rebuilt = true;
         }
 
-        const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailMesh);
+        const wantedTail = captionWanted(style.arrowTail?.text, this.arrowTailCap);
 
         if (rebuild || !isEqual(wantedTail, this.drawnArrowTailText)) {
             this.arrowTailText?.dispose();
@@ -882,23 +1033,19 @@ export class Edge {
 
         this.disposed = true;
 
-        if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.dispose();
-        } else if (!this.mesh.isDisposed()) {
-            this.mesh.dispose();
+        this.releaseLine();
+
+        if (this.arrowCap && !this.arrowCap.isDisposed()) {
+            this.arrowCap.dispose();
         }
 
-        if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-            this.arrowMesh.dispose();
+        this.arrowCap = null;
+
+        if (this.arrowTailCap && !this.arrowTailCap.isDisposed()) {
+            this.arrowTailCap.dispose();
         }
 
-        this.arrowMesh = null;
-
-        if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-            this.arrowTailMesh.dispose();
-        }
-
-        this.arrowTailMesh = null;
+        this.arrowTailCap = null;
 
         this.label?.dispose();
         this.label = null;
@@ -912,6 +1059,16 @@ export class Edge {
         this.drawnLabelStyle = undefined;
         this.drawnArrowHeadText = undefined;
         this.drawnArrowTailText = undefined;
+    }
+
+    /**
+     * Does nothing.
+     * @deprecated Each edge aims its own ray when it needs one, so there is no graph-wide ray
+     * update any more. Will be removed in graphty-element 4.0.
+     * @param _g - Ignored
+     */
+    static updateRays(_g: Graph | GraphContext): void {
+        // deliberately empty: kept so callers of the 3.x API still compile
     }
 
     /**
@@ -967,7 +1124,7 @@ export class Edge {
      * Say whether this edge is selected.
      *
      * The state is recorded and nothing is drawn from it yet. An edge line in 3D is an instance of
-     * ONE cached mesh per edge style (`EdgeMesh.create` interns it under `edge-style-<id>`), so a
+     * ONE batch per edge style (`EdgeMesh.lineBatch` interns it under `edge-style-<id>`), so a
      * per-edge colour or alpha is not available without giving the selected edge a mesh of its
      * own; see the report accompanying this change for what that needs. Recording it here rather
      * than dropping it is what lets the renderer draw it the moment that lands, and what keeps the
@@ -1000,12 +1157,12 @@ export class Edge {
 
         const drawn = this.renderVisible;
 
-        if (this.mesh instanceof PatternedLineMesh) {
-            for (const segment of this.mesh.meshes) {
-                if (!segment.isDisposed()) {
-                    segment.setEnabled(drawn);
-                }
+        if (this.lineBatch) {
+            for (const slot of this.lineSlots) {
+                this.lineBatch.setDrawn(slot, drawn);
             }
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.setDrawn(drawn);
         } else if (!this.mesh.isDisposed()) {
             // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
             // isPickable here would lose whatever the edge style asked for on the way back.
@@ -1013,13 +1170,8 @@ export class Edge {
         }
 
         if (!drawn) {
-            if (this.arrowMesh && !this.arrowMesh.isDisposed()) {
-                this.arrowMesh.setEnabled(false);
-            }
-
-            if (this.arrowTailMesh && !this.arrowTailMesh.isDisposed()) {
-                this.arrowTailMesh.setEnabled(false);
-            }
+            this.arrowCap?.setDrawn(false);
+            this.arrowTailCap?.setDrawn(false);
         }
 
         for (const text of [this.label, this.arrowHeadText, this.arrowTailText]) {
@@ -1036,80 +1188,58 @@ export class Edge {
     }
 
     /**
-     * Updates ray directions for all edges in the graph to enable accurate mesh intersections.
-     * @param g - The graph or graph context containing the edges
-     */
-    static updateRays(g: Graph | GraphContext): void {
-        const context = "getStyles" in g ? g : g;
-
-        if (!context.needsRayUpdate()) {
-            return;
-        }
-
-        const { layoutEngine } = context.getLayoutManager();
-        if (!layoutEngine) {
-            return;
-        }
-
-        // The node meshes the intersection tests below will read. Collected in a set so a node
-        // shared by many edges is refreshed once per frame rather than once per incident edge.
-        const touched = new Set<AbstractMesh>();
-
-        for (const e of layoutEngine.edges) {
-            const srcMesh = e.srcNode.mesh;
-            const dstMesh = e.dstNode.mesh;
-
-            const style = e.currentStyle;
-            if (style.arrowHead?.type === undefined || style.arrowHead.type === "none") {
-                // Performance: this could be optimized
-                continue;
-            }
-
-            // RayHelper.CreateAndShow(ray, e.parentGraph.scene, Color3.Red());
-
-            // Update ray origin and direction to match current mesh positions
-            // The ray starts at the source node and points toward the destination node
-            e.ray.origin = srcMesh.position;
-            e.ray.direction = dstMesh.position.subtract(srcMesh.position);
-            touched.add(srcMesh);
-            touched.add(dstMesh);
-        }
-
-        // getInterceptPoints() calls ray.intersectsMeshes(), which reads each mesh's world matrix.
-        // After the frame has moved a node, that matrix is stale until something recomputes it.
-        //
-        // This used to be `context.getScene().render()` -- a SECOND full render pass, every frame,
-        // for every graph, because the `needRays` flag that was meant to gate it is initialised
-        // true (Graph.ts) and never set false by anything. Rendering the scene does refresh world
-        // matrices, but it also redraws every mesh, so the whole application ran at half the frame
-        // rate it could. Computing the world matrix of exactly the meshes that get intersected is
-        // the same guarantee at a fraction of the cost, and touches nothing else in the scene.
-        for (const mesh of touched) {
-            mesh.computeWorldMatrix(true);
-        }
-    }
-
-    /**
      * Transforms the edge mesh to position it between source and destination points.
      * Handles different mesh types (solid, patterned, 2D, bezier).
      * @param srcPoint - The source point position
      * @param dstPoint - The destination point position
      */
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
-        // PHASE 5: Check if mesh is PatternedLineMesh and route accordingly
-        if (this.mesh instanceof PatternedLineMesh) {
-            // Pattern lines: Update mesh positions in world space
+        // A batched line is sixteen floats in a shared buffer, and this is the write that moves
+        // it. The whole buffer reaches the GPU once a frame, from the batch itself.
+        if (this.lineBatch && this.lineIsCurve) {
+            this.placeCurve(this.lineBatch, srcPoint, dstPoint);
+        } else if (this.lineBatch) {
+            this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
-        } else if (this.mesh.metadata?.is2DLine) {
-            // PHASE 2: 2D solid lines use Simple2DLineRenderer position updates
-            Simple2DLineRenderer.updatePositions(this.mesh as Mesh, srcPoint, dstPoint);
-        } else if (this.mesh.metadata?.isBezierCurve) {
-            // PHASE 5: Bezier curves have baked-in geometry, no transformation needed
-            // The curve geometry is already in world coordinates from createBezierLine()
-            // Transforming would move/rotate/scale the curve incorrectly
-        } else {
-            // Solid lines: Transform via position/rotation/scaling
-            EdgeMesh.transformMesh(this.mesh, srcPoint, dstPoint);
+        }
+    }
+
+    /**
+     * Draw this edge's curve as a run of straight segments, one slot each, between two points.
+     *
+     * A CURVE IS A RUN OF THE SAME SLOTS A STRAIGHT LINE TAKES (issue #444). The curve renderer
+     * already drew a curve as a strip of independent straight quads -- no joins between them -- so
+     * one slot per quad draws the same segments. It used to dispose and rebuild a mesh of its own
+     * every time an endpoint moved; now the run grows or shrinks to the curve's point count and
+     * each segment is a matrix write.
+     * @param batch - The batch the run is in.
+     * @param srcPoint - Where the curve starts.
+     * @param dstPoint - Where it ends.
+     */
+    private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
+        const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint);
+        const segments = flat.length / 3 - 1;
+
+        // Grow before shrinking, and never below one slot: the batch disposes itself when its last
+        // slot goes, which must not happen in the middle of re-sizing a run.
+        while (this.lineSlots.length < segments) {
+            this.lineSlots.push(batch.acquire());
+        }
+
+        while (this.lineSlots.length > Math.max(1, segments)) {
+            const slot = this.lineSlots.pop();
+
+            if (slot !== undefined) {
+                batch.release(slot);
+            }
+        }
+
+        for (let i = 0; i < this.lineSlots.length; i++) {
+            curveFrom.fromArray(flat, i * 3);
+            curveTo.fromArray(flat, i * 3 + 3);
+            batch.place(this.lineSlots[i], curveFrom, curveTo);
         }
     }
 
@@ -1119,124 +1249,27 @@ export class Edge {
      * @returns Edge line positions adjusted for arrow placement
      */
     transformArrowCap(): EdgeLine {
-        if (this.arrowMesh) {
+        if (this.arrowCap) {
             const { srcPoint, dstPoint, newEndPoint } = this.getInterceptPoints();
 
             // If we can't find intercept points, fall back to approximate positions
             if (!srcPoint || !dstPoint || !newEndPoint) {
-                const fallbackSrc = this.srcNode.mesh.position;
-                const fallbackDst = this.dstNode.mesh.position;
-
-                // Hide arrow if nodes are too close or at same position
-                if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
-                    this.arrowMesh.setEnabled(false);
-                    return {
-                        srcPoint: fallbackSrc,
-                        dstPoint: fallbackDst,
-                    };
-                }
-
-                // Pure geometric positioning (same as main path, but using node centers/radii)
-                const direction = fallbackDst.subtract(fallbackSrc).normalize();
-
-                // Get arrow length (including size multiplier)
-                this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
-                const style = this.currentStyle;
-                const arrowSize = style.arrowHead?.size ?? 1.0;
-                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
-
-                // Use actual bounding sphere radii
-                const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
-                const srcNodeRadius = this.srcNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
-                this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
-
-                // Calculate surface intersection points
-                this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
-                const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
-                const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius));
-
-                // Use common arrow geometry functions for positioning
-                const arrowType = style.arrowHead?.type;
-                const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
-
-                // PHASE 4: Override scaleFactor for 2D arrows
-                // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-                // so their scaleFactor should be 1.0, not 0.25
-                if (this.arrowMesh.metadata?.is2D && geometry.scaleFactor !== undefined) {
-                    geometry.scaleFactor = 1.0;
-                }
-
-                this.arrowMesh.setEnabled(true);
-
-                // Calculate arrow position using common function
-                const arrowPosition = EdgeMesh.calculateArrowPosition(
-                    dstSurfacePoint,
-                    direction,
-                    arrowLength,
-                    geometry,
-                );
-
-                // Calculate line endpoint using common function
-                const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
-                this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
-
-                // Update arrow position directly (no thin instances)
-                this.arrowMesh.position = arrowPosition;
-
-                // PHASE 4: Handle 2D vs 3D arrow rotation
-                if (this.arrowMesh.metadata?.is2D) {
-                    // 2D: Simple Z-rotation to align with edge in XY plane
-                    const angle = Math.atan2(direction.y, direction.x);
-                    this.arrowMesh.rotation.z = angle;
-                } else {
-                    // 3D: Use billboarding or lookAt
-                    if (
-                        arrowType &&
-                        [
-                            "normal",
-                            "inverted",
-                            "diamond",
-                            "box",
-                            "dot",
-                            "vee",
-                            "tee",
-                            "half-open",
-                            "crow",
-                            "open-normal",
-                            "open-diamond",
-                        ].includes(arrowType)
-                    ) {
-                        // Filled arrows use shader-based billboarding via lineDirection uniform
-                        FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
-                    } else if (geometry.needsRotation) {
-                        // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
-                        // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
-                        const lookAtPoint = arrowPosition.add(direction);
-                        this.arrowMesh.lookAt(lookAtPoint);
-                    }
-                }
-
-                return {
-                    srcPoint: srcSurfacePoint,
-                    dstPoint: lineEndPoint,
-                };
+                return this.placeArrowFromCentres(this.arrowCap);
             }
-
-            this.arrowMesh.setEnabled(true);
 
             // Use common arrow geometry functions for positioning
             this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
             const arrowStyle = this.currentStyle;
             const arrowType = arrowStyle.arrowHead?.type;
-            const arrowSize = arrowStyle.arrowHead?.size ?? 1.0;
+            const arrowSize = arrowStyle.arrowHead?.size ?? 1;
             const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
             const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
 
             // PHASE 4: Override scaleFactor for 2D arrows
             // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
             // so their scaleFactor should be 1.0, not 0.25
-            if (this.arrowMesh.metadata?.is2D && geometry.scaleFactor !== undefined) {
-                geometry.scaleFactor = 1.0;
+            if (this.arrowCap.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1;
             }
 
             const direction = dstPoint.subtract(srcPoint).normalize();
@@ -1245,148 +1278,9 @@ export class Edge {
             const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
             this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
 
-            // Update arrow position directly (no thin instances)
-            this.arrowMesh.position = arrowPosition;
+            this.arrowCap.place(arrowPosition, direction);
 
-            // PHASE 4: Handle 2D vs 3D arrow rotation
-            if (this.arrowMesh.metadata?.is2D) {
-                // 2D: Use quaternion to properly compose rotations
-                // The arrow geometry is in XZ plane with tip at origin pointing along +X
-                // We need to: 1) rotate to XY plane (90 deg around X), 2) rotate to point at edge direction
-                //
-                // With Euler angles (YXZ order), setting rotation.x then rotation.z doesn't work because
-                // after the X rotation, the local Z axis points toward world -Y, so Z rotation
-                // spins the arrow in XZ plane instead of XY plane.
-                //
-                // Solution: Use quaternion composition with correct order
-                const angle = Math.atan2(direction.y, direction.x);
-
-                // Step 1: Rotation around X by 90 deg (brings arrow from XZ plane to XY plane)
-                const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
-                // Step 2: Rotation around Z by angle (aligns arrow with edge direction in XY plane)
-                const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
-
-                // Compose rotations: for "apply qX first, then qZ", use qZ * qX
-                this.arrowMesh.rotationQuaternion = qZ.multiply(qX);
-            } else {
-                // 3D: Use billboarding or lookAt
-                if (
-                    arrowType &&
-                    [
-                        "normal",
-                        "inverted",
-                        "diamond",
-                        "box",
-                        "dot",
-                        "vee",
-                        "tee",
-                        "half-open",
-                        "crow",
-                        "open-normal",
-                        "open-diamond",
-                    ].includes(arrowType)
-                ) {
-                    // Filled arrows use shader-based billboarding via lineDirection uniform
-                    FilledArrowRenderer.setLineDirection(this.arrowMesh, direction);
-                } else if (geometry.needsRotation) {
-                    // CustomLineRenderer arrows need lookAt (like edge lines) instead of manual rotation
-                    // Arrow geometry is along Z-axis, lookAt rotates it to point toward the edge direction
-                    const lookAtPoint = arrowPosition.add(direction);
-                    this.arrowMesh.lookAt(lookAtPoint);
-                }
-            }
-
-            // Handle arrow tail if configured
-            let adjustedSrcPoint = srcPoint;
-            if (this.arrowTailMesh) {
-                const tailStyle = this.currentStyle;
-                const tailType = tailStyle.arrowTail?.type;
-
-                if (tailType && tailType !== "none") {
-                    this.arrowTailMesh.setEnabled(true);
-
-                    // Reverse direction for tail (points away from source toward destination)
-                    const tailDirection = dstPoint.subtract(srcPoint).normalize();
-
-                    // Get tail arrow dimensions and geometry
-                    const tailSize = tailStyle.arrowTail?.size ?? 1.0;
-                    const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
-                    const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
-
-                    // PHASE 4: Override scaleFactor for 2D tail arrows
-                    if (this.arrowTailMesh.metadata?.is2D && tailGeometry.scaleFactor !== undefined) {
-                        tailGeometry.scaleFactor = 1.0;
-                    }
-
-                    // Calculate tail position using common function
-                    // For tail, we negate the direction since it points away from source
-                    const tailPosition = EdgeMesh.calculateArrowPosition(
-                        srcPoint,
-                        tailDirection.scale(-1), // Reverse direction for tail
-                        tailLength,
-                        tailGeometry,
-                    );
-
-                    // Tail points in opposite direction (away from source)
-                    const reversedDirection = direction.scale(-1);
-
-                    // Update arrow tail position directly (no thin instances)
-                    this.arrowTailMesh.position = tailPosition;
-
-                    // PHASE 4: Handle 2D vs 3D arrow tail rotation
-                    if (this.arrowTailMesh.metadata?.is2D) {
-                        // 2D: Use quaternion to properly compose rotations (same as arrow head)
-                        const angle = Math.atan2(reversedDirection.y, reversedDirection.x);
-                        const qX = Quaternion.RotationAxis(Vector3.Right(), Math.PI / 2);
-                        const qZ = Quaternion.RotationAxis(Vector3.Forward(), angle);
-                        this.arrowTailMesh.rotationQuaternion = qZ.multiply(qX);
-                    } else {
-                        // 3D: Use billboarding or explicit rotation
-                        if (
-                            [
-                                "normal",
-                                "inverted",
-                                "diamond",
-                                "box",
-                                "dot",
-                                "vee",
-                                "tee",
-                                "half-open",
-                                "crow",
-                                "open-normal",
-                                "open-diamond",
-                            ].includes(tailType)
-                        ) {
-                            // Filled arrows use shader-based billboarding via lineDirection uniform
-                            FilledArrowRenderer.setLineDirection(this.arrowTailMesh, reversedDirection);
-                        } else if (tailGeometry.needsRotation) {
-                            // Other arrow types need explicit rotation
-                            // Triangle in XY plane with tip at origin, pointing in +X direction
-                            // Z rotation: horizontal angle in XY plane
-                            const angleZ = Math.atan2(reversedDirection.y, reversedDirection.x);
-
-                            // Y rotation: tilt forward/back to match edge depth
-                            const horizontalDist = Math.sqrt(
-                                reversedDirection.x * reversedDirection.x + reversedDirection.y * reversedDirection.y,
-                            );
-                            const angleY = -Math.atan2(reversedDirection.z, horizontalDist);
-
-                            // Apply rotations
-                            this.arrowTailMesh.rotation.x = 0;
-                            this.arrowTailMesh.rotation.y = angleY;
-                            this.arrowTailMesh.rotation.z = angleZ;
-                        }
-                    }
-
-                    // Adjust line start point to create gap for tail arrow
-                    adjustedSrcPoint = EdgeMesh.calculateLineEndpoint(
-                        srcPoint,
-                        tailDirection.scale(-1), // Reverse direction for tail
-                        tailLength,
-                        tailGeometry,
-                    );
-                }
-            }
+            const adjustedSrcPoint = this.placeArrowTail(srcPoint, dstPoint, direction);
 
             return {
                 srcPoint: adjustedSrcPoint,
@@ -1401,6 +1295,127 @@ export class Edge {
     }
 
     /**
+     * Place the arrow head from the node centres and bounding radii, for when the line's ends on
+     * the node surfaces could not be found, and say where the line runs.
+     * @param arrowCap - This edge's arrow head.
+     * @returns The line's ends, stopping short of the arrow head.
+     */
+    private placeArrowFromCentres(arrowCap: ArrowCap): EdgeLine {
+        const fallbackSrc = this.srcNode.mesh.position;
+        const fallbackDst = this.dstNode.mesh.position;
+
+        // Hide arrow if nodes are too close or at same position
+        if (fallbackSrc.equalsWithEpsilon(fallbackDst, 0.01)) {
+            arrowCap.setDrawn(false);
+            return {
+                srcPoint: fallbackSrc,
+                dstPoint: fallbackDst,
+            };
+        }
+
+        // Pure geometric positioning (same as main path, but using node centers/radii)
+        const direction = fallbackDst.subtract(fallbackSrc).normalize();
+
+        // Get arrow length (including size multiplier)
+        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
+        const style = this.currentStyle;
+        const arrowSize = style.arrowHead?.size ?? 1;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+
+        // Use actual bounding sphere radii
+        const dstNodeRadius = this.dstNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        const srcNodeRadius = this.srcNode.mesh.getBoundingInfo().boundingSphere.radiusWorld;
+        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
+
+        // Calculate surface intersection points
+        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
+        const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
+        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius));
+
+        // Use common arrow geometry functions for positioning
+        const arrowType = style.arrowHead?.type;
+        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal");
+
+        // PHASE 4: Override scaleFactor for 2D arrows
+        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+        // so their scaleFactor should be 1.0, not 0.25
+        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
+            geometry.scaleFactor = 1;
+        }
+
+        // Calculate arrow position using common function
+        const arrowPosition = EdgeMesh.calculateArrowPosition(dstSurfacePoint, direction, arrowLength, geometry);
+
+        // Calculate line endpoint using common function
+        const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
+        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
+
+        arrowCap.place(arrowPosition, direction);
+
+        return {
+            srcPoint: srcSurfacePoint,
+            dstPoint: lineEndPoint,
+        };
+    }
+
+    /**
+     * Place the arrow tail, when this edge draws one, and say where the line has to start so it
+     * leaves the tail room.
+     * @param srcPoint - Where the line leaves the source node's surface.
+     * @param dstPoint - Where the line meets the destination node's surface.
+     * @param direction - The unit direction from source to destination.
+     * @returns Where the line starts: past the tail, or the source surface with no tail.
+     */
+    private placeArrowTail(srcPoint: Vector3, dstPoint: Vector3, direction: Vector3): Vector3 {
+        const { arrowTailCap } = this;
+        if (!arrowTailCap) {
+            return srcPoint;
+        }
+
+        const tailStyle = this.currentStyle;
+        const tailType = tailStyle.arrowTail?.type;
+
+        if (!tailType || tailType === "none") {
+            return srcPoint;
+        }
+
+        // Reverse direction for tail (points away from source toward destination)
+        const tailDirection = dstPoint.subtract(srcPoint).normalize();
+
+        // Get tail arrow dimensions and geometry
+        const tailSize = tailStyle.arrowTail?.size ?? 1;
+        const tailLength = EdgeMesh.calculateArrowLength() * tailSize;
+        const tailGeometry = EdgeMesh.getArrowGeometry(tailType);
+
+        // PHASE 4: Override scaleFactor for 2D tail arrows
+        if (arrowTailCap.is2D && tailGeometry.scaleFactor !== undefined) {
+            tailGeometry.scaleFactor = 1;
+        }
+
+        // Calculate tail position using common function
+        // For tail, we negate the direction since it points away from source
+        const tailPosition = EdgeMesh.calculateArrowPosition(
+            srcPoint,
+            tailDirection.scale(-1), // Reverse direction for tail
+            tailLength,
+            tailGeometry,
+        );
+
+        // Tail points in opposite direction (away from source)
+        const reversedDirection = direction.scale(-1);
+
+        arrowTailCap.place(tailPosition, reversedDirection);
+
+        // Adjust line start point to create gap for tail arrow
+        return EdgeMesh.calculateLineEndpoint(
+            srcPoint,
+            tailDirection.scale(-1), // Reverse direction for tail
+            tailLength,
+            tailGeometry,
+        );
+    }
+
+    /**
      * Calculates ray intersection points with source and destination node meshes.
      * Used to position edges at node surfaces rather than centers.
      * @returns Intersection points for source, destination, and adjusted endpoint
@@ -1409,43 +1424,73 @@ export class Edge {
         const srcMesh = this.srcNode.mesh;
         const dstMesh = this.dstNode.mesh;
 
-        // ray is updated in updateRays to ensure intersections
-        const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
-        const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
-
         let srcPoint: Vector3 | null = null;
         let dstPoint: Vector3 | null = null;
         let newEndPoint: Vector3 | null = null;
-        if (dstHitInfo.length && srcHitInfo.length) {
-            const style = this.currentStyle;
-            const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
 
-            dstPoint = dstHitInfo[0].pickedPoint;
-            srcPoint = srcHitInfo[0].pickedPoint;
-            if (!srcPoint || !dstPoint) {
-                throw new TypeError("error picking points");
+        const srcRadius = this.srcNode.roundRadius;
+        const dstRadius = this.dstNode.roundRadius;
+
+        if (srcRadius !== null && dstRadius !== null) {
+            // WORKED OUT RATHER THAN SEARCHED FOR. Where a straight line crosses a sphere is one
+            // multiply away from the centre and the radius, and this is the answer for the shapes
+            // the element draws by default. The search it replaces -- two ray-against-mesh
+            // intersections per edge, each walking the triangles of a node's geometry -- measured
+            // 137 ms of a 151 ms frame on a graph of two thousand nodes with a live layout, which
+            // was the whole of what a moving graph cost. It also needed both endpoint meshes to
+            // have a freshly computed world matrix; a radius does not move when a node does, so
+            // that is gone too.
+            const srcCentre = srcMesh.position;
+            const dstCentre = dstMesh.position;
+            const dx = dstCentre.x - srcCentre.x;
+            const dy = dstCentre.y - srcCentre.y;
+            const dz = dstCentre.z - srcCentre.z;
+            const span = Math.sqrt(dx * dx + dy * dy + dz * dz); // NOSONAR(S7769): per edge, per frame; Math.hypot measured ~5x slower here
+
+            // Two nodes closer than their own surfaces have no line between them to trim, which
+            // is the same case the intersection search reported by finding no hit.
+            if (span > srcRadius + dstRadius) {
+                const ux = dx / span;
+                const uy = dy / span;
+                const uz = dz / span;
+
+                srcPoint = new Vector3(
+                    srcCentre.x + ux * srcRadius,
+                    srcCentre.y + uy * srcRadius,
+                    srcCentre.z + uz * srcRadius,
+                );
+                dstPoint = new Vector3(
+                    dstCentre.x - ux * dstRadius,
+                    dstCentre.y - uy * dstRadius,
+                    dstCentre.z - uz * dstRadius,
+                );
             }
+        } else {
+            // AIMED HERE, BY THE ONE EDGE THAT IS ABOUT TO FIRE IT. A pass over every edge in the
+            // graph used to do this, once a frame, whether or not the edge had moved.
+            this.ray.origin = srcMesh.position;
+            dstMesh.position.subtractToRef(srcMesh.position, this.ray.direction);
 
-            // Only adjust endpoint if we have an arrow head
-            if (hasArrowHead) {
-                const arrowSize = style.arrowHead?.size ?? 1.0;
-                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
-                const arrowType = style.arrowHead?.type ?? "normal";
-                const geometry = EdgeMesh.getArrowGeometry(arrowType);
+            const frame = this.context.getScene().getFrameId();
 
-                // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
-                if (this.arrowMesh?.metadata?.is2D && geometry.scaleFactor !== undefined) {
-                    geometry.scaleFactor = 1.0;
+            freshenWorldMatrix(srcMesh, frame);
+            freshenWorldMatrix(dstMesh, frame);
+
+            const dstHitInfo = this.ray.intersectsMeshes([dstMesh]);
+            const srcHitInfo = this.ray.intersectsMeshes([srcMesh]);
+
+            if (dstHitInfo.length && srcHitInfo.length) {
+                dstPoint = dstHitInfo[0].pickedPoint;
+                srcPoint = srcHitInfo[0].pickedPoint;
+
+                if (!srcPoint || !dstPoint) {
+                    throw new TypeError("error picking points");
                 }
-
-                // Use common function to calculate line endpoint
-                // Direction points FROM source TO destination (forward direction)
-                const direction = dstPoint.subtract(srcPoint).normalize();
-                newEndPoint = EdgeMesh.calculateLineEndpoint(dstPoint, direction, arrowLength, geometry);
-            } else {
-                // No arrow head, edge goes all the way to the node surface
-                newEndPoint = dstPoint;
             }
+        }
+
+        if (srcPoint !== null && dstPoint !== null) {
+            newEndPoint = this.lineEndBefore(srcPoint, dstPoint);
         }
 
         return {
@@ -1453,6 +1498,38 @@ export class Edge {
             dstPoint,
             newEndPoint,
         };
+    }
+
+    /**
+     * Where the line stops short of the destination node's surface to leave room for the arrow
+     * head, or the surface itself when there is no arrow head.
+     * @param srcPoint - Where the line leaves the source node's surface.
+     * @param dstPoint - Where the line meets the destination node's surface.
+     * @returns The line's end.
+     */
+    private lineEndBefore(srcPoint: Vector3, dstPoint: Vector3): Vector3 {
+        const style = this.currentStyle;
+        const hasArrowHead = style.arrowHead?.type && style.arrowHead.type !== "none";
+
+        if (!hasArrowHead) {
+            // No arrow head, edge goes all the way to the node surface
+            return dstPoint;
+        }
+
+        const arrowSize = style.arrowHead?.size ?? 1;
+        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize;
+        const arrowType = style.arrowHead?.type ?? "normal";
+        const geometry = EdgeMesh.getArrowGeometry(arrowType);
+
+        // PHASE 4: Override scaleFactor for 2D arrows in line endpoint calculation
+        if (this.arrowCap?.is2D && geometry.scaleFactor !== undefined) {
+            geometry.scaleFactor = 1;
+        }
+
+        // Use common function to calculate line endpoint
+        // Direction points FROM source TO destination (forward direction)
+        const direction = dstPoint.subtract(srcPoint).normalize();
+        return EdgeMesh.calculateLineEndpoint(dstPoint, direction, arrowLength, geometry);
     }
 
     /**
@@ -1632,11 +1709,7 @@ export class Edge {
 
         // Remove properties that shouldn't be passed to RichTextLabel
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions as RichTextLabelOptions & {
-            location?: string;
-            textPath?: string;
-            enabled?: boolean;
-        };
+        const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
 
         return finalLabelOptions;
     }

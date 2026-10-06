@@ -75,7 +75,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
             assert.deepEqual(resultsOf(edge.data), { fixture: { "write-everywhere": { seen: true } } });
             assert.deepEqual(data.graphResults as unknown, { fixture: { "write-everywhere": { nodes: 3 } } });
             assert.deepEqual(
-                session.data.node("n1") as unknown,
+                session.data.node("n1"),
                 graph.getNode("n1")?.data as unknown,
                 "the session reads the same record",
             );
@@ -92,7 +92,7 @@ describe("a plugin algorithm without a descriptor is one step", () => {
             assert.deepEqual(resultsOf(graph.getNode("n2")?.data ?? {}), {
                 fixture: { "write-everywhere": { seen: true, id: "n2" } },
             });
-            assert.deepEqual(data.graphResults as unknown, { fixture: { "write-everywhere": { nodes: 3 } } });
+            assert.deepEqual(data.graphResults, { fixture: { "write-everywhere": { nodes: 3 } } });
         },
         TEST_TIMEOUT_MS,
     );

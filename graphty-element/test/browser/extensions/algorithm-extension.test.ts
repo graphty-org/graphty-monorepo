@@ -754,7 +754,7 @@ class ScopedLinks extends DeclaredAlgorithm {
         const nodes: ResultElementValues[] = [];
         for (let row = 0; row < subgraph.nodeCount; row++) {
             // Published by element id: a subgraph's rows are not the graph's.
-            nodes.push({ id: subgraph.ids.idOf(row) as NodeId, values: { value: subgraph.outDegreeOf(row) } });
+            nodes.push({ id: subgraph.ids.idOf(row), values: { value: subgraph.outDegreeOf(row) } });
         }
 
         return Promise.resolve({

@@ -2,22 +2,27 @@
  * A red master's fix (design 4.5 and 4.6): the open pull request that fixes a judged master failure.
  * Once a failing key on a red gating lane has Claude's verdict (code, or environment with a fix in a
  * pull request), githerd links each open pull request by the owner that is that key's fix, so the
- * board shows it beside the incident, and labels it `priority:critical` (write group `incidents`,
- * like the revert pull request the incident procedure opens): Mergify puts it first, master-guard's
+ * board shows it beside the incident, and labels it `priority:critical` (write group `master-fix`, its
+ * own so it can act while `incidents`, whose reverts the owner leaves to master-guard, stays
+ * dry-run; the gate adopts `actions.masterFix` once one dry-run poll has logged a would-do line of
+ * it, as for any group): Mergify puts it first, master-guard's
  * freeze lets it merge, githerd's own hold lets it through, and its pushes go first in the push
  * queue (`isMasterFix`).
  *
  * A pull request is the fix when it names the incident's issue (master-guard's "Red master: CI
  * failed on <sha>" or "<lane> lane red on master", or an incident key's `intermittent` issue) as one
  * it closes or in its description; when a session reported it as the fix (a verdict's reason names
- * it, or an incident job made it or reported it); or when its description names a judged failure
- * key. Touching the same package is not enough.
+ * it, or an incident job made it or reported it); when its description names a judged failure key;
+ * or when its title names the key's failing step (`Security audit` of `CI / Build / Security
+ * audit`), as a title says what a pull request is for. Touching the same package is not enough.
  */
 import { byOwner, TERMINAL } from "./board.mjs";
 
 export const CRITICAL = "priority:critical";
 /** The titles of the issues master-guard opens for a red master lane. */
 const GUARD_TITLE = /^(Red master: CI failed on [0-9a-f]{7,40}|.+ lane red on master)$/;
+/** The write group of the label. */
+const GROUP = "master-fix";
 
 /**
  * The failure keys on red master lanes that have Claude's verdict, with the verdict's reason.
@@ -89,7 +94,12 @@ function fixReason(node, { keys, issues, reported }) {
     if (issue) return `names #${issue}, the red master's issue`;
     if (reported.has(Number(node.number))) return "reported as the fix";
     const key = keys.find((k) => body.includes(k.key));
-    return key ? `names ${key.key}` : null;
+    if (key) return `names ${key.key}`;
+    // ponytail: a generic step name ("Run tests") in a title links too eagerly; require the job name
+    // too if that ever labels a pull request that is not the fix.
+    const title = String(node.title ?? "").toLowerCase();
+    const step = keys.find((k) => title.includes(String(k.key.split(" / ").at(-1)).toLowerCase()));
+    return step ? `its title names ${step.key}` : null;
 }
 
 /**
@@ -121,7 +131,7 @@ export function linkMasterFix(state, nodes) {
 }
 
 /**
- * Labels each linked fix `priority:critical` through the write gate (group `incidents`): once when
+ * Labels each linked fix `priority:critical` through the write gate (group `master-fix`): once when
  * the group acts, and one would-do line while it does not.
  * @param {{write: Function, acting: (group: string) => boolean}} github the client
  * @param {string} repo `owner/name`
@@ -130,14 +140,14 @@ export function linkMasterFix(state, nodes) {
 export async function labelMasterFixes(github, repo, state) {
     for (const f of state.master?.fixPrs ?? []) {
         if (f.labelled === "present" || f.labelled === "sent") continue;
-        if (f.labelled === "would-do" && !github.acting("incidents")) continue;
+        if (f.labelled === "would-do" && !github.acting(GROUP)) continue;
         const at = `repos/${repo}/issues/${f.pr}/labels`;
         const res = await github.write(
             "POST",
             at,
             { labels: [CRITICAL] },
             {
-                group: "incidents",
+                group: GROUP,
                 check: { path: at, expect: [{ name: CRITICAL }] },
                 retry: true,
                 fields: { situation: "master-fix-critical", pr: f.pr, why: f.why },

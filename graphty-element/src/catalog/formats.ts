@@ -224,10 +224,17 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
             plainName: "JSON Shape",
             technicalName: "dialect",
             type: "enum",
-            values: choices("node-link", "d3", "jgf", "cytoscape", "graphology", "vis"),
-            description: "Which JSON graph shape to write. Left unset, graph-io writes node-link.",
+            values: choices("node-link", "d3", "jgf", "cytoscape", "graphology", "vis", "obographs"),
+            description: "Which JSON graph shape to write. Left unset, the shape the file was read in, else node-link.",
         },
         { name: "indent", plainName: "Indent", technicalName: "indent", type: "integer", min: 0 },
+        {
+            name: "ontologyIri",
+            plainName: "Ontology IRI",
+            technicalName: "ontologyIri",
+            type: "string",
+            description: "OBO Graphs only: the IRI an id without a prefix is written under, as <ontologyIri>#<id>.",
+        },
     ],
     csv: [
         {

@@ -22,8 +22,9 @@ import { type LayoutStatsBase, type ResolvedLayoutTuning } from "../types/layout
 import { type Binding } from "../types/memory.js";
 import { type BufferSpec, type ModelResources, tierFor } from "./force-simulation.js";
 import {
-    type AttractionBindings,
     type AttractionBound,
+    type AttractionCompiled,
+    bindAttraction,
     FILL_PARAMS_BUFFER,
     FORCE_BYTES_PER_NODE,
     invalid,
@@ -141,8 +142,8 @@ export interface CompiledModel<E extends ExactStage> {
     readonly k5: Kernel;
     readonly toScene: Kernel;
     readonly fill: Kernel;
-    /** The K2 tier dispatches; null when arcCount === 0 (the fill of force replaces K2, spec 7.5). */
-    readonly attraction: AttractionBound | null;
+    /** The K2 tier pipelines (bound by bind() after its superseded check); null when arcCount === 0 (the fill of force replaces K2, spec 7.5). */
+    readonly attraction: AttractionCompiled | null;
     /** Binds the exact tier's stage against the load's buffers; null on the grid tier (P4 PD-18). */
     readonly exact: ((resources: RepulsionExactResources, plan: DispatchPlan) => E) | null;
     /** The grid-tier stage (G1-G7, and K4 for FA2), or null on the exact tier (P4 PD-18). */
@@ -239,18 +240,13 @@ export abstract class ForceModelBase<E extends ExactStage> {
 
     /**
      * Compiles (through the cache) every pipeline of one load: K1, K5, toScene, fill, K2 over the degree tiers through
-     * bindAttraction (or null when the graph has no arcs), the exact stage or the grid stage. The order of the
-     * compiles is the model's.
+     * compileAttraction (or null when the graph has no arcs), the exact stage or the grid stage. The order of the
+     * compiles is the model's. It creates no bind group: bind() does that after its superseded check.
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
-     * @param attraction - K2's group-1 / group-2 bindings
      * @returns the pipelines
      */
-    protected abstract compile(
-        resources: ModelResources,
-        overrides: Overrides,
-        attraction: AttractionBindings,
-    ): Promise<CompiledModel<E>>;
+    protected abstract compile(resources: ModelResources, overrides: Overrides): Promise<CompiledModel<E>>;
 
     /**
      * Whether the load zeroes the carry buffer before its first K1 (FA2's paper mode); a fill bind group exists only
@@ -317,7 +313,7 @@ export abstract class ForceModelBase<E extends ExactStage> {
         const force = resources.buffer("force");
         const params = ring.binding(FA2_PARAMS);
         const hasArcs = core.colIdx !== null;
-        const compiled = await this.compile(resources, overrides, { pos, force, params });
+        const compiled = await this.compile(resources, overrides);
         const { k1, k5, toScene, fill, grid } = compiled;
         if (this.resources !== resources) {
             // a newer bind() superseded this one while the pipelines compiled; its own bind groups stand
@@ -371,7 +367,10 @@ export abstract class ForceModelBase<E extends ExactStage> {
                 hubCounters,
                 P: params,
             }),
-            attraction: compiled.attraction,
+            attraction:
+                compiled.attraction === null
+                    ? null
+                    : bindAttraction(compiled.attraction, resources, { pos, force, params }),
             exact: compiled.exact?.(exactResources, plan) ?? null,
             grid,
             k5,

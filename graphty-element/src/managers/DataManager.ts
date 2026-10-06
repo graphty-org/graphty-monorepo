@@ -72,38 +72,18 @@ export type { AddEdgesOptions } from "../session/project/ingest";
  * session's dispatcher, not a pointer observer.
  *
  * ONLY MESHES THE CALLER IS ABOUT TO DISPOSE may be passed: a live mesh dropped here would stay
- * alive and simply stop being drawn. Each element's own mesh, its arrowheads and everything parented
- * to them (a node's label plane) are collected; those are what `Node.dispose` and `Edge.dispose`
- * free. A mesh not collected -- a tooltip, a halo, a patterned line's segments -- is still freed
- * correctly by its own dispose, at the old per-mesh cost.
+ * alive and simply stop being drawn. Each element's own mesh and everything parented to it (a
+ * node's label plane) are collected; those are what `Node.dispose` and `Edge.dispose` free. A
+ * shared batch an edge's line or arrowhead is a slot in is never collected, because it still draws
+ * the edges that stay. A mesh not collected -- a batch, a tooltip, a halo, a patterned line's
+ * segments -- is still freed correctly by its own dispose, at the old per-mesh cost.
  * @param nodes - The nodes about to be disposed.
  * @param edges - The edges about to be disposed.
  */
 function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
     const doomed = new Set<AbstractMesh>();
-    // Anything that is not a live Babylon mesh is skipped: a patterned line, whose segments go by
-    // their own dispose, and an arrowhead the edge does not have.
-    const add = (mesh: unknown): void => {
-        if (mesh instanceof AbstractMesh && !mesh.isDisposed()) {
-            doomed.add(mesh);
-            for (const child of mesh.getChildMeshes(false)) {
-                doomed.add(child);
-            }
-        }
-    };
     const observers = new Set<Observer<PointerInfoPre>>();
-    for (const node of nodes) {
-        add(node.mesh);
-        for (const observer of node.dragHandler?.sceneObservers ?? []) {
-            observers.add(observer);
-        }
-    }
-
-    for (const edge of edges) {
-        add(edge.mesh);
-        add(edge.arrowMesh);
-        add(edge.arrowTailMesh);
-    }
+    collectDoomed(nodes, edges, doomed, observers);
 
     // Only the parents that are not going themselves: a label's node mesh is, and its child list
     // is a handful long anyway.
@@ -142,6 +122,47 @@ function releaseFromScene(nodes: Iterable<Node>, edges: Iterable<Edge>): void {
         const children = (parent as unknown as { _children: SceneNode[] | null })._children;
         if (children) {
             dropAll(children, doomed);
+        }
+    }
+}
+
+/**
+ * Collect what {@link releaseFromScene} drops: each element's own live mesh and everything
+ * parented to it, and each node's pointer observers.
+ * @param nodes - The nodes about to be disposed.
+ * @param edges - The edges about to be disposed.
+ * @param doomed - Receives the meshes.
+ * @param observers - Receives the pointer observers.
+ */
+function collectDoomed(
+    nodes: Iterable<Node>,
+    edges: Iterable<Edge>,
+    doomed: Set<AbstractMesh>,
+    observers: Set<Observer<PointerInfoPre>>,
+): void {
+    // Anything that is not a live Babylon mesh is skipped: a patterned line, whose segments go by
+    // their own dispose.
+    const add = (mesh: unknown): void => {
+        if (mesh instanceof AbstractMesh && !mesh.isDisposed()) {
+            doomed.add(mesh);
+            for (const child of mesh.getChildMeshes(false)) {
+                doomed.add(child);
+            }
+        }
+    };
+    for (const node of nodes) {
+        add(node.mesh);
+        for (const observer of node.dragHandler?.sceneObservers ?? []) {
+            observers.add(observer);
+        }
+    }
+
+    for (const edge of edges) {
+        // A line drawn as a slot in a shared batch points `edge.mesh` at the batch, which still
+        // draws every other edge in it: the batch disposes itself with its last slot. Arrowheads
+        // are always such slots (ArrowCap), so they own no mesh here.
+        if (!(edge.mesh instanceof AbstractMesh && edge.mesh.hasThinInstances)) {
+            add(edge.mesh);
         }
     }
 }
@@ -415,7 +436,7 @@ export class DataManager implements Manager {
      * {@link Edge.id} stopped being one: a node id may contain any character, so any single-string
      * encoding of two ids is ambiguous for some pair of them.
      */
-    private pendingByPair = new Map<NodeIdType, Map<NodeIdType, PendingEdge[]>>();
+    private readonly pendingByPair = new Map<NodeIdType, Map<NodeIdType, PendingEdge[]>>();
 
     /** Turns records and data sources into the graph; this manager draws what it produces. */
     private readonly ingest: Ingest<ExistingEdge> = new Ingest(this.ingestHost());

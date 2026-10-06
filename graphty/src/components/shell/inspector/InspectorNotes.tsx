@@ -1,6 +1,7 @@
 /**
  * The Notes section the node and edge inspectors share: a note input, then one row per note,
- * newest first, each with a Delete control.
+ * newest first, each with a Delete control. The Explore panel draws the same rows,
+ * {@link NoteRows}, for the case notes inside its own section.
  *
  * Presentation only. The notes themselves live in graphty-element's `session.notes`; the caller
  * reads them from there and hands the save and delete back to it, so undo, saving and loading
@@ -47,12 +48,8 @@ function relativeTimeOf(iso: string): string {
     return format.format(0, "second");
 }
 
-/** Props of {@link InspectorNotes}. */
-interface InspectorNotesProps {
-    /** The section's persisted open/closed id. */
-    readonly sectionId: string;
-    /** Whether the section starts open. */
-    readonly defaultOpen: boolean;
+/** Props of {@link NoteRows}. */
+interface NoteRowsProps {
     /** The input's test id. */
     readonly inputTestId: string;
     /** The notes, newest first. */
@@ -63,19 +60,26 @@ interface InspectorNotesProps {
     readonly onDeleteNote: (noteId: string) => void;
 }
 
+/** Props of {@link InspectorNotes}. */
+interface InspectorNotesProps extends NoteRowsProps {
+    /** The section's persisted open/closed id. */
+    readonly sectionId: string;
+    /** Whether the section starts open. */
+    readonly defaultOpen: boolean;
+}
+
 /**
- * The Notes section.
- * @param props - the section's props.
- * @returns the section.
+ * A Notes section's rows: the note input, then one row per note with its Delete control.
+ * @param props - the rows' props.
+ * @returns the rows.
  */
-export function InspectorNotes(props: InspectorNotesProps): React.JSX.Element {
-    const { sectionId, defaultOpen, inputTestId, notes, onAddNote, onDeleteNote } = props;
-    const section = useInspectorSection(sectionId, defaultOpen);
+export function NoteRows(props: NoteRowsProps): React.JSX.Element {
+    const { inputTestId, notes, onAddNote, onDeleteNote } = props;
     const [draft, setDraft] = useState("");
     const addNoteChip = keyChipFor("addNote");
 
     return (
-        <ControlSection label="Notes" opened={section.opened} onOpenChange={section.onOpenChange}>
+        <>
             {/* ControlSection already draws the panel's own 16 / 8 around its
                 content, so nothing inside a section draws it again. */}
             <Box>
@@ -135,6 +139,22 @@ export function InspectorNotes(props: InspectorNotesProps): React.JSX.Element {
                     />
                 );
             })}
+        </>
+    );
+}
+
+/**
+ * The Notes section.
+ * @param props - the section's props.
+ * @returns the section.
+ */
+export function InspectorNotes(props: InspectorNotesProps): React.JSX.Element {
+    const { sectionId, defaultOpen, ...rows } = props;
+    const section = useInspectorSection(sectionId, defaultOpen);
+
+    return (
+        <ControlSection label="Notes" opened={section.opened} onOpenChange={section.onOpenChange}>
+            <NoteRows {...rows} />
         </ControlSection>
     );
 }

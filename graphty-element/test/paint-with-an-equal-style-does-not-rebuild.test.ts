@@ -138,7 +138,7 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         harness.layoutEngine.addEdge(edge);
         edge.update();
         const line = edge.mesh;
-        const head = edge.arrowMesh;
+        const head = edge.arrowCap;
 
         edge.applySessionPaint({
             meshKey: "s0|#a9a9a9|",
@@ -146,7 +146,7 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         });
 
         assert.isTrue(edge.mesh === line, "the same line mesh");
-        assert.isTrue(edge.arrowMesh === head, "the same arrow head");
+        assert.isTrue(edge.arrowCap === head, "the same arrow head");
         assert.strictEqual(keyOf(edge), "s0|#a9a9a9|", "while the session's key is adopted");
     });
 

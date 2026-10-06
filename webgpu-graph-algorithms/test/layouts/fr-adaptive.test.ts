@@ -9,7 +9,12 @@
 
 import { type F32 } from "@graphty/graph-format";
 
-import { FR_ADAPTIVE_MAX_ITERATIONS, FR_COOLING_STEP, FR_START_TEMPERATURE } from "../../src/constants.js";
+import {
+    FR_ADAPTIVE_MAX_ITERATIONS,
+    FR_COOLING_PATIENCE,
+    FR_COOLING_STEP,
+    FR_START_TEMPERATURE,
+} from "../../src/constants.js";
 import { GpuContext } from "../../src/context.js";
 import { WebGpuGraphError } from "../../src/errors.js";
 import {
@@ -86,6 +91,13 @@ async function traceTemperatures(sim: FrSim, count: number): Promise<number[]> {
 }
 
 describe("resolveFruchtermanReingoldOptions: cooling", () => {
+    it("pins the adaptive constants to the CPU simulation's (layout/src/simulation/constants.ts, pinned there too)", () => {
+        // @graphty/layout does not export its constants, so both packages' tests pin the same literals
+        expect(FR_COOLING_STEP).toBe(0.9);
+        expect(FR_COOLING_PATIENCE).toBe(5);
+        expect(FR_ADAPTIVE_MAX_ITERATIONS).toBe(10_000);
+    });
+
     it('defaults to "linear", accepts "adaptive", patches, and rejects anything else', () => {
         expect(resolveFruchtermanReingoldOptions(undefined).cooling).toBe("linear");
         expect(resolveFruchtermanReingoldOptions({ cooling: "adaptive" }).cooling).toBe("adaptive");

@@ -473,13 +473,12 @@ export class GraphOps {
     setPinned(draft: Draft | null, ids: readonly NodeId[], pinned: boolean): NodeId[] {
         const pins = this.home.pins();
         const changed = [...new Set(ids)].filter((id) => pins.has(id) !== pinned);
-        if (changed.length === 0) {
-            return changed;
+        if (changed.length > 0) {
+            const entry = new PinsEntry(this, changed, pinned);
+            entry.redo();
+            draft?.log(entry);
         }
 
-        const entry = new PinsEntry(this, changed, pinned);
-        entry.redo();
-        draft?.log(entry);
         return changed;
     }
 

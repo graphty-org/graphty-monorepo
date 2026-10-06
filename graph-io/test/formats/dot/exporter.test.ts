@@ -86,6 +86,19 @@ describe("dot exporter: capabilities and shape", () => {
         expect(anonymous).toBe("digraph {\n}\n");
     });
 
+    it("refuses an option of the wrong type with E_UNSUPPORTED, in check() and export()", async () => {
+        const snapshot = await imported("graph { a -- b }");
+        for (const options of [{ indent: "x" }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
+            const option = Object.keys(options ?? {})[0];
+            expect(() => dotExporter.check(snapshot, options)).toThrow(
+                expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),
+            );
+            await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({
+                code: "E_UNSUPPORTED",
+            });
+        }
+    });
+
     it("quotes ids and values exactly when the grammar needs it and writes HTML strings bare", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         for (const id of ["plain", "with space", 'has "quote"', "node", "Graph", "", "1e21", "-3", "1.5", "_x9"]) {

@@ -103,7 +103,7 @@ for (const manifest of loadManifests()) {
             }
         });
     }
-    // a read-only format (OBO, CX1, .cys) has no exporter, so nothing round-trips
+    // a read-only format (OBO, .cys) has no exporter, so nothing round-trips
     const tripped = manifest.fixtures.filter((f) => roundTrips(format, f));
     describe.runIf(tripped.length > 0)(`round trip: ${format}`, () => {
         for (const fixture of tripped) {

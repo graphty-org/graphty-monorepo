@@ -4,12 +4,29 @@ import * as graphIo from "../src/index.js";
 
 /** The value exports of the barrel (classes, functions, constants); the types are checked by test/types. */
 const VALUE_EXPORTS = [
+    // re-exported from graph-format
+    "GraphBuilder",
+    "defineLineFormat",
+    "forDecodedText",
+    // testing a plugin
+    "compareSnapshots",
+    "describeDiffs",
+    "GraphFormatError",
     // io contract (12.4)
     "ImportError",
+    // the simple surface
+    "downloadGraph",
+    "edgeWeights",
+    "exportGraphToBlob",
+    "exportGraphToBytes",
+    "listFormats",
+    "loadFromFile",
+    "loadFromUrl",
     // registry, sniffing, children (8.2)
     "FormatRegistry",
     "GRAPH_FORMATS",
     "SNIFF_HEAD_BYTES",
+    "SNIFF_FAILED_CODE",
     "UNKNOWN_FORMAT_CODE",
     "ChildrenCsr",
     "checkExport",
@@ -35,7 +52,10 @@ const VALUE_EXPORTS = [
     "CSV_LOSS",
     "csvExporter",
     "csvImporter",
+    "CX_CAPABILITIES",
     "CX_ISSUE",
+    "CX_LOSS",
+    "cxExporter",
     "cxImporter",
     "CX2_CAPABILITIES",
     "CX2_ISSUE",
@@ -66,6 +86,8 @@ const VALUE_EXPORTS = [
     "jsonCapabilities",
     "jsonExporter",
     "jsonImporter",
+    "jsonShapeOf",
+    "exportNeo4jFiles",
     "ID_SPACE_COLUMN",
     "LABELS_COLUMN",
     "NEO4J_CAPABILITIES",
@@ -75,7 +97,10 @@ const VALUE_EXPORTS = [
     "TYPE_COLUMN",
     "neo4jExporter",
     "neo4jImporter",
+    "OBO_CAPABILITIES",
     "OBO_ISSUE",
+    "OBO_LOSS",
+    "oboExporter",
     "oboImporter",
     "PAJEK_ISSUE",
     "PAJEK_LOSS",
@@ -85,7 +110,10 @@ const VALUE_EXPORTS = [
     "XGMML_LOSS",
     "xgmmlExporter",
     "xgmmlImporter",
+    "CYS_CAPABILITIES",
     "CYS_ISSUE",
+    "CYS_LOSS",
+    "cysExporter",
     "cysImporter",
     // shared helpers for plugin authors
     "BAD_DEFAULT_CODE",
@@ -119,11 +147,13 @@ const VALUE_EXPORTS = [
     "decodeEntryName",
     "isImportInput",
     "readText",
+    "refusedSave",
     "textChunks",
     "throwIfAborted",
     "DEFAULT_ERROR_LIMIT",
     "SINK_OPTION_CODE",
     "chooseGraph",
+    "graphChosen",
     "reportSinkOptions",
     "resolveExportOptions",
     "resolveImportOptions",
@@ -144,38 +174,64 @@ const VALUE_EXPORTS = [
     "ASPECT_ORDER_CODE",
     "BAD_ASPECT_BLOCK_CODE",
     "BAD_VALUE_CODE",
+    "BAD_LINE_CODE",
+    "COLUMN_DROPPED_CODE",
     "COLUMN_RENAMED_CODE",
     "COLUMN_RENAMED_LOSS_CODE",
+    "COLUMN_TYPE_CODE",
+    "CONTROL_CHARACTER_CODE",
     "COUNT_HINT_CODE",
     "COUNT_MISMATCH_CODE",
     "DANGLING_REFERENCE_CODE",
     "DUPLICATE_ATTRIBUTE_CODE",
+    "DUPLICATE_EDGE_CODE",
     "DUPLICATE_EDGE_ID_CODE",
     "DUPLICATE_KEY_CODE",
     "DUPLICATE_NODE_CODE",
     "EMPTY_COLUMN_DROPPED_CODE",
     "EMPTY_INPUT_CODE",
+    "ENCODING_CONFLICT_CODE",
     "ENCODING_FALLBACK_CODE",
+    "ELEMENT_ISSUE",
+    "EDGES_MERGED_CODE",
     "EQUATION_AS_TEXT_CODE",
+    "FOREIGN_FORMAT_CODE",
     "GRAPH_NOT_FOUND_CODE",
     "HYPEREDGE_CODE",
     "ID_TEXT_COLLISION_CODE",
     "ID_TEXT_TYPE_CODE",
+    "INPUT_ISSUE",
     "INTEGRAL_F64_CODE",
     "INVALID_ENCODING_CODE",
+    "INVALID_INDEX",
+    "ISSUES_SUPPRESSED_CODE",
+    "JSON_NONSTANDARD_NUMBER_CODE",
     "MISSING_ENDPOINT_CODE",
     "MISSING_ID_CODE",
     "MULTIPLE_GRAPHS_CODE",
+    "MULTI_ASPECT_FRAGMENT_CODE",
     "MUTUAL_AS_UNDIRECTED_CODE",
     "MUTUAL_EXPANDED_CODE",
     "NO_GRAPH_CODE",
     "OPTIONS_GAINED_CODE",
+    "COLUMN_AS_PROPERTY_VALUE_CODE",
+    "RELATION_ASSUMED_CODE",
+    "TYPEDEF_NODES_CODE",
+    "GRAPH_COLUMN_AS_METADATA_CODE",
+    "DIRECTION_DROPPED_CODE",
+    "NONFINITE_AS_NULL_CODE",
+    "NODE_ORDER_CODE",
     "OPTION_IGNORED_CODE",
     "PARENT_CYCLE_CODE",
     "PARENTS_DROPPED_CODE",
     "ROLE_ASSUMED_CODE",
     "ROLE_DROPPED_CODE",
     "ROLE_TAKEN_CODE",
+    "SINGLE_OBJECT_ASPECT_CODE",
+    "SELF_LOOP_CODE",
+    "SELF_LOOPS_DROPPED_CODE",
+    "UNKNOWN_OPTION_CODE",
+    "WEIGHT_NOT_FOUND_CODE",
     "STATUS_FAILED_CODE",
     "STATUS_WARNING_CODE",
     "STORAGE_CLASS_CODE",
@@ -189,12 +245,15 @@ const VALUE_EXPORTS = [
     "UNKNOWN_ATTR_TYPE_CODE",
     "UNKNOWN_ELEMENT_CODE",
     "UNKNOWN_ENCODING_CODE",
+    "UNKNOWN_XML_ATTRIBUTE_CODE",
     "UNKNOWN_PARENT_CODE",
+    "WEIGHTS_DROPPED_CODE",
     "WEIGHT_KEY_CLASH_CODE",
     "WIDENED_CODE",
     "WIDENING_UNSUPPORTED_CODE",
     "XML_ILLEGAL_CHAR_CODE",
     "XML_SYNTAX_CODE",
+    "FETCH_CODE",
     // the shared importer and exporter machinery (8.4, 8.5)
     "TextCellWriter",
     "XmlSyntaxError",
@@ -225,6 +284,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
     it("re-exports each format's importer and exporter under its format name", () => {
         const pairs: [string, graphIo.GraphImporter, graphIo.GraphExporter][] = [
             ["csv", graphIo.csvImporter, graphIo.csvExporter],
+            ["cx", graphIo.cxImporter, graphIo.cxExporter],
             ["cx2", graphIo.cx2Importer, graphIo.cx2Exporter],
             ["dot", graphIo.dotImporter, graphIo.dotExporter],
             ["gexf", graphIo.gexfImporter, graphIo.gexfExporter],
@@ -234,6 +294,8 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             ["neo4j", graphIo.neo4jImporter, graphIo.neo4jExporter],
             ["pajek", graphIo.pajekImporter, graphIo.pajekExporter],
             ["xgmml", graphIo.xgmmlImporter, graphIo.xgmmlExporter],
+            ["obo", graphIo.oboImporter, graphIo.oboExporter],
+            ["cys", graphIo.cysImporter, graphIo.cysExporter],
         ];
         for (const [format, importer, exporter] of pairs) {
             expect(importer.format).toBe(format);
@@ -243,19 +305,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(importer.extensions.length).toBeGreaterThan(0);
             expect(typeof importer.sniff).toBe("function");
         }
-        // OBO, CX version 1 and Cytoscape sessions are read-only: an importer, no exporter
-        for (const [format, importer] of [
-            ["obo", graphIo.oboImporter],
-            ["cx", graphIo.cxImporter],
-            ["cys", graphIo.cysImporter],
-        ] as const) {
-            expect(importer.format).toBe(format);
-            expect(graphIo.registry.importer(format)).toBe(importer);
-            expect(graphIo.registry.hasExporter(format)).toBe(false);
-        }
-        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(
-            new Set([...pairs.map(([format]) => format), "obo", "cx", "cys"]),
-        );
+        expect(new Set(graphIo.GRAPH_FORMATS)).toEqual(new Set(pairs.map(([format]) => format)));
     });
 
     it("keeps every issue and loss code table frozen with distinct string values", () => {
@@ -264,6 +314,7 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             CSV_ISSUE: graphIo.CSV_ISSUE,
             CSV_LOSS: graphIo.CSV_LOSS,
             CX_ISSUE: graphIo.CX_ISSUE,
+            CX_LOSS: graphIo.CX_LOSS,
             CX2_ISSUE: graphIo.CX2_ISSUE,
             CX2_LOSS: graphIo.CX2_LOSS,
             DOT_ISSUE: graphIo.DOT_ISSUE,
@@ -279,10 +330,12 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             NEO4J_ISSUE: graphIo.NEO4J_ISSUE,
             NEO4J_LOSS: graphIo.NEO4J_LOSS,
             OBO_ISSUE: graphIo.OBO_ISSUE,
+            OBO_LOSS: graphIo.OBO_LOSS,
             PAJEK_ISSUE: graphIo.PAJEK_ISSUE,
             PAJEK_LOSS: graphIo.PAJEK_LOSS,
             XGMML_ISSUE: graphIo.XGMML_ISSUE,
             CYS_ISSUE: graphIo.CYS_ISSUE,
+            CYS_LOSS: graphIo.CYS_LOSS,
             XGMML_LOSS: graphIo.XGMML_LOSS,
         };
         for (const [name, table] of Object.entries(tables)) {
@@ -292,6 +345,17 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
             expect(new Set(values).size, name).toBe(values.length);
             for (const value of values) {
                 expect(value, `${name}: ${value}`).toMatch(/^[EW]_[A-Z0-9_]+$/);
+            }
+        }
+    });
+
+    it("lists the codes of refused elements, which any importer can record, in every format's issue table", () => {
+        const tables = Object.entries(graphIo).filter(([name]) => name.endsWith("_ISSUE") && name !== "INPUT_ISSUE");
+        expect(tables.length).toBeGreaterThan(10);
+        for (const [name, table] of tables) {
+            const codes = new Set(Object.values(table as Record<string, string>));
+            for (const code of Object.values(graphIo.ELEMENT_ISSUE)) {
+                expect(codes.has(code), `${name} lacks ${code}`).toBe(true);
             }
         }
     });

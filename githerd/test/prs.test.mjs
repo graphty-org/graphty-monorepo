@@ -306,6 +306,22 @@ describe("checks", () => {
         expect(prWork("704", failed, { trust: { login: "apowers313" }, prs: { 704: failed } })).toMatch(
             /required check failing: Lint PR Title/,
         );
+        // #490: "Queue Checks Pass" fails because "All Checks Pass" was cancelled. It started after
+        // the cancelled check, so it is downstream of the cancellation and the run is still re-run.
+        const at = (/** @type {string} */ t) => ({ startedAt: `2026-10-05T${t}Z`, ...suite(100) });
+        const downstream = withChecks(node(), [
+            run("Test (browser-1)", "CANCELLED", { databaseId: 1, ...at("20:02:29") }),
+            run("All Checks Pass", "CANCELLED", { databaseId: 2, ...at("20:42:11") }),
+            run("Queue Checks Pass", "FAILURE", { databaseId: 3, ...at("21:03:16") }),
+            run("Lint PR Title", "SUCCESS", { databaseId: 4, startedAt: "2026-10-05T23:23:45Z", ...suite(101) }),
+        ]);
+        expect(polls([downstream])["704"].cancelledRuns).toEqual([{ id: 100, workflow: "CI" }]);
+        // A failure that started before the cancelled required check is the code's: no re-run.
+        const before = withChecks(node(), [
+            run("Test (browser-1)", "FAILURE", { databaseId: 1, ...at("20:02:29") }),
+            run("All Checks Pass", "CANCELLED", { databaseId: 2, ...at("20:42:11") }),
+        ]);
+        expect(polls([before])["704"].cancelledRuns).toEqual([]);
         // STARTUP_FAILURE (a workflow that could not start, such as an invalid file) still fails.
         const startup = polls([withChecks(node(), [run("All Checks Pass", "STARTUP_FAILURE")])])["704"];
         expect(startup.required["All Checks Pass"]).toBe("FAILURE");

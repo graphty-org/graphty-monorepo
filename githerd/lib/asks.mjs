@@ -414,7 +414,8 @@ function brokenAnswered(state, n, ask) {
 /**
  * The broken pull requests whose owner (`state.prOwners`, else `state.prInferred`) is due the
  * question "are you fixing it?" (the owner's rule of 2026-10-05: owning is not working). Every
- * `minutes` per pull request, `state.brokenAsks[<pr>]` = `{head, session, at, heard}`. A question
+ * `minutes` per pull request, `state.brokenAsks[<pr>]` = `{head, session, why, at, heard}`; an
+ * answer holds until the head, the reason or the session changes. A question
  * the owner heard and left unanswered until the next is due, or an owner githerd cannot reach,
  * releases the pull request from its ownership until a new push (`state.prReleased[<pr>]` = the
  * head, read by `prInUse`), and its `pr` job is offered as usual.
@@ -495,6 +496,8 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
     // A cadence, how often to ask: never a deadline on the work.
     if (same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) return null;
     const gone = !live().some((s) => s.sessionId === owner.session);
+    // An answer holds until the facts change: a new head, other failing checks, or its session ending.
+    if (!gone && same && ask.why === why && brokenAnswered(state, n, ask)) return null;
     // Work on it counts as the answer for this cycle: a session without githerd's tools cannot say so.
     const active = !gone && activity(state, n, rec, owner, ask);
     if (active) {
@@ -674,7 +677,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
     const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
     const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
     for (const job of jobs) job.statusAsk = { ...ask };
-    for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, ...ask };
+    for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, why: p.why, ...ask };
     lines.push({
         kind: "status-asked",
         jobs: ids,

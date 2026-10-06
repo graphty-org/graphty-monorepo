@@ -8,9 +8,9 @@
 # this run and files or rewrites one open issue (labels bug, gpu, priority:high, effort:medium); a clean run closes
 # it. It never runs on a pull request, and it is a workflow of its own so that its verdict never decides a release.
 #
-# Timing: one pass of every group is about 7.7 minutes on the T4 and the paired run makes eight passes plus the
-# base build, about 65 minutes (gpu.yml run 36882775800 hit a 40-minute limit after about 5 of the 8); setup,
-# install and build add about 5.
+# Timing: one pass of every group is 528 s, about 8.8 minutes, on the T4 (the gaps between the group headers of
+# gpu.yml run 37451823822's benchmark pass) and the paired run makes eight passes plus the base build, about 72
+# minutes; setup, install and build add about 5.
 name: GPU weekly paired benchmark
 on:
     schedule:
@@ -51,7 +51,7 @@ jobs:
             - name: Paired benchmark of every group against the latest release
               id: ab
               continue-on-error: true
-              timeout-minutes: 85 # about 65 measured, with margin
+              timeout-minutes: 85 # about 72 measured, with margin
               run: |
                   tag=$(git tag -l 'webgpu-graph-algorithms@*' --sort=-v:refname | head -1)
                   echo "tag=$tag" >> "$GITHUB_OUTPUT"

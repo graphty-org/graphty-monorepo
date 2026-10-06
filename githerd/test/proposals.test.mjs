@@ -328,6 +328,19 @@ describe("advanceProposals: vetoes and objections", () => {
             { id: 7, user: { login: "someone" }, created_at: later, body: "no" },
             { id: 8, user: { login: OWNER }, created_at: later, body: "status\n<!-- githerd item=x -->" },
             { id: 9, user: { login: OWNER }, created_at: later, body: "written by a worker" },
+            // The GitHub watchdog's alarms, even under the owner's account, are no objection.
+            {
+                id: 10,
+                user: { login: OWNER },
+                created_at: new Date(START + 120_000).toISOString(),
+                body: "@owner ACTION NEEDED: githerd heartbeat stale\n\n<!-- watchdog:stale:2026-10-05T00:00:00.000Z -->",
+            },
+            {
+                id: 11,
+                user: { login: OWNER },
+                created_at: new Date(START + 120_000).toISOString(),
+                body: "@owner master CI has been red for over 2 hours\n\n<!-- master-clock:abc123 -->",
+            },
         );
         const isWorkerWrite = (target, when) => target === "issue:5" && when === later;
         await days(w, state, GRACE_DAYS.issue, { isWorkerWrite });

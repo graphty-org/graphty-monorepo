@@ -153,6 +153,18 @@ export function byOwner(state, who) {
     return typeof login === "string" && login !== "" && who === login;
 }
 
+/** The marks of the watchdog workflow's comments (tools/githerd-watchdog.mjs). */
+const WATCHDOG_MARK = /<!-- (?:watchdog|master-clock):/;
+
+/**
+ * Whether a comment is the GitHub watchdog's alarm (its heartbeat or master-clock comment): never
+ * the owner's word, whichever account posted it, so it makes no job, no owner answer and no veto,
+ * and no worker reads it.
+ * @param {unknown} body the comment body
+ * @returns {boolean} true for a watchdog comment
+ */
+export const isWatchdogComment = (body) => WATCHDOG_MARK.test(String(body ?? ""));
+
 // ---------------------------------------------------------------------------------------------
 // Job records (design sections 5.1 to 5.3, 8.2 and 9.5): kinds, states and their exits,
 // deadlines that pause, budgets, claims against a versioned snapshot, and the invariant check.

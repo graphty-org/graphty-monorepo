@@ -1166,7 +1166,7 @@ export async function startDaemon({
                     const res = await github().get(`repos/${repo}/issues/${n}/comments?since=${since}&per_page=100`);
                     // Only the owner can reject: another account's comment never counts.
                     detail.comments = (res.body ?? [])
-                        .filter((c) => board.byOwner(state, c.user?.login))
+                        .filter((c) => board.byOwner(state, c.user?.login) && !board.isWatchdogComment(c.body))
                         .map((c) => ({ body: c.body ?? "", createdAt: c.created_at }));
                 }
             }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { escalate, expire, heartbeat, resolve, resolveDerived } from "../lib/board.mjs";
+import { escalate, expire, heartbeat, isWatchdogComment, resolve, resolveDerived } from "../lib/board.mjs";
 
 const T0 = new Date("2026-10-02T12:00:00Z");
 const at = (minutes) => new Date(T0.getTime() + minutes * 60 * 1000);
@@ -90,5 +90,16 @@ describe("escalations", () => {
         expect(resolveDerived(state, (e) => e.target === "still", at(2))).toEqual(["visual-review:pr:704"]);
         expect(state.escalations["visual-review:pr:704"].resolvedAt).toBe(at(2).toISOString());
         expect(state.escalations["manual:x"].resolvedAt).toBeNull();
+    });
+});
+
+describe("isWatchdogComment", () => {
+    it("knows the watchdog's heartbeat and master-clock marks, and nothing else", () => {
+        expect(isWatchdogComment("x\n\n<!-- watchdog:stale:2026-10-05T00:00:00.000Z -->")).toBe(true);
+        expect(isWatchdogComment("recovered <!-- watchdog:recovered:never -->")).toBe(true);
+        expect(isWatchdogComment("<!-- master-clock:abc123 -->")).toBe(true);
+        expect(isWatchdogComment("ship it")).toBe(false);
+        expect(isWatchdogComment("<!-- githerd:owner-item x -->")).toBe(false);
+        expect(isWatchdogComment(null)).toBe(false);
     });
 });

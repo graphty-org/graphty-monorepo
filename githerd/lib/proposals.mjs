@@ -35,6 +35,7 @@
  * module's and are skipped.
  */
 
+import { isWatchdogComment } from "./board.mjs";
 import { notSent } from "./github.mjs";
 
 /** Grace in owner-present days, by target type. */
@@ -478,6 +479,7 @@ async function objected(state, p, ctx, fresh) {
             c.id !== p.commentId &&
             c.created_at > since &&
             !String(c.body ?? "").includes(OWN_MARK) &&
+            !isWatchdogComment(c.body) &&
             !isWorker(p.target, c.created_at),
     );
     if (!objection) return false;

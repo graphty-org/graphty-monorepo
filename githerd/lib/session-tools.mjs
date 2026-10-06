@@ -516,7 +516,9 @@ async function read(ctx, args) {
     if (number === undefined) throw new Error("name an issue or a pr");
     const repo = ctx.config.repo;
     const include = new Set(args.include ?? ["body", "comments"]);
-    const mine = (/** @type {any} */ x) => board.byOwner(ctx.state, x?.user?.login);
+    // The watchdog's alarms are not the owner's words, whichever account posted them.
+    const mine = (/** @type {any} */ x) =>
+        board.byOwner(ctx.state, x?.user?.login) && !board.isWatchdogComment(x?.body);
     const item = (await ctx.github.get(`repos/${repo}/issues/${number}`)).body ?? {};
     let hidden = mine(item) ? 0 : 1;
     /** @type {Record<string, unknown>} */

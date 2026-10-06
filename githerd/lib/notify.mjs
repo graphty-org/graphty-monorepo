@@ -45,6 +45,8 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 
+import { isWatchdogComment } from "./board.mjs";
+
 /** How long one run of the notify command may take before its process group is killed. */
 export const TIMEOUT_MS = 15_000;
 /** Attempts per key: the first delivery and 3 retries. */
@@ -769,6 +771,7 @@ function commentAnswer({ state, login, now, isSessionWrite }, item, comments, si
             c.user?.login === login &&
             Date.parse(c.created_at) > after &&
             !String(c.body).includes("<!-- githerd") &&
+            !isWatchdogComment(c.body) &&
             !isSessionWrite(/** @type {string} */ (item.target), c.created_at),
     );
     if (!answer) return null;

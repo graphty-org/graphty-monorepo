@@ -336,6 +336,22 @@ describe("owner items on GitHub", () => {
         expect(state.presence.lastAt).toBe(later);
     });
 
+    it("never takes a watchdog or master-clock comment for the owner's answer, even under his account", async () => {
+        const { gh, comments } = fakeRepo();
+        const { api } = client(gh, "acting");
+        const state = {};
+        raiseItem(state, VISUAL, at(0));
+        await postItems({ api, repo: REPO, state, acting: true, now: at(0) });
+        const later = new Date(Date.parse(state.ownerItems[VISUAL.id].github.at) + MIN).toISOString();
+        comments[412].push(
+            { user: { login: LOGIN }, created_at: later, body: "ACTION NEEDED\n\n<!-- watchdog:stale:x -->" },
+            { user: { login: LOGIN }, created_at: later, body: "red 2 hours\n\n<!-- master-clock:abc -->" },
+        );
+        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(MIN) })).toEqual([]);
+        expect(state.ownerItems[VISUAL.id].endedAt ?? null).toBeNull();
+        expect(state.presence?.lastAt ?? null).toBeNull();
+    });
+
     it("does not count a comment or a label removal a Claude session made with the owner's account", async () => {
         const { gh, labels, comments } = fakeRepo();
         const { api } = client(gh, "acting");

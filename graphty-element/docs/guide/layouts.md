@@ -90,23 +90,26 @@ graph.setLayout("ngraph", {
     dimensions: 3, // 2 or 3
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
-    seed: 1, // Starting positions; 1 unless you pass another
+    seed: 7, // Starting positions; unset, they differ on every load
 });
 ```
 
 ### The same drawing every time
 
-The default layout starts from a fixed seed, so the same data settles in the same place every
-time it is loaded, however its nodes and edges arrive. Everyone who opens one file sees one
-drawing. Pass your own seed for a different arrangement that is just as repeatable:
+The default layout is unseeded, so the same data can settle in a different place each time it is
+loaded. To have one file draw the same way on every load, pass a seed. A seeded layout settles in
+the same place however its nodes and edges arrive -- in one write, or split across several writes
+with frames between them:
 
 ```typescript
 const element = document.querySelector("graphty-element");
 
-// The default: the same file always draws the same way.
-await element.session.data.import({ type: "json", config: { url: "/data/team.json" } }, { layout: "recommended" });
+// Seed the default layout before the data arrives.
+element.layoutConfig = { seed: 7 };
+element.nodeData = nodes;
+element.edgeData = edges;
 
-// A different, equally repeatable drawing of the same graph.
+// Or seed it by name. A different seed gives a different, equally repeatable drawing.
 await element.setLayout("force", { seed: 7 });
 ```
 

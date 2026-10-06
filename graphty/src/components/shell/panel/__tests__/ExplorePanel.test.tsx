@@ -319,6 +319,43 @@ describe("ExplorePanel", () => {
 
             expect(screen.getByRole("button", { name: "Note" })).toBeEnabled();
         });
+
+        const caseNotes = [
+            { id: "b", time: new Date().toISOString(), text: "Second look" },
+            { id: "a", time: new Date().toISOString(), text: "First look" },
+        ];
+
+        it("lists the case notes it is given, in the order given", () => {
+            renderPanel({ caseNotes, onAddCaseNote: vi.fn(), onDeleteCaseNote: vi.fn() });
+            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+
+            expect(screen.getAllByRole("button", { name: /^Delete note: / }).map((button) => button.ariaLabel)).toEqual(
+                ["Delete note: Second look", "Delete note: First look"],
+            );
+        });
+
+        it("hands a typed case note to its caller on Ctrl+Enter", () => {
+            const onAddCaseNote = vi.fn();
+
+            renderPanel({ onAddCaseNote });
+            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+            const input = screen.getByTestId("explore-note-input");
+
+            fireEvent.change(input, { target: { value: "  The whole case  " } });
+            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+            expect(onAddCaseNote).toHaveBeenCalledWith("The whole case");
+        });
+
+        it("hands a deleted case note's id to its caller", () => {
+            const onDeleteCaseNote = vi.fn();
+
+            renderPanel({ caseNotes, onAddCaseNote: vi.fn(), onDeleteCaseNote });
+            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+            fireEvent.click(screen.getByRole("button", { name: "Delete note: First look" }));
+
+            expect(onDeleteCaseNote).toHaveBeenCalledWith("a");
+        });
     });
 
     describe("the filter chips", () => {

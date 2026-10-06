@@ -403,6 +403,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     scope: READ,
     sets: READ,
     notes: READ,
+    journal: READ,
     selection: READ,
     visibility: READ,
     styles: READ,
@@ -1729,6 +1730,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+        },
+    },
+    {
+        name: "JournalApi",
+        file: "src/session/journal.ts",
+        half: "session",
+        doors: {
+            entries: READ,
+            get: READ,
+            subscribe: LISTEN,
+            clear: exempt("Forgets the record of what ran; it changes nothing a project saves."),
+            cap: exempt("How many records of what ran are kept; it changes nothing a project saves."),
         },
     },
     {

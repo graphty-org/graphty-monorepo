@@ -306,6 +306,12 @@ export type {
 } from "./src/session/notes/types";
 
 // ---------------------------------------------------------------------------------------------
+// The journal: the record of the commands a session ran, as `session.journal`
+// ---------------------------------------------------------------------------------------------
+
+export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal";
+
+// ---------------------------------------------------------------------------------------------
 // The project file: the whole session saved to one file and opened again, as `session.project`
 // ---------------------------------------------------------------------------------------------
 

@@ -56,6 +56,7 @@ import { declarationKey } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { createJournal, type JournalApi } from "./journal";
 import { recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
@@ -290,6 +291,8 @@ interface SessionParts {
     readonly sets: SetsApi;
     /** The notes. */
     readonly notes: NotesApi;
+    /** The record of the commands the session ran. */
+    readonly journal: JournalApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -387,6 +390,7 @@ class Session implements ElementSession {
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
     readonly notes: NotesApi;
+    readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -436,6 +440,7 @@ class Session implements ElementSession {
         this.scope = parts.scope;
         this.sets = parts.sets;
         this.notes = parts.notes;
+        this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -2342,6 +2347,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
     });
 
+    // The journal, published as `session.journal`: every command that finishes writes one entry,
+    // before its promise resolves, so a run reports its entry by the time it reports done.
+    const journal = createJournal({
+        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        onAppend: (entry) => {
+            publish(watchers, "journal:appended", { entry });
+        },
+    });
+    dispatcher.events.executed = (done) => {
+        const entry = journal.append(done);
+        const run = entry.runId === undefined ? undefined : runs.get(entry.runId);
+        if (run instanceof ManagedRun) {
+            run.journalId = entry.id;
+        }
+    };
+
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
@@ -2599,6 +2620,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         scope,
         sets,
         notes,
+        journal,
         selection,
         visibility,
         styles,

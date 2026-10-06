@@ -4,7 +4,8 @@
 // - CI red on a master commit: freeze the Mergify queue (pull requests labelled priority:critical still
 //   merge, so the fix can land), open a revert of the commit when its parent was green (a batch merge's
 //   revert takes out the whole batch, and its title lists the pull requests), and open a
-//   priority:critical issue.
+//   priority:critical issue -- or, when a red-master issue is already open (one cause, such as an audit
+//   advisory, turns several commits red), add the commit to that issue instead.
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
 // - GPU or Hosts red on master (a push or the nightly): open (or add to) a priority:critical issue naming
 //   the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
@@ -16,6 +17,52 @@ import { readFileSync } from "node:fs";
 
 export const FREEZE_PREFIX = "Red master: CI failed on ";
 const MERGIFY = "https://api.mergify.com/v1";
+const json = (method, body) => ({ method, body: JSON.stringify(body) });
+
+/**
+ * The guard's open issues whose title starts with a prefix, oldest first. Read through the issues API, not
+ * search: search's index lags, so two runs seconds apart would each miss the other's issue.
+ * @param gh - Calls the repository's REST API: gh(path, init).
+ * @param prefix - The title prefix.
+ * @returns The issues.
+ */
+export async function openIssues(gh, prefix) {
+    const issues = await gh("/issues?state=open&labels=priority:critical&sort=created&direction=asc&per_page=100");
+    return issues.filter((i) => !i.pull_request && i.title.startsWith(prefix));
+}
+
+/**
+ * Report on the one open issue for a cause: comment on it when it is open, otherwise open it. Two runs racing
+ * can both open one, so after opening, the newer of the two is closed as a duplicate of the older.
+ * @param gh - Calls the repository's REST API: gh(path, init).
+ * @param issue - The issue.
+ * @param issue.prefix - What every issue for this cause starts with.
+ * @param issue.title - A new issue's title.
+ * @param issue.labels - A new issue's labels.
+ * @param issue.body - A new issue's body.
+ * @param issue.comment - The report added to an issue already open.
+ * @returns The number of the issue the report landed on.
+ */
+export async function fileIssue(gh, { prefix, title, labels, body, comment }) {
+    const addTo = async (n) => {
+        await gh(`/issues/${n}/comments`, json("POST", { body: comment }));
+        console.log(`added to #${n}`);
+        return n;
+    };
+    const [open] = await openIssues(gh, prefix);
+    if (open) {
+        return addTo(open.number);
+    }
+    const created = await gh("/issues", json("POST", { title, labels, body }));
+    const [oldest] = await openIssues(gh, prefix);
+    if (!oldest || oldest.number >= created.number) {
+        console.log(`opened #${created.number}`);
+        return created.number;
+    }
+    await gh(`/issues/${created.number}/comments`, json("POST", { body: `Duplicate of #${oldest.number}.` }));
+    await gh(`/issues/${created.number}`, json("PATCH", { state: "closed", state_reason: "not_planned" }));
+    return addTo(oldest.number);
+}
 
 /**
  * What to do about a finished workflow run.
@@ -133,15 +180,8 @@ async function main() {
     const gh = (path, init, token = process.env.GITHUB_TOKEN) =>
         call("https://api.github.com", token, `/repos/${repo}${path}`, init);
     const mergify = (path, init) => call(MERGIFY, process.env.MERGIFY_API_KEY, `/repos/${repo}${path}`, init);
-    const json = (method, body) => ({ method, body: JSON.stringify(body) });
     const ourFreezes = async () =>
         (await mergify("/scheduled_freeze")).scheduled_freezes.filter((f) => frozenSha(f.reason));
-    // The newest open issue with exactly this title, so a re-run never opens a second one.
-    const openIssue = async (title) => {
-        const q = encodeURIComponent(`repo:${repo} is:issue is:open in:title "${title}"`);
-        const res = await call("https://api.github.com", process.env.GITHUB_TOKEN, `/search/issues?q=${q}`);
-        return res.items.find((i) => i.title === title);
-    };
     const labels = (effort) => ["bug", "priority:critical", `effort:${effort}`];
 
     const action = decide(run);
@@ -166,9 +206,18 @@ async function main() {
             console.log("merge queue frozen; priority:critical pull requests still merge");
         });
 
-        const title = `Red master: CI failed on ${short}`;
-        if (await attempt("look for an existing issue", () => openIssue(title))) {
-            console.log("issue already open");
+        const title = `${FREEZE_PREFIX}${short}`;
+        // A re-run of a commit already reported (as the issue or a comment on it) neither reverts nor reports again.
+        const reported = await attempt("look for an existing issue", async () => {
+            const [open] = await openIssues(gh, FREEZE_PREFIX);
+            if (!open) {
+                return false;
+            }
+            const comments = await gh(`/issues/${open.number}/comments?per_page=100`);
+            return open.title === title || comments.some((c) => c.body.includes(sha));
+        });
+        if (reported) {
+            console.log("already reported");
         } else {
             const revert = await attempt("open a revert", async () => {
                 const commit = await gh(`/commits/${sha}`);
@@ -225,23 +274,23 @@ async function main() {
                     };
                 }
             });
-            await attempt("open the issue", () =>
-                gh(
-                    "/issues",
-                    json("POST", {
-                        title,
-                        labels: labels("low"),
-                        body: [
-                            `CI failed on master at ${sha}: ${run.html_url}`,
-                            "",
-                            "The Mergify queue is frozen: nothing merges except pull requests labelled `priority:critical`. The freeze lifts by itself on the next green CI run on master at or after this commit, including a re-run of the failed run.",
-                            "",
-                            revert?.note ?? "No revert was attempted (see the master-guard run).",
-                            "",
-                            "If the failure does not reproduce, follow the flaky-test policy (design/ci/ci-cd-plan.md section 9).",
-                        ].join("\n"),
-                    }),
-                ),
+            const note = revert?.note ?? "No revert was attempted (see the master-guard run).";
+            await attempt("open or update the issue", () =>
+                fileIssue(gh, {
+                    prefix: FREEZE_PREFIX,
+                    title,
+                    labels: labels("low"),
+                    body: [
+                        `CI failed on master at ${sha}: ${run.html_url}`,
+                        "",
+                        "The Mergify queue is frozen: nothing merges except pull requests labelled `priority:critical`. The freeze lifts by itself on the next green CI run on master at or after this commit, including a re-run of the failed run.",
+                        "",
+                        note,
+                        "",
+                        "If the failure does not reproduce, follow the flaky-test policy (design/ci/ci-cd-plan.md section 9).",
+                    ].join("\n"),
+                    comment: `CI also failed on master at ${sha}: ${run.html_url}\n\n${note}`,
+                }),
             );
         }
     }
@@ -280,19 +329,13 @@ async function main() {
             }
             const report = `${run.name} failed on master at ${sha} (${run.event}): ${run.html_url}\n\n${since}`;
             const title = `${run.name} lane red on master`;
-            const existing = await openIssue(title);
-            if (existing) {
-                await gh(`/issues/${existing.number}/comments`, json("POST", { body: report }));
-                return console.log(`added to #${existing.number}`);
-            }
-            await gh(
-                "/issues",
-                json("POST", {
-                    title,
-                    labels: labels("medium"),
-                    body: `${report}\n\nThe merge queue is not frozen (a hardware lane never freezes it), but no release goes out until this lane is green again. Bisect the lane between the commits above and fix or revert.`,
-                }),
-            );
+            await fileIssue(gh, {
+                prefix: title,
+                title,
+                labels: labels("medium"),
+                body: `${report}\n\nThe merge queue is not frozen (a hardware lane never freezes it), but no release goes out until this lane is green again. Bisect the lane between the commits above and fix or revert.`,
+                comment: report,
+            });
         });
     }
 

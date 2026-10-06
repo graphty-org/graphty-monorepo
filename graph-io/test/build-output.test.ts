@@ -53,6 +53,8 @@ describe("Build Output Tests", () => {
 
         expect(packageJson.files).toContain("dist/");
         expect(packageJson.files).toContain("src/");
+        // the sample files the guide's examples read, for a reader who has only the package
+        expect(packageJson.files).toContain("docs/samples/");
         expect(packageJson.files).toContain("README.md");
         expect(packageJson.files).toContain("LICENSE");
 
@@ -140,9 +142,14 @@ describe("Build Output Tests", () => {
         }
         // scripts/entries.js drives both the vite build and the d.ts shims; it must name every subpath
         const entries = readFileSync(resolve("./scripts/entries.js"), "utf-8");
+        const typedoc = readJson("./typedoc.json") as { entryPoints: string[] };
+        expect(typedoc.entryPoints).toContain("./src/index.ts");
+        expect(typedoc.entryPoints).toHaveLength(FORMAT_DIRS.length + 1);
         expect(entries).toContain('"graph-io": "src/index.ts"');
         for (const dir of FORMAT_DIRS) {
             expect(entries, dir).toContain(`${dir}: "src/formats/${dir}/index.ts"`);
+            // the API reference documents every subpath barrel
+            expect(typedoc.entryPoints, dir).toContain(`./src/formats/${dir}/index.ts`);
         }
         expect(packageJson.sideEffects).toBe(false);
     });
@@ -171,6 +178,13 @@ describe("Build Output Tests", () => {
             const dts = readFileSync(resolve(`./dist/${dir}.d.ts`), "utf-8");
             expect(dts.trim(), dir).toBe(`export * from "./src/formats/${dir}/index.js";`);
         }
+    });
+
+    it.skipIf(!bundleExists)("lets a bundler drop the default registry when only FormatRegistry is imported", () => {
+        // without the annotation every format stays in a bundle that registers one format of its own
+        expect(readFileSync(resolve("./dist/graph-io.js"), "utf-8")).toMatch(
+            /const registry = \/\* @__PURE__ \*\/ createRegistry\(\);/,
+        );
     });
 
     it.skipIf(!bundleExists)("subpath bundles share one module instance with the root bundle", async () => {

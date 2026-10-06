@@ -41,7 +41,8 @@ describe("shared issue codes", () => {
     });
 
     it("defines every shared code once, with an E_ or W_ prefix", () => {
-        const values = Object.values(codes);
+        // INPUT_ISSUE is a table of these codes, not a code
+        const values = Object.values(codes).filter((value) => typeof value === "string");
         expect(new Set(values).size).toBe(values.length);
         for (const value of values) {
             expect(value).toMatch(/^[EW]_[A-Z0-9_]+$/);
@@ -50,5 +51,17 @@ describe("shared issue codes", () => {
 
     it("is aliased by the format tables that record the same condition", () => {
         expect(JSON_ISSUE.BAD_VALUE).toBe(codes.BAD_VALUE_CODE);
+    });
+
+    it("spreads the input-layer codes into every format table", () => {
+        expect(Object.values(codes.INPUT_ISSUE).sort()).toEqual([
+            "E_EMPTY_INPUT",
+            "E_FOREIGN_FORMAT",
+            "E_TOO_LARGE",
+            "W_CONTROL_CHARACTER",
+            "W_ENCODING_CONFLICT",
+            "W_ISSUES_SUPPRESSED",
+        ]);
+        expect(JSON_ISSUE.FOREIGN_FORMAT).toBe(codes.FOREIGN_FORMAT_CODE);
     });
 });

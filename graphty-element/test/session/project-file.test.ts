@@ -473,6 +473,30 @@ describe("the project file", () => {
         session.dispose();
     });
 
+    it("adds a bare notes document beside what the session holds (#913)", async () => {
+        const source = await busySession();
+        const notes = source.session.notes.toDocument();
+        source.session.dispose();
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "b" }]);
+
+        const report = await session.project.open(JSON.stringify(notes));
+
+        assert.strictEqual(report.opened, "document");
+        assert.deepStrictEqual(report.restored, ["notes"]);
+        assert.include(
+            session.notes.list().map((note) => note.text),
+            "b is the router",
+        );
+        assert.deepStrictEqual(
+            session.data.nodes().map((node) => node.id),
+            ["b"],
+            "the graph is left as it was",
+        );
+        session.dispose();
+    });
+
     it("reads a data file into a load draft, the one intake verb (#913)", async () => {
         const { harness } = withDegree();
         const { session } = harness;

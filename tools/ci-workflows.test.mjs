@@ -335,8 +335,9 @@ describe("master-guard", () => {
         assert.equal(decide(run("CI", "success")), "green");
         assert.equal(decide(run("CI", "cancelled")), "none");
         assert.equal(decide(run("CI", "failure", "workflow_dispatch")), "none");
-        assert.equal(decide(run("Hosts", "failure")), "hardware-red");
+        // Hosts runs on master only as the nightly: a push to master runs no Hosts
         assert.equal(decide(run("Hosts", "failure", "schedule")), "hardware-red");
+        assert.equal(decide(run("Hosts", "failure")), "none");
         assert.equal(decide(run("Hosts", "success")), "none");
         assert.equal(decide(run("Hosts", "failure", "pull_request")), "none");
         // the T4 runs only in the release train, which files its own issue
@@ -382,17 +383,19 @@ describe("release.yml", () => {
         assert.match(release, /schedule:\n\s+- cron: "0 0,6,12,18 \* \* \*"\n/);
         assert.match(release, /workflow_dispatch:\n\s+inputs:\n\s+packages:/);
         assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' \}\}/);
-        assert.match(pick, /echo "sha=\$\(git rev-parse HEAD\)"/);
+        // the run's own commit, so the run, Coveralls and the lanes all name the tested commit
+        assert.match(pick, /echo "sha=\$\{GITHUB_SHA\}"/);
+        assert.doesNotMatch(pick, /ref: master/);
         // no master CI run is read: master runs no tests, the train tests the candidate itself
         assert.doesNotMatch(pick, /ci\.yml|hosts\.yml|ci_run_id/);
         assert.doesNotMatch(release, /run-id: \$\{\{ needs.pick/);
     });
 
     it("does nothing while the previous release is pending", () => {
-        // an open release pull request, unless it conflicts with master: then it is closed and replaced
+        // an open release pull request, unless it can no longer merge: then it is closed and replaced
         assert.match(pick, /startswith\("release\/train-"\)/);
-        assert.match(pick, /if \[ "\$mergeable" = CONFLICTING \]; then\n\s+gh pr close "\$number" --delete-branch/);
-        assert.match(pick, /is still open; it must merge or close first/);
+        assert.match(pick, /pending \| held\) skip "release pull request #\$\{number\} is still open/);
+        assert.match(pick, /\*\) gh pr close "\$number" --delete-branch/);
         // an open "Release held" issue (a fix is in progress); an ad hoc dispatch runs anyway
         assert.match(pick, /if \[ -n "\$held" \] && \[ "\$EVENT" != workflow_dispatch \]; then\n\s+skip /);
         // the last release not tagged yet
@@ -403,6 +406,33 @@ describe("release.yml", () => {
         for (const j of [ci, t4, hosts, audit]) {
             assert.match(j, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
         }
+    });
+
+    it("replaces a release pull request that conflicts, has a failed check or left the merge queue", () => {
+        const jq = /--jq '\n([\s\S]*?end)'\)/.exec(pick)[1];
+        const state = (pr) => {
+            const out = spawnSync("jq", ["-r", jq], { input: JSON.stringify(pr), encoding: "utf8" });
+            assert.equal(out.status, 0, out.stderr);
+            return out.stdout.trim();
+        };
+        const queued = { name: "Mergify Merge Queue", status: "IN_PROGRESS", conclusion: "" };
+        const ok = { context: "All Checks Pass", state: "SUCCESS" };
+        const pr = (over) => ({ mergeable: "MERGEABLE", labels: [], statusCheckRollup: [ok, queued], ...over });
+        assert.equal(state(pr({})), "pending");
+        assert.equal(state(pr({ mergeable: "UNKNOWN" })), "pending");
+        assert.equal(state(pr({ mergeable: "CONFLICTING" })), "conflicts with master");
+        assert.equal(
+            state(
+                pr({ statusCheckRollup: [ok, queued, { name: "Build", status: "COMPLETED", conclusion: "FAILURE" }] }),
+            ),
+            "has a failed check",
+        );
+        assert.equal(
+            state(pr({ statusCheckRollup: [ok, { ...queued, status: "COMPLETED", conclusion: "NEUTRAL" }] })),
+            "left the merge queue",
+        );
+        // a person's hold wins over everything: it is never closed
+        assert.equal(state(pr({ mergeable: "CONFLICTING", labels: [{ name: "hold" }] })), "held");
     });
 
     it("waits on events, never on a count of hours", () => {
@@ -450,13 +480,15 @@ describe("release.yml", () => {
         const cov = workflow("coverage.yml");
         assert.match(cov, /on:\n\s+workflow_call:/);
         assert.doesNotMatch(cov, /workflow_run|run-id/);
+        // Coveralls names the tested commit, not the calling run's
+        assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
     it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
         assert.match(held, /needs: \[pick, ci, t4, hosts, audit, train\]/);
         assert.match(
             held,
-            /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && contains\(needs.\*.result, 'failure'\) \}\}/,
+            /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && \(contains\(needs.\*.result, 'failure'\) \|\| contains\(needs.\*.result, 'cancelled'\)\) \}\}/,
         );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the train kept, and only the train keeps them
@@ -475,15 +507,20 @@ describe("release.yml", () => {
             assert.ok(held.includes(`[ "$${result}_RESULT" != failure ] || what+=("${name}")`), name);
         }
         assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
-        assert.match(held, /startswith\("Release held: "\)/);
-        assert.match(held, /gh issue edit "\$open"[^\n]*--title "\$title"/);
-        assert.match(held, /gh issue comment "\$open"/);
-        assert.match(held, /--label bug --label priority:high --label effort:medium/);
+        assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
+        const helper = readFileSync(new URL("./release-held.sh", import.meta.url), "utf8");
+        assert.match(helper, /startswith\(\\"\$\{1:-Release held: \}\\"\)/);
+        assert.match(helper, /gh issue edit "\$open"[^\n]*--title "\$2"/);
+        assert.match(helper, /gh issue comment "\$open"/);
+        assert.match(helper, /--label bug --label priority:high --label effort:medium/);
         assert.match(held, /::error::release held/);
+        // a lane only cancelled: a red run, no issue (nothing to fix; the next attempt retries)
+        assert.match(held, /if \[ "\$\{#what\[@\]\}" = 0 \]; then\n(\s+#[^\n]*\n)+\s+echo "::error::[^\n]*\n\s+exit 1/);
+        // a refused or lost T4 runner has no code fix: the issue says so
+        assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
         // and the next train that passes closes it, as its last step
-        const close = train.indexOf('gh issue close "$open"');
+        const close = train.indexOf("tools/release-held.sh close");
         assert.ok(close > train.indexOf("gh pr create"), "closed only after the release pull request");
-        assert.match(train.slice(0, close), /startswith\("Release held: "\)[^\n]*\n[^\n]*$/);
     });
 
     it("publishes only on a push that lands a release branch, from the train's builds, with OIDC", () => {
@@ -495,6 +532,18 @@ describe("release.yml", () => {
         assert.match(publish, /node tools\/release-diff.mjs "\$sha" "\$commit"/);
         assert.match(publish, /\.workflow_run.head_branch == "master"/);
         assert.doesNotMatch(train, /id-token|nx release publish/);
+    });
+
+    it("reports a failed publish as a held release, and closes it when a re-run publishes", () => {
+        assert.match(publish, /issues: write/);
+        assert.match(
+            publish,
+            /- name: Report a failed publish\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*tools\/release-held.sh open "Release held: publish failed on \$\{GITHUB_SHA:0:7\}"/,
+        );
+        assert.match(
+            publish,
+            /- name: Close the failed-publish issue\n\s+run: \|\n\s+tools\/release-held.sh close[\s\S]*"Release held: publish failed"\n/,
+        );
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {

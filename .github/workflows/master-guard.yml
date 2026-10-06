@@ -3,8 +3,8 @@
 # - CI red: freezes the Mergify queue (only priority:critical pull requests merge), opens a revert of the
 #   commit when its parent was green, and opens a priority:critical issue;
 # - CI green at or after a frozen red commit: lifts the freeze;
-# - Hosts red (a master push or the nightly): opens, or adds to, a priority:critical issue naming the
-#   merges since the lane's last green run. Never freezes; release.yml already refuses to release.
+# - Hosts red (the nightly; a push to master no longer runs Hosts): opens, or adds to, a priority:critical
+#   issue naming the merges since the lane's last green run. Never freezes; release.yml already refuses to release.
 # The T4 GPU lane (gpu.yml) no longer runs on master: the release train runs it and files its own issue.
 #
 # MERGIFY_API_KEY must be a Mergify application key with the admin scope (freezes need it).

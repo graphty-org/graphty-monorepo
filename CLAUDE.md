@@ -537,8 +537,11 @@ if all pass does it version that commit and open a
 holding only version fields and changelogs; Mergify merges it, and the merge starts `release.yml`'s
 publish job, which tags each package, creates its GitHub release and publishes it with npm trusted
 publishing from the builds of the run that tested it. An attempt does nothing while the previous
-release is pending: a release pull request is open (one that conflicts with master is closed and
-re-cut from the newest commit), a "Release held" issue is open, or nothing releasable changed. A
+release is pending: a release pull request is open (one that conflicts with master, has a failed
+check or left the merge queue is closed and re-cut from the newest commit; one labelled `hold`
+waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
+changed. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
+publish run's failed jobs publishes what is missing and closes it. A
 red lane holds the whole release: no pull request, nothing published, and one `Release held: <what>
 failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that githerd picks up. Its
 fix pull request should say `Fixes #<issue>`, so the merge closes it and the next attempt runs; a

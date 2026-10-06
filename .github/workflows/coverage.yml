@@ -96,3 +96,6 @@ jobs:
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
                   file: coverage/lcov.info
+                  # the tested commit, not the calling run's: the two differ when the caller tested another one
+                  git-commit: ${{ inputs.ref }}
+                  git-branch: master

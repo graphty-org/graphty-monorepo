@@ -5,8 +5,8 @@
 //   merge, so the fix can land), open a revert of the commit when its parent was green, and open a
 //   priority:critical issue.
 // - CI green on a commit at or after a frozen red commit: lift that freeze.
-// - Hosts red on master (a push or the nightly): open (or add to) a priority:critical issue naming
-//   the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
+// - Hosts red on master (the nightly; a push to master no longer runs Hosts): open (or add to) a
+//   priority:critical issue naming the merges since the lane's last green run. A hardware lane never freezes the queue; release.yml already
 //   refuses to release a commit whose lanes are not green. The T4 GPU lane (gpu.yml) runs only in the
 //   release train, which files its own "Release held" issue, so a GPU run is never this script's business.
 //
@@ -33,7 +33,7 @@ export function decide(run) {
         }
         return run.conclusion === "success" ? "green" : "none";
     }
-    if (run.name === "Hosts" && failed && ["push", "schedule"].includes(run.event)) {
+    if (run.name === "Hosts" && failed && run.event === "schedule") {
         return "hardware-red";
     }
     return "none";

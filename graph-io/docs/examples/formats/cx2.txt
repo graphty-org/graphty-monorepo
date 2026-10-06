@@ -1,3 +1,0 @@
-107 nodes, 352 edges, first id Aemon
-[]
-[ 'W_ID_MANGLED' ]

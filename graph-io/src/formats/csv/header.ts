@@ -1,7 +1,7 @@
 /**
  * Header handling of the CSV importer: whether the first row is a header, which columns hold the
  * endpoints, the weight, the Gephi per-row `Type`, the edge id and the label (by name lists and
- * by position), and the synthesized names of a headerless file (`column1`, `column2`, ...).
+ * by position), and the synthesised names of a headerless file (`column1`, `column2`, ...).
  *
  * Name resolution is exact first, then case-insensitive, over a candidate list in priority order,
  * so `source` / `Source` / `SOURCE`, `src`, `from` all resolve without configuration; the Gephi
@@ -11,19 +11,12 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
-import { plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 
-/**
- * A column named by header text or by 0-based position.
- * @category Built-in formats
- */
+/** A column named by header text or by 0-based position. */
 export type CsvColumnRef = string | number;
 
-/**
- * Header candidates of the source endpoint, in priority order (matched exactly, then case-insensitively).
- * @category Plugin helpers
- */
+/** Header candidates of the source endpoint, in priority order (matched exactly, then case-insensitively). */
 export const SOURCE_NAMES: readonly string[] = Object.freeze([
     "source",
     "src",
@@ -36,10 +29,7 @@ export const SOURCE_NAMES: readonly string[] = Object.freeze([
     ":start_id",
 ]);
 
-/**
- * Header candidates of the target endpoint.
- * @category Plugin helpers
- */
+/** Header candidates of the target endpoint. */
 export const TARGET_NAMES: readonly string[] = Object.freeze([
     "target",
     "dst",
@@ -53,28 +43,16 @@ export const TARGET_NAMES: readonly string[] = Object.freeze([
     ":end_id",
 ]);
 
-/**
- * Header candidates of a node table's id column.
- * @category Plugin helpers
- */
+/** Header candidates of a node table's id column. */
 export const ID_NAMES: readonly string[] = Object.freeze(["id", "node", "name", "key"]);
 
-/**
- * Header candidates of a label column (node or edge).
- * @category Plugin helpers
- */
+/** Header candidates of a label column (node or edge). */
 export const LABEL_NAMES: readonly string[] = Object.freeze(["label"]);
 
-/**
- * Header candidates of an edge id column.
- * @category Plugin helpers
- */
+/** Header candidates of an edge id column. */
 export const EDGE_ID_NAMES: readonly string[] = Object.freeze(["id"]);
 
-/**
- * The Gephi per-row direction column.
- * @category Plugin helpers
- */
+/** The Gephi per-row direction column. */
 export const TYPE_NAME = "Type";
 
 /** Every name that marks a first row as a header when the caller leaves detection to the importer. */
@@ -94,7 +72,6 @@ const HEADER_MARKERS: ReadonlySet<string> = new Set([
  * @param names - the header names
  * @param candidates - the names to look for, in priority order
  * @returns the column index, or -1
- * @category Plugin helpers
  */
 export function findColumn(names: readonly string[], candidates: readonly string[]): number {
     for (const candidate of candidates) {
@@ -119,14 +96,13 @@ export function findColumn(names: readonly string[], candidates: readonly string
  * @param ref - the option value
  * @param option - the option name, for the error
  * @returns the column index
- * @category Plugin helpers
  */
 export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, option: string): number {
     if (typeof ref === "number") {
         if (!Number.isInteger(ref) || ref < 0 || ref >= names.length) {
             throw new GraphFormatError(
                 "E_UNSUPPORTED",
-                `option ${option}: column ${ref} does not exist (the file has ${names.length} column${plural(names.length)})`,
+                `option ${option}: column ${ref} does not exist (the file has ${names.length} column(s))`,
                 { option, found: ref, columns: names.length },
             );
         }
@@ -148,33 +124,20 @@ export function resolveColumnRef(names: readonly string[], ref: CsvColumnRef, op
  * is when any cell is a known column name (source, target, id, label, weight, type...), or when
  * every cell is non-numeric text while the second row has a numeric cell (`u,v` over `1,2`);
  * a first row with a numeric cell is data, and so is one that looks exactly like the rows below it.
- * A two-column row holding a known name is still data when its second cell is the second row's
- * first cell and it does not name both endpoints: a header names columns, while an edge list whose
- * ids happen to be such words (`key,lock` over `lock,door`) chains its ids from row to row.
  * @param first - the first row
  * @param second - the second row, or null when the file has one row
  * @returns true when the first row is a header
- * @category Plugin helpers
  */
 export function looksLikeHeader(first: readonly string[], second: readonly string[] | null): boolean {
     let allText = true;
-    let marker = false;
     for (const cell of first) {
         const text = cell.trim();
         if (HEADER_MARKERS.has(text.toLowerCase())) {
-            marker = true;
+            return true;
         }
         if (text.length === 0 || inferTextDtype(text) !== "string") {
             allText = false;
         }
-    }
-    if (marker) {
-        const names = headerNames(first);
-        if (second === null || (findColumn(names, SOURCE_NAMES) >= 0 && findColumn(names, TARGET_NAMES) >= 0)) {
-            return true;
-        }
-        const chained = first.length === 2 && second.length >= 1 && first[1].trim() === second[0].trim();
-        return !chained || first[1].trim().length === 0;
     }
     if (!allText || second === null) {
         return false;
@@ -183,10 +146,9 @@ export function looksLikeHeader(first: readonly string[], second: readonly strin
 }
 
 /**
- * The synthesized header of a headerless file: `column1` ... `columnN`.
+ * The synthesised header of a headerless file: `column1` ... `columnN`.
  * @param width - the number of cells of the first row
  * @returns the names
- * @category Plugin helpers
  */
 export function positionalNames(width: number): string[] {
     const names: string[] = [];
@@ -201,7 +163,6 @@ export function positionalNames(width: number): string[] {
  * empty cell named by its position so every column has a name.
  * @param cells - the header row
  * @returns the names
- * @category Plugin helpers
  */
 export function headerNames(cells: readonly string[]): string[] {
     return cells.map((cell, i) => {

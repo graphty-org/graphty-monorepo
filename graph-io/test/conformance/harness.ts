@@ -15,7 +15,6 @@ import { fileURLToPath } from "node:url";
 
 import { type Column, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
-import { collectBytes } from "../../src/common/writer.js";
 import { importAllGraphs, importGraph, type ImportGraphResult, listGraphs, registry } from "../../src/registry.js";
 import { SNIFF_HEAD_BYTES } from "../../src/sniff.js";
 import { ImportError, type ImportReport } from "../../src/types.js";
@@ -125,8 +124,6 @@ export interface Fixture {
      * without this field; set it to check a fixture of another format, or a different answer.
      */
     readonly sniffAs?: string | null;
-    /** What sniffing must answer from the content alone, when that differs from `sniffAs` (no file name to go on). */
-    readonly sniffByContentAs?: string | null;
 }
 
 /**
@@ -513,18 +510,10 @@ export async function checkRoundTrip(format: string, fixture: Fixture): Promise<
     try {
         const first = await importGraph(fixtureBytes(format, fixture), importOptions(format, fixture));
         const exporter = registry.exporter(format);
-        // a session's node ids are Cytoscape SUIDs; a 2.x session's are names, which need new ones
-        const options = format === "cys" ? { sanitizeIds: "mangle" as const } : {};
-        const notes = exporter.check(first.snapshot, options);
-        // a session is a zip archive: only export() writes it
-        const written =
-            format === "cys"
-                ? await collectBytes(exporter.export(first.snapshot, options))
-                : await exporter.exportToString(first.snapshot, options);
-        // the exporter writes its own conventions, so the fixture's reading options do not apply;
-        // a note that names the reading option a file needs (Typedef nodes) is followed
-        const typedefs = notes.some((n) => n.code === "W_TYPEDEF_NODES");
-        const second = await importGraph(written, typedefs ? { format, typedefs: "nodes" } : { format });
+        const notes = exporter.check(first.snapshot);
+        const text = await exporter.exportToString(first.snapshot);
+        // the exporter writes its own conventions, so the fixture's reading options do not apply
+        const second = await importGraph(text, { format });
         if (notes.length === 0) {
             return compareSnapshots(first.snapshot, second.snapshot, { tolerance: 1e-9, limit: 5 }).map(
                 (d) => d.message,
@@ -566,10 +555,9 @@ export function checkSniff(format: string, fixture: Fixture): string[] {
     const problems: string[] = [];
     for (const filename of [basename(fixture.file), null]) {
         const found = registry.sniff({ filename, head })?.format ?? null;
-        const want = filename === null && fixture.sniffByContentAs !== undefined ? fixture.sniffByContentAs : expected;
-        if (found !== want) {
+        if (found !== expected) {
             const how = filename === null ? "by content" : `as ${filename}`;
-            problems.push(`sniffed ${how}: expected ${String(want)}, got ${String(found)}`);
+            problems.push(`sniffed ${how}: expected ${String(expected)}, got ${String(found)}`);
         }
     }
     return problems;

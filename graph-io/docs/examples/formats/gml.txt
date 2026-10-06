@@ -1,3 +1,0 @@
-107 nodes; node columns: label
-node 0: id "Aemon", label Aemon
-[ 'W_ID_MANGLED' ]

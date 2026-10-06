@@ -1,2 +1,0 @@
-7 nodes, 6 relationships, 0 warnings
-node columns: labels, idSpace, originalId, movieId, title, released, personId, name, born

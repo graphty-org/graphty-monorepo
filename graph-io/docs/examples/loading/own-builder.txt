@@ -1,3 +1,0 @@
-107 nodes, 352 edges, directed: false
-warnings: 0
-node columns: Label

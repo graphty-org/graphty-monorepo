@@ -17,13 +17,9 @@ import {
 } from "@graphty/graph-format";
 
 import { describe } from "./options.js";
-import { plural } from "./plural.js";
 import { ImportReportBuilder } from "./report.js";
 
-/**
- * Import stopped for allocating too many empty attribute slots.
- * @category Issue and loss codes
- */
+/** The issue code of an import stopped for allocating too many empty attribute slots. */
 export const TOO_MANY_EMPTY_CELLS_CODE = "E_TOO_MANY_EMPTY_CELLS";
 
 /** The default limit: 2^24 empty slots, about 130 MB of f64 columns. */
@@ -34,7 +30,6 @@ const DEFAULT_MAX_EMPTY_CELLS = 2 ** 24;
  * @param value - the caller's value
  * @returns a non-negative integer or Infinity
  * @throws GraphFormatError E_UNSUPPORTED for anything else
- * @category Plugin helpers
  */
 export function maxEmptyCellsOption(value: unknown): number {
     if (value === undefined) {
@@ -50,10 +45,7 @@ export function maxEmptyCellsOption(value: unknown): number {
     );
 }
 
-/**
- * A GraphBuilder that throws an ImportError once its attribute columns hold too many empty slots.
- * @category Plugin helpers
- */
+/** A GraphBuilder that throws an ImportError once its attribute columns hold too many empty slots. */
 export class CellBudgetBuilder extends GraphBuilder {
     private readonly nodeColumns = new Set<number>();
     private readonly edgeColumns = new Set<number>();
@@ -167,7 +159,7 @@ export class CellBudgetBuilder extends GraphBuilder {
             new ImportReportBuilder(this.format, Infinity).fail(
                 TOO_MANY_EMPTY_CELLS_CODE,
                 `the attributes are too sparse: ${this.nodeColumns.size} node and ${this.edgeColumns.size} edge ` +
-                    `attribute columns over ${this.nodeBound} node${plural(this.nodeBound)} and ${this.edgeBound} edge${plural(this.edgeBound)} would ` +
+                    `attribute column(s) over ${this.nodeBound} node(s) and ${this.edgeBound} edge(s) would ` +
                     `allocate more than ${this.maxEmptyCells} slots that hold no value; pass a larger ` +
                     `maxEmptyCells (or Infinity) to read the file anyway`,
                 undefined,

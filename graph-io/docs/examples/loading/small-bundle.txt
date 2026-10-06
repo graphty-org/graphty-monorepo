@@ -1,1 +1,0 @@
-graphml -> csv: Source,Target,Type,id,Weight,Edge Label

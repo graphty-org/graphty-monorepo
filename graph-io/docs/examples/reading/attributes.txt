@@ -1,4 +1,0 @@
-[ 'Label' ]
-Aemon
-Label
-12

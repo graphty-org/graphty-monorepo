@@ -1,2 +1,0 @@
-[ 'label', 'style', 'color', 'shape' ]
-9 nodes, 7 of them not clusters

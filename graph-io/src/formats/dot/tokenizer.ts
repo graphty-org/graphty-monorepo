@@ -12,10 +12,7 @@
 /** The kinds of token. */
 type DotTokenKind = "id" | "punct" | "eof";
 
-/**
- * One token of a DOT document.
- * @category Plugin helpers
- */
+/** One token of a DOT document. */
 export interface DotToken {
     /** The kind. */
     readonly kind: DotTokenKind;
@@ -32,10 +29,7 @@ export interface DotToken {
     readonly line: number;
 }
 
-/**
- * The error the lexer and parser throw for a grammar violation; the importer turns it into a fatal parse-error.
- * @category Plugin helpers
- */
+/** The error the lexer and parser throw for a grammar violation; the importer turns it into a fatal parse-error. */
 export class DotSyntaxError extends Error {
     /** The 1-based line of the violation. */
     readonly line: number;
@@ -61,21 +55,16 @@ const EOF_TOKEN_TEXT = "";
  * @returns true for an identifier start
  */
 function isIdentifierStart(c: number): boolean {
-    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || (c >= 128 && c !== BOM_CODE);
+    return (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || c === 95 || c >= 128;
 }
 
-/** U+FEFF: a byte order mark, which only the decoder strips from the very start of the input. */
-const BOM_CODE = 0xfeff;
-
 /**
- * Whether a UTF-16 code unit may continue a bare DOT identifier. A U+FEFF inside an identifier
- * run stays part of it, as Graphviz keeps its bytes (in its `\200-\377` range); only a U+FEFF
- * between tokens is skipped as a stray BOM.
+ * Whether a UTF-16 code unit may continue a bare DOT identifier.
  * @param c - the code unit
  * @returns true for an identifier character
  */
 function isIdentifierPart(c: number): boolean {
-    return isIdentifierStart(c) || isDigit(c) || c === BOM_CODE;
+    return isIdentifierStart(c) || isDigit(c);
 }
 
 /**
@@ -89,7 +78,6 @@ function isDigit(c: number): boolean {
 
 /**
  * A pull lexer over one DOT document with arbitrary lookahead.
- * @category Plugin helpers
  */
 export class DotTokenizer {
     private readonly text: string;
@@ -215,9 +203,7 @@ export class DotTokenizer {
         }
         this.pos = end;
         const numeral = text.slice(start, end);
-        const after = text.charCodeAt(end); // NOSONAR(S7758): reads UTF-16 code units on purpose
-        // a letter (`1e3`) or a second dot (`1.2.3`) right after the numeral: Graphviz splits there
-        if (end < text.length && (isIdentifierStart(after) || after === 0x2e) && this.onAmbiguity !== null) {
+        if (end < text.length && isIdentifierStart(text.charCodeAt(end)) && this.onAmbiguity !== null) {
             // Graphviz: "syntax ambiguity - badly delimited number '1e' ... splits into two tokens"
             this.onAmbiguity(numeral, line);
         }
@@ -331,11 +317,6 @@ export class DotTokenizer {
                 continue;
             }
             if (c === 0x20 || c === 0x09 || c === 0x0b || c === 0x0c) {
-                this.pos++;
-                continue;
-            }
-            if (c === BOM_CODE) {
-                // a U+FEFF after the start (concatenated files) is whitespace; the shared text check reports it
                 this.pos++;
                 continue;
             }

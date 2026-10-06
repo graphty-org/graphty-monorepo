@@ -1,2 +1,0 @@
-labels from the "label" column
-{ id: 'Aemon', label: 'Aemon' } { source: 'Aemon', target: 'Grenn', weight: 5 }

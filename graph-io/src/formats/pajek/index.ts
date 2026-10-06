@@ -1,7 +1,6 @@
 /**
- * The `@graphty/graph-io/pajek` subpath: the Pajek NET importer and exporter
+ * The `@graphty/graph-io/pajek` subpath (design section 8.2): the Pajek NET importer and exporter
  * with their option types and issue / loss codes.
- * @module @graphty/graph-io/pajek
  */
 
 export { PAJEK_LOSS, pajekExporter, type PajekExportOptions } from "./exporter.js";

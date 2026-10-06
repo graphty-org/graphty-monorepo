@@ -1,5 +1,5 @@
 /**
- * The children CSR over a containment column: containment
+ * The children CSR over a containment column (design sections 5.10, 7.1 and 8.2): containment
  * (GEXF `pid` / `<parents>`, Cytoscape `parent`, DOT clusters, GraphML nested graphs) is a node
  * column with the `parent` role (u32, refersTo node) or the `parents` role (list of u32) and never
  * enters the CSR of the snapshot. Importers and exporters that need to walk containers top-down
@@ -16,16 +16,10 @@
 
 import { type Column, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
-/**
- * The role of the column a children CSR is built over.
- * @category Plugin helpers
- */
+/** The role of the column a children CSR is built over. */
 export type ContainmentRole = "parent" | "parents";
 
-/**
- * How the CSR is built: from a role column of the snapshot (default `parent`, then `parents`) or an explicit column.
- * @category Plugin helpers
- */
+/** How the CSR is built: from a role column of the snapshot (default `parent`, then `parents`) or an explicit column. */
 export interface ChildrenOptions {
     /**
      * The column to read: a role name (`parent` for the u32 single-parent column, `parents` for
@@ -36,10 +30,7 @@ export interface ChildrenOptions {
     readonly column?: ContainmentRole | Column | "auto" | null | undefined;
 }
 
-/**
- * One depth-first traversal of the containment forest.
- * @category Plugin helpers
- */
+/** One depth-first traversal of the containment forest. */
 export interface DepthFirstOrder {
     /** Every node index exactly once: roots in index order, each followed by its descendants, cycle members last. */
     readonly order: Uint32Array;
@@ -50,9 +41,8 @@ export interface DepthFirstOrder {
 }
 
 /**
- * The children CSR of a snapshot's containment column: the inverse
+ * The children CSR of a snapshot's containment column (design sections 5.10 and 7.1): the inverse
  * of the parent relation as a compressed sparse row structure over node indices.
- * @category Plugin helpers
  */
 export class ChildrenCsr {
     /** The number of nodes (the row count of the CSR). */
@@ -257,11 +247,10 @@ export class ChildrenCsr {
 }
 
 /**
- * Build the children CSR of a snapshot.
+ * Build the children CSR of a snapshot (design section 7.1: a graph-io helper, not a core view).
  * @param snapshot - the snapshot
  * @param options - which column to read; the `parent` role, then `parents`, by default
  * @returns the CSR; empty (every node a root) when the snapshot has no containment column
- * @category Plugin helpers
  */
 export function childrenCsr(snapshot: GraphSnapshot, options: ChildrenOptions = {}): ChildrenCsr {
     const column = resolveColumn(snapshot, options.column === undefined ? "auto" : options.column);
@@ -274,7 +263,6 @@ export function childrenCsr(snapshot: GraphSnapshot, options: ChildrenOptions = 
  * @param nodeCount - the node count the references index into
  * @param column - a u32 `parent`-shaped column, a list-of-u32 `parents`-shaped column, or null for none
  * @returns the CSR
- * @category Plugin helpers
  */
 export function childrenFromColumn(nodeCount: number, column: Column | null): ChildrenCsr {
     const rowPtr = new Uint32Array(nodeCount + 1);

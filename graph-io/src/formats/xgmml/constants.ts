@@ -1,6 +1,7 @@
 /**
  * What the XGMML importer and exporter share: the namespaces, the format facts, the fixed column
- * names, the `meta.extra` key, and the issue and loss code tables.
+ * names, the `meta.extra` key, and the issue and loss code tables (design
+ * `design/graph-io/cytoscape-and-obo/design.md` section 1.1).
  */
 
 import {
@@ -14,15 +15,12 @@ import {
     DUPLICATE_ATTRIBUTE_CODE,
     DUPLICATE_EDGE_ID_CODE,
     DUPLICATE_NODE_CODE,
-    ELEMENT_ISSUE,
     EMPTY_INPUT_CODE,
-    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
     EQUATION_AS_TEXT_CODE,
     GRAPH_NOT_FOUND_CODE,
     ID_MERGED_CODE,
     ID_TEXT_TYPE_CODE,
-    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MISSING_ENDPOINT_CODE,
@@ -53,174 +51,95 @@ import {
     XML_SYNTAX_CODE,
 } from "../../common/codes.js";
 
-/**
- * The format name.
- * @category Plugin helpers
- */
+/** The format name. */
 export const FORMAT = "xgmml";
 
-/**
- * File extensions (never `.gr`, which DIMACS owns).
- * @category Plugin helpers
- */
+/** File extensions (never `.gr`, which DIMACS owns). */
 export const EXTENSIONS: readonly string[] = Object.freeze([".xgmml", ".xml"]);
 
-/**
- * MIME types: the draft's (appendix E) and Cytoscape's.
- * @category Plugin helpers
- */
+/** MIME types: the draft's (appendix E) and Cytoscape's. */
 export const MIME_TYPES: readonly string[] = Object.freeze(["application/xgmml", "text/xgmml", "text/xgmml+xml"]);
 
-/**
- * The XGMML namespace.
- * @category Plugin helpers
- */
+/** The XGMML namespace. */
 export const XGMML_NAMESPACE = "http://www.cs.rpi.edu/XGMML";
 
-/**
- * Cytoscape's namespace, bound to the `cy` prefix.
- * @category Plugin helpers
- */
+/** Cytoscape's namespace, bound to the `cy` prefix. */
 export const CY_NAMESPACE = "http://www.cytoscape.org";
 
-/**
- * The XLink namespace.
- * @category Plugin helpers
- */
+/** The XLink namespace. */
 export const XLINK_NAMESPACE = "http://www.w3.org/1999/xlink";
 
-/**
- * The `meta.extra` key the importer writes and the exporter reads.
- * @category Plugin helpers
- */
+/** The `meta.extra` key the importer writes and the exporter reads. */
 export const META_KEY = "xgmml";
 
-/**
- * The label column (role label) of node and edge `label` attributes.
- * @category Plugin helpers
- */
+/** The label column (role label) of node and edge `label` attributes. */
 export const LABEL_COLUMN = "label";
 
-/**
- * The edge `id` column (role id, unique).
- * @category Plugin helpers
- */
+/** The edge `id` column (role id, unique). */
 export const EDGE_ID_COLUMN = "id";
 
-/**
- * The node position (f32 x3, role position, y up).
- * @category Plugin helpers
- */
+/** The node position (f32 x3, role position, y up). */
 export const POSITION_COLUMN = "position";
 
-/**
- * Cytoscape's stacking order (`NODE_Z_LOCATION`), kept out of the position.
- * @category Plugin helpers
- */
+/** Cytoscape's stacking order (`NODE_Z_LOCATION`), kept out of the position. */
 export const Z_COLUMN = "z";
 
-/**
- * The node, edge and graph json column of a `<graphics>` element's values as written.
- * @category Plugin helpers
- */
+/** The node, edge and graph json column of a `<graphics>` element's values as written. */
 export const GRAPHICS_COLUMN = "graphics";
 
-/**
- * The containing group node (u32, role parent).
- * @category Plugin helpers
- */
+/** The containing group node (u32, role parent). */
 export const PARENT_COLUMN = "parent";
 
-/**
- * Every containing group node of a node that is in several groups (list of u32, role parents).
- * @category Plugin helpers
- */
+/** Every containing group node of a node that is in several groups (list of u32, role parents). */
 export const PARENTS_COLUMN = "parents";
 
-/**
- * The json node column of a group's nested graph id, label and atts.
- * @category Plugin helpers
- */
+/** The json node column of a group's nested graph id, label and atts. */
 export const SUBGRAPH_COLUMN = "xgmml.subgraph";
 
-/**
- * The string node column naming the network a node's nested-network pointer points to.
- * @category Plugin helpers
- */
+/** The string node column naming the network a node's nested-network pointer points to. */
 export const NESTED_NETWORK_COLUMN = "cytoscape.nestedNetwork";
 
-/**
- * The string node column of a nested-network pointer into another file (`file.xgmml#id`).
- * @category Plugin helpers
- */
+/** The string node column of a nested-network pointer into another file (`file.xgmml#id`). */
 export const NETWORK_POINTER_COLUMN = "xgmml.networkPointer";
 
-/**
- * The list node column of the root-level subgraphs a node belongs to, in a generic document.
- * @category Plugin helpers
- */
+/** The list node column of the root-level subgraphs a node belongs to, in a generic document. */
 export const NETWORKS_COLUMN = "xgmml.networks";
 
-/**
- * The edge column of Cytoscape's interaction type.
- * @category Plugin helpers
- */
+/** The edge column of Cytoscape's interaction type. */
 export const INTERACTION_COLUMN = "interaction";
 
-/**
- * The `origin.namespace` of the columns the importer derives from XGMML structure.
- * @category Plugin helpers
- */
+/** The `origin.namespace` of the columns the importer derives from XGMML structure. */
 export const XGMML_ORIGIN_NAMESPACE = "xgmml";
 
-/**
- * The `origin.namespace` of the columns that hold Cytoscape-only data (z, nested networks).
- * @category Plugin helpers
- */
+/** The `origin.namespace` of the columns that hold Cytoscape-only data (z, nested networks). */
 export const CYTOSCAPE_ORIGIN_NAMESPACE = "cytoscape";
 
 /**
- * The issue codes the XGMML importer records, by name: the codes shared with
- * the other importers and the XGMML-specific ones. A key is the code without
+ * The issue codes the XGMML importer records (design section 8.6), by name: the codes shared with
+ * the other importers (src/common/codes.ts) and the XGMML-specific ones. A key is the code without
  * its severity and format prefixes.
- * @category Built-in formats
  */
 export const XGMML_ISSUE = Object.freeze({
-    ...INPUT_ISSUE,
-    ...ELEMENT_ISSUE,
-    /** The input is not well-formed XML. The import stops. */
+    /** Fatal: the input is not well-formed XML. */
     XML_SYNTAX: XML_SYNTAX_CODE,
-    /** The input is empty or whitespace only. The import stops. */
+    /** Fatal: the input is empty or whitespace only. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The input is not valid UTF-8. The import stops. */
+    /** Fatal: the input holds invalid UTF-8. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /**
-     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
-     * `encoding` option). The import stops.
-     */
+    /** Fatal: bytes invalid in the encoding a BOM, a declaration or the option chose. */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Undeclared non-UTF-8 bytes were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** A declared encoding the byte order mark contradicts (the mark wins). */
-    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
-    /**
-     * The root element is not `<graph>` (it may be an XHTML page with a graph inside, or a GraphML file). The import
-     * stops.
-     */
+    /** Fatal: the root element is not `<graph>` (an XHTML page embedding one, a GraphML file). */
     NO_GRAPH: NO_GRAPH_CODE,
-    /**
-     * The file is a Cytoscape session view (`cy:view="1"`), which holds only view settings and no nodes or edges. The
-     * import stops.
-     */
+    /** Fatal: a session view document (`cy:view="1"`): view SUIDs and no topology. */
     VIEW_DOCUMENT: "E_XGMML_VIEW_DOCUMENT",
     /** A node with neither an id nor a label; it is skipped with its subtree. */
     MISSING_ID: MISSING_ID_CODE,
     /** A node without an id; its label is used as the id. */
     ID_FROM_LABEL: "W_XGMML_ID_FROM_LABEL",
-    /** A node or edge with both an id and an `xlink:href`; it is read as the reference. */
-    ID_AND_HREF: "W_XGMML_ID_AND_HREF",
     /** An edge without a source or a target that no label alias resolves. */
     MISSING_ENDPOINT: MISSING_ENDPOINT_CODE,
     /** An edge endpoint that names no node (addMissingNodes false); the edge is skipped. */
@@ -231,10 +150,7 @@ export const XGMML_ISSUE = Object.freeze({
     DUPLICATE_NODE: DUPLICATE_NODE_CODE,
     /** An edge id used twice; the second edge is skipped. */
     DUPLICATE_EDGE_ID: DUPLICATE_EDGE_ID_CODE,
-    /**
-     * Cytoscape 2.x writes each edge of a group a second time, inside the group. The repeats are dropped, so every edge
-     * is read once; nothing is lost.
-     */
+    /** A meta-edge the 2.x writer repeats inside a group; the copy is dropped. */
     GROUP_DUPLICATE_EDGE: "W_XGMML_GROUP_DUPLICATE_EDGE",
     /** A `directed` or `cy:directed` value other than 0 / 1. */
     BAD_DIRECTED: "W_XGMML_BAD_DIRECTED",
@@ -250,28 +166,19 @@ export const XGMML_ISSUE = Object.freeze({
     SURROGATE_PAIRED: "W_XGMML_SURROGATE_PAIRED",
     /** An empty list whose element type nothing states; a list of strings is assumed. */
     EMPTY_LIST_TYPE: "W_XGMML_EMPTY_LIST_TYPE",
-    /**
-     * An attribute holds a structure a single column cannot (a list of records, a list of lists, a Cytoscape 2.x map
-     * or XML from another tool). Its value is kept as a JSON value, which a save as XGMML writes back.
-     */
+    /** A record list, a list of lists, a 2.x map or foreign XML in an att, kept as json. */
     RECORD_LIST: "W_XGMML_RECORD_LIST",
     /** A pointer into another file (`file.xgmml#id`); kept as text. */
     CROSS_FILE_REFERENCE: "W_XGMML_CROSS_FILE_REFERENCE",
     /** A graph nested in an edge's att; there is no model for it. */
     EDGE_NESTED_GRAPH: "W_XGMML_EDGE_NESTED_GRAPH",
-    /**
-     * Some nodes or edges of a Cytoscape session belong to none of its networks (Cytoscape keeps group meta-edges and
-     * the members of collapsed groups this way). They are not read; the message counts them.
-     */
+    /** Elements of a session network declared outside every registered subnetwork. */
     ROOT_ONLY_ELEMENTS: "W_XGMML_ROOT_ONLY_ELEMENTS",
     /** A value that does not parse as its declared type; the cell is unset. */
     BAD_VALUE: BAD_VALUE_CODE,
-    /**
-     * An attribute's type was widened because a later value did not fit: an integer above 2^31 in an integer column,
-     * or two declared types for one attribute.
-     */
+    /** A column widened because its values or declared types disagree. */
     WIDENED: WIDENED_CODE,
-    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
+    /** A long or real beyond what a double holds exactly. */
     PRECISION: PRECISION_CODE,
     /** A reference (xlink:href, nested-network pointer) that names nothing. */
     DANGLING_REFERENCE: DANGLING_REFERENCE_CODE,
@@ -289,46 +196,27 @@ export const XGMML_ISSUE = Object.freeze({
     UNKNOWN_ELEMENT: UNKNOWN_ELEMENT_CODE,
     /** Character data where XGMML allows only elements, or inside an att. */
     STRAY_TEXT: STRAY_TEXT_CODE,
-    /**
-     * The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
-     * `importAllGraphs()` reads every one.
-     */
+    /** A session network document holds several registered networks; one was read. */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
-    /** `graphIndex` or `graphName` matches no network in the session. The import stops. */
+    /** graphIndex / graphName names no network (fatal). */
     GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
-    /** `graphName` matches several networks in the session. The import stops. */
+    /** graphName names several networks (fatal). */
     AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
-    /**
-     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
-     * two attributes declared with the same name.
-     */
+    /** A column renamed `<name>#<n>` because its name was taken. */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /**
-     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
-     * a plain attribute.
-     */
+    /** A column declared without its role because the table already holds it. */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
+    /** Two id texts merged into one number under ids "number". */
     ID_MERGED: ID_MERGED_CODE,
-    /** You set an option this format does not use; it had no effect. The message names the option. */
+    /** An option the format has no use for. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /**
-     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
-     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
-     */
+    /** A builder-policy option the sink does not honour. */
     SINK_OPTION: SINK_OPTION_CODE,
-    /**
-     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
-     * with the builder's direction instead of its own.
-     */
+    /** The sink refused the file's direction. */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
+    /** Edges forced to the policy's direction. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /**
-     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
-     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
-     * it anyway.
-     */
+    /** A mixed file under onMixedDirection "error" (fatal). */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
 });
 
@@ -336,33 +224,27 @@ export const XGMML_ISSUE = Object.freeze({
  * Loss note codes of the XGMML exporter (check()): the XGMML ones and the shared ones its notes
  * can carry. The generic notes of `checkCapabilities()` (dtypes, components, temporal and visual
  * roles, extension tables) are those of `LOSS`.
- * @category Built-in formats
  */
 export const XGMML_LOSS = Object.freeze({
     /** A json or nested-list column written as a string att. */
     JSON_AS_STRING: "W_XGMML_JSON_AS_STRING",
-    /**
-     * An attribute type Cytoscape does not have is written as a wider one (a 32-bit float as Double, a large unsigned
-     * integer as Long, a byte as Integer, a dictionary as String).
-     */
+    /** A dtype written as a wider Cytoscape type (f32 as Double, u32 above i32 as Long, u8 as Integer, dict as String). */
     WIDENED_TYPE: "W_XGMML_WIDENED_TYPE",
-    /** A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. */
+    /** A string holding a character XML 1.0 cannot carry; export() throws. */
     XML_ILLEGAL_CHAR: XML_ILLEGAL_CHAR_CODE,
     /** A temporal column written as plain numbers. */
     TEMPORAL_DROPPED: TEMPORAL_DROPPED_CODE,
     /** A temporal text companion written as a plain string att. */
     TEMPORAL_TEXT_DROPPED: TEMPORAL_TEXT_DROPPED_CODE,
-    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
+    /** A role the format has no slot for, written as a plain att. */
     ROLE_DROPPED: ROLE_DROPPED_CODE,
-    /**
-     * A `parents` attribute (several parents per node) is not written because the graph also has a `parent` attribute.
-     */
+    /** A parents column not written because the snapshot also has a parent column. */
     PARENTS_DROPPED: PARENTS_DROPPED_CODE,
     /** A mutual pair written as two directed edges. */
     MUTUAL_EXPANDED: MUTUAL_EXPANDED_CODE,
     /** Node ids whose text reads back as the other type. */
     ID_TEXT_TYPE: ID_TEXT_TYPE_CODE,
-    /** Edge ids that are not text are written as text and read back as text. */
+    /** An edge id column of another dtype written as text; it reads back as strings. */
     EDGE_ID_TEXT: "W_XGMML_EDGE_ID_TEXT",
     /** Strings holding a literal backslash-n or backslash-t read back as newline / tab (Cytoscape's escapes). */
     BACKSLASH_ESCAPE: "W_XGMML_BACKSLASH_ESCAPE",
@@ -370,22 +252,13 @@ export const XGMML_LOSS = Object.freeze({
     POSITION: "W_XGMML_POSITION",
     /** Nodes whose parent chain never reaches a root are written at the top level. */
     PARENT_CYCLE: "W_XGMML_PARENT_CYCLE",
-    /**
-     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
-     * name the format's importer gives it.
-     */
+    /** A column named like a column the importer owns reads back renamed. */
     COLUMN_NAME_CHANGED: COLUMN_RENAMED_LOSS_CODE,
-    /**
-     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
-     * reads back with that role.
-     */
+    /** A role-less column written into a slot reads back with the slot's role. */
     ROLE_ASSUMED: ROLE_ASSUMED_CODE,
-    /** An attribute named `weight` without the weight role reads back as the edge weight. */
+    /** A plain `weight` edge column reads back as THE weight. */
     WEIGHT_KEY_CLASH: WEIGHT_KEY_CLASH_CODE,
-    /**
-     * A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often
-     * its values repeat. The values are the same.
-     */
+    /** A string / dict column that reads back as the other storage class. */
     STORAGE_CLASS_CHANGED: STORAGE_CLASS_CODE,
     /** Edge labels shaped `a (i) b` read back with an `interaction` column (Cytoscape's label alias). */
     INTERACTION_FROM_LABEL: "W_XGMML_INTERACTION_FROM_LABEL",

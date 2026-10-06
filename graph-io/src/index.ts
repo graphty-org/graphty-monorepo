@@ -1,34 +1,12 @@
 /**
- * Read and write graph files as `@graphty/graph-format` snapshots.
- *
- * Most programs need eight functions: `loadFromUrl()`, `loadFromFile()` and `importGraph()` to read
- * a graph; `exportGraphToBytes()`, `exportGraphToString()`, `exportGraphToBlob()` and
- * `downloadGraph()` to write one; and `checkExport()` to see what a format would not keep. They are
- * under Loading and Saving. Each format's importer, exporter, options and codes are in its own
- * module, `@graphty/graph-io/<format>`, and are also exported here. Writing a format and Plugin
- * helpers are for adding a format of your own. The guide is at https://graphty.app/docs/graph-io/.
- * @module @graphty/graph-io
+ * The public barrel of @graphty/graph-io (design sections 8.2, 12.4 and 13.1): the io contract
+ * types and ImportError, the registry with `importGraph()` / `exportGraph()` / `sniff()`, the
+ * `children` CSR helper, every built-in importer and exporter (also reachable through the per-format
+ * subpath exports `@graphty/graph-io/<format>`), and the shared helpers a third-party importer or
+ * exporter builds on (report builder, input reader, option resolution, direction resolver, id
+ * coercion, the capability check and the loss / issue codes callers branch on). Named exports
+ * only; no default export.
  */
-
-// ============================================================ graph-format re-exports
-// The error class every deliberate graph-io failure extends, the graph type every function takes
-// or returns, the column type its attribute tables hold, the builder that copies or combines graphs,
-// the graph an importer fills, and the "no such index" value a plugin compares with, so a caller
-// needs no second import.
-export {
-    type Column,
-    GraphBuilder,
-    GraphFormatError,
-    type GraphSink,
-    type GraphSnapshot,
-    INVALID_INDEX,
-} from "@graphty/graph-format";
-
-// ============================================================ a line format in one function
-export { defineLineFormat, type LineAttributes, type LineFormat, type LineGraph } from "./common/line-format.js";
-
-// ============================================================ testing a plugin
-export { type CompareOptions, compareSnapshots, describeDiffs, type SnapshotDiff } from "./common/compare.js";
 
 // ============================================================ io contract types (12.4)
 export {
@@ -60,32 +38,21 @@ export {
     type BuilderSeed,
     checkExport,
     createRegistry,
-    downloadGraph,
-    type DownloadGraphOptions,
     exportGraph,
     type ExportGraphOptions,
-    exportGraphToBlob,
-    exportGraphToBytes,
     exportGraphToString,
-    type FormatInfo,
     FormatRegistry,
     importAllGraphs,
     importGraph,
     type ImportGraphOptions,
     type ImportGraphResult,
-    listFormats,
     listGraphs,
-    loadFromFile,
-    loadFromUrl,
-    type LoadFromUrlOptions,
     registry,
     sniff,
-    SNIFF_FAILED_CODE,
     UNKNOWN_FORMAT_CODE,
 } from "./registry.js";
 export {
     extensionOf,
-    type FormatName,
     GRAPH_FORMATS,
     type GraphFormatName,
     headBytes,
@@ -109,15 +76,7 @@ export {
     csvImporter,
     type CsvImportOptions,
 } from "./formats/csv/index.js";
-export {
-    CX_CAPABILITIES,
-    CX_ISSUE,
-    CX_LOSS,
-    cxExporter,
-    type CxExportOptions,
-    cxImporter,
-    type CxImportOptions,
-} from "./formats/cx/index.js";
+export { CX_ISSUE, cxImporter, type CxImportOptions } from "./formats/cx/index.js";
 export {
     CX2_CAPABILITIES,
     CX2_ISSUE,
@@ -127,15 +86,7 @@ export {
     cx2Importer,
     type Cx2ImportOptions,
 } from "./formats/cx2/index.js";
-export {
-    CYS_CAPABILITIES,
-    CYS_ISSUE,
-    CYS_LOSS,
-    cysExporter,
-    type CysExportOptions,
-    cysImporter,
-    type CysImportOptions,
-} from "./formats/cys/index.js";
+export { CYS_ISSUE, cysImporter, type CysImportOptions } from "./formats/cys/index.js";
 export {
     DOT_ISSUE,
     DOT_LOSS,
@@ -183,10 +134,8 @@ export {
     jsonImporter,
     type JsonImportOptions,
     type JsonShapeMeta,
-    jsonShapeOf,
 } from "./formats/json/index.js";
 export {
-    exportNeo4jFiles,
     ID_SPACE_COLUMN,
     LABELS_COLUMN,
     NEO4J_CAPABILITIES,
@@ -194,21 +143,12 @@ export {
     NEO4J_LOSS,
     neo4jExporter,
     type Neo4jExportOptions,
-    type Neo4jFile,
     neo4jImporter,
     type Neo4jImportOptions,
     ORIGINAL_ID_COLUMN,
     TYPE_COLUMN,
 } from "./formats/neo4j/index.js";
-export {
-    OBO_CAPABILITIES,
-    OBO_ISSUE,
-    OBO_LOSS,
-    oboExporter,
-    type OboExportOptions,
-    oboImporter,
-    type OboImportOptions,
-} from "./formats/obo/index.js";
+export { OBO_ISSUE, oboImporter, type OboImportOptions } from "./formats/obo/index.js";
 export {
     PAJEK_ISSUE,
     PAJEK_LOSS,
@@ -262,7 +202,6 @@ export {
     LOSS,
     mangleNmtoken,
     NO_CAPABILITIES,
-    refusedSave,
     type SanitizedIds,
     sanitizeIds,
 } from "./common/export.js";
@@ -289,8 +228,6 @@ export {
 export {
     chooseGraph,
     DEFAULT_ERROR_LIMIT,
-    forDecodedText,
-    graphChosen,
     type ImportFormatDefaults,
     reportSinkOptions,
     reportUnusedOptions,
@@ -315,13 +252,7 @@ export {
     type TextDtype,
     WIDENING_UNSUPPORTED_CODE,
 } from "./common/text.js";
-export {
-    edgeWeights,
-    type ExplicitWeights,
-    explicitWeights,
-    isWeightField,
-    parseWeightText,
-} from "./common/weights.js";
+export { type ExplicitWeights, explicitWeights, isWeightField, parseWeightText } from "./common/weights.js";
 export {
     collectBytes,
     decodeChunks,
@@ -336,7 +267,6 @@ export {
     tokenizeXml,
     type XmlHandler,
     xmlIllegalTextNotes,
-    type XmlRepairs,
     XmlSyntaxError,
     XmlTokenizer,
 } from "./common/xml.js";

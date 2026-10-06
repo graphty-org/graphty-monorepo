@@ -12,7 +12,6 @@ import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { throwIfAborted } from "../../common/input.js";
 import { type ResolvedImportOptions } from "../../common/options.js";
-import { agree, plural } from "../../common/plural.js";
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
 import { parseWeightText } from "../../common/weights.js";
 import { ColumnSet } from "./columns.js";
@@ -44,12 +43,8 @@ import {
     type NodeRec,
     type XgmmlDocument,
 } from "./document.js";
-import { parseScalar } from "./values.js";
 
-/**
- * The XGMML-specific options, resolved.
- * @category Plugin helpers
- */
+/** The XGMML-specific options, resolved. */
 export interface XgmmlSettings {
     /** Resolve missing or unknown endpoints through `"a (pp) b"` edge labels. */
     readonly labelAliases: boolean;
@@ -59,10 +54,7 @@ export interface XgmmlSettings {
     readonly zAs: "column" | "position";
 }
 
-/**
- * What a session adds to the document's own rules.
- * @category Plugin helpers
- */
+/** What a session adds to the document's own rules. */
 export interface EmitExtras {
     /** Ids of nodes the session's group bookkeeping lists as groups. */
     readonly groupNodes?: ReadonlySet<string> | undefined;
@@ -83,20 +75,9 @@ export interface EmitExtras {
      * session): the session records it instead of E_UNKNOWN_PARENT.
      */
     readonly onMissingMember?: ((group: string, member: string) => void) | undefined;
-    /**
-     * A 3.x session: the label of a node or edge is its table's `name` (what Cytoscape shows), in
-     * a label column named `name`; the XGMML `label` attribute is read only when no element of
-     * the table has a `name`.
-     */
-    readonly labelFromName?: boolean | undefined;
-    /** Node ids to read in place of the written ones (ids an exporter mangled, by written id). */
-    readonly restoredIds?: ReadonlyMap<string, string> | undefined;
 }
 
-/**
- * The dialect facts the rules depend on.
- * @category Plugin helpers
- */
+/** The dialect facts the rules depend on. */
 export interface Dialect {
     /** The documentVersion as written, or null. */
     readonly versionText: string | null;
@@ -140,7 +121,6 @@ const ALIAS_SPLIT = /[()]/;
  * @param doc - the document
  * @param report - the report the unparseable-version warning goes to
  * @returns the dialect
- * @category Plugin helpers
  */
 export function dialectOf(doc: XgmmlDocument, report: ImportReportBuilder): Dialect {
     const { root } = doc;
@@ -153,7 +133,7 @@ export function dialectOf(doc: XgmmlDocument, report: ImportReportBuilder): Dial
     let version = 0;
     if (versionText !== null) {
         version = Number(versionText.trim());
-        if (!Number.isFinite(version) || version < 0 || versionText.trim().length === 0) {
+        if (!Number.isFinite(version) || versionText.trim().length === 0) {
             report.warning(
                 "validation-error",
                 XGMML_ISSUE.DOCUMENT_VERSION,
@@ -180,22 +160,9 @@ export function dialectOf(doc: XgmmlDocument, report: ImportReportBuilder): Dial
  * @param doc - the document
  * @param dialect - its dialect
  * @returns the graphs, in document order
- * @category Plugin helpers
  */
 export function graphsOf(doc: XgmmlDocument, dialect: Dialect): GraphRec[] {
     return dialect.session ? doc.root.subgraphs.filter((g) => isCyTrue(g.registered)) : [doc.root];
-}
-
-/**
- * A graphics coordinate as Java's `Double.parseDouble` reads Cytoscape's (no hex, no `_`), and
- * finite.
- * @param text - the text
- * @returns the number, or null when it does not parse or is not finite
- * @category Plugin helpers
- */
-export function parseCoordinate(text: string): number | null {
-    const parsed = parseScalar(text, "real", false);
-    return parsed === null || !Number.isFinite(parsed.value) ? null : (parsed.value as number);
 }
 
 /**
@@ -212,7 +179,6 @@ function localRef(href: string): string | null {
  * @param doc - the document
  * @param graph - the graph (a registered subnetwork), or null for the whole document
  * @returns the declared node and edge records it holds, references resolved, in order
- * @category Plugin helpers
  */
 export function membersOf(
     doc: XgmmlDocument,
@@ -276,7 +242,6 @@ interface NodeRow {
 
 /**
  * Pushes one graph of a document into a sink.
- * @category Plugin helpers
  */
 export class XgmmlEmitter {
     private readonly doc: XgmmlDocument;
@@ -346,11 +311,10 @@ export class XgmmlEmitter {
         this.coercer = new IdCoercer(options.ids);
         this.direction = new DirectionResolver(sink, report, options.onMixedDirection);
         const base = { unescape: settings.cytoscapeEscapes, long: options.long };
-        const label = extras.labelFromName === true ? [] : [LABEL_COLUMN];
         this.nodeColumns = new ColumnSet("node", report, {
             ...base,
             reserved: new Set([
-                ...label,
+                LABEL_COLUMN,
                 POSITION_COLUMN,
                 Z_COLUMN,
                 GRAPHICS_COLUMN,
@@ -364,7 +328,7 @@ export class XgmmlEmitter {
         });
         this.edgeColumns = new ColumnSet("edge", report, {
             ...base,
-            reserved: new Set([EDGE_ID_COLUMN, ...label, GRAPHICS_COLUMN]),
+            reserved: new Set([EDGE_ID_COLUMN, LABEL_COLUMN, GRAPHICS_COLUMN]),
         });
         this.graphColumns = new ColumnSet("graph", report, { ...base, reserved: new Set([GRAPHICS_COLUMN]) });
     }
@@ -379,7 +343,7 @@ export class XgmmlEmitter {
             this.report.warning(
                 "validation-error",
                 XGMML_ISSUE.DANGLING_REFERENCE,
-                `${this.prefix()}${members.dangling} xlink:href member reference${plural(members.dangling)} ${agree(members.dangling, "names", "name")} no node or edge of the document`,
+                `${this.prefix()}${members.dangling} xlink:href member reference(s) name no node or edge of the document`,
                 { line: graph?.line ?? null },
             );
         }
@@ -521,31 +485,13 @@ export class XgmmlEmitter {
     private edgeDirection(record: EdgeRec, header: boolean): boolean {
         let directed = this.directions.get(record);
         if (directed === undefined) {
-            const fallback = this.graphDirected(record.graph, header);
             directed =
                 record.directed === null
-                    ? fallback
-                    : this.flag(record.directed, fallback, { line: record.line, element: record.id ?? record.label });
+                    ? header
+                    : this.flag(record.directed, header, { line: record.line, element: record.id ?? record.label });
             this.directions.set(record, directed);
         }
         return directed;
-    }
-
-    /**
-     * The default direction of the edges of a graph: the `directed` attribute of the graph or of
-     * the nearest graph it is nested in that has one, else the header.
-     * @param graph - the graph that holds the edge
-     * @param header - the header direction
-     * @returns whether the graph's edges are directed by default
-     */
-    private graphDirected(graph: GraphRec, header: boolean): boolean {
-        for (let g: GraphRec | null = graph; g !== null && g !== this.doc.root; g = g.parent) {
-            const text = g.attrs.get("directed");
-            if (text !== undefined) {
-                return this.flag(text, header, { line: g.line, element: "directed" });
-            }
-        }
-        return header;
     }
 
     /**
@@ -633,46 +579,13 @@ export class XgmmlEmitter {
     }
 
     /**
-     * The sink id of a node's written id: the restored original, else the written id, coerced.
-     * @param text - the written id
-     * @returns the id
-     */
-    private idOf(text: string): NodeId {
-        return this.coercer.text(this.extras.restoredIds?.get(text) ?? text);
-    }
-
-    /** Per table: the label is the `name` att (labelFromName and some element has one). */
-    private readonly nameLabel = { node: false, edge: false };
-
-    /**
-     * Decide whether a table's label comes from its `name` atts.
-     * @param domain - node or edge
-     * @param records - the table's records
-     */
-    private decideNameLabel(domain: "node" | "edge", records: readonly (NodeRec | EdgeRec)[]): void {
-        this.nameLabel[domain] = this.extras.labelFromName === true && records.some((r) => r.atts.some(isNameAtt));
-    }
-
-    /**
-     * The label of a record: its `name` att, or its XGMML label.
-     * @param record - the node or edge
-     * @returns the label, or undefined
-     */
-    private labelOf(record: NodeRec | EdgeRec): string | undefined {
-        if (this.nameLabel[record.kind]) {
-            return record.atts.find(isNameAtt)?.value ?? undefined;
-        }
-        return record.label ?? undefined;
-    }
-
-    /**
      * The coerced id of a node text.
      * @param text - the id text
      * @param line - the line
      * @returns the id
      */
     private nodeId(text: string, line: number): NodeId {
-        const id = this.idOf(text);
+        const id = this.coercer.text(text);
         const merge = this.coercer.lastMerge;
         if (merge !== null) {
             this.report.warning(
@@ -732,7 +645,7 @@ export class XgmmlEmitter {
             this.report.warning(
                 "validation-error",
                 XGMML_ISSUE.DANGLING_REFERENCE,
-                `${this.prefix()}${dangling} xlink:href reference${plural(dangling)} ${agree(dangling, "names", "name")} no node or edge of the document`,
+                `${this.prefix()}${dangling} xlink:href reference(s) name no node or edge of the document`,
             );
         }
     }
@@ -747,15 +660,11 @@ export class XgmmlEmitter {
         const positions = new Positions(this, this.dialect.cytoscape ? this.settings.zAs : "position");
         const graphics = new JsonColumn(this, "node", GRAPHICS_COLUMN, XGMML_ORIGIN_NAMESPACE, "graphics");
         const pointers = new Pointers(this, this.groupTest());
-        this.decideNameLabel(
-            "node",
-            this.rowList.flatMap((r) => r.records),
-        );
         for (const row of this.rowList) {
             const where = { line: row.records[0].line, element: row.id };
             const seen = new Set<string>();
             for (const record of row.records) {
-                labels[row.row] ??= this.labelOf(record);
+                labels[row.row] ??= record.label ?? undefined;
                 this.addElementColumns(this.nodeColumns, row.row, record, seen, where);
                 positions.add(row, record);
                 if (record.graphics !== null && Object.keys(record.graphics).length > 0) {
@@ -804,11 +713,7 @@ export class XgmmlEmitter {
             names.add(key);
         }
         for (const att of record.atts) {
-            if (
-                this.skipAtt(record, att) ||
-                (this.nameLabel[record.kind] && isNameAtt(att)) ||
-                (merging && att.name !== null && seen.has(att.name))
-            ) {
+            if (this.skipAtt(record, att) || (merging && att.name !== null && seen.has(att.name))) {
                 continue;
             }
             if (record.kind === "node" && att.name === "__isGroup" && record.nested.length > 0 && isCyTrue(att.value)) {
@@ -835,20 +740,7 @@ export class XgmmlEmitter {
      * @returns true to skip it
      */
     private skipAtt(record: NodeRec | EdgeRec, att: AttRec): boolean {
-        if (record.kind !== "edge" || att.name !== this.options.weightFrom) {
-            return false;
-        }
-        if (record.weight === null || att.name !== "weight" || att.children.length > 0) {
-            return record.weight === null;
-        }
-        // weight="2" and <att name="weight" value="3">: the attribute is THE weight
-        this.report.warning(
-            "validation-error",
-            XGMML_ISSUE.DUPLICATE_ATTRIBUTE,
-            `${this.prefix()}an edge has weight="${record.weight}" and a weight att "${att.value ?? ""}"; the weight attribute is the weight and the att is not read`,
-            { line: att.line, element: record.id ?? record.label ?? "weight" },
-        );
-        return true;
+        return record.kind === "edge" && record.weight === null && att.name === this.options.weightFrom;
     }
 
     /**
@@ -866,7 +758,7 @@ export class XgmmlEmitter {
             return;
         }
         const handle = this.declare(domain, {
-            name: this.nameLabel[domain] ? "name" : LABEL_COLUMN,
+            name: LABEL_COLUMN,
             dtype: "string",
             role: "label",
             nullable: true,
@@ -933,23 +825,21 @@ export class XgmmlEmitter {
     private addEdges(records: readonly EdgeRec[], header: boolean): void {
         const ids = new Set<string>();
         const dedupe = this.dialect.cy2 && this.doc.nodes.some((n) => n.nested.length > 0) ? new Set<string>() : null;
-        let repeats = 0;
-        let firstRepeat: IssueLocation | null = null;
         const labels: (string | undefined)[] = [];
         const edgeIds: (string | undefined)[] = [];
         const graphics: [number, Record<string, unknown>][] = [];
         let row = 0;
-        this.decideNameLabel("edge", records);
         for (const record of records) {
             const where = { line: record.line, element: record.id ?? record.label };
-            // a repeat has the same id, or without one the same label and endpoints
-            const key =
-                record.id ??
-                (record.label === null ? null : JSON.stringify([record.label, record.source, record.target]));
+            const key = record.id ?? record.label;
             if (dedupe !== null && key !== null) {
                 if (dedupe.has(key)) {
-                    repeats++;
-                    firstRepeat ??= where;
+                    this.report.warnOnce(
+                        "merged",
+                        XGMML_ISSUE.GROUP_DUPLICATE_EDGE,
+                        `${this.prefix()}the Cytoscape 2.x writer repeats the edges of a group; each repeat is dropped`,
+                        where,
+                    );
                     continue;
                 }
                 dedupe.add(key);
@@ -960,7 +850,7 @@ export class XgmmlEmitter {
                 continue;
             }
             this.edgeIndex[row] = index;
-            labels[row] = this.labelOf(record);
+            labels[row] = record.label ?? undefined;
             edgeIds[row] = record.id ?? undefined;
             this.addElementColumns(this.edgeColumns, row, record, new Set(), where);
             this.fillInteraction(record, row, where);
@@ -968,14 +858,6 @@ export class XgmmlEmitter {
                 graphics.push([index, record.graphics]);
             }
             row++;
-        }
-        if (repeats > 0) {
-            this.report.warning(
-                "merged",
-                XGMML_ISSUE.GROUP_DUPLICATE_EDGE,
-                `${this.prefix()}the Cytoscape 2.x writer repeats the edges of a group; ${repeats} repeat${plural(repeats)} ${agree(repeats, "was", "were")} dropped`,
-                firstRepeat ?? undefined,
-            );
         }
         this.writeEdgeIds(edgeIds);
         this.writeLabels("edge", labels, (r) => this.edgeIndex[r] ?? -1);
@@ -1056,7 +938,7 @@ export class XgmmlEmitter {
         if (text === null) {
             return undefined;
         }
-        const weight = parseWeightText(text, this.report);
+        const weight = parseWeightText(text);
         this.weighted ||= weight !== undefined;
         return weight;
     }
@@ -1075,24 +957,21 @@ export class XgmmlEmitter {
         if (text !== null) {
             const row = this.rows.get(text);
             if (row !== undefined && row.index >= 0) {
-                return this.idOf(text);
+                return this.coercer.text(text);
             }
         }
         if (alias !== null) {
             const resolved = this.aliasRow(alias);
             if (resolved !== null) {
                 this.aliasResolved++;
-                return this.idOf(resolved.id);
+                return this.coercer.text(resolved.id);
             }
         }
         if (text === null) {
-            const ambiguous = alias !== null && this.aliasRow(alias) === null && this.labelRows?.get(alias) === null;
             this.report.error(
                 "missing-value",
                 XGMML_ISSUE.MISSING_ENDPOINT,
-                ambiguous
-                    ? `${this.prefix()}<edge> without a ${side}: its label alias "${alias}" is ambiguous (several nodes have that label); the edge is skipped`
-                    : `${this.prefix()}<edge> without a ${side}`,
+                `${this.prefix()}<edge> without a ${side}`,
                 where,
             );
             return null;
@@ -1168,7 +1047,7 @@ export class XgmmlEmitter {
         this.report.warning(
             "coercion",
             XGMML_ISSUE.LABEL_ALIAS,
-            `${this.prefix()}Cytoscape label aliases ("a (pp) b"): ${this.aliasResolved} endpoint${plural(this.aliasResolved)} resolved, ${this.aliasInteractions} interaction${plural(this.aliasInteractions)} filled from edge labels`,
+            `${this.prefix()}Cytoscape label aliases ("a (pp) b"): ${this.aliasResolved} endpoint(s) resolved, ${this.aliasInteractions} interaction(s) filled from edge labels`,
         );
     }
 
@@ -1274,25 +1153,9 @@ export class XgmmlEmitter {
 }
 
 /**
- * Whether an att is a session table's own `name` cell (a text value; a formula is kept as its text).
- * @param att - the att
- * @returns true for the name
- */
-function isNameAtt(att: AttRec): boolean {
-    return (
-        att.name === "name" &&
-        (att.namespace ?? null) === null &&
-        att.value !== null &&
-        att.children.length === 0 &&
-        (att.cyType ?? "String") === "String"
-    );
-}
-
-/**
  * The three parts of a Cytoscape edge label (`source (interaction) target`).
  * @param label - the label, or null
  * @returns source alias, interaction, target alias; null when the label has another shape
- * @category Plugin helpers
  */
 export function aliasesOf(label: string | null): [string, string, string] | null {
     if (label === null) {
@@ -1411,8 +1274,8 @@ class Positions {
         if (text === null) {
             return null;
         }
-        const n = parseCoordinate(text);
-        if (n === null) {
+        const n = Number(text.trim());
+        if (text.trim().length === 0 || !Number.isFinite(n)) {
             this.emitter.issues.error(
                 "validation-error",
                 XGMML_ISSUE.BAD_VALUE,
@@ -1525,7 +1388,7 @@ class Pointers {
             this.emitter.issues.warning(
                 "validation-error",
                 XGMML_ISSUE.DANGLING_REFERENCE,
-                `${prefix}${this.dangling} nested-network pointer${plural(this.dangling)} ${agree(this.dangling, "names", "name")} no graph of the document`,
+                `${prefix}${this.dangling} nested-network pointer(s) name no graph of the document`,
             );
         }
         const names = new JsonColumn(
@@ -1543,7 +1406,7 @@ class Pointers {
             this.emitter.issues.warning(
                 "unsupported",
                 XGMML_ISSUE.CROSS_FILE_REFERENCE,
-                `${prefix}${this.crossFile.size} nested-network pointer${plural(this.crossFile.size)} ${agree(this.crossFile.size, "points", "point")} into another file; each is kept as text in ${NETWORK_POINTER_COLUMN}`,
+                `${prefix}${this.crossFile.size} nested-network pointer(s) point into another file; each is kept as text in ${NETWORK_POINTER_COLUMN}`,
             );
             const column = new JsonColumn(
                 this.emitter,
@@ -1568,9 +1431,6 @@ class Containment {
     private readonly parents = new Map<number, number[]>();
 
     private readonly subgraphs = new Map<number, Record<string, unknown>>();
-
-    /** The nodes that are some node's parent: only those can be an ancestor, so close a cycle. */
-    private readonly groups = new Set<number>();
 
     /**
      * Create the resolver.
@@ -1622,7 +1482,7 @@ class Containment {
             this.emitter.issues.error(
                 "missing-value",
                 XGMML_ISSUE.UNKNOWN_PARENT,
-                `${this.emitter.prefix()}${unknown} group member${plural(unknown)} ${agree(unknown, "names", "name")} no node of this graph`,
+                `${this.emitter.prefix()}${unknown} group member(s) name no node of this graph`,
             );
         }
     }
@@ -1634,7 +1494,7 @@ class Containment {
      * @param line - the line
      */
     private link(child: number, parent: number, line: number): void {
-        if (child === parent || (this.groups.has(child) && this.isAncestor(child, parent))) {
+        if (child === parent || this.isAncestor(child, parent)) {
             this.emitter.issues.error(
                 "validation-error",
                 XGMML_ISSUE.PARENT_CYCLE,
@@ -1648,7 +1508,6 @@ class Containment {
             list.push(parent);
         }
         this.parents.set(child, list);
-        this.groups.add(parent);
     }
 
     /**

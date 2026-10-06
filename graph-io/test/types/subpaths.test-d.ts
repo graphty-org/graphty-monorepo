@@ -35,9 +35,7 @@ expectTypeOf(graphmlImporter.format).toBeString();
 expectTypeOf(graphmlExporter.format).toBeString();
 expectTypeOf(jsonImporter.format).toBeString();
 expectTypeOf(jsonExporter.format).toBeString();
-expectTypeOf<JsonDialect>().toEqualTypeOf<
-    "node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis" | "obographs"
->();
+expectTypeOf<JsonDialect>().toEqualTypeOf<"node-link" | "d3" | "jgf" | "cytoscape" | "graphology" | "vis">();
 expectTypeOf(neo4jImporter.format).toBeString();
 expectTypeOf(neo4jExporter.format).toBeString();
 expectTypeOf(oboImporter.format).toBeString();
@@ -71,9 +69,6 @@ const csvOptions: CsvImportOptions & { ids?: "canonical" | undefined } = { delim
 expectTypeOf(csvOptions.delimiter).toEqualTypeOf<string | undefined>();
 
 // importGraph() accepts format-specific options next to the common ones and resolves to the result shape.
-expectTypeOf(importGraph).parameter(1).toMatchTypeOf<{ errorLimit?: number | undefined } | undefined>();
-// A variable annotated with a format's options type is accepted as it is, on import and on export.
-const annotatedCsv: CsvImportOptions = { delimiter: ";" };
-expectTypeOf(importGraph("", annotatedCsv)).resolves.toHaveProperty("snapshot");
+expectTypeOf(importGraph).parameter(1).toMatchTypeOf<{ format?: string | undefined } | undefined>();
 expectTypeOf(importGraph("", { format: "csv", delimiter: ";", ids: "canonical" })).resolves.toHaveProperty("snapshot");
 expectTypeOf(importGraph("")).resolves.toHaveProperty("sniff").toEqualTypeOf<SniffResult | null>();

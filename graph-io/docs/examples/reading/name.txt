@@ -1,3 +1,0 @@
-null
-got
-*Network got

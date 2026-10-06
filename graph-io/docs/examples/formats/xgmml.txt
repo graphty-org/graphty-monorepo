@@ -1,2 +1,0 @@
-3 nodes; node columns: graphics, label, position, z, name, score, degree
-[]

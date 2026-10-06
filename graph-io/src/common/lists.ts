@@ -7,10 +7,7 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
-/**
- * The list syntaxes an importer or exporter names.
- * @category Plugin helpers
- */
+/** The list syntaxes an importer or exporter names. */
 export type ListSyntax = "gexf" | "brackets" | "pipe" | "comma" | "semicolon";
 
 /**
@@ -27,7 +24,6 @@ export type ListSyntax = "gexf" | "brackets" | "pipe" | "comma" | "semicolon";
  * @param text - the value text
  * @param syntax - the syntax
  * @returns the item texts
- * @category Plugin helpers
  */
 export function splitListText(text: string, syntax: ListSyntax): string[] {
     const trimmed = text.trim();
@@ -67,7 +63,6 @@ export function splitListText(text: string, syntax: ListSyntax): string[] {
  * @param items - the item texts
  * @param syntax - the syntax; "gexf" writes the 1.3 bracket form
  * @returns the list text
- * @category Plugin helpers
  */
 export function joinListText(items: readonly string[], syntax: ListSyntax): string {
     switch (syntax) {

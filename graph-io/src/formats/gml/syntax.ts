@@ -12,86 +12,46 @@
 
 import { SYNTAX_CODE } from "../../common/codes.js";
 import { decodeGmlString } from "../../common/escape.js";
-import { plural } from "../../common/plural.js";
 
-/**
- * A bare word: a key, or `INF` / `NAN` at a value position.
- * @category Plugin helpers
- */
+/** A bare word: a key, or `INF` / `NAN` at a value position. */
 export const TOKEN_WORD = 0;
-/**
- * An integer literal.
- * @category Plugin helpers
- */
+/** An integer literal. */
 export const TOKEN_INT = 1;
-/**
- * A real literal, including the non-finite spellings.
- * @category Plugin helpers
- */
+/** A real literal, including the non-finite spellings. */
 export const TOKEN_REAL = 2;
-/**
- * A double-quoted string; start / end delimit the body between the quotes.
- * @category Plugin helpers
- */
+/** A double-quoted string; start / end delimit the body between the quotes. */
 export const TOKEN_STRING = 3;
-/**
- * `[`.
- * @category Plugin helpers
- */
+/** `[`. */
 export const TOKEN_OPEN = 4;
-/**
- * `]`.
- * @category Plugin helpers
- */
+/** `]`. */
 export const TOKEN_CLOSE = 5;
 
 /** The kind of one token. */
 type TokenKind = 0 | 1 | 2 | 3 | 4 | 5;
 
-/**
- * The NetworkX marker that starts a one-element list written as repeated keys.
- * @category Plugin helpers
- */
+/** The NetworkX marker that starts a one-element list written as repeated keys. */
 export const LIST_START_MARKER = "_networkx_list_start";
 
-/**
- * The string NetworkX writes for an empty list.
- * @category Plugin helpers
- */
+/** The string NetworkX writes for an empty list. */
 export const EMPTY_LIST_TEXT = "[]";
 
-/**
- * The string NetworkX writes for an empty tuple, read as an empty list too.
- * @category Plugin helpers
- */
+/** The string NetworkX writes for an empty tuple, read as an empty list too. */
 export const EMPTY_TUPLE_TEXT = "()";
 
-/**
- * The node key the exporter writes a mangled node's original id into (design section 8.5).
- * @category Plugin helpers
- */
+/** The node key the exporter writes a mangled node's original id into (design section 8.5). */
 export const ORIGINAL_ID_KEY = "graphty_originalId";
 
 /**
- * The text breaks the format's syntax: a word that is not a key or a number, an unclosed string or `[`, a `]` with no
- * open `[`, or a key without a value. The message says where. The import stops.
- * @category Issue and loss codes
+ * Issue code of every grammar violation (shared with the other text formats; the message carries
+ * the detail): a bare token that is neither a key nor a number, an unclosed string, an unclosed
+ * `[`, a `]` with no open `[`, a value without a key or a key without a value.
  */
 export const SYNTAX_STRUCTURE_CODE = SYNTAX_CODE;
-/**
- * The code of an untokenizable bare token (E_SYNTAX).
- * @category Issue and loss codes
- */
+/** The code of an untokenisable bare token (E_SYNTAX). */
 export const SYNTAX_TOKEN_CODE = SYNTAX_CODE;
-/**
- * The code of an unclosed string (E_SYNTAX).
- * @category Issue and loss codes
- */
+/** The code of an unclosed string (E_SYNTAX). */
 export const SYNTAX_STRING_CODE = SYNTAX_CODE;
-/**
- * The code of an unclosed `[` (E_SYNTAX).
- * @category Issue and loss codes
- */
+/** The code of an unclosed `[` (E_SYNTAX). */
 export const SYNTAX_BRACKET_CODE = SYNTAX_CODE;
 
 const KEY_TEXT = /^[A-Za-z_][0-9A-Za-z_]*$/;
@@ -104,7 +64,6 @@ const NON_FINITE_WORD = /^(?:inf|infinity|nan)$/i;
 /**
  * A lexical or structural error of a GML text, with the 1-based line it was found on. The importer
  * turns it into a fatal parse-error issue.
- * @category Plugin helpers
  */
 export class GmlSyntaxError extends Error {
     /** The issue code. */
@@ -130,7 +89,6 @@ export class GmlSyntaxError extends Error {
 /**
  * The tokens of one GML text, structurally validated: every `[` has its matching `]` recorded and
  * every key is followed by a value, so walkers need no error paths.
- * @category Plugin helpers
  */
 export class GmlTokens {
     /** The source text the offsets index into. */
@@ -204,23 +162,12 @@ export class GmlTokens {
      * @returns the body with character references decoded
      */
     stringOf(i: number): string {
-        let text = this.textOf(i);
-        if (text.includes("\r")) {
-            // a line break inside a string is part of it, as LF whatever the file's line ends
-            text = text.replaceAll(/\r\n?/g, "\n");
-        }
+        const text = this.textOf(i);
         if (text.indexOf("&") < 0) {
             return text;
         }
         const report = this.onUnknownEntity;
-        return decodeGmlString(
-            text,
-            report === null
-                ? undefined
-                : (entity) => {
-                      report(entity, this.line[i]);
-                  },
-        );
+        return decodeGmlString(text, report === null ? undefined : (entity) => { report(entity, this.line[i]); });
     }
 
     /**
@@ -264,9 +211,8 @@ export class GmlTokens {
  * Lex and structurally validate a whole GML text.
  *
  * Lexical rules (NetworkX): whitespace separates tokens; `#` outside a string starts a comment
- * that runs to the end of the line; a string is delimited by double quotes and may span lines (a
- * line break inside is part of it, GML draft 3.2.5; there is no escape mechanism; `&#NN;`
- * references are decoded later); a U+FEFF between tokens is whitespace; `[` and `]` are
+ * that runs to the end of the line; a string is delimited by double quotes and must close on its
+ * line (there is no escape mechanism; `&#NN;` references are decoded later); `[` and `]` are
  * single-character tokens; every other run of characters is a key (`[A-Za-z_][0-9A-Za-z_]*`),
  * an integer (`[+-]?[0-9]+`), a real (with a decimal point or an exponent, or `INF` / `NAN` in
  * any case with an optional sign) or an error.
@@ -275,15 +221,12 @@ export class GmlTokens {
  * string, `INF` / `NAN`, or a bracketed sequence of pairs; every `[` has a `]`.
  * @param text - the GML text
  * @returns the validated tokens; GmlSyntaxError with the line of the first problem
- * @category Plugin helpers
  */
 export function tokenizeGml(text: string): GmlTokens {
     const tokens = new GmlTokens(text, Math.max(1024, text.length >>> 3));
     const n = text.length;
     let i = 0;
     let line = 1;
-    // the opening line of the first string that spans lines: where a missing quote most likely is
-    let spanningLine = 0;
     while (i < n) {
         const c = text.charCodeAt(i);
         if (c === 10) {
@@ -297,9 +240,6 @@ export function tokenizeGml(text: string): GmlTokens {
             }
         } else if (c === 32 || c === 9 || c === 11 || c === 12) {
             i++;
-        } else if (c === 0xfeff) {
-            // a BOM left inside by concatenated files is whitespace; the shared text check reports it
-            i++;
         } else if (c === 35) {
             i = endOfLine(text, i);
         } else if (c === 91) {
@@ -310,24 +250,11 @@ export function tokenizeGml(text: string): GmlTokens {
             i++;
         } else if (c === 34) {
             const close = text.indexOf('"', i + 1);
-            if (close < 0) {
-                const hint =
-                    spanningLine === 0
-                        ? ""
-                        : `; the string opened at line ${spanningLine} spans lines, so a quote may be missing there`;
-                throw new GmlSyntaxError(SYNTAX_STRING_CODE, `unclosed string opened at line ${line}${hint}`, line);
+            const eol = endOfLine(text, i + 1);
+            if (close < 0 || close > eol) {
+                throw new GmlSyntaxError(SYNTAX_STRING_CODE, `unclosed string at line ${line}`, line);
             }
             tokens.push(TOKEN_STRING, i + 1, close, line);
-            const opened = line;
-            for (let k = i + 1; k < close; k++) {
-                const d = text.codePointAt(k);
-                if (d === 10 || (d === 13 && text.codePointAt(k + 1) !== 10)) {
-                    line++;
-                }
-            }
-            if (line !== opened && spanningLine === 0) {
-                spanningLine = opened;
-            }
             i = close + 1;
         } else {
             let j = i + 1;
@@ -398,14 +325,8 @@ function classifyBare(text: string, start: number, end: number, line: number): T
     if (REAL_TEXT.test(token) || NON_FINITE_TEXT.test(token)) {
         return TOKEN_REAL;
     }
-    // the message is ASCII: a character outside it is shown as \uXXXX and named, since it may look
-    // like something else (a no-break space pasted from a web page looks like a space)
-    const hex = (c: string): string => (c.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
-    const head = token.length > 20 ? `${token.slice(0, 20)}...` : token;
-    const shown = head.replaceAll(/[^\x20-\x7e]/gu, (c) => String.raw`\u` + hex(c));
-    const odd = /[^\x21-\x7e]/u.exec(token);
-    const note = odd === null ? "" : ` (it holds U+${hex(odd[0])}, which GML allows only inside a string)`;
-    throw new GmlSyntaxError(SYNTAX_TOKEN_CODE, `cannot tokenize "${shown}" at line ${line}${note}`, line);
+    const shown = token.length > 20 ? `${token.slice(0, 20)}...` : token;
+    throw new GmlSyntaxError(SYNTAX_TOKEN_CODE, `cannot tokenize "${shown}" at line ${line}`, line);
 }
 
 /**
@@ -463,7 +384,7 @@ function validateStructure(tokens: GmlTokens): void {
         const open = stack[stack.length - 1];
         throw new GmlSyntaxError(
             SYNTAX_BRACKET_CODE,
-            `unexpected end of input: ${stack.length} bracket${plural(stack.length)} still open, the last opened at line ${tokens.line[open]}`,
+            `unexpected end of input: ${stack.length} bracket(s) still open, the last opened at line ${tokens.line[open]}`,
             tokens.line[open],
         );
     }
@@ -493,7 +414,6 @@ function describeToken(tokens: GmlTokens, i: number): string {
  * The numeric value of an INT or REAL token (or a WORD that is `INF` / `NAN` at a value position).
  * @param text - the token text
  * @returns the number; Infinity / -Infinity / NaN for the non-finite spellings
- * @category Plugin helpers
  */
 export function numberOfText(text: string): number {
     if (NON_FINITE_TEXT.test(text)) {
@@ -511,7 +431,6 @@ export function numberOfText(text: string): number {
  * @param tokens - the tokens
  * @param i - the value token index
  * @returns true when the word is a real
- * @category Plugin helpers
  */
 export function isNonFiniteWord(tokens: GmlTokens, i: number): boolean {
     return tokens.kind[i] === TOKEN_WORD && NON_FINITE_WORD.test(tokens.textOf(i));
@@ -522,7 +441,6 @@ export function isNonFiniteWord(tokens: GmlTokens, i: number): boolean {
  * writes and reads).
  * @param text - the candidate key
  * @returns true when it can be written as a key
- * @category Plugin helpers
  */
 export function isGmlKey(text: string): boolean {
     return STRICT_KEY_TEXT.test(text);
@@ -533,7 +451,6 @@ export function isGmlKey(text: string): boolean {
  * non-letter is prefixed with `x` (the exporter's `sanitizeKeys: "mangle"`).
  * @param text - the text
  * @returns a valid key
- * @category Plugin helpers
  */
 export function mangleGmlKey(text: string): string {
     const body = text.replace(/[^0-9A-Za-z_]/g, "_");
@@ -562,7 +479,6 @@ interface RecordFrame {
  * @param tokens - the validated tokens
  * @param open - the index of the record's `[`
  * @returns a null-prototype object
- * @category Plugin helpers
  */
 export function parseRecord(tokens: GmlTokens, open: number): Record<string, unknown> {
     const root = Object.create(null) as Record<string, unknown>;
@@ -631,7 +547,6 @@ function storeValue(frame: RecordFrame, key: string, value: unknown): void {
  * @param tokens - the tokens
  * @param v - the value token index (INT, REAL, non-finite WORD or OPEN)
  * @returns the value
- * @category Plugin helpers
  */
 export function scalarOrRecord(tokens: GmlTokens, v: number): unknown {
     return tokens.kind[v] === TOKEN_OPEN ? parseRecord(tokens, v) : numberOfText(tokens.textOf(v));

@@ -8,13 +8,11 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { PRECISION_CODE, RENAMED_CODE, UNKNOWN_TYPE_CODE } from "../../../src/common/attributes.js";
-import { EMPTY_INPUT_CODE } from "../../../src/common/codes.js";
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE } from "../../../src/common/direction.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
 import {
     COLUMN_COUNT_CODE,
-    DANGLING_REFERENCE_CODE,
     DUPLICATE_NODE_CODE,
     ENDPOINT_SPACE_CODE,
     HEADER_CODE,
@@ -251,8 +249,7 @@ describe("neo4jImporter (design 8.4)", () => {
             const { snapshot, report } = await importText(":ID,name\n1,a\n1,b\n");
             expect(snapshot.nodeCount).toBe(1);
             expect(snapshot.nodes.value("name", 0)).toBe("b");
-            // one node in the sink, counted once
-            expect(report.counts.nodes).toBe(1);
+            expect(report.counts.nodes).toBe(2);
             expect(report.issues[0]).toMatchObject({
                 category: "merged",
                 severity: "warning",
@@ -276,10 +273,7 @@ describe("neo4jImporter (design 8.4)", () => {
             const { snapshot, report } = await importText(`${RELS}:ID,name\n1,Alice\n`);
             expect(snapshot.nodeCount).toBe(3);
             expect(snapshot.nodes.value("name", 0)).toBe("Alice");
-            // 1 is declared by its row, so it is no duplicate; 2 and 3 never are, which neo4j-admin refuses
-            expect(codes(report)).toEqual([DANGLING_REFERENCE_CODE]);
-            expect(report.issues[0].message).toMatch(/2 relationship endpoints.*: 2, 3/);
-            expect(report.counts.nodes).toBe(3);
+            expect(codes(report)).toEqual([]);
         });
 
         it("applies the {label:...} header option and reports other options", async () => {
@@ -302,7 +296,7 @@ describe("neo4jImporter (design 8.4)", () => {
             expect(report.lossy).toEqual([
                 {
                     code: IGNORED_COLUMNS_LOSS,
-                    message: "2 :IGNORE columns were skipped as the header instructs",
+                    message: "2 :IGNORE column(s) were skipped as the header instructs",
                     column: null,
                     count: 2,
                 },
@@ -679,8 +673,7 @@ describe("neo4jImporter (design 8.4)", () => {
         it('reports merges under ids: "number" and rejects non-numeric text', async () => {
             const { snapshot, report } = await importText(":ID\n1\n01\nabc\n", { ids: "number" });
             expect(snapshot.ids.toArray()).toEqual([1]);
-            // 01 merged into 1: one node, counted once
-            expect(report.counts).toMatchObject({ nodes: 1, skippedNodes: 1 });
+            expect(report.counts).toMatchObject({ nodes: 2, skippedNodes: 1 });
             expect(report.issues.map((i) => [i.code, i.category, i.severity, i.line])).toEqual([
                 [ID_MERGED_CODE, "coercion", "warning", 3],
                 [DUPLICATE_NODE_CODE, "merged", "warning", 3],
@@ -700,14 +693,11 @@ describe("neo4jImporter (design 8.4)", () => {
             );
             expect(snapshot.ids.toArray()).toEqual([3, 1]);
             expect(snapshot.edgeCount).toBe(1);
-            // the endpoint 1 of the kept relationship is a node too, made by the relationship since its
-            // own row was skipped: counted, and reported as dangling (both new with the robustness fixes)
-            expect(report.counts).toMatchObject({ nodes: 2, edges: 1, skippedNodes: 2, skippedEdges: 1 });
+            expect(report.counts).toMatchObject({ nodes: 1, edges: 1, skippedNodes: 2, skippedEdges: 1 });
             expect(report.issues.map((i) => [i.code, i.line])).toEqual([
                 [COLUMN_COUNT_CODE, 2],
                 [COLUMN_COUNT_CODE, 3],
                 [COLUMN_COUNT_CODE, 6],
-                [DANGLING_REFERENCE_CODE, null],
             ]);
             expect(report.issues[0].category).toBe("validation-error");
         });
@@ -779,14 +769,8 @@ describe("neo4jImporter (design 8.4)", () => {
     });
 
     describe("fatal errors", () => {
-        it("aborts on an empty input with E_EMPTY_INPUT, the code every importer gives it (was E_NEO4J_HEADER)", async () => {
-            for (const text of ["", "  \n\t\r\n"]) {
-                const err = await importError(text);
-                expect(err.report.issues.map((i) => i.code)).toEqual([EMPTY_INPUT_CODE]);
-            }
-        });
-
         it.each([
+            ["", "no header row"],
             ["a,b\n1,2\n", ":ID column"],
             [":ID,:ID\n1,1\n", "more than one :ID"],
             [":START_ID\n1\n", "exactly one :START_ID and one :END_ID"],

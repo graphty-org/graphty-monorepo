@@ -223,6 +223,7 @@
         "@babylonjs/core": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@mlc-ai/web-llm": ">=0.2.0",
+        "@types/react": "*",
         "ai": "^5.0.104",
         "encrypt-storage": "^2.14.7",
         "lit": "^3.0.0"
@@ -241,6 +242,9 @@
             "optional": true
         },
         "@mlc-ai/web-llm": {
+            "optional": true
+        },
+        "@types/react": {
             "optional": true
         },
         "ai": {

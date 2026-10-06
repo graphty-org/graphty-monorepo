@@ -208,6 +208,10 @@ const config: KnipConfig = {
                 "@ai-sdk/openai",
                 "ai",
                 "encrypt-storage",
+                // The optional peer that types React's JSX namespace for the types-only ./jsx entry
+                // (jsx.ts imports "react", whose types it provides). A devDependency too, for the
+                // package's own type checks.
+                "@types/react",
                 // Copied into dist by vite.config.ts (`bundledDependencies`, and ngraph.random because
                 // nothing externalises it), so each is a devDependency that production source imports.
                 // Only `lint:knip:prod` would report them, as unlisted.

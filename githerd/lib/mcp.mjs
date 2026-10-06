@@ -436,7 +436,8 @@ export const TOOLS = [
             "output sets it, to the step's length (up to 180), so the watchdog does not interrupt it during the step. " +
             "capacity, optional, is how many further jobs this session can " +
             "take now: while it is above 0 (less the jobs you claim after answering), githerd invites this session to " +
-            "queued work even when it is not idle; 0 stops that until you answer again.",
+            "queued work even when it is not idle; 0 stops that until you answer again. Jobs that are only waiting " +
+            "to push or for CI do not use your capacity: count only jobs you are actively working when you answer capacity.",
         inputSchema: object(
             {
                 job: JOB,

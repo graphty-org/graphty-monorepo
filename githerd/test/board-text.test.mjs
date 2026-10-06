@@ -56,6 +56,28 @@ describe("renderBoard", () => {
         expect(text.split("\n").slice(1)).toEqual(["JOBS: none", "  invited 2 idle sessions at 11:42"]);
     });
 
+    it("shows a job whose branch is in the push queue as waiting to push, and one with CI running as waiting for CI", () => {
+        const job = (/** @type {string} */ id, /** @type {number} */ pr) => ({
+            ...newJob({ kind: "pr", target: `#${pr}`, id }, NOW),
+            state: "working",
+            holder: { session: "s1" },
+            pr,
+        });
+        const state = {
+            jobs: { "pr-1": job("pr-1", 1), "pr-2": job("pr-2", 2), "pr-3": job("pr-3", 3) },
+            prs: {
+                1: { headRef: "feat/a", required: {} },
+                2: { headRef: "feat/b", required: { "All Checks Pass": "PENDING" } },
+                3: { headRef: "feat/c", required: {} },
+            },
+            pushTickets: [{ branch: "feat/a", cwd: "/r/.worktrees/feat-a", session: "s1" }],
+        };
+        const lines = renderBoard(view(state), NOW, "jobs").split("\n");
+        expect(lines.find((l) => l.includes("pr-1 "))).toMatch(/pr-1 waiting to push /);
+        expect(lines.find((l) => l.includes("pr-2 "))).toMatch(/pr-2 waiting for CI /);
+        expect(lines.find((l) => l.includes("pr-3 "))).toMatch(/pr-3 working /);
+    });
+
     it("refuses an unknown section, and says nothing is waiting when nothing is", () => {
         expect(() => renderBoard(view({}), NOW, "weather")).toThrow(/unknown section weather/);
         const text = renderBoard(view({}), NOW);

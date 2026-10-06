@@ -118,7 +118,7 @@ let clock;
  * @type {{head: string, ci: any[], commits: any[], prs: any[], issues?: any[], comments?: any[], login?: string | null,
  *   events?: Record<string, any[]>, merged?: any[], release?: any[], annotations?: any[], gpu?: any[],
  *   jobs?: Record<string, any[]>, logs?: Record<string, string>, compare?: {filename: string, patch?: string}[],
- *   runAttempt?: number, run?: Record<string, unknown>}}
+ *   runAttempt?: number, run?: Record<string, unknown>, prCommits?: string[], compareCommits?: string[]}}
  */
 let scene;
 /** @type {ReturnType<typeof createFakeGh>} */
@@ -144,6 +144,17 @@ function writeConfig(overrides = {}) {
         ...overrides,
     };
     writeFileSync(configFile, JSON.stringify(config));
+}
+
+/**
+ * One page of commit messages as GitHub lists commits, by the path's `page` (100 per page).
+ * @param {string[]} messages every message
+ * @param {string} path the request path
+ * @returns {{commit: {message: string}}[]} the page
+ */
+function pageOf(messages, path) {
+    const page = Number(/[?&]page=(\d+)/.exec(path)?.[1] ?? 1);
+    return messages.slice((page - 1) * 100, page * 100).map((message) => ({ commit: { message } }));
 }
 
 /**
@@ -204,7 +215,7 @@ function respond({ args, input }) {
     const events = /\/issues\/(\d+)\/events\?/.exec(path);
     if (events) return ok(scene.events?.[events[1]] ?? []);
     if (path.includes("/issues?")) return ok(scene.issues ?? []);
-    if (/\/pulls\/\d+\/commits\?/.test(path)) return ok([{ commit: { message: "fix(x): a fix" } }]);
+    if (/\/pulls\/\d+\/commits\?/.test(path)) return ok(pageOf(scene.prCommits ?? ["fix(x): a fix"], path));
     if (/\/pulls\/\d+\/files\?/.test(path)) return ok([{ filename: "src/a.ts" }]);
     const log = /\/actions\/jobs\/(\d+)\/logs$/.exec(path);
     if (log)
@@ -220,7 +231,10 @@ function respond({ args, input }) {
         return httpOutput({ status: 201, body: { id: 5, url: "https://api.github.com/repos/o/r/issues/comments/5" } });
     }
     if (path === "repos/o/r/issues/comments/5") return ok({ id: 5 });
-    if (path.includes("/compare/")) return ok({ files: scene.compare ?? [] });
+    if (path.includes("/compare/")) {
+        const all = scene.compareCommits ?? [];
+        return ok({ files: scene.compare ?? [], commits: pageOf(all, path), total_commits: all.length });
+    }
     throw new Error(`unexpected gh call: ${args.join(" ")}`);
 }
 
@@ -1176,6 +1190,36 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
     });
 
+    it("reads a commit list GitHub cuts at 250 in full through compare, once per head, and judges it", async () => {
+        scene.prs = [gatedPr()];
+        scene.prCommits = Array.from({ length: 250 }, (_, i) => `fix(x): step ${i}`);
+        scene.compareCommits = [...scene.prCommits, ...Array.from({ length: 30 }, (_, i) => `fix(x): more ${i}`)];
+        const daemon = await start();
+        await poll(daemon);
+        const compares = () => gh.calls.map((c) => c.args[c.args.length - 1]).filter((p) => p.includes("/compare/"));
+        expect(compares()).toEqual([
+            "repos/o/r/compare/master..." + B + "?per_page=100&page=1",
+            "repos/o/r/compare/master..." + B + "?per_page=100&page=2",
+            "repos/o/r/compare/master..." + B + "?per_page=100&page=3",
+        ]);
+        expect(daemon.state.mergeGate.heads["7"]).toMatchObject({ commitsTruncated: false });
+        expect(daemon.state.mergeGate.heads["7"].commits).toHaveLength(280);
+        expect(daemon.state.prs["7"].breaking).toBe(false);
+        expect(daemon.state.prs["7"].mergeStatus.description).not.toContain("too long to read");
+
+        clock = new Date("2026-10-02T12:03:00Z");
+        await poll(daemon);
+        expect(compares()).toHaveLength(3);
+
+        // a breaking commit past the first 250 is found, on the next head
+        scene.compareCommits = [...scene.compareCommits, "feat(x)!: drop the old api"];
+        scene.prs[0].headRefOid = C;
+        clock = new Date("2026-10-02T12:06:00Z");
+        await poll(daemon);
+        expect(compares()).toHaveLength(6);
+        expect(daemon.state.prs["7"].breaking).toBe(true);
+    });
+
     it("posts githerd/merge on each open pull request's head, as would-dos in dry-run", async () => {
         scene.prs = [{ ...gatedPr(), id: "PR_7" }];
         const daemon = await start();
@@ -1452,6 +1496,25 @@ describe("the poll loop", () => {
         expect(gh.writes()).toEqual([]);
         const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.kind === "would-do");
         expect(wouldDo.filter((e) => e.group === "proposals")).toEqual([]);
+    });
+
+    it("ends an open stack-conflict owner item from older state at start: a conflict is a pr job", async () => {
+        let daemon = await start();
+        daemon.state.ownerItems = {
+            "stack-conflict:617": {
+                id: "stack-conflict:617",
+                kind: "conflict",
+                question: "#617 conflicts with its base #490 in a.ts; merge #490 into it by hand",
+                options: [],
+                target: "pr:617",
+                blocks: null,
+                raisedAt: clock.toISOString(),
+                updatedAt: clock.toISOString(),
+            },
+        };
+        await daemon.shutdown();
+        daemon = await start();
+        expect(daemon.state.ownerItems["stack-conflict:617"]).toMatchObject({ endedBy: "cleared" });
     });
 
     it("retargets a stacked child whose base merged, once, as a would-do in dry-run", async () => {

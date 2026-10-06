@@ -210,6 +210,20 @@ describe("syncJobs: pull requests", () => {
         expect(state.jobs["pr-10"].reason).toBe("conflicting with its base (GitHub: CONFLICTING)");
     });
 
+    it("makes a pr job, never an owner item, for a stacked pull request that conflicts with its base", () => {
+        const state = base();
+        failingPr(state, 617, { stackedOn: 490, required: {}, conflictSightings: 2, mergeable: "CONFLICTING" });
+        failingPr(state, 618, { stackedOn: 490 }); // failing, not conflicting: waits on its base
+        expect(sync(state).created).toEqual(["pr-617"]);
+        expect(state.jobs["pr-617"]).toMatchObject({
+            kind: "pr",
+            pr: 617,
+            branch: "fix/617",
+            reason: "conflicting with its base #490 (GitHub: CONFLICTING)",
+        });
+        expect(state.ownerItems).toBeUndefined();
+    });
+
     it("never makes a job from the release train's pull request, failing or conflicting", () => {
         const state = base();
         const train = { author: "github-actions", headRef: "release/train-1", title: "chore(release): publish" };

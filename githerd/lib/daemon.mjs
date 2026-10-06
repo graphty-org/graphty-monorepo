@@ -99,6 +99,7 @@ import {
 import { gateLocked, launcherContext, prepareUpdate, reapStaleGate, servherd, targetCode } from "./launcher.mjs";
 import { doneIo, pollVerifying } from "./done.mjs";
 import { classify, isNoLog } from "./classify.mjs";
+import { flakePoll, masterFlakeStep, noteMasterLog, readWorkspace } from "./flakes.mjs";
 import { createIncidentActions, laneNotProgressing } from "./incident-actions.mjs";
 import { failureKey, isSummaryJob, notePickups, queueAges } from "./lanes.mjs";
 import { createMcpServer, servedProtocols } from "./mcp.mjs";
@@ -653,6 +654,8 @@ export async function startDaemon({
     let configError = null;
     /** @type {any[]} the default branch's recent commits, head first; memory only */
     let commits = [];
+    /** The workspace packages and their dependencies, for flaky-test tracking (flakes.mjs). */
+    const workspace = readWorkspace(root);
     /** @type {string | null | undefined} `.mergify.yml` on the default branch; undefined until read */
     let mergify;
     let busy = false;
@@ -1160,10 +1163,24 @@ export async function startDaemon({
                     labels: j.labels,
                 };
                 let verdict = classify(failure, { where: "master" });
+                /** @type {string[]} */
+                let tests = [];
                 // Some causes are only in the log (a runner shutdown, a mirror outage), so a job that
-                // reads as unclassified is read once more with its log.
-                if (verdict.class === "unclassified")
-                    verdict = classify({ ...failure, log: await jobLog(j.id) }, { where: "master" });
+                // reads as unclassified is read once more with its log; its failing tests are recorded.
+                if (verdict.class === "unclassified") {
+                    const log = await jobLog(j.id);
+                    tests = noteMasterLog(state, workspace, log, {
+                        workflow,
+                        lane: name,
+                        runId: lane.runId,
+                        attempt: j.run_attempt ?? 1,
+                        job: j.name,
+                        jobId: j.id,
+                        sha: lane.sha,
+                        at: now().toISOString(),
+                    });
+                    verdict = classify({ ...failure, log }, { where: "master" });
+                }
                 refs.push({
                     id: j.id,
                     runId: lane.runId,
@@ -1172,6 +1189,7 @@ export async function startDaemon({
                     step: steps[0]?.name ?? "",
                     class: verdict.class,
                     reason: verdict.reason,
+                    tests,
                 });
             }
             Object.assign(lane, { redJobs: refs, classifiedFor: at });
@@ -1277,6 +1295,18 @@ export async function startDaemon({
                 rec.lane = name;
                 const verdict = state.master.lanes[name]?.verdicts?.[key]?.verdict ?? null;
                 if (settled(rec) || verdict === "environment") continue;
+                const flake = await masterFlakeStep({
+                    state,
+                    ws: workspace,
+                    github: github(),
+                    repo: config.repo,
+                    incident,
+                    lane: name,
+                    workflow,
+                    key,
+                    now: now().toISOString(),
+                    job,
+                });
                 const out = await actions.codeRed({
                     verdict,
                     key,
@@ -1287,6 +1317,8 @@ export async function startDaemon({
                     suspects: incident.suspects,
                     confirmed: rec.seen > 1,
                     excerpt: "",
+                    flake: flake !== null,
+                    flakeIssue: flake?.issue ?? null,
                 });
                 Object.assign(rec, { outcome: out.outcome }, "issue" in out ? { issue: out.issue } : {});
                 if ("revertPr" in out) rec.revertPr = out.revertPr;
@@ -1617,7 +1649,19 @@ export async function startDaemon({
         await track(m, previousGreen, iso);
         await incidentSteps();
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
-        if (pace.level === "normal") await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
+        if (pace.level === "normal") {
+            await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
+            await flakePoll({
+                state,
+                nodes: prList.repository.pullRequests.nodes,
+                ws: workspace,
+                config,
+                github: gh,
+                log: jobLog,
+                commits,
+                at: iso,
+            }).catch((err) => ledger({ kind: "error", where: "flakes", error: err.message }));
+        }
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         // The merge gate reads each githerd-made pull request's patch id (decision line 6).
         await linkJobPrs(branch, t);

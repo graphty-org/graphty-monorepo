@@ -43,6 +43,7 @@ const NOT_BUILT = /^(?:design|\.claude)\//;
  * @property {string | null} [log] its log text; null or absent when there is none
  * @property {string[]} [labels] its runner labels
  * @property {string[] | null} [files] the pull request's changed files; null or absent when unknown
+ * @property {string[]} [tests] the failing tests its log names (flakes.mjs `failingTests` ids)
  */
 
 /**
@@ -53,6 +54,7 @@ const NOT_BUILT = /^(?:design|\.claude)\//;
  *   last green commit (`othersWithKey`)
  * @property {boolean} [failsOnGreen] a local gate key that also fails on the green commit
  * @property {Iterable<string>} [intermittent] the keys named by open `intermittent` issues
+ * @property {Iterable<string>} [flakyTests] the tests named by open flaky-test issues (flakes.mjs)
  */
 
 /**
@@ -206,6 +208,9 @@ export function classify(f, ctx = {}) {
     if (ctx.failsOnGreen) return { class: "shared", key, reason: "the local gate key also fails on the green commit" };
     if (new Set(ctx.intermittent ?? []).has(key))
         return { class: "intermittent", key, reason: "an open intermittent issue names the key" };
+    const flaky = new Set(ctx.flakyTests ?? []);
+    if (f.tests?.length && f.tests.every((t) => flaky.has(t)))
+        return { class: "intermittent", key, reason: "an open flaky-test issue names every failing test" };
     return { class: "own", key, reason: "no other class matched" };
 }
 

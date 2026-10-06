@@ -365,7 +365,7 @@ export const TOOLS = [
         inputSchema: object({
             section: {
                 type: "string",
-                enum: ["all", "owner", "master", "release", "prs", "jobs", "sessions", "health"],
+                enum: ["all", "owner", "master", "release", "prs", "jobs", "sessions", "health", "flakes"],
                 default: "all",
             },
             pr: NUMBER,

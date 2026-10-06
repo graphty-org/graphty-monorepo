@@ -8,6 +8,7 @@
  */
 
 import * as board from "./board.mjs";
+import { flakeData, flakeLines } from "./flakes.mjs";
 import { GRACE_DAYS } from "./proposals.mjs";
 import { jobInUse, jobOrder, ownerWaitingPrs, prInUse, prOf } from "./queue.mjs";
 
@@ -16,7 +17,7 @@ const OWNER_KINDS = new Set(["decision", "credential", "visual-review", "approva
 
 /** The proposal states status lists. */
 const OPEN_PROPOSALS = new Set(["pending", "dry-run", "unconfirmed", "confirmed", "commenting", "commented"]);
-const SECTIONS = new Set(["all", "master", "prs", "queue", "sessions", "owner", "proposals", "issues"]);
+const SECTIONS = new Set(["all", "master", "prs", "queue", "sessions", "owner", "proposals", "issues", "flakes"]);
 
 /**
  * One request's view of the daemon.
@@ -196,6 +197,9 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
         out.prs = record ? [prData(String(pr), record, owned(record.author), true, inUse(String(pr)))] : [];
     }
     if (want("master")) out.master = masterData(state);
+    // The flaky tests githerd tracks (flakes.mjs); on the whole board only when there are any.
+    const flakes = flakeData(state);
+    if (want("flakes") && (flakes.length || section === "flakes")) out.flakes = flakes;
     if (want("prs")) {
         out.prs = Object.entries(state.prs ?? {})
             .sort(([a], [b]) => Number(a) - Number(b))
@@ -520,6 +524,7 @@ export function statusText(data, now) {
     if (data.master) lines.push(...masterLines(data.master, now));
     if (data.prs) lines.push(...prLines(data.prs));
     if (data.queue) lines.push(...queueLines(data.queue));
+    if (data.flakes) lines.push(...flakeLines(data.flakes));
     if (data.sessions) lines.push(sessionLine(data.sessions));
     if (data.owner) {
         const items = data.owner.map((e) => (OWNER_KINDS.has(e.kind) ? e.summary : `${e.kind}: ${e.summary}`));

@@ -155,7 +155,8 @@ export function prWork(number, rec, state) {
     const failing = failingRequired(rec);
     if (rec.ownerRejected) return "owner rejected images";
     if (rec.captureFailed?.length) return `visual capture failed: ${rec.captureFailed.join("; ")}`;
-    if (failing.length && !rec.ownerGate) return `required check failing: ${failing.join(", ")}`;
+    // A known flaky test is not the pull request's failure (flakes.mjs): the job says so.
+    if (failing.length && !rec.ownerGate) return rec.knownFlake ?? `required check failing: ${failing.join(", ")}`;
     return conflict;
 }
 

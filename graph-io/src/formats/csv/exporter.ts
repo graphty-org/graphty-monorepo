@@ -925,7 +925,7 @@ function neighbourCell(id: string, weight: string | null): string {
  */
 function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
     const { delimiter, newline } = plan.csv;
-    const forced = (text: string): string => `"${text.replace(/"/g, '""')}"`;
+    const forced = (text: string): string => `"${text.replaceAll('"', '""')}"`;
     // rows vary in width by design, so a bare cell holding any delimiter the importer sniffs for
     // (a space in "New York") can win the sniff over the real delimiter: such a cell is quoted
     const quote = (text: string): string =>

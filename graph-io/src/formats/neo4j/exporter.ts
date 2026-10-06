@@ -1374,7 +1374,7 @@ function formatPoint(value: unknown): string {
         if (typeof item === "number") {
             parts.push(`${key}:${formatF64(item)}`);
         } else if (typeof item === "string") {
-            parts.push(`${key}:'${item.replace(/'/g, "")}'`);
+            parts.push(`${key}:'${item.replaceAll("'", "")}'`);
         } else {
             return JSON.stringify(value) ?? "";
         }

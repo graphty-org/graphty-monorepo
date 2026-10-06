@@ -536,7 +536,7 @@ export function isGmlKey(text: string): boolean {
  * @category Plugin helpers
  */
 export function mangleGmlKey(text: string): string {
-    const body = text.replace(/[^0-9A-Za-z_]/g, "_");
+    const body = text.replaceAll(/\W/g, "_");
     return /^[A-Za-z]/.test(body) ? body : `x${body}`;
 }
 

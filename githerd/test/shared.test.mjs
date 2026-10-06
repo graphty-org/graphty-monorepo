@@ -154,6 +154,37 @@ describe("shared failures across pull requests", () => {
         expect(mark(state, { at: "2026-10-06T14:00:00Z" }).declared).toEqual([LINKS]);
     });
 
+    it("links as the fix an open pull request whose newest run passes the key after it became shared", () => {
+        const state = stateWith({ 8: rec(8, [LINKS]), 9: rec(9, [LINKS]), 10: rec(10, [LINKS]) });
+        const run = (/** @type {string} */ conclusion, /** @type {string} */ startedAt, id = 1) => ({
+            __typename: "CheckRun",
+            name: "Links",
+            status: "COMPLETED",
+            conclusion,
+            startedAt,
+            databaseId: id,
+            checkSuite: { workflowRun: { workflow: { name: "CI" } } },
+        });
+        const pr = (/** @type {any[]} */ runs) => ({
+            number: 20,
+            title: "ci: accept GitHub 5xx",
+            author: { login: "owner" },
+            commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: runs } } } }] },
+        });
+        // A pass from before the key was shared says nothing.
+        mark(state, { nodes: [pr([run("SUCCESS", "2026-10-06T11:00:00Z")])] });
+        expect(state.sharedFailures[LINKS].fix).toBeNull();
+        // Its newest run failing is no fix either.
+        const failed = [run("SUCCESS", "2026-10-06T12:01:00Z", 1), run("FAILURE", "2026-10-06T12:02:00Z", 2)];
+        mark(state, { nodes: [pr(failed)], at: "2026-10-06T12:03:00Z" });
+        expect(state.sharedFailures[LINKS].fix).toBeNull();
+        mark(state, { nodes: [pr([run("SUCCESS", "2026-10-06T12:05:00Z")])], at: "2026-10-06T12:06:00Z" });
+        expect(state.sharedFailures[LINKS].fix).toEqual({ pr: 20, why: "passes Links while 3 PRs fail it" });
+        syncJobs(state, { config: CONFIG, now: new Date(AT) });
+        expect(state.jobs).toEqual({});
+        expect(sharedLines(state)[0]).toContain("fix in #20 (passes Links while 3 PRs fail it)");
+    });
+
     it("ends when its linked fix merged", () => {
         const state = stateWith({ 8: rec(8, [LINKS]), 9: rec(9, [LINKS]), 10: rec(10, [LINKS]) });
         const fix = { number: 20, title: "fix: check links", author: { login: "owner" } };

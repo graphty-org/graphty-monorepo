@@ -24,7 +24,9 @@
 
 import { byOwner, TERMINAL } from "./board.mjs";
 import { isTestJob } from "./flakes.mjs";
+import { failureKey } from "./lanes.mjs";
 import { fixReason } from "./master-fix.mjs";
+import { newestContexts } from "./prs.mjs";
 
 /**
  * The job name a failure key names (`CI / Links / Check links` -> `Links`).
@@ -53,21 +55,49 @@ const sharedJob = (state, key) =>
     );
 
 /**
- * The open pull request that fixes a key, as master-fix.mjs links a red master's fix: by the
- * owner, naming the key in its description or its failing step in its title.
+ * The open pull request that fixes a key: by the owner, and either linked as master-fix.mjs links a
+ * red master's fix (naming the key in its description or its failing step in its title), or one
+ * whose newest run of the key's job passed, on a run started after the key became shared, while
+ * the other pull requests still fail it.
+ * ponytail: a fix whose run has not finished is not linked yet (the workflow's YAML would say which
+ * file the failing step runs); read it if a worker takes the job in that window.
  * @param {any} state the daemon state
  * @param {any[]} nodes the open pull requests
  * @param {string} key the key
+ * @param {any} r the key's record
  * @returns {{pr: number, why: string} | null} the fix
  */
-function findFix(state, nodes, key) {
+function findFix(state, nodes, key, r) {
     const facts = { keys: [{ key }], issues: new Set(), reported: new Set() };
-    for (const node of nodes) {
-        if (!byOwner(state, node.author?.login)) continue;
+    const mine = nodes.filter((node) => byOwner(state, node.author?.login));
+    for (const node of mine) {
         const why = fixReason(node, facts);
         if (why) return { pr: Number(node.number), why };
     }
-    return null;
+    const pass = mine.find((node) => !r.prs.includes(Number(node.number)) && passesSince(node, key, r.since));
+    const n = r.prs.length;
+    const why = `passes ${jobOf(key)} while ${n} PR${n === 1 ? " fails" : "s fail"} it`;
+    return pass ? { pr: Number(pass.number), why } : null;
+}
+
+/**
+ * Whether a pull request's newest run of a key's job passed and started at or after a time.
+ * @param {any} node the pull request
+ * @param {string} key the key
+ * @param {string} since when the key became shared
+ * @returns {boolean} true when it passed
+ */
+function passesSince(node, key, since) {
+    const [workflow] = key.split(" / ");
+    const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
+    return [...newestContexts(contexts).values()].some(
+        (c) =>
+            c.__typename === "CheckRun" &&
+            jobOf(failureKey(workflow, c.name)) === jobOf(key) &&
+            (c.checkSuite?.workflowRun?.workflow?.name ?? workflow) === workflow &&
+            c.conclusion === "SUCCESS" &&
+            String(c.startedAt ?? "") >= since,
+    );
 }
 
 /**
@@ -115,7 +145,7 @@ export function markShared(state, prs, nodes, { threshold, at }) {
             Object.assign(r, { shared: true, since: at });
             out.declared.push(key);
         }
-        r.fix = r.shared ? findFix(state, nodes, key) : null;
+        r.fix = r.shared ? findFix(state, nodes, key, r) : null;
         if (!r.shared && !r.prs.length && !Object.keys(r.settled).length) delete store[key];
     }
     for (const rec of Object.values(prs)) rec.shared = sharedWords(store, rec);

@@ -24,6 +24,16 @@ catalog:
     "@vitest/coverage-v8": 4.1.11
     "@vitest/ui": 4.1.11
 
+# Fixes to published packages, applied at install. Delete an entry once the catalog moves to a
+# release that has the fix (`pnpm install` then drops the patch).
+patchedDependencies:
+    # Vitest 4.1.11's browser mocker strips the project root from a mocked module's URL with a
+    # bare startsWith, so graphty's root (.../graphty) also eats the front of .../graphty-element
+    # and every vi.mock of @graphty/graphty-element in graphty's browser tests is silently
+    # ignored: the real element loads instead. Vitest 5 checks for the trailing slash; this is
+    # that fix (issue #493).
+    "@vitest/browser@4.1.11": patches/@vitest__browser@4.1.11.patch
+
 # Security floors for transitive packages that a parent in pnpm-lock.yaml pins to a vulnerable
 # version. Each line names the parent that holds it back; delete an entry once that parent moves
 # past the floor (remove it, `pnpm install`, then `pnpm audit --audit-level=moderate` and

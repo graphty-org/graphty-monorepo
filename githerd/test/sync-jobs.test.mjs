@@ -425,6 +425,30 @@ describe("syncJobs: issues", () => {
         expect(state.jobs["issue-3"].facts.order).toBe(0);
     });
 
+    it("offers a critical bug before a high enhancement, a low-effort bug before a high-effort one", () => {
+        const state = base();
+        issue(state, 40, ["enhancement", "priority:high", "effort:low"]);
+        issue(state, 125, ["bug", "priority:critical", "effort:high"]);
+        issue(state, 123, ["bug", "priority:critical", "effort:low"]);
+        expect(sync(state).created).toEqual(["issue-123"]);
+        expect(state.jobs["issue-123"].reason).toBe("front of the issue queue: critical bug, effort low");
+        move(state.jobs["issue-123"], "starting", NOW);
+        expect(sync(state).created).toEqual(["issue-125"]);
+        move(state.jobs["issue-125"], "starting", NOW);
+        expect(sync(state).created).toEqual(["issue-40"]);
+        expect(state.jobs["issue-40"].reason).toBe("front of the issue queue: high enhancement, effort low");
+    });
+
+    it("never offers an issue labeled needs-decision, whatever its priority", () => {
+        const state = base();
+        issue(state, 1, ["bug", "priority:critical", "effort:low", "needs-decision"]);
+        issue(state, 2, ["enhancement", "priority:low", "effort:high"]);
+        expect(sync(state).created).toEqual(["issue-2"]);
+        move(state.jobs["issue-2"], "starting", NOW);
+        expect(sync(state).created).toEqual([]);
+        expect(state.jobs["issue-1"]).toBeUndefined();
+    });
+
     it("leaves out an issue an open pull request works on, and cancels a queued one whose issue closed", () => {
         const state = base();
         issue(state, 1, LABELED);
@@ -474,7 +498,7 @@ describe("syncJobs: issues", () => {
         issue(state, 906, LABELED);
         state.merged.commitRefs = commitRefs("abc123456\tfix: other (#9060)", [906]);
         expect(sync(state).created).toEqual(["issue-906"]);
-        expect(state.jobs["issue-906"].reason).toBe("front of the issue queue");
+        expect(state.jobs["issue-906"].reason).toBe("front of the issue queue: high bug, effort low");
         expect(state.jobs["issue-906"].facts.references).toBeUndefined();
     });
 

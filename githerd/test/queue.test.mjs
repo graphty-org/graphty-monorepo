@@ -42,6 +42,29 @@ describe("jobOrder: the order of design 5.4", () => {
         ]);
     });
 
+    it("issues: a critical bug before a high enhancement, low effort before high, needs-decision never", () => {
+        const jobs = jobsOf(
+            { kind: "issue", target: "40", priority: "high", facts: { type: "enhancement", effort: "low" } },
+            { kind: "issue", target: "125", priority: "critical", facts: { bug: true, effort: "high" } },
+            { kind: "issue", target: "123", priority: "critical", facts: { bug: true, effort: "low" } },
+            { kind: "issue", target: "124", priority: "critical", facts: { bug: true, effort: "medium" } },
+            {
+                kind: "issue",
+                target: "7",
+                priority: "critical",
+                facts: { bug: true, effort: "low", labels: ["needs-decision"] },
+            },
+        );
+        const order = jobOrder(jobs);
+        expect(order.items).toEqual([
+            { job: "issue-123", reason: "critical bug, effort low" },
+            { job: "issue-124", reason: "critical bug, effort medium" },
+            { job: "issue-125", reason: "critical bug, effort high" },
+            { job: "issue-40", reason: "high enhancement, effort low" },
+        ]);
+        expect(order.skipped).toEqual([{ job: "issue-7", reason: "labelled needs-decision" }]);
+    });
+
     it("issues: open order, then priority, bug first, oldest; githerd:next first of all", () => {
         const jobs = jobsOf(
             { kind: "issue", target: "1", priority: "low", facts: { since: "2026-01-01" } },

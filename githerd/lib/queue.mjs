@@ -5,7 +5,7 @@
  * The facts: which of the owner's open pull requests need work and which wait on the owner, and
  * which of the owner's open issues are ready, unlabeled ones (to triage) apart from ranked ones.
  * Issues rank by priority (aged up one level per `backlog.agingDays` untouched, never above the
- * second level), then bugs first, then oldest. `githerd:next` moves an item to the front of its
+ * second level), then bugs first, then low effort before medium before high, then oldest. `githerd:next` moves an item to the front of its
  * kind and `githerd:skip` removes it, but only when the owner applied the label (`ownerLabels`,
  * checked by the daemon against the issue's events).
  *
@@ -23,6 +23,8 @@ const BREAKING = new Set(["breaking", "breaking-change", "breaking-hold"]);
 export const NEXT = "githerd:next";
 export const SKIP = "githerd:skip";
 const DEFAULT_AGING_DAYS = 60;
+/** Issue efforts, cheapest first: within a priority and type, cheap fixes go first. */
+const EFFORTS = ["low", "medium", "high"];
 const MINUTE = 60 * 1000;
 /** How long githerd waits for a session to answer that a failed pull request is its own. */
 const DEFAULT_ASK_MINUTES = 10;
@@ -170,12 +172,33 @@ export function ownerWaitingPrs(state, now) {
 }
 
 /**
- * An issue's rank: its priority after aging and whether it is a bug.
+ * An issue's effort label without its prefix ("low"), or null when it has none.
+ * @param {string[]} labels the issue's labels
+ * @param {any} config the normalized config
+ * @returns {string | null} the effort
+ */
+export function issueEffort(labels, config) {
+    const label = (config.labels?.efforts ?? []).find((/** @type {string} */ e) => labels.includes(e));
+    return label ? label.replace(/^[^:]*:/, "") : null;
+}
+
+/**
+ * The place of an effort in the order, cheapest first; an unknown or missing one last.
+ * @param {string | null | undefined} effort the effort without its prefix
+ * @returns {number} lower first
+ */
+function effortRank(effort) {
+    const i = EFFORTS.indexOf(effort ?? "");
+    return i === -1 ? EFFORTS.length : i;
+}
+
+/**
+ * An issue's rank: its priority after aging, whether it is a bug, and its effort.
  * @param {any} issue the issue record
  * @param {any} config the normalized config
  * @param {Date} now the current time
- * @returns {{priority: number, bug: boolean}} the rank; priority is an index into the configured
- *   priorities, lower first, -1 for none
+ * @returns {{priority: number, bug: boolean, effort: string | null}} the rank; priority is an index
+ *   into the configured priorities, lower first, -1 for none
  */
 function rankIssue(issue, config, now) {
     const labels = issue.labels ?? [];
@@ -185,17 +208,18 @@ function rankIssue(issue, config, now) {
     const untouched = Math.floor((now.getTime() - Date.parse(issue.updatedAt ?? now.toISOString())) / DAY);
     // Aging never lifts past the second level: only a person makes something critical.
     const priority = Math.max(base - Math.floor(untouched / agingDays), Math.min(base, 1));
-    return { priority, bug: labels.includes("bug") };
+    return { priority, bug: labels.includes("bug"), effort: issueEffort(labels, config) };
 }
 
 /**
  * The owner's open issues that are ready: those missing a label kind (to triage), oldest first, and labeled
  * ones in rank order (design 5.4): `githerd:next` first, then priority, bug before other types,
- * oldest. An issue an open pull request already works on is left out of the ranked list.
+ * low effort before high, oldest. An issue an open pull request already works on is left out of the ranked list.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
  * @param {Date} now the clock
- * @returns {{triage: number[], ranked: {number: number, priority: number, bug: boolean, next: boolean}[]}}
+ * @returns {{triage: number[], ranked: {number: number, priority: number, bug: boolean, effort: string | null,
+ *   next: boolean}[]}}
  *   the issue numbers
  */
 export function readyIssues(state, config, now) {
@@ -216,11 +240,12 @@ export function readyIssues(state, config, now) {
             Number(b.next) - Number(a.next) ||
             p(a.priority) - p(b.priority) ||
             Number(b.bug) - Number(a.bug) ||
+            effortRank(a.effort) - effortRank(b.effort) ||
             oldest(a, b),
     );
     return {
         triage: triage.map((t) => t.number),
-        ranked: ranked.map(({ number, priority, bug, next }) => ({ number, priority, bug, next })),
+        ranked: ranked.map(({ number, priority, bug, effort, next }) => ({ number, priority, bug, effort, next })),
     };
 }
 
@@ -470,9 +495,9 @@ function skipped(job, ctx) {
 
 /**
  * An issue job's place among issues: in an open order first, then priority, bug before other
- * types.
+ * types, then low effort before high.
  * @param {import("./board.mjs").Job} job the job
- * @returns {{order: number, priority: number, bug: number}} lower first
+ * @returns {{order: number, priority: number, bug: number, effort: number}} lower first
  */
 function issueRank(job) {
     const p = PRIORITIES.indexOf(job.priority ?? "");
@@ -480,15 +505,22 @@ function issueRank(job) {
         order: job.facts?.order ?? Infinity,
         priority: p === -1 ? PRIORITIES.length : p,
         bug: job.facts?.bug ? 0 : 1,
+        effort: effortRank(job.facts?.effort),
     };
 }
 
 /**
- * An issue job's type in words.
+ * The rule that places an issue job, in words: "critical bug, effort low".
+ * @param {string | null | undefined} priority the job's priority
  * @param {any} facts the job's facts
- * @returns {string} "bug" or "issue"
+ * @returns {string} the words
  */
-const issueType = (facts) => (facts.bug ? "bug" : "issue");
+export function issueRule(priority, facts) {
+    const type = facts.bug ? "bug" : (facts.type ?? "issue");
+    return [`${priority ?? "unprioritized"} ${type}`, facts.effort && `effort ${facts.effort}`]
+        .filter(Boolean)
+        .join(", ");
+}
 
 /**
  * The reason line for a queued job.
@@ -501,7 +533,7 @@ function jobReason(job, words) {
     const parts = [
         f.next && `${NEXT} (owner)`,
         job.kind === "issue" && Number.isFinite(f.order) && `in open order, position ${f.order + 1}`,
-        job.kind === "issue" ? `${job.priority ?? "unprioritized"} ${issueType(f)}` : words,
+        job.kind === "issue" ? issueRule(job.priority, f) : words,
         f.since && `${job.kind === "incident" ? "red" : "open"} since ${f.since}`,
     ];
     return parts.filter(Boolean).join(", ");
@@ -510,7 +542,7 @@ function jobReason(job, words) {
 /**
  * The queued jobs in the order of design 5.4, each with its one-line reason, and the queued jobs
  * skipped right now with why. Within a tier: the owner's `githerd:next` first, then for issues the
- * open order, priority and bug before other types, then oldest (`facts.since`: red since for an
+ * open order, priority, bug before other types and low effort before high, then oldest (`facts.since`: red since for an
  * incident, opened for a pull request or issue), then id.
  * A job whose pull request is in use (`prInUse`) is neither ordered nor skipped but listed apart.
  * @param {Record<string, import("./board.mjs").Job>} jobs the job records
@@ -540,6 +572,7 @@ export function jobOrder(jobs, ctx = {}) {
             ra.order - rb.order ||
             ra.priority - rb.priority ||
             ra.bug - rb.bug ||
+            ra.effort - rb.effort ||
             String(a.job.facts?.since ?? "~").localeCompare(String(b.job.facts?.since ?? "~")) ||
             a.job.id.localeCompare(b.job.id)
         );

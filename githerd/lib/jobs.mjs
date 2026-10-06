@@ -37,7 +37,7 @@
 
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
-import { missingLabelKinds, NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
+import { issueRule, missingLabelKinds, NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
 import { touches } from "./prs.mjs";
 import { slug } from "./worktrees.mjs";
 
@@ -528,6 +528,9 @@ function issueJobs(state, config, now, add, cancel) {
     if (!top) return;
     const issue = state.issues.byNumber[top.number];
     const label = priorities[top.priority];
+    const priority = label ? label.replace(/^[^:]*:/, "") : null;
+    const type = (config.labels?.types ?? []).find((/** @type {string} */ t) => (issue.labels ?? []).includes(t));
+    const ranking = { bug: top.bug, type: type ?? null, effort: top.effort };
     // A commit or merged pull request on master already names the issue: the worker verifies first.
     const references = [
         ...new Set([...(state.merged?.commitRefs?.[top.number] ?? []), ...(state.merged?.refs?.[top.number] ?? [])]),
@@ -536,12 +539,14 @@ function issueJobs(state, config, now, add, cancel) {
         id: `issue-${top.number}`,
         kind: "issue",
         target: `#${top.number}`,
-        priority: label ? label.replace(/^[^:]*:/, "") : null,
-        reason: references.length ? `referenced by ${references.join(", ")} on master` : "front of the issue queue",
+        priority,
+        reason: references.length
+            ? `referenced by ${references.join(", ")} on master`
+            : `front of the issue queue: ${issueRule(priority, ranking)}`,
         facts: {
             ...(references.length ? { references } : {}),
             since: issue.createdAt ?? null,
-            bug: top.bug,
+            ...ranking,
             labels: issue.labels ?? [],
             next: top.next,
             skip: false,

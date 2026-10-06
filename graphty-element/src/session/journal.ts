@@ -3,7 +3,8 @@
  *
  * Every command that changes the project and finishes writes one entry, whether it was
  * dispatched on its own or as a member of a batch or a transaction. A command that fails or is
- * cancelled writes nothing. Moving the camera and entering or leaving a headset session are not
+ * cancelled writes nothing; a batch or a transaction writes its members' entries when it
+ * records, and none when it rolls back. Moving the camera and entering or leaving a headset session are not
  * project changes and write nothing either. A run carries the id of the entry its command wrote.
  *
  * The journal is a record, not the undo history: undo reads `session.history`.

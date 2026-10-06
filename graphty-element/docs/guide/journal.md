@@ -43,7 +43,8 @@ const ops = session.journal.entries.map((each) => each.command.op); // ["data.ap
 - **Every command that finishes, and nothing that fails.** A command that is refused or cancelled
   writes no entry.
 - **Each member of a batch or a transaction is its own entry**, although undo takes them back as
-  one step.
+  one step. The entries are written, in order, when the batch or transaction finishes; one that
+  fails and is rolled back writes none.
 - **A gesture is one entry.** Dragging a filter slider through five values leaves one entry, the
   last value; changing a different filter starts a new one.
 - **Looking around is not recorded.** Moving the camera, entering or leaving VR or AR and starting

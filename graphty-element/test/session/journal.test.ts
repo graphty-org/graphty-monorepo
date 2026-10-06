@@ -75,6 +75,58 @@ describe("session.journal", () => {
         session.dispose();
     });
 
+    it("writes nothing for a transaction or a batch that rolls back after a member succeeded", async () => {
+        const { session } = notesHarness();
+        session.notes.add({ text: "kept", targets: [{ node: "a" }] });
+        const before = session.journal.entries;
+        let appended = 0;
+        session.on("journal:appended", () => appended++);
+        const missing = { op: "set.rename", id: "set_missing", name: "x" } as SessionCommand;
+
+        const transaction = await session
+            .transaction("Two notes", async (tx) => {
+                tx.notes.add({ text: "undone", targets: [{ node: "b" }] });
+                await tx.execute(missing);
+            })
+            .then(
+                () => null,
+                (error: unknown) => error,
+            );
+        const batch = await Promise.resolve(
+            session.execute({
+                op: "batch",
+                steps: [{ op: "note.add", note: { text: "undone too", targets: [{ node: "c" }] } }, missing],
+            }),
+        ).then(
+            () => null,
+            (error: unknown) => error,
+        );
+
+        assert.isTrue(isGraphtyError(transaction) && isGraphtyError(batch), "both rolled back");
+        assert.lengthOf(session.notes.list(), 1, "the first members were undone");
+        assert.strictEqual(session.journal.entries, before);
+        assert.strictEqual(appended, 0);
+        session.dispose();
+    });
+
+    it("writes a transaction's members, in order, when it records", async () => {
+        const { session } = notesHarness();
+        const heard: string[] = [];
+        session.on("journal:appended", ({ entry }) => heard.push(entry.command.op));
+        await session.transaction("Note and set", (tx) => {
+            tx.notes.add({ text: "one", targets: [{ node: "a" }] });
+            assert.deepEqual(heard, [], "nothing until the transaction records");
+            tx.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Core" });
+        });
+
+        assert.deepEqual(heard, ["note.add", "set.create"]);
+        assert.deepEqual(
+            session.journal.entries.map((entry) => entry.command.op),
+            heard,
+        );
+        session.dispose();
+    });
+
     it("writes one entry for each member of a batch", async () => {
         const { session } = notesHarness();
         await session.execute({

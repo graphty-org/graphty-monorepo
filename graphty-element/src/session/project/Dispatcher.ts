@@ -296,9 +296,10 @@ interface DispatcherEvents {
     dispatched?: (command: CommandLike) => void;
     /**
      * A command dispatched on its own, or as a member of a transaction or a batch, finished
-     * executing: called synchronously, before its promise resolves. Not called for a command
-     * that failed or was cancelled, for one a running command dispatched inline, or for an
-     * exempt one. The journal appends here.
+     * executing: called synchronously, before its promise resolves; a transaction's members
+     * are called, in order, when the transaction records, and never when it rolls back. Not
+     * called for a command that failed or was cancelled, for one a running command dispatched
+     * inline, or for an exempt one. The journal appends here.
      */
     executed?: (done: ExecutedCommand) => void;
     /**
@@ -564,6 +565,8 @@ interface Group {
     readonly compound: boolean;
     /** Work to start once it is recorded, by key; see `UndoableContext.after`. */
     readonly onSeal: Map<string, (dispatch: DispatchFunction) => void>;
+    /** A transaction's finished members, published to the journal when it records. */
+    readonly executed: ExecutedCommand[];
     /** Its before-arrangement, once a member that needs one has started; see `History.open`. */
     arrangement: OpenArrangement | null;
     /** The graph epoch when it took its before-arrangement. */
@@ -1906,15 +1909,20 @@ export class Dispatcher {
             this.baselineOpen = false;
         }
 
-        // ponytail: a transaction member is journaled as it finishes, so one that a later member's
-        // failure rolls back keeps its entry; journal at the transaction's seal if that matters.
         if (!job.inline) {
-            this.events.executed?.({
+            const done: ExecutedCommand = {
                 command: job.command,
                 value,
                 coalesceKey: job.definition.undo.coalesce?.(job.command) ?? null,
                 durationMs: this.clock() - job.startedAt,
-            });
+            };
+            // A transaction member is published when the transaction records, and never when it
+            // rolls back: what it did is undone then, so it did not happen.
+            if (group.tx === null) {
+                this.events.executed?.(done);
+            } else {
+                group.executed.push(done);
+            }
         }
 
         job.resolve(value);
@@ -1998,6 +2006,9 @@ export class Dispatcher {
         const runs = [...group.jobs];
         group.jobs.clear();
         const stepId = this.seal(group);
+        for (const done of group.executed.splice(0)) {
+            this.events.executed?.(done);
+        }
         for (const job of runs) {
             const deferred = this.group(
                 job.definition.undo.label(job.command, this.store.state),
@@ -2240,6 +2251,7 @@ export class Dispatcher {
             group.tx.status = "aborted";
         }
 
+        group.executed.length = 0;
         for (const job of [...group.jobs]) {
             this.stop(job, group.tx === null ? reason : cancelledError(job.command.op, why));
         }
@@ -2542,6 +2554,7 @@ export class Dispatcher {
             setup,
             compound,
             onSeal: new Map(),
+            executed: [],
             arrangement: null,
             epoch: 0,
         };

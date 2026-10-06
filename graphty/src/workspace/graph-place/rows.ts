@@ -7,6 +7,8 @@
 import type { LayerId, RunId } from "@graphty/graphty-element/catalog";
 import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 
+import { EVERYTHING_KEY } from "../style/row";
+
 /** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
 export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";
 
@@ -45,7 +47,8 @@ export interface PaintRow {
 /**
  * The paint tree's rows, top first: Selection; then the runs and the reader's own layers in paint
  * order, the topmost first, with a run that has no layer yet (queued, running, failed, or styled
- * off) above them, newest first; then Everything.
+ * off) above them, newest first; then Everything, whose paint includes the reader's Everything
+ * layer (the layer its Style tab writes), so that layer is not a row of its own.
  * @param session - the element's session.
  * @returns the rows.
  */
@@ -114,7 +117,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
     const placed = new Set<string>();
     for (const layer of [...layers].reverse()) {
         const { source } = layer;
-        if (source.by === "element") {
+        if (source.by === "element" || layer.userData?.[EVERYTHING_KEY] === true) {
             continue;
         }
         if (source.by === "run") {

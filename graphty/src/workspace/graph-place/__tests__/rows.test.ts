@@ -74,6 +74,22 @@ describe("paintRows", () => {
         assert.isUndefined(rows[0].count, "an empty selection shows no count");
     });
 
+    it("folds the reader's Everything layer into the Everything row, not a second row of that name", () => {
+        const mine = {
+            ...layer("everything-mine", { by: "user" }),
+            name: "Everything",
+            userData: { graphtyEverything: true },
+        };
+        const rows = paintRows(sessionOf({ layers: [...BASE, mine as Layer], runs: [] }));
+        assert.deepEqual(
+            rows.map((r) => [r.kind, r.name]),
+            [
+                ["selection-row", "Selection"],
+                ["everything-row", "Everything"],
+            ],
+        );
+    });
+
     it("orders rows top first in paint order, with a run that has no layer yet on top", () => {
         const session = sessionOf({
             layers: [

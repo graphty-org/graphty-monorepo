@@ -13,9 +13,14 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
+import { isolateGit } from "./isolated-git-env.mjs";
 import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
+
+// Every git process below (and in the scripts the hook tests run) runs without the developer's own
+// config: a commit there must never reach their signing key.
+isolateGit();
 
 const workflow = (name) => readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), "utf8");
 const job = (text, name) => {
@@ -558,11 +563,9 @@ describe("pr-status-broker", () => {
 describe("the commit and push hooks", () => {
     const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
     const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
-    // A throwaway repository, run without the GIT_* variables a hook inherits.
-    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
     const inRepo = (fn) => {
         const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
-        const git = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" });
+        const git = (...args) => spawnSync("git", args, { cwd: dir, encoding: "utf8" });
         try {
             git("init", "-q");
             fn(dir, git);
@@ -592,7 +595,7 @@ describe("the commit and push hooks", () => {
             writeFileSync(join(dir, "d.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
             git("add", ".");
             writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\nconst z = 3;\n");
-            const r = spawnSync(formatStaged, { cwd: dir, env, encoding: "utf8" });
+            const r = spawnSync(formatStaged, { cwd: dir, encoding: "utf8" });
             assert.equal(r.status, 0, r.stderr);
             assert.equal(staged(git, "a.ts"), "const x = { a: 1 };\n");
             assert.equal(readFileSync(join(dir, "a.ts"), "utf8"), "const x = { a: 1 };\n");
@@ -629,7 +632,7 @@ describe("the commit and push hooks", () => {
             writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
             git("add", ".");
             writeFileSync(join(dir, ".git/MERGE_HEAD"), "0".repeat(40) + "\n");
-            assert.equal(spawnSync(formatStaged, { cwd: dir, env }).status, 0);
+            assert.equal(spawnSync(formatStaged, { cwd: dir }).status, 0);
             assert.equal(staged(git, "a.ts"), "const  x = {a:1}\n");
         });
     });
@@ -656,5 +659,22 @@ describe("the commit and push hooks", () => {
         assert.equal(r.status, 1);
         assert.match(r.stdout, /stopped at the first failure: one/);
         assert.doesNotMatch(r.stdout, /SECOND/);
+    });
+});
+
+describe("tests that run git", () => {
+    it("run it with the developer's own git config isolated (tools/isolated-git-env.mjs)", () => {
+        const runsGit = /\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec|execa)\(\s*["'`]git\b/;
+        const isTest = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+        const root = new URL("..", import.meta.url).pathname;
+        const files = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).stdout.split("\0");
+        const bare = files
+            .filter((f) => isTest.test(f) && /\.[cm]?[jt]sx?$/.test(f))
+            .filter((f) => {
+                const text = readFileSync(join(root, f), "utf8");
+                return runsGit.test(text) && !/\b(isolateGit|isolatedGitEnv)\b/.test(text);
+            });
+        assert.deepEqual(bare, [], "these run git without isolateGit() or isolatedGitEnv()");
+        assert.match(readFileSync(join(root, "visual-review/vitest.config.mjs"), "utf8"), /isolate-git\.setup\.mjs/);
     });
 });

@@ -667,8 +667,10 @@ async function unlabel(item, others, remove) {
 /**
  * Ends open items the owner answered on GitHub: a comment by him after the item's post that is
  * not one of githerd's own (its text kept as the item's `answer`), or the `needs-decision` label
- * gone. A comment that says "not yet" keeps the item open with no new page (`deferItem`). Only items whose post was
- * performed are read; each read is a conditional GET, free when nothing changed. Every answer also
+ * gone. A comment that says "not yet" keeps the item open with no new page (`deferItem`). An item whose post was
+ * performed is read with a conditional GET, free when nothing changed. An item with no post of its
+ * own (the `owner-items` group did not act) is answered by his comment after the item was raised,
+ * read for all such items in one GraphQL query; its label is not read, since none was put on. Every answer also
  * counts as presence. A comment or a label removal a Claude session made with the owner's account
  * (`isSessionWrite`, session-writes.mjs) is not his answer: the comment is skipped, and the label
  * is put back.
@@ -680,16 +682,93 @@ async function unlabel(item, others, remove) {
 export async function readAnswers({ api, repo, state, login, now, isSessionWrite = () => false }) {
     const ended = [];
     const ctx = { api, state, login, now, isSessionWrite };
+    /** @type {OwnerItem[]} */
+    const unposted = [];
     for (const item of /** @type {OwnerItem[]} */ (Object.values(state.ownerItems ?? {}))) {
         const n = targetNumber(item.target);
-        if (item.endedAt || n === null || !item.github?.performed) continue;
+        if (item.endedAt || n === null) continue;
+        if (!item.github?.performed) {
+            unposted.push(item);
+            continue;
+        }
         try {
             if (await readItemAnswer(ctx, item, `repos/${repo}/issues/${n}`)) ended.push(item.id);
         } catch {
             // unknown is not an answer; the next poll reads again
         }
     }
+    if (unposted.length === 0) return ended;
+    try {
+        const byNumber = await targetComments(api, repo, unposted);
+        for (const item of unposted) {
+            const since = item.deferredAt ?? item.raisedAt;
+            const comments = byNumber.get(/** @type {number} */ (targetNumber(item.target))) ?? [];
+            if (commentAnswer(ctx, item, comments, since)) ended.push(item.id);
+        }
+    } catch {
+        // unknown is not an answer; the next poll reads again
+    }
     return ended;
+}
+
+/**
+ * The last 100 comments of each item's issue or pull request, in one GraphQL query, shaped like
+ * the REST comments `readItemAnswer` reads.
+ * @param {any} api the GitHub client
+ * @param {string} repo `owner/name`
+ * @param {OwnerItem[]} items items with a target
+ * @returns {Promise<Map<number, any[]>>} the comments by issue or pull request number
+ */
+async function targetComments(api, repo, items) {
+    const numbers = [...new Set(items.map((i) => /** @type {number} */ (targetNumber(i.target))))];
+    const fields = "comments(last: 100) { nodes { author { login } body createdAt } }";
+    const each = numbers.map(
+        (n) =>
+            `t${n}: issueOrPullRequest(number: ${n}) { ... on Issue { ${fields} } ... on PullRequest { ${fields} } }`,
+    );
+    const [owner, name] = repo.split("/");
+    const query = `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${each.join(" ")} } }`;
+    const data = await api.graphql(query, { owner, name });
+    return new Map(
+        numbers.map((n) => [
+            n,
+            (data?.repository?.[`t${n}`]?.comments?.nodes ?? []).map((/** @type {any} */ c) => ({
+                user: { login: c.author?.login },
+                created_at: c.createdAt,
+                body: c.body,
+            })),
+        ]),
+    );
+}
+
+/**
+ * Ends or defers an item on the owner's first answering comment after `since`: by his account,
+ * not one of githerd's own, and not a Claude session's write.
+ * @param {{state: any, login: string, now: Date,
+ *   isSessionWrite: (target: string, at: string) => boolean}} ctx what `readAnswers` was given
+ * @param {OwnerItem} item the item
+ * @param {any[]} comments the target's comments, REST-shaped
+ * @param {string} since ISO time after which a comment counts
+ * @returns {boolean | null} true when the item ended, false when deferred, null with no answer
+ */
+function commentAnswer({ state, login, now, isSessionWrite }, item, comments, since) {
+    const after = Date.parse(since);
+    const answer = comments.find(
+        (/** @type {any} */ c) =>
+            c.user?.login === login &&
+            Date.parse(c.created_at) > after &&
+            !String(c.body).includes("<!-- githerd") &&
+            !isSessionWrite(/** @type {string} */ (item.target), c.created_at),
+    );
+    if (!answer) return null;
+    notePresence(state, "github", answer.created_at);
+    if (isNotYet(String(answer.body))) {
+        deferItem(state, item.id, answer.created_at);
+        return false;
+    }
+    endItem(state, item.id, "comment", now);
+    item.answer = String(answer.body);
+    return true;
 }
 
 /**
@@ -703,23 +782,8 @@ export async function readAnswers({ api, repo, state, login, now, isSessionWrite
 async function readItemAnswer({ api, state, login, now, isSessionWrite }, item, base) {
     const since = item.deferredAt && item.deferredAt > item.github.at ? item.deferredAt : item.github.at;
     const comments = (await api.get(`${base}/comments?since=${since}&per_page=100`)).body ?? [];
-    const answer = comments.find(
-        (/** @type {any} */ c) =>
-            c.user?.login === login &&
-            c.created_at > since &&
-            !String(c.body).includes("<!-- githerd") &&
-            !isSessionWrite(/** @type {string} */ (item.target), c.created_at),
-    );
-    if (answer) {
-        notePresence(state, "github", answer.created_at);
-        if (isNotYet(String(answer.body))) {
-            deferItem(state, item.id, answer.created_at);
-            return false;
-        }
-        endItem(state, item.id, "comment", now);
-        item.answer = String(answer.body);
-        return true;
-    }
+    const said = commentAnswer({ state, login, now, isSessionWrite }, item, comments, since);
+    if (said !== null) return said;
     const labels = (await api.get(`${base}/labels`)).body ?? [];
     if (labels.some((/** @type {any} */ l) => l.name === LABEL)) return false;
     const target = /** @type {string} */ (item.target);

@@ -217,6 +217,45 @@ describe("answers", () => {
     });
 });
 
+describe("an answer to an item githerd never posted", () => {
+    it("the owner's later comment on the target ends the item and resumes the job", async () => {
+        const state = working();
+        askOwner(state, state.jobs["issue-737"], ASK, { session: "s1", now: at(0) });
+        const item = state.ownerItems["ask-issue-737"];
+        // dry-run: the post was only a would-do
+        item.github = { text: "x", performed: false, at: at(MIN).toISOString(), labeled: true };
+        /** @type {string[]} */
+        const queries = [];
+        const api = {
+            get: async () => {
+                throw new Error("no REST read for an unposted item");
+            },
+            graphql: async (/** @type {string} */ q) => {
+                queries.push(q);
+                const node = (/** @type {string} */ login, /** @type {number} */ ms, /** @type {string} */ body) => ({
+                    author: { login },
+                    createdAt: at(ms).toISOString(),
+                    body,
+                });
+                return {
+                    repository: {
+                        t737: { comments: { nodes: [node("me", -MIN, "old"), node("me", 2 * MIN, "option A")] } },
+                    },
+                };
+            },
+        };
+        expect(await readAnswers({ api, repo: "o/r", state, login: "me", now: at(3 * MIN) })).toEqual([
+            "ask-issue-737",
+        ]);
+        expect(queries).toHaveLength(1);
+        expect(item).toMatchObject({ endedBy: "comment", answer: "option A" });
+        expect(resumeAnswered(state, at(3 * MIN))[0].job).toBe("issue-737");
+        const job = state.jobs["issue-737"];
+        expect(job.state).toBe("working");
+        expect(job.news.at(-1).text).toBe("the owner answered ask-issue-737: option A");
+    });
+});
+
 /**
  * The newest prompt the owner typed into the calling session.
  * @param {number} ms when, after T0

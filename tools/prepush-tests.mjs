@@ -16,19 +16,23 @@
  * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
  * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
  * browser run at once. Two things CI's separate runners give each shard are reproduced here:
- *  - The numbered shards of one family (graphty-element-browser-1 to -5) share their projects' Vite
- *    dependency cache (node_modules/.vite/vitest/<hash>). On a cold or stale cache each vitest
- *    optimizes and swaps that directory in under the others: four browser shards started together
- *    failed with deps chunks that "point to missing source files". So one shard of each family runs
- *    alone and fills the cache (the one with the shortest command: browser-1 also runs the
- *    benchmarks), and its siblings start once it passed.
+ *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
+ *    one per vitest project, plus Storybook's sb-vitest cache and the root project's). On a cold or
+ *    stale cache each vitest optimizes and swaps a cache directory in under the others: four browser
+ *    shards started together failed with deps chunks that "point to missing source files". So in each
+ *    package one shard of each family (graphty-element-browser-1 to -5 is one family) fills the
+ *    caches first, one at a time with nothing else of that package running -- the one with the
+ *    shortest command: browser-1 also runs the benchmarks -- and the rest of the package starts once
+ *    all of its warm-ups passed. Per package rather than per family, because the families of one
+ *    package are not shown never to share a cache (the root project's is used by every one).
  *  - The packages that run several shards with --coverage (graphty-element, algorithms) write each
  *    shard's report to .coverage-parts/<shard> (COVERAGE_DIR), not into one coverage/ directory each
  *    run would empty under the others. In both packages COVERAGE_DIR otherwise only switches off
  *    thresholds that a --project run already switches off.
  * Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
- * prints the end of its log. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m) fails.
+ * prints the end of its log. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
+ * its wait for a browser slot) fails; tools/prepush.sh bounds the whole stage, waits included.
  */
 
 import { spawn, execFileSync } from "node:child_process";
@@ -66,6 +70,30 @@ export function shardEnv(shard) {
 // graphty-element-browser-3 -> graphty-element-browser; a shard without a number is its own family.
 const family = (shard) => shard.shard.replace(/-\d+$/, "");
 
+/**
+ * The order shards may start in, as a predicate over the current state: in each package its family
+ * warm-ups (the shortest command of each family) run one at a time with nothing else of the package
+ * running, and every other shard of the package waits until all of them passed.
+ * @param shards the shards of this run
+ * @returns `canStart(shard, runningShards, warmedFamilies)`
+ */
+export function startRule(shards) {
+    const warmup = new Map();
+    for (const s of shards) {
+        const w = warmup.get(family(s));
+        if (!w || s["test-command"].length < w["test-command"].length) {
+            warmup.set(family(s), s);
+        }
+    }
+    const families = (pkg) => [...new Set(shards.filter((s) => s.package === pkg).map(family))];
+    return (shard, running, warmed) => {
+        if (families(shard.package).every((f) => warmed.has(f))) {
+            return true;
+        }
+        return warmup.get(family(shard)) === shard && !running.some((s) => s.package === shard.package);
+    };
+}
+
 function main() {
     const [affectedArg] = process.argv.slice(2);
     if (affectedArg === undefined) {
@@ -88,14 +116,7 @@ function main() {
 
     const running = new Map();
     const warmed = new Set();
-    // The shard that fills each family's cache: the shortest command, the first of equals.
-    const warmup = new Map();
-    for (const s of shards) {
-        const w = warmup.get(family(s));
-        if (!w || s["test-command"].length < w["test-command"].length) {
-            warmup.set(family(s), s);
-        }
-    }
+    const canStart = startRule(shards);
     const waiting = [...shards];
     let failed = null;
     const started = Date.now();
@@ -173,14 +194,13 @@ function main() {
         process.exit(0);
     };
 
-    // Every waiting shard starts (browser ones then queue on the shared gate), except a sibling of a
-    // family whose warm-up shard has not passed yet, and a third shard without a browser.
+    // Every waiting shard starts (browser ones then queue on the shared gate), except one startRule
+    // holds back until its package's caches are warm, and a third shard without a browser.
     const next = () => {
         for (const shard of [...waiting]) {
             const now = [...running.keys()].map((n) => SHARDS.find((s) => s.shard === n));
-            const coldSibling = !warmed.has(family(shard)) && warmup.get(family(shard)) !== shard;
             const nodeLane = now.filter((s) => !s["needs-browser"]).length;
-            if (coldSibling || (!shard["needs-browser"] && nodeLane >= 2)) {
+            if (!canStart(shard, now, warmed) || (!shard["needs-browser"] && nodeLane >= 2)) {
                 continue;
             }
             waiting.splice(waiting.indexOf(shard), 1);

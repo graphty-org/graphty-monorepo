@@ -5,12 +5,16 @@
 #
 # Usage:
 #   ./tools/visual-preview.sh <pull request number>
-#   ./tools/visual-preview.sh --head <commit>   (tools/prepush.sh, before a push)
+#   ./tools/visual-preview.sh --head <commit>      (tools/prepush.sh, before a push)
+#   ./tools/visual-preview.sh --promote <commit>   (tools/prepush.sh, once every check passed)
+#   ./tools/visual-preview.sh --discard <commit>   (tools/prepush.sh, when the push was refused)
 #
-# --head builds what CI WILL build once the commit is pushed: the commit merged into this checkout's
-# origin/master, made here (git merge-tree) instead of fetched from GitHub. The preview goes under the
-# open pull request of the current branch when it has one (tmp/pr-status/status.json, else one gh
-# call), so the review page offers it as soon as the push lands; without one it goes under
+# --head builds what CI WILL build once the commit is pushed: the commit merged into origin/master,
+# fetched first, made here (git merge-tree) instead of fetched from GitHub. The capture is staged in
+# local/.pending-<commit>, which the review page never reads; --promote moves it to the open pull
+# request of the current branch when it has one (tmp/pr-status/status.json, else one gh call), so the
+# review page offers it as soon as the push lands, and --discard deletes it. Staging keeps a refused
+# push from replacing the preview of the head already on GitHub. Without a pull request it goes under
 # local/branch-<branch> and only checks that every story captures. A merge conflict with origin/master
 # skips the capture (CI cannot build that pull request either).
 #
@@ -40,8 +44,12 @@ WORK="$(jq -r '.workDir // "tmp/visual-review"' "$HERE/visual-review.config.json
 ROOT="$MAIN/$WORK/local"
 WT="$MAIN/.worktrees/visual-preview"
 
-if [[ "${1:-}" == "--head" ]]; then
-    HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh --head <commit>"
+MODE="pr"
+case "${1:-}" in
+    --head | --promote | --discard) MODE="${1#--}" ;;
+esac
+if [[ "$MODE" != "pr" ]]; then
+    HEAD="$(git -C "$HERE" rev-parse --verify "${2:-}^{commit}")" || die "usage: visual-preview.sh $1 <commit>"
     BRANCH="$(git -C "$HERE" symbolic-ref --short -q HEAD || true)"
     PR=""
     if [[ -n "$BRANCH" ]]; then
@@ -51,17 +59,33 @@ if [[ "${1:-}" == "--head" ]]; then
     fi
     KEY="${PR:-branch-${BRANCH//\//-}}"
     [[ "$KEY" != "branch-" ]] || KEY="commit-${HEAD:0:10}"
+    STAGED="$ROOT/.pending-$HEAD"
+    case "$MODE" in
+        promote)
+            [[ -d "$STAGED" ]] || exit 0
+            rm -rf "${ROOT:?}/$KEY.old"
+            [[ ! -e "$ROOT/$KEY" ]] || mv "$ROOT/$KEY" "$ROOT/$KEY.old"
+            mv "$STAGED" "$ROOT/$KEY"
+            rm -rf "${ROOT:?}/$KEY.old"
+            echo "visual-preview: ${HEAD:0:10} is now the preview $ROOT/$KEY"
+            exit 0
+            ;;
+        discard)
+            rm -rf "$STAGED"
+            exit 0
+            ;;
+    esac
 else
     PR="${1:-}"
     [[ "$PR" =~ ^[1-9][0-9]*$ ]] || die "usage: visual-preview.sh <pull request number> | --head <commit>"
     KEY="$PR"
 fi
-OUT="$ROOT/$KEY"
+OUT="${STAGED:-$ROOT/$KEY}"
 mkdir -p "$OUT"
 LOG="$OUT/log.txt"
 
 # The pull request: same repository, open, and its head.
-if [[ -z "${BRANCH+set}" ]]; then
+if [[ "$MODE" == "pr" ]]; then
     read -r STATE HEAD_REPO BASE_REPO HEAD < <(gh api "repos/{owner}/{repo}/pulls/$PR" \
         --jq '[.state, (.head.repo.full_name // "deleted"), .base.repo.full_name, .head.sha] | @tsv')
     [[ "$STATE" == "open" ]] || die "#$PR is $STATE, not open"
@@ -89,17 +113,25 @@ flock 9
 : > "$LOG"
 echo "visual-preview: $KEY at ${HEAD:0:10} (log: $LOG)"
 
-if [[ -n "${BRANCH+set}" ]]; then
-    # The merge commit CI will build: origin/master's tree merged with the head, as GitHub makes
-    # refs/pull/<n>/merge (first parent the base, second the head).
+if [[ "$MODE" == "head" ]]; then
+    # The merge commit CI will build: the current master's tree merged with the head, as GitHub makes
+    # refs/pull/<n>/merge (first parent the base, second the head). Fetched first: the last fetch may
+    # be days old, and a preview of an old master is not what CI captures.
+    STEP="fetching origin/master"
+    status running
+    git -C "$MAIN" fetch -q origin master >> "$LOG" 2>&1 || die "cannot fetch origin/master"
     STEP="merging ${HEAD:0:10} into origin/master"
     status running
-    if ! TREE="$(git -C "$MAIN" merge-tree --write-tree origin/master "$HEAD" 2>> "$LOG")"; then
+    # Exit 1 is a conflict; anything else (a missing ref, an unreadable object) is an error, never a pass.
+    RC=0
+    TREE="$(git -C "$MAIN" merge-tree --write-tree origin/master "$HEAD" 2>> "$LOG")" || RC=$?
+    if [[ $RC -eq 1 ]]; then
         STEP="nothing captured: ${HEAD:0:10} conflicts with origin/master (merge it first)"
         status done
         echo "visual-preview: $STEP"
         exit 0
     fi
+    [[ $RC -eq 0 ]] || die "git merge-tree failed (exit $RC)"
     MERGE="$(git -C "$MAIN" commit-tree "$TREE" -p origin/master -p "$HEAD" -m "visual preview: ${HEAD:0:10} into origin/master" 2>> "$LOG")"
 else
     STEP="fetching refs/pull/$PR/merge"
@@ -192,7 +224,7 @@ $BAD"; }
 done
 
 # The server shows only a preview of the current head; say so when the branch moved meanwhile.
-if [[ -z "${BRANCH+set}" ]] && NOW="$(gh api "repos/{owner}/{repo}/pulls/$PR" --jq .head.sha)" && [[ "$NOW" != "$HEAD" ]]; then
+if [[ "$MODE" == "pr" ]] && NOW="$(gh api "repos/{owner}/{repo}/pulls/$PR" --jq .head.sha)" && [[ "$NOW" != "$HEAD" ]]; then
     STEP="the branch moved to ${NOW:0:10} while this captured ${HEAD:0:10}"
     status stale "${PROJECTS[@]}"
     echo "visual-preview: #$PR moved on while capturing; run it again for ${NOW:0:10}"

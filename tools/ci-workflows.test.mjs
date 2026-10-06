@@ -1,16 +1,28 @@
 // Tests of the CI shape: the test matrix's shard groups (tools/ci-test-matrix.mjs), the parts of
 // ci.yml and pr-title.yml that decide what a draft, a pull request and a merge-queue run do, the
 // release train (release.yml, tools/release-diff.mjs, deploy-pages.yml, .mergify.yml's release
-// rule), and the record tools/pr-status-broker.mjs writes for agents.
+// rule), the record tools/pr-status-broker.mjs writes for agents, and the local commit and push hooks
+// (.husky/pre-commit, tools/format-staged.sh, tools/prepush.sh).
 //
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
-import { localShards, shardEnv } from "./prepush-tests.mjs";
+import { localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { decide, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -100,7 +112,10 @@ describe("the pre-push gate matches CI", () => {
     it("tests through tools/prepush-tests.mjs only, on CI's affected set", () => {
         const prepush = code(tool("prepush.sh"));
         assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
-        assert.match(prepush, /run_step "[^"]+" "node tools\/prepush-tests.mjs '\$PROJECTS'"/);
+        assert.match(
+            prepush,
+            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' node tools\/prepush-tests.mjs '\$PROJECTS'"/,
+        );
         // No test command of its own, which could drift from CI's.
         assert.doesNotMatch(prepush, /vitest|test:run|test:prepush|nx run-many -t test|:coverage/);
         const ci = workflow("ci.yml");
@@ -123,13 +138,178 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
-    it("captures the screenshots and fails only on a failed capture", () => {
+    it("warms each package's caches one family at a time before the rest of the package starts", () => {
+        const shards = localShards(["graphty-element", "layout"]);
+        const pick = (n) => shards.find((s) => s.shard === n);
+        const canStart = startRule(shards);
+        const startable = (running, warmed) =>
+            shards.filter((s) => !running.includes(s) && canStart(s, running, new Set(warmed))).map((s) => s.shard);
+        // Cold: one warm-up per package (the shortest command of a family), and nothing else.
+        assert.deepEqual(startable([], []).sort(), [
+            "graphty-element-browser-2",
+            "graphty-element-default",
+            "graphty-element-storybook-1",
+            "layout",
+        ]);
+        // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
+        assert.deepEqual(startable([pick("graphty-element-browser-2")], []), ["layout"]);
+        // A warmed family's siblings still wait for the package's other families.
+        const afterBrowser = startable([], ["graphty-element-browser"]);
+        assert.ok(!afterBrowser.includes("graphty-element-browser-3"));
+        assert.ok(afterBrowser.includes("graphty-element-storybook-1"));
+        const all = ["graphty-element-browser", "graphty-element-storybook", "graphty-element-default"];
+        assert.equal(startable([pick("graphty-element-browser-1")], all).length, shards.length - 1);
+    });
+
+    it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
         const prepush = code(tool("prepush.sh"));
-        assert.match(prepush, /setsid \.\/tools\/visual-preview.sh --head HEAD /);
+        assert.match(
+            prepush,
+            /setsid timeout --kill-after=30s "\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" \.\/tools\/visual-preview.sh --head "\$PUSH_HEAD" /,
+        );
         assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
-        const preview = code(tool("visual-preview.sh"));
-        assert.match(preview, /merge-tree --write-tree origin\/master "\$HEAD"/);
-        assert.match(preview, /select\(.status == "failed"\)/);
+        assert.match(
+            prepush,
+            /\.\/tools\/visual-preview.sh --promote "\$PUSH_HEAD" && SCREENSHOTS_STAGED=0\n\s+echo -e "\$\{GREEN\}All pre-push checks passed/,
+        );
+        // The EXIT trap, run for real: a failed step exits; the capture's process group dies and its
+        // staged preview is discarded.
+        const fn = prepush.slice(
+            prepush.indexOf("cleanup() {"),
+            prepush.indexOf("\n}\n", prepush.indexOf("cleanup() {")) + 3,
+        );
+        const dir = mkdtempSync(join(tmpdir(), "prepush-trap-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            writeFileSync(join(dir, "tools/visual-preview.sh"), `#!/bin/sh\necho "$@" > ${dir}/called\n`, {
+                mode: 0o755,
+            });
+            const script = `cd ${dir}\nSONAR_PGID=""\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid sleep 300 &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
+            const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20_000 });
+            assert.equal(r.status, 1);
+            const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
+            assert.throws(() => process.kill(pid, 0), "the capture's process group was killed");
+            assert.equal(readFileSync(join(dir, "called"), "utf8"), "--discard abc\n");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    describe("tools/visual-preview.sh --head, against a throwaway repository", () => {
+        const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+        // Stubs for everything outside git: gh finds no pull request; pnpm installs nothing and says
+        // project p is affected; node's capture writes a results.json with the story status asked for;
+        // git passes through, except `lfs` and a forced merge-tree exit code.
+        const STUBS = {
+            gh: "#!/bin/sh\nexit 0\n",
+            pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
+            node: `#!/bin/bash
+if [ "$2" = capture ]; then
+    while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
+    mkdir -p "$out"
+    printf '{"complete":true,"items":[{"file":"s.png","status":"%s","reason":"r"}]}' "$STUB_STATUS" > "$out/results.json"
+fi
+`,
+            git: `#!/bin/bash
+case " $* " in
+    *" lfs "*) exit 0 ;;
+    *" merge-tree "*) [ -n "$STUB_MERGE_TREE_RC" ] && exit "$STUB_MERGE_TREE_RC" ;;
+esac
+exec ${realGit} "$@"
+`,
+        };
+        const sandbox = (fn) => {
+            const t = mkdtempSync(join(tmpdir(), "visual-preview-"));
+            const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+            Object.assign(env, {
+                PATH: `${t}/bin:${process.env.PATH}`,
+                GIT_CONFIG_GLOBAL: "/dev/null",
+                GIT_AUTHOR_NAME: "t",
+                GIT_AUTHOR_EMAIL: "t@t",
+                GIT_COMMITTER_NAME: "t",
+                GIT_COMMITTER_EMAIL: "t@t",
+            });
+            const main = join(t, "main");
+            const git = (...a) => {
+                const r = spawnSync(realGit, a, { cwd: main, env, encoding: "utf8" });
+                assert.equal(r.status, 0, r.stderr);
+                return r.stdout.trim();
+            };
+            try {
+                mkdirSync(join(t, "bin"));
+                for (const [name, body] of Object.entries(STUBS)) {
+                    writeFileSync(join(t, "bin", name), body, { mode: 0o755 });
+                }
+                spawnSync(realGit, ["init", "-q", "--bare", "-b", "master", join(t, "origin.git")], { env });
+                mkdirSync(join(main, "tools"), { recursive: true });
+                mkdirSync(join(main, "visual-review/capture"), { recursive: true });
+                mkdirSync(join(main, "visual-review/trusted"), { recursive: true });
+                copyFileSync(new URL("visual-preview.sh", import.meta.url), join(main, "tools/visual-preview.sh"));
+                writeFileSync(join(main, "visual-review.config.json"), '{"projects":{"p":{"build":"true"}}}\n');
+                writeFileSync(join(main, "visual-review/capture/c"), "c\n");
+                writeFileSync(join(main, "visual-review/trusted/t"), "t\n");
+                writeFileSync(join(main, ".gitignore"), ".env\ntmp/\n.worktrees/\n");
+                writeFileSync(join(main, ".env"), "");
+                git("init", "-q", "-b", "master");
+                git("add", ".");
+                git("commit", "-qm", "base", "--no-verify");
+                git("remote", "add", "origin", join(t, "origin.git"));
+                git("push", "-q", "origin", "master");
+                git("checkout", "-qb", "feat");
+                writeFileSync(join(main, "b.txt"), "b\n");
+                git("add", "b.txt");
+                git("commit", "-qm", "feat", "--no-verify");
+                const head = git("rev-parse", "HEAD");
+                const run = (extra, ...args) =>
+                    spawnSync("bash", [join(main, "tools/visual-preview.sh"), ...args], {
+                        cwd: main,
+                        env: { ...env, ...extra },
+                        encoding: "utf8",
+                        timeout: 60_000,
+                    });
+                fn({ run, head, local: join(main, "tmp/visual-review/local") });
+            } finally {
+                rmSync(t, { recursive: true, force: true });
+            }
+        };
+
+        it("stages a capture with changed images, passes, and promotes or discards it on request", () => {
+            sandbox(({ run, head, local }) => {
+                // An exported BRANCH (common in CI and agent shells) must not change the mode.
+                const r = run({ STUB_STATUS: "changed", BRANCH: "something" }, "--head", head);
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                assert.ok(existsSync(join(local, `.pending-${head}/p/results.json`)), "staged under the commit");
+                assert.ok(!existsSync(join(local, "branch-feat")), "nothing promoted before the push passed");
+                assert.equal(run({}, "--promote", head).status, 0);
+                assert.ok(existsSync(join(local, "branch-feat/p/results.json")));
+                assert.ok(!existsSync(join(local, `.pending-${head}`)));
+                assert.equal(run({ STUB_STATUS: "changed" }, "--head", head).status, 0);
+                assert.equal(run({}, "--discard", head).status, 0);
+                assert.ok(!existsSync(join(local, `.pending-${head}`)));
+                assert.ok(existsSync(join(local, "branch-feat/p/results.json")), "the promoted preview is kept");
+            });
+        });
+
+        it("fails on a story that failed to render", () => {
+            sandbox(({ run, head }) => {
+                const r = run({ STUB_STATUS: "failed" }, "--head", head);
+                assert.equal(r.status, 1);
+                assert.match(r.stderr, /stories failed to capture/);
+            });
+        });
+
+        it("skips a conflicting merge but fails on a merge-tree error", () => {
+            sandbox(({ run, head, local }) => {
+                const conflict = run({ STUB_MERGE_TREE_RC: "1" }, "--head", head);
+                assert.equal(conflict.status, 0, conflict.stderr);
+                assert.match(conflict.stdout, /conflicts with origin\/master/);
+                const error = run({ STUB_MERGE_TREE_RC: "128" }, "--head", head);
+                assert.equal(error.status, 1);
+                assert.match(error.stderr, /merge-tree failed \(exit 128\)/);
+                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
+                assert.equal(status.state, "failed");
+            });
+        });
     });
 
     it("uploads Git LFS objects before anything else, and stops the push when that fails", () => {
@@ -526,5 +706,109 @@ describe("pr-status-broker", () => {
         });
         assert.equal(b.state, null);
         assert.deepEqual(b.checks, {});
+    });
+});
+
+describe("the commit and push hooks", () => {
+    const repoFile = (name) => readFileSync(new URL(`../${name}`, import.meta.url), "utf8");
+    const formatStaged = new URL("./format-staged.sh", import.meta.url).pathname;
+    // A throwaway repository, run without the GIT_* variables a hook inherits.
+    const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+    const inRepo = (fn) => {
+        const dir = mkdtempSync(join(tmpdir(), "format-staged-"));
+        const git = (...args) => spawnSync("git", args, { cwd: dir, env, encoding: "utf8" });
+        try {
+            git("init", "-q");
+            fn(dir, git);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    const staged = (git, f) => git("show", `:${f}`).stdout;
+
+    it("pre-commit scans for secrets, then formats the staged files", () => {
+        assert.match(
+            repoFile(".husky/pre-commit"),
+            /scan-secrets\.sh --cached \|\| exit 1\n[\s\S]*\.\/tools\/format-staged\.sh/,
+        );
+    });
+
+    it("commit-changes.sh runs the same pre-commit hook as a plain commit", () => {
+        assert.match(repoFile("tools/commit-changes.sh"), /cp \.husky\/pre-commit \.husky\/commit-msg "\$HOOKS_DIR\/"/);
+    });
+
+    it("formats fully staged files and leaves partial, baseline and binary files alone", () => {
+        inRepo((dir, git) => {
+            mkdirSync(join(dir, "visual-baselines"));
+            writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
+            writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\n");
+            writeFileSync(join(dir, "visual-baselines/c.json"), '{"c":3}\n');
+            writeFileSync(join(dir, "d.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
+            git("add", ".");
+            writeFileSync(join(dir, "b.ts"), "const  y = {b:2}\nconst z = 3;\n");
+            const r = spawnSync(formatStaged, { cwd: dir, env, encoding: "utf8" });
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(staged(git, "a.ts"), "const x = { a: 1 };\n");
+            assert.equal(readFileSync(join(dir, "a.ts"), "utf8"), "const x = { a: 1 };\n");
+            assert.equal(staged(git, "b.ts"), "const  y = {b:2}\n");
+            assert.match(r.stdout, /not formatting b\.ts/);
+            assert.equal(staged(git, "visual-baselines/c.json"), '{"c":3}\n');
+            // Byte-identical on disk, and (the diff check below) in the index.
+            assert.deepEqual(readFileSync(join(dir, "d.png")), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 1, 2]));
+            assert.equal(git("diff", "--quiet").status, 1, "only b.ts differs from the index");
+            assert.equal(git("diff", "--name-only").stdout, "b.ts\n");
+        });
+    });
+
+    it("a pathspec commit (git commit <file>) leaves the real index formatted too", () => {
+        inRepo((dir, git) => {
+            git("config", "user.email", "t@t");
+            git("config", "user.name", "t");
+            git("config", "commit.gpgsign", "false");
+            writeFileSync(join(dir, ".git/hooks/pre-commit"), `#!/bin/sh\nexec ${formatStaged}\n`, { mode: 0o755 });
+            writeFileSync(join(dir, "a.ts"), "const a = 1;\n");
+            git("add", "a.ts");
+            assert.equal(git("commit", "-qm", "init").status, 0);
+            writeFileSync(join(dir, "a.ts"), "const  b = {b:2}\n");
+            const r = git("commit", "-qm", "only", "a.ts");
+            assert.equal(r.status, 0, r.stderr);
+            assert.equal(git("show", "HEAD:a.ts").stdout, "const b = { b: 2 };\n");
+            assert.equal(staged(git, "a.ts"), "const b = { b: 2 };\n");
+            assert.equal(git("status", "--short").stdout, "");
+        });
+    });
+
+    it("formats nothing while a merge is being committed", () => {
+        inRepo((dir, git) => {
+            writeFileSync(join(dir, "a.ts"), "const  x = {a:1}\n");
+            git("add", ".");
+            writeFileSync(join(dir, ".git/MERGE_HEAD"), "0".repeat(40) + "\n");
+            assert.equal(spawnSync(formatStaged, { cwd: dir, env }).status, 0);
+            assert.equal(staged(git, "a.ts"), "const  x = {a:1}\n");
+        });
+    });
+
+    it("pre-push runs the source-only checks before the build and stops at the first failure", () => {
+        const prepush = repoFile("tools/prepush.sh");
+        const at = (s) => {
+            const i = prepush.indexOf(s);
+            assert.ok(i > 0, `${s} is in tools/prepush.sh`);
+            return i;
+        };
+        const build = at('run_step "Build"');
+        assert.ok(at("PROJECTS=$(") < build);
+        for (const step of ["Formatting (changed files)", "ESLint root config", "Legacy graph API use", "Links"]) {
+            assert.ok(
+                at(`run_step "${step}"`) < at("PROJECTS=$("),
+                `${step} runs before the affected list and the build`,
+            );
+        }
+        const runStep = prepush.slice(at("run_step() {"), prepush.indexOf("\n}\n", at("run_step() {")) + 3);
+        const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
+            encoding: "utf8",
+        });
+        assert.equal(r.status, 1);
+        assert.match(r.stdout, /stopped at the first failure: one/);
+        assert.doesNotMatch(r.stdout, /SECOND/);
     });
 });

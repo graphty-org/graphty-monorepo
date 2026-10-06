@@ -122,9 +122,9 @@ describe("labelMasterFixes", () => {
         };
     };
 
-    it("labels each linked fix priority:critical once, through master-fix while incidents is dry-run", async () => {
+    it("labels the linked fix priority:critical once, through master-fix while incidents is dry-run", async () => {
         const state = redState("fix in #1107");
-        linkMasterFix(state, [node(1107), node(1101, { body: "Fixes #990", labels: { nodes: [{ name: CRITICAL }] } })]);
+        linkMasterFix(state, [node(1107)]);
         const gh = client(["master-fix"]);
         await labelMasterFixes(gh, REPO, state);
         await labelMasterFixes(gh, REPO, state);
@@ -153,6 +153,105 @@ describe("labelMasterFixes", () => {
         await labelMasterFixes(acting, REPO, state);
         expect(acting.writes).toHaveLength(1);
         expect(state.master.fixPrs[0].labelled).toBe("sent");
+    });
+});
+
+describe("one critical fix per red master", () => {
+    /**
+     * The audit incident: the audit key judged, #1127 linked by its title.
+     * @returns {any} the state
+     */
+    const auditState = () => {
+        const state = redState();
+        state.master.lanes.ci.verdicts[AUDIT] = { verdict: "environment", reason: "New npm advisories" };
+        return state;
+    };
+    const audit1127 = node(1127, { title: "ci: run the security audit on the release train, not on pull requests" });
+    const critical = { labels: { nodes: [{ name: CRITICAL }] } };
+    /**
+     * A client stub that records its writes; `acting` names whether master-fix acts.
+     * @param {boolean} acting whether the group acts
+     * @returns {any} the client
+     */
+    const client = (acting) => {
+        const writes = /** @type {string[]} */ ([]);
+        return {
+            writes,
+            acting: () => acting,
+            write: async (/** @type {string} */ method, /** @type {string} */ path) => {
+                writes.push(`${method} ${path}`);
+                return { performed: acting };
+            },
+        };
+    };
+
+    it("links #1127 but labels nothing while #1135, naming the audit step, already carries priority:critical", async () => {
+        const state = auditState();
+        const pr1135 = node(1135, {
+            title: "fix(deps): refresh proxy-addr, source-map-js and vue past new advisories",
+            body: 'The Build job\'s "Security audit" step is failing on master.',
+            ...critical,
+        });
+        linkMasterFix(state, [audit1127, pr1135]);
+        expect(state.master.fixPrs).toEqual([
+            { pr: 1127, why: `its title names ${AUDIT}`, labelled: null, critical: false },
+        ]);
+        const gh = client(true);
+        await labelMasterFixes(gh, REPO, state);
+        expect(gh.writes).toEqual([]);
+        const now = new Date("2026-10-06T02:00:00Z");
+        const data = statusData(
+            state,
+            { config: { repo: REPO, lanes: {} }, now, startedAt: now.toISOString(), version: "0", mode: "dry-run" },
+            { section: "master" },
+        );
+        const text = statusText(data, now);
+        expect(text).toContain(`Also fixes the red master: #1127 (its title names ${AUDIT}).`);
+        expect(text).not.toContain("labelled priority:critical");
+    });
+
+    it("labels exactly one of two linked fixes, the reported one, then the other once it closes unmerged", async () => {
+        const state = auditState();
+        state.master.lanes.ci.verdicts[AUDIT].reason = "advisories; the lockfile refresh in #1140 fixes it";
+        const pr1140 = node(1140, { body: "refresh the lockfile" });
+        linkMasterFix(state, [audit1127, pr1140]);
+        const gh = client(true);
+        await labelMasterFixes(gh, REPO, state);
+        expect(gh.writes).toEqual([`POST repos/${REPO}/issues/1140/labels`]);
+        // The label shows on the next poll; still one.
+        linkMasterFix(state, [audit1127, { ...pr1140, ...critical }]);
+        await labelMasterFixes(gh, REPO, state);
+        expect(gh.writes).toHaveLength(1);
+        // #1140 closes unmerged: #1127 is labelled.
+        linkMasterFix(state, [audit1127]);
+        await labelMasterFixes(gh, REPO, state);
+        expect(gh.writes).toEqual([`POST repos/${REPO}/issues/1140/labels`, `POST repos/${REPO}/issues/1127/labels`]);
+    });
+
+    it("labels the oldest linked fix when none was reported, and no other once it merged", () => {
+        const state = auditState();
+        const pr1130 = node(1130, { title: "chore: make the security audit pass" });
+        linkMasterFix(state, [pr1130, audit1127]);
+        expect(
+            state.master.fixPrs.filter((/** @type {any} */ f) => f.critical).map((/** @type {any} */ f) => f.pr),
+        ).toEqual([1127]);
+        state.merged = { pending: [{ number: 1127 }] };
+        linkMasterFix(state, [pr1130]);
+        state.merged.pending = [];
+        linkMasterFix(state, [pr1130]);
+        expect(state.master.fixPrs[0].critical).toBe(false);
+    });
+
+    it("dry-run: one would-do line for the one fix, none performed", async () => {
+        const state = auditState();
+        linkMasterFix(state, [audit1127, node(1130, { title: "chore: make the security audit pass" })]);
+        const dry = client(false);
+        await labelMasterFixes(dry, REPO, state);
+        await labelMasterFixes(dry, REPO, state);
+        linkMasterFix(state, [audit1127, node(1130, { title: "chore: make the security audit pass" })]);
+        await labelMasterFixes(dry, REPO, state);
+        expect(dry.writes).toEqual([`POST repos/${REPO}/issues/1127/labels`]);
+        expect(state.master.fixPrs.map((/** @type {any} */ f) => f.labelled)).toEqual(["would-do", null]);
     });
 });
 

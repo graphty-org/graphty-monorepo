@@ -33,6 +33,15 @@ two, and the classic test case for community detection.
 American college football games between Division IA teams in the autumn 2000 season,
 with each team tagged by conference.
 
+## les-miserables.gml and florentine.gml
+
+- Les Miserables: 77 nodes, 254 edges; the edge key `shared_chapters` counts the chapters two
+  characters share. Knuth, The Stanford GraphBase (1993), through the networkx 3.1 copy
+- Florentine families: 15 nodes, 20 edges. Padgett and Ansell (1993), through the networkx 3.1 copy
+- Written by `graphty/scripts/write-sample-gml.ts` (`npm run samples:write`) from the
+  graph-samples datasets with graph-io's GML writer; each node carries a readable `name`. Do not
+  edit them by hand: change the script and run it again. Licenses: graph-samples' dataset `meta.ts`
+
 ## Provenance
 
 Both files come from Mark Newman's network data collection at the URL above, which

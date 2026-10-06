@@ -4830,6 +4830,57 @@ describe("AppShell", () => {
 
             expect(await screen.findByRole("button", { name: "1 case note" })).toBeInTheDocument();
         });
+
+        /* Issue #707: the summary's case-note button opened an Explore Notes section that listed
+           nothing and had no input. */
+        it("writes a case note from Explore, lists it, and counts it in the graph summary", async () => {
+            const { session } = await loadCat();
+
+            fireEvent.click(screen.getByRole("button", { name: "Add a case note" }));
+            const input = await screen.findByTestId("explore-note-input");
+
+            fireEvent.change(input, { target: { value: "Two households" } });
+            fireEvent.keyDown(input, { key: "Enter", ctrlKey: true });
+
+            expect(session.notes.list({ target: { graph: true } }).map((note) => note.text)).toEqual([
+                "Two households",
+            ]);
+            expect(await screen.findByRole("button", { name: "Delete note: Two households" })).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "1 case note" })).toBeInTheDocument();
+        });
+
+        it("deletes a case note from Explore, and the element's undo brings it back", async () => {
+            const { session } = await loadCat();
+
+            act(() => {
+                session.notes.add({ text: "Same vet", targets: [{ graph: true }] });
+            });
+            fireEvent.click(await screen.findByRole("button", { name: "1 case note" }));
+            fireEvent.click(await screen.findByRole("button", { name: "Delete note: Same vet" }));
+
+            expect(session.notes.list()).toHaveLength(0);
+            await waitFor(() => {
+                expect(screen.queryByRole("button", { name: "Delete note: Same vet" })).toBeNull();
+            });
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(screen.getByRole("button", { name: "Delete note: Same vet" })).toBeInTheDocument();
+        });
+
+        it("focuses the node's note input from Explore's note plus, as N does", async () => {
+            const { container } = await loadCat();
+
+            reportSelection(container, CAT_SOCIAL_NETWORK.nodes[0].id);
+            await screen.findByTestId("node-note-input");
+            fireEvent.click(screen.getByRole("button", { name: "Explore" }));
+            fireEvent.click(await screen.findByRole("button", { name: "Note" }));
+
+            await waitFor(() => {
+                expect(screen.getByTestId("node-note-input")).toHaveFocus();
+            });
+        });
     });
 
     describe("the node inspector's Pin verb", () => {

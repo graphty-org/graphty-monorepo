@@ -3,7 +3,9 @@
 // See test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Meshes/instancedMesh";
 
-import { InstancedMesh, Mesh } from "@babylonjs/core";
+import { InstancedMesh, Mesh, type Scene } from "@babylonjs/core";
+
+import { EdgeLineBatch } from "./EdgeLineBatch";
 
 type MeshCreatorFn = () => Mesh;
 
@@ -15,6 +17,16 @@ type MeshCreatorFn = () => Mesh;
  */
 export class MeshCache {
     meshCacheMap = new Map<string, Mesh>();
+
+    /**
+     * The thin-instance batches, by the same key the mesh cache uses.
+     *
+     * HELD HERE BECAUSE THEY DIE AT THE SAME MOMENT. A batch is the interned source mesh of one
+     * edge appearance, exactly as a cached mesh is, and the 2D/3D switch and a dataset clear both
+     * dispose the cache -- so anything drawn from a batch has to go with it, or an edge is left
+     * holding a slot in a mesh that no longer exists.
+     */
+    batchCacheMap = new Map<string, EdgeLineBatch>();
     hits = 0;
     misses = 0;
 
@@ -47,6 +59,35 @@ export class MeshCache {
     }
 
     /**
+     * Get or create the thin-instance batch that draws one edge appearance.
+     * @param name - Cache key for the batch, which is also the name its mesh carries.
+     * @param creator - Function to build the batch's line mesh if there is no batch yet.
+     * @param scene - The scene that renders it.
+     * @returns The batch to take a slot in.
+     */
+    getBatch(name: string, creator: MeshCreatorFn, scene: Scene): EdgeLineBatch {
+        const existing = this.batchCacheMap.get(name);
+
+        if (existing) {
+            this.hits++;
+            return existing;
+        }
+
+        this.misses++;
+        const mesh = creator();
+        mesh.name = name;
+        const batch: EdgeLineBatch = new EdgeLineBatch(mesh, scene, () => {
+            if (this.batchCacheMap.get(name) === batch) {
+                this.batchCacheMap.delete(name);
+            }
+        });
+
+        this.batchCacheMap.set(name, batch);
+
+        return batch;
+    }
+
+    /**
      * Reset cache statistics (hits and misses)
      */
     reset(): void {
@@ -62,6 +103,12 @@ export class MeshCache {
             MeshCache.disposeSource(mesh);
         }
         this.meshCacheMap.clear();
+
+        for (const batch of this.batchCacheMap.values()) {
+            batch.dispose();
+        }
+
+        this.batchCacheMap.clear();
         this.reset();
     }
 
@@ -91,7 +138,7 @@ export class MeshCache {
      * @param mesh - The cached source mesh
      */
     private static disposeSource(mesh: Mesh): void {
-        const {material} = mesh;
+        const { material } = mesh;
         mesh.dispose();
         material?.dispose(false, false);
     }

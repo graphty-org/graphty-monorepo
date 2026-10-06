@@ -7,6 +7,7 @@
 import { effectiveMode } from "./config.mjs";
 import { TERMINAL } from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
+import { jobWaits } from "./waits.mjs";
 
 /** The board's sections, in order; banners and faults always come first. */
 export const SECTIONS = [
@@ -206,6 +207,7 @@ const RENDER = {
                 let owned = "";
                 if (o) owned = ` -- owned by session ${o.name} (${o.by})`;
                 else if (i) owned = ` -- owned by session ${i.name} (${i.evidence})`;
+                if (!o && i?.noTools) owned += ", which has no githerd tools: kept while the session lives";
                 const fixing = v.state?.brokenAsks?.[p.number]?.active;
                 if (fixing) owned += ` -- being fixed: ${fixing}`;
                 return `  #${[p.number, p.title].filter(Boolean).join(" ")} -- ${mergeWords(p.decision)}${owned}`;
@@ -237,10 +239,11 @@ const RENDER = {
         // Issues a session deferred, until their revision changes (done.mjs).
         const deferred = Object.entries(v.state.deferred ?? {}).map(([n, d]) => `  deferred #${n} -- ${d.reason}`);
         if (!jobs.length) return ["JOBS: none", ...invited, ...deferred];
+        const waits = jobWaits(v.state);
         return [
             `JOBS (${jobs.length}):`,
             ...jobs.flatMap((j) => [
-                `  ${j.id} ${jobState(j, now)} -- ${j.reason || "no reason recorded"}`,
+                `  ${j.id} ${jobState(j, now, waits.get(j.id))} -- ${j.reason || "no reason recorded"}`,
                 // The holder's last answer to githerd's status question (asks.mjs statusStep).
                 ...(j.status ? [`    status ${when(j.status.at)}: ${j.status.text}`] : []),
             ]),
@@ -338,10 +341,12 @@ function openJobs(state) {
  * A job's state, age, deadline and holder.
  * @param {import("./board.mjs").Job} j the job
  * @param {Date} now the current time
+ * @param {"push" | "ci"} [wait] what the job is only waiting on (waits.mjs), shown in place of its state
  * @returns {string} the words
  */
-function jobState(j, now) {
-    const parts = [`${j.state} ${span(now.getTime() - Date.parse(j.stateSince))}`];
+function jobState(j, now, wait) {
+    const label = { push: "waiting to push", ci: "waiting for CI" }[wait ?? ""] ?? j.state;
+    const parts = [`${label} ${span(now.getTime() - Date.parse(j.stateSince))}`];
     if (j.pausedBy?.length) parts.push(`clock paused by ${j.pausedBy.join(", ")}`);
     else if (j.deadline) parts.push(`${j.deadlineAction} in ${span(Date.parse(j.deadline) - now.getTime())}`);
     if (j.holder?.session) parts.push(`held by ${j.holder.window ?? j.holder.session}`);

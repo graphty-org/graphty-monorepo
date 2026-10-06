@@ -202,7 +202,7 @@ function earlier(job) {
 
 /**
  * The lines a job's facts add for its worker: a refresh's merges and issues, the label kinds a new
- * triage batch lacks, and where a verdict job's failure is.
+ * triage batch lacks, where a verdict job's failure is, and that a held pull request stays held.
  * @param {any} job the job
  * @param {{refresh: boolean, verdict: boolean}} kind whether it is a refresh triage or a verdict job
  * @returns {string[]} the lines
@@ -210,6 +210,7 @@ function earlier(job) {
 function factLines(job, { refresh, verdict }) {
     if (refresh) return refreshLines(job.facts);
     if (verdict) return verdictLines({ key: job.target, ...job.facts });
+    if (job.kind === "pr") return job.facts?.held ? [HELD] : [];
     if (job.kind !== "triage" || !job.facts?.missing) return [];
     return [
         "MISSING LABELS (add only these kinds; keep the labels each issue already has):",
@@ -223,6 +224,11 @@ function factLines(job, { refresh, verdict }) {
 const MASTER_FIX =
     "MASTER FIX: this job's pull request fixes the red master. githerd_push queues it as critical; if you push it " +
     "yourself, push through tools/push-queue.sh with PUSH_QUEUE_PRIORITY=critical, so it goes ahead of every other push.";
+
+/** The line for a `pr` job on a pull request held from merging (queue.mjs mergeHeld). */
+const HELD =
+    "HELD: this pull request is held from merging (breaking, held for a grouped major, or a hold label) and stays held. " +
+    "Fix only: merge master into it and make its required checks green. Never merge it, and never change its title or labels.";
 
 /**
  * The job's text for its worker.

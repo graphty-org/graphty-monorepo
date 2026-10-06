@@ -24,12 +24,16 @@ import { readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { open, readdir, stat } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-/** @typedef {{session: string, name: string, evidence: string}} InferredOwner */
+/**
+ * `noTools`: the session's claude process runs no githerd MCP server, so it cannot answer githerd's
+ * questions; its ownership lasts while it lives (asks.mjs brokenOwner).
+ * @typedef {{session: string, name: string, evidence: string, noTools?: boolean}} InferredOwner
+ */
 /**
  * @typedef {{at?: string, branch?: string | null, sha?: string | null, exit?: number,
  *   sessionId?: string | null, name?: string | null}} PushLine
  */
-/** @typedef {{pid: number, ppid: number, cwd: string | null}} Proc */
+/** @typedef {{pid: number, ppid: number, cwd: string | null, cmd?: string}} Proc */
 /** @typedef {{pid: number, sessionId: string, name: string, cwd?: string}} Registered */
 /**
  * What the transcripts of one session have shown so far: the bytes read of each file (by path
@@ -247,7 +251,7 @@ export function readPushLog(file) {
 }
 
 /**
- * Every process with its parent and cwd (null when unreadable).
+ * Every process with its parent, cwd (null when unreadable) and command line.
  * @param {string} [procDir] the proc file system
  * @returns {Proc[]} the processes
  */
@@ -265,7 +269,15 @@ export function processTable(procDir = "/proc") {
             } catch {
                 // Another user's process, or gone.
             }
-            out.push({ pid: Number(name), ppid, cwd });
+            let cmd = "";
+            try {
+                cmd = readFileSync(join(procDir, name, "cmdline"), "utf8")
+                    .replaceAll("\0", " ")
+                    .trim();
+            } catch {
+                // Gone.
+            }
+            out.push({ pid: Number(name), ppid, cwd, cmd });
         } catch {
             // Exited while read.
         }
@@ -317,6 +329,7 @@ export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, tr
     const lastPush = new Map();
     for (const p of pushLog) if (p.branch) lastPush.set(p.branch, p);
     const cwds = cwdsUnder(procs);
+    const tools = githerdTools(procs);
     // The main checkout is everyone's, and githerd's own workers have their jobs.
     const ownWorktrees = worktrees.filter(
         (w) => w.dir !== root && !w.dir.startsWith(join(root, ".worktrees", "githerd-")),
@@ -331,9 +344,33 @@ export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, tr
             pushLogOwner(push, live) ??
             transcriptOwner(rec.headRef, push, transcripts, live) ??
             worktreeOwner(rec.headRef, { root, ownWorktrees, byPid, cwds });
-        if (owner) out[n] = owner;
+        if (!owner) continue;
+        const pid = live.get(owner.session)?.pid;
+        out[n] = pid !== undefined && tools(pid) === false ? { ...owner, noTools: true } : owner;
     }
     return out;
+}
+
+/**
+ * Whether a session has githerd's tools: a live process under its claude process runs githerd's MCP
+ * server (`bin/githerd-mcp.mjs`). Null when the process table does not show the claude process.
+ * @param {Proc[]} procs the process table
+ * @returns {(pid: number) => boolean | null} whether the process's tree runs it
+ */
+function githerdTools(procs) {
+    const children = new Map();
+    for (const p of procs) children.set(p.ppid, [...(children.get(p.ppid) ?? []), p]);
+    const known = new Set(procs.map((p) => p.pid));
+    return (pid) => {
+        if (!known.has(pid)) return null;
+        for (const stack = [pid]; stack.length; ) {
+            for (const c of children.get(stack.pop()) ?? []) {
+                if (c.cmd?.includes("githerd-mcp.mjs")) return true;
+                stack.push(c.pid);
+            }
+        }
+        return false;
+    };
 }
 
 /**

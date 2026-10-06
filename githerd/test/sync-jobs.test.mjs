@@ -249,6 +249,30 @@ describe("syncJobs: pull requests", () => {
         expect(state.ownerItems).toBeUndefined();
     });
 
+    it("makes a pr job for a held pull request that is broken, and its text says it stays held", () => {
+        const state = base();
+        const conflict = { required: {}, conflictSightings: 2, mergeable: "CONFLICTING" };
+        failingPr(state, 676, { ...conflict, breaking: true }); // held for a grouped major
+        failingPr(state, 702, { breaking: true }); // failing
+        failingPr(state, 703, { ...conflict, labels: ["hold"] });
+        failingPr(state, 704, { ...conflict, labels: ["breaking-hold"] });
+        failingPr(state, 705, { required: {}, breaking: true }); // held and healthy: nothing to fix
+        failingPr(state, 706);
+        expect(sync(state).created).toEqual(["pr-676", "pr-702", "pr-703", "pr-704", "pr-706"]);
+        expect([676, 702, 703, 704, 706].map((n) => state.jobs[`pr-${n}`].facts.held)).toEqual([
+            true,
+            true,
+            true,
+            true,
+            false,
+        ]);
+        expect(jobText(state.jobs["pr-676"])).toContain(
+            "HELD: this pull request is held from merging (breaking, held for a grouped major, or a hold label) and stays held. " +
+                "Fix only: merge master into it and make its required checks green. Never merge it, and never change its title or labels.",
+        );
+        expect(jobText(state.jobs["pr-706"])).not.toContain("HELD:");
+    });
+
     it("never makes a job from the release train's pull request, failing or conflicting", () => {
         const state = base();
         const train = { author: "github-actions", headRef: "release/train-1", title: "chore(release): publish" };

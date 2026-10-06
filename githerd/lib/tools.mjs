@@ -291,7 +291,7 @@ function countedList(items) {
  * Renders the red-master lines of status.
  * @param {any} inc the open incident, if any
  * @param {string} since the " since hh:mm UTC" text
- * @param {{pr: number, why: string}[]} [fixes] the linked fix pull requests (master-fix.mjs)
+ * @param {{pr: number, why: string, critical?: boolean}[]} [fixes] the linked fix pull requests (master-fix.mjs)
  * @returns {string[]} the lines
  */
 function redLines(inc, since, fixes = []) {
@@ -307,10 +307,12 @@ function redLines(inc, since, fixes = []) {
     }
     if (inc?.rangeNote) second.push(`No code suspects: ${inc.rangeNote}.`);
     if (inc?.fixJob) second.push(`Incident job ${inc.fixJob} at work.`);
-    if (fixes.length) {
-        const list = fixes.map((f) => `#${f.pr} (${f.why})`).join(", ");
-        second.push(`Fix: ${list}, labelled priority:critical so it merges through the freeze.`);
-    }
+    const list = (/** @type {typeof fixes} */ fs) => fs.map((f) => `#${f.pr} (${f.why})`).join(", ");
+    const critical = fixes.filter((f) => f.critical);
+    const also = fixes.filter((f) => !f.critical);
+    if (critical.length)
+        second.push(`Fix: ${list(critical)}, labelled priority:critical so it merges through the freeze.`);
+    if (also.length) second.push(`Also fixes the red master: ${list(also)}.`);
     second.push("Hold merges; pushes to pull request branches are fine.");
     return [`MASTER: RED${since}${id}.${lanes.join("")}`, `  ${second.join(" ")}`];
 }

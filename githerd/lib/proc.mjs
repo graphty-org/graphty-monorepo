@@ -98,14 +98,25 @@ export const pushQueueScript = (root) => join(root, "tools", "push-queue.sh");
  */
 export function pushQueueTickets(root) {
     if (!existsSync(pushQueueScript(root))) return { holder: null, waiters: 0, missing: true };
+    const live = liveTickets(root);
+    const running = live.slice(0, PUSH_QUEUE_SLOTS).map((t) => `pid ${t.pid} (${basename(t.cwd)})`);
+    return { holder: running.length ? running.join(", ") : null, waiters: Math.max(0, live.length - PUSH_QUEUE_SLOTS) };
+}
+
+/**
+ * The push queue's live tickets in queue order, critical first, then by arrival.
+ * @param {string} root the main checkout
+ * @returns {{pid: number, cwd: string, command: string}[]} each ticket's process, worktree and command
+ */
+export function liveTickets(root) {
     const dir = join(root, "tmp", "push-queue");
     let names;
     try {
         names = readdirSync(dir);
     } catch {
-        return { holder: null, waiters: 0 };
+        return [];
     }
-    const live = names
+    return names
         .map((name) => {
             const parts = name.split("-");
             // A ticket from before ranks existed is `<ns>-<pid>`, a normal push.
@@ -113,12 +124,16 @@ export function pushQueueTickets(root) {
             return { name, rank: Number(rank), at: BigInt(at), pid: Number(pid) };
         })
         .filter((t) => Number.isInteger(t.pid) && alive(t.pid))
-        .sort((a, b) => a.rank - b.rank || Math.sign(Number(a.at - b.at)));
-    const running = live.slice(0, PUSH_QUEUE_SLOTS).map((t) => {
-        const cwd = (readFileSync(join(dir, t.name), "utf8").split(" :: ")[0] ?? "").trim();
-        return `pid ${t.pid} (${basename(cwd)})`;
-    });
-    return { holder: running.length ? running.join(", ") : null, waiters: Math.max(0, live.length - PUSH_QUEUE_SLOTS) };
+        .sort((a, b) => a.rank - b.rank || Math.sign(Number(a.at - b.at)))
+        .flatMap((t) => {
+            try {
+                const [cwd = "", ...command] = readFileSync(join(dir, t.name), "utf8").split(" :: ");
+                return [{ pid: t.pid, cwd: cwd.trim(), command: command.join(" :: ").trim() }];
+            } catch {
+                // Its push ended while read.
+                return [];
+            }
+        });
 }
 
 /**

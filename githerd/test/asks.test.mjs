@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "../lib/asks.mjs";
+import { askStep, atActiveCap, inviteStep, statusStep, tellAccepted, tellCancelled } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { jobInUse, prInUse } from "../lib/queue.mjs";
 
@@ -442,6 +442,62 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent.slice(1).map(([socket]) => socket)).toEqual(["/s1.sock", "/s2.sock"]);
     });
 
+    it("does not count jobs waiting in the push queue or for CI toward workers.maxActive", async () => {
+        const state = queued("issue-5");
+        const f = fake();
+        const config = { workers: { maxActive: 2 } };
+        const busy = () => SESSIONS.map((s) => ({ ...s, status: "busy" }));
+        state.capacity = { s2: { n: 1, at: NOW.toISOString() } };
+        const hold = (/** @type {string} */ id, /** @type {any} */ more = {}) => {
+            state.jobs[id] = {
+                ...newJob({ kind: "pr", target: "#9", id }, NOW),
+                state: "working",
+                holder: { session: "s2" },
+                ...more,
+            };
+        };
+        hold("pr-21", { pr: 21 });
+        hold("pr-22", { pr: 22 });
+        state.prs = { 21: { headRef: "feat/a", required: {} }, 22: { headRef: "feat/b", required: {} } };
+        expect(atActiveCap(state, "s2", config)).toMatch(/you hold 2 active jobs/);
+
+        // Both branches have tickets in the push queue: under the cap, and invited on its capacity.
+        state.pushTickets = [
+            { branch: "feat/a", cwd: "/r/.worktrees/feat-a", session: "s2" },
+            { branch: "feat/b", cwd: "/r/.worktrees/feat-b", session: "s2" },
+        ];
+        expect(atActiveCap(state, "s2", config)).toBeNull();
+        await inviteStep(state, { ...f.opts({ sessions: busy }), offered: offered.slice(0, 1), config });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+
+        // A job with no ticket still counts.
+        state.pushTickets = [{ branch: "feat/a", cwd: "/r/.worktrees/feat-a", session: "s2" }];
+        hold("pr-23", { pr: 23 });
+        state.prs[23] = { headRef: "feat/c", required: { "All Checks Pass": "FAILURE" } };
+        expect(atActiveCap(state, "s2", config)).toMatch(/you hold 2 active jobs/);
+        // Its CI running instead: it waits for CI and does not count.
+        state.prs[23].required = { "All Checks Pass": "PENDING" };
+        expect(atActiveCap(state, "s2", config)).toBeNull();
+    });
+
+    it("counts an issue job with no pull request as waiting only on its session's ticket and a status that says push", () => {
+        const state = queued();
+        const config = { workers: { maxActive: 1 } };
+        state.jobs["issue-314"] = {
+            ...newJob({ kind: "issue", target: "#314", id: "issue-314" }, NOW),
+            state: "working",
+            holder: { session: "s1" },
+            status: { at: NOW.toISOString(), text: "coded; agent waiting in the push queue" },
+        };
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+        state.pushTickets = [{ branch: "feat/ego", cwd: "/r/.worktrees/feat-ego", session: "s2" }];
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+        state.pushTickets.push({ branch: "feat/other", cwd: "/r/.worktrees/feat-other", session: "s1" });
+        expect(atActiveCap(state, "s1", config)).toBeNull();
+        state.jobs["issue-314"].status.text = "writing the tests";
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+    });
+
     it("does not mark a job invited while only a session that cannot claim it is idle", async () => {
         const state = ownReview();
         const f = fake();
@@ -478,6 +534,9 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent[0][1]).toContain("status check on the jobs this session holds:\n- issue-186 (#186)\n");
         expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
         expect(f.sent[0][1]).toContain("Can you take another job? Answer that with capacity set");
+        expect(f.sent[0][1]).toMatch(
+            /jobs that are only waiting to push or for CI do not use your capacity: count only jobs you are actively working when you answer capacity\./i,
+        );
         expect(f.sent[0][1]).not.toMatch(/minutes set|how long until/);
         expect(f.sent[0][1]).toContain("background subagents or workflows");
         expect(lines).toEqual([
@@ -757,13 +816,13 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toHaveLength(2);
     });
 
-    it("keeps it for the cycle when the owner answers with githerd_mine", async () => {
+    it("keeps it, unasked, when the owner answers with githerd_mine", async () => {
         const f = fake();
         const state = owned();
         await statusStep(state, opts(f, { now: at("12:00") }));
         state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" } };
         const lines = await statusStep(state, opts(f, { now: at("12:15") }));
-        expect(lines).toEqual([expect.objectContaining({ kind: "status-asked", prs: [710] })]);
+        expect(lines).toEqual([]);
         expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (it said so)");
     });
 
@@ -812,6 +871,51 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(await statusStep(moved, opts(f, { now: at("12:15") }))).toEqual([]);
         expect(moved.brokenAsks[710].active).toBe("new head bbbbbbb");
         expect(f.sent).toHaveLength(2);
+    });
+
+    it("never asks or releases an owner without githerd's tools while it lives, and frees it when it exits", async () => {
+        const f = fake();
+        const state = owned();
+        state.prInferred[710].noTools = true;
+        for (const hm of ["12:00", "12:15", "12:30"]) {
+            expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
+        }
+        expect(f.sent).toEqual([]);
+        expect(prInUse(state, 710, { now: at("12:30") })).toBe("session graphty-14 owns it (pushed)");
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:30") })).not.toBeNull();
+        // The session exits: inferOwners drops it, and the pull request is asked about as usual.
+        delete state.prInferred[710];
+        expect(prInUse(state, 710, { now: at("12:31") })).not.toBe("session graphty-14 owns it (pushed)");
+    });
+
+    it("gives a pull request released under the old rule back to an owner without githerd's tools", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        expect(state.prReleased[710]).toBe(HEAD);
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15") })).toBeNull();
+        // The next poll learns the owner has no githerd tools: owned again, its job not offered.
+        state.prInferred[710].noTools = true;
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:16") })).toBe("session graphty-14 owns it (pushed)");
+        expect(await statusStep(state, opts(f, { now: at("12:16") }))).toEqual([]);
+        expect(state.prReleased[710]).toBeUndefined();
+        expect(f.sent).toHaveLength(1);
+    });
+
+    it("holds an answer while the same failure stands, and asks again when another check fails", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" } };
+        for (const hm of ["12:15", "12:30", "12:45", "13:00"]) {
+            expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
+        }
+        expect(f.sent).toHaveLength(1);
+        state.prs[710].required["Lint PR Title"] = "FAILURE";
+        await statusStep(state, opts(f, { now: at("13:15") }));
+        expect(f.sent).toHaveLength(2);
+        expect(f.sent[1][1]).toContain("required check failing: All Checks Pass, Lint PR Title");
     });
 
     it("releases it at once when its owner cannot be asked, and never for a question nobody heard", async () => {

@@ -2,7 +2,7 @@
  * A red master's fix (design 4.5 and 4.6): the open pull request that fixes a judged master failure.
  * Once a failing key on a red gating lane has Claude's verdict (code, or environment with a fix in a
  * pull request), githerd links each open pull request by the owner that is that key's fix, so the
- * board shows it beside the incident, and labels it `priority:critical` (write group `master-fix`, its
+ * board shows it beside the incident, and labels one of them `priority:critical` (write group `master-fix`, its
  * own so it can act while `incidents`, whose reverts the owner leaves to master-guard, stays
  * dry-run; the gate adopts `actions.masterFix` once one dry-run poll has logged a would-do line of
  * it, as for any group): Mergify puts it first, master-guard's
@@ -103,9 +103,57 @@ function fixReason(node, { keys, issues, reported }) {
 }
 
 /**
+ * Whether an open pull request names a judged key, or its failing step, in its title or body: one
+ * that already carries `priority:critical` is the incident's critical fix, whoever labelled it.
+ * @param {any} node the pull request
+ * @param {{key: string}[]} keys the judged keys
+ * @returns {boolean} true when it names one
+ */
+function namesKey(node, keys) {
+    const text = `${node.title ?? ""}\n${node.body ?? ""}`.toLowerCase();
+    return keys.some((k) => [k.key, String(k.key.split(" / ").at(-1))].some((s) => text.includes(s.toLowerCase())));
+}
+
+/**
+ * The one linked fix to label `priority:critical`, or null (design 4.6): a red master gets one
+ * critical fix, since each critical pull request entering Mergify's queue interrupts the running
+ * batches. None while an open pull request that is a fix or names a judged key already carries the
+ * label (someone else's label is never removed); else the fix chosen before while it is open (or
+ * merged), else the one a session reported, else the oldest.
+ * @param {any} state the daemon state
+ * @param {any[]} nodes the open pull requests on the default branch
+ * @param {{keys: {key: string}[], issues: Set<number>, reported: Set<number>}} facts the facts
+ * @returns {number | null} its number
+ */
+function criticalTarget(state, nodes, facts) {
+    const m = state.master;
+    const labelled = nodes.some(
+        (n) =>
+            (n.labels?.nodes ?? []).some((/** @type {any} */ l) => l.name === CRITICAL) &&
+            (fixReason(n, facts) !== null || namesKey(n, facts.keys)),
+    );
+    const linked = m.fixPrs.map((/** @type {any} */ f) => f.pr);
+    const chosen = m.criticalFix;
+    if (chosen && !linked.includes(chosen.pr)) {
+        // ponytail: "merged" is the merge scan's record of this poll's head; a search that lags a
+        // poll reads a merged fix as closed unmerged. Ask GitHub for the pull request if that bites.
+        chosen.merged ||= (state.merged?.pending ?? []).some((/** @type {any} */ p) => p.number === chosen.pr);
+        if (!chosen.merged) m.criticalFix = null;
+    }
+    if (labelled) return null;
+    if (m.criticalFix) return m.criticalFix.merged ? null : m.criticalFix.pr;
+    const pick = linked.find((/** @type {number} */ n) => facts.reported.has(n)) ?? Math.min(...linked);
+    if (!Number.isFinite(pick)) return null;
+    m.criticalFix = { pr: pick, merged: false };
+    return pick;
+}
+
+/**
  * Links the red master's fix pull requests, every poll: `state.master.fixPrs` is
- * `[{pr, why, labelled}]`, empty while no failing key is judged (master green drops the verdicts).
- * `labelled` (the label write: "sent" or "would-do") carries over from the poll before.
+ * `[{pr, why, labelled, critical}]`, empty while no failing key is judged (master green drops the
+ * verdicts). `critical` marks the one fix to label (`criticalTarget`); the others are shown as also
+ * fixing the red master. `labelled` (the label write: "sent" or "would-do") carries over from the
+ * poll before.
  * @param {any} state the daemon state, changed in place
  * @param {any[]} nodes the open pull requests, as the poll's query returns them
  * @returns {{pr: number, why: string}[]} the links new since the poll before
@@ -116,30 +164,34 @@ export function linkMasterFix(state, nodes) {
     const keys = judgedKeys(state);
     const facts = { keys, issues: incidentIssues(state), reported: reportedFixes(state, keys) };
     const branch = m.branch ?? "master";
+    const open = keys.length ? nodes.filter((n) => n.baseRefName === branch) : [];
     m.fixPrs = [];
-    for (const node of keys.length ? nodes : []) {
-        if (node.baseRefName !== branch || !byOwner(state, node.author?.login)) continue;
+    for (const node of open) {
+        if (!byOwner(state, node.author?.login)) continue;
         const why = fixReason(node, facts);
         if (!why) continue;
         const labels = (node.labels?.nodes ?? []).map((/** @type {any} */ l) => l.name);
         const labelled = labels.includes(CRITICAL) ? "present" : (before.get(node.number)?.labelled ?? null);
-        m.fixPrs.push({ pr: node.number, why, labelled });
+        m.fixPrs.push({ pr: node.number, why, labelled, critical: false });
     }
+    if (!keys.length) m.criticalFix = null;
+    const target = keys.length ? criticalTarget(state, open, facts) : null;
+    for (const f of m.fixPrs) f.critical = f.pr === target;
     return m.fixPrs
         .filter((/** @type {any} */ f) => !before.has(f.pr))
         .map((/** @type {any} */ f) => ({ pr: f.pr, why: f.why }));
 }
 
 /**
- * Labels each linked fix `priority:critical` through the write gate (group `master-fix`): once when
- * the group acts, and one would-do line while it does not.
+ * Labels the one linked fix marked `critical` `priority:critical` through the write gate (group
+ * `master-fix`): once when the group acts, and one would-do line while it does not.
  * @param {{write: Function, acting: (group: string) => boolean}} github the client
  * @param {string} repo `owner/name`
  * @param {any} state the daemon state; each fix's `labelled` is updated in place
  */
 export async function labelMasterFixes(github, repo, state) {
     for (const f of state.master?.fixPrs ?? []) {
-        if (f.labelled === "present" || f.labelled === "sent") continue;
+        if (!f.critical || f.labelled === "present" || f.labelled === "sent") continue;
         if (f.labelled === "would-do" && !github.acting(GROUP)) continue;
         const at = `repos/${repo}/issues/${f.pr}/labels`;
         const res = await github.write(

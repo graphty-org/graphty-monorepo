@@ -11,6 +11,8 @@
  * - `failedSteps`: the names of the failed steps of the one failing required context.
  * - `gateAnnotations`: that context's annotation messages, read with its failed steps.
  * - `comments`: `{body, createdAt}` of the comments since the head, for the reject marker.
+ * - `underlying`: the jobs under a failing summary check (`All Checks Pass`), each as a classify.mjs
+ *   failure, read once per summary check run (`for` names them); null when no summary check fails.
  *
  * A value decided from detail is kept while the head stays the same; a new head without detail
  * resets it, and an unchecked head counts as breaking.
@@ -18,11 +20,16 @@
 
 import { execFileSync } from "node:child_process";
 
+import { classify } from "./classify.mjs";
+import { isSummaryJob } from "./lanes.mjs";
+
 /**
  * @typedef {import("./config.mjs").Config} Config
  * @typedef {{ messages: string[], truncated?: boolean }} CommitList
  * @typedef {{ commits?: CommitList, files?: string[], failedSteps?: string[], gateAnnotations?: string[],
- *   comments?: { body: string, createdAt: string }[] }} Detail
+ *   comments?: { body: string, createdAt: string }[], underlying?: Underlying | null }} Detail
+ * @typedef {{ for: string, failures: import("./classify.mjs").Failure[] }} Underlying the failed jobs
+ *   under the failing summary checks whose check run ids `for` names
  * @typedef {"SUCCESS" | "FAILURE" | "PENDING" | "MISSING" | "CANCELLED"} CheckState `CANCELLED` is no
  *   result: the run was cancelled (by hand, by a newer push, or because no runner picked its jobs
  *   up), so it counts as neither failing nor passing, the way PENDING does
@@ -30,11 +37,15 @@ import { execFileSync } from "node:child_process";
  *   run of a workflow on the head whose required checks were cancelled and nothing in it failed; `rerun`
  *   is set by the daemon: githerd re-ran it this poll, it was re-run before and is not re-run again, or
  *   it started while the pull request was a draft and a re-run would skip CI again
+ * @typedef {{workflow: string, cancelledAt: string | null, pending: boolean, failedAt: string[]}} RunNote
+ *   one workflow run of the head: the latest start of a cancelled required check of it (null when none
+ *   was cancelled, "" when it has no start time), whether a check of it is pending, and the starts of
+ *   its failed checks
  * @typedef {{
  *   verdict: "green" | "red" | "unknown", branch: string,
- *   fixedAt?: string | null,
+ *   fixedAt?: string | null, redKeys?: string[],
  * }} MasterView `branch` is the default branch; `fixedAt` when
- *   the commit that ended the last incident was made
+ *   the commit that ended the last incident was made; `redKeys` the failure keys red on it now
  * @typedef {{
  *   headSha: string, headRef: string, baseRef: string, draft: boolean, readyAt: string | null, author: string | null,
  *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null, headCommitter: string | null,
@@ -44,8 +55,10 @@ import { execFileSync } from "node:child_process";
  *   required: Record<string, CheckState>, failingChecks: string[], failingStartedAt: string | null,
  *   cancelledRuns: CancelledRun[],
  *   ownerGate: boolean, captureFailed: string[], ownerRejected: boolean, stackedOn: number | null,
+ *   underlying?: Underlying | null, inherited?: string[] | null,
  *   lastActivityAt: string, mergeStatus?: MergeStatus | null, [key: string]: unknown,
- * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head
+ * }} PrRecord `mergeStatus` is the `githerd/merge` status last decided for the head; `inherited` the
+ *   master keys every failure under its failing summary checks is red on, when that is all that fails
  */
 
 // CANCELLED is not here: a run cancelled because no runner took it (a GitHub outage) is no verdict
@@ -129,7 +142,7 @@ function contextState(ctx) {
  * @param {any[]} contexts CheckRun and StatusContext nodes
  * @returns {Map<string, any>} the newest context by name
  */
-function newestContexts(contexts) {
+export function newestContexts(contexts) {
     /** @type {Map<string, any>} */
     const newest = new Map();
     for (const ctx of contexts) {
@@ -142,8 +155,8 @@ function newestContexts(contexts) {
 
 /**
  * Notes one context in its workflow run's summary: a run is cancelled when a required check of it
- * was cancelled, and open while a check of it failed or is pending.
- * @param {Map<number, {workflow: string, cancelled: boolean, open: boolean}>} runs the runs, updated
+ * was cancelled, and open while a check of it is pending or failed (`runOpen` judges the failures).
+ * @param {Map<number, RunNote>} runs the runs, updated
  * @param {any} ctx the context
  * @param {CheckState} state its state
  * @param {boolean} isRequired whether its name is a required check
@@ -151,10 +164,31 @@ function newestContexts(contexts) {
 function noteRun(runs, ctx, state, isRequired) {
     const wr = ctx.checkSuite?.workflowRun;
     if (!wr?.databaseId) return;
-    const r = runs.get(wr.databaseId) ?? { workflow: wr.workflow?.name ?? "", cancelled: false, open: false };
-    if (state === "CANCELLED" && isRequired) r.cancelled = true;
-    if (state === "FAILURE" || state === "PENDING") r.open = true;
+    const r = runs.get(wr.databaseId) ?? {
+        workflow: wr.workflow?.name ?? "",
+        cancelledAt: null,
+        pending: false,
+        failedAt: [],
+    };
+    if (state === "CANCELLED" && isRequired) {
+        const at = ctx.startedAt ?? "";
+        if (r.cancelledAt === null || at > r.cancelledAt) r.cancelledAt = at;
+    }
+    if (state === "PENDING") r.pending = true;
+    if (state === "FAILURE") r.failedAt.push(ctx.startedAt ?? "");
     runs.set(wr.databaseId, r);
+}
+
+/**
+ * Whether a run with a cancelled required check is still open: a check of it is pending, or one
+ * failed that started before the cancelled required check did. A failure that started at or after it
+ * is a job downstream of the cancellation (ci.yml's "Queue Checks Pass" fails whenever "All Checks
+ * Pass" did not succeed, #490), not a failure of the code.
+ * @param {RunNote} r the run's note
+ * @returns {boolean} true when the run is no re-run candidate
+ */
+function runOpen(r) {
+    return r.pending || r.failedAt.some((at) => !at || !r.cancelledAt || at < r.cancelledAt);
 }
 
 /**
@@ -182,7 +216,7 @@ function readChecks(node, requiredChecks) {
     const contexts = readyAt
         ? allContexts.filter((/** @type {any} */ c) => !(c.startedAt && c.startedAt < readyAt))
         : allContexts;
-    /** @type {Map<number, {workflow: string, cancelled: boolean, open: boolean}>} */
+    /** @type {Map<number, RunNote>} */
     const runs = new Map();
     for (const [name, ctx] of newestContexts(contexts)) {
         const state = contextState(ctx);
@@ -201,7 +235,7 @@ function readChecks(node, requiredChecks) {
         committedAt: commit?.committedDate ?? null,
         committer: commit?.committer?.email ?? null,
         cancelledRuns: [...runs]
-            .filter(([, r]) => r.cancelled && !r.open)
+            .filter(([, r]) => r.cancelledAt !== null && !runOpen(r))
             .map(([id, r]) => ({ id, workflow: r.workflow })),
     };
 }
@@ -241,10 +275,27 @@ export function updatePrs(saved, nodes, master, config, now = new Date().toISOSt
     const byHead = new Map(nodes.map((n) => [n.headRefName, n.number]));
     for (const node of nodes) {
         const rec = foldPr(node, saved[node.number], config, now);
+        rec.inherited = inheritedKeys(rec.required, rec.underlying, master.redKeys ?? []);
         if (node.baseRefName !== master.branch) rec.stackedOn = byHead.get(node.baseRefName) ?? null;
         out[node.number] = rec;
     }
     return out;
+}
+
+/**
+ * The keys red on master that a pull request's failure is inherited from (classify.mjs class
+ * `inherited`): every failing required check is a summary check, and every job failed under them is
+ * red on master by its own key. Null otherwise, and the failure is the pull request's.
+ * @param {Record<string, CheckState>} required the required checks' states
+ * @param {Underlying | null | undefined} underlying the jobs failed under the summary checks
+ * @param {string[]} masterRed the keys red on master now
+ * @returns {string[] | null} the keys, or null
+ */
+export function inheritedKeys(required, underlying, masterRed) {
+    const failing = Object.keys(required).filter((n) => required[n] === "FAILURE");
+    if (!failing.length || !failing.every((n) => isSummaryJob(n)) || !underlying?.failures.length) return null;
+    const verdicts = underlying.failures.map((f) => classify(f, { masterRed }));
+    return verdicts.every((v) => v.class === "inherited") ? [...new Set(verdicts.map((v) => v.key))] : null;
 }
 
 /**
@@ -310,6 +361,7 @@ function foldPr(node, prev, config, now) {
         ownerRejected: kept.ownerRejected,
         stackedOn: null,
         lastActivityAt: node.updatedAt,
+        underlying: detail.underlying ?? null,
     };
 
     // UNKNOWN is GitHub still computing: no data, so nothing about mergeability changes.
@@ -480,6 +532,7 @@ function failingReasons(rec, master) {
     const failing = Object.keys(rec.required).filter((n) => rec.required[n] === "FAILURE");
     if (!failing.length) return [];
     const reasons = rec.ownerGate ? [] : [`required check failing: ${failing.join(", ")}`];
+    if (rec.inherited?.length) reasons.splice(0, reasons.length, `inherited from master: ${rec.inherited.join(", ")}`);
     if (master.fixedAt && rec.failingStartedAt && rec.failingStartedAt < master.fixedAt) {
         reasons.push("failure predates master fix");
     }

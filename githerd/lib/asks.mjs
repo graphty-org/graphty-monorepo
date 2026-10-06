@@ -25,6 +25,7 @@ import { askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr, prOf, 
 import { ownerHeld } from "./board.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
+import { jobWaits } from "./waits.mjs";
 
 const MINUTE = 60 * 1000;
 
@@ -197,7 +198,8 @@ const DEFAULT_MAX_ACTIVE = 3;
 /**
  * Why a session may take no more jobs now, or null: it holds `workers.maxActive` jobs it is
  * actively working (working, starting, or waiting on its own local task). Blocked, parked,
- * verifying and other waiting jobs do not count. Applies whatever capacity the session reported.
+ * verifying and other waiting jobs do not count, nor does a job only waiting to push or for CI
+ * (`jobWaits` in waits.mjs). Applies whatever capacity the session reported.
  * @param {any} state the daemon state
  * @param {string} session the session id
  * @param {any} [config] the normalized config
@@ -205,8 +207,12 @@ const DEFAULT_MAX_ACTIVE = 3;
  */
 export function atActiveCap(state, session, config) {
     const max = config?.workers?.maxActive ?? DEFAULT_MAX_ACTIVE;
+    const waits = jobWaits(state);
     const active = Object.values(state.jobs ?? {}).filter(
-        (j) => j.holder?.session === session && (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
+        (j) =>
+            j.holder?.session === session &&
+            !waits.has(j.id) &&
+            (ACTIVE.has(j.state) || (j.state === "waiting" && j.waitingFor?.local)),
     ).length;
     return active >= max ? `you hold ${active} active jobs; finish or report one first` : null;
 }
@@ -366,6 +372,8 @@ function statusText(state, jobs, minutes) {
         "where it stands. " +
         "Can you take another job? Answer that with capacity set, in those githerd_expect calls, to how many further " +
         "jobs this session can take now (0 if none); githerd invites a session with room to queued work even while it is busy. " +
+        "Jobs that are only waiting to push or for CI do not use your capacity: count only jobs you are actively " +
+        "working when you answer capacity. " +
         `A listed job still unanswered when githerd asks again in ${minutes} minutes goes back to the queue. ` +
         "Do the jobs' work in background subagents or workflows, so this conversation stays free to answer githerd."
     );
@@ -406,7 +414,8 @@ function brokenAnswered(state, n, ask) {
 /**
  * The broken pull requests whose owner (`state.prOwners`, else `state.prInferred`) is due the
  * question "are you fixing it?" (the owner's rule of 2026-10-05: owning is not working). Every
- * `minutes` per pull request, `state.brokenAsks[<pr>]` = `{head, session, at, heard}`. A question
+ * `minutes` per pull request, `state.brokenAsks[<pr>]` = `{head, session, why, at, heard}`; an
+ * answer holds until the head, the reason or the session changes. A question
  * the owner heard and left unanswered until the next is due, or an owner githerd cannot reach,
  * releases the pull request from its ownership until a new push (`state.prReleased[<pr>]` = the
  * head, read by `prInUse`), and its `pr` job is offered as usual.
@@ -449,6 +458,13 @@ function brokenOwner(state, n, rec) {
     // A session that says it is its own after the release owns it again.
     if (state.prOwners?.[n]) delete state.prReleased[n];
     const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
+    // An owner without githerd's tools cannot answer, so it is never asked and never released for
+    // silence: it keeps the pull request while it lives (inferOwners drops it when it exits).
+    if (owner?.noTools) {
+        delete state.prReleased[n];
+        delete state.brokenAsks[n];
+        return null;
+    }
     // Its owner working in its worktree again owns it again (a new push already ends the release).
     if (owner && state.prActivity?.[n]?.present?.[owner.session]) delete state.prReleased[n];
     const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;
@@ -480,6 +496,8 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
     // A cadence, how often to ask: never a deadline on the work.
     if (same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) return null;
     const gone = !live().some((s) => s.sessionId === owner.session);
+    // An answer holds until the facts change: a new head, other failing checks, or its session ending.
+    if (!gone && same && ask.why === why && brokenAnswered(state, n, ask)) return null;
     // Work on it counts as the answer for this cycle: a session without githerd's tools cannot say so.
     const active = !gone && activity(state, n, rec, owner, ask);
     if (active) {
@@ -659,7 +677,7 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
     const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
     const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
     for (const job of jobs) job.statusAsk = { ...ask };
-    for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, ...ask };
+    for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, why: p.why, ...ask };
     lines.push({
         kind: "status-asked",
         jobs: ids,

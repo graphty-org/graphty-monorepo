@@ -38,7 +38,7 @@
 
 import { byOwner, move, newJob, TERMINAL } from "./board.mjs";
 import { orderPosition } from "./owner.mjs";
-import { issueRule, missingLabelKinds, NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
+import { issueRule, mergeHeld, missingLabelKinds, NEXT, ownerLabel, prWork, readyIssues, SKIP } from "./queue.mjs";
 import { touches } from "./prs.mjs";
 
 /** Issues in one triage job (design 8.1). */
@@ -302,6 +302,7 @@ function prJobs(state, add, cancel) {
                     skip: ownerLabel(rec, SKIP),
                     labels: rec.labels ?? [],
                     ownerOnly,
+                    held: mergeHeld(rec),
                 },
             },
             { pr: Number(n), branch: rec.headRef ?? null },

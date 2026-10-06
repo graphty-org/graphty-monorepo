@@ -85,7 +85,8 @@ The four times master went red on 3 and 4 October each have a clear mechanism:
  and the production audit; only if all pass is a release PR (versions +
  changelogs) cut from it, merged through the queue, published with npm
  trusted publishing from that run's builds. Anything red: no PR, one
- "Release held: <what> failed on <sha>" issue for githerd. graphty.app
+ "Release held: <what> failed on <sha>" issue for githerd; the next master
+ push whose build passes restarts the held release on its commit. graphty.app
  deploys on every green master build. Ad hoc release: the same workflow,
  dispatched by hand, at once
  nightly: full Hosts (Windows 90 min, macOS), on master tip
@@ -504,9 +505,18 @@ Three costs at 30 to 50 merges a day:
    which also makes the builds the release ships), the T4 GPU lane (section 7), Hosts at full
    scope and `pnpm audit --prod --audit-level=high`. Anything red holds the whole release: no
    pull request, nothing published, and one "Release held: <what> failed on <sha>" issue
-   (`bug`, `priority:high`, `effort:medium`) that githerd turns into a fix. Its fix pull request
-   says `Fixes #<issue>`, so the merge closes it and the next attempt runs; a train that passes
-   closes it too. Coverage goes to Coveralls from the same CI run. A lane that was only
+   (`bug`, `priority:high`, `effort:medium`) that githerd turns into a fix. **A held release
+   restarts itself** (owner decision, 2026-10-06): release.yml also runs on `workflow_run` of
+   CI, and after every push to master whose build passed, while a "Release held" issue is open,
+   it takes that pushed commit at once through the same path (pick, full suite, T4, Hosts,
+   audit, release pull request). With no held issue open, or a red build, it does nothing; the
+   schedule still skips while the issue is open, so a push (or a dispatch) is how a held release
+   resumes. The fix pull request names the issue without closing it (`Refs #<issue>`, not
+   `Fixes #<issue>`), so its merge restarts the release. A train that passes closes the issue;
+   one that fails again comments on it, saying it was a restart. Two pushes in a row never start
+   two trains: every attempt shares the one `release-train` concurrency group, so the second
+   waits for the first and then finds its release pull request (it skips) or its held issue (it
+   tries the newer commit). Coverage goes to Coveralls from the same CI run. A lane that was only
    cancelled (gpu.yml's queue replaced the pending T4 run, a person cancelled it) opens no issue:
    the run goes red with an error annotation and the next attempt retries. A T4 refused or lost by
    machine.dev (balance, runner limit) still opens the issue, whose text says there is no code to

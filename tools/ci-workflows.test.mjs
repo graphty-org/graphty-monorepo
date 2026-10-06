@@ -1096,6 +1096,10 @@ describe("release.yml", () => {
         assert.match(train, /^\s+- author=github-actions\[bot\]$/m);
         assert.match(train, /^\s+priority: high$/m);
         assert.match(train, /^\s+allow_checks_interruption: false$/m);
+        const next = rules.slice(rules.indexOf("- name: next in line"));
+        assert.ok(rules.indexOf("- name: next in line") > rules.indexOf("- name: fix for a red master"));
+        assert.match(next, /^\s+- label=queue:next$/m);
+        assert.match(next, /^\s+priority: medium$/m);
     });
 
     it("deploys graphty.app from every green CI run of a push to master", () => {

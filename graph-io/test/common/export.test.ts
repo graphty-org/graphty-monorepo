@@ -14,6 +14,7 @@ import {
     LOSS,
     mangleNmtoken,
     NO_CAPABILITIES,
+    refusedSave,
     sanitizeIds,
 } from "../../src/common/export.js";
 import { resolveExportOptions } from "../../src/common/options.js";
@@ -422,5 +423,78 @@ describe("sanitizeIds (design 8.5)", () => {
         expect(sanitizeIds(exact, "dense-1-based", "error").changed).toBe(0);
         expect(exact.ids.kind).toBe("identity");
         expect(countUnrepresentableIds(exact, "dense-1-based")).toBe(0);
+    });
+});
+
+describe("checkCapabilities extras for plugins", () => {
+    const graph = (): GraphSnapshot => {
+        const b = new GraphBuilder({ directed: true });
+        b.addEdge("7", "a");
+        const label = b.declareNodeColumn({ name: "name", dtype: "string", role: "label" });
+        b.setNodeValue(label, 0, "seven");
+        b.setNodeValue("color", 1, "red");
+        return b.freeze();
+    };
+    const caps = capabilities({
+        multiEdges: true,
+        selfLoops: true,
+        edgeIds: "none",
+        idCharset: "any",
+        dtypes: ["string"],
+    });
+
+    it("attributes false notes each attribute once, except the roles the format writes", () => {
+        const notes = checkCapabilities(graph(), caps, resolveExportOptions(undefined), {
+            attributes: false,
+            roles: new Set(["label"]),
+            roleNames: { label: "label" },
+        });
+        expect(notes.map((n) => [n.code, n.column])).toEqual([
+            [LOSS.COLUMN_NAME_CHANGED, "name"],
+            [LOSS.COLUMN_DROPPED, "color"],
+        ]);
+    });
+
+    it("idsReadBack notes the ids that come back with another type", () => {
+        const notes = checkCapabilities(graph(), caps, resolveExportOptions(undefined), {
+            attributes: false,
+            idsReadBack: "canonical",
+        });
+        expect(notes.find((n) => n.code === LOSS.ID_TEXT_TYPE)?.count).toBe(1);
+        expect(
+            checkCapabilities(graph(), caps, resolveExportOptions(undefined), { attributes: false }).some(
+                (n) => n.code === LOSS.ID_TEXT_TYPE,
+            ),
+        ).toBe(false);
+    });
+});
+
+describe("refusedSave", () => {
+    const note = (code: string): LossNote => ({ code, message: `${code} message`, column: "c", count: 2 });
+
+    it("is null when no note refuses the save", () => {
+        expect(refusedSave([])).toBeNull();
+        expect(refusedSave([note("W_ROLE_DROPPED")])).toBeNull();
+    });
+
+    it("throws the kind of failure for the first E_ note, with the note's code in details", () => {
+        const cases: [string, string][] = [
+            ["E_ID_CHARSET", "E_INVALID_ID"],
+            ["E_ID_TEXT_COLLISION", "E_INVALID_ID"],
+            ["E_MIXED_DIRECTION", "E_DIRECTED"],
+            ["E_XML_ILLEGAL_CHAR", "E_COLUMN_TYPE"],
+            ["E_SOMETHING_ELSE", "E_UNSUPPORTED"],
+        ];
+        for (const [noteCode, errorCode] of cases) {
+            const err = refusedSave([note("W_ROLE_DROPPED"), note(noteCode), note("E_ID_CHARSET")]);
+            expect(err).toBeInstanceOf(GraphFormatError);
+            expect(err?.code).toBe(errorCode);
+            expect(err?.message).toBe(`${noteCode} message`);
+            expect(err?.details).toEqual({ code: noteCode, column: "c", count: 2 });
+        }
+    });
+
+    it("maps a plugin's own codes", () => {
+        expect(refusedSave([note("E_PAIRS_BAD_ID")], { E_PAIRS_BAD_ID: "E_INVALID_ID" })?.code).toBe("E_INVALID_ID");
     });
 });

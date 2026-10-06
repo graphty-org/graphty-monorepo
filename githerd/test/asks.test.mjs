@@ -816,13 +816,13 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toHaveLength(2);
     });
 
-    it("keeps it for the cycle when the owner answers with githerd_mine", async () => {
+    it("keeps it, unasked, when the owner answers with githerd_mine", async () => {
         const f = fake();
         const state = owned();
         await statusStep(state, opts(f, { now: at("12:00") }));
         state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" } };
         const lines = await statusStep(state, opts(f, { now: at("12:15") }));
-        expect(lines).toEqual([expect.objectContaining({ kind: "status-asked", prs: [710] })]);
+        expect(lines).toEqual([]);
         expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (it said so)");
     });
 
@@ -871,6 +871,21 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(await statusStep(moved, opts(f, { now: at("12:15") }))).toEqual([]);
         expect(moved.brokenAsks[710].active).toBe("new head bbbbbbb");
         expect(f.sent).toHaveLength(2);
+    });
+
+    it("holds an answer while the same failure stands, and asks again when another check fails", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" } };
+        for (const hm of ["12:15", "12:30", "12:45", "13:00"]) {
+            expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
+        }
+        expect(f.sent).toHaveLength(1);
+        state.prs[710].required["Lint PR Title"] = "FAILURE";
+        await statusStep(state, opts(f, { now: at("13:15") }));
+        expect(f.sent).toHaveLength(2);
+        expect(f.sent[1][1]).toContain("required check failing: All Checks Pass, Lint PR Title");
     });
 
     it("releases it at once when its owner cannot be asked, and never for a question nobody heard", async () => {

@@ -23,7 +23,7 @@
 }
 
 .ws-analyze-entry:hover,
-.ws-analyze-entry:focus-visible {
+.ws-analyze-entry[aria-selected="true"] {
     background: var(--cm-bg-hover);
 }
 

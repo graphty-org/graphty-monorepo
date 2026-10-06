@@ -3,7 +3,7 @@ import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { ChartColumn, ChevronLeft, Hash, Layers, Waypoints } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { OptionField } from "./OptionField";
 import { costLine, groupAlgorithms, type Heading, HEADINGS, isEssential, wordsFor } from "./words";
@@ -94,8 +94,10 @@ interface AnalyzePopoverProps {
 /**
  * The Analyze popover (tier1-design.md 5.T7): a Filter analyses box, Recent, then the element's
  * algorithm catalog under the app's headings; picking one shows its short form (the options the
- * element does not mark advanced), the cost line and Run. Esc steps back one level, and a second
- * Esc closes. Running closes the popover; the new row in the tree is the feedback.
+ * element does not mark advanced), the cost line and Run. The filter box is a combobox over the
+ * list: ArrowDown and ArrowUp move the active entry, Enter opens it, and while there is filter
+ * text the first match is active, so Enter on a single match opens it. Esc steps back one level,
+ * and a second Esc closes. Running closes the popover; the new row in the tree is the feedback.
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.onClose - Closes the popover
@@ -117,11 +119,20 @@ export function AnalyzePopover({
         algorithms.find((a) => a.key === initialPick),
     );
     const [values, setValues] = useState<Record<string, unknown>>({});
+    // The entry ArrowUp/Down moved to; null follows the filter (its first match, or none).
+    const [moved, setMoved] = useState<number | null>(null);
+    const listId = useId();
+    const listRef = useRef<HTMLDivElement>(null);
 
     const pick = (descriptor: AlgorithmDescriptor | undefined): void => {
         setPicked(descriptor);
         setValues({});
+        setMoved(null);
     };
+
+    useEffect(() => {
+        listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest" });
+    });
 
     const onKeyDown = (event: React.KeyboardEvent): void => {
         if (event.key !== "Escape") {
@@ -174,20 +185,47 @@ export function AnalyzePopover({
                   .map((key) => algorithms.find((a) => a.key === key))
                   .filter((a): a is AlgorithmDescriptor => a !== undefined)
             : [];
+    // Every entry in list order (Recent repeats some), for the active entry.
+    const flat = [...recent, ...groups.flatMap((g) => g.entries)];
+    const active = moved ?? (filter.trim() === "" ? -1 : 0);
+    const optionId = (i: number): string => `${listId}-${String(i)}`;
+    const open = (descriptor: AlgorithmDescriptor | undefined): void => {
+        if (descriptor !== undefined && unavailable(session, descriptor) === null) {
+            pick(descriptor);
+        }
+    };
 
+    const onFilterKeyDown = (event: React.KeyboardEvent): void => {
+        if (flat.length === 0) {
+            return;
+        }
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            const step = event.key === "ArrowDown" ? 1 : -1;
+            setMoved(active < 0 && step < 0 ? flat.length - 1 : (active + step + flat.length) % flat.length);
+        } else if (event.key === "Enter" && active >= 0) {
+            event.preventDefault();
+            open(flat[active]);
+        }
+    };
+
+    let index = 0;
     const entry = (descriptor: AlgorithmDescriptor, showStart: boolean): React.JSX.Element => {
         const words = wordsFor(descriptor);
         const reason = unavailable(session, descriptor);
+        const i = index++;
         return (
             <UnstyledButton
-                key={descriptor.key}
+                component="div"
+                role="option"
+                id={optionId(i)}
+                key={`${String(i)}-${descriptor.key}`}
+                aria-selected={i === active}
                 className="ws-analyze-entry"
                 aria-disabled={reason !== null}
                 aria-description={reason ?? undefined}
                 onClick={() => {
-                    if (reason === null) {
-                        pick(descriptor);
-                    }
+                    open(descriptor);
                 }}
             >
                 <Group gap={8} wrap="nowrap" align="flex-start">
@@ -219,27 +257,36 @@ export function AnalyzePopover({
             <SearchInput
                 aria-label="Filter analyses"
                 placeholder="Filter analyses"
+                role="combobox"
+                aria-expanded
+                aria-controls={listId}
+                aria-autocomplete="list"
+                aria-activedescendant={active >= 0 ? optionId(active) : undefined}
                 value={filter}
-                onChange={setFilter}
+                onChange={(text) => {
+                    setFilter(text);
+                    setMoved(null);
+                }}
+                onKeyDown={onFilterKeyDown}
                 // Back from an entry's short form, focus returns here, so a second Esc closes.
                 autoFocus
             />
-            <div className="ws-analyze-list">
+            <div className="ws-analyze-list" id={listId} ref={listRef} role="listbox" aria-label="Analyses">
                 {recent.length > 0 ? (
-                    <section aria-label="Recent">
+                    <div role="group" aria-label="Recent">
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             Recent
                         </Text>
                         {recent.map((descriptor) => entry(descriptor, false))}
-                    </section>
+                    </div>
                 ) : null}
                 {groups.map(({ heading, entries }) => (
-                    <section key={heading.id} aria-label={heading.title}>
+                    <div role="group" key={heading.id} aria-label={heading.title}>
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             {heading.title}
                         </Text>
                         {entries.map((descriptor) => entry(descriptor, true))}
-                    </section>
+                    </div>
                 ))}
                 {groups.length === 0 ? (
                     <Text size="xs" c="dimmed" p="xs">

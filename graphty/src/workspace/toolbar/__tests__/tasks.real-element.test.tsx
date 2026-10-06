@@ -64,9 +64,9 @@ function analyzeTool(): HTMLElement {
  */
 async function analyze(filter: string, entry: string): Promise<void> {
     await userEvent.click(analyzeTool());
-    const box = await screen.findByRole("searchbox", { name: "Filter analyses" });
+    const box = await screen.findByRole("combobox", { name: "Filter analyses" });
     await userEvent.type(box, filter);
-    await userEvent.click(await screen.findByRole("button", { name: new RegExp(`^${entry}`) }));
+    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${entry}`) }));
     await userEvent.click(await screen.findByRole("button", { name: "Run" }));
 }
 
@@ -107,7 +107,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await analyze("PageRank", "PageRank");
             // Running closes the popover; a screen reader hears the run start.
             await waitFor(() => {
-                assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
+                assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
             });
             assert.isNotNull(screen.getByText("PageRank added, running"));
             // Focus goes back to Analyze, not to the page.
@@ -123,15 +123,44 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
             // Picking it again revises the same row, so the button says so.
             await userEvent.click(analyzeTool());
-            const recent = await screen.findByRole("region", { name: "Recent" });
-            await userEvent.click(within(recent).getByRole("button", { name: /^PageRank/ }));
+            const recent = await screen.findByRole("group", { name: "Recent" });
+            await userEvent.click(within(recent).getByRole("option", { name: /^PageRank/ }));
             assert.isNotNull(await screen.findByRole("button", { name: "Update PageRank row" }));
             await userEvent.keyboard("{Escape}");
-            assert.isNotNull(await screen.findByRole("searchbox", { name: "Filter analyses" }));
+            assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
-                assert.isNull(screen.queryByRole("searchbox", { name: "Filter analyses" }));
+                assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
             });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "Analyze picks and runs from the keyboard alone: a single match on Enter, Arrow keys otherwise",
+        async () => {
+            const session = await openKarate();
+
+            // A single match: typing then Enter opens it, and Enter again runs it.
+            await userEvent.click(analyzeTool());
+            await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "brokers{Enter}");
+            assert.isNotNull(await screen.findByRole("form", { name: /^Betweenness/ }));
+            await userEvent.keyboard("{Enter}");
+            await finished(session, "betweenness");
+
+            // No filter: ArrowDown moves the active entry, ArrowUp moves it back, Enter opens it.
+            await userEvent.click(analyzeTool());
+            const box = await screen.findByRole("combobox", { name: "Filter analyses" });
+            assert.isNull(box.getAttribute("aria-activedescendant"));
+            await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowUp}");
+            const options = screen.getAllByRole("option");
+            const activeId = box.getAttribute("aria-activedescendant");
+            assert.equal(activeId, options[1].id);
+            assert.equal(options[1].getAttribute("aria-selected"), "true");
+            assert.equal(document.activeElement, box);
+            const name = within(options[1]).getAllByText(/./)[0].textContent ?? "";
+            await userEvent.keyboard("{Enter}");
+            assert.isNotNull(await screen.findByRole("form", { name }));
         },
         TIMEOUT_MS,
     );

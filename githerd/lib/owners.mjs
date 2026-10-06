@@ -324,6 +324,37 @@ export function inferOwners(prs, { root, pushLog, sessions, procs, worktrees, tr
 }
 
 /**
+ * What each live session is doing on each open pull request's branch right now, for the question
+ * "are you fixing it?" (asks.mjs brokenOwned): the worktree of the branch it has a process in (any
+ * process under its claude process), and the time of its last push of the branch (the push log).
+ * @typedef {{present: Record<string, string>, pushed: Record<string, string>}} PrActivity
+ * @param {Record<string, {headRef?: string}>} prs the open pull requests
+ * @param {Parameters<typeof inferOwners>[1]} facts the facts `inferOwners` reads
+ * @returns {Record<string, PrActivity>} the activity by pull request, present dirs relative to root
+ */
+export function prActivity(prs, { root, pushLog, sessions, procs, worktrees }) {
+    const cwds = cwdsUnder(procs);
+    const inside = (/** @type {Registered} */ s, /** @type {string} */ dir) =>
+        cwds(s.pid).some((c) => c === dir || c.startsWith(dir + sep));
+    /** @type {Map<string, Record<string, string>>} */
+    const pushes = new Map();
+    for (const p of pushLog) {
+        if (p.branch && p.sessionId && p.at) pushes.set(p.branch, { ...pushes.get(p.branch), [p.sessionId]: p.at });
+    }
+    /** @type {Record<string, PrActivity>} */
+    const out = {};
+    for (const [n, rec] of Object.entries(prs ?? {})) {
+        if (!rec?.headRef) continue;
+        const dirs = worktrees.filter((w) => w.branch === rec.headRef && w.dir !== root).map((w) => w.dir);
+        const present = sessions.flatMap((s) =>
+            dirs.filter((d) => inside(s, d)).map((d) => [s.sessionId, relative(root, d)]),
+        );
+        out[n] = { present: Object.fromEntries(present), pushed: pushes.get(rec.headRef) ?? {} };
+    }
+    return out;
+}
+
+/**
  * The cwds of a process and every process under it, from the process table.
  * @param {Proc[]} procs the process table
  * @returns {(pid: number) => string[]} the cwds of a process's tree

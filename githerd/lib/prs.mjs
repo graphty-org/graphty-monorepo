@@ -49,7 +49,7 @@ import { isSummaryJob } from "./lanes.mjs";
  *   the commit that ended the last incident was made; `redKeys` the failure keys red on it now;
  *   `advisory` the default branch's advisory checks (advisory.mjs)
  * @typedef {{
- *   headSha: string, headRef: string, baseRef: string, draft: boolean, readyAt: string | null, author: string | null,
+ *   headSha: string, headRef: string, baseRef: string, draft: boolean, fork?: boolean, readyAt: string | null, author: string | null,
  *   title: string, createdAt: string | null, references: number[], labels: string[], headChangedAt: string, headCommittedAt: string | null, headCommitter: string | null,
  *   breaking: boolean, breakingCheckedFor: string | null,
  *   touchesProtected: boolean,
@@ -244,6 +244,17 @@ function readChecks(node, requiredChecks) {
 }
 
 /**
+ * The command that updates pull request `n`'s branch from its base on GitHub: a signed merge made
+ * by GitHub, and a new CI run on it. A re-run, or closing and reopening the pull request, keeps
+ * testing its merge with the base as it was, so a fix that landed on master reaches it only so.
+ * @param {number | string} n the pull request
+ * @param {string} [repo] `owner/name`; gh fills in its placeholders by default
+ * @returns {string} the command
+ */
+export const updateBranchCommand = (n, repo = "{owner}/{repo}") =>
+    `gh api -X PUT repos/${repo}/pulls/${n}/update-branch`;
+
+/**
  * Whether a workflow run started while its pull request was a draft that is now ready. Re-running a
  * run reuses its event payload, `pull_request.draft` included, so ci.yml would skip CI again; only a
  * new run (close and reopen, or a push) carries the ready state. The run's `created_at` before the
@@ -376,6 +387,7 @@ function foldPr(node, prev, config, now) {
         headRef: node.headRefName,
         baseRef: node.baseRefName,
         draft: node.isDraft,
+        fork: node.isCrossRepository === true,
         readyAt: node.timelineItems?.nodes?.[0]?.createdAt ?? null,
         author: node.author?.login ?? null,
         title: node.title,
@@ -560,7 +572,7 @@ function cancelledReasons(rec) {
             reasons.push(`${run.workflow} run ${run.id} cancelled again after a re-run: not re-run again`);
         if (run.rerun === "draft")
             reasons.push(
-                `${run.workflow} run ${run.id} started while a draft, so a re-run skips CI again: close and reopen, or push`,
+                `${run.workflow} run ${run.id} started while a draft, so a re-run skips CI again: update the branch (update-branch) if master moved since, else close and reopen`,
             );
     }
     return reasons;
@@ -859,7 +871,7 @@ function releaseSafe(pr, ctx) {
  * @param {string | null | undefined} pattern the config's `release.commitPattern`
  * @returns {boolean} it is
  */
-function isReleaseTrain(pr, pattern) {
+export function isReleaseTrain(pr, pattern) {
     return (
         Boolean(pattern) &&
         pr.author === "github-actions" &&

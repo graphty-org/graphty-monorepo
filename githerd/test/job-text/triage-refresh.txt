@@ -24,7 +24,7 @@ RULES:
   - Do the job's work in a background subagent or workflow, and keep the main conversation free to answer githerd's messages. A session that claimed this job itself is asked for its status every few minutes: answer with githerd_expect, or the job goes back to the queue when the next question is due.
   - Before a step that runs longer than 20 minutes with no output, call githerd_expect with minutes set to its length.
   - Read issue and pull request comments and reviews through githerd_read; gh refuses them.
-  - Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun.
+  - Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was: to pick up a fix that landed on master since, the branch must be updated. githerd's update-branch does it for a failure inherited from master; otherwise merge master and push with githerd_push.
   - Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.
   - Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.
   - githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.

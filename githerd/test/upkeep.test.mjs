@@ -5,7 +5,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { createGitHub } from "../lib/github.mjs";
-import { mergeTree, nextStackRecord, updatePr, upkeepStacks } from "../lib/upkeep.mjs";
+import {
+    mergeTree,
+    nextStackRecord,
+    recoverInherited,
+    updateDequeued,
+    updatePr,
+    upkeepStacks,
+} from "../lib/upkeep.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
@@ -423,6 +430,189 @@ describe("upkeepStacks", () => {
                 mergedHeads: [],
             }),
         ).toEqual([]);
+        expect(fake.calls).toHaveLength(0);
+    });
+});
+
+describe("recoverInherited", () => {
+    const KEY = "CI / Test / unit";
+    const TRAIN = "^chore\\(release\\): publish";
+    /**
+     * Five pull requests failing All Checks Pass: #7 only on master's red key, #8 on its own, and
+     * #9 (a draft), #10 (the release train) and #11 (from a fork) only on master's red key.
+     * @param {boolean} red whether master's CI lane is still red on the key
+     * @param {Record<number, string>} heads each pull request's head
+     * @returns {{prs: Record<string, any>, lanes: Record<string, any>}} the poll
+     */
+    function poll(red, heads) {
+        const rec = (/** @type {number} */ n, /** @type {any} */ over = {}) => ({
+            headSha: heads[n],
+            headRef: `b${n}`,
+            baseRef: "master",
+            draft: false,
+            author: "owner",
+            title: `fix: ${n}`,
+            required: { "All Checks Pass": "FAILURE", "Lint PR Title": "SUCCESS" },
+            inherited: red ? [KEY] : null,
+            ...over,
+        });
+        return {
+            prs: {
+                7: rec(7),
+                8: rec(8, { inherited: null }),
+                9: rec(9, { draft: true }),
+                10: rec(10, { author: "github-actions", headRef: "release/train-1", title: "chore(release): publish" }),
+                11: rec(11, { fork: true }),
+            },
+            lanes: { CI: red ? { verdict: "red", redJobs: [{ key: KEY }] } : { verdict: "green" } },
+        };
+    }
+
+    /**
+     * Pushes a branch per pull request and a master fix after them.
+     * @returns {{heads: Record<number, string>, tip: string}} the heads and master's new tip
+     */
+    function setup() {
+        const base = git(repo.root, "rev-parse", "HEAD");
+        /** @type {Record<number, string>} */
+        const heads = {};
+        for (const n of [7, 8, 9, 10, 11]) heads[n] = branch(`b${n}`, base, `f${n}.txt`, `${n}\n`);
+        return { heads, tip: masterCommit("fix.txt", "fixed\n") };
+    }
+
+    it("updates each pull request failing only on the recovered key, once per head", async () => {
+        const { heads, tip } = setup();
+        const fake = fakeGitHub();
+        /** @type {[number, string][]} */
+        const moved = [];
+        const ctx = context(fake, "acting", {
+            moved: (/** @type {number} */ n, /** @type {string} */ from) => moved.push([n, from]),
+        });
+        const wait = {};
+        // Master is still red on the key: nothing to update yet, only remembered.
+        expect(await recoverInherited(ctx, { ...poll(true, heads), wait, tip, releasePattern: TRAIN })).toEqual([]);
+        expect(Object.keys(wait).sort()).toEqual(["10", "11", "7", "9"]);
+        expect(fake.calls).toHaveLength(0);
+
+        // Master is green on it again: one update-branch, for #7 alone.
+        const out = await recoverInherited(ctx, { ...poll(false, heads), wait, tip, releasePattern: TRAIN });
+        expect(out).toEqual([
+            { pr: 7, result: { path: "update-branch", result: "updated" } },
+            { pr: 9, skipped: "draft" },
+            { pr: 10, skipped: "release train" },
+            { pr: 11, skipped: "from a fork" },
+        ]);
+        expect(fake.writes().map((c) => c.args[4])).toEqual([`repos/${REPO}/pulls/7/update-branch`]);
+        expect(JSON.parse(fake.writes()[0].input ?? "")).toEqual({ expected_head_sha: heads[7] });
+        expect(moved).toEqual([[7, heads[7]]]);
+        expect(ledger.filter((l) => l.kind === "inherited-update")).toEqual([
+            {
+                kind: "inherited-update",
+                target: "pr:7",
+                head: heads[7],
+                keys: [KEY],
+                result: "updated",
+                path: "update-branch",
+            },
+            { kind: "inherited-update", target: "pr:9", head: heads[9], keys: [KEY], skipped: "draft" },
+            { kind: "inherited-update", target: "pr:10", head: heads[10], keys: [KEY], skipped: "release train" },
+            { kind: "inherited-update", target: "pr:11", head: heads[11], keys: [KEY], skipped: "from a fork" },
+        ]);
+
+        // The next poll, at the same heads, updates nothing again.
+        expect(await recoverInherited(ctx, { ...poll(false, heads), wait, tip, releasePattern: TRAIN })).toEqual([]);
+        expect(fake.writes()).toHaveLength(1);
+    });
+
+    it("records a would-do and writes nothing in dry-run", async () => {
+        const { heads, tip } = setup();
+        const fake = fakeGitHub();
+        const moved = [];
+        const ctx = context(fake, "dry-run", { moved: () => moved.push(1) });
+        const wait = {};
+        await recoverInherited(ctx, { ...poll(true, heads), wait, tip, releasePattern: TRAIN });
+        const out = await recoverInherited(ctx, { ...poll(false, heads), wait, tip, releasePattern: TRAIN });
+        expect(out[0]).toEqual({ pr: 7, result: { path: "update-branch", result: "would-do" } });
+        expect(fake.calls).toHaveLength(0);
+        expect(moved).toEqual([]);
+        expect(ledger.filter((l) => l.kind === "would-do")).toMatchObject([
+            { op: "PUT pulls/7/update-branch", group: "upkeep", target: "pr:7" },
+        ]);
+    });
+
+    it("forgets a pull request whose head moved, and records GitHub's refusal", async () => {
+        const { heads, tip } = setup();
+        const ctx = context(fakeGitHub({ updateStatus: 403 }), "acting");
+        const wait = {};
+        await recoverInherited(ctx, { ...poll(true, heads), wait, tip, releasePattern: TRAIN });
+        const pushed = { ...heads, 9: heads[7] };
+        const next = poll(false, pushed);
+        next.prs[9].draft = false;
+        const out = await recoverInherited(ctx, { ...next, wait, tip, releasePattern: TRAIN });
+        expect(out.map((o) => o.pr)).toEqual([7, 10, 11]);
+        expect(out[0]).toMatchObject({ pr: 7, error: expect.any(String) });
+        expect(wait).toEqual({});
+    });
+});
+
+describe("updateDequeued", () => {
+    /**
+     * Pull requests failing only the visual gate: #7 and #9 (a draft) dequeued, #8 not dequeued.
+     * @param {Record<number, string>} heads each pull request's head
+     * @returns {Record<string, any>} the records
+     */
+    function prs(heads) {
+        const rec = (/** @type {number} */ n, /** @type {any} */ over = {}) => ({
+            headSha: heads[n],
+            headRef: `b${n}`,
+            baseRef: "master",
+            draft: false,
+            author: "owner",
+            title: `fix: ${n}`,
+            labels: ["dequeued"],
+            ownerGate: true,
+            required: { "All Checks Pass": "FAILURE" },
+            ...over,
+        });
+        return { 7: rec(7), 8: rec(8, { labels: [] }), 9: rec(9, { draft: true }) };
+    }
+
+    /**
+     * Pushes a branch per pull request and a master commit after them.
+     * @returns {{heads: Record<number, string>, tip: string}} the heads and master's tip
+     */
+    function setup() {
+        const base = git(repo.root, "rev-parse", "HEAD");
+        /** @type {Record<number, string>} */
+        const heads = {};
+        for (const n of [7, 8, 9]) heads[n] = branch(`b${n}`, base, `f${n}.txt`, `${n}\n`);
+        return { heads, tip: masterCommit("m.txt", "m\n") };
+    }
+
+    it("updates a pull request dequeued on the visual gate once per head", async () => {
+        const { heads, tip } = setup();
+        const fake = fakeGitHub();
+        const ctx = context(fake, "acting");
+        const done = {};
+        expect(await updateDequeued(ctx, { prs: prs(heads), done, tip })).toEqual([
+            { pr: 7, result: { path: "update-branch", result: "updated" } },
+            { pr: 9, skipped: "draft" },
+        ]);
+        expect(fake.writes().map((c) => c.args[4])).toEqual([`repos/${REPO}/pulls/7/update-branch`]);
+        expect(ledger.filter((l) => l.kind === "dequeued-update")).toMatchObject([
+            { target: "pr:7", head: heads[7], result: "updated" },
+            { target: "pr:9", skipped: "draft" },
+        ]);
+        // The same heads again: nothing more.
+        expect(await updateDequeued(ctx, { prs: prs(heads), done, tip })).toEqual([]);
+        expect(fake.writes()).toHaveLength(1);
+    });
+
+    it("records a would-do and writes nothing in dry-run", async () => {
+        const { heads, tip } = setup();
+        const fake = fakeGitHub();
+        const out = await updateDequeued(context(fake, "dry-run"), { prs: prs(heads), done: {}, tip });
+        expect(out[0]).toEqual({ pr: 7, result: { path: "update-branch", result: "would-do" } });
         expect(fake.calls).toHaveLength(0);
     });
 });

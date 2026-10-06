@@ -128,7 +128,7 @@ function check(dir, packed, workspaceVersions) {
                 let name = packageName(spec);
                 if (!VALID_NAME.test(name) || name === manifest.name) continue;
                 const types = `@types/${name.replace(/^@/, "").replace("/", "__")}`;
-                if (/\.d\.(c|m)?ts$/.test(file) && !declared.has(name) && declared.has(types)) name = types;
+                if (/\.d\.[cm]?ts$/.test(file) && !declared.has(name) && declared.has(types)) name = types;
                 if (!imported.has(name)) imported.set(name, file);
             }
         }

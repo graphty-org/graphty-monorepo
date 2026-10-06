@@ -132,7 +132,7 @@ function doc(description: string, indent: string): string {
 
     const lines = description
         .trim()
-        .replaceAll("*/", "*\\/")
+        .replaceAll("*/", String.raw`*\/`)
         .split("\n")
         .map((line) => (line.trim() === "" ? `${indent} *` : `${indent} * ${line.trimEnd()}`));
 
@@ -159,7 +159,9 @@ export function generateJsxTypes(manifest: Manifest): string {
                 ? `GraphtyElementEventMap["${name}"]`
                 : `CustomEvent<EventOfType<"${name}">>`;
 
-            return `${doc(description, indent)}${indent}${key(`on${name}`)}?: (event: ${type}) => void;`;
+            const prop = key(`on${name}`);
+
+            return `${doc(description, indent)}${indent}${prop}?: (event: ${type}) => void;`;
         }),
     ];
 

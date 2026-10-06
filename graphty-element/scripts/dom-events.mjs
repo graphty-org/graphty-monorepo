@@ -189,7 +189,7 @@ export function readOwnDomEvents(elementFile) {
         if (ts.isInterfaceDeclaration(node) && node.name.text === "HTMLElementEventMap") {
             for (const member of node.members) {
                 if (ts.isPropertySignature(member) && member.name && ts.isStringLiteral(member.name) && member.type) {
-                    events.push({ name: member.name.text, type: member.type.getText(source).replace(/\s+/g, " ") });
+                    events.push({ name: member.name.text, type: member.type.getText(source).replaceAll(/\s+/g, " ") });
                 }
             }
         }

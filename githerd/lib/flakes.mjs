@@ -34,6 +34,7 @@ import { join } from "node:path";
 import { classify } from "./classify.mjs";
 import { notSent } from "./github.mjs";
 import { isSummaryJob } from "./lanes.mjs";
+import { isMergeQueuePr } from "./merge-status.mjs";
 import { firstParent } from "./master.mjs";
 
 /** The line that ties an issue to its test. */
@@ -49,15 +50,14 @@ const NO_RERUN = new Set(["gpu", "GPU"]);
 /** Workflows whose tests all live in one package. */
 const WORKFLOW_PACKAGE = { GPU: "webgpu-graph-algorithms", Hosts: "webgpu-graph-algorithms" };
 /** Paths no test reads. */
-const UNREAD = /^(?:design|docs|\.claude)\/|\.md$/;
+const UNREAD = /(?:^(?:design|docs|\.claude)\/)|(?:\.md$)/;
 /** How many read job ids are remembered. */
 const JOBS_KEPT = 2000;
 /** The longest log line quoted. */
 const LINE_MAX = 300;
 
-const ANSI = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*m`, "g");
+const ANSI = new RegExp(String.raw`${String.fromCodePoint(27)}\[[0-9;]*m`, "g");
 const STAMP = /^\uFEFF?\d{4}-\d\d-\d\dT[\d:.]+Z ?/;
-const FAIL = /^\s*FAIL\s+(.*)$/;
 const PATH = /(?:^|\s)((?:[\w@.-]+\/)*[\w@.-]+\.[cm]?[jt]sx?)(?=\s|$)/;
 const SECTION = /^==> (\S+)/;
 
@@ -103,7 +103,7 @@ export function readWorkspace(root) {
     try {
         let inList = false;
         for (const line of readFileSync(join(root, "pnpm-workspace.yaml"), "utf8").split("\n")) {
-            if (/^packages:/.test(line)) inList = true;
+            if (line.startsWith("packages:")) inList = true;
             else if (inList && /^\s+-\s/.test(line))
                 packages.push(line.replace(/^\s+-\s+/, "").replaceAll(/["']/g, ""));
             else if (inList && /^\S/.test(line)) inList = false;
@@ -152,7 +152,7 @@ export function readWorkspace(root) {
 function packageIn(name, packages) {
     if (!name) return null;
     const hits = packages.filter((p) => name === p || name.startsWith(`${p}-`));
-    return hits.sort((a, b) => b.length - a.length)[0] ?? null;
+    return hits.reduce((/** @type {string | null} */ best, p) => (best && best.length >= p.length ? best : p), null);
 }
 
 /**
@@ -169,36 +169,51 @@ export function failingTests(log, { job, workflow = "", packages }) {
     if (!log) return [];
     /** @type {Map<string, FailedTest>} */
     const out = new Map();
-    let section = null;
-    const shard = /\(([^)]+)\)/.exec(job)?.[1];
+    /** @type {string | undefined} */
+    let section;
+    const shard = job.includes("(") ? job.slice(job.indexOf("(") + 1, job.lastIndexOf(")")) : undefined;
     for (const raw of log.split("\n")) {
         const text = raw
-            .replace(ANSI, "")
+            .replaceAll(ANSI, "")
             .replace(/^[^\t]*\t[^\t]*\t/, "")
             .replace(STAMP, "")
-            .trimEnd();
-        const sec = SECTION.exec(text);
-        if (sec) section = sec[1];
-        const fail = FAIL.exec(text);
-        const path = fail && PATH.exec(fail[1]);
-        if (!fail || !path) continue;
-        const file = path[1];
-        const rest = fail[1]
-            .slice(path.index + path[0].length)
-            .replace(/\s*\[[^\]]*\]$/, "")
             .trim();
-        const name = rest.startsWith(">") ? rest.slice(1).trim() : "(the whole file)";
-        const top = file.split("/")[0];
+        section = SECTION.exec(text)?.[1] ?? section;
+        const fail = failLine(text);
+        if (!fail) continue;
+        const top = fail.file.split("/")[0];
         const pkg = packages.includes(top)
             ? top
-            : (packageIn(section ?? undefined, packages) ??
-              packageIn(shard, packages) ??
-              (WORKFLOW_PACKAGE[/** @type {keyof typeof WORKFLOW_PACKAGE} */ (workflow)] || null));
-        const rel = pkg && top !== pkg ? `${pkg}/${file}` : file;
-        const id = `${rel} > ${name}`;
-        if (!out.has(id)) out.set(id, { id, package: pkg, file: rel, name, line: text.trim().slice(0, LINE_MAX) });
+            : (packageIn(section, packages) ?? packageIn(shard, packages) ?? workflowPackage(workflow));
+        const rel = pkg && top !== pkg ? `${pkg}/${fail.file}` : fail.file;
+        const id = `${rel} > ${fail.name}`;
+        if (!out.has(id)) out.set(id, { id, package: pkg, file: rel, name: fail.name, line: text.slice(0, LINE_MAX) });
     }
     return [...out.values()];
+}
+
+/**
+ * The one package of a workflow whose tests all live in one.
+ * @param {string} workflow the workflow's name
+ * @returns {string | null} the package
+ */
+function workflowPackage(workflow) {
+    return WORKFLOW_PACKAGE[/** @type {keyof typeof WORKFLOW_PACKAGE} */ (workflow)] ?? null;
+}
+
+/**
+ * The file and test of one `FAIL` line, without its project label or its trailing `[ file ]`.
+ * @param {string} text the line, trimmed
+ * @returns {{file: string, name: string} | null} the file and test, or null for any other line
+ */
+function failLine(text) {
+    if (!text.startsWith("FAIL ")) return null;
+    let rest = text.slice(5).trim();
+    const path = PATH.exec(rest);
+    if (!path) return null;
+    rest = rest.slice(path.index + path[0].length).trim();
+    if (rest.endsWith("]") && rest.includes("[")) rest = rest.slice(0, rest.lastIndexOf("[")).trim();
+    return { file: path[1], name: rest.startsWith(">") ? rest.slice(1).trim() : "(the whole file)" };
 }
 
 /**
@@ -274,30 +289,36 @@ export function provePasses(store, passes, heads) {
     for (const t of Object.values(store.tests)) {
         for (const o of t.occurrences) {
             for (const p of passes) {
-                const same = p.job === o.job || (p.job === "*" && p.lane === o.lane && o.where === "master");
-                if (!same) continue;
-                if (p.sha === o.sha) {
-                    prove(
-                        t,
-                        "same-commit",
-                        `${o.job} failed on ${short(o.sha)} in run ${o.runId} and passed on the same commit`,
-                    );
-                } else if (
-                    p.where === "queue" &&
-                    o.where === "pr" &&
-                    o.pr &&
-                    p.contains?.includes(o.pr) &&
-                    heads[o.pr] === o.sha
-                ) {
-                    prove(
-                        t,
-                        "merge-batch",
-                        `${o.job} failed on #${o.pr} at ${short(o.sha)} and passed in a merge-queue batch holding it`,
-                    );
-                }
+                const proof = passProof(o, p, heads);
+                if (proof) prove(t, proof.kind, proof.text);
             }
         }
     }
+}
+
+/**
+ * What one passing job proves about one occurrence: the same commit, or a merge batch holding the
+ * pull request's failing head.
+ * @param {Occurrence} o the occurrence
+ * @param {Pass} p the pass
+ * @param {Record<string, string>} heads each open pull request's head
+ * @returns {Proof | null} the proof, or null
+ */
+function passProof(o, p, heads) {
+    const lanePass = p.job === "*" && p.lane === o.lane && o.where === "master";
+    if (p.job !== o.job && !lanePass) return null;
+    if (p.sha === o.sha) {
+        return {
+            kind: "same-commit",
+            text: `${o.job} failed on ${short(o.sha)} in run ${o.runId} and passed on the same commit`,
+        };
+    }
+    const batch = p.where === "queue" && o.where === "pr" && o.pr !== null;
+    if (!batch || !p.contains?.includes(/** @type {number} */ (o.pr)) || heads[String(o.pr)] !== o.sha) return null;
+    return {
+        kind: "merge-batch",
+        text: `${o.job} failed on #${o.pr} at ${short(o.sha)} and passed in a merge-queue batch holding it`,
+    };
 }
 
 /**
@@ -312,24 +333,33 @@ export async function proveMaster(store, { lanes, commits, ws, files }) {
     const chain = commits.length ? firstParent(commits, commits[0].sha).map((c) => c.sha) : [];
     for (const t of Object.values(store.tests)) {
         for (const o of t.occurrences) {
-            const shas = o.where === "master" && o.lane ? lanes[o.lane]?.shas : null;
-            const i = chain.indexOf(o.sha);
-            if (!shas || i <= 0) continue;
-            for (let k = i - 1; k >= 0; k--) {
-                const out = shas[chain[k]];
-                if (out === "red") break;
-                if (out !== "green") continue;
-                if (touchesPackage(await files(o.sha, chain[k]), t.package, ws) === false) {
-                    prove(
-                        t,
-                        "next-master",
-                        `${o.lane} failed at ${short(o.sha)} and passed at ${short(chain[k])}; nothing between touched ${t.package}`,
-                    );
-                }
-                break;
+            const next = o.where === "master" && o.lane ? nextGreen(chain, lanes[o.lane]?.shas, o.sha) : null;
+            if (next && touchesPackage(await files(o.sha, next), t.package, ws) === false) {
+                prove(
+                    t,
+                    "next-master",
+                    `${o.lane} failed at ${short(o.sha)} and passed at ${short(next)}; nothing between touched ${t.package}`,
+                );
             }
         }
     }
+}
+
+/**
+ * The next commit after `sha` that finished a lane run, when that run passed.
+ * @param {string[]} chain master's first-parent commits, head first
+ * @param {Record<string, string> | undefined} shas the lane's outcome by commit
+ * @param {string} sha the failing commit
+ * @returns {string | null} the passing commit, or null when the next finished run failed or none did
+ */
+function nextGreen(chain, shas, sha) {
+    const i = chain.indexOf(sha);
+    if (!shas || i <= 0) return null;
+    const next = chain
+        .slice(0, i)
+        .reverse()
+        .find((c) => shas[c] === "green" || shas[c] === "red");
+    return next && shas[next] === "green" ? next : null;
 }
 
 /**
@@ -339,13 +369,8 @@ export async function proveMaster(store, { lanes, commits, ws, files }) {
 export function provePrs(store) {
     for (const t of Object.values(store.tests)) {
         const prs = [...new Set(t.occurrences.filter((o) => o.where === "pr" && o.touched === false).map((o) => o.pr))];
-        if (prs.length >= 2) {
-            prove(
-                t,
-                "untouched-prs",
-                `failed on ${prs.map((n) => `#${n}`).join(", ")}, none of which touches ${t.package}`,
-            );
-        }
+        const list = prs.map((n) => "#" + n).join(", ");
+        if (prs.length >= 2) prove(t, "untouched-prs", `failed on ${list}, none of which touches ${t.package}`);
     }
 }
 
@@ -569,7 +594,9 @@ export function masterFlake({ lane, workflow, tests, store, known, files, ws }) 
  */
 export async function rerunFlake({ github, repo, state, job, sha, key, now }) {
     const store = flakeStore(state);
-    const reruns = ((state.incidentActions ??= {}).reruns ??= {});
+    state.incidentActions ??= {};
+    state.incidentActions.reruns ??= {};
+    const reruns = state.incidentActions.reruns;
     const id = `${sha} ${key}`;
     if (reruns[id]) return false;
     const send = () =>
@@ -623,52 +650,51 @@ export async function observeRollups({ nodes, store, ws, required, at, files, ge
     const heads = {};
     for (const node of nodes) {
         const sha = node.headRefOid;
-        const queue = String(node.headRefName ?? "").startsWith("mergify/merge-queue/");
+        const queue = isMergeQueuePr(node);
         if (!queue) heads[node.number] = sha;
         const contains = queue ? [...String(node.title ?? "").matchAll(/#(\d+)/g)].map((m) => Number(m[1])) : [];
-        const contexts = (node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? []).filter(
-            (/** @type {any} */ c) => c.__typename === "CheckRun" && !isSummaryJob(c.name, required),
-        );
-        for (const c of contexts) {
-            if (c.conclusion === "SUCCESS") passes.push({ sha, job: c.name, where: queue ? "queue" : "pr", contains });
-        }
+        const contexts = checkRuns(node).filter((c) => !isSummaryJob(c.name, required));
+        const where = /** @type {"queue" | "pr"} */ (queue ? "queue" : "pr");
+        for (const c of contexts.filter((x) => x.conclusion === "SUCCESS"))
+            passes.push({ sha, job: c.name, where, contains });
         const failed = contexts.filter(
-            (/** @type {any} */ c) =>
-                ["FAILURE", "TIMED_OUT"].includes(c.conclusion) &&
-                /^Test\b/.test(c.name) &&
-                c.databaseId &&
-                !store.jobs[String(c.databaseId)],
+            (c) =>
+                FAILED.has(c.conclusion) && /^Test\b/.test(c.name) && c.databaseId && !store.jobs[String(c.databaseId)],
         );
-        const runs = [
-            ...new Set(failed.map((/** @type {any} */ c) => c.checkSuite?.workflowRun?.databaseId).filter(Boolean)),
-        ];
+        const runs = [...new Set(failed.map(runOf).filter(Boolean))];
         for (const runId of runs) {
             const jobs = (await get(`repos/${repo}/actions/runs/${runId}/jobs?filter=latest&per_page=100`))?.jobs ?? [];
-            for (const c of failed.filter((/** @type {any} */ x) => x.checkSuite?.workflowRun?.databaseId === runId)) {
-                const j = jobs.find((/** @type {any} */ x) => x.id === c.databaseId);
+            for (const c of failed.filter((x) => runOf(x) === runId)) {
                 const workflow = c.checkSuite?.workflowRun?.workflow?.name ?? "";
                 const tests = failingTests(await log(c.databaseId), { job: c.name, workflow, packages: ws.packages });
-                recordTests(
-                    store,
-                    tests,
-                    {
-                        runId,
-                        attempt: j?.run_attempt ?? null,
-                        job: c.name,
-                        jobId: c.databaseId,
-                        sha,
-                        where: queue ? "queue" : "pr",
-                        pr: node.number,
-                        files: queue ? null : files(node.number, sha),
-                        at,
-                    },
-                    ws,
-                );
+                const attempt = jobs.find((/** @type {any} */ x) => x.id === c.databaseId)?.run_attempt ?? null;
+                const occ = { runId, attempt, job: c.name, jobId: c.databaseId, sha, where, pr: node.number, at };
+                recordTests(store, tests, { ...occ, files: queue ? null : files(node.number, sha) }, ws);
             }
         }
     }
     return { passes, heads };
 }
+
+/** Check run conclusions that fail a job. */
+const FAILED = new Set(["FAILURE", "TIMED_OUT"]);
+
+/**
+ * A pull request head's check runs, from the GraphQL rollup.
+ * @param {any} node the pull request node
+ * @returns {any[]} its check runs
+ */
+const checkRuns = (node) =>
+    (node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? []).filter(
+        (/** @type {any} */ c) => c.__typename === "CheckRun",
+    );
+
+/**
+ * A check run's workflow run id.
+ * @param {any} c the check run
+ * @returns {number | undefined} the run
+ */
+const runOf = (c) => c.checkSuite?.workflowRun?.databaseId;
 
 /**
  * The failing test jobs of a pull request's head, each with the tests it failed on, for the
@@ -679,14 +705,8 @@ export async function observeRollups({ nodes, store, ws, required, at, files, ge
  * @returns {{job: string, tests: string[]}[]} the failing jobs that are not summaries
  */
 export function headFailures(store, node, required) {
-    const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
-    return contexts
-        .filter(
-            (/** @type {any} */ c) =>
-                c.__typename === "CheckRun" &&
-                ["FAILURE", "TIMED_OUT"].includes(c.conclusion) &&
-                !isSummaryJob(c.name, required),
-        )
+    return checkRuns(node)
+        .filter((c) => FAILED.has(c.conclusion) && !isSummaryJob(c.name, required))
         .map((/** @type {any} */ c) => ({
             job: c.name,
             tests: Object.values(store.tests)
@@ -793,7 +813,8 @@ export async function masterFlakeStep({ state, ws, github, repo, incident, lane,
     if (!hit) return null;
     await rerunFlake({ github, repo, state, job, sha, key, now });
     const issue = hit.issues[0] ?? null;
-    (incident.flakyTests ??= {})[key] = { tests: job.tests, issues: hit.issues };
+    incident.flakyTests ??= {};
+    incident.flakyTests[key] = { tests: job.tests, issues: hit.issues };
     if (issue) incident.issue = issue;
     return { issue };
 }

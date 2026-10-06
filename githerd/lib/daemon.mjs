@@ -1591,20 +1591,16 @@ export async function startDaemon({
         if (config.lanes.release || config.release) checkRelease(m, ms, derived);
         if (pace.level === "normal") {
             await pollPrs(gh, prList.repository.pullRequests.nodes, branch, t);
-            try {
-                await flakePoll({
-                    state,
-                    nodes: prList.repository.pullRequests.nodes,
-                    ws: workspace,
-                    config,
-                    github: gh,
-                    log: jobLog,
-                    commits,
-                    at: iso,
-                });
-            } catch (err) {
-                void ledger({ kind: "error", where: "flakes", error: /** @type {Error} */ (err).message });
-            }
+            await flakePoll({
+                state,
+                nodes: prList.repository.pullRequests.nodes,
+                ws: workspace,
+                config,
+                github: gh,
+                log: jobLog,
+                commits,
+                at: iso,
+            }).catch((err) => ledger({ kind: "error", where: "flakes", error: err.message }));
         }
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         // The merge gate reads each githerd-made pull request's patch id (decision line 6).

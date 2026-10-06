@@ -220,9 +220,10 @@ export class LogStorage {
 
         // Determine retention days from options, env var, or default
         const envRetention = process.env.REMOTE_LOG_RETENTION_DAYS;
-        this.retentionDays = options.retentionDays
-            ?? (envRetention ? parseInt(envRetention, 10) : undefined)
-            ?? DEFAULT_RETENTION_DAYS;
+        this.retentionDays =
+            options.retentionDays ??
+            (envRetention ? Number.parseInt(envRetention, 10) : undefined) ??
+            DEFAULT_RETENTION_DAYS;
 
         // Start periodic cleanup timer
         const cleanupInterval = options.cleanupIntervalMs ?? DEFAULT_CLEANUP_INTERVAL_MS;
@@ -614,9 +615,7 @@ export class LogStorage {
 
         for (const [sessionId, sessionData] of this.sessions) {
             // Filter out expired logs
-            const remainingLogs = sessionData.logs.filter(
-                (log) => new Date(log.time).getTime() > cutoffMs,
-            );
+            const remainingLogs = sessionData.logs.filter((log) => new Date(log.time).getTime() > cutoffMs);
 
             if (remainingLogs.length === 0) {
                 // Session has no remaining logs, mark for removal

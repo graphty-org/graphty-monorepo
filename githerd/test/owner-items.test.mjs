@@ -359,6 +359,62 @@ describe("owner items on GitHub", () => {
         expect(labels[9]).toEqual([LABEL]);
     });
 
+    it("answers an item with no post by the owner's comment after it was raised, in one query", async () => {
+        const state = /** @type {any} */ ({});
+        raiseItem(state, VISUAL, at(0));
+        raiseItem(state, DOOR, at(0));
+        // dry-run: neither post was performed, and the label was never put on
+        await postItems({ api: client(fakeRepo().gh, "dry-run").api, repo: REPO, state, acting: false, now: at(0) });
+        const node = (/** @type {string} */ login, /** @type {number} */ ms, /** @type {string} */ body) => ({
+            author: { login },
+            createdAt: at(ms).toISOString(),
+            body,
+        });
+        /** @type {Record<string, any[]>} */
+        const nodes = {
+            t412: [node(LOGIN, -MIN, "before the item"), node("stranger", MIN, "approve")],
+            t9: [node(LOGIN, MIN, "<!-- githerd:owner-item door-9 --> not an answer")],
+        };
+        /** @type {any[]} */
+        const calls = [];
+        const api = {
+            get: async () => {
+                throw new Error("no REST read for an unposted item");
+            },
+            graphql: async (/** @type {string} */ q, /** @type {any} */ v) => {
+                calls.push({ q, v });
+                return {
+                    repository: Object.fromEntries(
+                        Object.entries(nodes).map(([k, n]) => [k, { comments: { nodes: n } }]),
+                    ),
+                };
+            },
+        };
+        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(2 * MIN) })).toEqual([]);
+        expect(calls).toHaveLength(1);
+        expect(calls[0].v).toEqual({ owner: "graphty-org", name: "graphty-monorepo" });
+        expect(calls[0].q).toMatch(/t412: issueOrPullRequest\(number: 412\)/);
+        expect(state.presence).toBeUndefined();
+        nodes.t9.push(node(LOGIN, 2 * MIN, "keep the name"));
+        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(3 * MIN) })).toEqual([DOOR.id]);
+        expect(state.ownerItems[DOOR.id]).toMatchObject({ endedBy: "comment", answer: "keep the name" });
+        expect(state.ownerItems[VISUAL.id].endedAt).toBeUndefined();
+    });
+
+    it("keeps reading a posted item after its post, not after it was raised", async () => {
+        const { gh, comments } = fakeRepo();
+        const { api } = client(gh, "acting");
+        const state = /** @type {any} */ ({});
+        raiseItem(state, VISUAL, at(0));
+        await postItems({ api, repo: REPO, state, acting: true, now: at(0) });
+        state.ownerItems[VISUAL.id].github.at = at(2 * MIN).toISOString();
+        // after the item was raised but before its post: not an answer
+        comments[412].push({ user: { login: LOGIN }, created_at: at(MIN).toISOString(), body: "early" });
+        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(3 * MIN) })).toEqual([]);
+        comments[412].push({ user: { login: LOGIN }, created_at: at(3 * MIN).toISOString(), body: "fine" });
+        expect(await readAnswers({ api, repo: REPO, state, login: LOGIN, now: at(4 * MIN) })).toEqual([VISUAL.id]);
+    });
+
     it("leaves an item open when the read fails", async () => {
         const gh = createFakeGh(() => httpOutput({ status: 500, body: {} }));
         const { api } = client(gh, "acting");

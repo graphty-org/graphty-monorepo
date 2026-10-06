@@ -495,13 +495,13 @@ jobs:
 
             - uses: ./.github/actions/drop-microsoft-apt-source
 
+            - name: Install Playwright system packages
+              if: matrix.needs-browser
+              uses: ./.github/actions/playwright-system-deps
+
             - name: Install Playwright browsers
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
-              run: pnpm exec playwright install chromium --with-deps
-
-            - name: Install Playwright deps (if cached)
-              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit == 'true'
-              run: pnpm exec playwright install-deps chromium
+              run: pnpm exec playwright install chromium
 
             # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
             - name: Install Mesa lavapipe
@@ -1134,10 +1134,18 @@ jobs:
             - uses: ./.github/actions/drop-microsoft-apt-source
               if: steps.skip.outputs.skip != 'true'
 
-            # With the browser cached this installs only the system libraries Chromium needs.
+            # `visual-review install-browser` (the template's step) is `playwright install --with-deps
+            # chromium`, apt on each of the five jobs; this installs the same system packages from a cache.
+            - name: Install Playwright system packages
+              if: steps.skip.outputs.skip != 'true'
+              uses: ./.github/actions/playwright-system-deps
+              with:
+                  working-directory: visual-review
+
             - name: Install Chromium
               if: steps.skip.outputs.skip != 'true'
-              run: pnpm exec visual-review install-browser
+              working-directory: visual-review
+              run: pnpm exec playwright install chromium
 
             - name: Download Storybook build
               if: steps.skip.outputs.skip != 'true'

@@ -31,9 +31,6 @@ const config: KnipConfig = {
                 // Nx plugins are used dynamically
                 "@nx/react",
                 "@nx/js",
-                // Documentation tools
-                "typedoc-plugin-markdown",
-                "typedoc-vitepress-theme",
                 // Coverage merging (used in tools/merge-coverage.sh via pnpm exec)
                 "lcov-result-merger",
                 // Secret scan (used in tools/scan-secrets.sh via pnpm exec; the preset is named

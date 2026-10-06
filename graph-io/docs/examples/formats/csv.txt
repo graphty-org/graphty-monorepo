@@ -1,0 +1,2 @@
+107 nodes, 352 edges
+[ 'W_CSV_NODE_TABLE' ]

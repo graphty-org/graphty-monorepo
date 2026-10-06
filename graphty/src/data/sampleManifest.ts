@@ -123,7 +123,7 @@ export const SAMPLE_MANIFEST: readonly SampleRecord[] = [
         tags: [],
         large: false,
         credit: "Zachary 1977",
-        creditHref: "http://www-personal.umich.edu/~mejn/netdata/",
+        creditHref: "https://www-personal.umich.edu/~mejn/netdata/",
         blurb: "A club that split in two. The classic test for finding groups.",
     },
     {
@@ -165,7 +165,7 @@ export const SAMPLE_MANIFEST: readonly SampleRecord[] = [
         tags: ["Types"],
         large: false,
         credit: "Girvan and Newman 2002",
-        creditHref: "http://www-personal.umich.edu/~mejn/netdata/",
+        creditHref: "https://www-personal.umich.edu/~mejn/netdata/",
         // No hint: see the file comment. Colouring by a categorical attribute is not
         // built, so the board's "Try coloring by conference." would be a dead promise.
         blurb: "Teams that played each other in one season, tagged by conference.",

@@ -1,5 +1,5 @@
 /**
- * The daemon's state directory, `~/.githerd/<repository>/` (design section 9.1): state.json, the
+ * The daemon's state directory, `~/.githerd/<owner>_<name>/` (design section 9.1): state.json, the
  * ledger, the liveness files, the lock, the start counter, the spool and FATAL.
  *
  * state.json is rewritten whole on every change: a uniquely named temporary file is written and
@@ -11,13 +11,14 @@
  * renamed to ledger-YYYY-MM.jsonl for the month it was last written in.
  */
 
-import { randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { appendFile, copyFile, mkdir, open, readdir, readFile, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 
-import { sameProcess } from "./proc.mjs";
+import { CONFIG_FILE, REPO } from "./config.mjs";
+import { identify, sameProcess } from "./proc.mjs";
 
 /** The state schema this code reads and writes. */
 export const STATE_SCHEMA = 1;
@@ -429,14 +430,113 @@ export async function replayLedger(dir) {
 }
 
 /**
- * The state directory of a repository whose main checkout is `root`: `~/.githerd/<its name>/`,
- * outside every checkout, so a daemon started from any worktree finds the same lock.
+ * The name of a repository's state directory: its GitHub `owner/name` (the `repo` of the main
+ * checkout's `githerd.config.json`), lower-cased, with `_` between the two (an owner never contains
+ * `_`), so two repositories on one machine never share one, whatever their folders are called. The
+ * checked-in `.mcp.json` and hook settings name this directory, so it may not depend on where the
+ * checkout lives. Never `GITHERD_CONFIG`: every start path must find the same directory, whatever
+ * its caller's environment. With no readable `repo` (githerd is not configured there), the
+ * folder's name and a hash of its path.
+ * @param {string} root the main checkout
+ * @returns {string} for example `graphty-org_graphty-monorepo`
+ */
+export function repoIdentity(root) {
+    let repo = null;
+    try {
+        repo = JSON.parse(readFileSync(join(root, CONFIG_FILE), "utf8")).repo;
+    } catch {
+        // not configured, or not readable: the fallback below
+    }
+    if (typeof repo === "string" && REPO.test(repo)) return repo.toLowerCase().replace("/", "_");
+    return `${basename(root)}-${pathHash(root)}`;
+}
+
+/**
+ * A short hash of a path, to tell two checkouts apart.
+ * @param {string} path the path
+ * @returns {string} 8 hex digits
+ */
+const pathHash = (path) => createHash("sha256").update(path).digest("hex").slice(0, 8);
+
+/** The file in a state directory that names the main checkout it belongs to. */
+const ROOT_FILE = "root";
+
+/**
+ * The state directory of a repository whose main checkout is `root`: `~/.githerd/<repoIdentity>/`,
+ * outside every checkout, so a daemon started from any worktree finds the same lock. The directory
+ * records its checkout in `root`; a second clone of the same repository finds the first's name
+ * there and gets `<repoIdentity>-<hash of its path>` instead, so it never shares the first's state.
+ *
+ * Before 2026-10, the directory was `~/.githerd/<folder name>/`, which two repositories in folders
+ * of the same name shared. Such a directory is renamed to the new name here, once, and only when
+ * its `daemon.json` names this checkout (never another root's) and nothing runs from it: no live
+ * daemon, restart or gate lock, and no live worker. Until then it stays in use as it is.
  * @param {string} root the main checkout
  * @param {string} [home] the home directory
  * @returns {string} the directory
  */
 export function defaultStateDir(root, home = homedir()) {
+    let dir = join(home, ".githerd", repoIdentity(root));
+    const claimed = readText(join(dir, ROOT_FILE));
+    if (claimed && claimed !== root) dir = `${dir}-${pathHash(root)}`;
+    const legacy = legacyStateDir(root, home);
+    if (!existsSync(dir) && legacy !== dir && readJson(join(legacy, "daemon.json"))?.root === root) {
+        if (inUse(legacy)) return legacy;
+        try {
+            renameSync(legacy, dir);
+        } catch (err) {
+            // another process renamed it first
+            if (/** @type {NodeJS.ErrnoException} */ (err).code !== "ENOENT") throw err;
+        }
+    }
+    if (!readText(join(dir, ROOT_FILE))) {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, ROOT_FILE), `${root}\n`);
+    }
+    return dir;
+}
+
+/**
+ * The state directory githerd used before 2026-10: `~/.githerd/<folder name of the checkout>/`.
+ * @param {string} root the main checkout
+ * @param {string} [home] the home directory
+ * @returns {string} the directory
+ */
+export function legacyStateDir(root, home = homedir()) {
     return join(home, ".githerd", basename(root));
+}
+
+/**
+ * Whether anything runs from a state directory: a live daemon lock, a live restart or gate lock
+ * (the launcher's), or a live worker one of its jobs holds.
+ * @param {string} dir the state directory
+ * @returns {boolean} true while something does
+ */
+function inUse(dir) {
+    const lock = readJson(join(dir, LOCK));
+    if (lock && Number.isInteger(lock.pid) && sameProcess(lock)) return true;
+    for (const name of ["restart.lock", "gate.lock"]) {
+        const owner = readJson(join(dir, name, "owner.json"));
+        if (owner && sameProcess(owner)) return true;
+    }
+    const jobs = readJson(join(dir, STATE))?.jobs ?? {};
+    return Object.values(jobs).some((/** @type {any} */ j) => {
+        const h = j?.holder;
+        return Number.isInteger(h?.pid) && identify(h.pid)?.startTime === h.startTime;
+    });
+}
+
+/**
+ * A small text file, trimmed.
+ * @param {string} file the path
+ * @returns {string | null} its text, or null when it is missing
+ */
+function readText(file) {
+    try {
+        return readFileSync(file, "utf8").trim();
+    } catch {
+        return null;
+    }
 }
 
 /**

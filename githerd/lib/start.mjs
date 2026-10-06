@@ -25,7 +25,7 @@ import { startFailed } from "./advance.mjs";
 import { endItem, raiseItem } from "./notify.mjs";
 import { jobInUse, jobOrder } from "./queue.mjs";
 import { resumeVerified, runSelftest } from "./selftest.mjs";
-import { listWindows, startWorker } from "./tmux.mjs";
+import { listWindows, startWorker, tmuxSocket } from "./tmux.mjs";
 import { codeEnv, loginPath, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
 import { prepareJobWorktree, run, signingProbe } from "./worktrees.mjs";
 
@@ -55,8 +55,10 @@ const HOUR = 3_600_000;
  * @property {(env: Record<string, string>) => Promise<{ok: boolean, reason?: string}>} signing the
  *   signing probe with a worker's environment
  * @property {typeof prepareJobWorktree} prepare prepares a job's worktree
- * @property {typeof startWorker} start opens a worker's window and waits for its registry entry
- * @property {() => ReturnType<typeof listWindows>} windows the windows on githerd's tmux server
+ * @property {(o: {job: string, cwd: string, argv: string[]}) => ReturnType<typeof startWorker>} start
+ *   opens a worker's window on this repository's tmux server and waits for its registry entry
+ * @property {() => ReturnType<typeof listWindows>} windows the windows on this repository's tmux
+ *   server
  */
 
 /**
@@ -84,6 +86,7 @@ const HOUR = 3_600_000;
  */
 export function realPlatform({ env, stateDir }) {
     const home = env.HOME ?? homedir();
+    const socket = tmuxSocket(stateDir);
     /** @type {{at: number, value: string} | null} */
     let path = null;
     /** @type {{at: number, value: string} | null} */
@@ -112,8 +115,8 @@ export function realPlatform({ env, stateDir }) {
         signingEnv: () => readSigningEnv(home),
         signing: (workerVars) => signingProbe({ env: workerVars }),
         prepare: prepareJobWorktree,
-        start: startWorker,
-        windows: () => listWindows(),
+        start: (o) => startWorker({ ...o, socket }),
+        windows: () => listWindows(socket),
     };
 }
 
@@ -753,7 +756,7 @@ async function openSession(ctx, job, { jobDir, path, signing }) {
     const resume = !job.fresh && (await ctx.platform.resumeVerified()) ? (job.sessions.at(-1) ?? null) : null;
     if (!wanted(job)) return;
     const nonce = randomBytes(6).toString("hex");
-    job.holder = { nonce, socket: "githerd", startedBy: "githerd", session: null };
+    job.holder = { nonce, startedBy: "githerd", session: null };
     // The registry clock starts just before the window opens; its deadline outlasts startWorker's
     // own 30 s poll, which ends a session that never registered (board.mjs START_MS).
     if (job.state === "starting") {
@@ -803,7 +806,6 @@ function settleStart(ctx, job, nonce, started, resume) {
         // model: end the window that opened.
         const holder = {
             nonce,
-            socket: "githerd",
             startedBy: "githerd",
             ...started.window,
             startTime: started.startTime,

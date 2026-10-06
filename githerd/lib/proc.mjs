@@ -8,7 +8,7 @@
  * pid and tmux pane it recorded is void.
  */
 
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 /** @typedef {{pid: number, startTime: string, bootId: string}} ProcessIdentity */
@@ -79,15 +79,25 @@ export function containerStart() {
 const PUSH_QUEUE_SLOTS = 3;
 
 /**
+ * The machine's push queue script of a repository: its own `tools/push-queue.sh`. githerd ships no
+ * queue of its own; a repository without one pushes unqueued, which the board says (an escalation).
+ * @param {string} root the main checkout
+ * @returns {string} the script's path
+ */
+export const pushQueueScript = (root) => join(root, "tools", "push-queue.sh");
+
+/**
  * The push queue every session pushes through (`tools/push-queue.sh`, design section 4.8): its
  * tickets in `tmp/push-queue/` of the main checkout, each named `<rank>-<arrival ns>-<pid>` and
  * holding `<cwd> :: <command>`. A ticket whose process is gone is dropped, as the script drops it;
  * the first three live ones, critical first, then by arrival, are running.
  * @param {string} root the main checkout
- * @returns {{holder: string | null, waiters: number}} the running pushes' worktrees (null when none
- *   runs), and the number waiting behind them
+ * @returns {{holder: string | null, waiters: number, missing?: true}} the running pushes' worktrees
+ *   (null when none runs), and the number waiting behind them; `missing` when the repository has no
+ *   queue script
  */
 export function pushQueueTickets(root) {
+    if (!existsSync(pushQueueScript(root))) return { holder: null, waiters: 0, missing: true };
     const dir = join(root, "tmp", "push-queue");
     let names;
     try {

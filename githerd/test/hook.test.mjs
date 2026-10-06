@@ -34,6 +34,7 @@ import {
     UNCHECKED_STOPS,
     writeNews,
 } from "../lib/hook.mjs";
+import { repoIdentity } from "../lib/store.mjs";
 
 const PKG = fileURLToPath(new URL("..", import.meta.url));
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
@@ -698,13 +699,13 @@ describe("the committed project settings", () => {
 
     it("registers the SessionStart hook for new sessions only", () => {
         expect(entry.matcher).toBe("startup");
-        expect(command).toContain("$HOME/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs");
+        expect(command).toContain("$HOME/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-hook.mjs");
     });
 
     it("prints the status line when githerd is installed", async () => {
-        mkdirSync(join(dir, ".githerd", "graphty-monorepo"), { recursive: true });
-        symlinkSync(PKG, join(dir, ".githerd", "graphty-monorepo", "current"));
-        await fakeDaemon(join(dir, ".githerd", "repo"), {});
+        mkdirSync(join(dir, ".githerd", "graphty-org_graphty-monorepo"), { recursive: true });
+        symlinkSync(PKG, join(dir, ".githerd", "graphty-org_graphty-monorepo", "current"));
+        await fakeDaemon(join(dir, ".githerd", repoIdentity(repo)), {});
         const r = await runCommand(dir);
         expect(r.status).toBe(0);
         expect(JSON.parse(r.stdout).systemMessage).toBe(statusLine(STATUS));
@@ -719,7 +720,7 @@ describe("the committed project settings", () => {
         const mcp = JSON.parse(readFileSync(join(REPO, ".mcp.json"), "utf8"));
         expect(mcp.mcpServers.githerd).toEqual({
             command: "node",
-            args: ["${HOME}/.githerd/graphty-monorepo/current/bin/githerd-mcp.mjs"],
+            args: ["${HOME}/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-mcp.mjs"],
         });
     });
 });

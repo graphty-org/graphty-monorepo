@@ -37,7 +37,7 @@
  * and is never read from the config. While it is unresolved no worker starts and a `blocked`
  * escalation stays open.
  *
- * State lives in `~/.githerd/<repository>/` (design section 9.1), whatever the cwd.
+ * State lives in `~/.githerd/<owner>_<name>/` (design section 9.1), whatever the cwd.
  *
  * Start (design section 9.2): take the lock (`lock`: pid, start time, cwd), or exit when a live
  * daemon holds it; a stale lock is taken. Then record the start in `starts`: the third start within
@@ -69,7 +69,7 @@ import { inspect } from "node:util";
 import { createPushQueue } from "./actor/push.mjs";
 import { askStep, inviteStep, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
 import * as board from "./board.mjs";
-import { groupModes } from "./board-text.mjs";
+import { groupModes, NO_PUSH_QUEUE } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
@@ -117,8 +117,16 @@ import {
 } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
 import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
-import { containerStart, identify } from "./proc.mjs";
-import { inferOwners, parseWorktrees, prActivity, processTable, readPushLog, scanTranscripts } from "./owners.mjs";
+import { containerStart, identify, pushQueueScript } from "./proc.mjs";
+import {
+    inferOwners,
+    inRepository,
+    parseWorktrees,
+    prActivity,
+    processTable,
+    readPushLog,
+    scanTranscripts,
+} from "./owners.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
 import {
@@ -503,7 +511,7 @@ function requeueLostStarts(state, at) {
  * @param {() => Date} [options.now] the clock
  * @param {Record<string, string | undefined>} [options.env] the environment: `GITHERD_CONFIG`,
  *   `PATH`, and the secrets the outgoing-text check refuses
- * @param {string} [options.stateDir] where state lives; `~/.githerd/<root's name>` by default
+ * @param {string} [options.stateDir] where state lives; `defaultStateDir` by default
  * @param {number} [options.aliveMs] how often `alive` is rewritten
  * @param {boolean} [options.fatalOnUncaught] enter fatal mode on an uncaught exception or rejection
  *   of this process instead of exiting; the daemon process sets it, tests that run in-process do not
@@ -849,7 +857,19 @@ export async function startDaemon({
         } else if (state.escalations?.["config-refused"] && !state.escalations["config-refused"].resolvedAt) {
             board.resolve(state, { key: "config-refused" }, now());
         }
+        checkPushQueue();
         return null;
+    }
+
+    /**
+     * Says on the board when the repository has no push queue script, so a push outside the
+     * machine's queue is never silent (README, "Adopting githerd in another repository").
+     */
+    function checkPushQueue() {
+        const open = state.escalations?.["no-push-queue"];
+        if (!existsSync(pushQueueScript(root))) {
+            raise({ key: "no-push-queue", kind: "blocked", summary: NO_PUSH_QUEUE, detail: NO_PUSH_QUEUE });
+        } else if (open && !open.resolvedAt) board.resolve(state, { key: "no-push-queue" }, now());
     }
 
     const notifier = createNotifier({
@@ -1875,15 +1895,18 @@ export async function startDaemon({
     /**
      * What pull request ownership is inferred from (owners.mjs): the push log, every live
      * registered session and the pushes in its transcripts (read on from where the last poll
-     * stopped), the process table and the worktrees with a branch checked out.
+     * stopped), the process table and the worktrees with a branch checked out. Only the transcripts
+     * of sessions working in this repository (in its main checkout or one of its worktrees) are
+     * read: a branch of the same name pushed in another repository is not a push of this one's.
      * @returns {Promise<Omit<Parameters<typeof inferOwners>[1], "root">>} the facts
      */
     async function ownerFacts() {
         const list = await runGit(["worktree", "list", "--porcelain"]);
         const claude = join(env.HOME ?? homedir(), ".claude");
         const sessions = registeredSessions({ sessionsDir: join(claude, "sessions") });
+        const here = inRepository(sessions, list.code === 0 ? list.stdout : `worktree ${root}\n`);
         state.transcripts ??= {};
-        await scanTranscripts(state.transcripts, sessions, { root, projectsDir: join(claude, "projects") });
+        await scanTranscripts(state.transcripts, here, { root, projectsDir: join(claude, "projects") });
         return {
             pushLog: readPushLog(join(root, "tmp", "push-log.jsonl")),
             sessions,

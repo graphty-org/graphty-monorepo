@@ -132,7 +132,7 @@ githerd pause | resume           # stop / restart every worker start and doorbel
 githerd workers <n> | --stop     # working sessions (0 keeps only the urgent slot); --stop ends all
 githerd keep <window> [--with-job]  # hand a worker's window to you
 githerd release <job>            # give back a job you stopped or kept
-githerd attach                   # githerd's tmux server, one window per worker
+githerd attach                   # this repository's githerd tmux server, one window per worker
 githerd ack <key>                # clear an escalation
 githerd veto <proposal id>       # stop a pending close or revert
 githerd mine <pr> <session-name> # that live session owns the pull request: never offered or asked about
@@ -161,17 +161,80 @@ and keeps its state in `<worktree>/.githerd-dev/`; point the other commands at i
 
 ## The MCP server
 
-Claude Code starts `node ~/.githerd/graphty-monorepo/current/bin/githerd-mcp.mjs` (the launcher),
-the installed copy of the default branch's githerd, never a worktree's. It lists the session tools at
-once, then finds or starts the repository's one daemon through servherd under the name `githerd`,
-running the default branch's copy of this package from `~/.githerd/<checkout>/current/`, and
-forwards tool calls to it. Its errors go to `~/.githerd/<checkout>/launcher.log`.
+Claude Code starts `node ~/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-mcp.mjs` (the
+launcher), the installed copy of the default branch's githerd, never a worktree's. It lists the
+session tools at once, then finds or starts the repository's one daemon through servherd under the
+name `githerd-<owner>_<name>`, running the default branch's copy of this package from
+`~/.githerd/<owner>_<name>/current/`, and forwards tool calls to it. Its errors go to
+`~/.githerd/<owner>_<name>/launcher.log`.
+
+## Several repositories on one machine
+
+Each repository's githerd keeps to itself, so githerd can run in several repositories at once:
+
+- **State directory** `~/.githerd/<owner>_<name>/`, from `repo` in the main checkout's
+  `githerd.config.json`, lower-cased (`graphty-org/graphty-monorepo` is
+  `~/.githerd/graphty-org_graphty-monorepo/`). Two repositories whose folders share a name no
+  longer share state, and the name does not depend on where the checkout lives, so the committed
+  `.mcp.json` and hook settings can name it. The directory records its checkout in a `root` file;
+  a second clone of the same repository on the machine gets `~/.githerd/<owner>_<name>-<hash>/`
+  instead (a hash of its path), with its own daemon. Two daemons then act on one GitHub
+  repository, which is rarely what you want; the committed settings only reach the first clone's
+  installed copy. A repository with no readable `repo` gets `<folder>-<hash>`.
+- **tmux server**: the socket `tmux` in the state directory (`githerd attach` runs
+  `tmux -S ~/.githerd/<owner>_<name>/tmux attach -t githerd`). Two repositories with a job of the
+  same id (`issue-12`) never meet, and one daemon's watchdog never lists, interrupts or ends
+  another's workers. The self-test has its own, `selftest.tmux` beside it.
+- **servherd name** `githerd-<owner>_<name>`. servherd looks a server up by name alone for
+  `restart`, `stop` and `remove` and names its pm2 process after it, so two daemons named `githerd`
+  would restart each other. The launcher also checks that a daemon's `/health` names this
+  checkout before using it, a `GITHERD_URL` development daemon included.
+- **Locks, archived versions, `current`, the ledger and every job file** are inside the state
+  directory, so they are per repository too. The push queue's tickets and the push log are in the
+  main checkout's `tmp/`, and githerd reads the transcripts only of sessions working in this
+  repository (in its main checkout or one of its worktrees).
+
+Before 2026-10 the state directory was `~/.githerd/<folder of the main checkout>/`. githerd renames
+it to the new name the first time it resolves the directory, but only when its `daemon.json` names
+this checkout (another repository's directory of the same folder name is never taken over) and
+nothing runs from it: no live daemon, restart lock, gate lock or worker. Until then it keeps using
+the old directory and the old servherd name `githerd`, so a running install keeps working; once
+that daemon has stopped, the next start moves the directory and registers the new name. The old
+servherd entry then points at a directory that is gone; remove it with `servherd remove githerd`
+when no other repository's daemon still uses that name. Workers started before the change
+recorded the machine-wide tmux server `tmux -L githerd`, and githerd keeps reaching them there
+until they end. The development daemon is the exception: it is `githerd-dev` on every machine, so
+run `githerd dev` in one repository at a time.
+
+### Adopting githerd in another repository
+
+githerd runs the copy of this package that the repository's default branch holds, so a repository
+adopting it needs:
+
+- this package in its tree (`githerd/`, with its dependencies installed in the main checkout:
+  an archived copy links to the main checkout's `githerd/node_modules`);
+- `githerd.config.json` on its default branch, with its own `repo` (which also names its state
+  directory, as above) and its own `notify` prefix;
+- `.mcp.json` and the `.claude/settings.json` hooks of this repository, with
+  `graphty-org_graphty-monorepo` replaced by its own `<owner>_<name>`;
+- `tools/push-queue.sh`, the push queue every session pushes through (this repository's own
+  tool). Without it githerd's pushes and its reference gate run unqueued: it still pushes, but the
+  board says so (`PUSH QUEUE: none` and a `no-push-queue` item) until the script exists. A copy of
+  this repository's script works as it is: it keeps its tickets and its push log in its own main
+  checkout's `tmp/`, so each repository has its own queue;
+- `tools/prepush.sh`, the gate the reference worktree runs, printing `Pre-push validation failed`
+  and one `[FAIL] <step>` line per failed step.
+
+The job worktree preparation is still this repository's: `pnpm install --frozen-lockfile`, the Nx
+build, and graph-io's tests as the smoke test (`JOB_STEPS` in `lib/worktrees.mjs`), and the config
+gate's replay of a red stretch reads this repository's recorded month. Another repository's
+workers need those made configurable first.
 
 ## What the committed project settings turn on
 
 Two files register githerd for every Claude Code session opened in a checkout that has them. Both
-point at `~/.githerd/graphty-monorepo/current/`, which `githerd install` (or the first daemon
-start) creates, so a branch's own edits never change its hooks or its MCP server:
+point at `~/.githerd/graphty-org_graphty-monorepo/current/`, which `githerd install` (or the first
+daemon start) creates, so a branch's own edits never change its hooks or its MCP server:
 
 - `.mcp.json` registers the MCP server above. Claude Code asks once per project to approve a
   project's MCP servers. Once approved, every session's launcher finds the one daemon **and starts
@@ -217,7 +280,7 @@ githerd from the default branch, so they fail until the merge.
    does not: they live in the `env` of `~/.claude/settings.json`), run
    `node githerd/bin/githerd.mjs install` and then the servherd command it prints (or
    `githerd ensure`). `install` copies `HOME`, `PATH`, the signing variables and the Pushover keys
-   into `~/.githerd/<checkout>/daemon-env.json`, owner-only; with no signing variables in its
+   into `~/.githerd/<owner>_<name>/daemon-env.json`, owner-only; with no signing variables in its
    environment it takes them from `~/.claude/settings.json`, and it warns when it finds none
    anywhere, because the daemon's git would then sign with the gpg key, whose pinentry cannot run
    without a terminal. The command starts the daemon under `env -i` from the state directory with

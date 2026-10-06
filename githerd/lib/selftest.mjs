@@ -40,8 +40,13 @@ import {
 import { loginPath, modelEnv, readSigningEnv, workerArgv, workerEnv, writeJobFiles } from "./worker-settings.mjs";
 import { jobWorktreeDir, removeJobWorktree, run } from "./worktrees.mjs";
 
-/** The self-test's own tmux server, never githerd's. */
-const SOCKET = "githerd-selftest";
+/**
+ * The self-test's own tmux server, never the daemon's and never another repository's: a socket in
+ * the state directory, beside the `selftest` directory a run removes.
+ * @param {string} stateDir the state directory
+ * @returns {string} the socket's path
+ */
+const selftestSocket = (stateDir) => join(stateDir, "selftest.tmux");
 /** The self-test's job id: window `selftest`, session `githerd-selftest`. */
 const JOB = "selftest";
 /** The file the worker writes its Bash tool's variable names to, in its worktree. */
@@ -582,10 +587,11 @@ function realPlatform(env) {
  * its worktree, whose removal git refuses while it holds changes other than the probe's file.
  * @param {string} root the main checkout
  * @param {Record<string, string | undefined>} env the environment
+ * @param {string} stateDir the state directory
  * @returns {Promise<string | null>} why the worktree could not be removed, or null
  */
-export async function reapSelftest(root, env) {
-    killServer(SOCKET);
+export async function reapSelftest(root, env, stateDir) {
+    killServer(selftestSocket(stateDir));
     const wt = jobWorktreeDir(root, JOB);
     if (!existsSync(wt)) return null;
     rmSync(join(wt, ENV_FILE), { force: true });
@@ -618,6 +624,7 @@ export async function runSelftest({
     const home = env.HOME ?? homedir();
     const claudeVersion = await platform.claudeVersion();
     const dir = join(stateDir, "selftest");
+    const socket = selftestSocket(stateDir);
     rmSync(dir, { recursive: true, force: true });
     const jobDir = join(dir, "jobs", JOB);
     const nonce = randomBytes(6).toString("hex");
@@ -664,12 +671,12 @@ export async function runSelftest({
         const argv = (/** @type {{prompt: string, resume?: string}} */ o) =>
             workerArgv({ env: workerVars, model, job: JOB, jobDir, ...o });
         const ctx = { platform, sleep, observed, events: responder.events, turnMs };
-        await phases(ctx, { wt, jobDir, argv, windows, nonce, log });
+        await phases(ctx, { wt, jobDir, argv, windows, nonce, log, socket });
     } catch (err) {
         leftovers.push(`aborted: ${/** @type {Error} */ (err).message}`);
     } finally {
         for (const w of windows) if (platform.running(w.pid, w.startTime)) await platform.end(w);
-        platform.killServer(SOCKET);
+        platform.killServer(socket);
         await server.close();
         rmSync(join(wt, ENV_FILE), { force: true });
         if (base) {
@@ -747,17 +754,18 @@ async function readWeekly({ platform, sleep }, window) {
  *   events: Event[], turnMs: number}} ctx the context
  * @param {{wt: string, jobDir: string, argv: (o: {prompt: string, resume?: string}) => string[],
  *   windows: (import("./tmux.mjs").Window & {startTime: string})[], nonce: string,
- *   log: (line: string) => void}} run the worktree, the job directory the guard logs to, the
- *   command line, the windows started, the doorbell nonce and the progress log
+ *   log: (line: string) => void, socket: string}} run the worktree, the job directory the guard
+ *   logs to, the command line, the windows started, the doorbell nonce, the progress log and the
+ *   self-test's tmux server
  */
-async function phases(ctx, { wt, jobDir, argv, windows, nonce, log }) {
+async function phases(ctx, { wt, jobDir, argv, windows, nonce, log, socket }) {
     const { platform, observed, events } = ctx;
     const count = (/** @type {(e: Event) => boolean} */ p) => events.filter(p).length;
     const allowedStops = () => Math.max(0, count((e) => e.kind === "hook" && e.event === "Stop") - 1);
     const nexts = () => count((e) => e.kind === "tool" && e.name === "githerd_next");
 
     log("starting the worker");
-    const started = await platform.start({ job: JOB, cwd: wt, argv: argv({ prompt: LAUNCH_PROMPT }), socket: SOCKET });
+    const started = await platform.start({ job: JOB, cwd: wt, argv: argv({ prompt: LAUNCH_PROMPT }), socket });
     if (!("registry" in started)) {
         observed.startCapture = started.capture;
         return;
@@ -801,7 +809,7 @@ async function phases(ctx, { wt, jobDir, argv, windows, nonce, log }) {
         job: JOB,
         cwd: wt,
         argv: argv({ prompt: RESUME_PROMPT, resume: session }),
-        socket: SOCKET,
+        socket,
     });
     if (!resumed.ok) return;
     observed.resumed = true;

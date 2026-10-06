@@ -86,7 +86,8 @@ const FORBIDDEN = {
     revert: "reverts belong to actions.incidents: a revert is vetoed on the incident issue, so it never runs without it",
 };
 
-const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+/** A GitHub repository, `owner/name`. */
+export const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // A path inside the repository: relative, no "..", no backslashes.
 const REPO_PATH = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\]+$/;
 const NAME = /^[a-z0-9][a-z0-9-]*$/;

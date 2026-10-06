@@ -6,7 +6,7 @@
  *
  * Environment: `PORT` (required), `GITHERD_ROOT` (the repository; else the working directory's),
  * `GITHERD_CONFIG` (a config file instead of the default
- * branch's), `GITHERD_STATE_DIR` (instead of `~/.githerd/<repository>`), `GITHERD_DEV` (the development
+ * branch's), `GITHERD_STATE_DIR` (instead of `~/.githerd/<owner>_<name>`), `GITHERD_DEV` (the development
  * daemon: never above dry-run, pages to the ledger only), `GITHERD_DEV_NOTIFY=1` (deliver the
  * development daemon's pages anyway).
  *

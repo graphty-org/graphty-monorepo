@@ -23,7 +23,7 @@ import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
-import { readLedger, spoolEvent } from "../lib/store.mjs";
+import { readLedger, repoIdentity, spoolEvent } from "../lib/store.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
 
@@ -1026,6 +1026,21 @@ describe("the poll loop", () => {
         await poll(daemon);
         expect(daemon.state.config.pollSeconds).toBe(300);
         expect(daemon.state.escalations["config-refused"].resolvedAt).not.toBeNull();
+    });
+
+    it("says on the board, without a page, that a repository with no push queue script pushes unqueued", async () => {
+        const daemon = await start();
+        await poll(daemon);
+        expect(daemon.state.escalations["no-push-queue"]).toMatchObject({ kind: "blocked", resolvedAt: null });
+        expect(daemon.state.escalations["no-push-queue"].summary).toContain("no tools/push-queue.sh");
+        expect(pages().filter((p) => p.message.includes("push-queue"))).toEqual([]);
+
+        mkdirSync(join(dir, "tools"), { recursive: true });
+        writeFileSync(join(dir, "tools", "push-queue.sh"), '#!/bin/sh\nexec "$@"\n');
+        clock = new Date("2026-10-02T12:03:00Z");
+        scene.head = B;
+        await poll(daemon);
+        expect(daemon.state.escalations["no-push-queue"].resolvedAt).not.toBeNull();
     });
 
     it("enters fatal mode when it has never had a good config", async () => {
@@ -2788,8 +2803,8 @@ describe("the daemon process", () => {
         let out = "";
         child.stdout.on("data", (d) => (out += d));
         child.stderr.on("data", (d) => (out += d));
-        // The state directory is under HOME, named for the checkout, never inside it.
-        const stateFile = join(dir, ".githerd", "repo", "state.json");
+        // The state directory is under HOME, named for the repository, never inside the checkout.
+        const stateFile = join(dir, ".githerd", repoIdentity(root), "state.json");
         // The daemon saves once it is listening, and again after its first poll.
         await new Promise((resolve, reject) => {
             child.stdout.on("data", () => {

@@ -24,7 +24,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "f=\"$HOME/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs\"; [ -f \"$f\" ] || exit 0; exec node \"$f\" SessionStart",
+                        "command": "f=\"$HOME/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-hook.mjs\"; [ -f \"$f\" ] || exit 0; exec node \"$f\" SessionStart",
                         "timeout": 5
                     }
                 ]
@@ -36,7 +36,7 @@
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "f=\"$HOME/.githerd/graphty-monorepo/current/bin/githerd-hook.mjs\"; [ -f \"$f\" ] || exit 0; i=$(cat); case \"$i\" in *gh\\ *) printf '%s' \"$i\" | node \"$f\" PreToolUse ;; esac; exit 0",
+                        "command": "f=\"$HOME/.githerd/graphty-org_graphty-monorepo/current/bin/githerd-hook.mjs\"; [ -f \"$f\" ] || exit 0; i=$(cat); case \"$i\" in *gh\\ *) printf '%s' \"$i\" | node \"$f\" PreToolUse ;; esac; exit 0",
                         "timeout": 5
                     }
                 ]

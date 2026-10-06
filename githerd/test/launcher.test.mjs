@@ -16,7 +16,7 @@ import {
 } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 
@@ -41,6 +41,7 @@ import {
 import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 import { bootId, identify } from "../lib/proc.mjs";
 import { gateTree, readSelfUpdate, stopGating, writeSelfUpdate } from "../lib/self-update.mjs";
+import { repoIdentity } from "../lib/store.mjs";
 import { run } from "../lib/worktrees.mjs";
 import { PACKAGE_DIR } from "../lib/version.mjs";
 
@@ -141,7 +142,12 @@ function pretendAlive() {
  * The checkout's state directory under the test's HOME.
  * @returns {string} the directory
  */
-const stateDir = () => join(dir, "home", ".githerd", "main");
+const stateDir = () => join(dir, "home", ".githerd", repoIdentity(root));
+/**
+ * The daemon's servherd name: the state directory's.
+ * @returns {string} the name
+ */
+const daemonName = () => `githerd-${basename(stateDir())}`;
 const daemonFile = () => JSON.parse(readFileSync(join(stateDir(), "daemon.json"), "utf8"));
 
 /**
@@ -368,7 +374,7 @@ describe("startup", () => {
 
         const [start] = starts();
         expect(start.cwd).toBe(stateDir());
-        expect(start.argv.slice(1, start.argv.indexOf("--"))).toEqual(["start", "-n", "githerd", "--autorestart"]);
+        expect(start.argv.slice(1, start.argv.indexOf("--"))).toEqual(["start", "-n", daemonName(), "--autorestart"]);
         expect(start.argv.slice(start.argv.indexOf("--") + 1)).toEqual([
             "env",
             "-i",
@@ -380,11 +386,11 @@ describe("startup", () => {
         ]);
         // No pm2 re-creation: servherd's --autorestart is the supervision.
         expect(calls().filter((c) => c.argv[0] === "pm2")).toEqual([]);
-        expect(registry().githerd.autorestart).toBe(true);
+        expect(registry()[daemonName()].autorestart).toBe(true);
 
         // The daemon starts with only the command's variables; the rest comes from its file.
         const h = await health();
-        expect(h).toMatchObject({ name: "githerd", root, codeHash: hash, pid: registry().githerd.pid });
+        expect(h).toMatchObject({ name: "githerd", root, codeHash: hash, pid: registry()[daemonName()].pid });
         const environ = readFileSync(`/proc/${h.pid}/environ`, "utf8").split("\0").filter(Boolean);
         expect(environ.map((kv) => kv.split("=")[0]).sort()).toEqual(
             ["GITHERD_ROOT", "GITHERD_STATE_DIR", "PORT"].sort(),
@@ -521,7 +527,7 @@ describe("one daemon", () => {
 
         expect(starts()).toHaveLength(1);
         expect(starts()[0].cwd).toBe(stateDir());
-        expect(Object.keys(registry())).toEqual(["githerd"]);
+        expect(Object.keys(registry())).toEqual([daemonName()]);
         expect(daemonPids()).toEqual([(await health()).pid]);
     });
 
@@ -534,7 +540,7 @@ describe("one daemon", () => {
         const later = () => new Date(Date.now() + 61_000);
         expect((await ensureDaemon(context({ cwd: wt, now: later }))).action).toBe("started");
         expect(starts().map((c) => c.cwd)).toEqual([stateDir(), stateDir()]);
-        expect(Object.keys(registry())).toEqual(["githerd"]);
+        expect(Object.keys(registry())).toEqual([daemonName()]);
         expect(daemonPids()).toHaveLength(1);
     });
 });
@@ -542,13 +548,13 @@ describe("one daemon", () => {
 describe("a development daemon", () => {
     it("is found through its state directory's daemon.json at every lookup, so a new port needs no reconnect", async () => {
         const servers = [0, 1].map(() =>
-            createServer((_req, res) => res.end(JSON.stringify({ name: "githerd" }))).listen(0, "127.0.0.1"),
+            createServer((_req, res) => res.end(JSON.stringify({ name: "githerd", root }))).listen(0, "127.0.0.1"),
         );
         await Promise.all(servers.map((s) => new Promise((r) => s.once("listening", r))));
         const ports = servers.map((s) => /** @type {import("node:net").AddressInfo} */ (s.address()).port);
         const sd = join(dir, "dev");
         mkdirSync(sd, { recursive: true });
-        const ctx = /** @type {any} */ ({ env: { GITHERD_DEV_STATE: sd } });
+        const ctx = /** @type {any} */ ({ env: { GITHERD_DEV_STATE: sd }, root });
         try {
             for (const port of ports) {
                 writeFileSync(join(sd, "daemon.json"), JSON.stringify({ port }));
@@ -560,13 +566,27 @@ describe("a development daemon", () => {
             for (const s of servers) s.close();
         }
     });
+
+    it("is never another repository's daemon", async () => {
+        const other = createServer((_req, res) =>
+            res.end(JSON.stringify({ name: "githerd", root: "/elsewhere/main" })),
+        );
+        await new Promise((r) => other.listen(0, "127.0.0.1", () => r(undefined)));
+        const { port } = /** @type {import("node:net").AddressInfo} */ (other.address());
+        const ctx = /** @type {any} */ ({ env: { GITHERD_URL: `http://127.0.0.1:${port}` }, root });
+        try {
+            await expect(ensureDaemon(ctx)).rejects.toThrow(`is the githerd daemon of /elsewhere/main, not ${root}`);
+        } finally {
+            other.close();
+        }
+    });
 });
 
 describe("install and the daemon's environment", () => {
     it("prints the servherd command a launcher would run, from the fixed directory", () => {
         const ctx = context();
         expect(installCommand(ctx)).toBe(
-            `cd ${stateDir()} && ${process.execPath} ${FAKE_SERVHERD} start -n githerd --autorestart -- env -i ` +
+            `cd ${stateDir()} && ${process.execPath} ${FAKE_SERVHERD} start -n ${daemonName()} --autorestart -- env -i ` +
                 `GITHERD_ROOT=${root} GITHERD_STATE_DIR=${stateDir()} ` +
                 `'PORT={{port}}' ${process.execPath} ${join(stateDir(), "current", "bin", "githerd-daemon.mjs")}`,
         );
@@ -713,8 +733,8 @@ describe("restarts and upgrades", () => {
         // The same command from the same directory: servherd keeps its one entry and restarts it.
         expect(starts()).toHaveLength(2);
         expect(new Set(starts().map((c) => c.argv.join(" "))).size).toBe(1);
-        expect(calls().at(-1)?.argv).toEqual(["--json", "restart", "githerd"]);
-        expect(Object.keys(registry())).toEqual(["githerd"]);
+        expect(calls().at(-1)?.argv).toEqual(["--json", "restart", daemonName()]);
+        expect(Object.keys(registry())).toEqual([daemonName()]);
         expect(readlinkSync(join(stateDir(), "current"))).toContain(hash.slice(0, 8));
         const h = await health();
         expect(h.codeHash).toBe(hash);
@@ -1173,7 +1193,7 @@ describe("tools that follow the daemon", () => {
         const received = [];
         let lists = 0;
         const server = createServer((req, res) => {
-            if (req.url === "/health") return res.end(JSON.stringify({ name: "githerd" }));
+            if (req.url === "/health") return res.end(JSON.stringify({ name: "githerd", root }));
             if (req.url === "/heartbeat") return res.end("{}");
             let text = "";
             req.on("data", (d) => (text += d));

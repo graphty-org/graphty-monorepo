@@ -275,8 +275,10 @@ describe("ledger replay", () => {
 });
 
 describe("the state directory", () => {
-    it("lives under the home directory, named for the checkout", () => {
-        expect(defaultStateDir("/work/graphty-monorepo", "/home/me")).toBe("/home/me/.githerd/graphty-monorepo");
+    it("lives under the home directory, named for the checkout's folder and path when it has no config", () => {
+        expect(defaultStateDir("/work/graphty-monorepo", dir)).toMatch(
+            new RegExp(`^${dir}/\\.githerd/graphty-monorepo-[0-9a-f]{8}$`),
+        );
     });
 
     it("removes the temporary files a killed save left", async () => {

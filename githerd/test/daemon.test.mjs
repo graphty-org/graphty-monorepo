@@ -1784,7 +1784,7 @@ describe("required checks cancelled, not failed", () => {
             [],
         );
         expect(daemon.state.prs["7"].stuck).toContain(
-            "CI run 77 started while a draft, so a re-run skips CI again: close and reopen, or push",
+            "CI run 77 started while a draft, so a re-run skips CI again: update the branch (update-branch) if master moved since, else close and reopen",
         );
         const ledger = await readLedger(join(dir, ".githerd"));
         expect(ledger.filter((e) => e.kind === "rerun-skipped").map((e) => [e.pr, e.run])).toEqual([[7, 77]]);

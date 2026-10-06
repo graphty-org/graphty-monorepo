@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     askStep,
     atActiveCap,
+    carryGitherdMoves,
     disown,
     inviteStep,
     markMine,
@@ -11,7 +12,7 @@ import {
     tellCancelled,
 } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
-import { jobInUse, prInUse } from "../lib/queue.mjs";
+import { askFor, jobInUse, prInUse } from "../lib/queue.mjs";
 
 const NOW = new Date("2026-10-05T12:04:00Z");
 const HEAD = "a".repeat(40);
@@ -973,5 +974,32 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         await statusStep(unheard, opts(g, { now: at("12:00") }));
         await statusStep(unheard, opts(g, { now: at("12:15") }));
         expect(prInUse(unheard, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (pushed)");
+    });
+});
+
+describe("a head githerd's own update made", () => {
+    const NEW = "b".repeat(40);
+    const by = { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" };
+
+    it("keeps the githerd_mine answer, which a head someone else pushed drops", () => {
+        const state = /** @type {any} */ (failed());
+        expect(markMine(state, 710, by)).toBeNull();
+        // githerd's update-branch moved the head: GitHub committed the merge.
+        state.githerdMoves = { 710: HEAD };
+        expect(carryGitherdMoves(state)).toEqual([]);
+        state.prs[710] = { ...state.prs[710], headSha: NEW, headCommitter: "noreply@github.com" };
+        expect(carryGitherdMoves(state)).toEqual([{ kind: "pr-owner-carried", pr: 710, from: HEAD, head: NEW }]);
+        expect(askFor(state, 710)?.owner).toMatchObject({ session: "s2", name: "graphty-14" });
+        expect(state.githerdMoves).toEqual({});
+        // The durable owner record never hung on the head.
+        expect(prInUse(state, 710, { now: NOW, session: "s2" })).toBe("yours: you said it is yours");
+
+        // A head another session pushed after githerd's update carries nothing.
+        const other = /** @type {any} */ (failed());
+        markMine(other, 710, by);
+        other.githerdMoves = { 710: HEAD };
+        other.prs[710] = { ...other.prs[710], headSha: NEW, headCommitter: "owner@example.com" };
+        expect(carryGitherdMoves(other)).toEqual([]);
+        expect(askFor(other, 710)).toBeNull();
     });
 });

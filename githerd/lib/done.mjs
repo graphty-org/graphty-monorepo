@@ -35,6 +35,7 @@
 import { randomUUID } from "node:crypto";
 
 import * as board from "./board.mjs";
+import { updateBranchCommand } from "./prs.mjs";
 import { raiseItem } from "./notify.mjs";
 import { recordVerdict } from "./proposals.mjs";
 import { run } from "./worktrees.mjs";
@@ -265,7 +266,8 @@ async function canaryAnswer(prs, fix, view) {
     if (pending) return { ciPending: pending };
     return {
         missing: [
-            `no canary pull request (${prs.map((n) => "#" + n).join(", ")}) is green on a head containing ${fix.slice(0, 9)}`,
+            `no canary pull request (${prs.map((n) => "#" + n).join(", ")}) is green on a head containing ${fix.slice(0, 9)}: ` +
+                `update one from master (${updateBranchCommand(prs[0] ?? "<n>")}); a re-run or a close and reopen tests the old merge`,
         ],
     };
 }
@@ -557,7 +559,11 @@ function toolAnswer(answer, after, error, job) {
     if (answer && "ciPending" in answer) {
         return {
             verified: false,
-            missing: [`checks still running on ${answer.ciPending.slice(0, 9)}; githerd rings you when they finish`],
+            missing: [
+                `checks still running on ${answer.ciPending.slice(0, 9)}; githerd rings you when they finish. ` +
+                    "They test the merge with master as it was when they started; to pick up a later fix on master, " +
+                    `update the branch (${updateBranchCommand("<n>")}), not a re-run or a close and reopen`,
+            ],
             attempts:
                 "this is not a refusal and costs nothing: wait for githerd to ring you, then call githerd_done again",
         };

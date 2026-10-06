@@ -94,6 +94,31 @@ export function disown(state, n, { session, name, at }) {
 }
 
 /**
+ * Carries what a session said about a pull request's head over a head githerd itself made: its
+ * update merged master into the branch (upkeep.mjs, recorded as `state.githerdMoves[<pr>]` = the
+ * head before), which is githerd's merge, not new work. Once the new head is polled and githerd or
+ * GitHub made it (`headIsGitherds`), the answer to githerd's question (`githerd_mine`), the answer
+ * about a broken pull request and a release move to it. A head someone else pushed meanwhile
+ * carries nothing. Claims and owner records do not hang on the head and need no carrying.
+ * @param {any} state the daemon state, changed in place
+ * @returns {({kind: string} & Record<string, unknown>)[]} the ledger lines
+ */
+export function carryGitherdMoves(state) {
+    const lines = [];
+    for (const [n, from] of Object.entries(state.githerdMoves ?? {})) {
+        const rec = state.prs?.[n];
+        if (rec?.headSha === from) continue;
+        delete state.githerdMoves[n];
+        if (!rec || !headIsGitherds(state, rec)) continue;
+        if (state.asks?.[n]?.head === from) state.asks[n].head = rec.headSha;
+        if (state.brokenAsks?.[n]?.head === from) state.brokenAsks[n].head = rec.headSha;
+        if (state.prReleased?.[n] === from) state.prReleased[n] = rec.headSha;
+        lines.push({ kind: "pr-owner-carried", pr: Number(n), from, head: rec.headSha });
+    }
+    return lines;
+}
+
+/**
  * Drops each disown whose pull request closed, or whose session claimed a job on it since.
  * @param {any} state the daemon state, changed in place
  */

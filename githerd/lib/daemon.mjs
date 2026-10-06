@@ -69,7 +69,16 @@ import { homedir } from "node:os";
 import { inspect } from "node:util";
 
 import { createPushQueue } from "./actor/push.mjs";
-import { askStep, disown, inviteStep, markMine, statusStep, tellAccepted, tellCancelled } from "./asks.mjs";
+import {
+    askStep,
+    carryGitherdMoves,
+    disown,
+    inviteStep,
+    markMine,
+    statusStep,
+    tellAccepted,
+    tellCancelled,
+} from "./asks.mjs";
 import * as board from "./board.mjs";
 import { groupModes, NO_PUSH_QUEUE } from "./board-text.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
@@ -142,7 +151,7 @@ import {
     updatePrs,
     whyStuck,
 } from "./prs.mjs";
-import { nextStackRecord, upkeepStacks } from "./upkeep.mjs";
+import { nextStackRecord, recoverInherited, updateDequeued, upkeepStacks } from "./upkeep.mjs";
 import { issueTypes, jobInUse, jobOrder, NEXT, SKIP } from "./queue.mjs";
 import {
     appendLedger,
@@ -245,7 +254,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
     defaultBranchRef { name target { oid } }
     pullRequests(states: OPEN, first: 50, orderBy: {field: UPDATED_AT, direction: DESC}) {
       nodes {
-        id number title body isDraft createdAt updatedAt headRefName headRefOid baseRefName
+        id number title body isDraft isCrossRepository createdAt updatedAt headRefName headRefOid baseRefName
         mergeable mergeStateStatus
         autoMergeRequest { enabledAt }
         labels(first: 20) { nodes { name } }
@@ -2188,23 +2197,58 @@ export async function startDaemon({
             head: n.headRefOid,
         }));
         const poll = { prs, lastHeads: upkeep.lastHeads, mergedHeads: upkeep.mergedHeads };
-        const steps = await upkeepStacks(
-            {
-                gh: github(),
-                repo: config.repo,
-                root,
-                mode: writeMode,
-                ledger,
-                env: { ...env, GIT_TERMINAL_PROMPT: "0" },
-                branch,
-                own: (sha) => {
-                    state.pushedByGitherd ??= {};
-                    state.pushedByGitherd[sha] = "upkeep";
-                },
-            },
-            poll,
-        );
+        const steps = await upkeepStacks(upkeepContext(branch), poll);
         Object.assign(upkeep, nextStackRecord(poll, steps));
+    }
+
+    /**
+     * The context of the `upkeep` group's updates (upkeep.mjs): a head it pushed is githerd's, and
+     * a pull request it moved keeps its owner's answers (asks.mjs carryGitherdMoves).
+     * @param {string} branch the default branch
+     * @returns {import("./upkeep.mjs").Context} the context
+     */
+    function upkeepContext(branch) {
+        return {
+            gh: github(),
+            repo: config.repo,
+            root,
+            mode: writeMode,
+            ledger,
+            env: { ...env, GIT_TERMINAL_PROMPT: "0" },
+            branch,
+            own: (sha) => {
+                state.pushedByGitherd ??= {};
+                state.pushedByGitherd[sha] = "upkeep";
+            },
+            moved: (pr, from) => {
+                state.githerdMoves ??= {};
+                state.githerdMoves[pr] = from;
+            },
+        };
+    }
+
+    /**
+     * Updates, through the `upkeep` group, the pull requests whose failure was inherited from master
+     * once master is green on it again (upkeep.mjs recoverInherited), and those Mergify dequeued on
+     * the visual gate (updateDequeued).
+     * @param {string} branch the default branch
+     */
+    async function inheritedUpdates(branch) {
+        const tip = state.master.headSha;
+        if (!tip) return;
+        const releasePattern = config.release?.commitPattern ?? null;
+        const ctx = upkeepContext(branch);
+        const prs = state.prs ?? {};
+        state.inheritedWait ??= {};
+        state.dequeueUpdates ??= {};
+        await recoverInherited(ctx, {
+            prs,
+            wait: state.inheritedWait,
+            lanes: state.master.lanes ?? {},
+            tip,
+            releasePattern,
+        });
+        await updateDequeued(ctx, { prs, done: state.dequeueUpdates, tip, releasePattern });
     }
 
     /**
@@ -2493,6 +2537,8 @@ export async function startDaemon({
         };
         for (const [n, rec] of Object.entries(prs)) rec.stuck = whyStuck(Number(n), rec, ctx);
         state.prs = prs;
+        for (const line of carryGitherdMoves(state)) void ledger(line);
+        await inheritedUpdates(branch);
 
         const issues = await pollIssues(gh, config.repo, state.issues);
         state.issues = { since: issues.since, byNumber: issues.byNumber };

@@ -249,7 +249,7 @@ const FALSE_CLAIMS = [
         { pushedHead: FIX },
         {},
         {},
-        "no canary",
+        "update one from master (gh api -X PUT repos/{owner}/{repo}/pulls/7/update-branch)",
     ],
     [
         "release still half",
@@ -656,9 +656,10 @@ describe("githerdDone", () => {
         const s = state({ prs: { 7: pr({ required: { "All Checks Pass": "PENDING" } }) } });
         const job = (s.jobs["pr-7"] = working("pr", "7"));
         const { ctx } = setup(s);
-        expect(JSON.parse((await githerdDone(ctx, job, report(), "w1")).text).missing[0]).toContain(
-            "checks still running",
-        );
+        const pending = JSON.parse((await githerdDone(ctx, job, report(), "w1")).text).missing[0];
+        expect(pending).toContain("checks still running");
+        // A fix on master reaches the pull request by an update of its branch, not a re-run.
+        expect(pending).toContain("gh api -X PUT repos/{owner}/{repo}/pulls/<n>/update-branch");
         expect(job.state).toBe("waiting");
         expect(job.waitingFor).toMatchObject({ checks: HEAD, verify: true });
         expect(await pollVerifying(s, ctx)).toEqual([]);

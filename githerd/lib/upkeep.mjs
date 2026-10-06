@@ -23,7 +23,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { stackSteps } from "./prs.mjs";
+import { isReleaseTrain, stackSteps } from "./prs.mjs";
 import { run } from "./worktrees.mjs";
 
 const GROUP = "upkeep";
@@ -48,10 +48,12 @@ const REVIEW_TOOL = ["node", "visual-review/trusted/cli.mjs", "update"];
  *   branch?: string,
  *   reviewTool?: string[],
  *   own?: (sha: string) => void,
+ *   moved?: (pr: number, from: string) => void,
  * }} Context the GitHub client, `owner/name`, the main checkout, each group's mode, the ledger, the
  *   push queue, the environment git and the review tool run with (the owner's signing variables),
  *   the remote, the default branch, the review tool's update command (the pull request's
- *   number is appended), and what records a head githerd pushed as its own
+ *   number is appended), what records a head githerd pushed as its own, and what records that
+ *   githerd's own update moved a pull request off the head `from` (its owner keeps it, asks.mjs)
  * @typedef {{path: "review-tool" | "update-branch" | "local" | "none",
  *   result: "updated" | "would-do" | "current" | "conflict" | "stale" | "wait" | "failed",
  *   conflicts?: string[], why?: string}} UpdateResult which path was taken and how it ended:
@@ -122,12 +124,12 @@ async function acting(ctx, op, fields) {
 /**
  * Logs a push-queue entry's result and reads the branch back from the remote.
  * @param {Context} ctx the context
- * @param {{op: string, branch: string, before: string, fields: Record<string, unknown>}} entry what
- *   ran, the branch it updates, its head before, and extra ledger fields
+ * @param {{op: string, number: number, branch: string, before: string, fields: Record<string, unknown>}} entry
+ *   what ran, the pull request and branch it updates, its head before, and extra ledger fields
  * @param {RunResult} res the entry's result
  * @returns {Promise<boolean>} true when the remote branch moved off `before`
  */
-async function pushed(ctx, { op, branch, before, fields }, res) {
+async function pushed(ctx, { op, number, branch, before, fields }, res) {
     if (res.code !== 0) {
         await ctx.ledger({
             kind: "action",
@@ -141,7 +143,10 @@ async function pushed(ctx, { op, branch, before, fields }, res) {
     }
     const now = (await git(ctx, ["ls-remote", ctx.remote ?? "origin", `refs/heads/${branch}`])).stdout.split("\t")[0];
     const moved = now !== "" && now !== before;
-    if (moved) ctx.own?.(now);
+    if (moved) {
+        ctx.own?.(now);
+        ctx.moved?.(number, before);
+    }
     await ctx.ledger({ kind: "action", op, group: GROUP, result: "pushed", head: now, ...fields });
     if (!moved) await ctx.ledger({ kind: "write-mismatch", op, group: GROUP, ...fields });
     return moved;
@@ -193,7 +198,7 @@ async function reviewTool(ctx, pr, fields, conflicts) {
     const res = await queue(op, () =>
         run(file, [...args, String(pr.number)], { cwd: ctx.root, env: ctx.env ?? process.env }),
     );
-    const moved = await pushed(ctx, { op, branch: pr.headRef, before: pr.head, fields }, res);
+    const moved = await pushed(ctx, { op, number: pr.number, branch: pr.headRef, before: pr.head, fields }, res);
     if (moved) return { path: "review-tool", result: "updated", conflicts };
     return { path: "review-tool", result: res.code === 1 ? "conflict" : "failed", conflicts, why: res.stderr.trim() };
 }
@@ -214,6 +219,7 @@ async function updateBranch(ctx, pr, fields) {
             { expected_head_sha: pr.head },
             { group: GROUP, check: { path, lacks: { head: { sha: pr.head } } }, fields },
         );
+        if (out.performed) ctx.moved?.(pr.number, pr.head);
         return { path: "update-branch", result: out.performed ? "updated" : "would-do" };
     } catch (err) {
         const e = /** @type {{status?: number, message: string}} */ (err);
@@ -247,7 +253,7 @@ async function localMerge(ctx, pr, { onto, tree }, fields) {
         const res = await queue(op, () =>
             git(ctx, ["push", ctx.remote ?? "origin", `HEAD:refs/heads/${pr.headRef}`], dir),
         );
-        const moved = await pushed(ctx, { op, branch: pr.headRef, before: pr.head, fields }, res);
+        const moved = await pushed(ctx, { op, number: pr.number, branch: pr.headRef, before: pr.head, fields }, res);
         return moved
             ? { path: "local", result: "updated" }
             : { path: "local", result: "failed", why: res.stderr.trim() };
@@ -342,4 +348,125 @@ export function nextStackRecord({ prs, lastHeads, mergedHeads }, steps) {
         ),
         mergedHeads: mergedHeads.filter((h) => keep.has(h)),
     };
+}
+
+/**
+ * @typedef {{head: string, keys: string[], lanes: string[], failing: string[]}} InheritedWait a pull
+ *   request whose failure was inherited from master: its head then, the keys, the master lanes they
+ *   are red on, and its failing required checks
+ */
+
+/**
+ * Inherited failures recover by an update (design 4.6, "Updates"). Closing and reopening a pull
+ * request, or re-running its CI, keeps testing GitHub's old merge with master, so a fix that landed
+ * on master reaches a pull request only when its branch is updated. Each poll this records every
+ * pull request failing only on keys red on master (`rec.inherited`, prs.mjs) in `wait`; once every
+ * master lane those keys were red on is green again, it updates each one still at the same head and
+ * failing only on those checks, once per head, through `updatePr` (GitHub's update-branch when
+ * `tip` is master's head). Drafts, pull requests from forks and the release train are skipped; an
+ * update GitHub refuses is recorded and not retried at that head. Every decision is a ledger line.
+ * @param {Context} ctx the context
+ * @param {{prs: Record<string, any>, wait: Record<string, InheritedWait>, lanes: Record<string, any>,
+ *   tip: string, releasePattern?: string | null}} poll this poll's pull request records; the waits,
+ *   changed in place; master's lanes; master's head; the config's release commit pattern
+ * @returns {Promise<{pr: number, skipped?: string, result?: UpdateResult, error?: string}[]>} what
+ *   was done for each pull request whose keys recovered
+ */
+export async function recoverInherited(ctx, { prs, wait, lanes, tip, releasePattern = null }) {
+    for (const [n, rec] of Object.entries(prs)) {
+        if (!rec.inherited?.length) continue;
+        const red = Object.entries(lanes).filter(([, l]) =>
+            (l.redJobs ?? []).some((/** @type {any} */ j) => rec.inherited.includes(j.key)),
+        );
+        const failing = Object.keys(rec.required ?? {}).filter((c) => rec.required[c] === "FAILURE");
+        wait[n] = { head: rec.headSha, keys: rec.inherited, lanes: red.map(([name]) => name), failing };
+    }
+    const out = [];
+    for (const [n, w] of Object.entries(wait)) {
+        const rec = prs[n];
+        if (rec?.headSha !== w.head) {
+            delete wait[n];
+            continue;
+        }
+        if (rec.inherited?.length || !w.lanes.every((l) => lanes[l]?.verdict === "green")) continue;
+        delete wait[n];
+        const failing = Object.keys(rec.required ?? {}).filter((c) => rec.required[c] === "FAILURE");
+        let skipped = cannotUpdate(rec, releasePattern);
+        if (!skipped && (!failing.length || failing.some((c) => !w.failing.includes(c))))
+            skipped = "not failing only on inherited checks";
+        const line = { kind: "inherited-update", target: `pr:${n}`, head: w.head, keys: w.keys };
+        const reason = `inherited failure fixed on master: ${w.keys.join(", ")}`;
+        out.push(await updateOnce(ctx, { n, rec, tip, line, reason, skipped }));
+    }
+    return out;
+}
+
+/**
+ * Why githerd does not update a pull request's branch: a draft, a fork's, or the release train.
+ * @param {any} rec the pull request's record
+ * @param {string | null} releasePattern the config's release commit pattern
+ * @returns {string | null} the reason, or null when it may
+ */
+function cannotUpdate(rec, releasePattern) {
+    if (rec.draft) return "draft";
+    if (rec.fork) return "from a fork";
+    if (isReleaseTrain(rec, releasePattern)) return "release train";
+    return null;
+}
+
+/**
+ * One update of a pull request's branch from master's tip (or the reason it is skipped), with its
+ * ledger line. An error is GitHub's answer when githerd cannot update the head (no permission, a
+ * protected branch); it is recorded, not thrown.
+ * @param {Context} ctx the context
+ * @param {{n: string, rec: any, tip: string, line: Record<string, unknown> & {kind: string},
+ *   reason: string, skipped: string | null}} what the pull request, master's tip, the ledger
+ *   line's fields, why it is updated, and why not
+ * @returns {Promise<{pr: number, skipped?: string, result?: UpdateResult, error?: string}>} the outcome
+ */
+async function updateOnce(ctx, { n, rec, tip, line, reason, skipped }) {
+    if (skipped) {
+        await ctx.ledger({ ...line, skipped });
+        return { pr: Number(n), skipped };
+    }
+    const pr = { number: Number(n), base: rec.baseRef, headRef: rec.headRef, head: rec.headSha };
+    try {
+        const result = await updatePr(ctx, { pr, onto: tip, tip, reason });
+        await ctx.ledger({ ...line, result: result.result, path: result.path });
+        return { pr: pr.number, result };
+    } catch (err) {
+        const error = /** @type {Error} */ (err).message;
+        await ctx.ledger({ ...line, error });
+        return { pr: pr.number, error };
+    }
+}
+
+/** The label Mergify puts on a pull request it took out of its queue. */
+const DEQUEUED = "dequeued";
+
+/**
+ * Pull requests Mergify dequeued on the visual gate get a fresh run. When the queue's draft fails
+ * the owner's visual review, Mergify labels the pull request `dequeued`, and its own `All Checks
+ * Pass` fails only in the owner gate's steps (`rec.ownerGate`). Only a new `pull_request` run,
+ * whose payload carries the label, captures every Storybook for the owner; a re-run replays the
+ * old payload without it and skips the captures. So githerd updates the branch from master, once
+ * per head (`done[<pr>]` = the head it updated), with the skips of `recoverInherited`.
+ * @param {Context} ctx the context
+ * @param {{prs: Record<string, any>, done: Record<string, string>, tip: string,
+ *   releasePattern?: string | null}} poll this poll's records; the heads already handled, changed
+ *   in place; master's head; the config's release commit pattern
+ * @returns {Promise<{pr: number, skipped?: string, result?: UpdateResult, error?: string}[]>} what
+ *   was done for each dequeued pull request at a new head
+ */
+export async function updateDequeued(ctx, { prs, done, tip, releasePattern = null }) {
+    for (const n of Object.keys(done)) if (!prs[n]) delete done[n];
+    const out = [];
+    for (const [n, rec] of Object.entries(prs)) {
+        if (!rec.labels?.includes(DEQUEUED) || !rec.ownerGate || done[n] === rec.headSha) continue;
+        done[n] = rec.headSha;
+        const line = { kind: "dequeued-update", target: `pr:${n}`, head: rec.headSha };
+        const reason = "dequeued on the visual gate: a new run captures for the owner";
+        out.push(await updateOnce(ctx, { n, rec, tip, line, reason, skipped: cannotUpdate(rec, releasePattern) }));
+    }
+    return out;
 }

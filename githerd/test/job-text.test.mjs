@@ -46,6 +46,12 @@ const JOBS = {
     },
     pr: { kind: "pr", target: "#412", reason: "own failure on the current head" },
     issue: { kind: "issue", target: "#737", reason: "high bug" },
+    "issue-bundle": {
+        kind: "issue",
+        target: "#964",
+        reason: "front of the issue queue: medium bug, effort low; bundled with #962, #965",
+        facts: { batch: [964, 962, 965], package: "graph-io", bug: true, effort: "low" },
+    },
     "issue-verify": {
         kind: "issue",
         target: "#906",
@@ -174,6 +180,26 @@ describe("jobText", () => {
             "if you push it yourself, push through tools/push-queue.sh with PUSH_QUEUE_PRIORITY=critical",
         );
         expect(jobText(job, { masterFix: false })).not.toContain("PUSH_QUEUE_PRIORITY");
+    });
+
+    it("tells a bundle's session to close each issue in one pull request and to leave out what does not fit", () => {
+        const text = jobText(newJob(JOBS["issue-bundle"], NOW));
+        expect(text).toContain("Fix them in ONE pull request");
+        expect(text).toContain("(Fixes #964, Fixes #962, Fixes #965)");
+        expect(text).toContain("githerd then offers it alone");
+        expect(jobText(newJob(JOBS.issue, NOW))).not.toContain("BUNDLE:");
+    });
+
+    it("tells every session to bring master into a branch only for a conflict, a dequeue or a fix a check needs", () => {
+        const rule = RULES.find((r) => r.startsWith("Bring master into a pull request's branch only when"));
+        expect(rule).toContain(
+            "it conflicts with master, the merge queue dequeued it, or a required check needs a newer master",
+        );
+        expect(rule).toContain("the merge queue tests every pull request against current master anyway");
+        for (const spec of Object.values(JOBS)) expect(jobText(newJob(spec, NOW))).toContain(rule);
+        expect(RULES.join(" ")).not.toContain(
+            "to pick up a fix that landed on master since, the branch must be updated",
+        );
     });
 
     it("writes plain ASCII in lines a pane shows whole", () => {

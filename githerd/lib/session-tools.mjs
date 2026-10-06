@@ -460,9 +460,10 @@ async function rerun(ctx, job, args, session) {
     if (run.head_sha !== head) throw new Error(`run ${args.run} is not on the head ${head.slice(0, 9)}`);
     if (startedAsDraft(run, rec)) {
         throw new Error(
-            `run ${args.run} started while #${pr} was a draft, so a re-run skips CI again. If master moved since it ` +
-                `started, update the branch (${updateBranchCommand(pr, repo)}): a close and reopen would test the ` +
-                `old merge with master. With master unchanged, close and reopen #${pr} to start a real run`,
+            `run ${args.run} started while #${pr} was a draft, so a re-run skips CI again. Close and reopen #${pr} ` +
+                `to start a real run. Update the branch (${updateBranchCommand(pr, repo)}) instead only when it ` +
+                "conflicts with master or a required check needs a fix that landed on master since: a close and " +
+                "reopen tests the old merge with master",
         );
     }
     const failed = (await ctx.github.get(`repos/${repo}/actions/jobs/${args.jobId}`)).body ?? {};

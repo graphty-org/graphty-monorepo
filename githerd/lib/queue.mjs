@@ -509,9 +509,9 @@ function prAuthors(state, n) {
 const issueOf = (job) => Number(job.facts?.issue ?? String(job.target).replace(/^#/, ""));
 
 /**
- * Why a job of another kind in flight covers issue job `job`'s issue, or null: a batch job
- * (triage) holding it among the issues of its `facts.batch`. Two jobs on one issue would work
- * against each other, e.g. a fix verified while triage relabels it.
+ * Why another job in flight covers issue job `job`'s issue, or null: a batch job holding it among
+ * the issues of its `facts.batch` (a triage batch, or an issue job's bundle). Two jobs on one issue
+ * would work against each other, e.g. a fix verified while triage relabels it.
  * @param {any} state the daemon state
  * @param {any} job the issue job
  * @param {string | null | undefined} caller the session asking (its own claim is "yours")
@@ -522,7 +522,7 @@ function jobOnIssue(state, job, caller) {
     if (Number.isNaN(n)) return null;
     for (const j of Object.values(state.jobs ?? {})) {
         if (j.id === job.id || j.state === "queued" || TERMINAL.includes(j.state)) continue;
-        if (j.kind === job.kind || !(j.facts?.batch ?? []).map(Number).includes(n)) continue;
+        if (!(j.facts?.batch ?? []).map(Number).includes(n)) continue;
         const session = j.holder?.session;
         if (!session) return `#${n} is in flight in ${j.id}`;
         if (session === caller) return `yours: you claimed ${j.id}, which covers #${n}`;

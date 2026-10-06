@@ -572,7 +572,7 @@ function cancelledReasons(rec) {
             reasons.push(`${run.workflow} run ${run.id} cancelled again after a re-run: not re-run again`);
         if (run.rerun === "draft")
             reasons.push(
-                `${run.workflow} run ${run.id} started while a draft, so a re-run skips CI again: update the branch (update-branch) if master moved since, else close and reopen`,
+                `${run.workflow} run ${run.id} started while a draft, so a re-run skips CI again: close and reopen, or update the branch (update-branch) only if it conflicts or needs a fix that landed on master since`,
             );
     }
     return reasons;

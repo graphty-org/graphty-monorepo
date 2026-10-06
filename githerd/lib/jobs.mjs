@@ -31,7 +31,10 @@
  *   deferred (`state.deferred`, done.mjs) is left out until its revision changes. Only the types of
  *   `backlog.issueTypes` get a new job (bug and infrastructure by default) unless the owner picked the
  *   issue or master already references it; a queued, unheld job of another type is withdrawn
- *   (cancelled, `facts.withdrawn`) and made again once its type is offered.
+ *   (cancelled, `facts.withdrawn`) and made again once its type is offered. An effort:low issue job
+ *   may bundle up to `backlog.bundleMax - 1` more small issues of its type and package
+ *   (`facts.batch`, the anchor first; `bundleOf`), fixed in one pull request: each is in use while
+ *   the job is held, and none gets a job of its own until the bundle ends.
  * - `issue-reland-<n>`: a pull request a revert took out, once the revert left the queue of open
  *   pull requests.
  * - `issue-promote-<check>`: an advisory CI check (advisory.mjs) whose enforce date is three days
@@ -52,6 +55,7 @@ import {
     issueRule,
     issueType,
     issueTypes,
+    jobInUse,
     masterRefs,
     mergeHeld,
     missingLabelKinds,
@@ -580,17 +584,26 @@ function issueJobs(state, config, now, add, cancel) {
     }
     withdrawUnoffered(state, config, cancel);
     const deferred = endChangedDeferrals(state);
+    for (const [n, revision] of Object.entries(state.unbundled ?? {}))
+        if (state.issues?.byNumber?.[n]?.updatedAt !== revision) delete state.unbundled[n];
     // A promotion waits for an owner session and holds no place in the issue queue.
     const queued = Object.values(state.jobs).some(
         (j) => j.kind === "issue" && j.state === "queued" && j.facts?.scope !== "promote",
     );
     if (queued) return;
     const priorities = config.labels?.priorities ?? [];
+    // An issue in a live job's bundle is that job's until it ends.
+    const bundled = new Set(
+        Object.values(state.jobs)
+            .filter((j) => j.kind === "issue" && !TERMINAL.includes(j.state))
+            .flatMap((j) => (j.facts?.batch ?? []).map(Number)),
+    );
     const candidates = readyIssues(state, config, now)
         .ranked.map((r) => ({ ...r, order: orderPosition(state, r.number) }))
         .filter((r) => {
             const old = state.jobs[`issue-${r.number}`];
-            return (!old || old.facts?.withdrawn) && !deferred[r.number] && (r.offered || r.order !== null);
+            const free = (!old || old.facts?.withdrawn) && !deferred[r.number] && !bundled.has(r.number);
+            return free && (r.offered || r.order !== null);
         });
     // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
     candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));
@@ -602,6 +615,8 @@ function issueJobs(state, config, now, add, cancel) {
     const ranking = { bug: top.bug, type: top.type, effort: top.effort };
     // A commit or merged pull request on master already names the issue: the worker verifies first.
     const references = masterRefs(state, top.number);
+    const batch = references.length ? [] : bundleOf(state, config, now, top, candidates);
+    const also = batch.length ? `; bundled with ${batch.map((n) => `#${n}`).join(", ")}` : "";
     add({
         id: `issue-${top.number}`,
         kind: "issue",
@@ -609,9 +624,10 @@ function issueJobs(state, config, now, add, cancel) {
         priority,
         reason: references.length
             ? `referenced by ${references.join(", ")} on master`
-            : `front of the issue queue: ${issueRule(priority, ranking)}`,
+            : `front of the issue queue: ${issueRule(priority, ranking)}${also}`,
         facts: {
             ...(references.length ? { references } : {}),
+            ...(batch.length ? { batch: [top.number, ...batch], package: issuePackage(issue) } : {}),
             since: issue.createdAt ?? null,
             ...ranking,
             labels: issue.labels ?? [],
@@ -621,6 +637,59 @@ function issueJobs(state, config, now, add, cancel) {
             ...(top.order === null ? {} : { order: top.order }),
         },
     });
+}
+
+/** Labels that keep an issue out of a bundle: it must not merge, or needs a person's eyes. */
+const UNBUNDLED = /^(hold|.*visual.*)$/i;
+
+/**
+ * An issue's package: a `package:<name>` label, or else its title's prefix ("graph-io: ..."), or
+ * null when it names none.
+ * @param {any} issue the issue record
+ * @returns {string | null} the package
+ */
+function issuePackage(issue) {
+    const label = (issue.labels ?? []).find((/** @type {string} */ l) => l.startsWith("package:"));
+    if (label) return label.slice("package:".length);
+    return /^([\w@./-]+):\s/.exec(String(issue.text ?? ""))?.[1].toLowerCase() ?? null;
+}
+
+/**
+ * The issues offered with `top` in one job (owner decision 2026-10-06: fewer CI runs and merges for
+ * small fixes): only for an effort:low anchor that is not critical, up to `backlog.bundleMax - 1`
+ * more ready, free issues in queue order, each effort:low, of the anchor's type, not critical, of
+ * its package, none master already names, held, visual, in use by another job (`jobInUse`), picked
+ * by an open order, or left out of an earlier bundle at its current revision (`state.unbundled`,
+ * done.mjs); such an issue, or a held or visual one, does not anchor a bundle either.
+ * Whether they truly belong together is the session's judgment; this only proposes and limits.
+ * @param {any} state the daemon state
+ * @param {any} config the normalized config
+ * @param {Date} now the clock
+ * @param {any} top the anchor's ranked entry
+ * @param {any[]} candidates the free, offered ranked entries, in queue order
+ * @returns {number[]} the other issues, empty for none
+ */
+function bundleOf(state, config, now, top, candidates) {
+    const { bundle = true, bundleMax = 4 } = config.backlog ?? {};
+    const anchor = state.issues.byNumber[top.number];
+    const pkg = issuePackage(anchor);
+    const critical = (/** @type {any} */ r) => /critical$/.test(config.labels?.priorities?.[r.priority] ?? "");
+    // An issue left out of a bundle is offered alone until it changes.
+    const leftOut = (/** @type {number} */ n) => state.unbundled?.[n] === state.issues.byNumber[n].updatedAt;
+    const held = (/** @type {any} */ issue) =>
+        (issue.labels ?? []).some((/** @type {string} */ l) => UNBUNDLED.test(l));
+    if (!bundle || top.effort !== "low" || critical(top) || !pkg || leftOut(top.number) || held(anchor)) return [];
+    return candidates
+        .filter((r) => {
+            const issue = state.issues.byNumber[r.number];
+            if (r.number === top.number || r.effort !== "low" || r.type !== top.type || critical(r)) return false;
+            if (r.order !== null || issuePackage(issue) !== pkg || masterRefs(state, r.number).length) return false;
+            if (held(issue) || leftOut(r.number)) return false;
+            const probe = { id: `issue-${r.number}`, kind: "issue", target: `#${r.number}` };
+            return !jobInUse(state, probe, { config, now });
+        })
+        .slice(0, bundleMax - 1)
+        .map((r) => r.number);
 }
 
 /**

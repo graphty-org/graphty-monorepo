@@ -59,7 +59,9 @@ export const DEFAULTS = Object.freeze({
     },
     // The issue types githerd makes issue jobs for, in tier order (design 5.4, owner decision
     // 2026-10-06): bugs, then infrastructure. Add "enhancement" to offer enhancements again.
-    backlog: { agingDays: 60, issueTypes: ["bug", "infrastructure"] },
+    // `bundle`: an effort:low issue job also offers up to `bundleMax - 1` more small issues of its
+    // type and package, to fix in one pull request (one CI run and one merge instead of several).
+    backlog: { agingDays: 60, issueTypes: ["bug", "infrastructure"], bundle: true, bundleMax: 4 },
     notify: { command: null, maxPerHour: 6 },
     digest: { weekday: "sun", hourUtc: 16, issue: null },
 });
@@ -114,7 +116,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  *   protectedPaths: string[], actions: Record<string, boolean>,
  *   workers: { model: string, slots: number, urgent: number, waiting: number, hoursPerDay: number,
  *     askMinutes: number, statusMinutes: number, maxActive: number, sessions: string[] | null },
- *   backlog: { agingDays: number, issueTypes: string[] },
+ *   backlog: { agingDays: number, issueTypes: string[], bundle: boolean, bundleMax: number },
  *   notify: { command: string[] | null, maxPerHour: number },
  *   digest: { weekday: string, hourUtc: number, issue: number | null },
  * }} Config
@@ -320,18 +322,24 @@ function workers(raw) {
 }
 
 /**
- * The `backlog` section: how fast an untouched issue ages up, and the issue types githerd offers.
+ * The `backlog` section: how fast an untouched issue ages up, the issue types githerd offers, and
+ * whether an issue job bundles small issues, up to how many in all.
  * @param {unknown} raw the section as written
  * @returns {Config["backlog"]} the section
  */
 function backlog(raw) {
     const d = DEFAULTS.backlog;
-    if (raw === undefined) return { agingDays: d.agingDays, issueTypes: [...d.issueTypes] };
-    const { issueTypes, ...rest } = /** @type {any} */ (object(raw, "backlog"));
+    if (raw === undefined) return { ...d, issueTypes: [...d.issueTypes] };
+    const { issueTypes, bundle, ...rest } = /** @type {any} */ (object(raw, "backlog"));
     onlyKeys(raw, Object.keys(d), "backlog.");
+    if (bundle !== undefined && typeof bundle !== "boolean") fail("backlog.bundle must be true or false");
     return {
-        ...numbers(rest, { agingDays: d.agingDays }, "backlog", { agingDays: days }),
+        ...numbers(rest, { agingDays: d.agingDays, bundleMax: d.bundleMax }, "backlog", {
+            agingDays: days,
+            bundleMax: { min: 2, max: 10 },
+        }),
         issueTypes: issueTypes === undefined ? [...d.issueTypes] : strings(issueTypes, "backlog.issueTypes"),
+        bundle: bundle ?? d.bundle,
     };
 }
 

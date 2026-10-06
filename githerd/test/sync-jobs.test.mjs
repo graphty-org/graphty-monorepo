@@ -294,7 +294,7 @@ describe("syncJobs: pull requests", () => {
         ]);
         expect(jobText(state.jobs["pr-676"])).toContain(
             "HELD: this pull request is held from merging (breaking, held for a grouped major, or a hold label) and stays held. " +
-                "Fix only: merge master into it and make its required checks green. Never merge it, and never change its title or labels.",
+                "Fix only: make its required checks green, bringing master in only as the rules below allow. Never merge it, and never change its title or labels.",
         );
         expect(jobText(state.jobs["pr-706"])).not.toContain("HELD:");
     });
@@ -813,5 +813,116 @@ describe("syncJobs: advisory check promotions", () => {
         // Before the registry was ever read, nothing is made or cancelled.
         const fresh = base();
         expect(syncOn(fresh, "2026-10-06").created).toEqual([]);
+    });
+});
+
+describe("syncJobs: issue bundles (owner decision 2026-10-06)", () => {
+    const BUG = (/** @type {string} */ priority, /** @type {string} */ effort = "low") => [
+        "bug",
+        `priority:${priority}`,
+        `effort:${effort}`,
+    ];
+    /**
+     * An issue whose title names its package.
+     * @param {any} state the state
+     * @param {number} n its number
+     * @param {string} pkg the package
+     * @param {string[]} labels its labels
+     */
+    const titled = (state, n, pkg, labels) => {
+        issue(state, n, labels, { text: `${pkg}: issue ${n}\nbody` });
+    };
+
+    it("offers up to three more small issues of the anchor's type and package, in queue order", () => {
+        const state = base();
+        titled(state, 964, "graph-io", BUG("high"));
+        titled(state, 962, "graph-io", BUG("medium"));
+        titled(state, 965, "graph-io", BUG("low"));
+        titled(state, 969, "graph-io", BUG("low"));
+        titled(state, 971, "graph-io", BUG("low"));
+        titled(state, 961, "algorithms", BUG("medium"));
+        titled(state, 963, "graph-io", BUG("medium", "medium"));
+        titled(state, 966, "graph-io", [...BUG("medium"), "needs-decision"]);
+        titled(state, 967, "graph-io", [...BUG("low"), "hold"]);
+        titled(state, 973, "graph-io", [...BUG("medium"), "visual"]);
+        titled(state, 968, "graph-io", ["infrastructure", "priority:high", "effort:low"]);
+        expect(sync(state).created).toEqual(["issue-964"]);
+        const job = state.jobs["issue-964"];
+        expect(job.facts).toMatchObject({ batch: [964, 962, 965, 969], package: "graph-io" });
+        expect(job.reason).toBe("front of the issue queue: high bug, effort low; bundled with #962, #965, #969");
+        expect(jobText(job)).toContain("(Fixes #964, Fixes #962, Fixes #965, Fixes #969)");
+
+        // Held: each bundled issue is in use and gets no job of its own.
+        move(job, "starting", NOW, { holder: { session: "s1", startedBy: "owner" } });
+        const probe = { id: "issue-962", kind: "issue", target: "#962" };
+        expect(jobInUse(state, probe, { config: CONFIG, now: NOW })).toBe(
+            "#962 is in issue-964, claimed by session s1",
+        );
+        const next = sync(state).created;
+        expect(next).toHaveLength(1);
+        expect([962, 965, 969].map((n) => `issue-${n}`)).not.toContain(next[0]);
+
+        // Ended: free again.
+        move(job, "cancelled", NOW);
+        expect(jobInUse(state, probe, { config: CONFIG, now: NOW })).toBeNull();
+    });
+
+    it("bundles only an effort:low anchor that is not critical, and skips one already in use", () => {
+        const medium = base();
+        titled(medium, 1, "layout", BUG("high", "medium"));
+        titled(medium, 2, "layout", BUG("high"));
+        sync(medium);
+        expect(medium.jobs["issue-2"].facts.batch).toBeUndefined();
+
+        const critical = base();
+        titled(critical, 1, "layout", BUG("critical"));
+        titled(critical, 2, "layout", BUG("high"));
+        sync(critical);
+        expect(critical.jobs["issue-1"].facts.batch).toBeUndefined();
+
+        const used = base();
+        titled(used, 1, "layout", BUG("high"));
+        titled(used, 2, "layout", BUG("high"));
+        titled(used, 3, "layout", BUG("high"));
+        used.jobs["triage-full-1"] = { id: "triage-full-1", kind: "triage", state: "working", facts: { batch: [2] } };
+        sync(used);
+        expect(used.jobs["issue-1"].facts.batch).toEqual([1, 3]);
+    });
+
+    it("reads the package from a package: label, and follows backlog.bundle and backlog.bundleMax", () => {
+        const labeled = base();
+        for (const n of [1, 2, 3]) issue(labeled, n, [...BUG("high"), "package:layout"]);
+        sync(labeled);
+        expect(labeled.jobs["issue-1"].facts).toMatchObject({ batch: [1, 2, 3], package: "layout" });
+
+        const config = (/** @type {any} */ backlog) =>
+            normalizeConfig({
+                repo: "o/r",
+                lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+                labels: CONFIG.labels,
+                backlog,
+            });
+        const off = base();
+        for (const n of [1, 2, 3]) titled(off, n, "layout", BUG("high"));
+        syncJobs(off, { config: config({ bundle: false }), now: NOW });
+        expect(off.jobs["issue-1"].facts.batch).toBeUndefined();
+
+        const two = base();
+        for (const n of [1, 2, 3]) titled(two, n, "layout", BUG("high"));
+        syncJobs(two, { config: config({ bundleMax: 2 }), now: NOW });
+        expect(two.jobs["issue-1"].facts.batch).toEqual([1, 2]);
+    });
+
+    it("offers an issue a bundle left out alone until it changes", () => {
+        const state = base();
+        for (const n of [1, 2, 3]) titled(state, n, "layout", BUG("high"));
+        state.unbundled = { 1: "2026-10-03T00:00:00Z", 2: "2026-10-03T00:00:00Z" };
+        sync(state);
+        expect(state.jobs["issue-1"].facts.batch).toBeUndefined();
+        delete state.jobs["issue-1"];
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        sync(state);
+        expect(state.jobs["issue-1"].facts.batch).toEqual([1, 3]);
+        expect(state.unbundled).toEqual({ 2: "2026-10-03T00:00:00Z" });
     });
 });

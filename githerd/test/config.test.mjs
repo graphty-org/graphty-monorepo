@@ -65,17 +65,34 @@ describe("normalizeConfig", () => {
     });
 
     it("offers bug and infrastructure issues by default, and takes another list in backlog.issueTypes", () => {
-        expect(normalizeConfig(MINIMAL).backlog).toEqual({ agingDays: 60, issueTypes: ["bug", "infrastructure"] });
+        expect(normalizeConfig(MINIMAL).backlog).toEqual({
+            agingDays: 60,
+            issueTypes: ["bug", "infrastructure"],
+            bundle: true,
+            bundleMax: 4,
+        });
         expect(with_({ backlog: { agingDays: 30 } }).backlog.issueTypes).toEqual(["bug", "infrastructure"]);
         expect(with_({ backlog: { issueTypes: ["bug", "infrastructure", "enhancement"] } }).backlog).toEqual({
             agingDays: 60,
             issueTypes: ["bug", "infrastructure", "enhancement"],
+            bundle: true,
+            bundleMax: 4,
         });
         expect(() => with_({ backlog: { issueTypes: "bug" } })).toThrow(/backlog.issueTypes must be an array/);
         expect(() => with_({ backlog: { types: [] } })).toThrow(/backlog\.types/);
         const a = normalizeConfig(MINIMAL);
         a.backlog.issueTypes.push("enhancement");
         expect(normalizeConfig(MINIMAL).backlog.issueTypes).toEqual(["bug", "infrastructure"]);
+    });
+
+    it("bundles small issues by default, up to 4 in all, and takes bundle and bundleMax in backlog", () => {
+        expect(with_({ backlog: { bundle: false, bundleMax: 3 } }).backlog).toMatchObject({
+            bundle: false,
+            bundleMax: 3,
+        });
+        expect(() => with_({ backlog: { bundle: "yes" } })).toThrow(/backlog.bundle must be true or false/);
+        expect(() => with_({ backlog: { bundleMax: 1 } })).toThrow(/backlog.bundleMax must be an integer from 2 to 10/);
+        expect(() => with_({ backlog: { bundleMax: 11 } })).toThrow(/backlog.bundleMax/);
     });
 
     it("does not share default objects between results", () => {

@@ -666,7 +666,8 @@ const DRY_RUN =
 /** gh commands refused outright, with what to do instead. */
 const GH_REFUSED = {
     "pr merge": "Mergify merges once githerd/merge is green; there is nothing to do",
-    "pr update-branch": "the daemon updates branches; githerd_push merges master for you when it is needed",
+    "pr update-branch":
+        "the daemon updates branches; merge master yourself and push with githerd_push only on a conflict or for a fix on master a required check needs",
     "pr close": "the daemon closes pull requests; report it with githerd_done outcome not-needed",
     "pr reopen": "ask the owner with githerd_ask_owner",
     "issue close": "the daemon closes issues after a grace period; report it in githerd_done",

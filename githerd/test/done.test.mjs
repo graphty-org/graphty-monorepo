@@ -778,6 +778,17 @@ describe("githerdDone", () => {
         expect(board).toContain(`DEFERRED UNTIL THEY CHANGE (1): #9 ${reason}`);
     });
 
+    it("accepts a bundle's pull request, and remembers each bundled issue it does not close as left out", async () => {
+        const s = state({ issues: { byNumber: { 12: { state: "open", updatedAt: "2026-10-03T00:00:00Z" } } } });
+        s.prs[7] = pr({ references: [5, 9] });
+        const job = (s.jobs["issue-5"] = working("issue", "#5", { batch: [5, 9, 12] }));
+        const { ctx } = setup(s);
+        const ok = await githerdDone(ctx, job, report({ pr: 7 }), "w1");
+        expect(JSON.parse(ok.text)).toMatchObject({ verified: true });
+        expect(job.state).toBe("done");
+        expect(s.unbundled).toEqual({ 12: "2026-10-03T00:00:00Z" });
+    });
+
     it("refuses deferred for a job that is not an issue's, and without a reason", async () => {
         const s = state();
         const pr7 = (s.jobs["pr-7"] = working("pr", "7"));

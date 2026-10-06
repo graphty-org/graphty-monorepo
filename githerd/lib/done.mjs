@@ -562,8 +562,9 @@ function toolAnswer(answer, after, error, job) {
             verified: false,
             missing: [
                 `checks still running on ${answer.ciPending.slice(0, 9)}; githerd rings you when they finish. ` +
-                    "They test the merge with master as it was when they started; to pick up a later fix on master, " +
-                    `update the branch (${updateBranchCommand("<n>")}), not a re-run or a close and reopen`,
+                    "They test the merge with master as it was when they started, and that is enough: do not update the branch " +
+                    "to make it current, the merge queue tests it against current master. Only if a required check fails and needs a fix " +
+                    `that landed on master since, update the branch (${updateBranchCommand("<n>")}), not a re-run or a close and reopen`,
             ],
             attempts:
                 "this is not a refusal and costs nothing: wait for githerd to ring you, then call githerd_done again",
@@ -763,7 +764,8 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
 }
 
 /**
- * What an accepted `done` report leaves on the job: a triage batch's verdicts and a split's children.
+ * What an accepted `done` report leaves on the job: a triage batch's verdicts, a split's children,
+ * and the issues a bundle left out.
  * @param {any} job the job, now done
  * @param {any} report the report
  * @param {View} view what the check read
@@ -772,6 +774,26 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
 function applyDone(job, report, view, now) {
     if (job.kind === "triage") recordVerdicts(job, report, view, now);
     if (report.children) job.children = report.children;
+    if (job.kind === "issue" && job.facts?.batch?.length) recordLeftOut(job, report, view.state);
+}
+
+/**
+ * Records the issues of a bundle (`facts.batch`, jobs.mjs) its pull request does not close, at
+ * their current revision in `state.unbundled`: the session left them out, and githerd offers each
+ * alone, never in another bundle, until it changes.
+ * @param {any} job the bundle's job, now done
+ * @param {any} report the report
+ * @param {any} state the daemon state, changed in place
+ */
+function recordLeftOut(job, report, state) {
+    const pr = state.prs?.[String(report.pr ?? job.pr)];
+    // A pull request that merged before githerd saw it closed what it names.
+    if (!pr) return;
+    for (const n of job.facts.batch.slice(1)) {
+        if ((pr.references ?? []).includes(n)) continue;
+        state.unbundled ??= {};
+        state.unbundled[n] = state.issues?.byNumber?.[n]?.updatedAt ?? null;
+    }
 }
 
 /**

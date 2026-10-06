@@ -650,9 +650,9 @@ describe("sessionToolSet", () => {
         ctx.github.answers[`repos/${REPO}/actions/jobs/22`] = { run_id: 11, conclusion: "failure", name: "Build" };
         const args = { job: "pr-7", run: 11, jobId: 22, reason: "runner lost" };
         expect((await call(ctx, "githerd_rerun", args)).text).toBe(
-            "run 11 started while #7 was a draft, so a re-run skips CI again. If master moved since it started, update the branch " +
-                `(gh api -X PUT repos/${REPO}/pulls/7/update-branch): a close and reopen would test the old merge with master. ` +
-                "With master unchanged, close and reopen #7 to start a real run",
+            "run 11 started while #7 was a draft, so a re-run skips CI again. Close and reopen #7 to start a real run. " +
+                `Update the branch (gh api -X PUT repos/${REPO}/pulls/7/update-branch) instead only when it conflicts with master ` +
+                "or a required check needs a fix that landed on master since: a close and reopen tests the old merge with master",
         );
         expect(writes).toEqual([]);
         expect(state).not.toHaveProperty("reruns");

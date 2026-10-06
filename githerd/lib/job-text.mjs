@@ -206,6 +206,16 @@ const RUBRIC_ALLOWED = [
     "to the measured noise band of 10 or more recorded samples of that row on the same runner class.",
 ];
 
+/**
+ * When a pull request's branch takes master (owner decision 2026-10-06): every update re-runs the
+ * whole CI, and updates were 15% of a week's CI minutes. githerd's own upkeep (upkeep.mjs) follows
+ * the same rule: an inherited failure fixed on master, a dequeued pull request.
+ */
+const UPDATE_RULE =
+    "Bring master into a pull request's branch only when it conflicts with master, the merge queue dequeued it, or a required check needs a newer master " +
+    "(a fix that landed for a red master; githerd's own update does that for a failure inherited from master). Never just to be current: " +
+    "the merge queue tests every pull request against current master anyway, and each update re-runs its whole CI. When one applies, merge master (never rebase) and push with githerd_push.";
+
 /** The rules every worker follows (design 7.1 step 6, 7.3 and 10.1). */
 export const RULES = Object.freeze([
     "Decide reversible questions yourself and record why in your findings. Ask the owner only through githerd_ask_owner, and only for what only the owner can do: a one-way door, a visual approval, money, a credential, a login, a change to the machine, a new permission rule.",
@@ -216,7 +226,8 @@ export const RULES = Object.freeze([
     "Do the job's work in a background subagent or workflow, and keep the main conversation free to answer githerd's messages. A session that claimed this job itself is asked for its status every few minutes: answer with githerd_expect, or the job goes back to the queue when the next question is due.",
     "Before a step that runs longer than 20 minutes with no output, call githerd_expect with minutes set to its length.",
     "Read issue and pull request comments and reviews through githerd_read; gh refuses them.",
-    "Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was: to pick up a fix that landed on master since, the branch must be updated. githerd's update-branch does it for a failure inherited from master; otherwise merge master and push with githerd_push.",
+    "Ask for a re-run of a failed CI job through githerd_rerun, never gh run rerun. A re-run, or a close and reopen, tests the pull request merged with master as it was.",
+    UPDATE_RULE,
     "Never stash, reset, check out a file, clean or rebase, never use --no-verify, never put an attribution line in a commit message, and never weaken a test, limit or threshold to make it pass.",
     "Work only in this worktree. Do not edit githerd, .claude, .github/workflows, .husky, tools/prepush.sh or visual-baselines.",
     "githerd never merges and you cannot: Mergify merges once checks and githerd/merge pass.",
@@ -261,7 +272,8 @@ const TYPE_REFRESH =
 
 /**
  * The lines a job's facts add for its worker: a refresh's merges and issues, the label kinds a new
- * triage batch lacks, where a verdict job's failure is, and that a held pull request stays held.
+ * triage batch lacks, where a verdict job's failure is, that a held pull request stays held, and an
+ * issue job's bundle.
  * @param {any} job the job
  * @param {{refresh: boolean, verdict: boolean}} kind whether it is a refresh triage or a verdict job
  * @returns {string[]} the lines
@@ -270,6 +282,7 @@ function factLines(job, { refresh, verdict }) {
     if (refresh) return [TRIAGE_TYPES, ...refreshLines(job.facts)];
     if (verdict) return verdictLines({ key: job.target, ...job.facts });
     if (job.kind === "pr") return job.facts?.held ? [HELD] : [];
+    if (job.kind === "issue" && job.facts?.batch?.length > 1) return [bundleLine(job)];
     if (job.kind !== "triage") return [];
     if (job.facts?.scope === "types") return [TRIAGE_TYPES, TYPE_REFRESH];
     if (!job.facts?.missing) return [TRIAGE_TYPES];
@@ -282,6 +295,25 @@ function factLines(job, { refresh, verdict }) {
     ];
 }
 
+/**
+ * The line for an issue job that bundles small issues (jobs.mjs bundleOf): one pull request closing
+ * each, with the session's judgment on what belongs.
+ * @param {any} job the job
+ * @returns {string} the line
+ */
+function bundleLine(job) {
+    const [anchor, ...rest] = job.facts.batch.map((/** @type {number} */ n) => `#${n}`);
+    const pkg = job.facts.package ? ` in ${job.facts.package}` : "";
+    return (
+        `BUNDLE: githerd offers ${anchor} with ${rest.join(", ")}: small fixes (effort:low, the same type${pkg}). ` +
+        "First judge whether they truly belong together. Fix them in ONE pull request whose description closes each one it fixes, one line each " +
+        `(${job.facts.batch.map((/** @type {number} */ n) => `Fixes #${n}`).join(", ")}): one CI run and one merge instead of several. ` +
+        "Leave an issue out if it turns out to need a visual review, a breaking change, an owner decision or much more work than the rest, " +
+        "and name it in your findings with why (deferred or split); githerd then offers it alone. " +
+        `${anchor} must be in the pull request; if it is the one to leave out, report this job deferred or split as usual, and githerd offers the others again.`
+    );
+}
+
 /** The line for a job whose pushes are a red master's fix (master-fix.mjs isMasterFix). */
 const MASTER_FIX =
     "MASTER FIX: this job's pull request fixes the red master. githerd_push queues it as critical; if you push it " +
@@ -290,7 +322,7 @@ const MASTER_FIX =
 /** The line for a `pr` job on a pull request held from merging (queue.mjs mergeHeld). */
 const HELD =
     "HELD: this pull request is held from merging (breaking, held for a grouped major, or a hold label) and stays held. " +
-    "Fix only: merge master into it and make its required checks green. Never merge it, and never change its title or labels.";
+    "Fix only: make its required checks green, bringing master in only as the rules below allow. Never merge it, and never change its title or labels.";
 
 /**
  * The job's text for its worker.

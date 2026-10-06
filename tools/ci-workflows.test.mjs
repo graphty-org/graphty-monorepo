@@ -7,7 +7,16 @@
 //   node tools/ci-workflows.test.mjs   (pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+    copyFileSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
@@ -16,6 +25,7 @@ import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPr, revertTitle } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
+import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
 
@@ -77,6 +87,334 @@ describe("the test matrix", () => {
         assert.match(r.stdout, /::error::failed: b$/m);
         const ok = groupEntry("g", [fake("a", "true"), fake("c", "true")]);
         assert.equal(spawnSync("bash", ["-e", "-c", ok["test-command"]]).status, 0);
+    });
+});
+
+describe("the pre-push gate matches CI", () => {
+    const tool = (name) => readFileSync(new URL(name, import.meta.url), "utf8");
+    // A script without its comment lines, so prose about a command is not mistaken for running it.
+    const code = (text) => text.replace(/^\s*#.*$/gm, "");
+    // The shards one CI matrix runs: a group job runs its members, named by its `echo "==> <shard>"` lines.
+    const ciShards = (affected) =>
+        plan(affected).flatMap((e) =>
+            e.shard in GROUPS ? [...e["test-command"].matchAll(/echo "==> ([^"]+)"/g)].map((m) => m[1]) : [e.shard],
+        );
+
+    it("runs exactly the shards CI runs, for every affected set", () => {
+        const sets = [[], PACKAGES, ...PACKAGES.map((p) => [p]), ["@graphty/remote-logger", "graph-io"]];
+        for (const affected of sets) {
+            const local = localShards(affected).map((s) => s.shard);
+            assert.deepEqual([...local].sort(), ciShards(affected.map((p) => p.replace(/^@graphty\//, ""))).sort());
+            for (const s of localShards(affected)) {
+                assert.equal(
+                    s,
+                    SHARDS.find((x) => x.shard === s.shard),
+                    "with CI's own entry, so CI's command",
+                );
+            }
+        }
+    });
+
+    it("tests through tools/prepush-tests.mjs only, on CI's affected set", () => {
+        const prepush = code(tool("prepush.sh"));
+        assert.match(prepush, /nx show projects --affected --base="\$BASE" --head=HEAD --json/);
+        assert.match(
+            prepush,
+            /run_step "[^"]+" \\\n\s+"timeout --foreground --kill-after=60s '\$\{PREPUSH_TESTS_TIMEOUT:-90m\}' node tools\/prepush-tests.mjs '\$PROJECTS' '\$\{BASE:-\}'"/,
+        );
+        // No test command of its own, which could drift from CI's -- but the NVIDIA run, which CI has none of.
+        const nvidia = /\n {4}run_step "webgpu-graph-algorithms on the local NVIDIA GPU" \\\n.*\n/;
+        assert.match(prepush, nvidia);
+        assert.doesNotMatch(
+            prepush.replace(nvidia, "\n"),
+            /vitest|test:run|test:prepush|nx run-many -t test|:coverage/,
+        );
+        const ci = workflow("ci.yml");
+        assert.match(job(ci, "build"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
+        assert.match(job(ci, "test"), /run: \$\{\{ matrix.test-command \}\}/);
+    });
+
+    describe("each shard's local policy", () => {
+        const element = localShards(["graphty-element"]);
+        const long = element.filter((s) => s.local === "when-paths-change").map((s) => s.shard);
+        // What vitest answers for each shard, made up: one test file per shard, the shared setup file.
+        const triggersOf = (s) => ({
+            specs: new Set([`graphty-element/test/${s.shard}.test.ts`]),
+            config: ["graphty-element/vitest.config.ts", "graphty-element/test/setup.ts", ...(s["local-paths"] ?? [])],
+        });
+        const run = (changed) => gateShards(element, changed, triggersOf).map((s) => s.shard);
+
+        it("is always, when-paths-change or never, and CI runs every shard whatever it is", () => {
+            for (const s of SHARDS) {
+                assert.ok([undefined, "always", "when-paths-change", "never"].includes(s.local), s.shard);
+            }
+            assert.deepEqual(long.sort(), [
+                ...[1, 2, 3, 4, 5].map((n) => `graphty-element-browser-${n}`),
+                ...[1, 2, 3, 4].map((n) => `graphty-element-storybook-${n}`),
+            ]);
+            const ci = plan(["graphty-element"]).map((e) => e.shard);
+            for (const shard of long) {
+                assert.ok(ci.includes(shard), `CI runs ${shard}`);
+            }
+        });
+
+        it("skips graphty-element's long shards for a change none of them tests", () => {
+            assert.deepEqual(run(["graphty-element/src/Graph.ts", "graphty/src/App.tsx"]), ["graphty-element-default"]);
+            assert.deepEqual(run([]), ["graphty-element-default"]);
+        });
+
+        it("runs the one shard whose test file changed", () => {
+            assert.deepEqual(run(["graphty-element/test/graphty-element-browser-3.test.ts"]).sort(), [
+                "graphty-element-browser-3",
+                "graphty-element-default",
+            ]);
+            // A story is a test file of one storybook shard, though it sits under stories/, a local path
+            // of every storybook shard.
+            const story = "graphty-element/stories/Data.stories.ts";
+            const withStory = (s) => {
+                const t = triggersOf(s);
+                return s.shard === "graphty-element-storybook-2" ? { ...t, specs: new Set([story]) } : t;
+            };
+            assert.deepEqual(
+                gateShards(element, [story], withStory)
+                    .map((s) => s.shard)
+                    .sort(),
+                ["graphty-element-default", "graphty-element-storybook-2"],
+            );
+        });
+
+        it("runs every shard of a family when its config, setup or a local path changes", () => {
+            const browsers = long.filter((n) => n.includes("browser"));
+            const stories = long.filter((n) => n.includes("storybook"));
+            assert.deepEqual(
+                run(["graphty-element/test/setup.ts"]).sort(),
+                [...long, "graphty-element-default"].sort(),
+            );
+            assert.deepEqual(
+                run(["graphty-element/test/helpers/graph.ts"]).sort(),
+                [...browsers, "graphty-element-default"].sort(),
+            );
+            assert.deepEqual(
+                run(["graphty-element/.storybook/main.ts"]).sort(),
+                [...stories, "graphty-element-default"].sort(),
+            );
+        });
+
+        it("runs every shard but a never one when there is nothing to compare with (PREPUSH_ALL=1)", () => {
+            assert.deepEqual(gateShards(element, null, null), element);
+            const never = { ...element[0], local: "never" };
+            assert.deepEqual(gateShards([never, element[1]], null, null), [element[1]]);
+        });
+    });
+
+    it("runs each shard in CI's environment, moving only where a shared package writes its coverage", () => {
+        assert.match(code(tool("run-tests.sh")), /\n\s+export CI=true\n/);
+        // The runner's fonts, which visual-fonts/ is a snapshot of: this machine has no emoji font.
+        assert.match(code(tool("run-tests.sh")), /export FONTCONFIG_FILE="\$ROOT\/visual-fonts\/fonts.conf"/);
+        assert.match(code(tool("prepush-tests.mjs")), /"bash", "tools\/run-tests.sh", shard.shard/);
+        for (const s of SHARDS) {
+            const shared = SHARDS.filter((x) => x.package === s.package && / --coverage/.test(x["test-command"]));
+            assert.deepEqual(
+                shardEnv(s),
+                shared.length > 1 ? { COVERAGE_DIR: `.coverage-parts/${s.shard}` } : {},
+                s.shard,
+            );
+        }
+    });
+
+    it("warms each package's caches one family at a time before the rest of the package starts", () => {
+        const shards = localShards(["graphty-element", "layout"]);
+        const pick = (n) => shards.find((s) => s.shard === n);
+        const canStart = startRule(shards);
+        const startable = (running, warmed) =>
+            shards.filter((s) => !running.includes(s) && canStart(s, running, new Set(warmed))).map((s) => s.shard);
+        // Cold: one warm-up per package (the shortest command of a family), and nothing else.
+        assert.deepEqual(startable([], []).sort(), [
+            "graphty-element-browser-2",
+            "graphty-element-default",
+            "graphty-element-storybook-1",
+            "layout",
+        ]);
+        // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
+        assert.deepEqual(startable([pick("graphty-element-browser-2")], []), ["layout"]);
+        // A warmed family's siblings still wait for the package's other families.
+        const afterBrowser = startable([], ["graphty-element-browser"]);
+        assert.ok(!afterBrowser.includes("graphty-element-browser-3"));
+        assert.ok(afterBrowser.includes("graphty-element-storybook-1"));
+        const all = ["graphty-element-browser", "graphty-element-storybook", "graphty-element-default"];
+        assert.equal(startable([pick("graphty-element-browser-1")], all).length, shards.length - 1);
+    });
+
+    it("runs webgpu-graph-algorithms on the local NVIDIA GPU after the CI shards, requiring nvidia", () => {
+        const prepush = code(tool("prepush.sh"));
+        const tests = prepush.indexOf("node tools/prepush-tests.mjs");
+        const gpu = prepush.indexOf('run_step "webgpu-graph-algorithms on the local NVIDIA GPU"');
+        assert.ok(tests > 0 && gpu > tests, "after the Tests step");
+        assert.match(
+            prepush,
+            /\nif affected webgpu-graph-algorithms; then\n[\s\S]*?GRAPHTY_EGL_LIB_DIR[\s\S]*?LD_LIBRARY_PATH='\$EGL_LIB_DIR[^']*' GRAPHTY_GPU_REQUIRE=nvidia npm run test:run\)"\nfi/,
+        );
+        assert.doesNotMatch(prepush, /GRAPHTY_GPU_REQUIRE=any npm run test:run/);
+    });
+
+    it("bounds the screenshot capture and stops it, unpromoted, when the gate stops early", () => {
+        const prepush = code(tool("prepush.sh"));
+        assert.match(
+            prepush,
+            /setsid timeout --kill-after=30s "\$\{PREPUSH_SCREENSHOTS_TIMEOUT:-45m\}" \.\/tools\/visual-preview.sh --head "\$PUSH_HEAD" /,
+        );
+        assert.match(prepush, /if wait "\$SCREENSHOTS_PGID"; then[\s\S]*?else[\s\S]*?FAILED=1\n/);
+        assert.match(
+            prepush,
+            /\.\/tools\/visual-preview.sh --promote "\$PUSH_HEAD" && SCREENSHOTS_STAGED=0\n\s+echo -e "\$\{GREEN\}All pre-push checks passed/,
+        );
+        // The EXIT trap, run for real: a failed step exits; the capture's process group dies and its
+        // staged preview is discarded.
+        const fn = prepush.slice(
+            prepush.indexOf("cleanup() {"),
+            prepush.indexOf("\n}\n", prepush.indexOf("cleanup() {")) + 3,
+        );
+        const dir = mkdtempSync(join(tmpdir(), "prepush-trap-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            writeFileSync(join(dir, "tools/visual-preview.sh"), `#!/bin/sh\necho "$@" > ${dir}/called\n`, {
+                mode: 0o755,
+            });
+            const script = `cd ${dir}\nSONAR_PGID=""\nPUSH_HEAD=abc\n${fn}\ntrap cleanup EXIT\nsetsid sleep 300 &\nSCREENSHOTS_PGID=$!\nuntil [ "$(ps -o pgid= -p $SCREENSHOTS_PGID | tr -d " ")" = $SCREENSHOTS_PGID ]; do sleep 0.05; done\nSCREENSHOTS_STAGED=1\necho $SCREENSHOTS_PGID > ${dir}/pid\nexit 1\n`;
+            const r = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 20_000 });
+            assert.equal(r.status, 1);
+            const pid = Number(readFileSync(join(dir, "pid"), "utf8"));
+            assert.throws(() => process.kill(pid, 0), "the capture's process group was killed");
+            assert.equal(readFileSync(join(dir, "called"), "utf8"), "--discard abc\n");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    describe("tools/visual-preview.sh --head, against a throwaway repository", () => {
+        const realGit = spawnSync("bash", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+        // Stubs for everything outside git: gh finds no pull request; pnpm installs nothing and says
+        // project p is affected; node's capture writes a results.json with the story status asked for;
+        // git passes through, except `lfs` and a forced merge-tree exit code.
+        const STUBS = {
+            gh: "#!/bin/sh\nexit 0\n",
+            pnpm: '#!/bin/sh\ncase "$*" in *"show projects"*) echo \'["p"]\';; esac\n',
+            node: `#!/bin/bash
+if [ "$2" = capture ]; then
+    while [ $# -gt 0 ]; do [ "$1" = --out ] && out="$2"; shift; done
+    mkdir -p "$out"
+    printf '{"complete":true,"items":[{"file":"s.png","status":"%s","reason":"r"}]}' "$STUB_STATUS" > "$out/results.json"
+fi
+`,
+            git: `#!/bin/bash
+case " $* " in
+    *" lfs "*) exit 0 ;;
+    *" merge-tree "*) [ -n "$STUB_MERGE_TREE_RC" ] && exit "$STUB_MERGE_TREE_RC" ;;
+esac
+exec ${realGit} "$@"
+`,
+        };
+        const sandbox = (fn) => {
+            const t = mkdtempSync(join(tmpdir(), "visual-preview-"));
+            const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("GIT_")));
+            Object.assign(env, {
+                PATH: `${t}/bin:${process.env.PATH}`,
+                GIT_CONFIG_GLOBAL: "/dev/null",
+                GIT_AUTHOR_NAME: "t",
+                GIT_AUTHOR_EMAIL: "t@t",
+                GIT_COMMITTER_NAME: "t",
+                GIT_COMMITTER_EMAIL: "t@t",
+            });
+            const main = join(t, "main");
+            const git = (...a) => {
+                const r = spawnSync(realGit, a, { cwd: main, env, encoding: "utf8" });
+                assert.equal(r.status, 0, r.stderr);
+                return r.stdout.trim();
+            };
+            try {
+                mkdirSync(join(t, "bin"));
+                for (const [name, body] of Object.entries(STUBS)) {
+                    writeFileSync(join(t, "bin", name), body, { mode: 0o755 });
+                }
+                spawnSync(realGit, ["init", "-q", "--bare", "-b", "master", join(t, "origin.git")], { env });
+                mkdirSync(join(main, "tools"), { recursive: true });
+                mkdirSync(join(main, "visual-review/capture"), { recursive: true });
+                mkdirSync(join(main, "visual-review/trusted"), { recursive: true });
+                copyFileSync(new URL("visual-preview.sh", import.meta.url), join(main, "tools/visual-preview.sh"));
+                writeFileSync(join(main, "visual-review.config.json"), '{"projects":{"p":{"build":"true"}}}\n');
+                writeFileSync(join(main, "visual-review/capture/c"), "c\n");
+                writeFileSync(join(main, "visual-review/trusted/t"), "t\n");
+                writeFileSync(join(main, ".gitignore"), ".env\ntmp/\n.worktrees/\n");
+                writeFileSync(join(main, ".env"), "");
+                git("init", "-q", "-b", "master");
+                git("add", ".");
+                git("commit", "-qm", "base", "--no-verify");
+                git("remote", "add", "origin", join(t, "origin.git"));
+                git("push", "-q", "origin", "master");
+                git("checkout", "-qb", "feat");
+                writeFileSync(join(main, "b.txt"), "b\n");
+                git("add", "b.txt");
+                git("commit", "-qm", "feat", "--no-verify");
+                const head = git("rev-parse", "HEAD");
+                const run = (extra, ...args) =>
+                    spawnSync("bash", [join(main, "tools/visual-preview.sh"), ...args], {
+                        cwd: main,
+                        env: { ...env, ...extra },
+                        encoding: "utf8",
+                        timeout: 60_000,
+                    });
+                fn({ run, head, local: join(main, "tmp/visual-review/local") });
+            } finally {
+                rmSync(t, { recursive: true, force: true });
+            }
+        };
+
+        it("stages a capture with changed images, passes, and promotes or discards it on request", () => {
+            sandbox(({ run, head, local }) => {
+                // An exported BRANCH (common in CI and agent shells) must not change the mode.
+                const r = run({ STUB_STATUS: "changed", BRANCH: "something" }, "--head", head);
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                assert.ok(existsSync(join(local, `.pending-${head}/p/results.json`)), "staged under the commit");
+                assert.ok(!existsSync(join(local, "branch-feat")), "nothing promoted before the push passed");
+                assert.equal(run({}, "--promote", head).status, 0);
+                assert.ok(existsSync(join(local, "branch-feat/p/results.json")));
+                assert.ok(!existsSync(join(local, `.pending-${head}`)));
+                assert.equal(run({ STUB_STATUS: "changed" }, "--head", head).status, 0);
+                assert.equal(run({}, "--discard", head).status, 0);
+                assert.ok(!existsSync(join(local, `.pending-${head}`)));
+                assert.ok(existsSync(join(local, "branch-feat/p/results.json")), "the promoted preview is kept");
+            });
+        });
+
+        it("fails on a story that failed to render", () => {
+            sandbox(({ run, head }) => {
+                const r = run({ STUB_STATUS: "failed" }, "--head", head);
+                assert.equal(r.status, 1);
+                assert.match(r.stderr, /stories failed to capture/);
+            });
+        });
+
+        it("skips a conflicting merge but fails on a merge-tree error", () => {
+            sandbox(({ run, head, local }) => {
+                const conflict = run({ STUB_MERGE_TREE_RC: "1" }, "--head", head);
+                assert.equal(conflict.status, 0, conflict.stderr);
+                assert.match(conflict.stdout, /conflicts with origin\/master/);
+                const error = run({ STUB_MERGE_TREE_RC: "128" }, "--head", head);
+                assert.equal(error.status, 1);
+                assert.match(error.stderr, /merge-tree failed \(exit 128\)/);
+                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
+                assert.equal(status.state, "failed");
+            });
+        });
+    });
+
+    it("uploads Git LFS objects before anything else, and stops the push when that fails", () => {
+        const hook = readFileSync(new URL("../.husky/pre-push", import.meta.url), "utf8");
+        const commands = code(hook)
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((l) => l && !l.startsWith("#!"));
+        assert.equal(commands[0], './tools/lfs-pre-push.sh "$@" || exit 1');
     });
 });
 

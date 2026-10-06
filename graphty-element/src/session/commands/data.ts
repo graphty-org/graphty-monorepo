@@ -35,6 +35,7 @@ import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
+import { deepEquals } from "../styles/predicate";
 import type { NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
 
@@ -80,6 +81,8 @@ export type DataMutation =
           readonly kind: "update-rows";
           readonly target: "node" | "edge";
           readonly rows: readonly RowUpdate<NodeId | EdgeId>[];
+          /** Each row's values become its whole record instead of patching it. Default: patch. */
+          readonly replace?: boolean;
       }
     | {
           /** Remove nodes, and every edge attached to one. */
@@ -315,24 +318,40 @@ export function replaceEdgesCommand(
 
 /**
  * The step replacing the graph's nodes: remove the nodes it holds that the new records do not
- * name, with their edges, and add the new ones. A node named again keeps its row and its edges.
- * @param held - The ids of the nodes it holds, read when the step is about to run.
+ * name, with their edges, give every node named again the record it was just handed (it keeps its
+ * row, its position and its edges), and add the new ones.
+ * @param held - The records of the nodes it holds by id, read when the step is about to run.
  * @param records - The nodes it should hold afterwards.
  * @param idPath - Where a record's id is, `data.knownFields.nodeIdPath`.
  * @param setup - Declared at construction.
  * @returns The command.
  */
 export function replaceNodesCommand(
-    held: readonly NodeId[],
+    held: ReadonlyMap<NodeId, Readonly<Record<string, unknown>>>,
     records: readonly RecordInput[],
     idPath: string,
     setup = false,
 ): BatchCommand {
-    const named = new Set(records.map((record) => jmespath.search(record, idPath) as unknown));
-    const gone = held.filter((id) => !named.has(id));
+    const named = new Map(records.map((record) => [jmespath.search(record, idPath) as unknown, record]));
+    const gone = [...held.keys()].filter((id) => !named.has(id));
+    const changed: RowUpdate<NodeId>[] = [];
+    for (const [id, prior] of held) {
+        const record = named.get(id);
+        if (record !== undefined && !deepEquals(prior, record)) {
+            changed.push({ id, values: record });
+        }
+    }
+
     const steps: DataApplyCommand[] = [];
     if (gone.length > 0) {
         steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: gone } });
+    }
+
+    if (changed.length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: changed, replace: true },
+        });
     }
 
     steps.push({ op: "data.apply", mutation: { kind: "add-nodes", records } });

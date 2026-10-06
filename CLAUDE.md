@@ -111,6 +111,31 @@ parameters -- and never:
 A fact about the data (what a column measures, what an algorithm returns) is graphty-element's. How
 a reader sees it is the application's.
 
+### graphty-element offers choices; consumers make them
+
+**graphty-element exposes an option for every behavior a consumer might reasonably want either
+way, and its default is the neutral behavior of the mechanism underneath -- never one consumer's
+preference.** A consumer that wants something particular sets the option itself.
+
+The owner's rule (2026-10-06), on making the default force layout seeded: "the app shouldn't force
+opinions on graphty-element. if the app wants a consistent seed it should set a consistent seed."
+So the default force layout stays unseeded, and the graphty app or a story that wants the same
+drawing on every load passes a seed.
+
+This does not weaken self-sufficiency; it draws the line inside it:
+
+- A **capability** is graphty-element's. If getting a behavior would make a consumer write code --
+  detection, construction, sequencing, recovery -- that code belongs in the element. Making a
+  passed seed give the same drawing however the data arrives (in one write or split across frames)
+  is a capability, so it is the element's job.
+- A **choice** is the consumer's. If getting a behavior only takes setting a value, and another
+  reasonable consumer would set a different one, it is an option with a neutral default: a seed, a
+  palette, a starting camera, how much detail to draw.
+
+The test: would a different reasonable consumer want a different value? Then it is a choice, the
+element exposes it and documents it, and the default does nothing opinionated. A need that only
+the graphty app has is the app's to set, never a reason to change the element's default.
+
 ### Easy things easy, hard things possible
 
 Every public API and extension point has a simple path and an advanced path. The simple path's

@@ -1,7 +1,8 @@
 /**
- * The `@graphty/graph-io/cx` subpath (design/graph-io/cytoscape-and-obo/design.md section 1.2):
- * the CX version 1 importer with its option type and code table. CX1 is read only: CX2 is what
- * NDEx and Cytoscape write today, and `@graphty/graph-io/cx2` writes it.
+ * The `@graphty/graph-io/cx` subpath: the CX version 1 importer and exporter with their option
+ * types and code tables.
+ * @module @graphty/graph-io/cx
  */
 
+export { CX_CAPABILITIES, CX_LOSS, cxExporter, type CxExportOptions } from "./exporter.js";
 export { CX_ISSUE, cxImporter, type CxImportOptions } from "./importer.js";

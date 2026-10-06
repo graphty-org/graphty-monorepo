@@ -5,8 +5,9 @@ name: Release
 #
 # 1. Once a day (the schedule), or at once when the owner dispatches it (the ad hoc release), the train job finds
 #    the newest master commit green on every lane, versions it with nx release, and opens a "chore(release):
-#    publish" pull request holding only version fields and changelogs, labeled priority:critical. Mergify merges
-#    it ahead of waiting pull requests.
+#    publish" pull request holding only version fields and changelogs. Mergify merges it ahead of waiting pull
+#    requests (.mergify.yml's "release train" priority rule, which matches the branch, not a label) without
+#    interrupting the batches already being checked.
 # 2. That merge is a push to master, which starts the publish job: it tags each released package
 #    {projectName}@{version}, creates its GitHub release and publishes it to npm with trusted publishing (OIDC),
 #    from the build of the commit every lane tested.
@@ -227,7 +228,7 @@ jobs:
                       echo
                       echo "This pull request changes only version fields and changelogs (tools/release-diff.mjs). When it merges, release.yml tags each package, creates its GitHub release and publishes it to npm from that commit's tested build. Opened by ${run_url}."
                   } > "$RUNNER_TEMP/body.md"
-                  gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md" --label priority:critical
+                  gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
                   for context in "All Checks Pass" "Lint PR Title"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
                           -f description="release train: versions and changelogs only, on a commit green on every lane" \

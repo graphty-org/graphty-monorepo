@@ -551,12 +551,12 @@ describe("node-link", () => {
         expect(s.edgeCount).toBe(1);
     });
 
-    it("reserves both nodes and edges as errors when a section is missing, but still imports", async () => {
+    it("warns when a section is missing, and still imports", async () => {
         const nodesOnly = await load('{"nodes":[{"id":1},{"id":2}]}');
         expect(nodesOnly.s.nodeCount).toBe(2);
         expect(codes(nodesOnly.report)).toEqual([JSON_ISSUE.MISSING_SECTION]);
         expect(nodesOnly.report.issues[0]?.category).toBe("missing-value");
-        expect(nodesOnly.report.issues[0]?.severity).toBe("error");
+        expect(nodesOnly.report.issues[0]?.severity).toBe("warning");
         const edgesOnly = await load('{"edges":[{"source":1,"target":2}]}');
         expect(edgesOnly.s.nodeCount).toBe(2);
         expect(edgesOnly.s.edgeCount).toBe(1);
@@ -854,7 +854,7 @@ describe("jgf", () => {
             expect(report.lossy).toEqual([
                 {
                     code: JSON_ISSUE.HYPEREDGES_SKIPPED,
-                    message: "2 hyperedge(s) were not imported",
+                    message: "2 hyperedges were not imported",
                     column: null,
                     count: 2,
                 },
@@ -1385,5 +1385,23 @@ describe("nodesPath and edgesPath", () => {
         await expect(load(doc, { nodesPath: "nodes", dialect: "jgf" })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
+    });
+});
+
+describe("nodeIdFrom label without labels", () => {
+    it("says where the ids came from instead", async () => {
+        const { importGraph } = await import("../../../src/index.js");
+        const named = await importGraph('{"nodes":[{"name":"a"},{"name":"b"}],"links":[{"source":"a","target":"b"}]}', {
+            format: "json",
+            nodeIdFrom: "label",
+        });
+        expect(named.report.issues.map((i) => i.message)).toContain(
+            'nodeIdFrom "label": no node has a "label" key; ids are read from "name"',
+        );
+        const labelled = await importGraph('{"nodes":[{"id":1,"label":"a"}],"links":[]}', {
+            format: "json",
+            nodeIdFrom: "label",
+        });
+        expect(labelled.report.issues).toEqual([]);
     });
 });

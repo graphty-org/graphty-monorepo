@@ -1,6 +1,6 @@
-import { PopoutManager } from "@graphty/compact-mantine";
+import { PANEL_GRID, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
-import { ActionIcon, Anchor, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
+import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
 import {
     ChartColumn,
     Circle,
@@ -361,7 +361,10 @@ function bodyOf(
                 style: (
                     <>
                         <CanvasSection />
-                        <LayoutGroup />
+                        {/* The panel's content band, where every section's rows begin. */}
+                        <Box pl={PANEL_GRID.PAD_LEFT} pr={PANEL_GRID.PAD_RIGHT}>
+                            <LayoutGroup />
+                        </Box>
                     </>
                 ),
                 values: <Overview />,

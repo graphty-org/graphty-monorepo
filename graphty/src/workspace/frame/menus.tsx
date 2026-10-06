@@ -3,7 +3,7 @@
  * registry, so a stub command is not drawn and a disabled one shows its reason on a second line.
  */
 
-import { Menu, Text, UnstyledButton } from "@mantine/core";
+import { Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import { ChevronDown, Menu as MenuIcon } from "lucide-react";
 import React, { Fragment } from "react";
 
@@ -80,9 +80,11 @@ export function MainMenu(): React.JSX.Element {
     return (
         <Menu position="bottom-start" withinPortal>
             <Menu.Target>
-                <UnstyledButton aria-label="Main menu" className="ws-header-button">
-                    <MenuIcon size={16} aria-hidden />
-                </UnstyledButton>
+                <Tooltip label="Main menu: open, save, export, settings">
+                    <UnstyledButton aria-label="Main menu" className="ws-header-button">
+                        <MenuIcon size={16} aria-hidden />
+                    </UnstyledButton>
+                </Tooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 <CommandItem id="project.new" />

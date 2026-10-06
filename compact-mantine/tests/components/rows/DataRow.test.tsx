@@ -43,11 +43,10 @@ describe("DataRow", () => {
         expect(screen.getByText("Mr_Whiskers")).toBeInTheDocument();
     });
 
-    it("carries the whole string as a title, because the name ellipsizes", () => {
+    it("ellipsizes the name; the whole string is its tooltip while cut (EllipsizedName.browser.test.tsx)", () => {
         renderRow(<DataRow name="Mrs_Henderson_from_the_house_on_the_corner" />);
 
         const label = screen.getByTestId("data-row-name");
-        expect(label).toHaveAttribute("title", "Mrs_Henderson_from_the_house_on_the_corner");
         expect(label).toHaveStyle({ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
     });
 
@@ -55,7 +54,7 @@ describe("DataRow", () => {
         renderRow(<DataRow name="Mrs_Henderson_from_the_house_on_the_corner" value="4" onClick={vi.fn()} />);
 
         // The ellipsis is a drawing: the element's text is still the whole
-        // string, so a title is a convenience for a pointer rather than the
+        // string, so a tooltip is a convenience for a pointer rather than the
         // only way to the full name.
         expect(
             screen.getByRole("button", { name: "Mrs_Henderson_from_the_house_on_the_corner 4" }),

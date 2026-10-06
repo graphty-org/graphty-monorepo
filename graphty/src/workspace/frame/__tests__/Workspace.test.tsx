@@ -129,6 +129,18 @@ describe("the workspace frame", () => {
         assert.isNotNull(await screen.findByText("Nothing to undo", undefined, { timeout: 3000 }));
     });
 
+    it("says what the Main menu holds and where the privacy chip leads, in tooltips", async () => {
+        renderWorkspace(OPEN);
+
+        await userEvent.hover(screen.getByRole("button", { name: "Main menu" }));
+        assert.isNotNull(
+            await screen.findByText("Main menu: open, save, export, settings", undefined, { timeout: 3000 }),
+        );
+        await userEvent.unhover(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.hover(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
+        assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, { timeout: 3000 }));
+    });
+
     it("renames the project with F2 and with a double-click", async () => {
         renderWorkspace(OPEN);
 

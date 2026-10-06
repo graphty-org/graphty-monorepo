@@ -5,6 +5,7 @@ import React, { forwardRef, useId, useLayoutEffect, useMemo, useRef, useState } 
 import { PANEL_GRID } from "../../constants/panel";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
+import { EllipsizedName } from "../rows/EllipsizedName";
 import { InlineRename } from "./InlineRename";
 import {
     computeDrop,
@@ -182,9 +183,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                 </span>
             )}
             {nameSlot ?? (
-                <span className="cm-tree-name" title={name}>
-                    {name}
-                </span>
+<EllipsizedName className="cm-tree-name" name={name} />
             )}
             {hasCount && (
                 <span className="cm-tree-count" id={countId} data-testid="tree-count">

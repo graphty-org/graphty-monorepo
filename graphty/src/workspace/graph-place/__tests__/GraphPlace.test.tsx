@@ -6,10 +6,10 @@
  */
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
-import { afterEach, assert, describe, it, vi } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { createRegistry, defineRegistration, type WorkspaceRegistration } from "../../commands/registry";
+import { createRegistry, type WorkspaceRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
@@ -86,25 +86,9 @@ describe("the Graph place", () => {
         assert.isNotNull(screen.getByText("Add data to start"));
     });
 
-    it("reads 'Analyze (Shift+A) to add results here' with a graph and nothing run, Analyze a link to the popover", async () => {
-        const open = vi.fn();
-        const analyze = defineRegistration({
-            owner: "analyze",
-            commands: [{ id: "analyze.open", label: "Analyze", group: "Analyze", keys: ["Shift+A"], run: open }],
-        });
-        renderPlace(await sessionWithGraph(), [...REGISTRATIONS.filter((r) => r.owner !== "analyze"), analyze]);
+    it("reads 'Analyze (Shift+A) to add results here' with a graph and nothing run, as a hint and not a second Analyze control", async () => {
+        renderPlace(await sessionWithGraph());
 
-        const footer = screen.getByText(/to add results here/);
-        assert.equal(footer.textContent, "Analyze (Shift+A) to add results here");
-        await userEvent.click(within(footer).getByRole("button", { name: "Analyze" }));
-        assert.equal(open.mock.calls.length, 1);
-    });
-
-    it("keeps the words but draws no link while Analyze is not built", async () => {
-        renderPlace(
-            await sessionWithGraph(),
-            REGISTRATIONS.filter((r) => r.owner !== "analyze"),
-        );
         const footer = screen.getByText(/to add results here/);
         assert.equal(footer.textContent, "Analyze (Shift+A) to add results here");
         assert.isNull(within(footer).queryByRole("button"));

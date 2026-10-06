@@ -11,6 +11,7 @@ import {
     type ChangeHandler,
     getActivationMeta,
 } from "../../types/events";
+import { EllipsizedName } from "./EllipsizedName";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
 
 /**
@@ -171,13 +172,16 @@ export function DataRow({
             )}
 
             {/* The reader's own string. It ellipsizes when the row is too
-                narrow, so it carries the whole string as a title for a pointer.
+                narrow, and then a pointer gets the whole string as a tooltip.
                 Ellipsizing is a drawing rather than a truncation: the full
                 string is still the element's text, so it is still the whole
                 accessible name of the row. */}
-            <span className="cm-data-row-name" data-testid="data-row-name" id={stat ? nameId : undefined} title={name}>
-                {name}
-            </span>
+            <EllipsizedName
+                className="cm-data-row-name"
+                testId="data-row-name"
+                id={stat ? nameId : undefined}
+                name={name}
+            />
 
             {hasValue && (
                 <span className="cm-data-row-value" data-testid="data-row-value">

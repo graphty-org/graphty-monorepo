@@ -1,6 +1,6 @@
 import "./graph-place.css";
 
-import { Anchor, Text, Tooltip } from "@mantine/core";
+import { Text, Tooltip } from "@mantine/core";
 import React, { useMemo } from "react";
 
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -11,7 +11,8 @@ import { useSessionVersion } from "./useSessionVersion";
 
 /**
  * The footer line's one message: with no graph, "Add data to start"; with a graph and nothing
- * run, "Analyze (Shift+A) to add results here", Analyze a link to the Analyze popover.
+ * run, "Analyze (Shift+A) to add results here". It is a hint, not a second Analyze control: the
+ * toolbar's Analyze button is the one control of that name.
  * @param props - Component props
  * @param props.hasGraph - Whether the element holds a node
  * @param props.hasRuns - Whether anything has been run
@@ -26,18 +27,7 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
         return null;
     }
     const key = analyze?.command.keys?.[0] ?? "Shift+A";
-    return (
-        <Text className="ws-graph-footer">
-            {analyze === null ? (
-                "Analyze"
-            ) : (
-                <Anchor component="button" type="button" inherit onClick={analyze.run}>
-                    Analyze
-                </Anchor>
-            )}{" "}
-            ({key}) to add results here
-        </Text>
-    );
+    return <Text className="ws-graph-footer">Analyze ({key}) to add results here</Text>;
 }
 
 /**

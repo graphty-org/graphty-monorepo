@@ -11,7 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
 
-import { render, screen, waitFor } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -81,6 +81,48 @@ describe("the workspace frame on the real element", () => {
 
             await userEvent.keyboard("{Escape}");
             assert.equal(session.selection.size, 0);
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "gives no two reachable controls one name with a graph and nothing run",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+            await screen.findByText(/to add results here/, undefined, { timeout: TIMEOUT_MS });
+
+            const names = new Map<string, number>();
+            for (const control of document.querySelectorAll<HTMLElement>(
+                'button, [role="button"], [role="menuitem"], a[href], input, [role="tab"]',
+            )) {
+                if (control.checkVisibility()) {
+                    const name = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim();
+                    names.set(name, (names.get(name) ?? 0) + 1);
+                }
+            }
+            assert.deepEqual(
+                [...names].filter(([name, count]) => name !== "" && count > 1).map(([name]) => name),
+                [],
+            );
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "keeps Method inside the inspector's padding on the graph's Style tab",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+            const inspector = screen.getByRole("complementary", { name: "Inspector" });
+            await userEvent.click(within(inspector).getByRole("tab", { name: "Style" }));
+
+            const method = (await within(inspector).findAllByLabelText("Method")).find((e) => e.tagName === "INPUT");
+            assert.isDefined(method);
+            const panel = within(inspector).getByRole("tabpanel", { name: "Style" });
+            const left = method?.getBoundingClientRect().left ?? 0;
+            // compact-mantine's panel grid: content begins 16px in from the panel's leading edge.
+            assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Method starts at the content band");
         },
         TIMEOUT_MS,
     );

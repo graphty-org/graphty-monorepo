@@ -334,11 +334,11 @@ Breadth-first search that switches to a bottom-up search when the frontier is la
 
 Returns `SearchResult`. Reads no edge weights. No Async twin: it runs on the CPU only.
 
-| Option  | Type            | Default  | Meaning                                                                                                                 |
-| ------- | --------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `root`  | `NodeSelection` | required | The start node: a selector or a collection (its first node).                                                            |
-| `alpha` | `number`        | `15`     | Switch from top-down to bottom-up once the frontier's out-arcs exceed the unvisited nodes' out-arcs divided by `alpha`. |
-| `beta`  | `number`        | `18`     | Switch back to top-down once the frontier shrinks below `nodeCount / beta` nodes.                                       |
+| Option  | Type            | Default  | Meaning                                                                                                                                                                                                                                                                                            |
+| ------- | --------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `root`  | `NodeSelection` | required | The start node: a selector or a collection (its first node).                                                                                                                                                                                                                                       |
+| `alpha` | `number`        | `1`      | Switch from top-down to bottom-up once the frontier's out-arcs exceed the unvisited nodes' in-arcs divided by `alpha`. A bottom-up step reads at most the unvisited nodes' in-arcs, so with an alpha of 1 the search switches once a top-down step would read more arcs than a bottom-up step can. |
+| `beta`  | `number`        | `18`     | Switch back to top-down once the frontier shrinks below `nodeCount / beta` nodes.                                                                                                                                                                                                                  |
 
 ### `graphtyEdgeBetweennessCentrality`
 

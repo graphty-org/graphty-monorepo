@@ -1,5 +1,6 @@
 import {
     CreateScreenshotAsync,
+    CreateScreenshotUsingRenderTargetAsync,
     DefaultRenderingPipeline,
     type Engine,
     FxaaPostProcess,
@@ -10,6 +11,7 @@ import {
 
 import type { ViewInsets } from "../camera/types.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
+import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { SELECTION_HALO_MESH } from "../Node.js";
 import { downloadBlob } from "../utils/download.js";
 import { copyToClipboard } from "./clipboard.js";
@@ -525,11 +527,38 @@ export class ScreenshotCapture {
                 throw new ScreenshotError("No active camera in scene", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
             }
 
-            const dataUrl = await CreateScreenshotAsync(this.engine, this.scene.activeCamera, {
-                width: captureWidth,
-                height: captureHeight,
-                precision: quality,
-            });
+            // A copy of the canvas is only as sharp as the canvas: one of any other size is the
+            // scene drawn again at that size, so 4x has four times the detail rather than four
+            // times the blur. A different shape still gets the canvas, fitted in, since drawing
+            // the scene at another aspect would show a different part of the graph.
+            // ponytail: a mismatched aspect stays an enlarged copy; render it at the fitted size
+            // and pad it if anyone asks for sharp output there.
+            const size = { width: captureWidth, height: captureHeight };
+            const camera = this.scene.activeCamera;
+            const sameSize = captureWidth === this.canvas.width && captureHeight === this.canvas.height;
+            const sameShape =
+                Math.abs(captureWidth / captureHeight - this.canvas.width / this.canvas.height) <=
+                1 / Math.min(this.canvas.width, this.canvas.height);
+            let dataUrl: string;
+            if (sameSize || !sameShape) {
+                dataUrl = await CreateScreenshotAsync(this.engine, camera, size);
+            } else {
+                CustomLineRenderer.setPixelScale(this.scene, captureWidth / this.canvas.width);
+                try {
+                    dataUrl = await CreateScreenshotUsingRenderTargetAsync(
+                        this.engine,
+                        camera,
+                        size,
+                        "image/png",
+                        this.engine.getCreationOptions().antialias ? 4 : 1,
+                        false,
+                        undefined,
+                        true,
+                    );
+                } finally {
+                    CustomLineRenderer.setPixelScale(this.scene, 1);
+                }
+            }
 
             // Convert data URL to blob
             let blob = await this.dataUrlToBlob(dataUrl, mimeType, quality);

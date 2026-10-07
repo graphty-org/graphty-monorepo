@@ -505,6 +505,33 @@ describe("sessionToolSet", () => {
         expect(seen.offered).toEqual([]);
     });
 
+    it("lets the session that owns a stuck pull request by inference claim its pr job (#1167)", async () => {
+        const pr = Object.assign(newJob({ kind: "pr", target: "#1167", id: "pr-1167" }, NOW), { pr: 1167 });
+        const { ctx } = setup({
+            jobs: { "pr-1167": pr },
+            prs: { 1167: { author: "owner", stuck: [] } },
+            prInferred: {
+                1167: { session: "o1", name: "graphty-monorepo-2d", evidence: "pushed 0ef7e39 at 06:42 UTC" },
+            },
+            trust: { login: "owner" },
+            master: { lanes: {} },
+        });
+        const me = { session: "o1" };
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, me)).text);
+        expect(next.yours).toEqual([{ job: "pr-1167", reason: "yours: pushed 0ef7e39 at 06:42 UTC" }]);
+        const claim = {
+            job: "pr-1167",
+            snapshotVersion: next.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "merge master and resolve the conflict",
+        };
+        const other = await call(ctx, "githerd_claim", claim, { session: "o2" });
+        expect(JSON.parse(other.text).reason).toBe(
+            "pr-1167 is in use: session graphty-monorepo-2d owns it (pushed 0ef7e39 at 06:42 UTC)",
+        );
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, me)).text).ok).toBe(true);
+    });
+
     it("never offers or hands a review to the session that wrote its pull request", async () => {
         const maker = Object.assign(newJob({ kind: "issue", target: "#5", id: "issue-5" }, NOW), {
             pr: 9,

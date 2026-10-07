@@ -445,8 +445,8 @@ export function askFor(state, n) {
  * 4. a live session holds an owner record for it (`state.prOwners`, asks.mjs): whatever its head;
  * 5. a live session owns it by inference (`state.prInferred`, owners.mjs): it last pushed the
  *    branch, or it works in the branch's worktree. The explicit record of 4 wins over it. Not in
- *    use from here on when it is broken and its owner left githerd's question unanswered
- *    (`state.prReleased`, asks.mjs brokenOwned), until a new push.
+ *    use from here on when it is stuck and its owner did not claim it in answer to githerd's
+ *    question (`state.prReleased`, asks.mjs brokenOwned), until a new push; 4 is released so too.
  *
  * A reason that names the asking session itself starts "yours:".
  *
@@ -472,6 +472,28 @@ export function prInUse(state, n, { config, now, except = null, review = false, 
     if (inferred && session && inferred.session === session) return `yours: ${inferred.evidence}`;
     if (inferred) return `session ${inferred.name} owns it (${inferred.evidence})`;
     return brokenHeadInUse(state, n, { config, now, session });
+}
+
+/**
+ * Who holds pull request `n` and since when, or null when nobody does (its stuck job is then
+ * anyone's): a session holding a job on it (since its claim), the session that said it is its
+ * (`state.prOwners`, since it said so), else its inferred owner unless released (since its last
+ * push of the branch, when the push log shows one). The board's line for a stuck pull request.
+ * @param {any} state the daemon state
+ * @param {number | string} n the pull request
+ * @returns {{name: string, since: string | null} | null} the holder
+ */
+export function prHolder(state, n) {
+    const k = String(n);
+    const job = Object.values(state.jobs ?? {}).find(
+        (j) => String(prOf(j)) === k && j.holder?.session && j.state !== "queued" && !TERMINAL.includes(j.state),
+    );
+    if (job) return { name: job.holder.name ?? job.holder.session, since: job.claim?.at ?? job.stateSince ?? null };
+    const owned = state.prOwners?.[k];
+    if (owned) return { name: owned.name, since: owned.at };
+    const inferred = state.prInferred?.[k];
+    if (!inferred || state.prReleased?.[k] === state.prs?.[k]?.headSha) return null;
+    return { name: inferred.name, since: state.prActivity?.[k]?.pushed?.[inferred.session] ?? null };
 }
 
 /**

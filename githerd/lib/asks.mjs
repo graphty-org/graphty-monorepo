@@ -526,7 +526,9 @@ function statusText(state, jobs, minutes) {
  * @returns {string | null} why
  */
 function broken(state, n, rec) {
-    if (!prWork(n, rec, state) || jobOnPr(state, n) || headIsGitherds(state, rec)) return null;
+    // A head githerd or GitHub made (an update-branch merge) breaks a pull request as much as any:
+    // skipping it left a stale push holding a broken pull request with nobody asked.
+    if (!prWork(n, rec, state) || jobOnPr(state, n)) return null;
     const failing = rec.ownerGate ? [] : failingRequired(rec);
     if (failing.length) return `required check failing: ${failing.join(", ")}`;
     return (rec.conflictSightings ?? 0) >= 2 ? `conflicting with ${rec.baseRef ?? "its base"}` : null;
@@ -549,13 +551,16 @@ function brokenAnswered(state, n, ask) {
 }
 
 /**
- * The broken pull requests whose owner (`state.prOwners`, else `state.prInferred`) is due the
- * question "are you fixing it?" (the owner's rule of 2026-10-05: owning is not working). Every
- * `minutes` per pull request, `state.brokenAsks[<pr>]` = `{head, session, why, at, heard}`; an
- * answer holds until the head, the reason or the session changes. A question
- * the owner heard and left unanswered until the next is due, or an owner githerd cannot reach,
- * releases the pull request from its ownership until a new push (`state.prReleased[<pr>]` = the
- * head, read by `prInUse`), and its `pr` job is offered as usual.
+ * The broken (stuck) pull requests whose owner (`state.prOwners`, else `state.prInferred`) is due
+ * the question "are you fixing it?" (the owner's rules of 2026-10-05 and 2026-10-07: owning is not
+ * working, and every stuck pull request keeps moving). Every `minutes` per pull request,
+ * `state.brokenAsks[<pr>]` = `{head, session, why, at, heard}`. Only an explicit claim
+ * (`githerd_mine`, or `githerd_expect` on a job on it) since the question, or a push of the branch
+ * since it, keeps it; an old push or a shell sitting in its worktree does not. A question the owner
+ * heard and then answered githerd about something else without claiming it, or left unanswered until
+ * the next is due, or an owner githerd cannot reach, releases the pull request from its ownership
+ * until a new push (`state.prReleased[<pr>]` = the head, read by `prInUse`; a head githerd or GitHub
+ * made keeps it), and its `pr` job is offered as usual.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, minutes: number, owners: () => import("./peers.mjs").PeerSession[]}} opts the
  *   clock, the cadence and every live session in this repository
@@ -567,7 +572,11 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
     state.brokenAsks ??= {};
     state.prReleased ??= {};
     for (const [n, head] of Object.entries(state.prReleased)) {
-        if (state.prs?.[n]?.headSha !== head) delete state.prReleased[n];
+        const rec = state.prs?.[n];
+        if (rec?.headSha === head) continue;
+        // githerd's or GitHub's merge of the base is nobody's new work: the release stands.
+        if (rec?.headSha && headIsGitherds(state, rec)) state.prReleased[n] = rec.headSha;
+        else delete state.prReleased[n];
     }
     /** @type {Map<string, {n: string, why: string, noTools?: boolean}[]>} */
     const due = new Map();
@@ -597,8 +606,6 @@ function brokenOwner(state, n, rec) {
     if (state.prOwners?.[n]) delete state.prReleased[n];
     // An owner without githerd's tools is asked like any other: it answers from its shell.
     const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
-    // Its owner working in its worktree again owns it again (a new push already ends the release).
-    if (owner && state.prActivity?.[n]?.present?.[owner.session]) delete state.prReleased[n];
     const why = owner && state.prReleased[n] !== rec.headSha ? broken(state, n, rec) : null;
     if (!why) {
         delete state.brokenAsks[n];
@@ -625,18 +632,20 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
     if (!found) return null;
     const { owner, why } = found;
     const ask = state.brokenAsks[n];
-    const same = ask?.head === rec.headSha && ask.session === owner.session;
+    // A new failure, a conflict where a check failed, or another owner is a new question, asked at once.
+    const same = ask?.head === rec.headSha && ask.session === owner.session && ask.why === why;
+    // The owner's next answer to githerd that does not claim it releases it at once.
+    const declined = same && ask.heard && !brokenAnswered(state, n, ask) && answeredSince(state, owner.session, ask.at);
     // A cadence, how often to ask: never a deadline on the work.
-    if (same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) return null;
+    if (!declined && same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) return null;
     const gone = !live().some((s) => s.sessionId === owner.session);
-    // An answer holds until the facts change: a new head, other failing checks, or its session ending.
-    if (!gone && same && ask.why === why && brokenAnswered(state, n, ask)) return null;
-    // Work on it counts as the answer for this cycle: a session without githerd's tools cannot say so.
+    // A push since the question counts as the answer for this cycle: a session without githerd's tools cannot say so.
     const active = !gone && activity(state, n, rec, owner, ask);
     if (active) {
         state.brokenAsks[n] = {
             head: rec.headSha,
             session: owner.session,
+            why,
             at: now.toISOString(),
             heard: false,
             active,
@@ -644,7 +653,7 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
         return null;
     }
     if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
-        const reason = gone ? "githerd cannot ask its owner" : `no answer to the question of ${ask.at}`;
+        const reason = gone ? "githerd cannot ask its owner" : `no claim in answer to the question of ${ask.at}`;
         state.prReleased[n] = rec.headSha;
         delete state.brokenAsks[n];
         if (state.prOwners?.[n]?.session === owner.session) delete state.prOwners[n];
@@ -655,9 +664,20 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
 }
 
 /**
- * What shows the owner of pull request `n` working on it, or null: a process of its session in the
- * branch's worktree now (`state.prActivity`, owners.mjs), or since the question `ask` a push of the
- * branch by it or a new head.
+ * Whether a session answered githerd's status question since a time: a `githerd_expect` on any job
+ * it holds.
+ * @param {any} state the daemon state
+ * @param {string} session the session
+ * @param {string} at the time
+ * @returns {boolean} it answered
+ */
+const answeredSince = (state, session, at) =>
+    Object.values(state.jobs ?? {}).some((j) => j.holder?.session === session && j.status?.at > at);
+
+/**
+ * What shows the owner of pull request `n` working on it since the question `ask`, or null: a push
+ * of the branch by it (`state.prActivity`, owners.mjs), or a head someone other than githerd or
+ * GitHub made. Sitting in the branch's worktree is not: a shell left there holds nothing.
  * @param {any} state the daemon state
  * @param {string} n the pull request
  * @param {any} rec its record
@@ -666,14 +686,14 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
  * @returns {string | null} the evidence
  */
 function activity(state, n, rec, owner, ask) {
-    const act = state.prActivity?.[n];
     const who = owner.name ?? owner.session;
-    if (act?.present?.[owner.session]) return `${who} active in ${act.present[owner.session]}`;
     if (ask?.session !== owner.session) return null;
-    const pushed = act?.pushed?.[owner.session];
+    const pushed = state.prActivity?.[n]?.pushed?.[owner.session];
     if (pushed && pushed >= ask.at)
         return `${who} pushed ${rec.headRef ?? "its branch"} at ${pushed.slice(11, 16)} UTC`;
-    return ask.head === rec.headSha ? null : `new head ${String(rec.headSha).slice(0, 7)}`;
+    return ask.head === rec.headSha || headIsGitherds(state, rec)
+        ? null
+        : `new head ${String(rec.headSha).slice(0, 7)}`;
 }
 
 /**
@@ -685,12 +705,12 @@ function activity(state, n, rec, owner, ask) {
  * @returns {string} the message line
  */
 const brokenText = ({ n, why, noTools }, cli) =>
-    `githerd: #${n} is broken: ${why}. Are you fixing it? ` +
+    `githerd: #${n} is stuck: ${why}. Are you fixing it? ` +
     (noTools
         ? `This session has no githerd tools, so answer from your shell: run \`${cli} mine ${n}\` to keep it, ` +
           `or \`${cli} disown ${n}\` to release it to other sessions now. No answer releases it too.`
-        : `Answer with githerd_mine pr ${n} to keep it, or ignore to release it to other sessions ` +
-          `(\`${cli} disown ${n}\` releases it now).`);
+        : `Claim it with githerd_mine pr ${n} (or githerd_claim pr-${n}) to keep it; any other answer, or none, ` +
+          `releases it to other sessions (\`${cli} disown ${n}\` releases it now).`);
 
 /** The states in which a holder works on its job; a `verifying` job is githerd's to settle. */
 const ASKED = new Set(["starting", "working", "waiting"]);

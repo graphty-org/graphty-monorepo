@@ -826,9 +826,9 @@ describe("telling an owner session that the job it held was cancelled", () => {
 describe("asking the owner of a broken pull request whether it is fixing it", () => {
     const at = (/** @type {string} */ hm) => new Date(`2026-10-05T${hm}:00Z`);
     const QUESTION =
-        "githerd: #710 is broken: required check failing: All Checks Pass. Are you fixing it? " +
-        "Answer with githerd_mine pr 710 to keep it, or ignore to release it to other sessions " +
-        "(`githerd disown 710` releases it now).";
+        "githerd: #710 is stuck: required check failing: All Checks Pass. Are you fixing it? " +
+        "Claim it with githerd_mine pr 710 (or githerd_claim pr-710) to keep it; any other answer, or none, " +
+        "releases it to other sessions (`githerd disown 710` releases it now).";
     /**
      * #710 failing, inferred to be graphty-14's (it last pushed), with its pr job queued.
      * @returns {any} the state
@@ -866,7 +866,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
                 pr: 710,
                 head: HEAD,
                 session: "s2",
-                reason: "no answer to the question of 2026-10-05T12:00:00.000Z",
+                reason: "no claim in answer to the question of 2026-10-05T12:00:00.000Z",
             },
         ]);
         expect(f.sent).toHaveLength(1);
@@ -878,45 +878,37 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toHaveLength(2);
     });
 
-    it("keeps it, unasked, when the owner answers with githerd_mine", async () => {
+    it("keeps it when the owner claims it with githerd_mine, and asks again each interval", async () => {
         const f = fake();
         const state = owned();
         await statusStep(state, opts(f, { now: at("12:00") }));
-        state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" } };
-        const lines = await statusStep(state, opts(f, { now: at("12:15") }));
-        expect(lines).toEqual([]);
+        markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" });
+        // The explicit claim holds, and is asked about like a held job.
+        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toMatchObject([
+            { kind: "status-asked", prs: [710] },
+        ]);
         expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (it said so)");
+        // That question goes unanswered: released, the claim dropped and the job offered.
+        expect(await statusStep(state, opts(f, { now: at("12:30") }))).toMatchObject([
+            { kind: "pr-released", pr: 710, session: "s2" },
+        ]);
+        expect(state.prOwners).toEqual({});
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:30") })).toBeNull();
     });
 
-    it("keeps it, unasked, while its owner works in the branch's worktree, and asks once that stops", async () => {
+    it("asks an owner whose shell sits in the branch's worktree, and releases it on silence", async () => {
         const f = fake();
         const state = owned();
-        await statusStep(state, opts(f, { now: at("12:00") }));
-        // A session started before githerd's MCP server cannot answer, but its process is there.
+        // A process in the worktree is not work on it: a shell left there would hold it forever.
         state.prActivity = { 710: { present: { s2: ".worktrees/feat-x" }, pushed: {} } };
-        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toEqual([]);
-        expect(f.sent).toHaveLength(1);
-        expect(state.brokenAsks[710].active).toBe("graphty-14 active in .worktrees/feat-x");
-        expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (pushed)");
-        // The activity stops: asked again, not released; released only when that goes unanswered.
-        state.prActivity = { 710: { present: {}, pushed: {} } };
-        await statusStep(state, opts(f, { now: at("12:30") }));
-        expect(f.sent).toHaveLength(2);
-        const lines = await statusStep(state, opts(f, { now: at("12:45") }));
-        expect(lines).toMatchObject([{ kind: "pr-released", pr: 710 }]);
-    });
-
-    it("gives a released pull request back the moment its owner is active in its worktree again", async () => {
-        const f = fake();
-        const state = owned();
         await statusStep(state, opts(f, { now: at("12:00") }));
-        await statusStep(state, opts(f, { now: at("12:15") }));
-        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:15") })).toBeNull();
-        state.prActivity = { 710: { present: { s2: ".worktrees/feat-x" }, pushed: {} } };
+        expect(f.sent).toEqual([["/s2.sock", QUESTION]]);
+        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toMatchObject([
+            { kind: "pr-released", pr: 710 },
+        ]);
+        // Still there after the release: it stays released until a new push.
         expect(await statusStep(state, opts(f, { now: at("12:16") }))).toEqual([]);
-        expect(prInUse(state, 710, { now: at("12:16") })).toBe("session graphty-14 owns it (pushed)");
-        expect(state.brokenAsks[710].active).toBe("graphty-14 active in .worktrees/feat-x");
-        expect(f.sent).toHaveLength(1);
+        expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:16") })).toBeNull();
     });
 
     it("keeps it when its owner pushed the branch since the question, or the head moved", async () => {
@@ -944,7 +936,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toEqual([
             [
                 "/s2.sock",
-                "githerd: #710 is broken: required check failing: All Checks Pass. Are you fixing it? This session " +
+                "githerd: #710 is stuck: required check failing: All Checks Pass. Are you fixing it? This session " +
                     `has no githerd tools, so answer from your shell: run \`${cli} mine 710\` to keep it, or ` +
                     `\`${cli} disown 710\` to release it to other sessions now. No answer releases it too.`,
             ],
@@ -964,7 +956,7 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         await statusStep(state, opts(f, { now: at("12:00") }));
         const by = { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "session" };
         expect(markMine(state, 710, by)).toBeNull();
-        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toEqual([]);
+        expect(await statusStep(state, opts(f, { now: at("12:15") }))).toMatchObject([{ kind: "status-asked" }]);
         expect(prInUse(state, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (it said so)");
         // Another session cannot take it over by saying so too.
         const other = { ...by, session: "s1", name: "graphty-13" };
@@ -996,19 +988,19 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(state.prDisowned).toEqual({});
     });
 
-    it("holds an answer while the same failure stands, and asks again when another check fails", async () => {
+    it("holds an explicit claim while each question is answered, and names a new failing check", async () => {
         const f = fake();
         const state = owned();
-        await statusStep(state, opts(f, { now: at("12:00") }));
-        state.prOwners = { 710: { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" } };
-        for (const hm of ["12:15", "12:30", "12:45", "13:00"]) {
-            expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
+        for (const hm of ["12:00", "12:15", "12:30", "12:45"]) {
+            expect(await statusStep(state, opts(f, { now: at(hm) }))).toMatchObject([{ kind: "status-asked" }]);
+            const by = { session: "s2", name: "graphty-14", at: at(hm).toISOString(), by: "tool" };
+            expect(markMine(state, 710, by)).toBeNull();
         }
-        expect(f.sent).toHaveLength(1);
+        expect(f.sent).toHaveLength(4);
         state.prs[710].required["Lint PR Title"] = "FAILURE";
-        await statusStep(state, opts(f, { now: at("13:15") }));
-        expect(f.sent).toHaveLength(2);
-        expect(f.sent[1][1]).toContain("required check failing: All Checks Pass, Lint PR Title");
+        await statusStep(state, opts(f, { now: at("12:46") }));
+        expect(f.sent).toHaveLength(5);
+        expect(f.sent[4][1]).toContain("required check failing: All Checks Pass, Lint PR Title");
     });
 
     it("releases it at once when its owner cannot be asked, and never for a question nobody heard", async () => {
@@ -1023,6 +1015,141 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         await statusStep(unheard, opts(g, { now: at("12:00") }));
         await statusStep(unheard, opts(g, { now: at("12:15") }));
         expect(prInUse(unheard, 710, { now: at("12:15") })).toBe("session graphty-14 owns it (pushed)");
+    });
+});
+
+describe("a stuck pull request an old push holds", () => {
+    const t = (/** @type {string} */ iso) => new Date(iso);
+    // The owner is outside workers.sessions: the question is about its own pull request.
+    const opts = (/** @type {any} */ f, /** @type {any} */ over = {}) =>
+        f.opts({ minutes: 15, sessions: () => [], owners: () => LIVE, ...over });
+    const LIVE = [
+        { pid: 3, sessionId: "s2d", name: "graphty-monorepo-2d", cwd: "/r", socket: "/2d.sock", status: "busy" },
+        { pid: 4, sessionId: "s7c", name: "graphty-monorepo-7c", cwd: "/r", socket: "/7c.sock", status: "idle" },
+    ];
+    /**
+     * #1167 as githerd saw it on 2026-10-07: conflicting with master since GitHub's update-branch
+     * merge of 2026-10-06 14:29, inferred to be graphty-monorepo-2d's by a push of 06:42 that day.
+     * @returns {any} the state
+     */
+    const conflicting = () => {
+        const job = Object.assign(newJob({ kind: "pr", target: "#1167", id: "pr-1167" }, t("2026-10-07T11:06:41Z")), {
+            pr: 1167,
+        });
+        return {
+            trust: { login: "owner" },
+            jobs: { "pr-1167": job },
+            prs: {
+                1167: {
+                    author: "owner",
+                    headSha: "0cdabfee9abb9434f595b21918ef3bc044c952ae",
+                    headRef: "fix/nodedata-retained-records",
+                    baseRef: "master",
+                    headCommitter: "noreply@github.com",
+                    mergeable: "CONFLICTING",
+                    mergeState: "DIRTY",
+                    conflictSightings: 115,
+                    required: { "All Checks Pass": "PENDING", "Lint PR Title": "SUCCESS" },
+                },
+            },
+            prInferred: {
+                1167: { session: "s2d", name: "graphty-monorepo-2d", evidence: "pushed 0ef7e39 at 06:42 UTC" },
+            },
+            prActivity: { 1167: { present: {}, pushed: { s2d: "2026-10-06T06:42:42Z" } } },
+        };
+    };
+    /**
+     * #1267 as githerd saw it: All Checks Pass failing on GitHub's update-branch head since 05:35,
+     * inferred to be graphty-monorepo-7c's (no githerd tools) by a push of 2026-10-06 16:37.
+     * @returns {any} the state
+     */
+    const failing = () => {
+        const job = Object.assign(newJob({ kind: "pr", target: "#1267", id: "pr-1267" }, t("2026-10-07T05:36:22Z")), {
+            pr: 1267,
+        });
+        return {
+            trust: { login: "owner" },
+            jobs: { "pr-1267": job },
+            prs: {
+                1267: {
+                    author: "owner",
+                    headSha: "2ddc837d0a13739156f0120853d2303ba43735a9",
+                    headRef: "feat/element-element-at-point",
+                    baseRef: "master",
+                    headCommitter: "noreply@github.com",
+                    mergeable: "MERGEABLE",
+                    required: { "All Checks Pass": "FAILURE", "Lint PR Title": "SUCCESS" },
+                },
+            },
+            prInferred: {
+                1267: {
+                    session: "s7c",
+                    name: "graphty-monorepo-7c",
+                    evidence: "pushed 71578bc at 16:37 UTC",
+                    noTools: true,
+                },
+            },
+            prActivity: { 1267: { present: {}, pushed: { s7c: "2026-10-06T16:37:53Z" } } },
+        };
+    };
+
+    it("asks the inferred owner of #1167 once, and offers it at its next answer that claims nothing", async () => {
+        const f = fake();
+        const state = conflicting();
+        const lines = await statusStep(state, opts(f, { now: t("2026-10-07T11:10:00Z") }));
+        expect(lines).toMatchObject([{ kind: "status-asked", prs: [1167], session: "graphty-monorepo-2d" }]);
+        expect(f.sent).toEqual([
+            [
+                "/2d.sock",
+                "githerd: #1167 is stuck: conflicting with master. Are you fixing it? Claim it with githerd_mine pr " +
+                    "1167 (or githerd_claim pr-1167) to keep it; any other answer, or none, releases it to other " +
+                    "sessions (`githerd disown 1167` releases it now).",
+            ],
+        ]);
+        // Held while the question is open.
+        expect(prInUse(state, 1167, { now: t("2026-10-07T11:10:00Z") })).toBe(
+            "session graphty-monorepo-2d owns it (pushed 0ef7e39 at 06:42 UTC)",
+        );
+        // 2d answers githerd about another job it holds, and says nothing of #1167.
+        const other = newJob({ kind: "issue", target: "#5", id: "issue-5" }, t("2026-10-07T10:00:00Z"));
+        move(other, "starting", t("2026-10-07T10:00:00Z"), { holder: { session: "s2d", startedBy: "owner" } });
+        other.status = { at: "2026-10-07T11:12:00.000Z", text: "testing" };
+        state.jobs["issue-5"] = other;
+        expect(await statusStep(state, opts(f, { now: t("2026-10-07T11:13:00Z") }))).toMatchObject([
+            { kind: "pr-released", pr: 1167, session: "s2d" },
+        ]);
+        expect(jobInUse(state, state.jobs["pr-1167"], { now: t("2026-10-07T11:13:00Z"), session: "s7c" })).toBeNull();
+        expect(f.sent).toHaveLength(1);
+    });
+
+    it("asks the tool-less inferred owner of #1267 with its command lines, and offers it on silence", async () => {
+        const f = fake();
+        const state = failing();
+        await statusStep(state, opts(f, { now: t("2026-10-07T05:40:00Z") }));
+        expect(f.sent).toHaveLength(1);
+        expect(f.sent[0][0]).toBe("/7c.sock");
+        expect(f.sent[0][1]).toContain("#1267 is stuck: required check failing: All Checks Pass. Are you fixing it?");
+        expect(f.sent[0][1]).toContain("`githerd mine 1267`");
+        expect(await statusStep(state, opts(f, { now: t("2026-10-07T05:55:00Z") }))).toMatchObject([
+            { kind: "pr-released", pr: 1267, session: "s7c" },
+        ]);
+        expect(jobInUse(state, state.jobs["pr-1267"], { now: t("2026-10-07T05:55:00Z") })).toBeNull();
+        // githerd's next update-branch makes a GitHub head: nobody's new work, so it stays released.
+        state.prs[1267].headSha = "c".repeat(40);
+        expect(await statusStep(state, opts(f, { now: t("2026-10-07T06:10:00Z") }))).toEqual([]);
+        expect(jobInUse(state, state.jobs["pr-1267"], { now: t("2026-10-07T06:10:00Z") })).toBeNull();
+        expect(f.sent).toHaveLength(1);
+    });
+
+    it("keeps #1167 for 2d when it pushes the branch after the question", async () => {
+        const f = fake();
+        const state = conflicting();
+        await statusStep(state, opts(f, { now: t("2026-10-07T11:10:00Z") }));
+        state.prActivity[1167].pushed.s2d = "2026-10-07T11:20:00Z";
+        expect(await statusStep(state, opts(f, { now: t("2026-10-07T11:25:00Z") }))).toEqual([]);
+        expect(prInUse(state, 1167, { now: t("2026-10-07T11:25:00Z") })).toMatch(
+            /^session graphty-monorepo-2d owns it/,
+        );
     });
 });
 

@@ -7,6 +7,7 @@
 import { effectiveMode } from "./config.mjs";
 import { TERMINAL } from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
+import { prHolder, prOf } from "./queue.mjs";
 import { sharedLines } from "./shared.mjs";
 import { jobWaits } from "./waits.mjs";
 
@@ -216,9 +217,15 @@ const RENDER = {
                 const o = v.state?.prOwners?.[p.number];
                 const i = v.state?.prInferred?.[p.number];
                 let owned = "";
-                if (o) owned = ` -- owned by session ${o.name} (${o.by})`;
+                // A stuck pull request (an open pr job on it) says who holds it, or that nobody does.
+                const stuck = openJobs(v.state).some((j) => j.kind === "pr" && String(prOf(j)) === String(p.number));
+                const h = stuck ? prHolder(v.state, p.number) : null;
+                const since = h?.since ? ` since ${when(h.since)}` : "";
+                if (stuck) owned = h ? ` -- stuck, held by ${h.name}${since}` : " -- stuck, unclaimed";
+                else if (o) owned = ` -- owned by session ${o.name} (${o.by})`;
                 else if (i) owned = ` -- owned by session ${i.name} (${i.evidence})`;
-                if (!o && i?.noTools) owned += ", which has no githerd tools: it answers with the githerd command line";
+                if (!o && i?.noTools && (h || !stuck))
+                    owned += ", which has no githerd tools: it answers with the githerd command line";
                 const d = v.state?.prDisowned?.[p.number];
                 if (d) owned += ` -- disowned by ${d.name}`;
                 const fixing = v.state?.brokenAsks?.[p.number]?.active;

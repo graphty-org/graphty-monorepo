@@ -56,6 +56,14 @@ const WAIT_KEYS = /** @type {Record<string, string>} */ ({
 });
 
 /**
+ * Why a job's being in use refuses a claim, or null: the session's own pull request (it last pushed
+ * it, or said it is its) is its to claim; a second job beside one it already claimed is not.
+ * @param {string | null} inUse why the job is in use (`jobInUse` with the claiming session)
+ * @returns {string | null} the reason to refuse
+ */
+const claimRefusal = (inUse) => (inUse?.startsWith("yours:") && !inUse.startsWith("yours: you claimed") ? null : inUse);
+
+/**
  * One request's view of the daemon.
  * @typedef {object} SessionToolContext
  * @property {any} state the daemon state; handlers change it in place
@@ -269,7 +277,7 @@ export function sessionToolSet(ctx) {
             if (client.job && client.job !== args.job) throw new Error(`this worker is started for job ${client.job}`);
             if (client.job && !startedFor(state.jobs?.[args.job], client)) throw new Error(STALE(args.job));
             const queued = state.jobs?.[args.job]?.state === "queued" ? state.jobs[args.job] : null;
-            const inUse = queued && jobInUse(state, queued, { ...ctx, session });
+            const inUse = queued && claimRefusal(jobInUse(state, queued, { ...ctx, session }));
             if (inUse)
                 return {
                     text: JSON.stringify({ ok: false, reason: `${args.job} is in use: ${inUse}` }),

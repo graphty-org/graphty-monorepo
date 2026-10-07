@@ -208,6 +208,36 @@ describe("renderBoard", () => {
     });
 });
 
+describe("a stuck pull request on the board", () => {
+    const NOW = new Date("2026-10-07T11:30:00Z");
+    const prs = [{ number: 1167, decision: { state: "pending", description: "", line: null } }];
+    /**
+     * #1167 with its pr job queued, inferred to be graphty-monorepo-2d's by a push of the day before.
+     * @returns {any} the state
+     */
+    const stuck = () => ({
+        jobs: { "pr-1167": Object.assign(newJob({ kind: "pr", target: "#1167", id: "pr-1167" }, NOW), { pr: 1167 }) },
+        prs: { 1167: { headSha: "a".repeat(40) } },
+        prInferred: { 1167: { session: "s2d", name: "graphty-monorepo-2d", evidence: "pushed 0ef7e39 at 06:42 UTC" } },
+        prActivity: { 1167: { present: {}, pushed: { s2d: "2026-10-06T06:42:42Z" } } },
+    });
+
+    it("says who holds it and since when, or that it is unclaimed", () => {
+        const state = stuck();
+        expect(renderBoard(view(state, { prs }), NOW)).toContain(
+            "  #1167 -- githerd is evaluating -- stuck, held by graphty-monorepo-2d since 10-06 06:42",
+        );
+        state.prReleased = { 1167: "a".repeat(40) };
+        expect(renderBoard(view(state, { prs }), NOW)).toContain(
+            "  #1167 -- githerd is evaluating -- stuck, unclaimed\n",
+        );
+        state.prOwners = { 1167: { session: "s7c", name: "graphty-monorepo-7c", at: "2026-10-07T11:20:00.000Z" } };
+        expect(renderBoard(view(state, { prs }), NOW)).toContain(
+            "-- stuck, held by graphty-monorepo-7c since 10-07 11:20",
+        );
+    });
+});
+
 describe("groupModes and modeText", () => {
     it("never shows a group acting when its switch is off or it has none, and lowers by the override", () => {
         const config = { mode: "acting", actions: { statuses: true, prUpkeep: false } };

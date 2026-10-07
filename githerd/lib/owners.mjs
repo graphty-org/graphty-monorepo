@@ -18,6 +18,8 @@
  * push of it), else by a live session present in its worktree. The result, `state.prInferred[<pr>]`, is
  * recomputed every poll, so ownership lapses the poll after the session exits. `prInUse` reads it
  * after the explicit records of `githerd_mine` and `githerd mine` (`state.prOwners`), which win.
+ * Inference never holds a stuck pull request on its own: its owner is asked, and keeps it only by
+ * claiming it or pushing (asks.mjs brokenOwned).
  * A session that disowned a pull request (`githerd disown`, `state.prDisowned`) is never inferred
  * its owner again from a push made before it disowned it, nor from its worktree.
  */

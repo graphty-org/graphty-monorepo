@@ -1203,7 +1203,7 @@ export const ORANGE_WARNING: {
 export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b", "#fd8d3c", "#f16913", "#d94801", "#a63603", "#7f2704"];
 
 // @public
-export const OTHER_GROUP_COLOR = "#505050";
+export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];

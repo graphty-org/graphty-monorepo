@@ -57,8 +57,7 @@ export type EdgeId = string;
  * handles it, and edges can be returned later without a breaking change.
  */
 export type ElementAtResult =
-    | { readonly kind: "node"; readonly id: NodeId }
-    | { readonly kind: "edge"; readonly id: EdgeId };
+    { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
 
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;

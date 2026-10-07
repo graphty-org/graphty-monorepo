@@ -1,9 +1,9 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { LAYOUT_SEED } from "../layout/methods";
-import { useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 
 /**
  * The element's force layout (its catalog id; the element picks the engine), from the app's
@@ -17,6 +17,35 @@ const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
  * The workspace's View menu offers VR and AR, so the element draws no XR buttons on the canvas.
  */
 const XR_CONFIG = { ui: { enabled: false } } as const;
+
+/**
+ * Whether a node size is bound to data: a drawn `node.size` legend block that reads a field.
+ * Re-read after every style or project change.
+ * @param session - the element's session, or null.
+ * @returns true while node sizes encode values a reader compares.
+ */
+function useSizeBound(session: GraphSession | null): boolean {
+    const [bound, setBound] = useState(false);
+    useEffect(() => {
+        if (session === null) {
+            setBound(false);
+            return undefined;
+        }
+        const read = (): void => {
+            setBound(
+                session.styles.legend().some((block) => block.channel === "node.size" && block.field !== undefined),
+            );
+        };
+        read();
+        const offs = [session.on("style:changed", read), session.on("project:changed", read)];
+        return () => {
+            offs.forEach((off) => {
+                off();
+            });
+        };
+    }, [session]);
+    return bound;
+}
 
 /** Props for ElementHost. */
 interface ElementHostProps {
@@ -39,7 +68,13 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     // Labels that would land on each other are thinned out until the reader turns on Show all
     // labels (tier1-design.md section 2.7). A view setting written on the tag; it records no step.
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
-    const layoutBehavior = useMemo(() => ({ labels: { declutter: !allLabelsShown } }), [allLabelsShown]);
+    // A size bound to data is compared across nodes, so in 3D every node is drawn at one depth's
+    // scale: otherwise perspective draws a nearer, smaller value larger than a farther, larger one.
+    const sizeBound = useSizeBound(useWorkspace().session);
+    const layoutBehavior = useMemo(
+        () => ({ labels: { declutter: !allLabelsShown }, node: { depthIndependentSize: sizeBound } }),
+        [allLabelsShown, sizeBound],
+    );
     // The legend card's margins: the element keeps every fit clear of them.
     const viewInsets = useWorkspaceState((state) => state.viewInsets);
 

@@ -352,3 +352,31 @@ rule, and one more entry in every picker). Change `fitToGraph` to always keep th
 saved picture and every "Fit" press). Have the app compute the camera from the bounds (a workaround
 of exactly the kind the repository forbids). Name the option differently (`fromCurrent`,
 `preserveDirection`).
+
+## 2026-10-07 -- Node size that ignores depth: `layoutBehavior.node.depthIndependentSize`
+
+**What.** A new optional field in graphty-element's layout behavior (the `layoutBehavior`
+property, `GraphBehaviorConfig`): `node.depthIndependentSize`, a boolean, unset (off) by default.
+On, in the 3D orbit view, every node is drawn at the size it would have at the depth of the point
+the camera turns about, so two drawn sizes compare as the two sizes the style gave them, at any
+angle. Zooming still scales everything; the 2D view and an XR session ignore it. Edges and arrows
+stop at the redrawn surfaces, and labels follow their node. The graphty app turns it on while a
+node size is bound to data (a `node.size` legend block that reads a field) and off otherwise.
+
+**Why.** On the running club with size bound to PageRank, Ava (0.06423) was drawn larger than
+Farah (0.06608) in the default 3D view, and a study participant named Ava the most influential
+person. The style sizes were right for every pair; the perspective camera divided each by its
+depth, Farah sat 16% deeper while her size was only 6% larger, and 20 of 190 pairs were drawn in
+the wrong order (trace: `design/ui/studio/next-steps/traces/3d-size.md`). With the option on,
+0 of 190 pairs are inverted at both orbit angles and Farah is drawn larger on screen and in the
+exported picture.
+
+**Alternatives.** On by default (it changes every existing 3D picture, and a reader exploring a
+space expects nearer things to look bigger: a consumer's choice, so off). Turning it on inside the
+element whenever a size is bound (an opinion about presentation the element should not hold). A
+camera option instead of a node behavior (the effect is on node meshes, not the view). A fixed
+pixel size that ignores zoom too (loses zoom). Pushing the camera back (only shrinks the error),
+hiding sizes in 3D, or a warning in the app (rejected by the studio).
+
+**Known limits.** It costs a pass over the nodes on every frame while on, and re-trims every edge
+whenever a node's scale changes (each orbit drag), which may show on very large graphs.

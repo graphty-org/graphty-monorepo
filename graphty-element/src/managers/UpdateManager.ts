@@ -1,7 +1,18 @@
-import type { AbstractMesh, EffectLayer, Mesh, Nullable, Observer, Scene, Vector3 } from "@babylonjs/core";
+import {
+    type AbstractMesh,
+    Camera,
+    type EffectLayer,
+    type Mesh,
+    type Nullable,
+    type Observer,
+    type Scene,
+    type TransformNode,
+    type Vector3,
+} from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { CameraManager } from "../cameras/CameraManager";
+import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
@@ -832,6 +843,11 @@ export class UpdateManager implements Manager {
             return false;
         }
 
+        // The depth-independent size switched on or off and not yet applied to the meshes.
+        if ((this.depthSizingPivot() !== null) !== this.depthScaled) {
+            return false;
+        }
+
         // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
         if (this.viewMasksPending()) {
             return false;
@@ -956,6 +972,15 @@ export class UpdateManager implements Manager {
         }
 
         this.runUpdatePass(frameMs);
+
+        // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
+        if (this.sizeNodesForDepth()) {
+            for (const edge of this.dataManager.edges.values()) {
+                edge.invalidatePositionCache();
+            }
+            this.forceEdgeWalk();
+            this.updateEdges();
+        }
 
         // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
         // this frame rather than on the next one.
@@ -1356,6 +1381,78 @@ export class UpdateManager implements Manager {
         }
 
         return true;
+    }
+
+    /** Whether a node mesh currently carries a depth-independent scale. */
+    private depthScaled = false;
+
+    /**
+     * The point whose depth every node is drawn at, when depth-independent size applies: the
+     * option is on and the active camera is the perspective orbit camera.
+     * @returns The orbit's pivot, or null when sizes follow the perspective.
+     */
+    private depthSizingPivot(): TransformNode | null {
+        const camera = this.graphContext.getScene().activeCamera;
+        const orbit = this.camera.getActiveController();
+        return this.graphContext.getStyles().config.behavior.node.depthIndependentSize === true &&
+            camera?.mode === Camera.PERSPECTIVE_CAMERA &&
+            orbit instanceof OrbitCameraController
+            ? orbit.pivot
+            : null;
+    }
+
+    /**
+     * Draw every node at the size it would have at the orbit's pivot depth when
+     * `layoutBehavior.node.depthIndependentSize` is on, so two drawn sizes compare as the two style
+     * sizes at any angle. Each node mesh is scaled by its view depth over the pivot's: perspective
+     * divides by the depth, so the drawn size is world size over the pivot depth for every node.
+     * Off, in 2D (orthographic) or in XR, every node goes back to scale 1.
+     *
+     * ponytail: O(nodes) every frame while on, plus a walk of every edge whenever a scale changes
+     * (an orbit drag); a per-node edge index would make that O(changed nodes' edges).
+     * @returns Whether any node's scale changed, so the edges have to stop at the new surfaces.
+     */
+    private sizeNodesForDepth(): boolean {
+        const camera = this.graphContext.getScene().activeCamera;
+        const pivot = this.depthSizingPivot();
+        const on = pivot !== null;
+
+        if (!on && !this.depthScaled) {
+            return false;
+        }
+
+        let changed = false;
+        if (!on) {
+            for (const node of this.layoutManager.nodes) {
+                if (node.mesh.scaling.x !== 1) {
+                    node.mesh.scaling.setAll(1);
+                    changed = true;
+                }
+            }
+            this.depthScaled = false;
+
+            return changed;
+        }
+
+        const view = camera?.getViewMatrix().m;
+        const depthOf = (p: Vector3): number => (view ? p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] : 0);
+        this.depthScaled = true;
+        const reference = depthOf(pivot.getAbsolutePosition());
+        if (!(reference > 0)) {
+            return false;
+        }
+
+        for (const node of this.layoutManager.nodes) {
+            const { mesh } = node;
+            const depth = depthOf(mesh.getAbsolutePosition());
+            const scale = depth > 0 ? depth / reference : 1;
+            if (Math.abs(mesh.scaling.x - scale) > 1e-4) {
+                mesh.scaling.setAll(scale);
+                changed = true;
+            }
+        }
+
+        return changed;
     }
 
     /**

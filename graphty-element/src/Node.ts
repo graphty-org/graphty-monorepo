@@ -229,6 +229,9 @@ export class Node {
     /** The last measured radius, or null for a node that is not round. */
     private roundRadiusValue: number | null = null;
 
+    /** The mesh scale {@link Node.roundRadius} was last measured at. */
+    private roundRadiusScale = 1;
+
     /**
      * What the visibility mask says about this node, as the renderer is currently drawing it.
      *
@@ -381,11 +384,14 @@ export class Node {
      * @returns The radius in world units, or null when this node is not round.
      */
     get roundRadius(): number | null {
-        if (this.roundRadiusMesh === this.mesh) {
+        // The scale too: `layoutBehavior.node.depthIndependentSize` rescales a node mesh as the
+        // camera turns, and its edges must stop at the surface it is drawn with.
+        if (this.roundRadiusMesh === this.mesh && this.roundRadiusScale === this.mesh.scaling.x) {
             return this.roundRadiusValue;
         }
 
         this.roundRadiusMesh = this.mesh;
+        this.roundRadiusScale = this.mesh.scaling.x;
         this.roundRadiusValue = this.measureRoundRadius();
 
         return this.roundRadiusValue;

@@ -257,7 +257,7 @@ describe("the Style tab on the real element", () => {
     it(
         "T9: sizes a measure row by its result, storing the chosen scale and the range",
         async () => {
-            const { session, store } = await openWithGraph();
+            const { session, store, element } = await openWithGraph();
             const { runId } = await session.runs.start("pagerank");
             await session.styles.settled();
             const runLabel = "PageRank";
@@ -265,6 +265,7 @@ describe("the Style tab on the real element", () => {
             if (measure === undefined) {
                 throw new Error("PageRank painted nothing");
             }
+            assert.isNotTrue(element.layoutBehavior?.node?.depthIndependentSize);
             store.set({ inspected: { kind: "measure-row", id: runId } });
             await pickStyleTab();
 
@@ -288,6 +289,11 @@ describe("the Style tab on the real element", () => {
             });
             // The bind edited the PageRank row; no new row.
             assert.lengthOf(readerLayers(session), 1);
+            // A size bound to a result is drawn depth-independent, so 3D perspective cannot invert
+            // two values; before the bind, sizes follow the perspective.
+            await waitFor(() => {
+                assert.isTrue(element.layoutBehavior?.node?.depthIndependentSize);
+            });
 
             const sizeOf = (): unknown => {
                 const size = session.styles.get(measure.id)?.encode?.["node.size"];

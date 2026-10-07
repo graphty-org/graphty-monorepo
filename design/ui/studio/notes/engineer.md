@@ -30,12 +30,12 @@ acceptance test. "The studio worktree" is
    planar", "results.louvain.group names 6"), layout descriptions (`catalog/layouts.ts`, British
    "centre"), graph-io's CSV export warnings, and `run.label`. Fix = `{ code, params }` from the
    element, words in the app; never an app rename or string match.
-4. (2026-10-07) 3D size misreading TRACED: perspective, nothing else (`next-steps/traces/3d-size.md`,
-   rerun `3d-size.mjs` beside it). Style sizes and world sizes are in PageRank order for all 190
-   pairs; drawn size = world diameter / depth exactly (element radius and pixels agree within
-   1 px). Default 3D: Ava depth 80.8, Farah 93.9 (16% vs a 6% size gap), 20 of 190 pairs drawn
-   inverted; half a turn flips them; 2D (ortho) 0. Fix = a depth-independent node size option in
-   the element (owner door), not the mapping, not the camera distance.
+4. (2026-10-07) 3D size misreading FIXED (owner door, hold + needs-decision): element
+   `layoutBehavior.node.depthIndependentSize` (off by default) scales each node mesh by its view
+   depth over the orbit pivot's in `UpdateManager.sizeNodesForDepth`; the app turns it on while a
+   `node.size` legend block reads a field (`ElementHost.useSizeBound`). Trace rerun: 0 of 190
+   pairs inverted at both angles, Farah 54 px vs Ava 51 px. Anything that sets a node mesh's
+   `scaling` now fights this pass; `Node.roundRadius` is cached per mesh AND scale.
 5. (2026-10-07) Key covering nodes FIXED (fa260f20d, owner door, hold + needs-decision): element
    `viewInsets` (CSS px per side), honored by every fit; the app's LegendCard reports its box.
    Open: the toolbar is reserved only while the card takes the top; "Current view" exports rely
@@ -130,6 +130,20 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-07) **A size bound to data compares at any depth (element option, owner door).**
+  Cause (traced): perspective divides world size by depth; style and world sizes were right.
+  `node.depthIndependentSize` in `config/GraphBehavior.ts` (optional, not `.default(false)`: a
+  default makes the field required in the parsed output type and broke tests that build the
+  full config). `UpdateManager.update()` runs `sizeNodesForDepth()` after the pass: mesh scale =
+  depth / pivot depth (orbit + perspective only; 2D and XR reset to 1), and when any scale
+  changes it invalidates every edge's position cache and walks the edges in the same frame.
+  `pictureIsFinished()` is false until the switch reaches the meshes, so `waitForStableFrame`
+  does not return early (the on-then-off test failed until this). Labels and halos are children
+  of the node mesh, so they scale too. Proof: `test/browser/camera/depth-independent-size.test.ts`
+  (fails on the old UpdateManager), the T9 test in `StyleTab.real-element.test.tsx` (fails on the
+  old ElementHost), `tmp/r3fix-fix-3d-size/trace/` and `repro/` (export: Farah ~106 px, Ava ~100).
+  Rejected: on by default, the element deciding when to turn it on, camera distance, app warning.
 
 - (2026-10-07) **A capture of another size is drawn at that size (6783ba895, element only, no
   API change).** Cause: Babylon's `CreateScreenshotAsync` copies the canvas (device pixels) and
@@ -249,6 +263,11 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- **(2026-10-07) Per-node depth scaling on instanced node meshes: worked.** Setting
+  `mesh.scaling` on the instance is enough; edges only follow if their position cache is
+  invalidated (their dirty check reads positions, not sizes). Edge ends and arrowheads looked
+  right in the repro export.
+
 - **(2026-10-07) Reading the element in a trace script: worked.** A standalone Playwright script
   against :9366 (via `with-browser.sh`), driving the app by role names, then reading
   `nodeScreenPosition(id).radius`, `node.size`, the mesh bounding box and the view matrix.
@@ -266,8 +285,6 @@ acceptance test. "The studio worktree" is
   the other agents' own wait loops contain the same string, so the loop never ends. Stage
   shared files with `tmp/r3fix-key-view-insets/stage_blob.py <file> <regex>` (HEAD + only the
   -U0 hunks matching; `git apply --cached --unidiff-zero` of a subset fails on line offsets).
-
-- **(2026-10-06) A "missing route" was a routing bug: worked.** The Neighborhood command never set `inspected: neighborhood`; routing it through `openNeighborhood` fixed it (8f4891b7c). Lesson: before designing a new affordance for a hard task, check whether an existing door reaches the wrong screen.
 
 - 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
   `aria-activedescendant`, first match active): worked; `tmp/check-r0-analyze-keyboard-pick/`.
@@ -309,11 +326,6 @@ acceptance test. "The studio worktree" is
 - **(2026-10-07) The files a decision lists are a start, not the set.** The run-name decision
   listed ten files; Why this look printed the run's layer name too. Grep every route of the value
   (`run.label`, the name of a run-owned layer) before calling it done.
-
-- **Element English in descriptors (2026-10-06).** `channels.ts` plainName still says "Node
-  Colour" and Layer.ts validation messages build sentences from it. If one reaches the screen
-  again, the fix is the element returning codes, not an app rename. Also: root prettier reflows a
-  line in `graphty-element/test/session/styles/encoding.test.ts`; format only my own hunks there.
 
 - **(2026-10-06) Untraced, small.** Header still "Untitled" after "New from data..." Load
   (`tmp/check-r0-new-from-data-empty-canvas/04.png`). `notReadSentence` words only

@@ -34,10 +34,10 @@ acceptance test. "The studio worktree" is
    Ava reads larger than Farah though Farah ranks first (T15, T9 re-pilots; also exported). This
    can make a size answer meaning-wrong. Candidate for round 3 decisions; the fix (flat/ortho by
    default when sizing, or screen-constant sizes) is element behavior, likely an owner door.
-5. (2026-10-07) Key covers nodes (Florentine top-left node fully hidden, T9; Les Mis rings, T11).
-   Needs a fit inset on the element's zoom-to-fit (`OrbitCameraController` fixed 5%) -- new
-   public option, owner door. Deferred to after round 3 as a placement question; have the
-   owner-decisions entry drafted, do not build it.
+5. (2026-10-07) Key covering nodes FIXED (fa260f20d, owner door, hold + needs-decision): element
+   `viewInsets` (CSS px per side), honored by every fit; the app's LegendCard reports its box.
+   Open: the toolbar is reserved only while the card takes the top; "Current view" exports rely
+   on the screen's insets; a reader's own camera is refit when the card resizes (autoFrame on).
 6. (2026-10-07) Still deferred, with reasons in round 2 decisions: 4x print re-render
    (`ScreenshotCapture.ts` scales; labels also soft at 2x), name behind a dot counted as shown, Force re-apply cloud (untraced -- trace before round 3 launches and
    file an element issue with the cause, do not hold the round), refusal parity for "New from
@@ -163,6 +163,26 @@ acceptance test. "The studio worktree" is
   08 preview no ring, downloads/florentine_current-view.png no ring, 09 still ringed and
   "Selection 1"). `owner-decisions.md` entry; PR needs hold + needs-decision.
 
+- (2026-10-07) **The key never covers a node: view insets (fa260f20d, element + app, owner
+  door).** Element: `viewInsets` property (`setViewInsets`/`getViewInsets` on Graph,
+  `CameraViewInput.insets` in device px, `ViewInsets` type from root and `./extend`). One helper,
+  `camera/insets.ts freeArea()`, gives the free share and its NDC center; the 2D controller and
+  `fitToGraph` size and pan into it; the orbit controller does a LENS SHIFT (camera offset in the
+  pivot frame by `-free.x * tanX * distance`, applied in `updateCameraPosition`), so the graph
+  still turns about its own center, and its fit solves d >= |x/tanX - c z| / share - z per corner
+  (no insets = old numbers to the digit). Rejected: moving the pivot (graph swings when turned),
+  a frozen off-axis projection matrix (picking and resize), symmetric shrink (wastes the free
+  side). A framed capture (`camera: { preset }`) uses ONLY the key it draws as the inset
+  (`legendBox()` in `drawLegend.ts`), not the screen's: the first try took max(screen, key) and
+  "Whole graph" exports had a 240 px empty band from the app's card that is not in the picture.
+  App: `LegendCard` `useReservedMargin` (ResizeObserver on card and canvas; left of a tall card,
+  above a wide one by smaller share, + toolbar height at the bottom when above, since a top-only
+  inset pushed Les Mis's pink group under the toolbar); store `viewInsets`, written on the tag in
+  `ElementHost`. Proof: `test/browser/camera/view-insets.test.ts` (4 of 5 fail with insets
+  ignored), `screenshot-legend.test.ts` last test, `CanvasOverlays.test.tsx` inset test;
+  `tmp/r3fix-key-view-insets/` r3-s27 rerun (Pazzi drawn below the card, `florentine/06.png`
+  clicks Pazzi at 569,157), `lesmis/02.png` and both exports in `*/downloads/`.
+
 - (2026-10-07) **Show all labels (b7590f8de, app only).** Checkbox beside the label count in
   `LabelSection.tsx` ("N labels, M hidden"); store `allLabelsShown` (reader preference, not saved);
   `ElementHost.tsx` writes `layoutBehavior={{ labels: { declutter: !allLabelsShown } }}` on the tag
@@ -181,14 +201,9 @@ acceptance test. "The studio worktree" is
   dialog Copy fails headless and drops focus to body; compact-mantine `figma/tree.browser.test.tsx`
   is order-dependent on old code too.
 
-- (2026-10-07) Size "+" opens its list (studio decision: 18 of 18 round-2 sizing sessions named
-  the fixed "1" that changes nothing). Adding node Size writes the fixed 1 as before, then the
-  line's own bind pop-out opens as it is drawn, with "Fixed size" as its first, highlighted row;
-  Enter on it closes the list and focuses the number; Esc or outside click leaves the fixed 1.
-  Rejected: a separate picker before the write (a second bind route, rejected in round 1);
-  component state for "open on mount" (lost when the first edit makes a layer and remounts the
-  tab). Kept to node Size: edge Width and Color "+" behave as before. Re-record the T9 answer key
-  path ("Size by attribute" click is gone) after every wording change, as with T11 and T13.
+- (2026-10-07) Size "+" opens its list (18 of 18 round-2 sizers named the fixed "1"): node Size
+  writes the fixed 1, then opens its own bind list with "Fixed size" first. Rejected a separate
+  picker (second bind route) and component state (lost on remount). Re-record T9's answer key.
 
 - (2026-10-07) Study tool: focus lines name the highlighted option (`aria-activedescendant`),
   `--read` is browse mode, a pre-filled live region ends `-- unconfirmed`, `REAL_DIST` serves a
@@ -197,44 +212,28 @@ acceptance test. "The studio worktree" is
 - (2026-10-07) 2D Fit: fixed the view's unit (5 / half-width), not the camera's; see Top of mind 9.
   Lessons: test framing with a graph taller than the canvas too; trace the app's actual call first.
 
-- (2026-10-07) Load and run announced on one status line: the store's `announcement`, rendered
-  by the toolbar's polite region ("<project>: N nodes, M edges"; "<Method> finished / failed /
-  stopped"). `StateCard` lost `role="status"`. Proof: `CanvasOverlays.test.tsx` status-line tests,
-  T7 in `tasks.real-element.test.tsx`, `tmp/check-r2-announce-load-and-run/`. Gaps: no line at
-  load start; the same text twice is not re-announced; focus falls to body after a start-screen
-  sample open.
+- (2026-10-07) Load and run announced on one status line (store `announcement`, toolbar polite
+  region); `StateCard` lost `role="status"`. Gaps: no line at load start; repeated text is not
+  re-announced.
 
-- (2026-10-07) Canvas name, focus ring, no autofocus (element): the element copies `aria-label`
-  to its shadow canvas, rings it inside (`outline-offset: -2px`; the app's `overflow: hidden`
-  clipped the ring), and dropped `autofocus`. Owner door recorded. Rejected a `canvas-label`
-  attribute, an English default name. Proof: `test/browser/element-canvas-a11y.test.ts`.
+- (2026-10-07) Canvas name, focus ring, no autofocus (element, owner door): `aria-label` copied
+  to the shadow canvas, ring inset (`outline-offset: -2px`). Proof: `element-canvas-a11y.test.ts`.
+  Grouping columns come from `catalog.optionsFor` partition `values` (async; a hook in the app).
 
-- (2026-10-07) Which columns can group a layout: answered by `catalog.optionsFor` (a partition's
-  `values`), not a new method; see Top of mind 3. Async, so the app resolves it in a hook.
-
-- (2026-10-07) A covered legend block is dropped, not flagged. `styles.legend()` omits a block
-  whose channel a higher enabled layer of the same target paints on every element the block's
-  layer reaches; the English `painted over by "<layer>"` departure is deleted. Rejected: a neutral
-  `coveredBy` field (new public API, and every consumer must remember to filter or show a false
-  key); the app parsing the sentence (workaround, and element English). Evidence: trace test
-  printed `departures: ["painted over by \"Communities\""]` on Degree's block before the change.
-  The old shell (`components/shell/canvas/`) never parsed the sentence; only an AppShell comment
-  named it. Lesson: when the element "already detects" something, check whether it reports it only
-  in words -- that is the neutrality defect and often the whole bug.
+- (2026-10-07) A covered legend block is dropped, not flagged (`styles.legend()` omits it; the
+  English `painted over by` departure deleted). Rejected a `coveredBy` field and the app parsing
+  the sentence. Lesson: when the element "already detects" something, check whether it says so
+  only in words -- that is the neutrality defect and often the whole bug.
 
 - (2026-10-07) Rounds 1-2: round 2 passed 52 of 54 (both failures screen reader); round 1
   decisions in `rounds/round-1/decisions.md`.
 
-- (2026-10-06, folded 2026-10-07) Focus after a Style pick moves to the first control of the
-  new line (e82708488; its `returnFocus={false}` is superseded by the Menu theme fix, Top of mind
-  14). Study runner: idle sessions close after 15 minutes, at most 3 session agents, `--end` after
-  every attempt. Focus rings for plain controls are compact-mantine's (28bcb71a0); app code never
-  draws its own.
+- (2026-10-06) Focus after a Style pick moves to the new line's first control (e82708488). Study
+  runner: idle sessions close after 15 minutes, `--end` after every attempt. Focus rings for
+  plain controls are compact-mantine's (28bcb71a0); app code never draws its own.
 
-- 2026-10-06 -- "No crossings" on a non-planar graph: the element already refuses (`E_INTERNAL`,
-  previous layout kept; `test/browser/planar-refusal.test.ts`); the app's notice never reached the
-  reader. Now the Method select shows Mantine's `error` line naming the method until the layout
-  changes (`LayoutRefusal.real-element.test.tsx`). Lesson: test the element first.
+- 2026-10-06 -- "No crossings" refusal: the element already refused; the app now shows the
+  Method select's `error` line (`LayoutRefusal.real-element.test.tsx`). Lesson: test the element first.
 
 - 2026-09-13 to 10-05 -- Standing owner decisions (see Top of mind 6): a run paints as soon as
   it finishes; tier 1 is the real app under `graphty/src/workspace/` at `/?next`. The group-row
@@ -270,18 +269,15 @@ acceptance test. "The studio worktree" is
 - **(2026-10-06) Screen-reader mode in `real.mjs`: worked** (CDP AX tree on the deep
   `activeElement`; init-script MutationObserver for live regions).
 
-- **(2026-10-06) Mouse wheel zooms the 3D orbit camera: worked** (d9e5cc8dc). A canvas `wheel`
-  listener in `OrbitInputController` (passive: false, added/removed in enable/disable), not a
-  scene POINTERWHEEL observer. One notch (deltaY 100, clamped) = cameraDistance *
-  keyboardZoomSpeed / 2 (10%); a fixed 0.2-unit step is invisible at 300 units. No new option or
-  public API. Proof: `input-speed.test.ts` wheel test fails without it; `tmp/check-r1-wheel-zoom/`.
-- **(2026-10-06) Open: the live Selection row is blank after the neighbor route.** On the running
-  app (`tmp/check-r1-summary-cleanup/06-08.png`): Valjean, Degree, then the Selection row (37)
-  shows the header and no body, even after 5 s and an Everything/Selection round trip. The same
-  component in a headless test renders. Suspect `useAsyncValue` reset by a steady stream of
-  session events (it sets undefined on every version bump) or a refused `statistics()` read in
-  the live element; not yet traced. Escape from the neighbor list now returns to the single node,
-  so the Selection row is the only way to the several-node Summary from the neighbor route.
+- **(2026-10-06) Mouse wheel zooms the 3D orbit camera: worked** (d9e5cc8dc): a canvas `wheel`
+  listener in `OrbitInputController`, one notch = 10% of the distance.
+- **(2026-10-06) Open: the live Selection row is blank after the neighbor route**
+  (`tmp/check-r1-summary-cleanup/06-08.png`); renders in a headless test. Suspect `useAsyncValue`
+  reset on every session version bump; not traced.
+- **(2026-10-07) Waiting on another agent's build: wait on its PID, never `pgrep -f "<cmd>"`** --
+  the other agents' own wait loops contain the same string, so the loop never ends. Stage
+  shared files with `tmp/r3fix-key-view-insets/stage_blob.py <file> <regex>` (HEAD + only the
+  -U0 hunks matching; `git apply --cached --unidiff-zero` of a subset fails on line offsets).
 
 - **(2026-10-06) Worked, small:** empty summary rows, ComboInput arrow, undirected arrowheads,
   dead-end clicks (b11881bb2, b7bc18953, cae3dca4d); proofs under `tmp/check-r1-*`.
@@ -337,8 +333,6 @@ acceptance test. "The studio worktree" is
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only
   passes today through Recent projects. Adoption should be a small app change.
-- **The image key's look (2026-10-06).** A fixed light card top left that can cover nodes; a
-  fix is a placement option or camera fit (owner API questions), not app styling.
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

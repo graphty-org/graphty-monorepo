@@ -634,6 +634,78 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
 }
 
 /**
+ * Every channel a layer writes, each counted at 0.
+ * @param layer - The layer.
+ * @returns A tally with one key per channel the layer sets or encodes.
+ */
+function zeroPerChannel(layer: Layer): Partial<Record<Channel, number>> {
+    const painted: Partial<Record<Channel, number>> = {};
+    for (const channel of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
+        if (isChannel(channel)) {
+            painted[channel] = 0;
+        }
+    }
+
+    return painted;
+}
+
+/**
+ * What one element carries for the fields a layer reads.
+ * @param own - The layer's prepared bindings.
+ * @param columns - What the session can read about elements of the layer's kind.
+ * @param index - The element.
+ * @returns Whether it lacks a value for some field, and whether some value has no place on its scale.
+ */
+function readValues(
+    own: readonly PreparedBinding[],
+    columns: ElementColumns,
+    index: number,
+): { readonly missing: boolean; readonly outside: boolean } {
+    let missing = false;
+    let outside = false;
+    for (const prepared of own) {
+        if (prepared.path === null) {
+            continue;
+        }
+
+        const value = columns.value(index, prepared.path);
+        if (value === undefined || value === null) {
+            missing = true;
+        } else if (prepared.paintIgnoringHidden(value) === undefined) {
+            outside = true;
+        }
+    }
+
+    return { missing, outside };
+}
+
+/**
+ * Count the channels one layer wins on one element, through the same walk `explain` takes.
+ * @param stack - The stack with its bindings.
+ * @param at - Where the element sits.
+ * @param columns - What the session can read about elements of its kind.
+ * @param layerId - The layer.
+ * @param painted - The tally to add to.
+ */
+function countWins(
+    stack: readonly StackEntry[],
+    at: Located,
+    columns: ElementColumns,
+    layerId: LayerId,
+    painted: Partial<Record<Channel, number>>,
+): void {
+    const winners = new Map<Channel, LayerId>();
+    paintOne(stack, at, columns, (winner, prepared) => {
+        winners.set(prepared.channel, winner.id);
+    });
+    for (const [channel, winner] of winners) {
+        if (winner === layerId) {
+            painted[channel] = (painted[channel] ?? 0) + 1;
+        }
+    }
+}
+
+/**
  * Count what one layer covers and where it wins.
  *
  * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
@@ -654,16 +726,9 @@ export function styleCounts(
 ): StyleCounts {
     const { layer, selector } = requireLayer(layerId, sources);
     const own = sources.encoding(layerId);
-    const painted: Partial<Record<Channel, number>> = {};
-    for (const channel of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
-        if (isChannel(channel)) {
-            painted[channel] = 0;
-        }
-    }
-
+    const painted = zeroPerChannel(layer);
     const stack = prepareStack(sources);
     const columns = columnsFor(sources.elements, layer.target);
-    const winners = new Map<Channel, LayerId>();
     let matched = 0;
     let noValue = 0;
     let outsideScale = 0;
@@ -674,36 +739,12 @@ export function styleCounts(
         }
 
         matched++;
-        let missing = false;
-        let outside = false;
-        for (const prepared of own) {
-            if (prepared.path === null) {
-                continue;
-            }
-
-            const value = columns.value(index, prepared.path);
-            if (value === undefined || value === null) {
-                missing = true;
-            } else if (prepared.paintIgnoringHidden(value) === undefined) {
-                outside = true;
-            }
-        }
-
+        const { missing, outside } = readValues(own, columns, index);
         noValue += missing ? 1 : 0;
         outsideScale += outside ? 1 : 0;
 
-        if (!layer.enabled) {
-            continue;
-        }
-
-        winners.clear();
-        paintOne(stack, { target: layer.target, index }, columns, (winner, prepared) => {
-            winners.set(prepared.channel, winner.id);
-        });
-        for (const [channel, winner] of winners) {
-            if (winner === layerId) {
-                painted[channel] = (painted[channel] ?? 0) + 1;
-            }
+        if (layer.enabled) {
+            countWins(stack, { target: layer.target, index }, columns, layerId, painted);
         }
     }
 

@@ -223,7 +223,7 @@ function rampStops(block: LegendBlock): readonly LegendStop[] {
     const stops = [
         stopOf(block, swatches[0], ""),
         stopOf(block, middle, MIDPOINT_STOP_PREFIX),
-        stopOf(block, swatches.length > 1 ? swatches[swatches.length - 1] : undefined, ""),
+        stopOf(block, swatches.length > 1 ? swatches.at(-1) : undefined, ""),
     ];
 
     return stops.filter((stop): stop is LegendStop => stop !== undefined);

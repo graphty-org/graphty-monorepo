@@ -213,7 +213,8 @@ describe("sonar-gate: the verdict", () => {
         const work = join(dir, ".git/sonar", dir.split("/").pop());
         const recorded = JSON.parse(readFileSync(join(work, "args.json"), "utf8"));
         assert.ok(recorded.hasToken, "the scanner got the token in its environment");
-        assert.ok(recorded.args.includes("-Dsonar.inclusions=src/a.ts"));
+        assert.ok(recorded.args.includes("-Dsonar.sources=src/a.ts"));
+        assert.ok(recorded.args.includes("-Dsonar.tests="));
         assert.ok(
             recorded.args.every((a) => !a.includes(TOKEN)),
             "not in the scanner's arguments",

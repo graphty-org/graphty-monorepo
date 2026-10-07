@@ -9,8 +9,9 @@
 // 2. The server and the setup. Unreachable, or not the pinned server: pass with a boxed warning and
 //    send no token. Anything else wrong (no token, rejected token, no Java, no scanner, no
 //    `<key>-local` project): block, with the fix.
-// 3. Scan only those files into `<key>-local` (scratch; never `<key>`, which a partial scan would
-//    empty), wait for the server to process it, read its open issues and hotspots.
+// 3. Scan only those files, named one by one in sonar.sources and sonar.tests so the scanner walks no
+//    directory, into `<key>-local` (scratch; never `<key>`, which a partial scan would empty), wait
+//    for the server to process it, read its open issues and hotspots.
 // 4. A finding on a changed line (`git diff -M -U0 <merge-base> HEAD`) blocks, unless master's
 //    analysis in `<key>` already has it: an issue with the same rule and line hash in the same file
 //    (following renames); for S3776 and S107 the same rule in the same hunk with a score that did
@@ -382,8 +383,11 @@ async function scan(run, setup, scanList) {
         [
             `-Dsonar.projectKey=${localKey}`,
             `-Dsonar.host.url=${cfg.host}`,
-            `-Dsonar.inclusions=${sources.join(",") || "nothing-to-scan/**"}`,
-            `-Dsonar.test.inclusions=${tests.join(",") || "nothing-to-scan/**"}`,
+            // The files themselves, not `.` with inclusions: the scanner walks every directory under
+            // sonar.sources (following pnpm's workspace symlinks through node_modules) and fails when
+            // a file it listed vanishes, e.g. test output the parallel test stage rewrites.
+            `-Dsonar.sources=${sources.join(",")}`,
+            `-Dsonar.tests=${tests.join(",")}`,
             `-Dsonar.working.directory=${workDir}`,
             "-Dsonar.javascript.lcov.reportPaths=",
             "-Dsonar.qualitygate.wait=false",

@@ -248,10 +248,7 @@ describe("layout catalogue", () => {
 
     it("gives d3 a dim option, so it can be drawn flat", () => {
         const d3 = layoutEntry("force")?.implementations.find((implementation) => implementation.engine === "d3");
-        assert.include(
-            d3?.options.map((option) => option.name),
-            "dim",
-        );
+        assert.include(d3?.options.map((option) => option.name) ?? [], "dim");
     });
 
     it("says how many dimensions a choice places nodes in, which the view alone cannot", () => {

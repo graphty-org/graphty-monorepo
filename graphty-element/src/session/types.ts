@@ -48,6 +48,7 @@ import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionSt
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { JournalApi, JournalEntry } from "./journal";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
@@ -1425,6 +1426,8 @@ export interface SessionEventMap {
      * committed. A write that was refused, or that changed nothing, publishes nothing.
      */
     "note:changed": NoteChange;
+    /** A command finished and the journal appended its entry: one event per entry. */
+    "journal:appended": { readonly entry: JournalEntry };
     /**
      * A load or a run moved on, or stopped: one stream for every progress bar, which a session
      * with no view publishes too. See {@link ProgressChange}.
@@ -1823,8 +1826,8 @@ export interface StyleProblem {
  * and the measured capabilities of the machine. A renderer binds to one; a Node test uses one on
  * its own; two synchronised views of one dataset share one.
  *
- * What is deliberately NOT here yet: the layout transport, notes and the journal. Each waits on
- * work that has not landed, and each is absent rather than stubbed.
+ * What is deliberately NOT here yet: the layout transport. It waits on work that has not
+ * landed, and is absent rather than stubbed.
  */
 export interface GraphSession {
     /** Reading the graph. */
@@ -1853,6 +1856,12 @@ export interface GraphSession {
      * a note's text exactly as given and never interprets it.
      */
     readonly notes: NotesApi;
+    /**
+     * The record of the commands this session ran, oldest first: one entry per command that
+     * finished, published as `journal:appended`. A run's `journalId` names the entry its command
+     * wrote. Undo does not read it; `history` is the undo record.
+     */
+    readonly journal: JournalApi;
     /**
      * What is selected: two sets, five set operations, one selection for the whole session.
      *

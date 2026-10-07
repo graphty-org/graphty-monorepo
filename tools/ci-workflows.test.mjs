@@ -1500,7 +1500,7 @@ describe("release.yml", () => {
     });
 
     it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {
-        // the external scheduler (cron-job.org) dispatches with scheduled=true; GitHub's cron would fire twice a slot
+        // the release scheduler Worker (tools/release-scheduler/) dispatches with scheduled=true; GitHub's cron would fire twice a slot
         const on = /^on:\n([\s\S]*?)\n\S/m.exec(release)[1];
         assert.doesNotMatch(on, /^\s*schedule:/m);
         assert.doesNotMatch(release, /^\s*- cron:/m);

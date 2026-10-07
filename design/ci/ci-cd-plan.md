@@ -553,11 +553,11 @@ already takes a run id and a commit. The app is private, so its cadence affects 
 
 **Cadence:** an attempt every 6 hours (owner decision, 2026-10-06; it was daily).
 
-**Who starts it:** an external scheduler (cron-job.org), not GitHub's cron (owner decision,
-2026-10-07): GitHub created this repository's scheduled runs hours late or not at all. At 00:00,
-06:00, 12:00 and 18:00 UTC it dispatches release.yml with the input `scheduled=true` (`POST
-https://api.github.com/repos/graphty-org/graphty-monorepo/actions/workflows/release.yml/dispatches`,
-body `{"ref":"master","inputs":{"scheduled":"true"}}`, answered with HTTP 204), and such a run
+**Who starts it:** not GitHub's cron, which created this repository's scheduled runs hours late or
+not at all (owner decision, 2026-10-07). The Cloudflare Worker in `tools/release-scheduler/` dispatches `release.yml` with `scheduled=true` at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler GitHub App
+(`POST https://api.github.com/repos/graphty-org/graphty-monorepo/actions/workflows/release.yml/dispatches`,
+body `{"ref":"master","inputs":{"scheduled":"true"}}`, answered with HTTP 204), and opens an issue
+when it cannot; setup and operation are in `tools/release-scheduler/README.md`. Such a run
 behaves exactly as a scheduled attempt: it skips while a release pull request or a "Release held"
 issue is open, or when nothing is releasable. release.yml has no `schedule:` trigger, so one slot
 never starts two attempts. A person's dispatch (without `scheduled`) is still the ad hoc release. Each changed

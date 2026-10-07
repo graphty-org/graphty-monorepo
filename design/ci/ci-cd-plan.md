@@ -407,11 +407,9 @@ lane, and nothing re-runs on the CPU.
   release train's captures belong to release.yml runs), so such a story shows as `new` rather
   than `unseeded`. Both block until the owner accepts or seeds it, so the gate is unchanged; only
   the review page's "unchanged from master" hint for unseeded stories is lost.
-- The SonarQube baseline (`tools/sonar-baseline.mjs`) imports coverage from the master push's CI
-  run, which now has none, so `graphty-monorepo`'s analyses carry no coverage. Coverage stays
-  enforced by the Vitest thresholds and published to Coveralls from the train. To restore it,
-  point the baseline at the train's run of its candidate (an analysis of that commit, not of
-  master's tip).
+- The SonarQube baseline (`tools/sonar-baseline.mjs`) imports coverage from the newest release
+  train's CI run, and so analyzes that train's candidate rather than master's tip
+  (design/sonarqube/design.md section 2).
 - The push run's Build job keeps its cheap source checks (lint, knip, published dependencies,
   bundle size, the API report, the tool and config checks): they are steps of the job that builds
   the deploy, take minutes, and catch a master that differs from the tree the queue tested. Only

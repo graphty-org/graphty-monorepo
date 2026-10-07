@@ -190,7 +190,7 @@ describe("a load and a clear", () => {
         await graph.setLayout("fixed");
         // Babylon makes the scene's default material the first time anything asks for it and keeps
         // it for the life of the scene. It is the scene's, not the dataset's, so take it first.
-        void graph.scene.defaultMaterial;
+        const _defaultMaterial = graph.scene.defaultMaterial;
         const start = held(graph);
 
         for (const pass of [1, 2]) {

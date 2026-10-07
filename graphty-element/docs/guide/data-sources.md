@@ -184,6 +184,35 @@ carries `context: "parsing"` and, when the reader can name one, the `line` where
 starts; a replacing load keeps the current graph. Problems a reader can skip past, such as one
 malformed vertex line, are reported in `data-loading-error-summary` and the rest of the file loads.
 
+GraphML and GEXF files are read differently. A file that is recognisably GraphML or GEXF but
+breaks off -- a stray end tag, a tag or attribute quote left open, garbage after the last tag, a
+file cut off mid-tag -- keeps every node and edge read before the break, and the load reports
+where it broke. A file that is not recognisable as either format at all still fails with
+`E_PARSE_FAILED`.
+
+### Reading the errors of a load
+
+Every problem a load met is in `errors` on its report, `session.data.lastImport()` after a load
+or `draft.report()` before one, in the order met and at most the source's `errorLimit` of them.
+An entry holds facts, not words, so word it yourself:
+
+| Field    | What it holds                                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `code`   | The kind: `"parse-error"` (the file breaks off here), `"validation-error"`, `"missing-value"`, or `"refused-row"` (a record the graph would not store) |
+| `params` | The facts behind the code: for a graph file `issue` (the reader's own code) and `element`; for a refused row `rowsAre`                                 |
+| `line`   | The line of the file, or the row, when the reader knows it                                                                                             |
+| `field`  | The field or column concerned, when there is one                                                                                                       |
+
+```typescript
+await element.session.data.import({ type: "graphml", config: { data: text } });
+const [first] = element.session.data.lastImport()?.errors ?? [];
+if (first?.code === "parse-error") {
+    console.warn(`The file breaks off at line ${first.line}; what came before it was loaded.`);
+}
+```
+
+A clean load has an empty `errors` list.
+
 GML is read as NetworkX reads it, so three things the element's 2.x reader accepted fail with
 `E_PARSE_FAILED` naming the line: an unquoted word as a value (`id A`; quote it, `id "A"`), a
 `directed` written as `true` or `false` (write `1` or `0`), and a string that runs onto the next
@@ -561,11 +590,7 @@ Graphty validates data using Zod schemas. Invalid data will throw descriptive er
 
 ```typescript
 try {
-    await graph.addNodes([
-        {
-            /* missing id */
-        },
-    ]);
+    await graph.addNodes([{/* missing id */}]);
 } catch (error) {
     console.error("Invalid node data:", error.message);
 }

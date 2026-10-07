@@ -43,6 +43,7 @@ const randomLayoutOptionsSchema = defineOptions({
 
 const RandomLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(100),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
     seed: z.number().positive().or(z.null()).default(DEFAULT_SEED),
@@ -57,8 +58,6 @@ export class RandomLayout extends SnapshotLayoutEngine {
     static type = "random";
     static maxDimensions = 3;
     static zodOptionsSchema: OptionsSchema = randomLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: RandomLayoutConfigType;
 
@@ -101,7 +100,7 @@ export class RandomLayout extends SnapshotLayoutEngine {
                 dim: layoutDim(this.config.dim),
                 seed: this.config.seed,
             }),
-            RandomLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

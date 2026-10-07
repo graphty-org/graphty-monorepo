@@ -93,8 +93,10 @@ import {
     type AccelerationStatus,
     type Channel,
     type DataSourceInput,
+    DEFAULT_LIMITS,
     type GraphSession,
     type GraphStatistics,
+    type HistogramBin,
     isGraphtyError,
     type Layer,
     type LayerSpec,
@@ -125,12 +127,14 @@ import {
 } from "./analysis/graphShape";
 import { metricCost, type MetricCostEstimate, metricCosts, readMetricAvailability } from "./analysis/metricCost";
 import {
+    formatMetricValue,
     metricDistribution,
     NODE_METRIC_DEFINITIONS,
     NODE_METRIC_IDS,
     type NodeMetricId,
     runNodeMetric,
 } from "./analysis/nodeMetrics";
+import { downloadText, filterAbove, groupsCsv, selectAbove, selectBins, selectTop } from "./analysis/resultMembers";
 import {
     COMMUNITY_METHOD_NAME,
     type DegreeResults,
@@ -146,7 +150,7 @@ import { EgoNetworkControl } from "./canvas/EgoNetworkControl";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
 import { legendAvailable } from "./canvas/legendAvailability";
-import { legendChannels as canvasLegendChannels } from "./canvas/legendChannels";
+import { legendChannels as canvasLegendChannels, legendNamesOf } from "./canvas/legendChannels";
 import { type WelcomeSample, WelcomeSampleList } from "./canvas/WelcomeSampleList";
 import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 import {
@@ -206,7 +210,7 @@ import {
     MOST_CONNECTED_TOP_N,
 } from "./inspector/inspectorConstants";
 import type { NeighborRow } from "./inspector/NodeInspector";
-import type { ResultBodyRow } from "./inspector/ResultInspector";
+import type { ResultBodyRow, ResultInspectorProps } from "./inspector/ResultInspector";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { ActivityPanel } from "./panel/ActivityPanel";
 import { AiPanel } from "./panel/AiPanel";
@@ -1324,6 +1328,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         readonly layerRunId?: RunId;
         /** How many layers name that run, which is the count Remove result states. */
         readonly layerCount?: number;
+        /**
+         * Which member verbs the result offers: a metric's top N, threshold and brush, or a
+         * grouping's export. With `metric`, the element's bars the brush selects from and
+         * where the threshold field opens.
+         */
+        readonly members?:
+            | { readonly kind: "groups" }
+            | {
+                  readonly kind: "metric";
+                  readonly bins: readonly HistogramBin[];
+                  readonly threshold: number;
+                  readonly thresholdNote?: string;
+              };
     } | null>(null);
 
     /*
@@ -2026,7 +2043,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
         });
         const unwatchStyle = session.on("style:changed", () => {
-            setColourChannel(canvasLegendChannels(session.styles.legend()));
+            setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
         });
         const unwatchRuns = session.on("run:changed", ({ run, phase }) => {
             if (phase === "restored") {
@@ -2080,6 +2097,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* The ego network on the canvas is the element's own `neighborhood` visibility filter, read
        back from the element so an undo or a project load moves the depth control with it. */
     const [egoFilter, setEgoFilter] = useState<Extract<RuleTree, { kind: "neighborhood" }> | null>(null);
+    /* A result card's Filter above threshold, read back the same way, so its chip and Clear
+       follow an undo too. */
+    const [thresholdFilter, setThresholdFilter] = useState<Extract<RuleTree, { kind: "threshold" }> | null>(null);
     useEffect(() => {
         if (session === null) {
             return undefined;
@@ -2088,6 +2108,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const readEgoFilter = (): void => {
             const { filter } = session.visibility;
             setEgoFilter(filter?.kind === "neighborhood" ? filter : null);
+            setThresholdFilter(filter?.kind === "threshold" ? filter : null);
         };
         readEgoFilter();
 
@@ -2815,6 +2836,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 }),
                 body: communityResultBody(statistics),
                 runId,
+                members: { kind: "groups" },
                 /* The applied half, all four fields together or none of them: the layer's own
                    name, a colour some node really carries, the TAG the two layer verbs act on,
                    and how many layers that tag holds, which is the count Remove result names
@@ -2831,7 +2853,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                               .filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
                       }),
             });
-            setColourChannel(canvasLegendChannels(session.styles.legend()));
+            setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
             openPanelAt("analyze");
 
             /* Spec 5643-5648 and 7300: the card is retired once the reader has been taken
@@ -3090,6 +3112,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     tiedAtMinimum: ranking.tiedAtMinimum,
                 };
 
+                /* The element's top at the render ceiling, when it left nodes out. */
+                const cutToDraw = ranking.drawable?.threshold === null ? undefined : ranking.drawable;
+
                 setActiveResult({
                     id: metric,
                     title: definition.plainName,
@@ -3107,6 +3132,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     body,
                     ...(runId === undefined ? {} : { runId }),
                     distribution: metricDistribution(ranking),
+                    /* Spec 2376: the threshold opens at the lowest value whose matches are
+                       still drawable, which is the element's own cut of the top that fits
+                       the render ceiling; with everything drawable it opens at the lowest
+                       value measured. */
+                    members: {
+                        kind: "metric",
+                        bins: ranking.distribution.bins,
+                        threshold: ranking.drawable?.threshold ?? ranking.minValue,
+                        ...(cutToDraw === undefined
+                            ? {}
+                            : {
+                                  thresholdNote: `Starting where the result is drawable: ${formatCount(
+                                      cutToDraw.entries.length,
+                                  )} of ${formatCount(ranking.rankedCount)} nodes.`,
+                              }),
+                    },
                     /* Applied: the card names the layer that holds the channel, the
                        colour the TOP node of this run actually carries, the tag the two
                        layer verbs act on and the one layer it holds. Suppressed: NONE of
@@ -3141,7 +3182,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    took the legend off the screen while the colours it named were still on
                    it, which is exactly the obligation floor item 5 states. */
                 if (block !== undefined) {
-                    setColourChannel(canvasLegendChannels(session.styles.legend()));
+                    setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
                 }
 
                 openPanelAt("analyze");
@@ -3674,6 +3715,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         onDeleteCaseNote={(noteId) => {
                             session?.notes.remove(noteId);
                         }}
+                        onSetCaseNoteDone={(noteId, done) => {
+                            session?.notes.update(noteId, { done });
+                        }}
                         timeSliderOn={canvasLayout.timeSlider}
                         onTimeSliderChange={(on) => {
                             setCanvasLayout((current) => ({ ...current, timeSlider: on }));
@@ -4047,6 +4091,67 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
     }, []);
 
+    /**
+     * The result card's member verbs, each one call to the element with its own target or
+     * filter. A refusal is the element's to explain, so it is logged in its own words.
+     * @param runId - the result's run; a result that names none offers no member verbs.
+     * @param members - which verbs the result offers, and what the metric ones read.
+     * @returns the props to spread onto the result surface.
+     */
+    const memberProps = useCallback(
+        (
+            runId: RunId | undefined,
+            members: NonNullable<typeof activeResult>["members"],
+        ): Pick<ResultInspectorProps, "members" | "onSelectBins" | "onExportGroups"> => {
+            if (runId === undefined || members === undefined) {
+                return {};
+            }
+
+            const act = (label: string, work: (session: GraphSession) => Promise<unknown>): void => {
+                const session = graphtyRef.current?.session ?? null;
+
+                if (session !== null) {
+                    work(session).then(undefined, (error: unknown) => {
+                        console.error(`[shell] the element refused to ${label}:`, error);
+                    });
+                }
+            };
+
+            if (members.kind === "groups") {
+                return {
+                    onExportGroups: () => {
+                        act("export the groups", (session) => {
+                            downloadText(groupsCsv(session, runId), "groups.csv", "text/csv");
+
+                            return Promise.resolve();
+                        });
+                    },
+                };
+            }
+
+            return {
+                members: {
+                    topLimit: DEFAULT_LIMITS.selectionCap,
+                    threshold: members.threshold,
+                    ...(members.thresholdNote === undefined ? {} : { thresholdNote: members.thresholdNote }),
+                    onSelectTop: (n) => {
+                        act("select the top", (session) => selectTop(session, runId, n));
+                    },
+                    onSelectAbove: (threshold) => {
+                        act("select above the threshold", (session) => selectAbove(session, runId, threshold));
+                    },
+                    onFilterAbove: (threshold) => {
+                        act("filter above the threshold", (session) => filterAbove(session, runId, threshold));
+                    },
+                },
+                onSelectBins: (first, last) => {
+                    act("select the brushed bars", (session) => selectBins(session, runId, members.bins, first, last));
+                },
+            };
+        },
+        [],
+    );
+
     const inspectorSelection = useMemo<InspectorSelection>(() => {
         if (selectionStatistics !== null) {
             const { nodes, edges } = selectionStatistics;
@@ -4144,6 +4249,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                       ...(current.distribution === undefined
                                           ? {}
                                           : { distribution: current.distribution }),
+                                      ...(current.runId === undefined ? {} : { runId: current.runId }),
+                                      ...(current.members === undefined ? {} : { members: current.members }),
                                   },
                         );
                         // The colours went with the layers, so the channel naming them goes too.
@@ -4159,6 +4266,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         setActiveResult(null);
                         setColourChannel([]);
                     },
+                    ...memberProps(activeResult.runId, activeResult.members),
                 },
             };
         }
@@ -4263,6 +4371,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onDeleteNote: (noteId: string) => {
                     session?.notes.remove(noteId);
                 },
+                // Done is graphty-element's own note field: one undoable step, like any edit.
+                onSetNoteDone: (noteId: string, done: boolean) => {
+                    session?.notes.update(noteId, { done });
+                },
                 onSelectNeighbor: (nodeId: string) => {
                     graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                 },
@@ -4299,6 +4411,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         graphReading,
         graphStatistics,
         layers,
+        memberProps,
         mostConnected,
         neighborsOf,
         nodeCount,
@@ -4960,6 +5073,35 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       },
                   }
                 : undefined,
+        ...(thresholdFilter === null
+            ? {}
+            : {
+                  filterStatus: {
+                      chips: [
+                          {
+                              id: "threshold",
+                              label: `${
+                                  activeResult?.runId !== undefined &&
+                                  session?.results.path(activeResult.runId) === thresholdFilter.path
+                                      ? activeResult.title
+                                      : "Result"
+                              } above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
+                          },
+                      ],
+                      controls: (
+                          <Button
+                              variant="subtle"
+                              color="gray"
+                              size="compact-xs"
+                              onClick={() => {
+                                  setEgoNetwork(null);
+                              }}
+                          >
+                              Clear
+                          </Button>
+                      ),
+                  },
+              }),
         ...(egoFilter === null
             ? {}
             : {

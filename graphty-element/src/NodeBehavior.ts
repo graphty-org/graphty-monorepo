@@ -349,7 +349,7 @@ export class NodeDragHandler {
                     );
                     return dropped;
                 },
-                { moves: true },
+                { moves: true, fact: { code: "node.drag", params: { node: this.node.id } } },
             )
             // An aborted drag rejects; the abort has already ended it.
             .catch(() => undefined);
@@ -787,7 +787,7 @@ export class NodeBehavior {
                     context.getLayoutManager().running = true;
 
                     // fetch all edges for current node
-                    const edgeSet = fetchEdges(node, graph as unknown as Graph);
+                    const edgeSet = fetchEdges(node, graph);
                     const edges = Array.from(edgeSet);
 
                     // Which keys name this batch's endpoints is decided ONCE, by the same

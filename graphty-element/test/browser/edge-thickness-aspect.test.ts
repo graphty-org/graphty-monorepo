@@ -118,6 +118,11 @@ describe("solid edge thickness on a non-square canvas", () => {
 
         assert.isAbove(horizontal, 5, "the horizontal line is drawn");
         assert.closeTo(vertical, horizontal, 1, "vertical matches horizontal");
-        assert.closeTo(diagonal, horizontal, 1, `45-degree edge ${diagonal.toFixed(2)} px vs horizontal ${horizontal.toFixed(2)} px`);
+        assert.closeTo(
+            diagonal,
+            horizontal,
+            1,
+            `45-degree edge ${diagonal.toFixed(2)} px vs horizontal ${horizontal.toFixed(2)} px`,
+        );
     });
 });

@@ -63,7 +63,8 @@ describe("JSON import of the NaN / Infinity tokens Python writes (issue 66)", ()
     it("still fails on invalid JSON, with the original parser message", async () => {
         for (const text of [
             '{"nodes":[{"id":1,"x":NaNa}]}',
-            '{NaN: 1, "nodes": []}', '{"nodes":[{"id":1}]',
+            '{NaN: 1, "nodes": []}',
+            '{"nodes":[{"id":1}]',
             // a leading zero is invalid JSON however many digits follow
             '{"nodes":[{"id":01234567890123456789}]}',
         ]) {

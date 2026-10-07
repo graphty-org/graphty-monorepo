@@ -91,3 +91,37 @@ until you turn it on. Setting it is merged over the rest of `layoutBehavior` and
 next frame. It is a preference of the view: it is not an undo step and a saved project does not keep it, so
 your page sets it again after loading one.
 Which label stays is described in [Styling](./styling#labels-that-would-overlap).
+
+## One node's label
+
+`element.labelOf(id)` returns the label of one node as the element draws it: `{ text, drawn }`, or
+`undefined` when there is no node with that id or the node has no label. Use it to check what a
+reader sees, for example in an end-to-end test or a guided tour.
+
+```typescript
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+
+await element.addNodes([{ id: "v", name: "<bold>Jean</bold> Valjean" }]);
+await element.session.styles.add({
+    name: "Names",
+    target: "node",
+    selector: { match: "has", path: "data.name" },
+    encode: { "node.label": { by: "data.name" } },
+});
+await element.waitForStableFrame(); // labels are built and placed as frames are drawn
+
+const label = element.labelOf("v");
+console.log(label?.text); // "Jean Valjean"
+console.log(label?.drawn); // true, or false when the label is hidden
+```
+
+- `text` is the words on screen: the value the label was bound to, with its markup (`<bold>`,
+  `<color='...'>`) applied, so the tags are not part of it. A label of several lines has them
+  joined with `"\n"`.
+- `drawn` is `false` when the label is not on screen because its node is hidden (a filter or the
+  time window), or because declutter hid it to avoid an overlap. Like the counts above, a label
+  outside the view still reads `drawn: true`.
+- It reads the most recent frame and never forces one, so after a change, wait for
+  `element.waitForStableFrame()` before reading it.

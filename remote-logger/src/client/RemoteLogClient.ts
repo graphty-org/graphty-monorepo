@@ -254,7 +254,9 @@ export class RemoteLogClient {
         }
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => { controller.abort(); }, this.timeoutMs);
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+        }, this.timeoutMs);
 
         try {
             const response = await fetch(`${this.serverUrl}/log`, {

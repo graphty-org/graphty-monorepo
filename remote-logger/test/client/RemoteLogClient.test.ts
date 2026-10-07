@@ -8,9 +8,9 @@ describe("RemoteLogClient", () => {
 
     beforeEach(() => {
         // Mock fetch - no real server needed for unit tests
-        fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-            new Response(JSON.stringify({ success: true }), { status: 200 }),
-        );
+        fetchSpy = vi
+            .spyOn(globalThis, "fetch")
+            .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
         // Spy on console.error to verify error logging
         consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
         vi.useFakeTimers();
@@ -230,9 +230,9 @@ describe("RemoteLogClient", () => {
 
     describe("retry", () => {
         test("should retry on network failure", async () => {
-            fetchSpy.mockRejectedValueOnce(new Error("Network error")).mockResolvedValueOnce(
-                new Response(JSON.stringify({ success: true }), { status: 200 }),
-            );
+            fetchSpy
+                .mockRejectedValueOnce(new Error("Network error"))
+                .mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
 
             const client = new RemoteLogClient({
                 serverUrl: "http://localhost:9080",
@@ -437,9 +437,9 @@ describe("RemoteLogClient", () => {
                 resolveFirst = () => resolve(new Response(JSON.stringify({ success: true }), { status: 200 }));
             });
 
-            fetchSpy.mockReturnValueOnce(slowPromise).mockResolvedValue(
-                new Response(JSON.stringify({ success: true }), { status: 200 }),
-            );
+            fetchSpy
+                .mockReturnValueOnce(slowPromise)
+                .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
 
             const client = new RemoteLogClient({
                 serverUrl: "http://localhost:9080",
@@ -839,7 +839,7 @@ describe("RemoteLogClient", () => {
                     // Simulate AbortController behavior - return a promise that
                     // rejects when the signal is aborted
                     return new Promise((_resolve, reject) => {
-                        const {signal} = (options as RequestInit);
+                        const { signal } = options as RequestInit;
                         if (signal) {
                             signal.addEventListener("abort", () => {
                                 const error = new Error("The operation was aborted");
@@ -879,9 +879,7 @@ describe("RemoteLogClient", () => {
         });
 
         test("should clear timeout on successful response", async () => {
-            fetchSpy.mockResolvedValue(
-                new Response(JSON.stringify({ success: true }), { status: 200 }),
-            );
+            fetchSpy.mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
 
             const client = new RemoteLogClient({
                 serverUrl: "http://localhost:9080",
@@ -897,9 +895,7 @@ describe("RemoteLogClient", () => {
         });
 
         test("should pass AbortSignal to fetch", async () => {
-            fetchSpy.mockResolvedValue(
-                new Response(JSON.stringify({ success: true }), { status: 200 }),
-            );
+            fetchSpy.mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
 
             const client = new RemoteLogClient({
                 serverUrl: "http://localhost:9080",

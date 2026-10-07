@@ -1,3 +1,27 @@
+## 2.2.8 (2026-10-07)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.22
+- Updated graph-format to 1.3.7
+- Updated algorithms to 3.3.7
+
+## 2.2.7 (2026-10-06)
+
+### 🩹 Fixes
+
+- **layout:** run cooling "adaptive" on the CPU Fruchterman-Reingold ([#98](https://github.com/graphty-org/graphty-monorepo/issues/98))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.21
+- Updated graph-format to 1.3.6
+- Updated algorithms to 3.3.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.6 (2026-10-05)
 
 ### 🧱 Updated Dependencies

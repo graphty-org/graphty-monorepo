@@ -26,16 +26,7 @@ export type DeclaringFormat = "gexf" | "graphml" | "gml" | "neo4j";
 
 /** How the text of one scalar value (or one list item) is parsed. */
 type ValueKind =
-    | "boolean"
-    | "integer"
-    | "long"
-    | "float"
-    | "double"
-    | "string"
-    | "temporal"
-    | "duration"
-    | "point"
-    | "json";
+    "boolean" | "integer" | "long" | "float" | "double" | "string" | "temporal" | "duration" | "point" | "json";
 
 /**
  * The resolved storage of a declared type.
@@ -367,7 +358,7 @@ export function parsePointText(text: string): Readonly<Record<string, number | s
         const key = part
             .slice(0, colon)
             .trim()
-            .replace(/^["']|["']$/g, "");
+            .replaceAll(/(?:^["'])|(?:["']$)/g, "");
         const raw = part.slice(colon + 1).trim();
         if (key.length === 0) {
             throw typeError(text, "point");

@@ -577,7 +577,7 @@ export function LoadDataModal({
                     description={getFormatDescription()}
                     value={selectedFormat}
                     onChange={(value) => {
-                        setSelectedFormat(value ? (value as FormatType) : "auto");
+                        setSelectedFormat(value ?? "auto");
                     }}
                     data={FORMAT_OPTIONS}
                     styles={{

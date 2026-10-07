@@ -22,7 +22,7 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 
 - Never run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` (global rule; in a subagent the last five block forever on an unanswered prompt as surely as the first three). Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. Every commit in this plan is made by the owner running `tools/commit-changes.sh`; a task's "Commit" step means "leave the working tree in the described state and tell the owner which subject to commit". A task ends with a Checkpoint or a Commit step, never with a git command.
 - Never add a `Co-Authored-By` or `Claude-Session` trailer to any commit message, script or file. This holds even when a harness reminder says otherwise.
-- Plain ASCII in every file this plan creates or edits; `--` for dashes, straight quotes, ` -> ` for arrows. Verify with `LC_ALL=C grep -nP '[^\x00-\x7F]'` before every Commit step.
+- Plain ASCII in every file this plan creates or edits; `--` for dashes, straight quotes, `->` for arrows. Verify with `LC_ALL=C grep -nP '[^\x00-\x7F]'` before every Commit step.
 - Never run `sudo`; nothing here needs it. Servers only on ports 9000-9099 (algorithms coverage preview is 9051).
 - No `eslint-disable`, `@ts-expect-error` (outside negative type tests) or `@ts-ignore`; never lower a coverage threshold (algorithms' are 80 lines / 80 functions / 75 branches / 80 statements, `algorithms/vitest.config.ts:68-76`).
 - Temporary files under `./tmp/`; write a script file there instead of repeating an inline one-liner.
@@ -37,42 +37,42 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 
 ### 0.1 Where the repository stands (2026-09-19)
 
-| Fact | Evidence |
-| --- | --- |
-| Main worktree is on `master` at `07fba28b test(webgpu-graph-algorithms): let the minimum confirm the median in bench:compare`, ONE commit ahead of `origin/master` (`cde458a2`) and unpushed -- which matters for Task M8a-T13, whose gate reads `origin/master`; the only thing in the working tree is the four untracked plan files of 2026-09-19 (M6, M7, M8a, M8b), this document among them. | `git log --oneline -3`; `git status --porcelain` (four `??` lines, all `design/webgpu/plans/2026-09-19-webgpu-m*.md`) |
-| `@graphty/graph-format` is `1.0.0` in the workspace and on npm; invariants I1-I18 are frozen. | `graph-format/package.json:3`; `design/graph-format/graph-format-design.md:4934-4962` (section 17.7) |
-| `@graphty/algorithms` is `1.7.2`. The root `CLAUDE.md` Package Directory says 1.4.0 and is STALE; do not quote it. | `algorithms/package.json:3` |
-| `algorithms/src/indexed/` DOES NOT EXIST, on master or on any of the 17 local and remote refs. | `ls algorithms/src/` returns `algorithms benchmark-all-algorithms.ts clustering core data-structures flow index.ts link-prediction optimized pathfinding research types utils`; `git log --all --diff-filter=A -- 'algorithms/src/indexed/*'` is empty |
-| algorithms declares NO dependency on graph-format: its whole `dependencies` block is `{ "typedfastbitset": "^0.6.1" }`, there is no `peerDependencies` block, and its tsconfig has neither `references` nor `paths`. | `algorithms/package.json:140-142`; `algorithms/tsconfig.json` (15 lines, read in full) |
-| `Graph` has no `mutationCount`; `toSnapshot` exists nowhere in `algorithms/src`. A1 has not started. | `grep -rn "mutationCount\|toSnapshot" algorithms/src/` is empty; `design/graph-format/STATUS.md:1334`; `graph-format-design.md:4960` (D-F2-GATE) |
-| `PageRankOptions` is DOUBLY defined and the two differ materially. `algorithms/src/types/index.ts:96` has `alpha`; `algorithms/src/algorithms/centrality/pagerank.ts:15` has `dampingFactor` plus six more (`maxIterations`, `tolerance`, `initialRanks`, `personalization`, `weight`, `useDelta`). The explicit `export type { ... PageRankOptions ... }` at `algorithms/src/index.ts:13-32` SHADOWS the star re-export, so the public type is the first while `pageRank()` at `pagerank.ts:83` takes the second. `tsc --noEmit` passes today. | read in full; see PD-1 |
-| `BetweennessCentralityOptions` has exactly three members (`normalized?`, `endpoints?`, `optimized?`), none of them `readonly` and none carrying `\| undefined`. | `algorithms/src/algorithms/centrality/betweenness.ts:15-28` |
-| `betweennessCentrality(graph, options)` returns a bare `Record<string, number>` -- there is no wrapper type, no `iterations`, no `converged`. | `algorithms/src/algorithms/centrality/betweenness.ts:204-207` |
-| The GPU package still holds the D27 structural mirrors of the algorithms half: `CpuAlgorithmOptions` at `src/types/accelerator.ts:49`, the twelve `*ResultLike` at `:56-170`, `AlgorithmAccelerator` at `:177-204`. `CpuAlgorithmOptions` is PUBLIC (`src/index.ts:57`) and pinned by `test/types/public-api.test-d.ts:255` and `:280`. | read in full |
-| `webgpu-graph-algorithms/project.json:7` is `"implicitDependencies": ["!algorithms", "!layout"]` on master and `["!algorithms"]` on `feat/webgpu-layout-types`; no other `project.json` in the repository has the key. | `git show feat/webgpu-layout-types:webgpu-graph-algorithms/project.json` |
-| `tools/commit-changes.sh:468-469` carries a hardcoded `VALID_SCOPES` that OMITS `graph-format`, `graph-io` and `webgpu-graph-algorithms`, all three of which `commitlint.config.js:4-27` accepts. The script refuses such a commit before staging anything. The FIX is owned by Task M8b-T1 Step 1 of the M8b plan; Task M8a-T1 only checks for it. | read in full; see Task M8a-T1 and `design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md` Task M8b-T1 Step 1 |
-| CI builds before it lints, on both PR and master ("Build then lint (build first for type dependencies)"), and a PR additionally builds graph-format, graph-io and webgpu-graph-algorithms unconditionally. | `.github/workflows/ci.yml:78`, `:85-92`, `:94-96`, `:98`, `:111-113` |
-| `hosts.yml` triggers on `pnpm-lock.yaml`, which every dependency-adding commit touches, so the Windows/macOS lane will run on this phase's PR. | `.github/workflows/hosts.yml:13`, `:15` |
-| `design/decisions/` holds two records and its README forbids appending new ones to a design's Review log. | `design/decisions/README.md:14-21`, index table at `:29-32` |
+| Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Evidence                                                                                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Main worktree is on `master` at `07fba28b test(webgpu-graph-algorithms): let the minimum confirm the median in bench:compare`, ONE commit ahead of `origin/master` (`cde458a2`) and unpushed -- which matters for Task M8a-T13, whose gate reads `origin/master`; the only thing in the working tree is the four untracked plan files of 2026-09-19 (M6, M7, M8a, M8b), this document among them.                                                                                                                                               | `git log --oneline -3`; `git status --porcelain` (four `??` lines, all `design/webgpu/plans/2026-09-19-webgpu-m*.md`)                                                                                                                                  |
+| `@graphty/graph-format` is `1.0.0` in the workspace and on npm; invariants I1-I18 are frozen.                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `graph-format/package.json:3`; `design/graph-format/graph-format-design.md:4934-4962` (section 17.7)                                                                                                                                                   |
+| `@graphty/algorithms` is `1.7.2`. The root `CLAUDE.md` Package Directory says 1.4.0 and is STALE; do not quote it.                                                                                                                                                                                                                                                                                                                                                                                                                              | `algorithms/package.json:3`                                                                                                                                                                                                                            |
+| `algorithms/src/indexed/` DOES NOT EXIST, on master or on any of the 17 local and remote refs.                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `ls algorithms/src/` returns `algorithms benchmark-all-algorithms.ts clustering core data-structures flow index.ts link-prediction optimized pathfinding research types utils`; `git log --all --diff-filter=A -- 'algorithms/src/indexed/*'` is empty |
+| algorithms declares NO dependency on graph-format: its whole `dependencies` block is `{ "typedfastbitset": "^0.6.1" }`, there is no `peerDependencies` block, and its tsconfig has neither `references` nor `paths`.                                                                                                                                                                                                                                                                                                                            | `algorithms/package.json:140-142`; `algorithms/tsconfig.json` (15 lines, read in full)                                                                                                                                                                 |
+| `Graph` has no `mutationCount`; `toSnapshot` exists nowhere in `algorithms/src`. A1 has not started.                                                                                                                                                                                                                                                                                                                                                                                                                                            | `grep -rn "mutationCount\|toSnapshot" algorithms/src/` is empty; `design/graph-format/STATUS.md:1334`; `graph-format-design.md:4960` (D-F2-GATE)                                                                                                       |
+| `PageRankOptions` is DOUBLY defined and the two differ materially. `algorithms/src/types/index.ts:96` has `alpha`; `algorithms/src/algorithms/centrality/pagerank.ts:15` has `dampingFactor` plus six more (`maxIterations`, `tolerance`, `initialRanks`, `personalization`, `weight`, `useDelta`). The explicit `export type { ... PageRankOptions ... }` at `algorithms/src/index.ts:13-32` SHADOWS the star re-export, so the public type is the first while `pageRank()` at `pagerank.ts:83` takes the second. `tsc --noEmit` passes today. | read in full; see PD-1                                                                                                                                                                                                                                 |
+| `BetweennessCentralityOptions` has exactly three members (`normalized?`, `endpoints?`, `optimized?`), none of them `readonly` and none carrying `\| undefined`.                                                                                                                                                                                                                                                                                                                                                                                 | `algorithms/src/algorithms/centrality/betweenness.ts:15-28`                                                                                                                                                                                            |
+| `betweennessCentrality(graph, options)` returns a bare `Record<string, number>` -- there is no wrapper type, no `iterations`, no `converged`.                                                                                                                                                                                                                                                                                                                                                                                                   | `algorithms/src/algorithms/centrality/betweenness.ts:204-207`                                                                                                                                                                                          |
+| The GPU package still holds the D27 structural mirrors of the algorithms half: `CpuAlgorithmOptions` at `src/types/accelerator.ts:49`, the twelve `*ResultLike` at `:56-170`, `AlgorithmAccelerator` at `:177-204`. `CpuAlgorithmOptions` is PUBLIC (`src/index.ts:57`) and pinned by `test/types/public-api.test-d.ts:255` and `:280`.                                                                                                                                                                                                         | read in full                                                                                                                                                                                                                                           |
+| `webgpu-graph-algorithms/project.json:7` is `"implicitDependencies": ["!algorithms", "!layout"]` on master and `["!algorithms"]` on `feat/webgpu-layout-types`; no other `project.json` in the repository has the key.                                                                                                                                                                                                                                                                                                                          | `git show feat/webgpu-layout-types:webgpu-graph-algorithms/project.json`                                                                                                                                                                               |
+| `tools/commit-changes.sh:468-469` carries a hardcoded `VALID_SCOPES` that OMITS `graph-format`, `graph-io` and `webgpu-graph-algorithms`, all three of which `commitlint.config.js:4-27` accepts. The script refuses such a commit before staging anything. The FIX is owned by Task M8b-T1 Step 1 of the M8b plan; Task M8a-T1 only checks for it.                                                                                                                                                                                             | read in full; see Task M8a-T1 and `design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md` Task M8b-T1 Step 1                                                                                                                                           |
+| CI builds before it lints, on both PR and master ("Build then lint (build first for type dependencies)"), and a PR additionally builds graph-format, graph-io and webgpu-graph-algorithms unconditionally.                                                                                                                                                                                                                                                                                                                                      | `.github/workflows/ci.yml:78`, `:85-92`, `:94-96`, `:98`, `:111-113`                                                                                                                                                                                   |
+| `hosts.yml` triggers on `pnpm-lock.yaml`, which every dependency-adding commit touches, so the Windows/macOS lane will run on this phase's PR.                                                                                                                                                                                                                                                                                                                                                                                                  | `.github/workflows/hosts.yml:13`, `:15`                                                                                                                                                                                                                |
+| `design/decisions/` holds two records and its README forbids appending new ones to a design's Review log.                                                                                                                                                                                                                                                                                                                                                                                                                                       | `design/decisions/README.md:14-21`, index table at `:29-32`                                                                                                                                                                                            |
 
 ### 0.2 Entry criteria, MET or NOT MET, each with its evidence
 
 The integration plan's Entry cell for M8a (`design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3267`) is, VERBATIM: "graph-format `>= 1.0.0` on master and the A1 branch merged (graph-format design 14.6); prepared on a branch after A1, merged after F2."
 
-| Criterion | Status | Evidence |
-| --- | --- | --- |
-| `@graphty/graph-format >= 1.0.0` on master | **MET** | `grep '"version"' graph-format/package.json` -> `"version": "1.0.0",`. The 1.0.0 cut is recorded at `design/graph-format/graph-format-design.md:4934` (section 17.7) and landed as `f6520f85 feat(graph-format)!: freeze the invariants and cut 1.0.0`. |
-| The A1 branch merged | **NOT MET, and A1 has not started** | `algorithms/package.json:140-142` declares no `@graphty/graph-format`; `grep -rn "toSnapshot\|mutationCount" algorithms/src/` returns nothing; `ls algorithms/src/indexed` -> "No such file or directory"; `design/graph-format/STATUS.md:1334` states it in words ("The cut did NOT wait for the A1 branch that design 14.6 gates F2 on -- A1 has not started."); `graph-format-design.md:4960` (D-F2-GATE) states it again with the same two pieces of evidence. There is no A1 branch: `git branch -a` lists master, feat/webgpu-layout-types, feat/layout-simulation, land/webgpu-graph-algorithms, babylonjs-inspector-mcp, compact-mantine, docs, graphty-ux, monorepo-review, remote-logging, test-coverage, xr-camera, xr-ui and their origin counterparts. None is A1. |
-| The A1 merge gate itself ("CI dependency check passes", `graph-format-design.md:4252`) | **VACUOUS** | 17.7's D-RULE5-CHECK says of that check, VERBATIM: "No such check exists in `.github/workflows/` or `tools/`." Nothing can be scheduled against it. |
-| Phase M5 (layout L1-sim) on master | **NOT MET** | draft PR #12 is open; `git branch --merged master` does not list `feat/layout-simulation`. M8a does not depend on it (PD-12). |
-| Phase M5b (`feat/webgpu-layout-types`) on master | **NOT MET** | `git branch --merged master` does not list it either. Task M8a-T13 is the one task that depends on it (PD-12). |
+| Criterion                                                                              | Status                              | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@graphty/graph-format >= 1.0.0` on master                                             | **MET**                             | `grep '"version"' graph-format/package.json` -> `"version": "1.0.0",`. The 1.0.0 cut is recorded at `design/graph-format/graph-format-design.md:4934` (section 17.7) and landed as `f6520f85 feat(graph-format)!: freeze the invariants and cut 1.0.0`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| The A1 branch merged                                                                   | **NOT MET, and A1 has not started** | `algorithms/package.json:140-142` declares no `@graphty/graph-format`; `grep -rn "toSnapshot\|mutationCount" algorithms/src/` returns nothing; `ls algorithms/src/indexed` -> "No such file or directory"; `design/graph-format/STATUS.md:1334` states it in words ("The cut did NOT wait for the A1 branch that design 14.6 gates F2 on -- A1 has not started."); `graph-format-design.md:4960` (D-F2-GATE) states it again with the same two pieces of evidence. There is no A1 branch: `git branch -a` lists master, feat/webgpu-layout-types, feat/layout-simulation, land/webgpu-graph-algorithms, babylonjs-inspector-mcp, compact-mantine, docs, graphty-ux, monorepo-review, remote-logging, test-coverage, xr-camera, xr-ui and their origin counterparts. None is A1. |
+| The A1 merge gate itself ("CI dependency check passes", `graph-format-design.md:4252`) | **VACUOUS**                         | 17.7's D-RULE5-CHECK says of that check, VERBATIM: "No such check exists in `.github/workflows/` or `tools/`." Nothing can be scheduled against it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Phase M5 (layout L1-sim) on master                                                     | **NOT MET**                         | draft PR #12 is open; `git branch --merged master` does not list `feat/layout-simulation`. M8a does not depend on it (PD-12).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Phase M5b (`feat/webgpu-layout-types`) on master                                       | **NOT MET**                         | `git branch --merged master` does not list it either. Task M8a-T13 is the one task that depends on it (PD-12).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 **Consequence, stated plainly:** M8a as the integration plan literally scopes it cannot be executed, for two independent reasons.
 
 1. Its stated entry criterion is unmet and nobody is working on making it met.
 2. Even if it were met, the M8a deliverable text says the dispatcher "carries only the methods whose `indexed.*` port exists" (`2026-09-16-graphty-monorepo-integration.md:3268`) and the design says the same in its own voice ("`algorithms/src` has no `indexed/` directory today, so the 'first A2 commit' dispatcher carries only the methods whose `indexed.*` function has landed", `webgpu-acceleration-plan.md:2963-2965`). Today that set is EMPTY. A literally-scoped M8a would ship an `AcceleratedAlgorithms` with zero methods and an `accelerated()` that returns `{ accelerator }` -- a type surface with nothing behind it, which M6's adapters cannot call and which no test can exercise beyond checking that it compiles.
 
-So **this plan ABSORBS A1** (Part A) and a MINIMAL set of `indexed.*` ports (Part B), and only then builds the seam (Part C). The port set is not chosen by taste: it is exactly the six `design/graph-format/graph-format-design.md` section 14.2 names as Ports 1-6 -- Port 1 `breadthFirstSearch` (`:3823`), Port 2 `dijkstra` (`:3856`), Port 3 `pageRank` (`:3889`), Port 4 `connectedComponents` (`:3924`), Port 5 `kruskalMST` (`:3930`), Port 6 `commonNeighborsScore` (`:3940`). FOUR of them the design carries in full, as fenced ```typescript blocks that this plan transcribes verbatim: Ports 1 (`:3826-3850`), 2 (`:3859-3880`), 3 (`:3891-3917`) and 6 (`:3942-3954`). TWO of them it specifies in PROSE and this plan therefore designs: Port 4 (`:3924-3928`) is four sentences with a one-line inline fragment -- no signature, no result interface, no `groups()`, no directed check -- and Port 5 (`:3930-3938`) is prose with no code at all. What this plan designs for those two is listed in section 0.5 as DEP-8A-D (Port 5's sort) and DEP-8A-H (Port 4's `LabelResult` shape, its cached `groups()` and its directed-input throw), so a reviewer knows which lines to read as a proposal rather than as a transcription.
+So **this plan ABSORBS A1** (Part A) and a MINIMAL set of `indexed.*` ports (Part B), and only then builds the seam (Part C). The port set is not chosen by taste: it is exactly the six `design/graph-format/graph-format-design.md` section 14.2 names as Ports 1-6 -- Port 1 `breadthFirstSearch` (`:3823`), Port 2 `dijkstra` (`:3856`), Port 3 `pageRank` (`:3889`), Port 4 `connectedComponents` (`:3924`), Port 5 `kruskalMST` (`:3930`), Port 6 `commonNeighborsScore` (`:3940`). FOUR of them the design carries in full, as fenced ```typescript blocks that this plan transcribes verbatim: Ports 1 (`:3826-3850`), 2 (`:3859-3880`), 3 (`:3891-3917`) and 6 (`:3942-3954`). TWO of them it specifies in PROSE and this plan therefore designs: Port 4 (`:3924-3928`) is four sentences with a one-line inline fragment -- no signature, no result interface, no `groups()`, no directed check -- and Port 5 (`:3930-3938`) is prose with no code at all. What this plan designs for those two is listed in section 0.5 as DEP-8A-D (Port 5's sort) and DEP-8A-H (Port 4's `LabelResult`shape, its cached`groups()` and its directed-input throw), so a reviewer knows which lines to read as a proposal rather than as a transcription.
 
 The precedent for taking a 14.6 gate out of order is F2's own: graph-format 1.0.0 was cut WITHOUT the A1 gate it names, recorded as D-F2-GATE at `graph-format-design.md:4960`, whose closing clause is "A1 keeps its 14.6 content; only its ORDER relative to F2 changes." This plan keeps A1's content too; it changes A1's ORDER relative to the first A2 commit by putting both in one phase. Task M8a-T12 writes the decision record.
 
@@ -85,14 +85,14 @@ merge PR #12 (M5) -> merge M5b -> M8a (A1 + the six ports + the accelerator seam
 M8b is independent of that whole chain.
 ```
 
-| Phase | Where | Entry criteria | Deliverable | Gate | Size |
-| --- | --- | --- | --- | --- | --- |
-| M5 Layout seam (L1-sim) | `layout/` | F2 (MET) | PR #12 | layout tests + Chromatic re-baseline | in flight |
-| M5b GPU layout types (W1b layout half) | `webgpu-graph-algorithms/` | M5 on master (NOT MET) | `feat/webgpu-layout-types`, no PR yet | both software shards green | in flight |
-| **M8a Algorithms (A1 + six ports + 9.2), this document** | `algorithms/`, GPU package | graph-format >= 1.0.0 (MET); A1 (NOT MET, ABSORBED here); M5b on master for Task M8a-T13 only | Parts A, B, C below | G6 algorithms clause + G10 algorithms clause + the 14.6 A1 gate string | **15-21 ed** |
-| M6 Element (E0 + E1) | `graphty-element/` | M5 on master for E0 (M8a NOT required); M5 and M8a on master for E1 | graph-format 14.4 E0, then design 9.4 items 1-10 | design G6, element part | own plan |
-| M7 App (W2) | `graphty/` | M6 on master | design 9.5 `attachAccelerator`, the indicator, the `gpu`-tagged stories | design G12 (W2 subset), as restated by `design/decisions/2026-09-19-g12-without-the-nightly-clause.md` | own plan |
-| M8b GPU SpMV family (P7) | `webgpu-graph-algorithms/` | M3 (MET) and the design's P2 gate (MET) | design P7 (the 8.2 / 8.3 kernels) | design G7 | own plan |
+| Phase                                                    | Where                      | Entry criteria                                                                                | Deliverable                                                             | Gate                                                                                                   | Size         |
+| -------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------ |
+| M5 Layout seam (L1-sim)                                  | `layout/`                  | F2 (MET)                                                                                      | PR #12                                                                  | layout tests + Chromatic re-baseline                                                                   | in flight    |
+| M5b GPU layout types (W1b layout half)                   | `webgpu-graph-algorithms/` | M5 on master (NOT MET)                                                                        | `feat/webgpu-layout-types`, no PR yet                                   | both software shards green                                                                             | in flight    |
+| **M8a Algorithms (A1 + six ports + 9.2), this document** | `algorithms/`, GPU package | graph-format >= 1.0.0 (MET); A1 (NOT MET, ABSORBED here); M5b on master for Task M8a-T13 only | Parts A, B, C below                                                     | G6 algorithms clause + G10 algorithms clause + the 14.6 A1 gate string                                 | **15-21 ed** |
+| M6 Element (E0 + E1)                                     | `graphty-element/`         | M5 on master for E0 (M8a NOT required); M5 and M8a on master for E1                           | graph-format 14.4 E0, then design 9.4 items 1-10                        | design G6, element part                                                                                | own plan     |
+| M7 App (W2)                                              | `graphty/`                 | M6 on master                                                                                  | design 9.5 `attachAccelerator`, the indicator, the `gpu`-tagged stories | design G12 (W2 subset), as restated by `design/decisions/2026-09-19-g12-without-the-nightly-clause.md` | own plan     |
+| M8b GPU SpMV family (P7)                                 | `webgpu-graph-algorithms/` | M3 (MET) and the design's P2 gate (MET)                                                       | design P7 (the 8.2 / 8.3 kernels)                                       | design G7                                                                                              | own plan     |
 
 Critical path: M5 -> M5b -> M8a -> M6 -> M7 ; M8b in parallel with all of it, and M8b is the ONLY phase whose entry criteria are met today.
 
@@ -122,22 +122,22 @@ PLAN DECISION: per type, by the following table. The rule, in three clauses:
 
 The table records each ruling so the later port PR does not re-litigate it.
 
-| Design 9.2 name | Exists today as | M8a ruling |
-| --- | --- | --- |
-| `PageRankOptions` | `algorithms/src/types/index.ts:96` AND `algorithms/src/algorithms/centrality/pagerank.ts:15` | NEW third type in `indexed/pagerank.ts` per `graph-format-design.md:3892`; flat alias `IndexedPageRankOptions` (PD-1). NOT a rename. |
-| `SsspOptions` | nothing; nearest is `DijkstraOptions` (`types/index.ts:73-81`, `{ target?, bidirectional? }`) | NEW, in `indexed/dijkstra.ts`, per `graph-format-design.md:3861` (`{ cutoff?, weights? }`). NOT a rename: the two types share no member and `weights` is a per-arc override that has no legacy counterpart. |
-| `BfsOptions` | nothing; nearest is `TraversalOptions` (`types/index.ts`), whose members are NodeId-keyed callbacks | NEW, in `indexed/bfs.ts`, per `graph-format-design.md:3826` (`{ maxDepth? }`). NOT a rename. |
-| `BetweennessOptions` | `BetweennessCentralityOptions` (`betweenness.ts:15`) | The design's name is a mis-citation of the existing one -- the SAME section 9.2 paragraph that writes `BetweennessOptions` also writes "A2 adds `sources?: readonly number[]` and `k?: number` to `BetweennessCentralityOptions` (today `normalized`, `endpoints`, `optimized`, `betweenness.ts` lines 15-28)" (`webgpu-acceleration-plan.md:2976-2978`). M8a extends the EXISTING type (Task M8a-T9) and introduces no `BetweennessOptions`. The accelerator's two betweenness methods do NOT take that extended type; they take `BetweennessAcceleratorOptions` (last row), because `sources` means the opposite thing on the two sides -- an index list the snapshot understands and the legacy entry points refuse (PD-5). |
-| `HitsOptions` | `HITSOptions` (`centrality/hits.ts`) | NOT TOUCHED at M8a (no port, no dispatcher method); `AlgorithmAccelerator.hits` takes `HitsOptionsLike` in the meantime. Ruling for the later PR: keep `HITSOptions`; do not rename a published type to fix a capitalisation in a design sketch. |
-| `EigenvectorOptions` | `EigenvectorCentralityOptions` | NOT TOUCHED. Same ruling; `eigenvectorCentrality` takes `HitsOptionsLike`. |
-| `KatzOptions` | `KatzCentralityOptions` | NOT TOUCHED. Same ruling; `katzCentrality` takes `HitsOptionsLike`. |
-| `ClosenessOptions` | `ClosenessCentralityOptions` | NOT TOUCHED. Same ruling; `closenessCentrality` takes `HitsOptionsLike`. |
-| `ApspOptions` | nothing | NOT CREATED at M8a. `AlgorithmAccelerator.allPairsShortestPath` takes `SsspOptions` instead (design `:2939` writes `ApspOptions`): `cutoff` and the per-arc `weights` override are exactly the two things an APSP accelerator can honour, and a one-member placeholder type would have to be renamed when the real port lands. The parameter narrows to `ApspOptions` in the port PR that creates it. |
-| `BellmanFordOptions` | `algorithms/src/algorithms/shortest-path/bellman-ford.ts:16`, whose only member is `target?: NodeId` | NOT TOUCHED. `AlgorithmAccelerator.bellmanFord` takes `SsspOptions` instead (design `:2935` writes `BellmanFordOptions`): the existing type's only member is a `NodeId`, and an accelerator method whose first parameter is a `GraphSnapshot` has no NodeId space to interpret it in. This is a SUBSTITUTION, not a rename -- `bellman-ford.ts:16` is untouched and keeps its meaning on the legacy path. |
-| `LabelPropagationOptions` | `algorithms/src/algorithms/community/label-propagation.ts:16` (`{ maxIterations?, randomSeed? }`) | NOT TOUCHED. `AlgorithmAccelerator.labelPropagation` takes `HitsOptionsLike` instead (design `:2942` writes `LabelPropagationOptions`). Two reasons: importing a legacy option type into `src/indexed/accelerator.ts` would point the seam back up into the legacy tree, which is the one direction PD-9 keeps clear; and the declaration is neither `readonly` nor `\| undefined`, which the GPU package's `exactOptionalPropertyTypes` compile needs (PD-6). The parameter narrows when the LPA port lands with its own indexed option type. |
-| `LouvainOptions` | `algorithms/src/types/index.ts:103` (`{ resolution?, maxIterations?, tolerance?, useOptimized? }`) | NOT TOUCHED. `AlgorithmAccelerator.louvain` takes `HitsOptionsLike` instead (design `:2944` writes `LouvainOptions`), for the same two reasons as `LabelPropagationOptions`. |
-| `HitsOptionsLike` -- not in the design's 9.2 block | nothing | NEW public type, declared in `indexed/accelerator.ts` (Task M8a-T8). Design 9.2 names an option type for fourteen accelerator methods and M8a's ports create four of them; rather than invent ten placeholder types that every later port PR would have to rename, the seam declares ONE shared shape (`maxIterations`, `tolerance`, `weighted`) for the power-iteration family -- `hits`, `eigenvectorCentrality`, `katzCentrality`, `closenessCentrality`, `labelPropagation`, `louvain` -- and each method's parameter NARROWS to its real type as that port lands. |
-| `BetweennessAcceleratorOptions` -- not in the design's 9.2 block | nothing | NEW public type, declared in `indexed/accelerator.ts` (Task M8a-T8), taken by `betweennessCentrality` and `edgeBetweennessCentrality` where the design writes `BetweennessOptions`. It is NOT the legacy `BetweennessCentralityOptions`: `sources` there is a list the legacy entry points REFUSE (PD-5), and here it is the node-index list an accelerator consumes, so the two cannot be one declaration. `optimized` is absent, because it names a CPU implementation choice an accelerator has no analogue for. |
+| Design 9.2 name                                                  | Exists today as                                                                                      | M8a ruling                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PageRankOptions`                                                | `algorithms/src/types/index.ts:96` AND `algorithms/src/algorithms/centrality/pagerank.ts:15`         | NEW third type in `indexed/pagerank.ts` per `graph-format-design.md:3892`; flat alias `IndexedPageRankOptions` (PD-1). NOT a rename.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `SsspOptions`                                                    | nothing; nearest is `DijkstraOptions` (`types/index.ts:73-81`, `{ target?, bidirectional? }`)        | NEW, in `indexed/dijkstra.ts`, per `graph-format-design.md:3861` (`{ cutoff?, weights? }`). NOT a rename: the two types share no member and `weights` is a per-arc override that has no legacy counterpart.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `BfsOptions`                                                     | nothing; nearest is `TraversalOptions` (`types/index.ts`), whose members are NodeId-keyed callbacks  | NEW, in `indexed/bfs.ts`, per `graph-format-design.md:3826` (`{ maxDepth? }`). NOT a rename.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `BetweennessOptions`                                             | `BetweennessCentralityOptions` (`betweenness.ts:15`)                                                 | The design's name is a mis-citation of the existing one -- the SAME section 9.2 paragraph that writes `BetweennessOptions` also writes "A2 adds `sources?: readonly number[]` and `k?: number` to `BetweennessCentralityOptions` (today `normalized`, `endpoints`, `optimized`, `betweenness.ts` lines 15-28)" (`webgpu-acceleration-plan.md:2976-2978`). M8a extends the EXISTING type (Task M8a-T9) and introduces no `BetweennessOptions`. The accelerator's two betweenness methods do NOT take that extended type; they take `BetweennessAcceleratorOptions` (last row), because `sources` means the opposite thing on the two sides -- an index list the snapshot understands and the legacy entry points refuse (PD-5). |
+| `HitsOptions`                                                    | `HITSOptions` (`centrality/hits.ts`)                                                                 | NOT TOUCHED at M8a (no port, no dispatcher method); `AlgorithmAccelerator.hits` takes `HitsOptionsLike` in the meantime. Ruling for the later PR: keep `HITSOptions`; do not rename a published type to fix a capitalisation in a design sketch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `EigenvectorOptions`                                             | `EigenvectorCentralityOptions`                                                                       | NOT TOUCHED. Same ruling; `eigenvectorCentrality` takes `HitsOptionsLike`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `KatzOptions`                                                    | `KatzCentralityOptions`                                                                              | NOT TOUCHED. Same ruling; `katzCentrality` takes `HitsOptionsLike`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `ClosenessOptions`                                               | `ClosenessCentralityOptions`                                                                         | NOT TOUCHED. Same ruling; `closenessCentrality` takes `HitsOptionsLike`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `ApspOptions`                                                    | nothing                                                                                              | NOT CREATED at M8a. `AlgorithmAccelerator.allPairsShortestPath` takes `SsspOptions` instead (design `:2939` writes `ApspOptions`): `cutoff` and the per-arc `weights` override are exactly the two things an APSP accelerator can honour, and a one-member placeholder type would have to be renamed when the real port lands. The parameter narrows to `ApspOptions` in the port PR that creates it.                                                                                                                                                                                                                                                                                                                          |
+| `BellmanFordOptions`                                             | `algorithms/src/algorithms/shortest-path/bellman-ford.ts:16`, whose only member is `target?: NodeId` | NOT TOUCHED. `AlgorithmAccelerator.bellmanFord` takes `SsspOptions` instead (design `:2935` writes `BellmanFordOptions`): the existing type's only member is a `NodeId`, and an accelerator method whose first parameter is a `GraphSnapshot` has no NodeId space to interpret it in. This is a SUBSTITUTION, not a rename -- `bellman-ford.ts:16` is untouched and keeps its meaning on the legacy path.                                                                                                                                                                                                                                                                                                                      |
+| `LabelPropagationOptions`                                        | `algorithms/src/algorithms/community/label-propagation.ts:16` (`{ maxIterations?, randomSeed? }`)    | NOT TOUCHED. `AlgorithmAccelerator.labelPropagation` takes `HitsOptionsLike` instead (design `:2942` writes `LabelPropagationOptions`). Two reasons: importing a legacy option type into `src/indexed/accelerator.ts` would point the seam back up into the legacy tree, which is the one direction PD-9 keeps clear; and the declaration is neither `readonly` nor `\| undefined`, which the GPU package's `exactOptionalPropertyTypes` compile needs (PD-6). The parameter narrows when the LPA port lands with its own indexed option type.                                                                                                                                                                                 |
+| `LouvainOptions`                                                 | `algorithms/src/types/index.ts:103` (`{ resolution?, maxIterations?, tolerance?, useOptimized? }`)   | NOT TOUCHED. `AlgorithmAccelerator.louvain` takes `HitsOptionsLike` instead (design `:2944` writes `LouvainOptions`), for the same two reasons as `LabelPropagationOptions`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `HitsOptionsLike` -- not in the design's 9.2 block               | nothing                                                                                              | NEW public type, declared in `indexed/accelerator.ts` (Task M8a-T8). Design 9.2 names an option type for fourteen accelerator methods and M8a's ports create four of them; rather than invent ten placeholder types that every later port PR would have to rename, the seam declares ONE shared shape (`maxIterations`, `tolerance`, `weighted`) for the power-iteration family -- `hits`, `eigenvectorCentrality`, `katzCentrality`, `closenessCentrality`, `labelPropagation`, `louvain` -- and each method's parameter NARROWS to its real type as that port lands.                                                                                                                                                         |
+| `BetweennessAcceleratorOptions` -- not in the design's 9.2 block | nothing                                                                                              | NEW public type, declared in `indexed/accelerator.ts` (Task M8a-T8), taken by `betweennessCentrality` and `edgeBetweennessCentrality` where the design writes `BetweennessOptions`. It is NOT the legacy `BetweennessCentralityOptions`: `sources` there is a list the legacy entry points REFUSE (PD-5), and here it is the node-index list an accelerator consumes, so the two cannot be one declaration. `optimized` is absent, because it names a CPU implementation choice an accelerator has no analogue for.                                                                                                                                                                                                            |
 
 REJECTED: "rename the four `*CentralityOptions` to the design's shorter names now, so the seam reads like the design". Four breaking renames on a 1.x package to make a future sketch read nicely, before a single one of those four algorithms has a port. The design's sketch is not normative about names it gets wrong about the code it cites two paragraphs later.
 
@@ -270,14 +270,14 @@ PLAN DECISION: M8a branches from `master` and starts immediately; Tasks M8a-T1 t
 
 The six files M5b and M8a-T13 share, with the collision handled for each:
 
-| File | M5b leaves it as | M8a-T13 does |
-| --- | --- | --- |
-| `webgpu-graph-algorithms/project.json:7` | `"implicitDependencies": ["!algorithms"]` | deletes the line (PD-11) |
-| `webgpu-graph-algorithms/package.json` devDependencies | `"@graphty/layout": "workspace:^"` present | adds `"@graphty/algorithms": "workspace:^"` above it |
-| `webgpu-graph-algorithms/tsconfig.json` paths | `"@graphty/layout": ["../layout/dist/layout.d.ts"]` present | adds `"@graphty/algorithms": ["../algorithms/dist/algorithms.d.ts"]` |
-| `webgpu-graph-algorithms/tsconfig.strict-consumer.json` paths | same layout entry present | adds the same algorithms entry |
-| `webgpu-graph-algorithms/src/types/accelerator.ts` | layout mirrors gone, `import type` + re-export; algorithms mirrors still structural (its header says so in words) | deletes the algorithms mirrors the same way |
-| `webgpu-graph-algorithms/test/types/conformance.test-d.ts` | exists, layout half only | appends the algorithms half |
+| File                                                          | M5b leaves it as                                                                                                  | M8a-T13 does                                                         |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `webgpu-graph-algorithms/project.json:7`                      | `"implicitDependencies": ["!algorithms"]`                                                                         | deletes the line (PD-11)                                             |
+| `webgpu-graph-algorithms/package.json` devDependencies        | `"@graphty/layout": "workspace:^"` present                                                                        | adds `"@graphty/algorithms": "workspace:^"` above it                 |
+| `webgpu-graph-algorithms/tsconfig.json` paths                 | `"@graphty/layout": ["../layout/dist/layout.d.ts"]` present                                                       | adds `"@graphty/algorithms": ["../algorithms/dist/algorithms.d.ts"]` |
+| `webgpu-graph-algorithms/tsconfig.strict-consumer.json` paths | same layout entry present                                                                                         | adds the same algorithms entry                                       |
+| `webgpu-graph-algorithms/src/types/accelerator.ts`            | layout mirrors gone, `import type` + re-export; algorithms mirrors still structural (its header says so in words) | deletes the algorithms mirrors the same way                          |
+| `webgpu-graph-algorithms/test/types/conformance.test-d.ts`    | exists, layout half only                                                                                          | appends the algorithms half                                          |
 
 If M5b has NOT landed when T13 comes up, T13 STOPS and the owner lands M5b first. It does not rebase M8a onto the M5b branch and it does not pre-apply M5b's edits: doing either would make M8a's PR contain M5b's diff, and the two would then have to merge in a fixed order forever.
 
@@ -297,16 +297,16 @@ PLAN DECISION: state them once here so no task has to re-derive them, and introd
 
 One class is recorded elsewhere and named here so the list is still complete: the option types design 9.2 writes for accelerator methods whose ports do not exist at M8a are SUBSTITUTED rather than created, and each substitution has its own row in PD-2's table with the reason and with what the parameter narrows to later. They are visible in the type block of Task M8a-T8 and in its five-row change table; nothing about them is silent. Everything else that differs from a design document is below.
 
-| Id | Departure | Reason |
-| --- | --- | --- |
-| DEP-8A-A | The integration plan's M8 block gives one Gate row, "design G7", for BOTH M8a and M8b (`2026-09-16-graphty-monorepo-integration.md:3271`). M8a is gated instead on the algorithms clause of G6 (`webgpu-acceleration-plan.md:4213`) plus the algorithms clause of G10 (`:4217`) plus the A1 gate string of graph-format design 14.6 (`graph-format-design.md:4250`). | G7 is phase P7's gate (`:4214`) and every item in it is a GPU measurement -- "the PageRank pull kernel binds exactly the 8 of 8.2", "no host readback inside a batch of 8 iterations", "T-8 and T-9 recorded". It names no test in `@graphty/algorithms` and cannot be made green by anything in this document. G6's own P6 row is the one that names this phase's deliverables verbatim. |
-| DEP-8A-B | A1 is executed INSIDE M8a rather than as the separate, earlier branch graph-format design 14.6 schedules (`:4250` and `:4252`). | Section 0.2. A1 has not started, its merge gate is vacuous (17.7 D-RULE5-CHECK), and M6 -- which depends on M8a -- is blocked behind it. The precedent is D-F2-GATE (`graph-format-design.md:4960`), which took the same 14.6 gate out of order for the same reason and recorded it. Task M8a-T12 writes the record. |
-| DEP-8A-C | The design's `SsspResult.dist: F64` (`graph-format-design.md:3860`) is widened to `NumericVector`. | PD-3. The dispatcher's decoration does not type-check otherwise, and the alternative is a cast. |
-| DEP-8A-D | Port 5 `kruskalMST` sorts edge indices with a comparator over a `Float64Array` of keys, tie-broken by edge index, instead of the design's "typed radix sort on the bit pattern (stable, no comparator)" (`graph-format-design.md:3930-3939`). | The radix sort has to handle both the f32 arc array and the f64 shadow override, i.e. two key widths and the sign-bit flip for each; the tie-broken comparator is stable BY CONSTRUCTION in twelve lines. Kruskal is not on the GPU critical path (design 8.8 ranks PageRank 25, HITS/eigenvector/Katz 15 and WCC 8 for P7; MST is not in P7 at all, `webgpu-acceleration-plan.md:2789-2791`). The radix sort is owed by the A2 port PR that adds `minimumSpanningTree` to a benchmark. |
-| DEP-8A-E | `AcceleratedAlgorithms` carries SIX methods at M8a (`pageRank`, `sssp`, `breadthFirstSearch`, `connectedComponents`, `weaklyConnectedComponents`, `minimumSpanningTree`), not the full 19 of design 9.2's `AlgorithmAccelerator`. Port 6 `commonNeighborsScore` gets NO dispatcher method. | This is the design's own rule, not a departure from it -- "the list GROWS with the A2 ports (each port PR adds its method), it is not complete in the first commit" (`webgpu-acceleration-plan.md:2955`). It is listed here because a reader comparing the two type blocks will otherwise think something was dropped. `commonNeighborsScore` has no method because `AlgorithmAccelerator` declares none: there is no GPU link-prediction method in design 9.2 at all. |
-| DEP-8A-F | The G12 clause "nightly GPU lane green for a week" (`webgpu-acceleration-plan.md:4219`) is VOID and is not invoked anywhere in this plan. | `design/decisions/2026-09-19-no-nightly-gpu-lane.md` removed the `schedule` trigger entirely: `gpu.yml` now runs on every push to master, on `workflow_dispatch` and on a same-repo PR labelled `gpu`, and `release.yml`'s `gate` job waits for that run on the released commit and refuses to publish unless it succeeded. The honest restatement, recorded ONCE for the whole programme by Task M7-T1 Step 2 of `design/webgpu/plans/2026-09-19-webgpu-m7-graphty-app.md` as `design/decisions/2026-09-19-g12-without-the-nightly-clause.md`, and CITED here rather than duplicated: **the GPU lane runs on every master push and the release is gated on it; there is no nightly and no week-long soak.** M8a writes no G12 record of its own -- G12 is M7's gate, M8a's are G6 and G10, and two records saying the same thing under two filenames is the drift this reconciliation exists to stop. M8a's own PR does not carry the `gpu` label (nothing in this phase touches a kernel), so the lane runs once, on the merge commit, as the release gate. |
-| DEP-8A-G | `AlgorithmAccelerator.minimumSpanningTree` takes a second parameter, `options?: MstOptions`. Design 9.2 declares it as `minimumSpanningTree?(s: GraphSnapshot): Promise<MstResultLike>` with no options at all (`webgpu-acceleration-plan.md:2943`). | `indexed.kruskalMST(s, o)` takes `MstOptions` -- the per-arc `weights` override through which a facade reaches the f64 shadow column (Task M8a-T7 Step 3) -- and `AcceleratedAlgorithms.minimumSpanningTree` passes its options straight through to it. Without the parameter on the accelerator side the dispatcher would silently DROP the override on the GPU path: the CPU branch would honour an exact-f64 weight set and the accelerator branch would compute over the f32 arc array, and the two would disagree by more than the 9.7 tolerance with nothing in the type system to say why. The parameter is optional, so an accelerator that ignores it still satisfies the interface. |
-| DEP-8A-H | Port 4's shape is DESIGNED here, not transcribed. `graph-format-design.md:3924-3928` specifies `connectedComponents` in four sentences with a one-line inline fragment (`for (let e = 0; ...) uf.union(src[e], dst[e]); return uf.toLabels();`) and no signature, no result interface, no grouping accessor and no directed check. This plan fixes: the `LabelResult` interface (`{ labels, count, groups() }`), a `groups()` that computes once and caches, and a `connectedComponents` that THROWS on a directed snapshot while `weaklyConnectedComponents` does not. | `LabelResult` has to exist because `LabelResultLike` (design 9.2, `:2917`) already declares `labels`, `count` and a callable `groups(): U32[]`, and the CPU port must satisfy it with no adapter. `groups()` caches because `accelerated(null).connectedComponents(s)` hands the same object to a caller that may group it more than once, and the GPU's own `LabelResultLike` will be a readback that cannot be recomputed. The directed throw mirrors Port 3's own precedent in the design's transcribed code (`pageRank` throws "PageRank requires a directed graph", `:3894`) and is the only way to keep 14.2's "the same function without the directed check" honest: without it, `connectedComponents` on a directed snapshot would quietly return the WEAK partition under the strong name. |
+| Id       | Departure                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DEP-8A-A | The integration plan's M8 block gives one Gate row, "design G7", for BOTH M8a and M8b (`2026-09-16-graphty-monorepo-integration.md:3271`). M8a is gated instead on the algorithms clause of G6 (`webgpu-acceleration-plan.md:4213`) plus the algorithms clause of G10 (`:4217`) plus the A1 gate string of graph-format design 14.6 (`graph-format-design.md:4250`).                                                                                                                                                                                                    | G7 is phase P7's gate (`:4214`) and every item in it is a GPU measurement -- "the PageRank pull kernel binds exactly the 8 of 8.2", "no host readback inside a batch of 8 iterations", "T-8 and T-9 recorded". It names no test in `@graphty/algorithms` and cannot be made green by anything in this document. G6's own P6 row is the one that names this phase's deliverables verbatim.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| DEP-8A-B | A1 is executed INSIDE M8a rather than as the separate, earlier branch graph-format design 14.6 schedules (`:4250` and `:4252`).                                                                                                                                                                                                                                                                                                                                                                                                                                         | Section 0.2. A1 has not started, its merge gate is vacuous (17.7 D-RULE5-CHECK), and M6 -- which depends on M8a -- is blocked behind it. The precedent is D-F2-GATE (`graph-format-design.md:4960`), which took the same 14.6 gate out of order for the same reason and recorded it. Task M8a-T12 writes the record.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| DEP-8A-C | The design's `SsspResult.dist: F64` (`graph-format-design.md:3860`) is widened to `NumericVector`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | PD-3. The dispatcher's decoration does not type-check otherwise, and the alternative is a cast.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| DEP-8A-D | Port 5 `kruskalMST` sorts edge indices with a comparator over a `Float64Array` of keys, tie-broken by edge index, instead of the design's "typed radix sort on the bit pattern (stable, no comparator)" (`graph-format-design.md:3930-3939`).                                                                                                                                                                                                                                                                                                                           | The radix sort has to handle both the f32 arc array and the f64 shadow override, i.e. two key widths and the sign-bit flip for each; the tie-broken comparator is stable BY CONSTRUCTION in twelve lines. Kruskal is not on the GPU critical path (design 8.8 ranks PageRank 25, HITS/eigenvector/Katz 15 and WCC 8 for P7; MST is not in P7 at all, `webgpu-acceleration-plan.md:2789-2791`). The radix sort is owed by the A2 port PR that adds `minimumSpanningTree` to a benchmark.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| DEP-8A-E | `AcceleratedAlgorithms` carries SIX methods at M8a (`pageRank`, `sssp`, `breadthFirstSearch`, `connectedComponents`, `weaklyConnectedComponents`, `minimumSpanningTree`), not the full 19 of design 9.2's `AlgorithmAccelerator`. Port 6 `commonNeighborsScore` gets NO dispatcher method.                                                                                                                                                                                                                                                                              | This is the design's own rule, not a departure from it -- "the list GROWS with the A2 ports (each port PR adds its method), it is not complete in the first commit" (`webgpu-acceleration-plan.md:2955`). It is listed here because a reader comparing the two type blocks will otherwise think something was dropped. `commonNeighborsScore` has no method because `AlgorithmAccelerator` declares none: there is no GPU link-prediction method in design 9.2 at all.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| DEP-8A-F | The G12 clause "nightly GPU lane green for a week" (`webgpu-acceleration-plan.md:4219`) is VOID and is not invoked anywhere in this plan.                                                                                                                                                                                                                                                                                                                                                                                                                               | `design/decisions/2026-09-19-no-nightly-gpu-lane.md` removed the `schedule` trigger entirely: `gpu.yml` now runs on every push to master, on `workflow_dispatch` and on a same-repo PR labelled `gpu`, and `release.yml`'s `gate` job waits for that run on the released commit and refuses to publish unless it succeeded. The honest restatement, recorded ONCE for the whole programme by Task M7-T1 Step 2 of `design/webgpu/plans/2026-09-19-webgpu-m7-graphty-app.md` as `design/decisions/2026-09-19-g12-without-the-nightly-clause.md`, and CITED here rather than duplicated: **the GPU lane runs on every master push and the release is gated on it; there is no nightly and no week-long soak.** M8a writes no G12 record of its own -- G12 is M7's gate, M8a's are G6 and G10, and two records saying the same thing under two filenames is the drift this reconciliation exists to stop. M8a's own PR does not carry the `gpu` label (nothing in this phase touches a kernel), so the lane runs once, on the merge commit, as the release gate. |
+| DEP-8A-G | `AlgorithmAccelerator.minimumSpanningTree` takes a second parameter, `options?: MstOptions`. Design 9.2 declares it as `minimumSpanningTree?(s: GraphSnapshot): Promise<MstResultLike>` with no options at all (`webgpu-acceleration-plan.md:2943`).                                                                                                                                                                                                                                                                                                                    | `indexed.kruskalMST(s, o)` takes `MstOptions` -- the per-arc `weights` override through which a facade reaches the f64 shadow column (Task M8a-T7 Step 3) -- and `AcceleratedAlgorithms.minimumSpanningTree` passes its options straight through to it. Without the parameter on the accelerator side the dispatcher would silently DROP the override on the GPU path: the CPU branch would honour an exact-f64 weight set and the accelerator branch would compute over the f32 arc array, and the two would disagree by more than the 9.7 tolerance with nothing in the type system to say why. The parameter is optional, so an accelerator that ignores it still satisfies the interface.                                                                                                                                                                                                                                                                                                                                                                 |
+| DEP-8A-H | Port 4's shape is DESIGNED here, not transcribed. `graph-format-design.md:3924-3928` specifies `connectedComponents` in four sentences with a one-line inline fragment (`for (let e = 0; ...) uf.union(src[e], dst[e]); return uf.toLabels();`) and no signature, no result interface, no grouping accessor and no directed check. This plan fixes: the `LabelResult` interface (`{ labels, count, groups() }`), a `groups()` that computes once and caches, and a `connectedComponents` that THROWS on a directed snapshot while `weaklyConnectedComponents` does not. | `LabelResult` has to exist because `LabelResultLike` (design 9.2, `:2917`) already declares `labels`, `count` and a callable `groups(): U32[]`, and the CPU port must satisfy it with no adapter. `groups()` caches because `accelerated(null).connectedComponents(s)` hands the same object to a caller that may group it more than once, and the GPU's own `LabelResultLike` will be a readback that cannot be recomputed. The directed throw mirrors Port 3's own precedent in the design's transcribed code (`pageRank` throws "PageRank requires a directed graph", `:3894`) and is the only way to keep 14.2's "the same function without the directed check" honest: without it, `connectedComponents` on a directed snapshot would quietly return the WEAK partition under the strong name.                                                                                                                                                                                                                                                           |
 
 ---
 
@@ -325,10 +325,12 @@ One class is recorded elsewhere and named here so the list is still complete: th
 **This task makes NO edit to a tracked file.** `tools/commit-changes.sh:468-469`'s `VALID_SCOPES` omits `graph-format`, `graph-io` and `webgpu-graph-algorithms`, all three of which `commitlint.config.js:4-27` accepts, and Task M8a-T13's `feat(webgpu-graph-algorithms)!:` subject is refused by the script before a single file is staged until that is fixed. Three of the four plan documents of 2026-09-19 found the same defect; the fix is OWNED by **Task M8b-T1 Step 1** of `design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md`, because M8b is the only phase whose entry criteria are met today and every one of its commits is scoped `webgpu-graph-algorithms`. This task CONSUMES that fix as a precondition and verifies it; Task M7-T1 Step 1 of the M7 plan does the same. Do not apply the edit here: two plans landing the same two-line change is a merge conflict on a shared line for no gain.
 
 **Files:**
+
 - Created and NOT committed: `AT/tmp/check-scopes.sh` (a scratch verification script; `tmp/` is gitignored)
 - NOT touched: `tools/commit-changes.sh` (Task M8b-T1 Step 1 owns it), `commitlint.config.js` (its scope-enum is already correct), `.husky/commit-msg`, every other `tools/` script
 
 **Interfaces:**
+
 - Consumes: `commitlint.config.js:4-27`, the scope-enum that is enforced at level 2; `tools/commit-changes.sh`'s `VALID_SCOPES` as Task M8b-T1 Step 1 leaves it.
 - Produces: no file change. A recorded PASS that Task M8a-T13's `feat(webgpu-graph-algorithms)!:` commit will not be refused before a single file is staged.
 
@@ -371,6 +373,7 @@ If a real `<` or `>` line appears the precondition is not met after all: one lis
 **Repository:** `AT`.
 
 **Files:**
+
 - Modify: `algorithms/package.json:140-142` (a `dependencies` entry and a new `peerDependencies` block)
 - Modify: `algorithms/scripts/build-bundle.js:34` (`external: []` becomes `external: [/^@graphty\/graph-format(\/|$)/]`) and `:43-45` (a second `await build(...)` emitting the self-contained `dist/algorithms.standalone.js`, inserted between the first build and its `console.log`)
 - Modify: `algorithms/scripts/build-gh-pages.js:99`, `:103` (the copied artefact becomes the standalone bundle)
@@ -379,6 +382,7 @@ If a real `<` or `>` line appears the precondition is not met after all: one lis
 - NOT touched: `algorithms/tsconfig.json` (PD-8: no `paths`, no `references`, no `include` of graph-format sources), `algorithms/project.json` (PD-8: `lint` gains no `dependsOn`), `algorithms/vitest.config.ts` (resolution goes through `node_modules`, as layout's does -- `layout/vitest.config.ts` has no graph-format alias either), `algorithms/tsconfig.build.json`
 
 **Interfaces:**
+
 - Consumes: `@graphty/graph-format` 1.0.0 through pnpm's workspace link, resolved by `"main": "dist/graph-format.js"` / `"types": "dist/graph-format.d.ts"`.
 - Produces: `import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format"` compiles inside `algorithms/src/`; `algorithms/dist/algorithms.js` (the published bundle) leaves `@graphty/graph-format` external rather than inlining a second copy of it; `algorithms/dist/algorithms.standalone.js` (new, unpublished) inlines everything, for the browser-loaded examples.
 
@@ -466,58 +470,60 @@ So: externalise graph-format in `dist/algorithms.js`, and emit a SECOND, fully s
 (b) In the same file, immediately after the first `await build({ ... });` (it ends at `:43`) and before the `console.log("Successfully built dist/algorithms.js");` at `:45`, add the standalone build:
 
 ```js
-        // The examples (the vite dev server's redirect plugin and the gh-pages copies) load the
-        // bundle as a plain relative module from a browser, which cannot resolve a bare specifier.
-        // They get their own build with nothing external. It is NOT an entry point -- package.json's
-        // "main" and "exports" both stay on dist/algorithms.js -- and it needs no .d.ts, because
-        // nothing types against it; it rides along in the published tarball only because "files"
-        // names the whole dist/ directory.
-        await build({
-            configFile: false,
-            build: {
-                lib: {
-                    entry: path.resolve(__dirname, "../src/index.ts"),
-                    name: "GraphAlgorithms",
-                    formats: ["es"],
-                    fileName: () => "algorithms.standalone.js",
-                },
-                outDir: path.resolve(__dirname, "../dist"),
-                emptyOutDir: false,
-                rollupOptions: {
-                    external: [],
-                    output: {
-                        preserveModules: false,
-                        inlineDynamicImports: true,
-                    },
-                },
-                minify: false,
-                sourcemap: true,
+// The examples (the vite dev server's redirect plugin and the gh-pages copies) load the
+// bundle as a plain relative module from a browser, which cannot resolve a bare specifier.
+// They get their own build with nothing external. It is NOT an entry point -- package.json's
+// "main" and "exports" both stay on dist/algorithms.js -- and it needs no .d.ts, because
+// nothing types against it; it rides along in the published tarball only because "files"
+// names the whole dist/ directory.
+await build({
+    configFile: false,
+    build: {
+        lib: {
+            entry: path.resolve(__dirname, "../src/index.ts"),
+            name: "GraphAlgorithms",
+            formats: ["es"],
+            fileName: () => "algorithms.standalone.js",
+        },
+        outDir: path.resolve(__dirname, "../dist"),
+        emptyOutDir: false,
+        rollupOptions: {
+            external: [],
+            output: {
+                preserveModules: false,
+                inlineDynamicImports: true,
             },
-        });
+        },
+        minify: false,
+        sourcemap: true,
+    },
+});
 
-        console.log("Successfully built dist/algorithms.standalone.js");
+console.log("Successfully built dist/algorithms.standalone.js");
 ```
 
 (c) In `algorithms/scripts/build-gh-pages.js` change the two lines of the existence check at `:99` and `:103` from
 
 ```js
-        const algorithmsJsPath = path.join(distDir, "algorithms.js");
+const algorithmsJsPath = path.join(distDir, "algorithms.js");
 ```
+
 ```js
-            console.error('dist/algorithms.js not found. Please run "npm run build:bundle" first.');
+console.error('dist/algorithms.js not found. Please run "npm run build:bundle" first.');
 ```
 
 to
 
 ```js
-        // The self-contained bundle, not dist/algorithms.js: the example pages load it as a plain
-        // relative module and a browser cannot resolve the bare "@graphty/graph-format" specifier
-        // the published bundle carries. The DESTINATION file is still named algorithms.js, which is
-        // what every example imports, so nothing under examples/html-legacy/ changes.
-        const algorithmsJsPath = path.join(distDir, "algorithms.standalone.js");
+// The self-contained bundle, not dist/algorithms.js: the example pages load it as a plain
+// relative module and a browser cannot resolve the bare "@graphty/graph-format" specifier
+// the published bundle carries. The DESTINATION file is still named algorithms.js, which is
+// what every example imports, so nothing under examples/html-legacy/ changes.
+const algorithmsJsPath = path.join(distDir, "algorithms.standalone.js");
 ```
+
 ```js
-            console.error('dist/algorithms.standalone.js not found. Please run "npm run build:bundle" first.');
+console.error('dist/algorithms.standalone.js not found. Please run "npm run build:bundle" first.');
 ```
 
 Every `copyFile(algorithmsJsPath, path.join(<dir>, "algorithms.js"))` below it is UNCHANGED -- there are five of them (`:202`, `:223`, `:244`, `:288`, `:293`) and they all read the same variable.
@@ -525,13 +531,13 @@ Every `copyFile(algorithmsJsPath, path.join(<dir>, "algorithms.js"))` below it i
 (d) In `algorithms/vite-plugin-algorithms-redirect.js` change the one path in `load()` from
 
 ```js
-                const distAlgorithmsPath = path.resolve(process.cwd(), "dist/algorithms.js");
+const distAlgorithmsPath = path.resolve(process.cwd(), "dist/algorithms.js");
 ```
 
 to
 
 ```js
-                const distAlgorithmsPath = path.resolve(process.cwd(), "dist/algorithms.standalone.js");
+const distAlgorithmsPath = path.resolve(process.cwd(), "dist/algorithms.standalone.js");
 ```
 
 and the error string on the next lines from `'dist/algorithms.js not found. Run "npm run build:bundle" first.'` to `'dist/algorithms.standalone.js not found. Run "npm run build:bundle" first.'`. Reason: the dev server serves that file's CONTENT as a virtual module for `./algorithms.js`, so the dev path and the gh-pages path should load the same artefact. Vite's dev server would in fact resolve the bare specifier for the virtual module, but then `npm run examples:html` and the deployed page would be running different bytes, and the difference would only show up in production.
@@ -571,12 +577,14 @@ Expected: 2 passed; `eslint` clean and `tsc --noEmit` clean. `tsc` now resolves 
 **Repository:** `AT`.
 
 **Files:**
+
 - Modify: `algorithms/src/core/graph.ts` (a private counter at `:14`, its initialiser at `:30`, five bump sites at `:38-47`, `:91`, `:144`, `:174`, `:373`, and a public getter beside `nodeCount` at `:222`)
 - Create: `algorithms/src/indexed/to-snapshot.ts`
 - Test: `algorithms/test/unit/indexed/to-snapshot.test.ts`
 - NOT touched: `algorithms/src/index.ts` (the barrel is Task M8a-T10's edit), `algorithms/src/types/index.ts`, every algorithm under `algorithms/src/algorithms/`
 
 **Interfaces:**
+
 - Consumes: `GraphBuilder` and `GraphSnapshot` from `@graphty/graph-format` (`graph-format/src/index.ts:14`, `:17`); `GraphBuilderOptions` (`graph-format/src/types/builder.ts:28-48`, where `directed` is REQUIRED and `weightDtype` defaults to `"f32"`); `builder.addNode(id: NodeId): number` (`:172`), `builder.addEdge(source, target, weight?): number` (`:188`), `builder.freeze(options?): GraphSnapshot` (`:464`). graph-format's `NodeId` is `string | number` (`graph-format/src/types/columns.ts:26`), identical to algorithms' (`algorithms/src/types/index.ts:6`), so no coercion happens anywhere.
 - Produces: `Graph.mutationCount: number` (public readonly getter) and `toSnapshot(graph: Graph, options?: ToSnapshotOptions): GraphSnapshot` with `ToSnapshotOptions { readonly checksum?: boolean | undefined }`, both consumed by Task M8a-T4's harness and by every future facade. The options parameter is additive and optional, so `toSnapshot(graph)` is the signature graph-format design 14.6 row A1 names.
 
@@ -837,11 +845,13 @@ Expected: the whole default project green with the same counts as before this ta
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `algorithms/test/helpers/snapshot-differential.ts` (the reusable assertion)
 - Test: `algorithms/test/unit/indexed/to-snapshot-differential.test.ts` (the fixture corpus)
 - NOT touched: `algorithms/src/**` (this task adds no production code), `algorithms/test/helpers/` existing files
 
 **Interfaces:**
+
 - Consumes: `toSnapshot` (Task M8a-T3); `equalsTopology` (`graph-format/src/index.ts:26`, implemented at `graph-format/src/snapshot/graph-snapshot.ts:1385`); `snapshot.ids.idOf/indexOf/requireIndex` (`graph-format/src/ids/node-id-map.ts:464`, `:479`, `:526`); `snapshot.edgeList()` and `snapshot.outArcs(u)` (`graph-format/src/types/snapshot.ts:502`, `:578`).
 - Produces: `assertSnapshotMatchesGraph(graph: Graph): GraphSnapshot`, the executable form of graph-format design 14.6's A1 gate string ("every existing test's graph converts with `equalsTopology` / neighbour-set parity", `graph-format-design.md:4250`), and `checksummedSnapshot(graph: Graph): GraphSnapshot`, the fixture builder every `test/unit/indexed/*.test.ts` uses so the I17 view-write guard of `graph-format-design.md:3776-3781` is on for the port tests too.
 
@@ -972,7 +982,11 @@ import { describe, it } from "vitest";
 import { Graph } from "../../../src/core/graph.js";
 import { assertSnapshotMatchesGraph } from "../../helpers/snapshot-differential.js";
 
-function build(directed: boolean, edges: [string | number, string | number, number][], isolated: (string | number)[] = []): Graph {
+function build(
+    directed: boolean,
+    edges: [string | number, string | number, number][],
+    isolated: (string | number)[] = [],
+): Graph {
     const g = new Graph({ directed });
     for (const id of isolated) {
         g.addNode(id);
@@ -984,9 +998,30 @@ function build(directed: boolean, edges: [string | number, string | number, numb
 }
 
 const KARATE_EDGES: [number, number, number][] = [
-    [1, 2, 1], [1, 3, 1], [1, 4, 1], [2, 3, 1], [2, 4, 1], [3, 4, 1], [1, 5, 1], [1, 6, 1],
-    [1, 7, 1], [5, 7, 1], [6, 7, 1], [1, 8, 1], [2, 8, 1], [3, 8, 1], [4, 8, 1], [1, 9, 1],
-    [3, 9, 1], [3, 10, 1], [1, 11, 1], [5, 11, 1], [6, 11, 1], [1, 12, 1], [1, 13, 1], [4, 13, 1],
+    [1, 2, 1],
+    [1, 3, 1],
+    [1, 4, 1],
+    [2, 3, 1],
+    [2, 4, 1],
+    [3, 4, 1],
+    [1, 5, 1],
+    [1, 6, 1],
+    [1, 7, 1],
+    [5, 7, 1],
+    [6, 7, 1],
+    [1, 8, 1],
+    [2, 8, 1],
+    [3, 8, 1],
+    [4, 8, 1],
+    [1, 9, 1],
+    [3, 9, 1],
+    [3, 10, 1],
+    [1, 11, 1],
+    [5, 11, 1],
+    [6, 11, 1],
+    [1, 12, 1],
+    [1, 13, 1],
+    [4, 13, 1],
 ];
 
 describe("A1 differential harness (graph-format design 14.6 row A1)", () => {
@@ -999,31 +1034,78 @@ describe("A1 differential harness (graph-format design 14.6 row A1)", () => {
     });
 
     it("undirected triangle, unit weights", () => {
-        assertSnapshotMatchesGraph(build(false, [["a", "b", 1], ["b", "c", 1], ["c", "a", 1]]));
+        assertSnapshotMatchesGraph(
+            build(false, [
+                ["a", "b", 1],
+                ["b", "c", 1],
+                ["c", "a", 1],
+            ]),
+        );
     });
 
     it("directed triangle, distinct weights", () => {
-        assertSnapshotMatchesGraph(build(true, [["a", "b", 1.5], ["b", "c", 2.25], ["c", "a", 3.75]]));
+        assertSnapshotMatchesGraph(
+            build(true, [
+                ["a", "b", 1.5],
+                ["b", "c", 2.25],
+                ["c", "a", 3.75],
+            ]),
+        );
     });
 
     it("directed graph with a self-loop", () => {
-        assertSnapshotMatchesGraph(build(true, [["a", "a", 2], ["a", "b", 1]]));
+        assertSnapshotMatchesGraph(
+            build(true, [
+                ["a", "a", 2],
+                ["a", "b", 1],
+            ]),
+        );
     });
 
     it("undirected graph with a self-loop", () => {
-        assertSnapshotMatchesGraph(build(false, [["a", "a", 2], ["a", "b", 1], ["b", "c", 1]]));
+        assertSnapshotMatchesGraph(
+            build(false, [
+                ["a", "a", 2],
+                ["a", "b", 1],
+                ["b", "c", 1],
+            ]),
+        );
     });
 
     it("numeric ids mixed with an isolated node", () => {
-        assertSnapshotMatchesGraph(build(true, [[1, 2, 1], [2, 3, 1]], [99]));
+        assertSnapshotMatchesGraph(
+            build(
+                true,
+                [
+                    [1, 2, 1],
+                    [2, 3, 1],
+                ],
+                [99],
+            ),
+        );
     });
 
     it("f64 weights that are not f32-exact", () => {
-        assertSnapshotMatchesGraph(build(true, [["a", "b", 0.1 + 0.2], ["b", "c", 1 / 3]]));
+        assertSnapshotMatchesGraph(
+            build(true, [
+                ["a", "b", 0.1 + 0.2],
+                ["b", "c", 1 / 3],
+            ]),
+        );
     });
 
     it("disconnected components and dust", () => {
-        assertSnapshotMatchesGraph(build(false, [["a", "b", 1], ["c", "d", 1], ["d", "e", 1]], ["z"]));
+        assertSnapshotMatchesGraph(
+            build(
+                false,
+                [
+                    ["a", "b", 1],
+                    ["c", "d", 1],
+                    ["d", "e", 1],
+                ],
+                ["z"],
+            ),
+        );
     });
 
     it("karate-shaped undirected fixture", () => {
@@ -1031,7 +1113,11 @@ describe("A1 differential harness (graph-format design 14.6 row A1)", () => {
     });
 
     it("a path after a removal (the graph's own index space is unchanged; the snapshot's is fresh)", () => {
-        const g = build(false, [["a", "b", 1], ["b", "c", 1], ["c", "d", 1]]);
+        const g = build(false, [
+            ["a", "b", 1],
+            ["b", "c", 1],
+            ["c", "d", 1],
+        ]);
         g.removeEdge("b", "c");
         assertSnapshotMatchesGraph(g);
         g.removeNode("a");
@@ -1057,11 +1143,13 @@ Expected: the whole default project green; lint clean; coverage at or above 80 /
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `algorithms/src/indexed/structures/union-find.ts`, `algorithms/src/indexed/structures/min-heap.ts`, `algorithms/src/indexed/structures/arc-source.ts`, `algorithms/src/indexed/structures/index.ts`
 - Test: `algorithms/test/unit/indexed/structures.test.ts`
 - NOT touched: `algorithms/src/data-structures/union-find.ts` and `priority-queue.ts` (the legacy NodeId-keyed pair stays exactly as it is until 2.0 -- graph-format design 14.6's D1 row tags it `@deprecated` only after the last internal caller moves)
 
 **Interfaces:**
+
 - Consumes: `INVALID_INDEX` and `renumberPartition` from `@graphty/graph-format` (`graph-format/src/index.ts:10`, `:25`); `renumberPartition(labels: U32, out?: U32): { labels: U32; count: number }` (`graph-format/src/snapshot/derived.ts:1155`).
 - Produces: `IntUnionFind`, `IndexedMinHeap`, `arcSourceIn(rowPtr, arc)`, all re-exported by `structures/index.ts` and, through it, by the `indexed` namespace. These are the scratch structures graph-format design 14.2 assigns to `algorithms/src/indexed/structures/` (`graph-format-design.md:3771-3773`) and that 14.6's helper-ownership sentence gives to algorithms (`:4270`).
 
@@ -1463,11 +1551,13 @@ Expected: 11 passed. If "never returns a node whose row is empty" fails with `ex
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `algorithms/src/indexed/bfs.ts` (Port 1, `graph-format-design.md:3823-3854`), `algorithms/src/indexed/dijkstra.ts` (Port 2, `:3856-3887`, plus `walkPredArcs` / `walkPredEdges`)
 - Test: `algorithms/test/unit/indexed/bfs.test.ts`, `algorithms/test/unit/indexed/dijkstra.test.ts`
 - NOT touched: `algorithms/src/algorithms/traversal/*`, `algorithms/src/algorithms/shortest-path/*` (the legacy implementations and their signatures are untouched by this plan)
 
 **Interfaces:**
+
 - Consumes: `AdjacencyView` (`graph-format/src/types/snapshot.ts:257-272`: `directed`, `nodeCount`, `arcCount`, `rowPtr`, `colIdx`, `arcToEdge`, `weights`); `INVALID_INDEX`; `IndexedMinHeap` and `arcSourceIn` (Task M8a-T5). `GraphSnapshot` and `ReverseView` both satisfy `AdjacencyView`, so `indexed.breadthFirstSearch(s.reverse(), ...)` is an in-neighbour BFS for free.
 - Produces: `BfsResult`, `BfsOptions`, `breadthFirstSearch(g, start, options)`; `SsspResult` (PD-3), `SsspOptions`, `dijkstra(g, source, options)`, `walkPredArcs(g, predArc, source, target)`, `walkPredEdges(g, predArc, source, target)`. The last two are what Task M8a-T8's dispatcher uses to DECORATE an accelerator's `SsspResultLike`.
 
@@ -1718,11 +1808,13 @@ Expected: green. If the parallel-edge case returns the weight-5 edge, `predArc` 
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `algorithms/src/indexed/pagerank.ts` (Port 3, `graph-format-design.md:3889-3922`), `algorithms/src/indexed/components.ts` (Port 4, `:3924-3928`, PROSE in the design, with DEP-8A-H), `algorithms/src/indexed/mst.ts` (Port 5, `:3930-3938`, PROSE in the design, with DEP-8A-D), `algorithms/src/indexed/common-neighbors.ts` (Port 6, `:3940-3954`), `algorithms/src/indexed/index.ts` (the namespace barrel)
 - Test: `algorithms/test/unit/indexed/pagerank.test.ts`, `algorithms/test/unit/indexed/components.test.ts`, `algorithms/test/unit/indexed/mst.test.ts`, `algorithms/test/unit/indexed/common-neighbors.test.ts`
 - NOT touched: `algorithms/src/index.ts` (Task M8a-T10 owns the root barrel), `algorithms/src/indexed/accelerator.ts` (Task M8a-T8 owns it and is deliberately NOT re-exported by `indexed/index.ts`, PD-9)
 
 **Interfaces:**
+
 - Consumes: `GraphSnapshot` and its views -- `reverse(): ReverseView`, `edgeList(): EdgeListView`, `outDegree(): U32`, `weightedOutDegree(): F64` (`graph-format/src/types/snapshot.ts:568`, `:578`, `:583`, `:601`); `renumberPartition`; `IntUnionFind` (Task M8a-T5).
 - Produces: `pageRank`, `PageRankOptions`, `PageRankResult` (the indexed ones, PD-1); `connectedComponents`, `weaklyConnectedComponents`, `LabelResult`; `kruskalMST`, `MstOptions`, `MstResult`; `commonNeighborsScore`, `CommonNeighborsOptions`; and the `indexed` namespace barrel that Task M8a-T8's dispatcher imports as `import * as indexed from "./index.js"`.
 
@@ -2046,13 +2138,7 @@ Create `AT/algorithms/src/indexed/index.ts`:
 export { type BfsOptions, type BfsResult, breadthFirstSearch } from "./bfs.js";
 export { type CommonNeighborsOptions, commonNeighborsScore } from "./common-neighbors.js";
 export { connectedComponents, type LabelResult, weaklyConnectedComponents } from "./components.js";
-export {
-    dijkstra,
-    type SsspOptions,
-    type SsspResult,
-    walkPredArcs,
-    walkPredEdges,
-} from "./dijkstra.js";
+export { dijkstra, type SsspOptions, type SsspResult, walkPredArcs, walkPredEdges } from "./dijkstra.js";
 export { kruskalMST, type MstOptions, type MstResult } from "./mst.js";
 export { pageRank, type PageRankOptions, type PageRankResult } from "./pagerank.js";
 export { arcSourceIn, IndexedMinHeap, IntUnionFind } from "./structures/index.js";
@@ -2229,10 +2315,12 @@ If the first count is 0 and the second is non-zero, edit (a) of Task M8a-T2 Step
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `algorithms/src/indexed/accelerator.ts`
 - NOT touched: `algorithms/src/indexed/index.ts` (PD-9: the accelerator is not in the namespace), every port file, `algorithms/src/index.ts` (Task M8a-T10)
 
 **Interfaces:**
+
 - Consumes: `F32`, `F64`, `GraphSnapshot`, `NumericVector`, `U32` from `@graphty/graph-format`; `indexed.*` through `import * as indexed from "./index.js"`; `SsspResult`, `SsspOptions`, `walkPredArcs`, `walkPredEdges` (Task M8a-T6); `PageRankOptions` (Task M8a-T7); `BfsOptions` (Task M8a-T6); `MstOptions` (Task M8a-T7).
 - Produces: the twelve `*ResultLike` interfaces, `AlgorithmAccelerator`, `AcceleratedAlgorithms`, `accelerated(acc)`. This is the file design 9.2 declares (`webgpu-acceleration-plan.md:2903`) and the one Task M8a-T13 makes the GPU package import.
 
@@ -2240,13 +2328,13 @@ If the first count is 0 and the second is non-zero, edit (a) of Task M8a-T2 Step
 
 Create `AT/algorithms/src/indexed/accelerator.ts`. The type block below is design 9.2's, lines 2907-2957, with FIVE changes and nothing else. Each one is ruled on elsewhere in this document; nothing here is decided in passing.
 
-| # | Change against `webgpu-acceleration-plan.md:2907-2957` | Ruled by |
-| --- | --- | --- |
-| 1 | The option types of `pageRank`, `personalizedPageRank`, `breadthFirstSearch` and `sssp` are the real ones this phase created (`PageRankOptions` from `indexed/pagerank.ts`, `BfsOptions` from `indexed/bfs.ts`, `SsspOptions` from `indexed/dijkstra.ts`) instead of the design's same-named sketches. | PD-2 clause 1 |
-| 2 | `bellmanFord` and `allPairsShortestPath` take `SsspOptions` where the design writes `BellmanFordOptions` (`:2935`) and `ApspOptions` (`:2939`); `hits`, `eigenvectorCentrality`, `katzCentrality`, `closenessCentrality`, `labelPropagation` and `louvain` take `HitsOptionsLike` where it writes `HitsOptions` (`:2928`), `EigenvectorOptions`, `KatzOptions`, `ClosenessOptions`, `LabelPropagationOptions` (`:2942`) and `LouvainOptions` (`:2944`); `betweennessCentrality` and `edgeBetweennessCentrality` take `BetweennessAcceleratorOptions` where it writes `BetweennessOptions`. | PD-2 clause 2, row by row |
-| 3 | Two public types the design's block does not declare are declared here: `HitsOptionsLike` and `BetweennessAcceleratorOptions`. | PD-2's last two rows |
-| 4 | `minimumSpanningTree` gains `options?: MstOptions`; the design declares it with no options parameter (`:2943`). | DEP-8A-G |
-| 5 | `AcceleratedAlgorithms` carries the six methods whose ports exist, and its `sssp` returns the widened `SsspResult`. | DEP-8A-E, PD-3 |
+| #   | Change against `webgpu-acceleration-plan.md:2907-2957`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Ruled by                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------- |
+| 1   | The option types of `pageRank`, `personalizedPageRank`, `breadthFirstSearch` and `sssp` are the real ones this phase created (`PageRankOptions` from `indexed/pagerank.ts`, `BfsOptions` from `indexed/bfs.ts`, `SsspOptions` from `indexed/dijkstra.ts`) instead of the design's same-named sketches.                                                                                                                                                                                                                                                                                     | PD-2 clause 1             |
+| 2   | `bellmanFord` and `allPairsShortestPath` take `SsspOptions` where the design writes `BellmanFordOptions` (`:2935`) and `ApspOptions` (`:2939`); `hits`, `eigenvectorCentrality`, `katzCentrality`, `closenessCentrality`, `labelPropagation` and `louvain` take `HitsOptionsLike` where it writes `HitsOptions` (`:2928`), `EigenvectorOptions`, `KatzOptions`, `ClosenessOptions`, `LabelPropagationOptions` (`:2942`) and `LouvainOptions` (`:2944`); `betweennessCentrality` and `edgeBetweennessCentrality` take `BetweennessAcceleratorOptions` where it writes `BetweennessOptions`. | PD-2 clause 2, row by row |
+| 3   | Two public types the design's block does not declare are declared here: `HitsOptionsLike` and `BetweennessAcceleratorOptions`.                                                                                                                                                                                                                                                                                                                                                                                                                                                             | PD-2's last two rows      |
+| 4   | `minimumSpanningTree` gains `options?: MstOptions`; the design declares it with no options parameter (`:2943`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | DEP-8A-G                  |
+| 5   | `AcceleratedAlgorithms` carries the six methods whose ports exist, and its `sssp` returns the widened `SsspResult`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | DEP-8A-E, PD-3            |
 
 ```ts
 /**
@@ -2495,11 +2583,13 @@ Expected: `eslint` and `tsc --noEmit` both clean. Two failures point at a skippe
 **Repository:** `AT`.
 
 **Files:**
+
 - Modify: `algorithms/src/algorithms/centrality/betweenness.ts:12-28` (the interface, restyled and extended per PD-6), plus a module-private guard and its three call sites -- the first statement of `betweennessCentrality` (declared `:204`), of `nodeBetweennessCentrality` (declared `:248`) and of `edgeBetweennessCentrality` (declared `:267`)
 - Test: `algorithms/test/unit/indexed/betweenness-options.test.ts`
 - NOT touched: `algorithms/src/algorithms/centrality/index.ts` (the type is already re-exported at `:5`), the Brandes implementation itself, `accumulateBetweenness` / `accumulateEdgeBetweenness` (module-private helpers, reached only through the three guarded entry points)
 
 **Interfaces:**
+
 - Consumes: nothing new.
 - Produces: `BetweennessCentralityOptions` with five `readonly ... | undefined` members, the shape `webgpu-graph-algorithms/src/types/accelerator.ts:216-220` already mirrors on its side.
 
@@ -2601,10 +2691,10 @@ function rejectIndexOptions(options: BetweennessCentralityOptions, fn: string): 
 
 Then add one line as the first statement of each of the three public entry points. ANCHOR ON THE TEXT, not on a line number -- the interface edit above changes every number below it, and the declarations' own line numbers (`:204`, `:248`, `:267`) name the `export function` line, not the body:
 
-| Entry point | Insert `rejectIndexOptions(options, "<name>");` | Immediately before |
-| --- | --- | --- |
-| `betweennessCentrality` | `rejectIndexOptions(options, "betweennessCentrality");` | `const nodes = Array.from(graph.nodes()).map((node) => node.id);` |
-| `nodeBetweennessCentrality` | `rejectIndexOptions(options, "nodeBetweennessCentrality");` | `if (!graph.hasNode(targetNode)) {` |
+| Entry point                 | Insert `rejectIndexOptions(options, "<name>");`             | Immediately before                                                |
+| --------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------- |
+| `betweennessCentrality`     | `rejectIndexOptions(options, "betweennessCentrality");`     | `const nodes = Array.from(graph.nodes()).map((node) => node.id);` |
+| `nodeBetweennessCentrality` | `rejectIndexOptions(options, "nodeBetweennessCentrality");` | `if (!graph.hasNode(targetNode)) {`                               |
 | `edgeBetweennessCentrality` | `rejectIndexOptions(options, "edgeBetweennessCentrality");` | `const nodes = Array.from(graph.nodes()).map((node) => node.id);` |
 
 `nodeBetweennessCentrality` delegates to `betweennessCentrality` (`allCentralities = betweennessCentrality(graph, options)`), so without its own guard it would still throw -- but with the OUTER function's name in the message. Its own guard fires first and names the function the caller actually called.
@@ -2625,6 +2715,7 @@ Expected: the new file green and every existing centrality test unchanged -- `te
 **Repository:** `AT`.
 
 **Files:**
+
 - Modify: `algorithms/src/index.ts` (the namespace line, the accelerator exports, the shadowing comment at `:28`)
 - Modify: `algorithms/package.json:49` (`lint` gains the second `tsc`)
 - Modify: `algorithms/project.json:38-44` (the `lint` target's hardcoded `"command": "eslint && tsc --noEmit"` becomes `"command": "npm run lint"`, so the nx target and the npm script cannot drift)
@@ -2633,6 +2724,7 @@ Expected: the new file green and every existing centrality test unchanged -- `te
 - NOT touched: `algorithms/tsconfig.json`, `algorithms/tsconfig.build.json`; `algorithms/project.json`'s `lint` target gains no `dependsOn` (PD-8) -- only its command string changes
 
 **Interfaces:**
+
 - Consumes: everything Tasks M8a-T3 and M8a-T5..T9 produced.
 - Produces: the package's public surface -- `indexed` as a namespace, the accelerator symbols flat, `toSnapshot` flat -- plus a second `tsc` pass that actually checks the one file asserting it.
 
@@ -2833,10 +2925,12 @@ Expected: as commented. `npm run build` is a real step, not a parenthetical: a f
 **Repository:** `AT`.
 
 **Files:**
+
 - Test: `algorithms/test/unit/indexed/accelerated.test.ts`
 - NOT touched: everything else
 
 **Interfaces:**
+
 - Consumes: `accelerated`, `AlgorithmAccelerator`, `toSnapshot`, `indexed` from `../../../src/index.js`.
 - Produces: the three proofs design 9.2 asks for (`webgpu-acceleration-plan.md:2986-2989`) -- delegation, the CPU path, and a throw that propagates unchanged.
 
@@ -2936,8 +3030,7 @@ describe("accelerated(acc)", () => {
         const cpu = await accelerated(null).sssp(s, a);
         const fake: AlgorithmAccelerator = {
             kind: "fake",
-            sssp: () =>
-                Promise.resolve({ dist: Float32Array.from(cpu.dist), predArc: cpu.predArc }),
+            sssp: () => Promise.resolve({ dist: Float32Array.from(cpu.dist), predArc: cpu.predArc }),
         };
         const decorated = await accelerated(fake).sssp(s, a);
         expect(decorated.dist).toBeInstanceOf(Float32Array);
@@ -2977,6 +3070,7 @@ Expected: the whole default project green; lint clean (three passes); coverage a
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `design/decisions/2026-09-19-a1-lands-inside-m8a.md`, `design/decisions/2026-09-19-pagerank-options-shadowing.md`
 - Modify: `design/decisions/README.md:29-32` (two rows appended to the index table)
 - NOT created: any G12 record. `design/decisions/2026-09-19-g12-without-the-nightly-clause.md` is owned by Task M7-T1 Step 2 of `design/webgpu/plans/2026-09-19-webgpu-m7-graphty-app.md`, which is the plan whose gate G12 is; DEP-8A-F cites that file. The M6 plan cites it too. One record, one filename.
@@ -2985,6 +3079,7 @@ Expected: the whole default project green; lint clean (three passes); coverage a
 - NOT touched: `design/graph-format/graph-format-design.md`, `design/webgpu/webgpu-acceleration-plan.md`, and both Review logs. `design/decisions/README.md:14-21` retired that practice on 2026-09-19 after three branches collided on the shared end of one file.
 
 **Interfaces:**
+
 - Consumes: the record template of `design/decisions/2026-09-19-no-nightly-gpu-lane.md` (H1 with no trailing period; `Date:` / `Decided by:` / `Changes:` block whose last sentence says the superseded sections are NOT edited; then `## The decision`, `## Why`, `## What we are giving up, and why it is acceptable`, `## What would reverse this`, optionally `## What still exists`).
 - Produces: two records and three index rows.
 
@@ -3035,7 +3130,7 @@ The `Decision` cell is each record's H1 verbatim, which is the convention the tw
 Append to `design/webgpu/README.md`'s table, after the integration-plan row at `:12`:
 
 ```markdown
-| `plans/2026-09-19-webgpu-m8a-algorithms-seam.md`                                | Phase M8a: the graph-format bridge (A1), the first six `indexed.*` ports, `indexed/accelerator.ts` with `accelerated()`, and the GPU package's W1b algorithms half                                                                                                                | live plan     |
+| `plans/2026-09-19-webgpu-m8a-algorithms-seam.md` | Phase M8a: the graph-format bridge (A1), the first six `indexed.*` ports, `indexed/accelerator.ts` with `accelerated()`, and the GPU package's W1b algorithms half | live plan |
 ```
 
 That table is prettier-formatted (padded columns) unlike the plans themselves; match the existing padding.
@@ -3078,6 +3173,7 @@ Expected: as commented. Any hit from the first command is a smart quote or an em
 **Repository:** `AT`. **GATED (PD-12): do not start until `feat/webgpu-layout-types` (Phase M5b) is on master.** Check with `git log --oneline origin/master -1 -- webgpu-graph-algorithms/src/types/accelerator.ts` and `git show origin/master:webgpu-graph-algorithms/project.json | grep implicitDependencies` -- the second must print `"implicitDependencies": ["!algorithms"],` with no `"!layout"`. If it prints both negations, STOP and tell the owner to land M5b first.
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/package.json` devDependencies (one entry)
 - Modify: `webgpu-graph-algorithms/tsconfig.json` paths (one entry), `webgpu-graph-algorithms/tsconfig.strict-consumer.json` paths (one entry)
 - Modify: `webgpu-graph-algorithms/src/types/accelerator.ts` (delete `CpuAlgorithmOptions` and the twelve `*ResultLike` and `AlgorithmAccelerator` mirrors; `import type` and re-export the real ones)
@@ -3088,6 +3184,7 @@ Expected: as commented. Any hit from the first command is a smart quote or an em
 - NOT touched: `webgpu-graph-algorithms/eslint.config.js` -- `src/types/accelerator.ts` is ALREADY the one file allowed to `import type` from `@graphty/algorithms` (`:153-170`, `CPU_PATHS_TYPES_ALLOWED`), so no zone changes and `test/layers.test.ts` does not move. Also NOT touched: `src/accelerator.ts` and every kernel. Two orders are possible and this task is written for both (M8b's PD-19, `design/webgpu/plans/2026-09-19-webgpu-m8b-gpu-spmv.md`). If Phase M8b has NOT landed, the GPU implements none of these methods and `src/accelerator.ts` has nothing to change. If M8b HAS landed, `GpuAccelerator` at the bottom of `src/types/accelerator.ts` already declares its seven P7 members and `src/accelerator.ts` already returns them -- leave both exactly as M8b left them. This task deletes the `AlgorithmAccelerator` / `*ResultLike` MIRRORS above `GpuAccelerator` and nothing else in the file, which is why the two phases merge rather than collide. Step 5's conformance compile is what proves the members still satisfy the real interface: M8b spells its option records member for member against this plan's `IndexedPageRankOptions` and `HitsOptionsLike` (M8b Task M8b-T1 Step 4), and its `connectedComponents` keeps its extra `ComponentsOptions` parameter OPTIONAL, which is what lets it satisfy this plan's `connectedComponents?(s: GraphSnapshot): Promise<LabelResultLike>`.
 
 **Interfaces:**
+
 - Consumes: `@graphty/algorithms`' flat accelerator exports (Task M8a-T10) through `../algorithms/dist/algorithms.d.ts`.
 - Produces: a GPU package whose `AlgorithmAccelerator` IS the CPU package's declaration, asserted by identity rather than by assignability.
 
@@ -3239,10 +3336,12 @@ Expected: all green, and the last line prints `no runtime specifier -- correct` 
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/docs/decisions/G6-algorithms.md` (the algorithms slice of the G6 record; the G0..G3 records already live in that directory)
 - NOT touched: every source file
 
 **Interfaces:**
+
 - Consumes: the outputs of every command in appendix 7.2.
 - Produces: the record the owner signs, and the phase's exit condition.
 
@@ -3250,7 +3349,7 @@ Expected: all green, and the last line prints `no runtime specifier -- correct` 
 
 Create `webgpu-graph-algorithms/docs/decisions/G6-algorithms.md` with this content; every `<...>` cell is a number or a string copied from the named command's output, and the owner signs the last section.
 
-````markdown
+```markdown
 # G6 (algorithms slice) -- the first A2 commit (spec 13 row P6; plan 2026-09-19-webgpu-m8a-algorithms-seam)
 
 Recorded by: <owner name>, <date>. Commits: the nine of phase M8a (<short hashes once committed>), in the order of appendix 7.1's command sheet.
@@ -3259,58 +3358,58 @@ Environment: Node <version>, pnpm 10.0.0, vitest 3.2.4, TypeScript <version>, `@
 
 ## 1. The 9.2 deliverables, each mapped to its evidence
 
-| # | Deliverable (design 9.2 / plan line) | Evidence | Result | Status |
-| --- | --- | --- | --- | --- |
-| 1 | `algorithms/src/indexed/accelerator.ts` exists and contains no WebGPU type | `grep -c "webgpu\|GPUDevice\|GPUBuffer" algorithms/src/indexed/accelerator.ts` | <0> | pass / fail |
-| 2 | the twelve `*ResultLike` shapes, scores as `NumericVector` | `pnpm exec nx run algorithms:lint` (its third pass is `tsc -p tsconfig.typecheck.json`) | <clean> | pass / fail |
-| 3 | `AlgorithmAccelerator`, every method optional, `GraphSnapshot` in | `test/types/accelerator.test-d.ts`, compiled by that same third pass | <clean> | pass / fail |
-| 4 | `accelerated(acc)` with the design's dispatcher body | `test/unit/indexed/accelerated.test.ts` | <n passed> | pass / fail |
-| 5 | `pathTo` / `pathEdges` decoration for SSSP | the decoration case of the same file | <n passed> | pass / fail |
-| 6 | `sources` / `k` on `BetweennessCentralityOptions` | `test/unit/indexed/betweenness-options.test.ts` | <n passed> | pass / fail |
-| 7 | fake-accelerator tests: delegation, CPU path, throw propagates | the same file, three cases | <n passed> | pass / fail |
-| 8 | W1b: `AlgorithmAccelerator` by `import type`, mirrors deleted | `grep -c "interface AlgorithmAccelerator" webgpu-graph-algorithms/src/types/accelerator.ts` | <0> | pass / fail |
-| 9 | `CpuAlgorithmOptions` retired | `grep -rc CpuAlgorithmOptions webgpu-graph-algorithms/src webgpu-graph-algorithms/test` | <0> | pass / fail |
-| 10 | `implicitDependencies` negation removed | `nx show project webgpu-graph-algorithms --json` | <undefined> | pass / fail |
-| 11 | the G10 reverse compile | `pnpm exec nx run webgpu-graph-algorithms:lint` (its third pass is `tsc -p tsconfig.strict-consumer.json`; that target already delegates to the npm script, `webgpu-graph-algorithms/project.json:46`) | <clean> | pass / fail |
+| #   | Deliverable (design 9.2 / plan line)                                       | Evidence                                                                                                                                                                                               | Result      | Status      |
+| --- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------- | ----------- |
+| 1   | `algorithms/src/indexed/accelerator.ts` exists and contains no WebGPU type | `grep -c "webgpu\|GPUDevice\|GPUBuffer" algorithms/src/indexed/accelerator.ts`                                                                                                                         | <0>         | pass / fail |
+| 2   | the twelve `*ResultLike` shapes, scores as `NumericVector`                 | `pnpm exec nx run algorithms:lint` (its third pass is `tsc -p tsconfig.typecheck.json`)                                                                                                                | <clean>     | pass / fail |
+| 3   | `AlgorithmAccelerator`, every method optional, `GraphSnapshot` in          | `test/types/accelerator.test-d.ts`, compiled by that same third pass                                                                                                                                   | <clean>     | pass / fail |
+| 4   | `accelerated(acc)` with the design's dispatcher body                       | `test/unit/indexed/accelerated.test.ts`                                                                                                                                                                | <n passed>  | pass / fail |
+| 5   | `pathTo` / `pathEdges` decoration for SSSP                                 | the decoration case of the same file                                                                                                                                                                   | <n passed>  | pass / fail |
+| 6   | `sources` / `k` on `BetweennessCentralityOptions`                          | `test/unit/indexed/betweenness-options.test.ts`                                                                                                                                                        | <n passed>  | pass / fail |
+| 7   | fake-accelerator tests: delegation, CPU path, throw propagates             | the same file, three cases                                                                                                                                                                             | <n passed>  | pass / fail |
+| 8   | W1b: `AlgorithmAccelerator` by `import type`, mirrors deleted              | `grep -c "interface AlgorithmAccelerator" webgpu-graph-algorithms/src/types/accelerator.ts`                                                                                                            | <0>         | pass / fail |
+| 9   | `CpuAlgorithmOptions` retired                                              | `grep -rc CpuAlgorithmOptions webgpu-graph-algorithms/src webgpu-graph-algorithms/test`                                                                                                                | <0>         | pass / fail |
+| 10  | `implicitDependencies` negation removed                                    | `nx show project webgpu-graph-algorithms --json`                                                                                                                                                       | <undefined> | pass / fail |
+| 11  | the G10 reverse compile                                                    | `pnpm exec nx run webgpu-graph-algorithms:lint` (its third pass is `tsc -p tsconfig.strict-consumer.json`; that target already delegates to the npm script, `webgpu-graph-algorithms/project.json:46`) | <clean>     | pass / fail |
 
 ## 2. The A1 gate of graph-format design 14.6, discharged here (plan departure DEP-8A-B)
 
-| Item | Evidence | Result | Status |
-| --- | --- | --- | --- |
-| every fixture graph converts with `equalsTopology` / neighbour-set parity | `test/unit/indexed/to-snapshot-differential.test.ts` | <11 passed> | pass / fail |
-| `mutationCount` memoisation, no stale hit | `test/unit/indexed/to-snapshot.test.ts` | <8 passed> | pass / fail |
-| `weightDtype: "f64"` keeps a non-f32-exact weight exactly | the shadow-column case of the same file | <pass> | pass / fail |
-| public signatures UNCHANGED | `git diff --stat master -- algorithms/src/algorithms algorithms/src/types` | <only betweenness.ts> | pass / fail |
+| Item                                                                      | Evidence                                                                   | Result                | Status      |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------- | ----------- |
+| every fixture graph converts with `equalsTopology` / neighbour-set parity | `test/unit/indexed/to-snapshot-differential.test.ts`                       | <11 passed>           | pass / fail |
+| `mutationCount` memoisation, no stale hit                                 | `test/unit/indexed/to-snapshot.test.ts`                                    | <8 passed>            | pass / fail |
+| `weightDtype: "f64"` keeps a non-f32-exact weight exactly                 | the shadow-column case of the same file                                    | <pass>                | pass / fail |
+| public signatures UNCHANGED                                               | `git diff --stat master -- algorithms/src/algorithms algorithms/src/types` | <only betweenness.ts> | pass / fail |
 
 ## 3. The six ports, against their legacy counterparts
 
-| Port | Design line | Cross-check | Tolerance | Result |
-| --- | --- | --- | --- | --- |
-| breadthFirstSearch | 3823 | visited set vs `bfs-unified.ts:46` | exact | <...> |
-| dijkstra | 3856 | finite distances vs `dijkstra.ts:21` | 1e-12 | <...> |
-| pageRank | 3889 | scores vs `pagerank.ts:83`, both sides pinned at `maxIterations: 200`, `tolerance: 1e-12`, legacy additionally `useDelta: false` | 1e-9 absolute | <...> |
-| connectedComponents | 3924 | partition vs `connected.ts:17` | exact | <...> |
-| kruskalMST | 3930 | `totalWeight` vs the legacy MST | 1e-12 | <...> |
-| commonNeighborsScore | 3940 | counts on the star and the multigraph | exact | <...> |
+| Port                 | Design line | Cross-check                                                                                                                      | Tolerance     | Result |
+| -------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------ |
+| breadthFirstSearch   | 3823        | visited set vs `bfs-unified.ts:46`                                                                                               | exact         | <...>  |
+| dijkstra             | 3856        | finite distances vs `dijkstra.ts:21`                                                                                             | 1e-12         | <...>  |
+| pageRank             | 3889        | scores vs `pagerank.ts:83`, both sides pinned at `maxIterations: 200`, `tolerance: 1e-12`, legacy additionally `useDelta: false` | 1e-9 absolute | <...>  |
+| connectedComponents  | 3924        | partition vs `connected.ts:17`                                                                                                   | exact         | <...>  |
+| kruskalMST           | 3930        | `totalWeight` vs the legacy MST                                                                                                  | 1e-12         | <...>  |
+| commonNeighborsScore | 3940        | counts on the star and the multigraph                                                                                            | exact         | <...>  |
 
 ## 4. Coverage (algorithms, `--project=default --coverage`)
 
-| lines | functions | branches | statements | threshold | wall time |
-| --- | --- | --- | --- | --- | --- |
-| <...> | <...> | <...> | <...> | 80 / 80 / 75 / 80 | <...> |
+| lines | functions | branches | statements | threshold         | wall time |
+| ----- | --------- | -------- | ---------- | ----------------- | --------- |
+| <...> | <...>     | <...>    | <...>      | 80 / 80 / 75 / 80 | <...>     |
 
 ## 5. Lanes
 
-| Lane | Run | Result |
-| --- | --- | --- |
-| `ci.yml` (20 shards) | <run id> | <...> |
-| `hosts.yml` (triggered by `pnpm-lock.yaml`) | <run id> | <...> |
-| `gpu.yml` on the merge commit (the release gate) | <run id> | <...> |
+| Lane                                             | Run      | Result |
+| ------------------------------------------------ | -------- | ------ |
+| `ci.yml` (20 shards)                             | <run id> | <...>  |
+| `hosts.yml` (triggered by `pnpm-lock.yaml`)      | <run id> | <...>  |
+| `gpu.yml` on the merge commit (the release gate) | <run id> | <...>  |
 
 ## 6. Findings, owner decisions, re-fixed numbers
 
 Signed off: <owner>, <date>.
-````
+```
 
 - [ ] **Step 2: The final green check**
 
@@ -3337,20 +3436,20 @@ Expected: the first command prints nothing; the rest exit 0. `tools/prepush.sh` 
 
 ### 7.1 The owner's command sheet (in order)
 
-| When | Command (paste as an `!` command in this session, or run in a shell) |
-| --- | --- |
-| before M8a-T1 | `git fetch origin && git merge --ff-only origin/master && git worktree add .worktrees/algorithms-indexed -b feat/algorithms-indexed-seam master` |
-| phase Step 0 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/algorithms-indexed && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph-format:build` |
+| When           | Command (paste as an `!` command in this session, or run in a shell)                                                                                                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| before M8a-T1  | `git fetch origin && git merge --ff-only origin/master && git worktree add .worktrees/algorithms-indexed -b feat/algorithms-indexed-seam master`                                                                                                                        |
+| phase Step 0   | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/algorithms-indexed && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph-format:build`                                                                                                             |
 | before M8a-T13 | if `tools/commit-changes.sh:468` does not yet list the three scopes, land Task M8b-T1 Step 1's `fix(tools): let commit-changes.sh accept the three format and GPU scopes` first; Task M8a-T1 is the check that says whether it is needed. M8a-T1 itself makes no commit |
-| M8a-T2 | `... && ./tools/commit-changes.sh` for `build(algorithms): take @graphty/graph-format as a workspace dependency and a caret peer` |
-| M8a-T4 | `... && ./tools/commit-changes.sh` for `feat(algorithms): convert a legacy Graph to a graph-format snapshot with a mutation counter` |
-| M8a-T7 | `... && ./tools/commit-changes.sh` for `feat(algorithms): port six algorithms to graph-format snapshots under the indexed namespace` |
-| M8a-T9 | `... && ./tools/commit-changes.sh` for `feat(algorithms): express sampled betweenness on the shared option type` |
-| M8a-T11 | `... && ./tools/commit-changes.sh` for `feat(algorithms): add the accelerator seam and the accelerated() dispatcher` |
-| M8a-T12 | `... && ./tools/commit-changes.sh` for `docs: record the A1 ordering and the PageRankOptions shadowing` |
-| before M8a-T13 | land Phase M5b on master, then `cd /home/apowers/Projects/graphty-monorepo/.worktrees/algorithms-indexed && git fetch origin && git merge origin/master` |
-| M8a-T13 | `... && ./tools/commit-changes.sh` for `feat(webgpu-graph-algorithms)!: import the real AlgorithmAccelerator and retire CpuAlgorithmOptions` |
-| M8a-T14 | `... && ./tools/commit-changes.sh` for `docs(webgpu-graph-algorithms): record the algorithms slice of the G6 gate`, then `git push -u origin feat/algorithms-indexed-seam` (the pre-push gate runs, 15-25 minutes) and `gh pr create` |
+| M8a-T2         | `... && ./tools/commit-changes.sh` for `build(algorithms): take @graphty/graph-format as a workspace dependency and a caret peer`                                                                                                                                       |
+| M8a-T4         | `... && ./tools/commit-changes.sh` for `feat(algorithms): convert a legacy Graph to a graph-format snapshot with a mutation counter`                                                                                                                                    |
+| M8a-T7         | `... && ./tools/commit-changes.sh` for `feat(algorithms): port six algorithms to graph-format snapshots under the indexed namespace`                                                                                                                                    |
+| M8a-T9         | `... && ./tools/commit-changes.sh` for `feat(algorithms): express sampled betweenness on the shared option type`                                                                                                                                                        |
+| M8a-T11        | `... && ./tools/commit-changes.sh` for `feat(algorithms): add the accelerator seam and the accelerated() dispatcher`                                                                                                                                                    |
+| M8a-T12        | `... && ./tools/commit-changes.sh` for `docs: record the A1 ordering and the PageRankOptions shadowing`                                                                                                                                                                 |
+| before M8a-T13 | land Phase M5b on master, then `cd /home/apowers/Projects/graphty-monorepo/.worktrees/algorithms-indexed && git fetch origin && git merge origin/master`                                                                                                                |
+| M8a-T13        | `... && ./tools/commit-changes.sh` for `feat(webgpu-graph-algorithms)!: import the real AlgorithmAccelerator and retire CpuAlgorithmOptions`                                                                                                                            |
+| M8a-T14        | `... && ./tools/commit-changes.sh` for `docs(webgpu-graph-algorithms): record the algorithms slice of the G6 gate`, then `git push -u origin feat/algorithms-indexed-seam` (the pre-push gate runs, 15-25 minutes) and `gh pr create`                                   |
 
 The agent never runs any of these; it prepares the tree and verifies the results.
 
@@ -3358,37 +3457,37 @@ Subject lengths, measured with `printf '%s' "<subject>" | wc -c`, in the order o
 
 ### 7.2 Verification matrix
 
-| Check | Where | Command | Green means |
-| --- | --- | --- | --- |
-| commit scopes agree (a precondition, not an edit) | M8a-T1 | `bash tmp/check-scopes.sh` | the script accepts every scope commitlint accepts, i.e. Task M8b-T1 Step 1 has landed |
-| the format resolves | M8a-T2 | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/package-wiring.test.ts` | `workspace:^` + `^1.0.0` peer, and the module imports |
-| the published bundle stays thin | M8a-T7 | `grep -c "SNAPSHOT_BRAND" algorithms/dist/algorithms.js` = 0 and `grep -c 'from "@graphty/graph-format"' algorithms/dist/algorithms.js` >= 1 | graph-format is external, not inlined |
-| the examples' bundle is self-contained | M8a-T2, M8a-T7 | `grep -c "SNAPSHOT_BRAND" algorithms/dist/algorithms.standalone.js` >= 1 and `grep -rl 'from "@graphty/' algorithms/gh-pages/` empty | no bare specifier reaches a browser |
-| A1 differential | M8a-T4 | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/to-snapshot-differential.test.ts` | every fixture converts with neighbour-set and edge-multiset parity |
-| memoisation has no stale hit | M8a-T3 | the `memoises on mutationCount` case of `to-snapshot.test.ts` | a mutation replaces the cached snapshot |
-| the six ports | M8a-T6, M8a-T7 | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed` | each port matches its legacy counterpart at the stated tolerance |
-| the seam compiles as declared | M8a-T10 | `cd algorithms && tsc -p tsconfig.typecheck.json` | `test/types/accelerator.test-d.ts` holds |
-| delegation / CPU path / throw | M8a-T11 | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/accelerated.test.ts` | the three proofs design 9.2 asks for |
-| the dispatcher's method list | M8a-T11 | the `carries exactly the six methods` case | a port PR cannot add a type without adding the implementation |
-| knip | M8a-T10 | `pnpm exec knip --workspace algorithms` | no unused export under `src/indexed/` |
-| coverage | M8a-T11 | `cd algorithms && pnpm exec vitest run --project=default --coverage` | at or above 80 / 80 / 75 / 80 |
-| no mirrors left | M8a-T13 | `grep -c "interface AlgorithmAccelerator" webgpu-graph-algorithms/src/types/accelerator.ts` = 0 | the GPU package imports the real declaration |
-| no runtime coupling | M8a-T13 | `grep -rn "@graphty/algorithms" webgpu-graph-algorithms/dist/webgpu-graph-algorithms.js` empty | the type imports were erased |
-| the G10 reverse compile | M8a-T13 | `cd webgpu-graph-algorithms && npm run lint` | eslint + two tsc runs, including the strict-consumer pass |
-| the nx edge is real | M8a-T13 | `pnpm exec nx show project webgpu-graph-algorithms --json` | `implicitDependencies` is `undefined` and the graph lists `algorithms` |
-| ASCII | M8a-T12, M8a-T14 | `LC_ALL=C grep -rnP '[^\x00-\x7F]' algorithms/src/indexed design/decisions` | no output |
-| pre-push gate | M8a-T14 | `./tools/prepush.sh` | exit 0 |
+| Check                                             | Where            | Command                                                                                                                                      | Green means                                                                           |
+| ------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| commit scopes agree (a precondition, not an edit) | M8a-T1           | `bash tmp/check-scopes.sh`                                                                                                                   | the script accepts every scope commitlint accepts, i.e. Task M8b-T1 Step 1 has landed |
+| the format resolves                               | M8a-T2           | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/package-wiring.test.ts`                                           | `workspace:^` + `^1.0.0` peer, and the module imports                                 |
+| the published bundle stays thin                   | M8a-T7           | `grep -c "SNAPSHOT_BRAND" algorithms/dist/algorithms.js` = 0 and `grep -c 'from "@graphty/graph-format"' algorithms/dist/algorithms.js` >= 1 | graph-format is external, not inlined                                                 |
+| the examples' bundle is self-contained            | M8a-T2, M8a-T7   | `grep -c "SNAPSHOT_BRAND" algorithms/dist/algorithms.standalone.js` >= 1 and `grep -rl 'from "@graphty/' algorithms/gh-pages/` empty         | no bare specifier reaches a browser                                                   |
+| A1 differential                                   | M8a-T4           | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/to-snapshot-differential.test.ts`                                 | every fixture converts with neighbour-set and edge-multiset parity                    |
+| memoisation has no stale hit                      | M8a-T3           | the `memoises on mutationCount` case of `to-snapshot.test.ts`                                                                                | a mutation replaces the cached snapshot                                               |
+| the six ports                                     | M8a-T6, M8a-T7   | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed`                                                                  | each port matches its legacy counterpart at the stated tolerance                      |
+| the seam compiles as declared                     | M8a-T10          | `cd algorithms && tsc -p tsconfig.typecheck.json`                                                                                            | `test/types/accelerator.test-d.ts` holds                                              |
+| delegation / CPU path / throw                     | M8a-T11          | `cd algorithms && pnpm exec vitest run --project=default test/unit/indexed/accelerated.test.ts`                                              | the three proofs design 9.2 asks for                                                  |
+| the dispatcher's method list                      | M8a-T11          | the `carries exactly the six methods` case                                                                                                   | a port PR cannot add a type without adding the implementation                         |
+| knip                                              | M8a-T10          | `pnpm exec knip --workspace algorithms`                                                                                                      | no unused export under `src/indexed/`                                                 |
+| coverage                                          | M8a-T11          | `cd algorithms && pnpm exec vitest run --project=default --coverage`                                                                         | at or above 80 / 80 / 75 / 80                                                         |
+| no mirrors left                                   | M8a-T13          | `grep -c "interface AlgorithmAccelerator" webgpu-graph-algorithms/src/types/accelerator.ts` = 0                                              | the GPU package imports the real declaration                                          |
+| no runtime coupling                               | M8a-T13          | `grep -rn "@graphty/algorithms" webgpu-graph-algorithms/dist/webgpu-graph-algorithms.js` empty                                               | the type imports were erased                                                          |
+| the G10 reverse compile                           | M8a-T13          | `cd webgpu-graph-algorithms && npm run lint`                                                                                                 | eslint + two tsc runs, including the strict-consumer pass                             |
+| the nx edge is real                               | M8a-T13          | `pnpm exec nx show project webgpu-graph-algorithms --json`                                                                                   | `implicitDependencies` is `undefined` and the graph lists `algorithms`                |
+| ASCII                                             | M8a-T12, M8a-T14 | `LC_ALL=C grep -rnP '[^\x00-\x7F]' algorithms/src/indexed design/decisions`                                                                  | no output                                                                             |
+| pre-push gate                                     | M8a-T14          | `./tools/prepush.sh`                                                                                                                         | exit 0                                                                                |
 
 ### 7.3 Risk register for this plan
 
-| Id | Risk | Mitigation |
-| --- | --- | --- |
-| R-M8A-1 | A port's differential test passes because both the port and the legacy function share a bug, so the "parity" proves nothing. | Every port's test has an INDEPENDENT hand-computed case as well as the legacy cross-check: the weighted diamond's `dist[d] === 2` (M8a-T6), PageRank's uniform 4-cycle and its unit sum (M8a-T7), the two-triangle partition (M8a-T7). A shared bug has to survive both. |
-| R-M8A-2 | `pnpm exec nx run algorithms:lint` in a fresh worktree fails with TS2307 because graph-format is unbuilt -- algorithms' `lint` gains no `dependsOn` (PD-8). | The phase's Step 0 builds graph-format; `algorithms:build`'s own `dependsOn: ["^build"]` covers every nx path; CI builds before it lints on both PR and master (`ci.yml:78`, `:98`) and additionally builds graph-format unconditionally on a PR (`:85-92`); `tools/prepush.sh` runs Build as step 1. |
-| R-M8A-3 | The `readonly ... \| undefined` restyle of `BetweennessCentralityOptions` breaks an internal caller that assigns to one of the three existing members. | M8a-T9 Step 3 runs the whole `test/unit` suite, and `betweenness.ts`'s five internal consumers (`:69`, `:129`, `:204`, `:248`, `:267`) only READ the options -- verified before the edit. `readonly` on an interface property does not block object assignability in TypeScript, and `\| undefined` is a widening under the `exactOptionalPropertyTypes: false` that `tsconfig.base.json` leaves unset. |
-| R-M8A-4 | Task M8a-T13 collides with Phase M5b on six files and one of them silently loses M5b's half. | PD-12 gates T13 on M5b being on master and the task's first line is a check that prints M5b's own edit; every T13 edit is written as an ADDITION beside the layout entry M5b left, never as a replacement of the block. |
-| R-M8A-5 | Removing the `implicitDependencies` negation makes every algorithms release republish the GPU package, and a GPU-lane flake then blocks an unrelated algorithms publish. | Accepted and stated (PD-11); it is the existing monorepo convention (design Q-29). The escape, if it bites twice, is `release.groups` with `updateDependents: "never"`, which the design already records as the alternative. One occurrence is not evidence; a second is. |
-| R-M8A-6 | The dispatcher grows a method in `AcceleratedAlgorithms` without a matching branch in `accelerated()`, so a call is `undefined is not a function` at runtime. | The `carries exactly the six methods whose ports exist` case of M8a-T11 enumerates the dispatcher's own keys; adding one to the interface without the implementation fails it. |
-| R-M8A-7 | `tools/prepush.sh` takes 15-25 minutes and the push discovers a failure long after the work looks done. | M8a-T14 Step 2 runs the same gate before the push, and every task ends with `npm run lint` plus its own vitest run, so the gate finds nothing new. |
-| R-M8A-8 | `hosts.yml` runs on this PR (its `paths:` includes `pnpm-lock.yaml`, `.github/workflows/hosts.yml:13`) and its known WARP `E_DEVICE_LOST` flake blocks the merge on a change that touches no kernel. | Re-run the lane; it is environmental and the phase changes nothing it exercises. If it fails twice on the same commit, the owner decides at the gate -- a flake is not silently waived (design 13 rule (a)). |
-| R-M8A-9 | The A1 harness is committed in the same PR as the ports, so a differential failure could be blamed on a port. | M8a-T4's commit lands the harness BEFORE any port commit (the command sheet fixes the order), so `git bisect` separates them; the decision record `2026-09-19-a1-lands-inside-m8a.md` names this as the cost being accepted. |
+| Id      | Risk                                                                                                                                                                                                 | Mitigation                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-M8A-1 | A port's differential test passes because both the port and the legacy function share a bug, so the "parity" proves nothing.                                                                         | Every port's test has an INDEPENDENT hand-computed case as well as the legacy cross-check: the weighted diamond's `dist[d] === 2` (M8a-T6), PageRank's uniform 4-cycle and its unit sum (M8a-T7), the two-triangle partition (M8a-T7). A shared bug has to survive both.                                                                                                                                |
+| R-M8A-2 | `pnpm exec nx run algorithms:lint` in a fresh worktree fails with TS2307 because graph-format is unbuilt -- algorithms' `lint` gains no `dependsOn` (PD-8).                                          | The phase's Step 0 builds graph-format; `algorithms:build`'s own `dependsOn: ["^build"]` covers every nx path; CI builds before it lints on both PR and master (`ci.yml:78`, `:98`) and additionally builds graph-format unconditionally on a PR (`:85-92`); `tools/prepush.sh` runs Build as step 1.                                                                                                   |
+| R-M8A-3 | The `readonly ... \| undefined` restyle of `BetweennessCentralityOptions` breaks an internal caller that assigns to one of the three existing members.                                               | M8a-T9 Step 3 runs the whole `test/unit` suite, and `betweenness.ts`'s five internal consumers (`:69`, `:129`, `:204`, `:248`, `:267`) only READ the options -- verified before the edit. `readonly` on an interface property does not block object assignability in TypeScript, and `\| undefined` is a widening under the `exactOptionalPropertyTypes: false` that `tsconfig.base.json` leaves unset. |
+| R-M8A-4 | Task M8a-T13 collides with Phase M5b on six files and one of them silently loses M5b's half.                                                                                                         | PD-12 gates T13 on M5b being on master and the task's first line is a check that prints M5b's own edit; every T13 edit is written as an ADDITION beside the layout entry M5b left, never as a replacement of the block.                                                                                                                                                                                 |
+| R-M8A-5 | Removing the `implicitDependencies` negation makes every algorithms release republish the GPU package, and a GPU-lane flake then blocks an unrelated algorithms publish.                             | Accepted and stated (PD-11); it is the existing monorepo convention (design Q-29). The escape, if it bites twice, is `release.groups` with `updateDependents: "never"`, which the design already records as the alternative. One occurrence is not evidence; a second is.                                                                                                                               |
+| R-M8A-6 | The dispatcher grows a method in `AcceleratedAlgorithms` without a matching branch in `accelerated()`, so a call is `undefined is not a function` at runtime.                                        | The `carries exactly the six methods whose ports exist` case of M8a-T11 enumerates the dispatcher's own keys; adding one to the interface without the implementation fails it.                                                                                                                                                                                                                          |
+| R-M8A-7 | `tools/prepush.sh` takes 15-25 minutes and the push discovers a failure long after the work looks done.                                                                                              | M8a-T14 Step 2 runs the same gate before the push, and every task ends with `npm run lint` plus its own vitest run, so the gate finds nothing new.                                                                                                                                                                                                                                                      |
+| R-M8A-8 | `hosts.yml` runs on this PR (its `paths:` includes `pnpm-lock.yaml`, `.github/workflows/hosts.yml:13`) and its known WARP `E_DEVICE_LOST` flake blocks the merge on a change that touches no kernel. | Re-run the lane; it is environmental and the phase changes nothing it exercises. If it fails twice on the same commit, the owner decides at the gate -- a flake is not silently waived (design 13 rule (a)).                                                                                                                                                                                            |
+| R-M8A-9 | The A1 harness is committed in the same PR as the ports, so a differential failure could be blamed on a port.                                                                                        | M8a-T4's commit lands the harness BEFORE any port commit (the command sheet fixes the order), so `git bisect` separates them; the decision record `2026-09-19-a1-lands-inside-m8a.md` names this as the cost being accepted.                                                                                                                                                                            |

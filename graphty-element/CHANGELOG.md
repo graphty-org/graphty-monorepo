@@ -1,3 +1,126 @@
+## 3.16.0 (2026-10-07)
+
+### 🚀 Features
+
+- **graphty-element:** report where a broken graph file broke ([#1218](https://github.com/graphty-org/graphty-monorepo/issues/1218))
+- **graphty-element:** seed the default layout so one file draws the same way each time ([#801](https://github.com/graphty-org/graphty-monorepo/issues/801))
+- **graphty-element:** give notes an optional done state ([#705](https://github.com/graphty-org/graphty-monorepo/issues/705))
+- **graphty-element:** a range selection target and the top's threshold ([85a38487f](https://github.com/graphty-org/graphty-monorepo/commit/85a38487f))
+- **graphty-element:** implement session.catalog.optionsFor ([#336](https://github.com/graphty-org/graphty-monorepo/issues/336))
+- **graphty-element:** raise the render ceilings to 100,000 nodes and 1,000,000 edges ([342a6dec5](https://github.com/graphty-org/graphty-monorepo/commit/342a6dec5))
+- **graphty-element:** raise the declared edge ceiling to 500,000 ([d05e706a6](https://github.com/graphty-org/graphty-monorepo/commit/d05e706a6))
+
+### 🩹 Fixes
+
+- **graphty-element:** write the arrow caption glyphs as escapes ([#113](https://github.com/graphty-org/graphty-monorepo/issues/113))
+- **graphty-element:** one scope digest, the one production uses ([#75](https://github.com/graphty-org/graphty-monorepo/issues/75))
+- **graphty-element:** declare the language of the example pages ([#714](https://github.com/graphty-org/graphty-monorepo/issues/714))
+- **graphty-element:** accept a skybox image from any http(s) host ([412472831](https://github.com/graphty-org/graphty-monorepo/commit/412472831))
+- **graphty-element:** load story datasets from the repo, not GitHub ([#516](https://github.com/graphty-org/graphty-monorepo/issues/516))
+- **webgpu-graph-algorithms:** settle label propagation on ordered paths ([#694](https://github.com/graphty-org/graphty-monorepo/issues/694))
+- **graphty-element:** draw each instance once in a frozen frame ([f4db26959](https://github.com/graphty-org/graphty-monorepo/commit/f4db26959))
+- **graphty-element:** keep the ray and arrow-mesh members as deprecated shims ([a9057340a](https://github.com/graphty-org/graphty-monorepo/commit/a9057340a))
+- **graphty-element:** waitForStableFrame waits for the label counts to be announced ([3663f1a2d](https://github.com/graphty-org/graphty-monorepo/commit/3663f1a2d))
+- **graphty-element:** clear the SonarQube optional-chain and Set findings on the edge lines ([a456fac9b](https://github.com/graphty-org/graphty-monorepo/commit/a456fac9b))
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([8863d118a](https://github.com/graphty-org/graphty-monorepo/commit/8863d118a))
+- **graphty-element:** draw nothing for a hidden 3D arrow cap instead of a full cap at the origin ([2793ded2c](https://github.com/graphty-org/graphty-monorepo/commit/2793ded2c))
+- **graphty-element:** keep a shared edge batch in the scene when some of its edges are removed ([a34c9211b](https://github.com/graphty-org/graphty-monorepo/commit/a34c9211b))
+- **graphty-element:** draw patterned lines at their opacity in 3D and along their line in 2D ([#619](https://github.com/graphty-org/graphty-monorepo/issues/619), [#620](https://github.com/graphty-org/graphty-monorepo/issues/620))
+- **graphty-element:** let a run of removals share one freeze instead of one each ([c45f1a05a](https://github.com/graphty-org/graphty-monorepo/commit/c45f1a05a))
+- **graphty-element:** place edges a filter reveals again, so an undone filter draws them ([165f337ba](https://github.com/graphty-org/graphty-monorepo/commit/165f337ba))
+- **graphty-element:** reconcile instanced edges with master's index sentinel, door list and floors ([fe3ee9dec](https://github.com/graphty-org/graphty-monorepo/commit/fe3ee9dec))
+- **graphty-element:** drop the line paths no edge takes, and centre a curve's reading ([440fd781c](https://github.com/graphty-org/graphty-monorepo/commit/440fd781c))
+- **graphty-element:** read a batch off hasThinInstances in the story assertions ([a0eb29b86](https://github.com/graphty-org/graphty-monorepo/commit/a0eb29b86))
+- **graphty-element:** dispose a line batch's material with it, and pin the scene's shape ([#444](https://github.com/graphty-org/graphty-monorepo/issues/444), [#441](https://github.com/graphty-org/graphty-monorepo/issues/441))
+- **graphty-element:** decide whether a node is round from its geometry, not from its name ([ff3517862](https://github.com/graphty-org/graphty-monorepo/commit/ff3517862))
+- **graphty-element:** unfreeze the scene when a mesh appears, not only when one moves ([14aeac609](https://github.com/graphty-org/graphty-monorepo/commit/14aeac609))
+- **graphty-element:** let a line batch die with its last edge, and say where a batched edge is drawn ([6d191e089](https://github.com/graphty-org/graphty-monorepo/commit/6d191e089))
+- **graphty-element:** draw 2D arrow caps in the plane the camera looks at ([f55dff88f](https://github.com/graphty-org/graphty-monorepo/commit/f55dff88f))
+- **graphty-element:** measure a cap's span the way its drawn box did ([5ac260f94](https://github.com/graphty-org/graphty-monorepo/commit/5ac260f94))
+
+### 🔥 Performance
+
+- **graphty-element:** keep Math.sqrt on three per-frame edge paths ([16b4165ce](https://github.com/graphty-org/graphty-monorepo/commit/16b4165ce))
+- **graphty-element:** draw every edge line style as thin instances, in 2D and 3D ([#444](https://github.com/graphty-org/graphty-monorepo/issues/444))
+- **graphty-element:** work out where a line meets a round node instead of searching for it ([#412](https://github.com/graphty-org/graphty-monorepo/issues/412))
+- **graphty-element:** stop re-deciding what to draw on a frame that changed nothing ([c74988d36](https://github.com/graphty-org/graphty-monorepo/commit/c74988d36))
+- **graphty-element:** stop doing per-edge work on a frame where nothing moved ([#412](https://github.com/graphty-org/graphty-monorepo/issues/412))
+- **graphty-element:** draw arrow caps as thin instances ([9b0c25743](https://github.com/graphty-org/graphty-monorepo/commit/9b0c25743))
+- **graphty-element:** nest the graph-root parenting instead of branching past it ([3e46fda90](https://github.com/graphty-org/graphty-monorepo/commit/3e46fda90))
+- **graphty-element:** draw 3D solid edge lines as thin instances ([cf8771571](https://github.com/graphty-org/graphty-monorepo/commit/cf8771571))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.36
+- Updated @graphty/remote-logger to 2.0.8
+- Updated graph-samples to 0.1.22
+- Updated graph-format to 1.3.7
+- Updated algorithms to 3.3.7
+- Updated graph-io to 0.3.27
+- Updated layout to 2.2.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.15.0 (2026-10-06)
+
+### 🚀 Features
+
+- **graphty-element:** publish generated JSX types at ./jsx ([de176c23d](https://github.com/graphty-org/graphty-monorepo/commit/de176c23d))
+- **graphty-element:** register clustering, A* and edge betweenness ([#55](https://github.com/graphty-org/graphty-monorepo/issues/55))
+- **graphty-element:** attributes() says which layers and runs read a column ([#923](https://github.com/graphty-org/graphty-monorepo/pull/923))
+- **graphty-element:** narrow nodePage and edgePage to records matching typed text ([#904](https://github.com/graphty-org/graphty-monorepo/pull/904))
+- **graphty-element:** open a data file with project.open, the one intake verb ([#913](https://github.com/graphty-org/graphty-monorepo/pull/913))
+- **graphty-element:** attributes() says which column is the key, the label, the weight ([#893](https://github.com/graphty-org/graphty-monorepo/pull/893))
+- **graphty-element:** pair any file, URL or text as two tables, refusing a non-table ([#930](https://github.com/graphty-org/graphty-monorepo/pull/930))
+- **graphty-element:** session.data.renameSource(name), and save the source in projects ([#894](https://github.com/graphty-org/graphty-monorepo/pull/894))
+- **graphty-element:** recognize a CSV pair's edge file, and say what a draft resolved ([#911](https://github.com/graphty-org/graphty-monorepo/pull/911))
+- **graphty-element:** selection.origin, the target a selection was made from ([#898](https://github.com/graphty-org/graphty-monorepo/pull/898))
+- **graphty-element:** say which roles a draft's tables take, need and lack ([#926](https://github.com/graphty-org/graphty-monorepo/pull/926))
+- **graphty-element:** session.data.histogram(column), a data column's distribution ([#897](https://github.com/graphty-org/graphty-monorepo/pull/897))
+- **graphty-element:** the degree distribution in data.statistics() ([#896](https://github.com/graphty-org/graphty-monorepo/pull/896))
+- **graphty-element:** report progress while prepare() reads a source ([#910](https://github.com/graphty-org/graphty-monorepo/pull/910))
+- **graphty-element:** say when a load starts, what it reads and how it ended ([#902](https://github.com/graphty-org/graphty-monorepo/pull/902))
+- **graphty-element:** session.data.name(id), a node's name by id ([#895](https://github.com/graphty-org/graphty-monorepo/pull/895))
+- **graphty-element:** self-loop and repeated-edge rule leaves ([#899](https://github.com/graphty-org/graphty-monorepo/pull/899))
+- **graphty-element:** an isolated rule leaf that selects what isolatedCount counts ([#931](https://github.com/graphty-org/graphty-monorepo/pull/931))
+- **graphty-element:** offer the OBO Graphs shape when exporting JSON ([9f5e5042b](https://github.com/graphty-org/graphty-monorepo/commit/9f5e5042b))
+
+### 🩹 Fixes
+
+- **graphty-element:** fingerprint numeric ids past 32 bits ([#714](https://github.com/graphty-org/graphty-monorepo/issues/714))
+- **graphty-element:** give two functions a single return ([#714](https://github.com/graphty-org/graphty-monorepo/issues/714))
+- **graphty-element:** list only dispatched events in the manifest ([3616a8904](https://github.com/graphty-org/graphty-monorepo/commit/3616a8904))
+- **graphty-element:** pin the XR demo's Babylon scripts with SRI ([#713](https://github.com/graphty-org/graphty-monorepo/issues/713))
+- **graphty-element:** answer pinned.has for either spelling of an id ([#1065](https://github.com/graphty-org/graphty-monorepo/issues/1065))
+- **graphty-element:** follow data.directed after a session is built ([#837](https://github.com/graphty-org/graphty-monorepo/issues/837))
+- **graphty-element:** pin, unpin and edge paging accept either spelling of an integer id ([#1065](https://github.com/graphty-org/graphty-monorepo/issues/1065), [#542](https://github.com/graphty-org/graphty-monorepo/issues/542))
+- **graphty-element:** publish degree as columns so its cost no longer depends on GC state ([1bba70027](https://github.com/graphty-org/graphty-monorepo/commit/1bba70027))
+- **graphty-element:** refuse an empty file with E_EMPTY_LOAD, not E_PARSE_FAILED ([1ba338a4b](https://github.com/graphty-org/graphty-monorepo/commit/1ba338a4b))
+- **graphty-element:** finish removing GraphShapeStatistics and test the selection origin causes ([564d6cb18](https://github.com/graphty-org/graphty-monorepo/commit/564d6cb18))
+- **graphty-element:** close the load-preview review gaps in progress, refusals and id counts ([#902](https://github.com/graphty-org/graphty-monorepo/issues/902), [#910](https://github.com/graphty-org/graphty-monorepo/issues/910), [#928](https://github.com/graphty-org/graphty-monorepo/issues/928), [#930](https://github.com/graphty-org/graphty-monorepo/issues/930), [#926](https://github.com/graphty-org/graphty-monorepo/issues/926), [#929](https://github.com/graphty-org/graphty-monorepo/issues/929))
+- **graphty-element:** keep selection.origin truthful and degreeHistogram optional ([5cde756af](https://github.com/graphty-org/graphty-monorepo/commit/5cde756af))
+- **graphty-element:** count node rows with no id, and report duplicate ids ([#929](https://github.com/graphty-org/graphty-monorepo/pull/929))
+- **graphty-element:** read a draft's rows under explicit choices, and list loaded rows ([#927](https://github.com/graphty-org/graphty-monorepo/pull/927))
+- **graphty-element:** let a DataSource reader yield plain records ([#914](https://github.com/graphty-org/graphty-monorepo/pull/914))
+- **graphty-element:** report a merge of an edge table alone as the load does it ([#935](https://github.com/graphty-org/graphty-monorepo/pull/935))
+- **graphty-element:** refuse an unreadable file with E_PARSE_FAILED, not E_EMPTY_LOAD ([#928](https://github.com/graphty-org/graphty-monorepo/pull/928))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.35
+- Updated @graphty/remote-logger to 2.0.7
+- Updated graph-samples to 0.1.21
+- Updated graph-format to 1.3.6
+- Updated algorithms to 3.3.6
+- Updated graph-io to 0.3.26
+- Updated layout to 2.2.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.14.5 (2026-10-05)
 
 ### 🧱 Updated Dependencies
@@ -223,7 +346,7 @@
 - **graphty-element:** refuse an undrawable column with E_UNSUPPORTED ([3b7904c1](https://github.com/graphty-org/graphty-monorepo/commit/3b7904c1))
 - **graphty-element:** a batch member's dropped suggestion reads superseded, not merged ([7e5b9472](https://github.com/graphty-org/graphty-monorepo/commit/7e5b9472))
 - **graphty-element:** run no derivation pass after a session is disposed ([8aa601a8](https://github.com/graphty-org/graphty-monorepo/commit/8aa601a8))
-- **graphty-element:** type the graphty-* DOM events and name the project status event as approved ([cadd2c55](https://github.com/graphty-org/graphty-monorepo/commit/cadd2c55))
+- **graphty-element:** type the graphty-\* DOM events and name the project status event as approved ([cadd2c55](https://github.com/graphty-org/graphty-monorepo/commit/cadd2c55))
 - **graphty-element:** clearer column encoding names and docs ([c1c6f6e8](https://github.com/graphty-org/graphty-monorepo/commit/c1c6f6e8))
 - **graphty-element:** clearer runs.painting names and guide fixes from a blind-author review ([b92dcd4a](https://github.com/graphty-org/graphty-monorepo/commit/b92dcd4a))
 - **graphty-element:** a reopened project keeps runs, filters and layers that name a set ([#301](https://github.com/graphty-org/graphty-monorepo/issues/301))
@@ -394,7 +517,7 @@
 - **graphty-element:** give channel descriptors a short name, group, default and reason ([2680142b](https://github.com/graphty-org/graphty-monorepo/commit/2680142b))
 - **graphty-element:** export notes as columns on request, and report the notes left out ([b39b2dd3](https://github.com/graphty-org/graphty-monorepo/commit/b39b2dd3))
 - **graphty-element:** draw label and tooltip text bound to a note as plain text ([e97f6f36](https://github.com/graphty-org/graphty-monorepo/commit/e97f6f36))
-- **graphty-element:** read note counts and newest text through graphty.notes.* style paths ([be1d65a8](https://github.com/graphty-org/graphty-monorepo/commit/be1d65a8))
+- **graphty-element:** read note counts and newest text through graphty.notes.\* style paths ([be1d65a8](https://github.com/graphty-org/graphty-monorepo/commit/be1d65a8))
 - **graphty-element:** save and open notes with toDocument and mergeDocument ([e2ac4893](https://github.com/graphty-org/graphty-monorepo/commit/e2ac4893))
 - **graphty-element:** add the document error codes and the warning code union ([7dacc3bb](https://github.com/graphty-org/graphty-monorepo/commit/7dacc3bb))
 - **graphty-element:** select what a note is about, and list notes among a set's users ([db624628](https://github.com/graphty-org/graphty-monorepo/commit/db624628))

@@ -106,7 +106,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
-import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -121,6 +121,7 @@ import { Node } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
 import type { DataMutation } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
@@ -135,7 +136,12 @@ import {
     setsNotifierOfSession,
 } from "./session/GraphSession";
 import type { SessionCommand } from "./session/planning";
-import { cancelReasonOf, type DispatchFunction, queueScheduler } from "./session/project/Dispatcher";
+import {
+    cancelReasonOf,
+    type DispatchFunction,
+    queueScheduler,
+    type TransactionOptions as DispatcherTransactionOptions,
+} from "./session/project/Dispatcher";
 import { deepFreeze } from "./session/project/draft";
 import { EDGES_ADDED, NODES_ADDED } from "./session/project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./session/project/state";
@@ -269,6 +275,24 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     }
 
     return queue;
+}
+
+/**
+ * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
+ * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
+ */
+export interface NodeScreenPosition {
+    /** The node's centre, pixels from the element's left edge. */
+    x: number;
+    /** The node's centre, pixels from the element's top edge. */
+    y: number;
+    /**
+     * True when the node is drawn and its centre is on screen: inside the element, in front of
+     * the camera and not hidden by a filter. Another node drawn in front of it does not count.
+     */
+    visible: boolean;
+    /** The node's radius on screen in pixels: its largest half-extent, projected. 0 behind the camera. */
+    radius: number;
 }
 
 /**
@@ -647,7 +671,7 @@ export class Graph implements GraphContext {
                 this.updateManager.redrawArrangement(wrote);
             },
             pin: (id, pinned) => {
-                const node = this.getNode(id as string | number);
+                const node = this.getNode(id);
                 const engine = this.layoutManager.layoutEngine;
                 if (node === undefined || engine === undefined) {
                     return;
@@ -1131,15 +1155,19 @@ export class Graph implements GraphContext {
 
         // One step: every run the template starts is recorded in it, and a run that fails leaves
         // the others recorded.
-        await dispatcherOf(this.session).transaction("Ran the template's algorithms", async (tx) => {
-            for (const entry of algorithms) {
-                try {
-                    await this.runOnLoad(entry, (command, options) => tx.dispatch(command, options));
-                } catch (error) {
-                    errors.push(error instanceof Error ? error : new Error(String(error)));
+        await dispatcherOf(this.session).transaction(
+            "Ran the template's algorithms",
+            async (tx) => {
+                for (const entry of algorithms) {
+                    try {
+                        await this.runOnLoad(entry, (command, options) => tx.dispatch(command, options));
+                    } catch (error) {
+                        errors.push(error instanceof Error ? error : new Error(String(error)));
+                    }
                 }
-            }
-        });
+            },
+            TEMPLATE_RUNS,
+        );
 
         if (errors.length > 0) {
             const summaryError = new Error(
@@ -1587,8 +1615,7 @@ export class Graph implements GraphContext {
      */
     setSelectionStyle(selection: GraphSelectionStyleInput): void {
         const current = dispatcherOf(this.session).state.config.get("selectionStyle") as
-            | GraphSelectionStyleInput
-            | undefined;
+            GraphSelectionStyleInput | undefined;
         const merged = { ...current, ...selection };
 
         GraphSelectionStyleOpts.parse(merged);
@@ -1659,6 +1686,7 @@ export class Graph implements GraphContext {
                     ? {
                           op: "batch",
                           label: "Changed the layout behaviour",
+                          fact: { code: "layout.behavior", params: { layout: setLayout.id } },
                           steps: [{ op: "config.set", values: { layoutBehavior: project } }, setLayout],
                       }
                     : setLayout;
@@ -1685,6 +1713,29 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * One node's label as the last frame drew it: its words and whether it is on screen.
+     *
+     * READ FROM THE LABEL ITSELF, never worked out again: the text is the runs the label renderer
+     * parsed and paints, and `drawn` is the two switches that take a label off screen -- the
+     * visibility mask's `setEnabled` and the declutter pass's `isVisible`. So this can never say
+     * something the picture does not show.
+     * @param nodeId - The node.
+     * @returns The label, or undefined when there is no such node or it draws no label.
+     */
+    labelOf(nodeId: string | number): NodeLabel | undefined {
+        const label = this.dataManager.getNode(nodeId)?.label;
+        const mesh = label?.labelMesh;
+        if (!label || !mesh || mesh.isDisposed()) {
+            return undefined;
+        }
+
+        return {
+            text: label.textRuns.map((line) => line.map((run) => run.text).join("")).join("\n"),
+            drawn: mesh.isEnabled() && mesh.isVisible,
+        };
+    }
+
+    /**
      * The layout behaviour: the view preferences somebody set on this graph, and the pacing
      * settings saved with the project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in
      * effect. Those three always read their value, so assigning one its default reads back even
@@ -1705,7 +1756,7 @@ export class Graph implements GraphContext {
             ),
         );
 
-        return Object.keys(set).length > 0 ? (set as GraphBehaviorConfig) : undefined;
+        return Object.keys(set).length > 0 ? set : undefined;
     }
 
     /**
@@ -2590,29 +2641,36 @@ export class Graph implements GraphContext {
         // transaction's body is synchronous and each style command writes as it is dispatched,
         // so what it applied is known before this returns.
         const applied = dispatcherOf(this.session)
-            .transaction("Applied suggested styles", (tx) => {
-                for (const key of keys) {
-                    for (const suggestion of this.getSuggestedStyles(key)) {
-                        // Fire and forget with the refusal reported, for the reason the auto-apply
-                        // policy gives: a caller must not have to await the picture in order to
-                        // have started the work, and a refusal that reached nobody is what this
-                        // whole system replaces.
-                        tx.dispatch(suggestionCommand(suggestion)).then(undefined, report);
-                        const { run } = suggestion.spec;
-                        if (typeof run === "string") {
-                            painted.push(run);
-                        } else {
-                            painted.push("runId" in run ? run.runId : run.id);
+            .transaction(
+                "Applied suggested styles",
+                (tx) => {
+                    for (const key of keys) {
+                        for (const suggestion of this.getSuggestedStyles(key)) {
+                            // Fire and forget with the refusal reported, for the reason the auto-apply
+                            // policy gives: a caller must not have to await the picture in order to
+                            // have started the work, and a refusal that reached nobody is what this
+                            // whole system replaces.
+                            tx.dispatch(suggestionCommand(suggestion)).then(undefined, report);
+                            const { run } = suggestion.spec;
+                            if (typeof run === "string") {
+                                painted.push(run);
+                            } else {
+                                painted.push("runId" in run ? run.runId : run.id);
+                            }
                         }
                     }
-                }
 
-                if (painted.length > 0) {
-                    this.#stackSuggestionsInOrder(painted, (id) => {
-                        tx.dispatch({ op: "style.patch", action: "move", id, before: null }).then(undefined, report);
-                    });
-                }
-            })
+                    if (painted.length > 0) {
+                        this.#stackSuggestionsInOrder(painted, (id) => {
+                            tx.dispatch({ op: "style.patch", action: "move", id, before: null }).then(
+                                undefined,
+                                report,
+                            );
+                        });
+                    }
+                },
+                { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
+            )
             .then(undefined, report);
         // Kept, so `waitForStableFrame()` and `waitForSettled()` wait for the layers to land.
         // Chained, so a second call does not replace the first one's promise.
@@ -2898,7 +2956,7 @@ export class Graph implements GraphContext {
      * a throw rolls all of it back. A call on this graph itself while `fn` runs is a step of its
      * own, and logs a warning naming the `tx` verb to use instead.
      * @param fn - The changes, made through `tx`.
-     * @param label - The step's label.
+     * @param label - The step's label; its fact's `label` param (null when not given).
      * @returns Once the step is recorded and drawn.
      * @since 3.0.0
      * @example
@@ -2910,16 +2968,16 @@ export class Graph implements GraphContext {
      * });
      * ```
      */
-    async batchOperations(
-        fn: (tx: TransactionScope) => Promise<void> | void,
-        label = "Batch of changes",
-    ): Promise<void> {
+    async batchOperations(fn: (tx: TransactionScope) => Promise<void> | void, label?: string): Promise<void> {
         if (this.openBatches++ === 0) {
             this.warnOutsideBatch();
         }
 
         try {
-            await this.session.transaction(label, (tx) => fn(tx));
+            const named: DispatcherTransactionOptions = {
+                fact: { code: "transaction", params: { label: label ?? null } },
+            };
+            await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
         } finally {
             if (--this.openBatches === 0) {
                 for (const verb of Object.keys(BATCH_VERBS)) {
@@ -3629,10 +3687,14 @@ export class Graph implements GraphContext {
 
         try {
             if (this.dimension() === "2d") {
-                await dispatcher.transaction(`Switched to 3D for ${mode.toUpperCase()}`, async (tx) => {
-                    await tx.dispatch({ op: "view.dimension", dimension: "3d" });
-                    await tx.dispatch({ op: "view.immersive", mode });
-                });
+                await dispatcher.transaction(
+                    `Switched to 3D for ${mode.toUpperCase()}`,
+                    async (tx) => {
+                        await tx.dispatch({ op: "view.dimension", dimension: "3d" });
+                        await tx.dispatch({ op: "view.immersive", mode });
+                    },
+                    { fact: { code: "view.immersive", params: { mode } } },
+                );
             } else {
                 await dispatcher.dispatch({ op: "view.immersive", mode });
             }
@@ -4054,6 +4116,53 @@ export class Graph implements GraphContext {
         const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight();
 
         return { x: screenX, y: screenY };
+    }
+
+    /**
+     * Where a node is drawn on screen, in the same pixels {@link worldToScreen} returns.
+     * @param nodeId - The node's id.
+     * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
+     *     an id the graph does not hold.
+     */
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
+        const node = this.getNode(nodeId);
+        const camera = this.scene.activeCamera;
+        if (!node || !camera) {
+            return undefined;
+        }
+
+        // The world centre, not `mesh.position`: an XR gesture moves and scales graph-root.
+        const { mesh } = node;
+        mesh.computeWorldMatrix(true);
+        const centre = mesh.getAbsolutePosition();
+        const { x, y } = this.worldToScreen(centre);
+
+        // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
+        const view = this.scene.getViewMatrix().m;
+        const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+        const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
+
+        const engine = this.scene.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const onScreen = x >= 0 && x <= width && y >= 0 && y <= height;
+
+        // The node's largest half-extent in the world, projected: the projection's y scale over
+        // the clip w (the depth in perspective, 1 in orthographic), in pixels.
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        const scale = mesh.absoluteScaling;
+        const worldRadius =
+            Math.max(extent.x, extent.y, extent.z) * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
+        const projection = this.scene.getProjectionMatrix().m;
+        const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
+        const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
+
+        return {
+            x,
+            y,
+            visible: node.getRenderState() === "visible" && inDepth && onScreen,
+            radius,
+        };
     }
 
     /**
@@ -5825,7 +5934,7 @@ export class Graph implements GraphContext {
         name: string,
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
-        return this.setCameraState({ preset: name } as { preset: string }, options);
+        return this.setCameraState({ preset: name }, options);
     }
 
     /**
@@ -5959,6 +6068,7 @@ export class Graph implements GraphContext {
         this.applyData({
             op: "batch",
             label: "Set the graph data",
+            fact: { code: "data.set", params: {} },
             steps: steps.map((mutation) => ({ op: "data.apply", mutation })),
         }).catch((e: unknown) => {
             // Disposing the graph cancels the step while it is pending; that is teardown, not a

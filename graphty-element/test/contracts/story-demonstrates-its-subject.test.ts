@@ -305,7 +305,10 @@ describe("a layout, data or algorithm story demonstrates the key it is named aft
                 reports.flatMap((report) => report.findings),
                 [],
             );
-            assert.strictEqual(reports.reduce((total, report) => total + report.checked, 0), 1);
+            assert.strictEqual(
+                reports.reduce((total, report) => total + report.checked, 0),
+                1,
+            );
         });
     }
 });

@@ -61,6 +61,7 @@ describe("the names of a partition's groups", () => {
         await harness.session.styles.encode({ run: result.runId, channel: "node.color" });
         const groups = result.summary().groups ?? [];
         const block = harness.session.styles.legend().find((entry) => entry.runId === result.runId);
+        assert.deepStrictEqual(block?.field?.result, { algorithm: "louvain", field: "group" });
 
         assert.deepStrictEqual(
             groups.map((group) => [group.name, group.group]),

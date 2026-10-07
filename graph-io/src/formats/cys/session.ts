@@ -113,7 +113,7 @@ export interface Session {
  * @category Plugin helpers
  */
 export function urlDecode(text: string): string {
-    const plus = text.replace(/\+/g, " ");
+    const plus = text.replaceAll("+", " ");
     try {
         return decodeURIComponent(plus);
     } catch {
@@ -282,13 +282,13 @@ function layoutOf(zipEntries: readonly ZipEntry[], report: ImportReportBuilder):
             `the session has ${markers.length} version markers (${listed(markers)}); ${markers[0]} is used and the others are not read`,
         );
     }
-    if (marker === undefined && cysession === undefined) {
+    const anchor = marker ?? cysession;
+    if (anchor === undefined) {
         report.fail(
             CYS_ISSUE.NOT_SESSION,
             "the zip holds neither a session version marker (<x.y.z>.version) nor cysession.xml: it is not a Cytoscape session",
         );
     }
-    const anchor = marker ?? (cysession as string);
     const root = anchor.slice(0, anchor.lastIndexOf("/") + 1);
     let era: "2" | "3" = "2";
     let version = "2.0.0";

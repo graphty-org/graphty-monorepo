@@ -92,8 +92,9 @@ Added alongside the default, as separate functions:
   `converged: false`. Since issue #652 (after 3.1.4) the tie rule and the up/down order rank
   labels by a fixed scramble of the label (the murmur3 32-bit finalizer) instead of the label
   itself: by the lowest label, a path numbered in order needed about two passes per node and
-  ended as one community; with the scramble it settles in a few passes into short runs. The
-  GPU kernel still takes the lowest label (issue #694).
+  ended as one community; with the scramble it settles in a few passes into short runs. Since
+  issue #694 the GPU kernel follows the same rules (scrambled order, a tied label kept, the first
+  pass moving up), so the two agree label for label except on a run that cycles.
 - **Semi-supervised input, `labelPropagationSemiSupervised`.** One seed per node, a fixed label or
   `INVALID_INDEX`. Fixed nodes never enter the queue of the FLPA kernel above; with no seed it is
   `labelPropagation` bit for bit.

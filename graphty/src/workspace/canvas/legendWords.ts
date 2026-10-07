@@ -58,7 +58,7 @@ export function sectionTitle(block: LegendBlock, rowName: string): string {
  * @param value - the number.
  * @returns the words.
  */
-export function legendNumber(value: number): string {
+function legendNumber(value: number): string {
     if (!Number.isFinite(value) || (Number.isInteger(value) && Math.abs(value) < 1e7)) {
         return String(value);
     }

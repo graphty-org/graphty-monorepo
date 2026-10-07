@@ -84,7 +84,7 @@ const MIDPOINT_STOP_PREFIX = "midpoint ";
 const LITERAL_SCALE_SHORT = "fixed";
 
 /** The names the legend words a block with, which only the session knows. */
-export interface LegendNames {
+interface LegendNames {
     /**
      * The plain name of the field a block reads.
      * @param block - the block.

@@ -1,7 +1,8 @@
 import { BUILT_IN_ALGORITHMS, RESULT_SHAPES } from "@graphty/graphty-element/catalog";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { costLine, groupAlgorithms, HEADINGS, isSlow, matches, optionWords, wordsFor } from "../words";
+import { costLine, groupAlgorithms, HEADINGS, isSlow, matches, optionWords, runName, wordsFor } from "../words";
 
 describe("the Analyze popover's words", () => {
     it("puts every result shape the element declares under exactly one heading", () => {
@@ -87,5 +88,19 @@ describe("the Analyze popover's words", () => {
         assert.equal(costLine(600), "About 10 minutes");
         assert.equal(costLine(7200), "About 2 hours");
         assert.equal(costLine(Number.POSITIVE_INFINITY), "Time cannot be estimated");
+    });
+
+    it("names a run by its method, keeping the qualifier that tells sibling runs apart", () => {
+        const session = { catalog: { algorithms: () => BUILT_IN_ALGORITHMS } } as unknown as GraphSession;
+        const pagerank = BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === "pagerank");
+        assert.isDefined(pagerank);
+        const plain = pagerank?.plainName ?? "";
+        assert.equal(runName(session, { algorithm: "pagerank", label: plain }), "PageRank");
+        assert.equal(
+            runName(session, { algorithm: "pagerank", label: `${plain} (selection)` }),
+            "PageRank (selection)",
+        );
+        assert.equal(runName(session, { algorithm: "pagerank", label: "My ranking" }), "My ranking");
+        assert.equal(runName(session, { algorithm: "plugin-x", label: "Plugin X run" }), "Plugin X run");
     });
 });

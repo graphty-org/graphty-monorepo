@@ -3,6 +3,7 @@ import type { Channel, ExplainTarget, LayerSource } from "@graphty/graphty-eleme
 import { Anchor, ColorSwatch, Group, Text } from "@mantine/core";
 import type React from "react";
 
+import { runName } from "../analyze/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import type { Resolved } from "./inspected";
 import { hexOf } from "./reads";
@@ -64,9 +65,11 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
         .filter((contribution) => won.has(contribution.layerId))
         .map((contribution) => {
             const color = hexOf(contribution.values["node.color"] ?? contribution.values["edge.color"]);
+            const source = session.styles.get(contribution.layerId)?.source;
+            const run = source?.by === "run" ? session.runs.get(source.runId) : undefined;
             return {
                 layerId: contribution.layerId,
-                name: contribution.name,
+                name: run === undefined ? contribution.name : runName(session, run),
                 swatch: color ?? null,
                 tokens: channelTokens(won.get(contribution.layerId) ?? []),
                 opens: rowOf(session.styles.get(contribution.layerId)?.source, contribution.layerId),

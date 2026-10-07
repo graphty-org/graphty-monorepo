@@ -9,6 +9,7 @@
  */
 
 import type { AlgorithmDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
+import type { GraphSession, Run } from "@graphty/graphty-element/session";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -200,6 +201,24 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
  */
 export function wordsFor(descriptor: AlgorithmDescriptor): AlgorithmWords {
     return WORDS[descriptor.key] ?? { name: descriptor.technicalName, answers: "", aliases: [] };
+}
+
+/**
+ * What a run is called on screen: its method's name in the app's words, so a reader who picked
+ * "PageRank" sees "PageRank" on every row, column and key. graphty-element still names a run in
+ * its own English (`run.label`: the algorithm's plain name, then any qualifier that tells sibling
+ * runs apart); the qualifier is kept, the plain name swapped. A label that does not start with
+ * the plain name (a registered algorithm's own suggestion) is shown as the element wrote it.
+ * @param session - the element's session, for the catalog.
+ * @param run - the run.
+ * @returns the name.
+ */
+export function runName(session: GraphSession, run: Pick<Run, "algorithm" | "label">): string {
+    const descriptor = session.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
+    if (descriptor === undefined || !run.label.startsWith(descriptor.plainName)) {
+        return run.label;
+    }
+    return wordsFor(descriptor).name + run.label.slice(descriptor.plainName.length);
 }
 
 /** One heading with the entries under it. */

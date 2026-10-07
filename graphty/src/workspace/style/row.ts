@@ -13,6 +13,7 @@ import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import type { Binding, Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
+import { runName } from "../analyze/words";
 import { resultWord } from "./words";
 
 /** Which side of the Style tab: nodes or edges. */
@@ -323,7 +324,7 @@ export function sourceName(session: GraphSession, binding: DataBinding): string 
         const primary = session.results.path(run.id);
         const field = run.fields.find((f) => session.results.path(run.id, f.name) === binding.by);
         if (field !== undefined || primary === binding.by) {
-            return resultWord(run.label, field?.name ?? "", primary === binding.by);
+            return resultWord(runName(session, run), field?.name ?? "", primary === binding.by);
         }
     }
     return null;

@@ -160,14 +160,14 @@ describe("the Graph place on the real element", () => {
             await session.runs.start("pagerank");
             const run = session.runs.list()[0];
             await waitFor(() => {
-                assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
+                assert.deepEqual(treeRows(), ["Selection", "PageRank", "Everything"]);
             });
             assert.isNull(screen.queryByText(/to add results here/), "the footer has nothing to say once a run exists");
             const layerIds = session.runs.bindings(run.id);
             assert.isNotEmpty(layerIds, "the run painted");
 
             // The eye: every layer of the run off, then one undo brings them all back.
-            await userEvent.click(screen.getByRole("button", { name: `Hide ${run.label}` }));
+            await userEvent.click(screen.getByRole("button", { name: "Hide PageRank" }));
             await waitFor(() => {
                 assert.isTrue(layerIds.every((id) => session.styles.get(id)?.enabled === false));
             });
@@ -177,7 +177,7 @@ describe("the Graph place on the real element", () => {
             });
 
             // Space on the focused row toggles the eye too.
-            const row = screen.getByRole("treeitem", { name: run.label });
+            const row = screen.getByRole("treeitem", { name: "PageRank" });
             await userEvent.click(row);
             assert.deepEqual(store.get().inspected, { kind: "measure-row", id: run.id });
             await userEvent.keyboard(" ");
@@ -190,15 +190,15 @@ describe("the Graph place on the real element", () => {
             await waitFor(() => {
                 assert.deepEqual(treeRows(), ["Selection", "Everything"]);
             });
-            assert.equal(store.get().notice?.message, `Deleted ${run.label}.`);
+            assert.equal(store.get().notice?.message, "Deleted PageRank.");
             store.get().notice?.action?.run();
             await waitFor(() => {
-                assert.deepEqual(treeRows(), ["Selection", run.label, "Everything"]);
+                assert.deepEqual(treeRows(), ["Selection", "PageRank", "Everything"]);
             });
             assert.isNull(store.get().notice, "the notice goes once its delete is undone");
 
             // Once another change is made, the notice goes: its Undo would take back that change.
-            const row2 = screen.getByRole("treeitem", { name: run.label });
+            const row2 = screen.getByRole("treeitem", { name: "PageRank" });
             await userEvent.click(row2);
             await userEvent.keyboard("{Delete}");
             await waitFor(() => {
@@ -220,7 +220,7 @@ describe("the Graph place on the real element", () => {
             const run = session.runs.list()[0];
             const layerIds = session.runs.bindings(run.id);
             await waitFor(() => {
-                assert.include(treeRows(), run.label);
+                assert.include(treeRows(), "PageRank");
             });
 
             // Selection and Everything have no commands: no "..." and no menu.
@@ -232,7 +232,7 @@ describe("the Graph place on the real element", () => {
             }
 
             // The inspector's "..." deletes the run, with an Undo notice that brings it back.
-            await userEvent.click(screen.getByRole("treeitem", { name: run.label }));
+            await userEvent.click(screen.getByRole("treeitem", { name: "PageRank" }));
             await userEvent.click(screen.getByRole("button", { name: "Measure actions" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
             await waitFor(() => {
@@ -245,7 +245,7 @@ describe("the Graph place on the real element", () => {
             );
             store.get().notice?.action?.run();
             await waitFor(() => {
-                assert.include(treeRows(), run.label);
+                assert.include(treeRows(), "PageRank");
             });
             assert.include(
                 session.styles.list().map((layer) => layer.id),
@@ -253,7 +253,7 @@ describe("the Graph place on the real element", () => {
             );
 
             // The row's own menu holds the same command.
-            await realInput.click(screen.getByRole("treeitem", { name: run.label }), { button: "right" });
+            await realInput.click(screen.getByRole("treeitem", { name: "PageRank" }), { button: "right" });
             const menu = await screen.findByRole("menu");
             assert.deepEqual(menuLabels(within(menu).getAllByRole("menuitem")), ["Move up", "Move down", "Delete"]);
             await userEvent.keyboard("{Escape}");
@@ -306,13 +306,13 @@ describe("the Graph place on the real element", () => {
                     ),
                 ].reverse();
             await waitFor(() => {
-                assert.deepEqual(treeRows(), ["Selection", pagerank.label, degree.label, "Everything"]);
+                assert.deepEqual(treeRows(), ["Selection", "PageRank", "Degree", "Everything"]);
             });
             assert.deepEqual(paintOrder(), [pagerank.id, degree.id]);
 
             // The top row's menu: Move up is disabled with its reason; Move down moves it.
             const steps = session.history.position;
-            await realInput.click(screen.getByRole("treeitem", { name: pagerank.label }), { button: "right" });
+            await realInput.click(screen.getByRole("treeitem", { name: "PageRank" }), { button: "right" });
             const up = await screen.findByRole("menuitem", { name: /^Move up/ });
             assert.equal(up.getAttribute("aria-disabled"), "true");
             assert.include(up.textContent, "Already at the top");
@@ -322,7 +322,7 @@ describe("the Graph place on the real element", () => {
             });
             assert.equal(session.history.position, steps + 1, "one move is one undo step");
             await waitFor(() => {
-                assert.deepEqual(treeRows(), ["Selection", degree.label, pagerank.label, "Everything"]);
+                assert.deepEqual(treeRows(), ["Selection", "Degree", "PageRank", "Everything"]);
             });
             await session.undo();
             await waitFor(() => {
@@ -330,7 +330,7 @@ describe("the Graph place on the real element", () => {
             });
 
             // Alt+ArrowDown on the focused row moves it; at the bottom it stays above Everything.
-            await userEvent.click(screen.getByRole("treeitem", { name: pagerank.label }));
+            await userEvent.click(screen.getByRole("treeitem", { name: "PageRank" }));
             await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
             await waitFor(() => {
                 assert.deepEqual(paintOrder(), [degree.id, pagerank.id]);
@@ -338,7 +338,7 @@ describe("the Graph place on the real element", () => {
             const settled = session.history.position;
             await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
             assert.equal(session.history.position, settled, "nothing moves below Everything");
-            assert.deepEqual(treeRows(), ["Selection", degree.label, pagerank.label, "Everything"]);
+            assert.deepEqual(treeRows(), ["Selection", "Degree", "PageRank", "Everything"]);
         },
         TIMEOUT_MS * 2,
     );
@@ -355,10 +355,10 @@ describe("the Graph place on the real element", () => {
             const groupCount = run.result?.graph.groupCount;
             assert.isNumber(groupCount);
             await waitFor(() => {
-                assert.include(treeRows(), run.label);
+                assert.include(treeRows(), "Louvain");
             });
             const tree = screen.getByRole("tree", { name: "Paint tree" });
-            const parent = within(tree).getByRole("treeitem", { name: run.label });
+            const parent = within(tree).getByRole("treeitem", { name: "Louvain" });
             assert.equal(parent.getAttribute("aria-expanded"), "true", "few groups open by default");
             assert.include(parent.textContent, String(groupCount), "the count is the one the run publishes");
             for (const group of groups) {

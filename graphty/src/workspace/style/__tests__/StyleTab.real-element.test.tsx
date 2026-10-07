@@ -260,7 +260,7 @@ describe("the Style tab on the real element", () => {
             const { session, store } = await openWithGraph();
             const { runId } = await session.runs.start("pagerank");
             await session.styles.settled();
-            const runLabel = session.runs.get(runId)?.label ?? "";
+            const runLabel = "PageRank";
             const measure = readerLayers(session).find((l) => l.source.by === "run");
             if (measure === undefined) {
                 throw new Error("PageRank painted nothing");

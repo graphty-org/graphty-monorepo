@@ -3,6 +3,7 @@ import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import type React from "react";
 
+import { runName } from "../analyze/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
@@ -64,9 +65,9 @@ function entriesOf(session: GraphSession, target: Target): Entry[] {
             const path = session.results.path(run.id, field.name);
             entries.push({
                 key: `result:${run.id}:${field.name}`,
-                name: resultWord(run.label, field.name, path === primary),
+                name: resultWord(runName(session, run), field.name, path === primary),
                 path,
-                section: run.label,
+                section: runName(session, run),
                 choice: { kind: "result", runId: run.id, field: field.name },
             });
         }

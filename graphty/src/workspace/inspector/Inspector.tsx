@@ -3,6 +3,7 @@ import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { runName, wordsFor } from "../analyze/words";
 import { useAttributeActions } from "../data-place/attributeActions";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { Sections } from "../frame/menus";
@@ -242,7 +243,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
     const from = (made: Run): Header["from"] => {
         const date = runDate(made.startedAt);
         return {
-            words: fromWords(made.label, date),
+            words: fromWords(runName(session, made), date),
             open: () => {
                 open({ kind: "run-row", run: made.id });
             },
@@ -278,10 +279,13 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 return { name: "Gone" };
             }
             const date = runDate(run.startedAt);
-            const analysis = session.catalog.algorithms().find((a) => a.key === run.algorithm)?.plainName ?? run.label;
+            const descriptor = session.catalog.algorithms().find((a) => a.key === run.algorithm);
             return {
-                name: run.label,
-                from: { words: fromWords(analysis, date), open: openAnalyze },
+                name: runName(session, run),
+                from: {
+                    words: fromWords(descriptor === undefined ? run.algorithm : wordsFor(descriptor).name, date),
+                    open: openAnalyze,
+                },
             };
         }
         case "group-row": {

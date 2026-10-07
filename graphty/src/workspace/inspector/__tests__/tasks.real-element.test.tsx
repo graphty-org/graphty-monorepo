@@ -256,8 +256,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             const id = await runToEnd(session, "pagerank");
 
             await pick(session, "n0");
-            // The run's readable name, as the element gives it.
-            const label = session.runs.get(id)?.label ?? "";
+            // A run is named by its method.
+            const label = "PageRank";
             const rank = await inspector().findByRole("group", { name: label });
             assert.match(rank.textContent ?? "", /#\d+ of 12/);
 
@@ -340,7 +340,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await pick(session, "n3");
             await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
             const why: HTMLElement[] = await inspector().findAllByTestId("why-line");
-            const label = session.runs.get(id)?.label ?? "";
+            const label = "Louvain";
             const louvain = why.find((line) => line.textContent.startsWith(label));
             if (louvain === undefined) {
                 throw new Error(`no Why this look line for ${label}`);

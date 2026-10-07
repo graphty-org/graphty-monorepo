@@ -95,9 +95,9 @@ describe("the table dock", () => {
             const pagerank = live.runs.start("pagerank");
             await pagerank;
             await live.runs.start("louvain");
-            const header = await within(dock).findByRole("button", { name: new RegExp(`^${pagerank.label}`) });
+            const header = await within(dock).findByRole("button", { name: /^PageRank/ });
             await userEvent.click(header);
-            await within(dock).findByText(`Sorted by ${pagerank.label}, highest first`);
+            await within(dock).findByText("Sorted by PageRank, highest first");
             const expected = live.data
                 .nodePage({ columns: [pagerank.id], sort: { run: pagerank.id, descending: true }, limit: 3 })
                 .records.map((record) => String(record.id));
@@ -121,7 +121,7 @@ describe("the table dock", () => {
             assert.equal(shown, all);
             assert.isNotNull(within(dock).getByRole("button", { name: /^team/ }));
             await userEvent.click(columns);
-            assert.isNotNull(await screen.findByRole("menuitemcheckbox", { name: pagerank.label }));
+            assert.isNotNull(await screen.findByRole("menuitemcheckbox", { name: "PageRank" }));
             await userEvent.click(await screen.findByRole("menuitemcheckbox", { name: "team" }));
             await within(dock).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
             assert.isNull(within(dock).queryByRole("button", { name: /^team/ }));
@@ -155,15 +155,14 @@ describe("the table dock", () => {
                 .find((run) => run.algorithm === "louvain")
                 ?.result?.summary().groups;
             assert.isDefined(groups);
-            const louvain = live.runs.list().find((run) => run.algorithm === "louvain");
-            await userEvent.click(within(dock).getByRole("tab", { name: louvain?.label }));
+            await userEvent.click(within(dock).getByRole("tab", { name: "Louvain" }));
             await within(dock).findByText(`${String(groups?.length)} groups`);
             const [first] = groups ?? [];
             const name = first.name ?? String(first.group);
             await userEvent.click(within(dock).getByRole("button", { name: `${name} options` }));
             await userEvent.click(await screen.findByRole("menuitem", { name: "Show members in table" }));
             await within(dock).findByText(`${String(first.size)} nodes`);
-            assert.isNotNull(within(dock).getByText(`${louvain?.label ?? ""}: ${name}`));
+            assert.isNotNull(within(dock).getByText(`Louvain: ${name}`));
             await userEvent.click(within(dock).getByRole("button", { name: `Show every node, not only ${name}` }));
             await within(dock).findByText("12 nodes");
 

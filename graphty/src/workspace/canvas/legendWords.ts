@@ -14,6 +14,8 @@ import type { ScreenshotLegendSection } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/catalog";
 import type { GraphSession, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 
+import { runName } from "../analyze/words";
+
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
 const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
     "node.color": "Color",
@@ -153,5 +155,5 @@ export function imageLegend(
  */
 export function rowName(session: GraphSession, block: LegendBlock): string {
     const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
-    return run?.label ?? session.styles.get(block.layerId)?.name ?? block.layerId;
+    return run === undefined ? (session.styles.get(block.layerId)?.name ?? block.layerId) : runName(session, run);
 }

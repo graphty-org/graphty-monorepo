@@ -9,7 +9,7 @@ import {
 import { Button, Group, Stack, Text } from "@mantine/core";
 import type React from "react";
 
-import { optionWords, wordsFor } from "../analyze/words";
+import { optionWords, runName, wordsFor } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
@@ -179,7 +179,7 @@ function MeasureValues({
             <ControlSection label="Values" defaultOpened>
                 {first !== undefined && last !== undefined && (
                     <HistogramRow
-                        label={run.label}
+                        label={runName(session, run)}
                         bins={histogram.bins.map((bin) => ({
                             label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${count(bin.count, measuredNoun(run))}`,
                             count: bin.count,
@@ -364,7 +364,7 @@ export function GroupValues({
                         }}
                     />
                 )}
-                <DataRow stat name="Made by" value={run.label} />
+                <DataRow stat name="Made by" value={runName(session, run)} />
             </ControlSection>
             {members !== undefined && (
                 <ControlSection label="Members" defaultOpened>

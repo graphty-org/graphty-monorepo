@@ -1,3 +1,11 @@
+## 2.2.8 (2026-10-07)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.22
+- Updated graph-format to 1.3.7
+- Updated algorithms to 3.3.7
+
 ## 2.2.7 (2026-10-06)
 
 ### 🩹 Fixes

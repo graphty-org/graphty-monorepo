@@ -37,7 +37,7 @@ map beside the element deleted the element's own base layer with an off-by-one.
 
 ## Reading is free, writing is a command
 
-`list`, `get`, `validate`, `legend` and `explain` answer from what the session already holds and
+`list`, `get`, `validate`, `legend`, `explain` and `agreement` answer from what the session already holds and
 cost nothing. `add`, `update`, `remove`, `move`, `removeBySource`, `encode` and `highlight`
 **validate and repaint**, so each one returns a `Run`: it can report progress on a large graph,
 take an `AbortSignal`, and be fired from a click handler and forgotten.
@@ -446,6 +446,32 @@ element.session.styles.explain({ node: "alice" }); // why this node looks like t
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.
+
+### Several elements at once
+
+`agreement()` answers the same question for many elements: the selection, a saved set, or a list
+of node ids. For each channel it says whether they all look the same, and if not, how they split.
+
+```typescript
+const { channels } = element.session.styles.agreement("selection");
+
+for (const entry of channels) {
+    if (entry.state === "agree") {
+        // every selected element has entry.value, decided by the layer entry.layerId
+        console.log(entry.channel, entry.value, entry.layerId);
+    } else {
+        // entry.breakdown: one { value, layerId, count } per look, most common first
+        console.log(entry.channel, entry.breakdown);
+    }
+    // entry.unpainted: how many elements no layer painted on this channel
+}
+
+element.session.styles.agreement({ nodes: ["alice", "bob"] }, "node.color"); // one channel only
+```
+
+Two elements agree only when they show the same value **and** the same layer decided it, so a
+layer that repeats the value of the layer under it still reads as mixed. The answer holds counts,
+never lists of ids, so it stays small however many elements are selected.
 
 ## Interactive Examples
 

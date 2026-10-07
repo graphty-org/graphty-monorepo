@@ -426,7 +426,9 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ChannelAgreement,
     ChannelExplanation,
+    ChannelShare,
     ColumnEncodingSpec,
     ElementLayerSpec,
     EncodingOptions,
@@ -448,6 +450,7 @@ export type {
     RepaintReason,
     RepaintReport,
     SessionStylesApi,
+    StyleAgreement,
     StyleChange,
     StyleContribution,
     StyleExplanation,

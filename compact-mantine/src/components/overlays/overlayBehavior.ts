@@ -253,6 +253,41 @@ export function installOverlayBehavior(): void {
     });
 }
 
+/** The element focused when the last themed Menu opened: where focus goes back when it closes. */
+let menuOpener: HTMLElement | null = null;
+
+/**
+ * A themed Menu's default `onOpen`: remember the element focused as it opens (its button, when
+ * opened by a click or a key), as Mantine's own focus return does.
+ */
+export function rememberMenuOpener(): void {
+    menuOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+}
+
+/**
+ * A themed Menu's default `onClose` (Mantine's `returnFocus` is off in the theme): when focus is
+ * still inside the closing menu (a submenu included) or on the page body, hand it back to the
+ * opener now, before the dropdown unmounts. Mantine's own return refocuses the button 10 ms
+ * after the close wherever focus has gone since, so a dialog opened from a row lost the focus it
+ * had just taken to the button behind it. Done now instead, a dialog that opens from the row
+ * takes focus after this, keeps it, and gives it back to the button when it closes. Focus
+ * already elsewhere (a click outside on another control) is left alone.
+ * ponytail: one opener for the whole document, so a Menu opened from inside another Menu's
+ * dropdown (not a Menu.Sub) leaves the outer one nothing to return to; and a caller passing its
+ * own `onOpen` / `onClose` replaces these defaults (each one today returns focus itself).
+ */
+export function returnFocusToMenuOpener(): void {
+    const opener = menuOpener;
+    menuOpener = null;
+    const active = document.activeElement;
+    if (
+        opener?.isConnected &&
+        (active === null || active === document.body || active.closest("[data-menu-dropdown]"))
+    ) {
+        opener.focus({ preventScroll: true });
+    }
+}
+
 /**
  * The default click handler of a submenu row (Menu.Sub.Item): a tap or a click opens the submenu
  * and focuses its first row. Mantine opens a submenu only on mouseenter and ArrowRight, so a touch

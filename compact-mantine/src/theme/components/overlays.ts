@@ -11,7 +11,12 @@ import {
 } from "@mantine/core";
 import { createElement } from "react";
 
-import { installOverlayBehavior, openSubmenuOnClick } from "../../components/overlays/overlayBehavior";
+import {
+    installOverlayBehavior,
+    openSubmenuOnClick,
+    rememberMenuOpener,
+    returnFocusToMenuOpener,
+} from "../../components/overlays/overlayBehavior";
 import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../constants/popout";
 import { UiGlyph } from "../../icons";
 import {
@@ -75,6 +80,11 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             offset: 4,
             loop: true,
             trapFocus: true,
+            // Focus goes back to the button at the close, and only from inside the menu, so a
+            // dialog opened from a row keeps its focus (see returnFocusToMenuOpener).
+            returnFocus: false,
+            onOpen: rememberMenuOpener,
+            onClose: returnFocusToMenuOpener,
             transitionProps: NO_TRANSITION,
             middlewares: compactMenuMiddlewares,
         },

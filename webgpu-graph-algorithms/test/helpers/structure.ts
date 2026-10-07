@@ -23,7 +23,7 @@ import { groupByKeyOracle } from "../oracle/group-by-key.js";
 import { triangleOracle } from "../oracle/structure.js";
 import { fakeCaps } from "./caps-tables.js";
 import { bindingOf, readF32, readU32, uploadBuffer } from "./device.js";
-import { completeEdges, type EdgeSpec, KARATE_EDGES, pathEdges, randomEdgesLoose, snapshotOf } from "./graphs.js";
+import { completeEdges, type EdgeSpec, gridEdges, KARATE_EDGES, randomEdgesLoose, snapshotOf } from "./graphs.js";
 import { type CheckReport, mergeReports, ratioOf } from "./sabotage.js";
 import { testReduceScope } from "./segmented-reduce.js";
 
@@ -377,7 +377,8 @@ export async function triangleReport(ctx: GpuContext): Promise<CheckReport> {
 
 /**
  * The rows the group-by suites use: lengths 0, 1, 31, 32, 33, 128, 129, 300 and 2,000 with keys drawn from a small
- * set (so keys repeat and tie), weights spanning six decades, and a row whose keys are all distinct.
+ * set (so keys repeat and tie), weights spanning six decades, a row whose keys are all distinct, and two rows whose
+ * own key ties for the lead with a lower one.
  * @returns rowPtr, colIdx, weights and keyIn over one node set
  */
 export function groupRows(): { rowPtr: number[]; colIdx: number[]; weights: number[]; keyIn: number[] } {
@@ -399,6 +400,21 @@ export function groupRows(): { rowPtr: number[]; colIdx: number[]; weights: numb
     }
     for (let i = 0; i < 200; i++) {
         keyIn[3000 + i] = 100 + i;
+    }
+    // rows 10 (4 arcs, the thread tier) and 11 (64 arcs, the workgroup tier at the default split): the row's own key
+    // ties for the lead with a LOWER key, weights 1, so the own-key rule and the lowest-key rule give different keys
+    for (const [r, length] of [
+        [10, 4],
+        [11, 64],
+    ]) {
+        const own = keyIn[r];
+        const same = keyIn.findIndex((k, v) => v >= 13 && k === own);
+        const lower = keyIn.findIndex((k, v) => v >= 13 && k < own);
+        for (let i = 0; i < length; i++) {
+            colIdx.push(i % 2 === 0 ? same : lower);
+            weights.push(1);
+        }
+        rowPtr.push(colIdx.length);
     }
     // pad rowPtr so every node is a row: nodes beyond the listed rows have no arcs
     while (rowPtr.length < n + 1) {
@@ -446,7 +462,7 @@ export async function labelPropagationReport(ctx: GpuContext): Promise<CheckRepo
     const reports: CheckReport[] = [];
     for (const [label, edges] of [
         ["karate", KARATE_EDGES],
-        ["path300", pathEdges(300)],
+        ["grid30", gridEdges(30, 30)],
         ["pair", [[0, 1]] as EdgeSpec[]],
     ] as const) {
         const s = snapshotOf(edges);

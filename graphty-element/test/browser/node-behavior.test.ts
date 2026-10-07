@@ -1,7 +1,6 @@
 import { ActionManager, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import type { AdHocData } from "../../src/config/common";
 import { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
@@ -35,7 +34,7 @@ describe("Node Behavior Tests", () => {
     test("drag behavior with pinOnDrag enabled", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node", label: "Test Node" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node", label: "Test Node" });
 
         const node = dataManager.getNode("test-node");
         assert.isDefined(node);
@@ -65,7 +64,7 @@ describe("Node Behavior Tests", () => {
     test("drag behavior observables work correctly", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-2", label: "Test Node 2" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-2", label: "Test Node 2" });
 
         const node = dataManager.getNode("test-node-2");
         assert.isDefined(node);
@@ -91,7 +90,7 @@ describe("Node Behavior Tests", () => {
 
     test("a drag while the consumer has paused the layout leaves it paused", () => {
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "held", label: "Held" } as unknown as AdHocData);
+        dataManager.addNode({ id: "held", label: "Held" });
         const node = dataManager.getNode("held");
         assert.isDefined(node);
         vi.spyOn(node, "pin").mockImplementation(() => undefined);
@@ -110,7 +109,7 @@ describe("Node Behavior Tests", () => {
     test("position changed during drag updates layout engine", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-3", label: "Test Node 3" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-3", label: "Test Node 3" });
 
         const node = dataManager.getNode("test-node-3");
         assert.isDefined(node);
@@ -148,7 +147,7 @@ describe("Node Behavior Tests", () => {
     test("position changed when not dragging does not update layout engine", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-4", label: "Test Node 4" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-4", label: "Test Node 4" });
 
         const node = dataManager.getNode("test-node-4");
         assert.isDefined(node);
@@ -195,7 +194,7 @@ describe("Node Behavior Tests", () => {
 
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-5", label: "Test Node 5" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-5", label: "Test Node 5" });
 
         const node = dataManager.getNode("test-node-5");
         assert.isDefined(node);
@@ -258,7 +257,7 @@ describe("Node Behavior Tests", () => {
         graph.fetchEdges = fetchEdges;
 
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" });
 
         const node = dataManager.getNode("test-node-7");
         assert.isDefined(node);
@@ -294,7 +293,7 @@ describe("Node Behavior Tests", () => {
     test("double-click expansion does nothing when fetchNodes/fetchEdges don't exist", () => {
         // Add a node using DataManager (no fetch functions on graph)
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-6", label: "Test Node 6" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-6", label: "Test Node 6" });
 
         const node = dataManager.getNode("test-node-6");
         assert.isDefined(node);
@@ -321,7 +320,7 @@ describe("Node Behavior Tests", () => {
     test("mesh is made pickable", () => {
         // Add a node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" });
 
         const node = dataManager.getNode("test-node-7");
         assert.isDefined(node);

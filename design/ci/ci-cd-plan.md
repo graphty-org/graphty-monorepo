@@ -1,8 +1,11 @@
 # CI/CD, testing and release plan for the graphty monorepo
 
 Status: adopted by the owner on 2026-10-04, as written, with two choices made explicit: the
-visual-review gate accepts a merge-queue batch (section 6), and releases go out on a daily
-train (section 10), plus an ad hoc release for anything that cannot wait a day (section 11).
+visual-review gate accepts a merge-queue batch (section 6), and releases go out on a release
+train (section 10), plus an ad hoc release for anything that cannot wait for the next train (section 11).
+Amended by the owner on 2026-10-06: master runs no tests (section 8), and a release is attempted
+every 6 hours with the full suite, the T4, Hosts and the security audit on its candidate, held on
+any failure (section 10).
 Migration is in progress: section 16 lists the steps in order, and `CLAUDE.md` ("CI/CD
 Pipeline", "Merging", "Release versioning") says which parts are live today.
 The decision record is `design/decisions/2026-10-04-ci-cd-plan-adopted.md`.
@@ -63,7 +66,6 @@ The four times master went red on 3 and 4 October each have a clear mechanism:
                     (draft PRs skip it; a new push cancels the old run)
                          |
  owner reviews screenshots on the PR (passkey) --+
- path-scoped T4 GPU run, once, if GPU code changed-+
                                                  v
                  queue entry: PR CI green + visual gate green + title lint
                          |
@@ -73,24 +75,28 @@ The four times master went red on 3 and 4 October each have a clear mechanism:
   committed baselines (no new approvals), bisect on failure]            ~35-40 min
                          |
                          v
- master --> [post-merge: full CI again (feeds deploy + release), GPU on
-             GPU-affecting commits, Hosts on path-matching commits]
-            red CI => freeze the queue + automatic revert PR, top priority
+ master --> [post-merge: NO tests; build only (feeds the graphty.app deploy)]
+            red build => freeze the queue + automatic revert PR, top priority
                          |
                          v
- daily release train: release PR (versions + changelogs) cut from the
- newest commit green on every lane, merged through the queue, published
- with npm trusted publishing from release.yml; graphty.app deploys on
- every green master. Ad hoc release: the same workflow, dispatched by hand,
- cuts the release PR at once
- nightly: full Hosts (Windows 90 min, macOS), full GPU, on master tip
+ release train every 6 h (00/06/12/18 UTC), unless the previous release is
+ pending (release PR open, "Release held" issue open, nothing releasable):
+ on master's newest commit run the FULL CI suite, the paid T4 GPU lane, Hosts
+ and the production audit; only if all pass is a release PR (versions +
+ changelogs) cut from it, merged through the queue, published with npm
+ trusted publishing from that run's builds. Anything red: no PR, one
+ "Release held: <what> failed on <sha>" issue for githerd; the next master
+ push whose build passes restarts the held release on its commit. graphty.app
+ deploys on every green master build. Ad hoc release: the same workflow,
+ dispatched by hand, at once
+ nightly: full Hosts (Windows 90 min, macOS), on master tip
 ```
 
 Expected result: 50 merges a day with room for about 150; about 20 minutes from push to PR
 feedback; about 45 minutes from approval to merge in the median case; at most a few
 red-master events a month, each frozen and reverted automatically; about 5 to 10 npm versions
-a day instead of about 30; GitHub Actions runner cost unchanged at $0; GPU spend about
-$5 to $15 a day.
+a day instead of about 30; GitHub Actions runner cost unchanged at $0; GPU spend one T4 run
+a day (about $1 to $2) plus the weekly paired benchmark.
 
 The rest of this document explains each piece, the alternatives, and the migration.
 
@@ -150,9 +156,8 @@ Mergify `queue_conditions`, evaluated on the pull request's own head commit:
 - "Lint PR Title" green.
 - Not a draft, no `hold` label, not a breaking change (a `!` before the colon in the title).
   Breaking changes keep waiting for the grouped major release, as today.
-- **If the change affects webgpu-graph-algorithms** (by `nx show projects --affected`, which
-  covers graph-format and the lockfile): one green T4 GPU run on the pull request head. See
-  section 7.
+
+No T4 GPU run gates queue entry (owner decision, 2026-10-06; section 7).
 
 Why approval belongs here and not in the queue: an approval is bound to a pull request and to
 the exact image contents it was given over. The queue tests a synthetic commit nobody looked
@@ -225,7 +230,14 @@ batches behind it are rebuilt without it.
   that an earlier red one was transient.
 - `max_checks_retries` stays 0.
 
-**How the merge lands:** Mergify merges the original pull requests with merge commits, as today.
+**How the merge lands:** Mergify merges each pull request of a passed batch with its own merge
+commit (`merge_method: merge` on both queue rules), so master's build-and-deploy CI run happens once
+per merged pull request. `merge-batch` (one commit per batch, tried from 2026-10-05) is not used: it
+marks the batch's draft ready for review, which starts a second CI run on the same commit, and
+GitHub's ruleset then waits on that run's unfinished `All Checks Pass` until Mergify dequeues the
+batch (4 of 10 batches on 2026-10-06). The release pull request needs `merge_method: merge` in any
+case, because release.yml's publish job finds it by the release branch named in the merge commit.
+
 GitHub's ruleset on master must not require branches to be up to date, because the queue
 proves that instead. Otherwise GitHub refuses the merge of a pull request whose own head is
 behind (Mergify documentation, "GitHub rulesets"). Two alternatives fix that refusal: make
@@ -329,20 +341,35 @@ matrix, and wgpu and Bevy's software adapters per pull request plus a daily cron
 way. Software adapters run on every pull request; real or slow hardware runs where its cost is
 paid once.
 
-| Lane                                                        | Pull request                                                                                                                | Merge queue | Master                                                        | Schedule                                                                 | Release gate     |
-| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------- |
-| Linux Dawn on lavapipe, Chromium on SwiftShader (in ci.yml) | yes, when affected                                                                                                          | yes, always | yes                                                           | --                                                                       | via CI           |
-| NVIDIA T4, gpu.yml (machine.dev, paid)                      | once per PR that affects webgpu-graph-algorithms, required for queue entry; re-run only if GPU-affecting code changes again | no          | each commit that affects webgpu-graph-algorithms, newest-wins | nightly full on master tip (spot tenancy); weekly paired benchmark stays | yes              |
-| macOS Metal + WebKit, hosts.yml                             | path-matching PRs, advisory                                                                                                 | no          | path-matching commits, newest-wins                            | nightly full                                                             | yes, when it ran |
-| Windows D3D12 WARP, hosts.yml                               | the existing 15-minute `windows-scan-questions` scope, advisory                                                             | no          | full scope (up to 90 min), newest-wins                        | nightly full                                                             | yes, when it ran |
+| Lane                                                        | Pull request                                                                                                | Merge queue | Master                 | Schedule                                                                  | Release gate                             |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------- | ---------------------- | ------------------------------------------------------------------------- | ---------------------------------------- |
+| Linux Dawn on lavapipe, Chromium on SwiftShader (in ci.yml) | yes, when affected                                                                                          | yes, always | none (build only)      | --                                                                        | via CI                                   |
+| NVIDIA T4, gpu.yml (machine.dev, paid)                      | no (the pre-push gate runs the package's tests on the developer's own NVIDIA card when the push affects it) | no          | no                     | the release train runs it on its candidate; weekly paired benchmark stays | yes: a red run holds the whole release   |
+| macOS Metal + WebKit, hosts.yml                             | path-matching PRs, advisory                                                                                 | no          | none (no push trigger) | nightly full                                                              | yes, full scope, called on the candidate |
+| Windows D3D12 WARP, hosts.yml                               | the existing 15-minute `windows-scan-questions` scope, advisory                                             | no          | none (no push trigger) | nightly full                                                              | yes, full scope, called on the candidate |
 
-**Why the T4 run is required before the queue for GPU-affecting pull requests:**
+**The T4 runs only in the pre-push gate (locally) and on the release train (owner decision,
+2026-10-06).** Running it once per GPU-affecting pull request and again per GPU-affecting
+master commit cost a paid run on most merges, and the machine.dev balance ran out twice in the
+week before this decision. Instead:
 
-- It runs in parallel with the owner's review, so it rarely adds latency.
-- It costs about $1.60 a run ($0.01753 a minute on-demand, machine.dev pricing).
-- It keeps GPU regressions out of master instead of finding them at release time.
-- It runs once per relevant pull request, triggered when the pull request is marked ready,
-  not on every push. Today it needs a manual `gpu` label.
+- Every pull request keeps CI's software-GPU shards (Dawn on lavapipe, Chromium on
+  SwiftShader), and the pre-push gate runs the package's node tests on the developer's own
+  NVIDIA card when the push affects webgpu-graph-algorithms.
+- The release train (release.yml) picks its candidate from CI and Hosts, then calls gpu.yml on
+  exactly that commit: the same job, tests and benchmarks. Only when it passes does the train
+  open the release pull request.
+- A red T4 holds the WHOLE release: no release pull request, nothing published, no partial
+  release. The train opens, or retitles and comments on, ONE issue "Release held: T4 GPU
+  failed on <sha>" (labels `bug`, `priority:high`, `gpu`, `effort:medium`) with the run link and
+  the failing steps and tests, and the run carries an error annotation naming the lane, which
+  is what githerd reads for a blocked release. The fix lands on master like any other change;
+  the next train (the 14:00 UTC cron or an ad hoc dispatch) re-runs the T4 and, when it passes,
+  releases everything at once and closes the issue. No timer is involved: the hold ends on the
+  T4 run that passes.
+- A GPU regression can therefore sit on master for up to a day before the T4 sees it. That is
+  the price of the saving; the software-GPU shards and the local NVIDIA run catch most of what
+  the T4 used to catch earlier.
 
 **Why it is not in the queue:** 40 to 90 minutes per batch would double the queue cycle.
 
@@ -352,37 +379,59 @@ adapter whose own quirks are what it mostly finds.
 **No silent fallback:** every lane keeps `GRAPHTY_GPU_REQUIRE`. A missing adapter fails the
 lane, and nothing re-runs on the CPU.
 
-**When a hardware lane goes red on master:**
+**When a hardware lane goes red on master (Hosts; the T4 no longer runs on master):**
 
 - It does not freeze the queue; only ci.yml does that.
 - It blocks the release (already true) and opens a `priority:critical` issue that names the
-  GPU-affecting commits since the lane's last green run, usually 1 to 3.
+  commits since the lane's last green run, usually 1 to 3.
 - An agent then bisects the lane between those commits and fixes or reverts.
 - This is Chromium's "FYI builder plus release gate" placement, made to work with no human
   sheriff.
-
-**Release gate change:** release.yml today requires a GPU run on the released commit. With
-the path filter, a commit that does not affect webgpu-graph-algorithms inherits the result of
-the newest earlier commit that did, the same way Hosts already treats "did not run" as nothing
-to wait for.
 
 **Reversible:** all of it is workflow triggers.
 
 ## 8. What runs on master and on a schedule
 
-**On every master commit:**
+**On every master commit: no tests** (owner decision, 2026-10-06).
 
-- The full CI run, as today. It feeds the deploy and release artifacts, the coverage upload and
-  the benchmarks.
-- It should never be red once the queue runs the same suite on the same tree. If it is red,
-  that is a signal (section 12).
-- It costs about 163 job-minutes, so it is kept even though it duplicates the queue's run. Its
-  artifacts are what release.yml publishes.
+- The merge queue already ran the full un-selected suite on exactly the tree that lands, so a
+  second full run on master only duplicated it (about 163 job-minutes a merge).
+- ci.yml's push run is the Build job alone: every package, Storybook, the docs and the gh-pages
+  builds, uploaded for deploy-pages.yml. The test, link, cost, benchmark and screenshot jobs are
+  skipped; "All Checks Pass" and "Queue Checks Pass" pass a push run whose Build succeeded, so
+  nothing downstream waits. A red build is still a red master (section 12).
+- hosts.yml no longer runs on a push to master; it runs nightly and on the release candidate.
+- What master's full run used to feed moved to the release train (section 10): the release
+  builds, the coverage upload to Coveralls, and the benchmark table.
+- Pull requests no longer find a master screenshot capture to compare a story that has no
+  baseline against (`newestMasterCapture` reads ci.yml runs of master's newest commits, and the
+  release train's captures belong to release.yml runs), so such a story shows as `new` rather
+  than `unseeded`. Both block until the owner accepts or seeds it, so the gate is unchanged; only
+  the review page's "unchanged from master" hint for unseeded stories is lost.
+- The SonarQube baseline (`tools/sonar-baseline.mjs`) imports coverage from the newest release
+  train's CI run, and so analyzes that train's candidate rather than master's tip
+  (design/sonarqube/design.md section 2).
+- The push run's Build job keeps its cheap source checks (lint, knip, published dependencies,
+  bundle size, the API report, the tool and config checks): they are steps of the job that builds
+  the deploy, take minutes, and catch a master that differs from the tree the queue tested. Only
+  the "CI workflow tests" step and every test job are skipped.
+
+**What runs where:**
+
+| Lane                                      | Pull request push      | Merge-queue batch | Push to master | Release train (every 6 h)    | Nightly / weekly        |
+| ----------------------------------------- | ---------------------- | ----------------- | -------------- | ---------------------------- | ----------------------- |
+| ci.yml build and lint                     | affected               | full              | build only     | full                         | --                      |
+| ci.yml test shards, links, cost estimates | affected               | full              | none           | full                         | --                      |
+| Screenshots and the visual gate           | affected, gated        | full, gated       | none           | full capture, not gated      | --                      |
+| Benchmark table (advisory)                | --                     | --                | none           | yes                          | --                      |
+| Coverage to Coveralls                     | --                     | --                | none           | yes, from the train's CI run | --                      |
+| Hosts (macOS, Windows)                    | short scope, advisory  | --                | none           | full, gates                  | nightly full            |
+| T4 GPU (paid)                             | -- (pre-push locally)  | --                | none           | gates                        | weekly paired benchmark |
+| Production security audit                 | -- (dependency review) | --                | none           | gates                        | --                      |
 
 **Nightly, on master tip:**
 
 - full Hosts (macOS and the full Windows scope);
-- full T4 GPU on spot tenancy ($0.0048 a minute);
 - the full visual capture, compared against baselines. It is cheap and catches drift in the
   runner image, fonts or browser that no path filter would trigger.
 
@@ -441,22 +490,49 @@ Three costs at 30 to 50 merges a day:
   checks in flight. That is 2 to 8 resets a day.
 - **A standing bypass of master's protection.**
 
-**Adopted: a daily release train through the queue.**
+**Adopted: a release train through the queue, every 6 hours.**
 
-1. On a schedule (once a day at a fixed hour; `workflow_dispatch` is the ad hoc release of
-   section 11),
-   release.yml finds the newest master commit green on every lane. That gate logic exists
-   today.
+1. On a schedule (00:00, 06:00, 12:00 and 18:00 UTC; `workflow_dispatch` is the ad hoc release of
+   section 11), release.yml takes master's newest commit, unless the previous release is still
+   pending: a release pull request is open (one that can no longer merge is closed and re-cut
+   from the newest commit: it conflicts with master, a check on its head failed, or it left the
+   merge queue, which the release queue rule never retries; one labelled `hold` waits), a
+   "Release held" issue is open (a fix is in progress; a dispatch runs
+   anyway), the last release is not tagged yet, or nothing releasable changed (the train's own
+   versioning, run locally, makes no commit). Every one of these ends on an event, never on a
+   count of hours.
+   On the candidate it runs the FULL CI suite (ci.yml called with `workflow_call`, every shard,
+   which also makes the builds the release ships), the T4 GPU lane (section 7), Hosts at full
+   scope and `pnpm audit --prod --audit-level=high`. Anything red holds the whole release: no
+   pull request, nothing published, and one "Release held: <what> failed on <sha>" issue
+   (`bug`, `priority:high`, `effort:medium`) that githerd turns into a fix. **A held release
+   restarts itself** (owner decision, 2026-10-06): release.yml also runs on `workflow_run` of
+   CI, and after every push to master whose build passed, while a "Release held" issue is open,
+   it takes that pushed commit at once through the same path (pick, full suite, T4, Hosts,
+   audit, release pull request). With no held issue open, or a red build, it does nothing; the
+   schedule still skips while the issue is open, so a push (or a dispatch) is how a held release
+   resumes. The fix pull request names the issue without closing it (`Refs #<issue>`, not
+   `Fixes #<issue>`), so its merge restarts the release. A train that passes closes the issue;
+   one that fails again comments on it, saying it was a restart. Two pushes in a row never start
+   two trains: every attempt shares the one `release-train` concurrency group, so the second
+   waits for the first and then finds its release pull request (it skips) or its held issue (it
+   tries the newer commit). Coverage goes to Coveralls from the same CI run. A lane that was only
+   cancelled (gpu.yml's queue replaced the pending T4 run, a person cancelled it) opens no issue:
+   the run goes red with an error annotation and the next attempt retries. A T4 refused or lost by
+   machine.dev (balance, runner limit) still opens the issue, whose text says there is no code to
+   fix: the owner restores capacity and dispatches, or closes the issue.
 2. It runs `nx release version` (conventional commits, independent versions, the
    release-hold.json filter, all unchanged) on a branch from that commit and opens a "chore:
    release" pull request containing only version fields and CHANGELOG.md files.
 3. A second Mergify queue rule handles it at high priority. Its check is a small job that
-   proves the diff touches only `version` fields and changelogs; there is no full CI, since the
-   code is the commit that was already green on every lane.
+   proves the diff touches only `version` fields and changelogs; there is no extra CI of its own,
+   since the code is the commit the train just tested on every lane.
 4. When it merges, release.yml (same file name, so the ten trusted-publisher entries on npm
    stay valid) publishes from the release branch's head, tags each package as
    `{projectName}@{version}` as today, and keeps the existing "is it on npm yet" idempotence
-   check.
+   check. A failed publish opens or updates a "Release held: publish failed on <sha>" issue
+   (until the tags exist every attempt skips, so it must not fail silently); re-running the
+   failed jobs publishes what is missing and closes it.
 5. The deploy key and the direct push are removed.
 
 This is the pattern of Vite and Vitest (a release commit landed by pull request, then
@@ -464,12 +540,14 @@ published from CI), TanStack, pnpm and Radix (a Changesets "Version Packages" pu
 and release-please. Keeping nx's conventional commits means agents change nothing in how
 they write commits.
 
-**graphty.app deploys on every green master CI run, not on a release.** deploy-pages.yml
+**graphty.app deploys on every green master build, not on a release.** deploy-pages.yml
 already takes a run id and a commit. The app is private, so its cadence affects no consumer.
 
-**Cadence:** daily. Each changed package gets at most one version a day: about 5 to 10
-versions a day across the repository, against about 30 today. Angular ships weekly and
-TypeScript nightly to `next`; daily is the smallest change that ends the noise.
+**Cadence:** an attempt every 6 hours (owner decision, 2026-10-06; it was daily). Each changed
+package gets at most four versions a day, and in practice fewer, because an attempt with nothing
+releasable or with the previous release still pending does nothing. With master untested, the
+train is also where a fault that slipped past the queue is caught, so a shorter interval finds it
+sooner.
 
 **Not now:**
 
@@ -491,16 +569,16 @@ TypeScript nightly to `next`; daily is the smallest change that ends the noise.
 
 ## 11. Ad hoc release
 
-The daily train is the default. When something must reach npm sooner -- a fix a consumer is
+The scheduled train is the default. When something must reach npm sooner -- a fix a consumer is
 waiting for, a broken release to supersede -- the owner cuts a release at once with the same
 workflow.
 
 **What it is:** a `workflow_dispatch` of release.yml, the same workflow and the same jobs as the
-daily train. It does exactly what the scheduled run does, immediately:
+scheduled train. It does exactly what the scheduled run does, immediately:
 
-1. It finds the newest master commit green on every lane (CI, and GPU and Hosts when they ran
-   or are inherited, section 7). It never releases a commit that is not green everywhere; if the
-   commit you want is still running, wait for its lanes or dispatch again later.
+1. It takes master's newest commit and runs the full CI suite, the T4 GPU lane, Hosts and the
+   audit on it. It never releases a commit that is not green everywhere. Unlike the schedule, it
+   runs while a "Release held" issue is open: that is how a fix is tried at once.
 2. It runs `nx release version` on a branch from that commit and opens the "chore: release" pull
    request, labeled `priority:critical`, so it goes to the front of the merge queue.
 3. The release queue rule checks only that the diff touches `version` fields and changelogs, and
@@ -512,7 +590,7 @@ daily train. It does exactly what the scheduled run does, immediately:
 the release to those packages. The workflow runs the same `tools/release-hold.mjs apply` the
 train uses, with `--only <packages>`, which holds every other project for that run; nothing is
 committed. Two consequences, both from how holds work today: a held
-package is not patch-bumped as a dependent of a released one, and the next daily train releases
+package is not patch-bumped as a dependent of a released one, and the next scheduled train releases
 everything that was left out, from its last tag. Holds already committed in `release-hold.json`
 still apply, so a dispatch cannot release a package the owner has held.
 
@@ -543,8 +621,8 @@ it twice a day instead.
 
 ## 12. Keeping master green when something slips through
 
-With the full suite run on the combined tree before merge, only three things can turn master's
-ci.yml red: non-determinism, a difference between the queue's tree and master's tree (an
+With the full suite run on the combined tree before merge, and master's ci.yml reduced to the
+build (section 8), only three things can turn master's ci.yml red: non-determinism, a difference between the queue's tree and master's tree (an
 outside push, which this plan removes), or a broken lane. When it happens:
 
 1. **Freeze.** A workflow listening for a failed ci.yml on master freezes the Mergify queue
@@ -606,7 +684,7 @@ Hardware lanes do not freeze the queue (section 7).
 | Red master events                 | 4 in 2 days                                    | target under 2 a month, each frozen and reverted in under 1 h |
 | npm versions                      | about 30 a day                                 | about 5 to 10 a day (one train)                               |
 | Queue resets from release commits | 2 to 8 a day                                   | 0                                                             |
-| Full-suite runs a day             | about 50 (one per merged PR, in place)         | about 20 queue runs + about 30 master runs                    |
+| Full-suite runs a day             | about 50 (one per merged PR, in place)         | about 20 queue runs + up to 4 release-train runs              |
 | Owner's API token                 | exhausted twice in a day                       | under 10% used                                                |
 
 Assumptions:
@@ -622,15 +700,15 @@ Re-measure after two weeks:
 
 ## 15. Costs
 
-| Item                                                                                                                                                              | Cost                                                                                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| GitHub Actions standard Linux, Windows and macOS runners (public repository)                                                                                      | $0                                                                                                               |
-| Mergify (free for open source, includes CI and Test Insights)                                                                                                     | $0                                                                                                               |
-| T4 GPU: GPU-affecting pull requests (about 3 to 6 a day at about $1.60) plus GPU-affecting master commits (about 3 to 6 a day) plus nightly on spot (about $0.45) | about $5 to $15 a day, $150 to $450 a month                                                                      |
-| Weekly paired GPU benchmark                                                                                                                                       | about $1.75 a week                                                                                               |
-| Optional larger runners for the queue only                                                                                                                        | about $40 a day, only if measurements call for it                                                                |
-| Chromatic                                                                                                                                                         | $0 (disabled; the in-repo visual review replaces it)                                                             |
-| Owner's time                                                                                                                                                      | screenshot review only. CI no longer asks the owner to re-approve anything; the queue never needs a new approval |
+| Item                                                                                                                            | Cost                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| GitHub Actions standard Linux, Windows and macOS runners (public repository)                                                    | $0                                                                                                               |
+| Mergify (free for open source, includes CI and Test Insights)                                                                   | $0                                                                                                               |
+| T4 GPU: one run per release attempt that has something to release (at most 4 a day, plus ad hoc releases), about $1 to $2 a run | about $30 a month at one release a day, up to about $240 at four                                                 |
+| Weekly paired GPU benchmark                                                                                                     | about $1.75 a week                                                                                               |
+| Optional larger runners for the queue only                                                                                      | about $40 a day, only if measurements call for it                                                                |
+| Chromatic                                                                                                                       | $0 (disabled; the in-repo visual review replaces it)                                                             |
+| Owner's time                                                                                                                    | screenshot review only. CI no longer asks the owner to re-approve anything; the queue never needs a new approval |
 
 Watch: Git LFS bandwidth from baseline downloads in the visual jobs. They are cached per
 project, but the queue adds about 20 full captures a day.
@@ -663,12 +741,11 @@ Each step is independently reversible unless marked. Each step is one pull reque
 9. **Red-master automation:** freeze on red, revert pull request at `priority:critical`,
    unfreeze on green.
 10. **Hardware lanes.**
-    - GPU: an nx-affected path filter on master, a required pre-queue run for affected pull
-      requests (triggered on ready, not on every push), and nightly on spot.
+    - GPU: superseded on 2026-10-06. The T4 runs only in the release train, on its candidate,
+      and a red run holds the whole release (section 7); pull requests and master do not run
+      it.
     - Hosts: pull requests on the 15-minute Windows scope, the full scope on master and
       nightly.
-    - Update release.yml's gate so a commit with no GPU run inherits from the newest earlier
-      one.
 11. **Release train.** Deploy graphty.app from every green master run. Change release.yml from
     "every lane-green merge pushes a version commit" to "daily, open a release pull request,
     publish on its merge", keeping the file name and the trusted-publisher setup. Add the
@@ -682,21 +759,23 @@ Each step is independently reversible unless marked. Each step is one pull reque
 
 ## 17. Decision ledger
 
-| Decision                                   | Choice                                                                           | Alternatives                         | Precedent                                                      | Door                                                          |
-| ------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------- |
-| Merge tool                                 | Mergify, batched draft-PR checks                                                 | GitHub native queue; in-place serial | Mergify docs; Shopify, Zuul, GitLab trains                     | reversible                                                    |
-| PR checks                                  | full affected suite, drafts skipped                                              | cheap-only two-step                  | OpenStack clean check                                          | reversible                                                    |
-| Queue checks                               | full un-selected suite on the batch                                              | affected-only in queue               | Rust auto builds, bors                                         | reversible                                                    |
-| Batch / speculation                        | max 4 / 2 at once, bisection                                                     | larger batches; Zuul adaptive        | Shopify 8, Mergify bisection, Zuul window                      | reversible                                                    |
-| Visual approval                            | on the PR; the queue only proves "unchanged" against the batch's approved images | approval on the queue commit         | Argos merge-queue mode; Chromatic issues #871, #1483           | reversible (gate trust rule: decided by the owner 2026-10-04) |
-| T4 GPU                                     | pre-queue for GPU-affecting PRs, post-merge filtered, nightly, release gate      | per push; queue; master only         | Chromium location builders and FYI bots, PyTorch ciflow        | reversible                                                    |
-| Windows / macOS                            | post-merge, nightly, release gate; short scope on PRs                            | per PR full                          | wgpu, Bevy, PyTorch periodic                                   | reversible                                                    |
-| Flakes                                     | no retries, issue per non-reproduced failure, owner-approved expiring quarantine | retry N times; auto-quarantine       | Chromium without-patch, PyTorch DISABLED, Datadog expiry       | reversible                                                    |
-| Red master                                 | freeze + automatic revert                                                        | sheriff by hand                      | Chromium tree closer, LLVM revert-to-green, PyTorch autorevert | reversible                                                    |
-| Release cadence                            | daily train via release PR, plus ad hoc dispatch of the same workflow            | every merge; weekly; tags only       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
-| Dist-tags, tag pattern, changelog location | unchanged                                                                        | add `next` channel                   | Nx, Next.js, React canaries                                    | ONE-WAY if changed; not changed                               |
-| Publish workflow identity                  | keep release.yml, OIDC                                                           | new workflow or environment          | npm trusted publishing GA                                      | manual 10-package re-config if changed                        |
-| Deploy of graphty.app                      | every green master                                                               | with release                         | Vite preview releases on main                                  | reversible                                                    |
+| Decision                                   | Choice                                                                                                                                                                                                   | Alternatives                                                                                | Precedent                                                      | Door                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------- |
+| Merge tool                                 | Mergify, batched draft-PR checks                                                                                                                                                                         | GitHub native queue; in-place serial                                                        | Mergify docs; Shopify, Zuul, GitLab trains                     | reversible                                                    |
+| PR checks                                  | full affected suite, drafts skipped                                                                                                                                                                      | cheap-only two-step                                                                         | OpenStack clean check                                          | reversible                                                    |
+| Queue checks                               | full un-selected suite on the batch                                                                                                                                                                      | affected-only in queue                                                                      | Rust auto builds, bors                                         | reversible                                                    |
+| Batch / speculation                        | max 4 / 2 at once, bisection                                                                                                                                                                             | larger batches; Zuul adaptive                                                               | Shopify 8, Mergify bisection, Zuul window                      | reversible                                                    |
+| Visual approval                            | on the PR; the queue only proves "unchanged" against the batch's approved images                                                                                                                         | approval on the queue commit                                                                | Argos merge-queue mode; Chromatic issues #871, #1483           | reversible (gate trust rule: decided by the owner 2026-10-04) |
+| T4 GPU                                     | local pre-push (developer's NVIDIA card) and the release train only; a red T4 holds the whole release (owner, 2026-10-06)                                                                                | pre-queue for GPU-affecting PRs plus post-merge (the earlier choice; cost); per push; queue | Chromium location builders and FYI bots, PyTorch ciflow        | reversible                                                    |
+| Windows / macOS                            | post-merge, nightly, release gate; short scope on PRs                                                                                                                                                    | per PR full                                                                                 | wgpu, Bevy, PyTorch periodic                                   | reversible                                                    |
+| Flakes                                     | no retries, issue per non-reproduced failure, owner-approved expiring quarantine                                                                                                                         | retry N times; auto-quarantine                                                              | Chromium without-patch, PyTorch DISABLED, Datadog expiry       | reversible                                                    |
+| Red master                                 | freeze + automatic revert                                                                                                                                                                                | sheriff by hand                                                                             | Chromium tree closer, LLVM revert-to-green, PyTorch autorevert | reversible                                                    |
+| Release cadence                            | an attempt every 6 h via release PR, skipped while the previous release is pending, plus ad hoc dispatch (owner, 2026-10-06; was daily)                                                                  | every merge; daily; weekly; tags only                                                       | Vite/Vitest, Changesets users, release-please                  | reversible                                                    |
+| Master runs no tests                       | a push to master only builds for the deploy (the Build job, with its lint and source checks); the queue's full run is the merge-time test, the train's full run the release-time one (owner, 2026-10-06) | full CI again on every master commit (about 163 job-minutes a merge)                        | Rust bors (the tested merge commit is what lands)              | reversible                                                    |
+| Release testing                            | full un-selected CI + T4 + Hosts + production audit on the exact candidate, release builds from that run; any failure holds the whole release and opens one issue (owner, 2026-10-06)                    | reuse master's CI run and artifacts; T4 only                                                | Chromium release qualification, Rust's release channels        | reversible                                                    |
+| Dist-tags, tag pattern, changelog location | unchanged                                                                                                                                                                                                | add `next` channel                                                                          | Nx, Next.js, React canaries                                    | ONE-WAY if changed; not changed                               |
+| Publish workflow identity                  | keep release.yml, OIDC                                                                                                                                                                                   | new workflow or environment                                                                 | npm trusted publishing GA                                      | manual 10-package re-config if changed                        |
+| Deploy of graphty.app                      | every green master build                                                                                                                                                                                 | with release                                                                                | Vite preview releases on main                                  | reversible                                                    |
 
 The plan was built on three research reports (merge queues, test tiers, release models); they
 are not kept in the repository. The sources this document relies on directly are:

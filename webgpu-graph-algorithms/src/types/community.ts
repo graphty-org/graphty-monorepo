@@ -3,8 +3,10 @@
  */
 
 /**
- * Label propagation's options. Ties between neighbour labels are broken by the LOWEST label, never at random, so
- * the result is bitwise reproducible on one device; that is also why there is no `randomSeed`.
+ * Label propagation's options. A vertex keeps its label when it ties for the lead; other ties go to the label of
+ * lowest priority, a fixed scramble of the label (the murmur3 32-bit finalizer), as in `@graphty/algorithms`'
+ * `labelPropagationSynchronous` -- never at random, so the result is bitwise reproducible on one device; that is
+ * also why there is no `randomSeed`.
  * @public
  */
 export interface LabelPropagationOptions {

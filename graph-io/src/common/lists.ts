@@ -195,7 +195,7 @@ function isSpace(c: number): boolean {
  */
 function quoteBracketItem(item: string): string {
     if (item.length === 0 || /[,[\]"']/.test(item) || item !== item.trim()) {
-        return `"${item.replace(/"/g, '""')}"`;
+        return `"${item.replaceAll('"', '""')}"`;
     }
     return item;
 }

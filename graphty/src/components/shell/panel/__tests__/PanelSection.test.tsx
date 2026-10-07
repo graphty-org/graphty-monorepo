@@ -17,12 +17,7 @@ function renderInShell(ui: React.ReactNode) {
 
 function renderInPanel(ui: React.ReactNode) {
     return renderInShell(
-        <ActivityPanel
-            activity="explore"
-            width={ACTIVITY_PANEL_WIDTH_DEFAULT}
-            presentation="docked"
-            title="Explore"
-        >
+        <ActivityPanel activity="explore" width={ACTIVITY_PANEL_WIDTH_DEFAULT} presentation="docked" title="Explore">
             {ui}
         </ActivityPanel>,
     );
@@ -47,10 +42,7 @@ describe("PanelSection", () => {
                 </PanelSection>,
             );
 
-            expect(screen.getByRole("button", { name: "Collapse Open file" })).toHaveAttribute(
-                "aria-expanded",
-                "true",
-            );
+            expect(screen.getByRole("button", { name: "Collapse Open file" })).toHaveAttribute("aria-expanded", "true");
         });
 
         it("expands in place from its own header", () => {
@@ -159,10 +151,10 @@ describe("PanelSection", () => {
             expect(screen.getByTestId("coming-tag")).toHaveTextContent(COMING_LABEL);
         });
 
-        it("is a 16 tall pill", () => {
+        it("is the shared Badge", () => {
             render(<ComingTag />);
 
-            expect(screen.getByTestId("coming-tag")).toHaveStyle({ height: "16px", borderRadius: "8px" });
+            expect(screen.getByTestId("coming-tag")).toHaveClass("mantine-Badge-root");
         });
     });
 

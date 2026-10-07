@@ -69,7 +69,7 @@ function defines(source, name) {
  */
 function check(rootDir) {
     const problems = [];
-    const rel = (file) => relative(rootDir, file).split("\\").join("/");
+    const rel = (file) => relative(rootDir, file).replaceAll("\\", "/");
     for (const file of sourceFiles(join(rootDir, SRC_DIR))) {
         const imports = importsOf(readFileSync(file, "utf8"));
         for (const pkg of PARSER_PACKAGES) {

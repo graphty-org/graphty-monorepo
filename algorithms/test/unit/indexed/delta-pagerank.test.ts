@@ -71,7 +71,7 @@ function snapshotOf(graph: Graph): GraphSnapshot {
 function toMap(s: GraphSnapshot, scores: ArrayLike<number>): Map<NodeId, number> {
     const out = new Map<NodeId, number>();
     for (let i = 0; i < s.nodeCount; i++) {
-        out.set(s.ids.idOf(i) as NodeId, scores[i]);
+        out.set(s.ids.idOf(i), scores[i]);
     }
     return out;
 }

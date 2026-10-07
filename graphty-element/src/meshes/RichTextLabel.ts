@@ -36,15 +36,7 @@ export type BadgeType =
     | "dot"
     | undefined;
 export type AttachPosition =
-    | "top"
-    | "bottom"
-    | "left"
-    | "right"
-    | "center"
-    | "top-left"
-    | "top-right"
-    | "bottom-left"
-    | "bottom-right";
+    "top" | "bottom" | "left" | "right" | "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 export interface RichTextStyle {
     font: string;
@@ -233,7 +225,7 @@ export class RichTextLabel {
             textOutline: false,
             textOutlineColor: "black",
             textOutlineWidth: 2,
-            textOutlineJoin: "round" as CanvasLineJoin,
+            textOutlineJoin: "round",
             pointer: false,
             pointerDirection: "bottom",
             pointerWidth: 20,
@@ -1109,8 +1101,8 @@ export class RichTextLabel {
      */
     public setText(text: string): void {
         const numericValue = Number(text);
-        if (this.options.smartOverflow && !isNaN(numericValue)) {
-            const num = parseInt(text, 10);
+        if (this.options.smartOverflow && !Number.isNaN(numericValue)) {
+            const num = Number.parseInt(text, 10);
             if (num > this.options.maxNumber) {
                 if (num >= 1000) {
                     this.options.text = `${Math.floor(num / 1000)}k`;

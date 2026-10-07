@@ -1,3 +1,19 @@
+## 0.6.35 (2026-10-06)
+
+### 🩹 Fixes
+
+- **layout:** run cooling "adaptive" on the CPU Fruchterman-Reingold ([#98](https://github.com/graphty-org/graphty-monorepo/issues/98))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.6
+- Updated algorithms to 3.3.6
+- Updated layout to 2.2.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.34 (2026-10-05)
 
 ### 🧱 Updated Dependencies

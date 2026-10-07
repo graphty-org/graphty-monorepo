@@ -723,7 +723,7 @@ export class XmlTokenizer {
             text = text.slice(0, -1);
         }
         if (text.includes("\r")) {
-            text = text.replace(/\r\n?/g, "\n");
+            text = text.replaceAll(/\r\n?/g, "\n");
         }
         this.feed(text);
     }
@@ -1573,5 +1573,5 @@ export class XmlTokenizer {
  * @returns the normalized value
  */
 function normalizeAttributeValue(raw: string): string {
-    return raw.includes("\n") || raw.includes("\t") ? raw.replace(/[\n\t]/g, " ") : raw;
+    return raw.includes("\n") || raw.includes("\t") ? raw.replaceAll(/[\n\t]/g, " ") : raw;
 }

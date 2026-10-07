@@ -392,7 +392,7 @@ function GraphComponent({ nodes, edges, layout = "ngraph" }) {
 
 If the element module is loaded lazily, make sure it is defined before React renders the tag;
 otherwise React writes object props as `"[object Object]"` attributes. See
-[Loading the element lazily](./installation#loading-the-element-lazily).
+[Load the element before React renders it](./frameworks/react#load-the-element-before-react-renders-it).
 
 ### Vue
 

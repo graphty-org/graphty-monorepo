@@ -1,7 +1,7 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
+import type { LayoutResult } from "../positions.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
 
 /** Options of the index-based grid layout. */
 export interface GridLayoutOptions extends CommonLayoutOptions {

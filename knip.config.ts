@@ -158,7 +158,14 @@ const config: KnipConfig = {
 
         // Layout package
         layout: {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "src/index.ts!",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                // compiled by tsconfig.consumer.json (npm run typecheck:consumer)
+                "test/consumer/*.ts",
+                "scripts/**/*.{ts,js}",
+            ],
             project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignoreDependencies: [
                 "@storybook/html",

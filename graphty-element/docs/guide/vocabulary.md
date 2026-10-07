@@ -52,7 +52,14 @@ await run;
 await element.session.selection.apply({ top: { run, n: 10 } });
 // Or name a field outright.
 await element.session.selection.apply({ above: { run, field: "value", threshold: 0.05 } });
+// Every element from one value to another, both ends included -- what a histogram brush selects.
+const { bins } = (await run).histogram("value");
+await element.session.selection.apply({ range: { run, min: bins[2].from, max: bins[4].to } });
 ```
+
+To open a threshold control where the result is still drawable, ask the run for the top that fits
+the render ceiling: `result.top("value", DEFAULT_LIMITS.renderCeiling).threshold` is the lowest
+`above` threshold that selects no more than that, or `null` when everything fits.
 
 `run` can be the handle `runs.start()` returned, its awaited result, or its id.
 

@@ -86,11 +86,11 @@ describe("the Graph place", () => {
         assert.isNotNull(screen.getByText("Add data to start"));
     });
 
-    it("reads 'Analyze (Shift+A) to add results here' with a graph and nothing run, as a hint and not a second Analyze control", async () => {
+    it("reads 'Analyze in the toolbar (Shift+A) to add results here' with a graph and nothing run, as a hint and not a second Analyze control", async () => {
         renderPlace(await sessionWithGraph());
 
         const footer = screen.getByText(/to add results here/);
-        assert.equal(footer.textContent, "Analyze (Shift+A) to add results here");
+        assert.equal(footer.textContent, "Analyze in the toolbar (Shift+A) to add results here");
         assert.isNull(within(footer).queryByRole("button"));
     });
 

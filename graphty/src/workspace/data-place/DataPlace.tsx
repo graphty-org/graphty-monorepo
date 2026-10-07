@@ -320,7 +320,15 @@ export function DataPlace(): React.JSX.Element {
     const sources = session === null ? [] : sourceRows(session.data.source(), session.data.lastImport());
 
     const rowMenu = useRowMenu();
-    const editSource = (): void => {
+    const tableBuilt = useCommand("table.toggle") !== null;
+    // A source's Node table or Edge table row opens the table dock on that table; the source
+    // itself (and both, until the dock is built) opens the Data page, as its menu's Edit source...
+    const openSource = (ids: string[]): void => {
+        const id = ids.at(-1);
+        if (tableBuilt && (id === "source:nodes" || id === "source:edges")) {
+            store.set({ dockOpen: true, dockTab: id === "source:nodes" ? "nodes" : "edges" });
+            return;
+        }
         store.set({ page: "data-page" });
     };
 
@@ -355,7 +363,7 @@ export function DataPlace(): React.JSX.Element {
                         defaultExpanded={["source"]}
                         multiselect={false}
                         selected={[]}
-                        onSelect={editSource}
+                        onSelect={openSource}
                         rowMenu={rowMenu}
                     />
                 )}

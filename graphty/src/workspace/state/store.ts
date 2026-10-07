@@ -57,6 +57,11 @@ export interface WorkspaceState {
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
+    /**
+     * The table dock's tab: "nodes", "edges" or a group run's "g:<run id>". Kept while the dock
+     * is closed, and set by whatever opens the dock on a table (the Data place's source rows).
+     */
+    readonly dockTab: string;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -93,6 +98,7 @@ const INITIAL: WorkspaceState = {
     rightWidth: PANEL_MIN,
     dockHeight: 240,
     dockOpen: false,
+    dockTab: "nodes",
     legendShown: true,
     exportOn: "image",
     singleKeyShortcuts: true,

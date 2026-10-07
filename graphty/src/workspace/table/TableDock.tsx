@@ -32,18 +32,17 @@ interface Members {
 
 const EMPTY_VIEW: View = { hidden: [], sort: null };
 
-/** The reader's arrangement of the dock: its tab, each table's view, and the members chip. */
+/** The reader's arrangement of the dock: each table's view and the members chip (the tab is the store's). */
 interface Arrangement {
-    readonly tab: string;
     readonly views: Readonly<Record<RecordKind, View>>;
     readonly members: Members | null;
 }
 
-const FIRST_ARRANGEMENT: Arrangement = { tab: "nodes", views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
+const FIRST_ARRANGEMENT: Arrangement = { views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
 
 /**
  * The arrangement per workspace, kept while the dock is closed: the Frame unmounts the dock, and
- * Shift+T twice must bring back the same tab, sort, columns and chip. Keyed by the workspace's
+ * Shift+T twice must bring back the same sort, columns and chip (the store keeps the tab). Keyed by the workspace's
  * store, so each mounted workspace (each story, each test) keeps its own.
  */
 const ARRANGEMENTS = new WeakMap<WorkspaceStore, Arrangement>();
@@ -252,12 +251,13 @@ function tableKey(kind: RecordKind, members: Members | null): string {
 export function TableDock(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const tab = useWorkspaceState((state) => state.dockTab);
     useSessionVersion(session);
     const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    const { tab, views, members } = arrangement;
+    const { views, members } = arrangement;
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
@@ -316,7 +316,7 @@ export function TableDock(): React.JSX.Element {
                     value={active}
                     onChange={(value) => {
                         if (value !== null) {
-                            arrange({ tab: value });
+                            store.set({ dockTab: value });
                         }
                     }}
                 >
@@ -376,8 +376,8 @@ export function TableDock(): React.JSX.Element {
                     groups={groupRun.groups}
                     height={tableHeight}
                     onShowMembers={(group, name) => {
+                        store.set({ dockTab: "nodes" });
                         arrange({
-                            tab: "nodes",
                             members: {
                                 run: groupRun.id,
                                 runLabel: groupRun.label,

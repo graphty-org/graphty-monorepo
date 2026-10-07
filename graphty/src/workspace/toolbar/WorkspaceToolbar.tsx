@@ -12,6 +12,7 @@ import { LayoutGroup } from "../layout/LayoutGroup";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import type { ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
+import { ShowMenuRows } from "./ShowMenuRows";
 import { useSessionVersion } from "./useSessionVersion";
 
 /** Props for CommandTool. */
@@ -54,7 +55,7 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
 });
 
 /**
- * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View, Legend | Quick actions, at the
+ * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View | Quick actions, at the
  * canvas's bottom center; a selection never changes it. Analyze, Layout and Quick actions open
  * popovers above it and View opens its flyout; each holds the store's one `dialog` slot, so only
  * one is open at a time and Esc or a click outside closes it. A popover's body is mounted only
@@ -65,7 +66,6 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useSessionVersion(session);
     const dialog = useWorkspaceState((state) => state.dialog);
-    const legendShown = useWorkspaceState((state) => state.legendShown);
     const [announcement, setAnnouncement] = useState("");
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
@@ -146,9 +146,9 @@ export function WorkspaceToolbar(): React.JSX.Element {
                                 ["view.toggle-dimension"],
                             ]}
                         />
+                        <ShowMenuRows />
                     </Menu.Dropdown>
                 </Menu>
-                <CommandTool command="view.legend" icon={<GLYPHS.legend size={20} />} selected={legendShown} />
                 <Toolbar.Divider />
                 <Popover {...popoverProps("quick-actions")}>
                     <Popover.Target>

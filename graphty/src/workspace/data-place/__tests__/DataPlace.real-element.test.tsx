@@ -239,6 +239,25 @@ describe("the Data place on the real element", () => {
     );
 
     it(
+        "opens the table dock on the nodes tab from Node table and on the edges tab from Edge table",
+        async () => {
+            const { session, store } = await openDataPlace(TABLE_BUILT);
+            await importGraphFile(session);
+
+            await userEvent.click(await within(tree("Sources")).findByRole("treeitem", { name: "Node table" }));
+            const dock = await screen.findByRole("region", { name: "Table" });
+            assert.equal(within(dock).getByRole("tab", { name: "Nodes" }).getAttribute("aria-selected"), "true");
+            assert.equal(store.get().page, "panels");
+
+            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Edge table" }));
+            await waitFor(() => {
+                assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "shows Find past 15 attributes, and Find narrows the list by name",
         async () => {
             const { session } = await openDataPlace();

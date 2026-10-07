@@ -11,8 +11,8 @@ import { useSessionVersion } from "./useSessionVersion";
 
 /**
  * The footer line's one message: with no graph, "Add data to start"; with a graph and nothing
- * run, "Analyze (Shift+A) to add results here". It is a hint, not a second Analyze control: the
- * toolbar's Analyze button is the one control of that name.
+ * run, "Analyze in the toolbar (Shift+A) to add results here". It is a hint, not a second Analyze
+ * control: it names the toolbar's Analyze button, the one control of that name.
  * @param props - Component props
  * @param props.hasGraph - Whether the element holds a node
  * @param props.hasRuns - Whether anything has been run
@@ -27,7 +27,7 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
         return null;
     }
     const key = analyze?.command.keys?.[0] ?? "Shift+A";
-    return <Text className="ws-graph-footer">Analyze ({key}) to add results here</Text>;
+    return <Text className="ws-graph-footer">Analyze in the toolbar ({key}) to add results here</Text>;
 }
 
 /**

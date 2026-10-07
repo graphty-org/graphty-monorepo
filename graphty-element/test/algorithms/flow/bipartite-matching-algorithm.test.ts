@@ -24,7 +24,5 @@ describe("BipartiteMatchingAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "bipartite-matching");
             assert.strictEqual(AlgClass, BipartiteMatchingAlgorithm);
         });
-
     });
-
 });

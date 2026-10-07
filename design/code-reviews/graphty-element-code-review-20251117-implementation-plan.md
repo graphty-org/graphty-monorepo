@@ -739,6 +739,7 @@ Remove lines:
     - Remove debug logging after verification
 
 5. **Build and lint**:
+
     ```bash
     npm run lint
     npm run build

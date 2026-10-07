@@ -24,7 +24,16 @@
  * tmp/shell-spec/01-frame-canvas-toolbar.md unless another spec is named.
  */
 
-import { type CanvasBottomStackState, canvasToolbarBottomOffset, type CanvasToolbarProfile, hasOverlayReflowed, LEGEND_MAX_HEIGHT, LEGEND_MIN_HEIGHT, OVERLAY_INSET, OVERLAY_REFLOW_RISE } from "../constants";
+import {
+    type CanvasBottomStackState,
+    canvasToolbarBottomOffset,
+    type CanvasToolbarProfile,
+    hasOverlayReflowed,
+    LEGEND_MAX_HEIGHT,
+    LEGEND_MIN_HEIGHT,
+    OVERLAY_INSET,
+    OVERLAY_REFLOW_RISE,
+} from "../constants";
 
 /* -------------------------------------------------------------------------- */
 /* Drawn geometry the shared modules do not name                              */
@@ -294,11 +303,7 @@ export function isLegendCompact(state: CanvasBottomStackState): boolean {
  * @param state - what the bottom of the canvas currently holds.
  * @returns true when the legend should render.
  */
-export function isLegendDrawn(
-    visible: boolean,
-    encodedChannelCount: number,
-    state: CanvasBottomStackState,
-): boolean {
+export function isLegendDrawn(visible: boolean, encodedChannelCount: number, state: CanvasBottomStackState): boolean {
     return visible && encodedChannelCount > 0 && !state.drawerMaximised;
 }
 
@@ -502,15 +507,7 @@ export interface CanvasBottomStackLayout {
  * @returns every offset and every visibility decision the stack makes.
  */
 export function canvasBottomStack(input: CanvasBottomStackInput): CanvasBottomStackLayout {
-    const {
-        canvasHeight,
-        canvasWidth,
-        encodedChannelCount,
-        legendVisible,
-        minimapVisible,
-        profile,
-        stack,
-    } = input;
+    const { canvasHeight, canvasWidth, encodedChannelCount, legendVisible, minimapVisible, profile, stack } = input;
 
     // Every rung of the ladder is measured against the height the drawer ACTUALLY
     // draws, which is what `DataTableDrawer` clamps it to. A remembered height is a

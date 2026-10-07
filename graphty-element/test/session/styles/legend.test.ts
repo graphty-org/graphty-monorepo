@@ -863,3 +863,93 @@ describe("a layer that reads what this session cannot answer is reported, never 
         assert.deepEqual(unboundLayers(explain), []);
     });
 });
+
+describe("the legend's facts are codes and values, worded by the application", () => {
+    it("carries every departure as a coded fact beside the deprecated sentence", () => {
+        const block = onlyBlock([
+            betweennessColor({
+                encode: { "node.color": { by: "results.betweenness.value", clamp: [2, 98], palette: "viridis" } },
+            }),
+        ]);
+
+        assert.deepInclude(block.facts, { code: "legend.clamped", params: { from: 2, to: 98 } });
+        assert.deepInclude(block.facts, { code: "legend.not-measured", params: { count: 1 } });
+        assert.strictEqual(block.facts.length, block.departures.length, "one fact per sentence");
+    });
+
+    it("names the scale and the count a logarithmic scale cannot place", () => {
+        const block = onlyBlock([
+            betweennessColor({
+                encode: { "node.color": { by: "results.betweenness.value", scale: "log", palette: "viridis" } },
+            }),
+        ]);
+
+        assert.deepInclude(block.facts, { code: "legend.not-plottable", params: { count: 1, scale: "log" } });
+    });
+
+    it("names the run field a block reads by algorithm key and field name, and nothing for a data column", () => {
+        const fixture = harness([betweennessColor()]);
+        const blocks = buildLegend({
+            ...fixture.legend,
+            field: (): FieldWords => ({
+                plainName: "Bridging",
+                technicalName: "betweenness",
+                result: { algorithm: "betweenness", field: "value" },
+            }),
+        });
+
+        assert.deepEqual(blocks[0].field?.result, { algorithm: "betweenness", field: "value" });
+        assert.isUndefined(onlyBlock([betweennessColor()]).field?.result);
+    });
+
+    it("names the explicit domain a scale cannot place", () => {
+        const block = onlyBlock([
+            betweennessColor({
+                encode: {
+                    "node.color": {
+                        by: "results.betweenness.value",
+                        scale: "log",
+                        domain: [-5, -1],
+                        palette: "viridis",
+                    },
+                },
+            }),
+        ]);
+
+        assert.deepInclude(block.facts, { code: "legend.no-value-in-domain", params: { min: -5, max: -1 } });
+    });
+
+    it("names the layer that paints over a block by id and name", () => {
+        const blocks = buildLegend(
+            harness([
+                betweennessColor(),
+                {
+                    name: "Washout",
+                    kind: "custom",
+                    selector: { match: "everything" },
+                    set: { "node.color": "#cccccc" },
+                },
+            ]).legend,
+        );
+
+        assert.deepInclude(blocks[0].facts, {
+            code: "legend.painted-over",
+            params: { layerId: "l1", name: "Washout" },
+        });
+        assert.deepEqual(blocks[1].facts, []);
+    });
+
+    it("gives a stepped numeric row the extent of values it stands for", () => {
+        const block = onlyBlock([
+            betweennessColor({
+                encode: { "node.color": { by: "results.betweenness.value", scale: "quantile", palette: "viridis" } },
+            }),
+        ]);
+
+        const [first] = block.swatches;
+        assert.strictEqual(first.extent?.min, 0);
+        assert.strictEqual(first.value, first.extent?.min);
+        assert.isAbove(first.extent?.max ?? 0, 0);
+        assert.isUndefined(onlyBlock([betweennessColor()]).swatches[0].extent, "a ramp stop is one value");
+    });
+});

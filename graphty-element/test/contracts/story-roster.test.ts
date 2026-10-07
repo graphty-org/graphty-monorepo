@@ -58,7 +58,14 @@ import path from "node:path";
 
 import { assert, describe, it } from "vitest";
 
-import { PACKAGE_ROOT, readStories, readStoryFile, STORIES_DIR, type StoryFileReading, storyFiles } from "./story-source";
+import {
+    PACKAGE_ROOT,
+    readStories,
+    readStoryFile,
+    STORIES_DIR,
+    type StoryFileReading,
+    storyFiles,
+} from "./story-source";
 
 /** The checked-in roster. */
 const ROSTER_PATH = path.join(STORIES_DIR, "story-roster.json");
@@ -281,9 +288,7 @@ describe("the roster reads a story however it is written", () => {
     };
 
     it("finds a story that does not carry the type annotation the old pattern wanted", () => {
-        const ids = read(OTHERWISE_WRITTEN_STORIES).flatMap((reading) =>
-            reading.stories.map((story) => story.id),
-        );
+        const ids = read(OTHERWISE_WRITTEN_STORIES).flatMap((reading) => reading.stories.map((story) => story.id));
 
         assert.deepEqual(
             ids.sort(),
@@ -308,10 +313,13 @@ describe("the roster reads a story however it is written", () => {
 
     it("refuses a file whose title it cannot read, instead of reading no stories from it", () => {
         assert.throws(
-            () => read(`import type { Meta } from "@storybook/web-components-vite";\n` +
-                `const meta: Meta = { title: titleFor("Styles/Node"), component: "graphty-element" };\n` +
-                `export default meta;\n` +
-                `export const Only = { args: {} };\n`),
+            () =>
+                read(
+                    `import type { Meta } from "@storybook/web-components-vite";\n` +
+                        `const meta: Meta = { title: titleFor("Styles/Node"), component: "graphty-element" };\n` +
+                        `export default meta;\n` +
+                        `export const Only = { args: {} };\n`,
+                ),
             /title/,
             `A meta whose title is built at run time takes every story in the file out of the roster ` +
                 `at once. The reader has to refuse it out loud; returning zero stories is the silence ` +

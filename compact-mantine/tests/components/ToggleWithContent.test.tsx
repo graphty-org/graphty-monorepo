@@ -176,9 +176,7 @@ describe("ToggleWithContent", () => {
 
             const checkbox = screen.getByRole("checkbox");
             expect(checkbox).toHaveAttribute("aria-expanded", "true");
-            expect(checkbox.getAttribute("aria-controls")).toBe(
-                screen.getByTestId("toggle-with-content-children").id,
-            );
+            expect(checkbox.getAttribute("aria-controls")).toBe(screen.getByTestId("toggle-with-content-children").id);
         });
 
         it("points at nothing while there is nothing to point at", () => {

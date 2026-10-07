@@ -197,8 +197,10 @@ changes every capture with text, which is one re-baseline.
   passkey check needs (see [Approving with a passkey](#approving-with-a-passkey)). Make it a
   required check. In a Mergify merge-queue run, pass `--queue-event "$GITHUB_EVENT_PATH"` instead
   of `--pr`: the gate reads the batch's pull requests from the queue's draft pull request and
-  accepts a review record for any of them. Every capture must still equal a baseline, so a batch
-  passes only on images already approved on its pull requests.
+  accepts a review record for any of them. It compares baseline changes with the commit the batch
+  sits on (its `checking_base_sha`), so a batch stacked on another is not charged with that
+  batch's changes. Every capture must still equal a baseline, so a batch passes only on images
+  already approved on its pull requests.
 
 The review page finds captures by the workflow's file name (the config's `workflow`), the jobs by
 their names, `visual (<project>)`, and the artifacts by `visual-<project>-<attempt>`. If you would
@@ -1081,8 +1083,9 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   registers it first, then review again.
 - **The gate says a record has no passkey approval** on a pull request Finished before your
   passkey was registered. Revert its accept commit (which takes the record and the baselines out
-  of the diff), let CI capture again, and review it again with Face ID. Never edit a record by
-  hand: the gate only accepts what your device approved.
+  of the diff), let CI capture again, and review it again with Face ID: the page keeps your
+  decisions on unchanged images but no longer counts them as published, so Finish publishes them
+  again. Never edit a record by hand: the gate only accepts what your device approved.
 - **Opening the seed issue fails.** Every label in `issueLabels` must exist in the repository.
 - **The pnpm setup step fails in CI.** `pnpm/action-setup` reads the pnpm version from the
   `packageManager` field of your root `package.json`; add one.

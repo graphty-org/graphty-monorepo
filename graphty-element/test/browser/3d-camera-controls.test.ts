@@ -1,4 +1,3 @@
- 
 import {} from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
@@ -43,7 +42,8 @@ describe("3D Camera Controls", () => {
         assert.isDefined(cameraController, "Camera controller should be defined after switching to 3D mode");
 
         // Access the input controller through camera manager
-        inputController = (cameraManager as unknown as { activeInputHandler: InspectableOrbitController }).activeInputHandler;
+        inputController = (cameraManager as unknown as { activeInputHandler: InspectableOrbitController })
+            .activeInputHandler;
         assert.isDefined(inputController, "Input controller should be defined");
 
         // Verify input controller is enabled

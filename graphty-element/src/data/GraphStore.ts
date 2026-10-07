@@ -1053,13 +1053,11 @@ export class GraphStore {
             });
         const nodes = [...nodeRows]
             .sort((a, b) => a - b)
-            .map(
-                (row): RemovedNode => ({
-                    id: builder.idOf(row),
-                    index: compacted(row, earlierNodes),
-                    values: this.rowValues(this.frozenColumns.node, row),
-                }),
-            );
+            .map((row): RemovedNode => ({
+                id: builder.idOf(row),
+                index: compacted(row, earlierNodes),
+                values: this.rowValues(this.frozenColumns.node, row),
+            }));
         const nodeRowList = [...nodeRows].sort((a, b) => a - b);
         const edgeRowList = [...edgeRows].sort((a, b) => a - b);
         const lane = this.positions.view(this.positions.count);
@@ -1234,7 +1232,7 @@ export class GraphStore {
         const lane = this.positions.view(snapshot.nodeCount);
         const coords = new Float32Array(3 * ids.length).fill(Number.NaN);
         ids.forEach((id, at) => {
-            const row = snapshot.ids.indexOf(id as string | number);
+            const row = snapshot.ids.indexOf(id);
             if (row !== INVALID_INDEX) {
                 coords.set(lane.subarray(POSITION_COMPONENTS * row, POSITION_COMPONENTS * row + 3), 3 * at);
             }
@@ -1266,7 +1264,7 @@ export class GraphStore {
         const lane = this.positions.view(snapshot.nodeCount);
         for (const { ids, coords } of this.laneToRestore.values()) {
             ids.forEach((id, at) => {
-                const row = snapshot.ids.indexOf(id as string | number);
+                const row = snapshot.ids.indexOf(id);
                 if (row !== INVALID_INDEX && !this.positions.isPlaced(row) && isStorableCoordinate(coords[3 * at])) {
                     lane.set(coords.subarray(3 * at, 3 * at + 3), POSITION_COMPONENTS * row);
                 }

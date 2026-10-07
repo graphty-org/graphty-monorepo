@@ -1,10 +1,13 @@
 #!/bin/bash
 # Pre-push validation script
-# Runs build, lint (including knip), the CI test shards (graphty-element's long browser and storybook shards
+# Runs build, lint, the CI test shards (graphty-element's long browser and storybook shards
 # only when the push changes a file they test) and the screenshots -- for the packages
 # this push AFFECTS only. "Affected" is nx's answer for
 # the commits since this branch left origin/master: a package whose files changed, and
 # every package that depends on one -- the same set a pull request's CI tests.
+# Knip (both passes) and the published-dependency check run on EVERY push, a push that affects
+# no package included: they check the whole repository, root files (knip.config.ts, package.json
+# scripts, tools/) too, and CI's Build job always runs them. About 35 seconds (2026-10-06).
 # PREPUSH_ALL=1 runs every package.
 # This script avoids nx to work around git hook issues with nx daemon
 
@@ -24,6 +27,14 @@ cd "$ROOT_DIR"
 # on this repository instead: `git init` there has turned the checkout bare (twice), and test commits
 # landed on the branch being pushed. No step needs them; each runs from this directory.
 unset $(git rev-parse --local-env-vars)
+
+# A push to a pull request in Mergify's merge queue dequeues it and throws away its batch run, so it
+# is refused before the gate starts (ALLOW_PUSH_WHILE_QUEUED=1 for a deliberate one). It checks the
+# checked-out branch, the one this gate tests.
+PUSH_BRANCH="$(git symbolic-ref --short -q HEAD)"
+if [ -n "$PUSH_BRANCH" ] && ! node tools/queued-push-guard.mjs "$PUSH_BRANCH"; then
+    exit 1
+fi
 
 # node_modules must match the lockfile, or everything below runs against dependency versions CI
 # (pnpm install --frozen-lockfile) does not have. pnpm copies the lockfile it installed from to
@@ -99,9 +110,8 @@ run_step "No signing bypass in tools/ and .husky/" \
 # (2026-10-05). They run first and on every push, docs-only pushes included, so the commonest
 # failures stop the gate before the build starts.
 
-# Prettier on the files this branch adds or modifies. The tree is not formatted as a whole yet
-# (issue #239), so this stops new drift without asking a branch to reformat what it never touched.
-run_step "Formatting (changed files)" "pnpm run format:check:changed"
+# Prettier on the whole tree (issue #239).
+run_step "Formatting" "pnpm run format:check"
 
 # Every package that has its own eslint.config.js is linted with that file alone, so it must spread
 # the root config; a stale copy silently drops every rule the root gained since. Run for every push,
@@ -205,14 +215,10 @@ sonar_reminder() {
 }
 
 if [ -z "$PROJECT_LIST" ]; then
-    echo -e "${GREEN}No package is affected by this push; no package to check.${NC}"
-    # A push that touches only tools/ or the root still gets the SonarQube step, in the foreground.
-    start_sonar
-    join_sonar
-    sonar_reminder
-    exit "$FAILED"
+    echo -e "${GREEN}No package is affected by this push; only the whole-repository checks run.${NC}"
+else
+    echo "Affected packages: $PROJECT_LIST"
 fi
-echo "Affected packages: $PROJECT_LIST"
 echo ""
 
 # Build the affected packages (nx builds what they depend on first: build dependsOn ^build).
@@ -248,6 +254,18 @@ run_step "Knip (dead code detection)" "pnpm run lint:knip"
 # see a runtime dependency that nothing at run time imports. About 9 seconds (2026-09-24).
 run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
 
+# A push that affects no package (tools/, the root package.json scripts, knip.config.ts, docs) stops
+# here: knip has checked it, and everything below is per affected package. The published-dependency
+# check (below for the other pushes) runs over every package, as CI's does: a change to the check
+# itself, or to tools/workspace-files.mjs, can fail it. The SonarQube step runs in the foreground.
+if [ -z "$PROJECT_LIST" ]; then
+    run_step "Published dependencies" "pnpm run check:published-deps"
+    start_sonar
+    join_sonar
+    sonar_reminder
+    exit "$FAILED"
+fi
+
 # Lint the affected packages
 run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"
 
@@ -271,6 +289,11 @@ if affected graphty-element; then
     # The built public API must match the committed report, graphty-element/api/*.api.md
     # (CLAUDE.md, "Public API review"). Needs the build above.
     run_step "Public API report (graphty-element)" "pnpm run check:api-report"
+fi
+# The same for each part of cytoscape-extensions as a browser application bundles it
+# (cytoscape-extensions/size-budgets.json). Needs the build above. About 5 seconds.
+if affected cytoscape-extensions; then
+    run_step "Bundle size (cytoscape-extensions)" "pnpm --filter @graphty/cytoscape-extensions run size"
 fi
 
 # Screenshots, in the background while the tests run: tools/visual-preview.sh --head fetches master,

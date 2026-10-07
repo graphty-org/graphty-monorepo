@@ -68,8 +68,7 @@ import {
 } from "./force-simulation.js";
 import { resolveLayoutTuning, writeGridFrame } from "./forceatlas2.js";
 import {
-    type AttractionBindings,
-    bindAttraction,
+    compileAttraction,
     describeValue,
     invalid,
     isPositiveInteger,
@@ -336,24 +335,19 @@ export class FruchtermanReingoldModel
     }
 
     /**
-     * Compiles the pipelines of one load, one after another: K1, K2 over the degree tiers through bindAttraction
+     * Compiles the pipelines of one load, one after another: K1, K2 over the degree tiers through compileAttraction
      * (none when arcCount === 0), K3 on the exact tier, K5, toScene, fill, then G1-G7 through RepulsionGrid on the
      * grid tier (PD-18). The K2 TIER 1 / 2 pipelines compile on the first load whose degrees need them (P4 PD-7).
      * @param resources - the graph, the shared and model buffers, the ring and the cache
      * @param overrides - the merged override set
-     * @param attractionBindings - K2's group-1 / group-2 bindings
      * @returns the pipelines
      */
-    protected async compile(
-        resources: ModelResources,
-        overrides: Overrides,
-        attractionBindings: AttractionBindings,
-    ): Promise<CompiledModel<LawRepulsion>> {
+    protected async compile(resources: ModelResources, overrides: Overrides): Promise<CompiledModel<LawRepulsion>> {
         const { n, pipelines } = resources;
         const k1 = await pipelines.kernel(kernelSpec("fa2-stats-finalize", subset(overrides, LAW_K1_DEFAULTS)));
         const attraction =
             resources.core.colIdx !== null
-                ? await bindAttraction(resources, subset(overrides, LAW_K2_DEFAULTS), attractionBindings)
+                ? await compileAttraction(resources, subset(overrides, LAW_K2_DEFAULTS))
                 : null;
         const k3 =
             resources.tier === "grid"

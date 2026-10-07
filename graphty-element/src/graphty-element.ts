@@ -15,8 +15,8 @@ import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } f
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
-import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
-import type { NodeLabelCounts } from "./managers/LabelDeclutter";
+import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
+import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -893,7 +893,7 @@ export class Graphty extends LitElement {
         const { config } = this.#source();
         // Reported without the inline text or the file: the graph keeps where it came from, not
         // a second copy of what it holds.
-        return config === undefined ? undefined : (describeSource({ config }).config as Record<string, unknown>);
+        return config === undefined ? undefined : describeSource({ config }).config;
     }
     /**
      * Sets the data source configuration. Loads the graph from it, replacing what the graph
@@ -1412,7 +1412,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
-        return this.#layoutPair().options as Record<string, unknown>;
+        return this.#layoutPair().options;
     }
     /**
      * Sets layout-specific configuration: the layout is drawn again with it, as one undoable step.
@@ -1544,6 +1544,27 @@ export class Graphty extends LitElement {
      */
     get nodeLabelCounts(): NodeLabelCounts {
         return this.#graph.nodeLabelCounts;
+    }
+
+    /**
+     * A node's label as it is drawn: the words on screen, and whether the label is shown at all.
+     *
+     * `text` is what the reader sees, after the label was bound to the node's data and its markup
+     * (`<bold>`, `<color='...'>`) was applied. `drawn` is false when the label is not on screen:
+     * its node is hidden, or `layoutBehavior.labels.declutter` hid it to avoid an overlap. A
+     * label outside the current view still reads `drawn: true`. Reads the last drawn frame and
+     * never forces one, so wait for {@link Graphty.waitForStableFrame} first.
+     * @param nodeId - The node's id.
+     * @returns The label, or undefined when there is no such node or it has no label.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * await element.waitForStableFrame();
+     * const label = element.labelOf("Valjean"); // { text: "Valjean", drawn: true }
+     * ```
+     */
+    labelOf(nodeId: string | number): NodeLabel | undefined {
+        return this.#graph.labelOf(nodeId);
     }
 
     /**
@@ -3478,6 +3499,30 @@ export class Graphty extends LitElement {
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
         return this.#graph.worldToScreen(worldPos);
+    }
+
+    /**
+     * Where a node is drawn on screen, and whether it can be seen there.
+     *
+     * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
+     * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
+     * false when the centre is outside the element, behind the camera, or the node is hidden by
+     * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
+     * or the layout moves; it is not a live value.
+     * @param nodeId - The node's id.
+     * @returns The position, or undefined for an id the graph does not hold.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * const at = element.nodeScreenPosition("Valjean");
+     * if (at?.visible) {
+     *     marker.style.left = `${at.x - at.radius}px`;
+     *     marker.style.top = `${at.y - at.radius}px`;
+     * }
+     * ```
+     */
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
+        return this.#graph.nodeScreenPosition(nodeId);
     }
 
     /**

@@ -48,7 +48,17 @@ describe("the registry", () => {
     });
 
     it("names its built-ins as a type as well as at run time", () => {
-        const names: readonly BuiltInScaleName[] = ["linear", "log", "neglog10", "sqrt", "pow", "bins", "quantile", "ordinal", "passthrough"];
+        const names: readonly BuiltInScaleName[] = [
+            "linear",
+            "log",
+            "neglog10",
+            "sqrt",
+            "pow",
+            "bins",
+            "quantile",
+            "ordinal",
+            "passthrough",
+        ];
 
         assert.deepEqual([...names].sort(), Object.keys(BUILT_IN_SCALES).sort());
     });
@@ -74,7 +84,10 @@ describe("the registry", () => {
         const registry = createScaleRegistry();
 
         assert.isUndefined(registry.get("rainbow"));
-        assert.strictEqual(codeOf(() => registry.require("rainbow")), "E_UNKNOWN_SCALE");
+        assert.strictEqual(
+            codeOf(() => registry.require("rainbow")),
+            "E_UNKNOWN_SCALE",
+        );
     });
 
     it("says what is available when it refuses a name", () => {
@@ -106,7 +119,12 @@ describe("the registry", () => {
         const registry = createScaleRegistry();
         const plugin = { name: "linear", plainName: "Mine", domainKind: "numeric", options: [], map: () => 0 } as const;
 
-        assert.strictEqual(codeOf(() => { registry.register(plugin); }), "E_DUPLICATE_PLUGIN");
+        assert.strictEqual(
+            codeOf(() => {
+                registry.register(plugin);
+            }),
+            "E_DUPLICATE_PLUGIN",
+        );
     });
 
     it("is per session, so one registry's plugin is not another's", () => {
@@ -519,7 +537,10 @@ describe("binding a palette to a scale", () => {
     });
 
     it("refuses a scale nobody registered", () => {
-        assert.strictEqual(codeOf(() => prepareRamp({ domain: [0, 1], scale: "rainbow" }, registry)), "E_UNKNOWN_SCALE");
+        assert.strictEqual(
+            codeOf(() => prepareRamp({ domain: [0, 1], scale: "rainbow" }, registry)),
+            "E_UNKNOWN_SCALE",
+        );
     });
 
     it("never wraps a categorical palette round to its first colour", () => {
@@ -528,7 +549,9 @@ describe("binding a palette to a scale", () => {
         const twelve = Array.from({ length: 12 }, (_unused, index) => `g${index}`);
 
         assert.strictEqual(
-            codeOf(() => prepareRamp({ scale: "ordinal", palette: "okabe-ito", domain: [0, 0], categories: twelve }, registry)),
+            codeOf(() =>
+                prepareRamp({ scale: "ordinal", palette: "okabe-ito", domain: [0, 0], categories: twelve }, registry),
+            ),
             "E_CAP_EXCEEDED",
         );
     });

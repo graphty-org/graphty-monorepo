@@ -381,10 +381,7 @@ function readKeys(store: EncryptStorage): Record<string, string> | null {
         }
 
         // A non-string entry (corrupt or tampered data) is skipped, never handed out as a key
-        return Object.fromEntries(Object.entries(value).filter(([, key]) => typeof key === "string")) as Record<
-            string,
-            string
-        >;
+        return Object.fromEntries(Object.entries(value).filter(([, key]) => typeof key === "string"));
     } catch {
         return null;
     }

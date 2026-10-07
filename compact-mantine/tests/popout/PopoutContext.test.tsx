@@ -91,9 +91,7 @@ describe("PopoutManagerProvider", () => {
                                                 header={{ variant: "title", title: "Grandchild" }}
                                             >
                                                 <Popout.Content>
-                                                    <span data-testid="grandchild-content">
-                                                        Grandchild Content
-                                                    </span>
+                                                    <span data-testid="grandchild-content">Grandchild Content</span>
                                                 </Popout.Content>
                                             </Popout.Panel>
                                         </Popout>
@@ -225,10 +223,7 @@ describe("PopoutManagerProvider", () => {
                                             <Popout.Trigger>
                                                 <button>Open Level 3</button>
                                             </Popout.Trigger>
-                                            <Popout.Panel
-                                                width={200}
-                                                header={{ variant: "title", title: "Level 3" }}
-                                            >
+                                            <Popout.Panel width={200} header={{ variant: "title", title: "Level 3" }}>
                                                 <Popout.Content>
                                                     <span data-testid="level-3">Level 3</span>
                                                     <Popout>
@@ -253,9 +248,7 @@ describe("PopoutManagerProvider", () => {
                                                                         }}
                                                                     >
                                                                         <Popout.Content>
-                                                                            <span data-testid="level-5">
-                                                                                Level 5
-                                                                            </span>
+                                                                            <span data-testid="level-5">Level 5</span>
                                                                         </Popout.Content>
                                                                     </Popout.Panel>
                                                                 </Popout>
@@ -287,9 +280,7 @@ describe("PopoutManagerProvider", () => {
             expect(screen.getAllByRole("dialog")).toHaveLength(5);
 
             // Close level 2 - should close levels 2-5
-            const level2Panel = screen
-                .getAllByRole("dialog")
-                .find((p) => p.querySelector('[data-testid="level-2"]'));
+            const level2Panel = screen.getAllByRole("dialog").find((p) => p.querySelector('[data-testid="level-2"]'));
             const closeButton = level2Panel?.querySelector('[aria-label="Close panel"]') as HTMLElement;
             await user.click(closeButton);
 
@@ -408,9 +399,7 @@ describe("PopoutManagerProvider", () => {
             expect(screen.getAllByRole("dialog")).toHaveLength(2);
 
             // Close parent - both should close
-            const parentPanel = screen
-                .getAllByRole("dialog")
-                .find((p) => p.querySelector('[data-testid="parent"]'));
+            const parentPanel = screen.getAllByRole("dialog").find((p) => p.querySelector('[data-testid="parent"]'));
             const closeButton = parentPanel?.querySelector('[aria-label="Close panel"]') as HTMLElement;
             await user.click(closeButton);
 

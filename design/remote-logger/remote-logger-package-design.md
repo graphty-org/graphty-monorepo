@@ -7,6 +7,7 @@ This document describes the design for extracting the remote logging transport f
 ## Problem Statement
 
 Debugging web applications on devices like iPhones and Meta Quest headsets is challenging because:
+
 1. Developer consoles are difficult or impossible to access
 2. USB debugging setup is cumbersome
 3. Real-time log monitoring is essential for XR/VR development
@@ -17,6 +18,7 @@ Debugging web applications on devices like iPhones and Meta Quest headsets is ch
 This package is intentionally simple and focused:
 
 **In Scope:**
+
 - Sending log messages to a remote server
 - HTTPS/HTTP log server with terminal output
 - Self-signed certificate generation (used by default)
@@ -25,6 +27,7 @@ This package is intentionally simple and focused:
 - Log batching and retry logic
 
 **Out of Scope (stays in consuming packages like graphty-element):**
+
 - URL parameter configuration
 - Log level filtering
 - Module filtering
@@ -42,6 +45,7 @@ This package is intentionally simple and focused:
 ## Package Overview
 
 ### Package Name
+
 `@graphty/remote-logger`
 
 ### Components
@@ -83,10 +87,10 @@ import { RemoteLogClient } from "@graphty/remote-logger";
 // Create a client
 const client = new RemoteLogClient({
     serverUrl: "https://localhost:9080",
-    sessionPrefix: "my-app",        // Optional, default: "session"
-    batchIntervalMs: 100,           // Optional, default: 100
-    maxRetries: 3,                  // Optional, default: 3
-    retryDelayMs: 1000,             // Optional, default: 1000
+    sessionPrefix: "my-app", // Optional, default: "session"
+    batchIntervalMs: 100, // Optional, default: 100
+    maxRetries: 3, // Optional, default: 3
+    retryDelayMs: 1000, // Optional, default: 1000
 });
 
 // Send a log message
@@ -167,11 +171,11 @@ startLogServer({
     port: 9085,
     host: "localhost",
     // If certPath/keyPath not provided, self-signed cert is auto-generated
-    certPath: "./certs/cert.crt",    // Optional
-    keyPath: "./certs/key.key",      // Optional
-    logFile: "./logs/output.jsonl",  // Optional
-    useHttp: false,                  // Optional, default: false (HTTPS)
-    quiet: false,                    // Optional, default: false
+    certPath: "./certs/cert.crt", // Optional
+    keyPath: "./certs/key.key", // Optional
+    logFile: "./logs/output.jsonl", // Optional
+    useHttp: false, // Optional, default: false (HTTPS)
+    quiet: false, // Optional, default: false
 });
 ```
 
@@ -204,6 +208,7 @@ npx @graphty/remote-logger --help
 ```
 
 **Default Behavior:**
+
 - Port: 9080
 - Host: localhost
 - Protocol: HTTPS with auto-generated self-signed certificate
@@ -211,14 +216,14 @@ npx @graphty/remote-logger --help
 
 #### Server REST API
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/log` | POST | Receive logs from browser |
-| `/logs` | GET | Get all logs as JSON |
-| `/logs/recent` | GET | Get last N logs (`?n=100`) |
-| `/logs/errors` | GET | Get only error logs |
-| `/logs/clear` | POST | Clear all logs |
-| `/health` | GET | Health check with session count |
+| Endpoint       | Method | Description                     |
+| -------------- | ------ | ------------------------------- |
+| `/log`         | POST   | Receive logs from browser       |
+| `/logs`        | GET    | Get all logs as JSON            |
+| `/logs/recent` | GET    | Get last N logs (`?n=100`)      |
+| `/logs/errors` | GET    | Get only error logs             |
+| `/logs/clear`  | POST   | Clear all logs                  |
+| `/health`      | GET    | Health check with session count |
 
 #### Log Payload Format
 
@@ -252,13 +257,14 @@ import { initConsoleCaptureUI } from "@graphty/remote-logger/ui";
 initConsoleCaptureUI();
 
 // Access via global methods (for debugging in console)
-window.__console__.copy();      // Copy logs to clipboard
-window.__console__.download();  // Download as text file
-window.__console__.clear();     // Clear captured logs
-window.__console__.get();       // Get logs as string
+window.__console__.copy(); // Copy logs to clipboard
+window.__console__.download(); // Download as text file
+window.__console__.clear(); // Clear captured logs
+window.__console__.get(); // Get logs as string
 ```
 
 The UI widget:
+
 - Intercepts `console.log`, `console.info`, `console.warn`, `console.error`, `console.debug`
 - Displays a floating button in the top-right corner
 - Shows a menu with Copy, Download, Clear, and Show Logs options
@@ -298,6 +304,7 @@ export function startLogServer(options: LogServerOptions = {}): void {
 ```
 
 The generated certificate:
+
 - Valid for 365 days
 - Includes Subject Alternative Names for the hostname, localhost, 127.0.0.1, and ::1
 - Uses SHA-256 signature algorithm
@@ -307,12 +314,12 @@ The generated certificate:
 
 ### Unit Tests (Node.js Environment)
 
-| Component | Test Focus |
-|-----------|------------|
-| `RemoteLogClient` | Batching, retry logic, session ID generation |
-| `log-server` | Request handling, CORS, log storage |
-| `self-signed-cert` | Certificate generation, file reading |
-| `ConsoleCaptureUI` | Console interception, formatting |
+| Component          | Test Focus                                   |
+| ------------------ | -------------------------------------------- |
+| `RemoteLogClient`  | Batching, retry logic, session ID generation |
+| `log-server`       | Request handling, CORS, log storage          |
+| `self-signed-cert` | Certificate generation, file reading         |
+| `ConsoleCaptureUI` | Console interception, formatting             |
 
 ```typescript
 // Example: RemoteLogClient batching test
@@ -320,9 +327,9 @@ describe("RemoteLogClient", () => {
     let fetchSpy: MockInstance;
 
     beforeEach(() => {
-        fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-            new Response(JSON.stringify({ success: true }), { status: 200 })
-        );
+        fetchSpy = vi
+            .spyOn(globalThis, "fetch")
+            .mockResolvedValue(new Response(JSON.stringify({ success: true }), { status: 200 }));
         vi.useFakeTimers();
     });
 
@@ -353,9 +360,7 @@ describe("RemoteLogClient", () => {
 
     test("should retry on failure", async () => {
         fetchSpy.mockRejectedValueOnce(new Error("Network error"));
-        fetchSpy.mockResolvedValueOnce(
-            new Response(JSON.stringify({ success: true }), { status: 200 })
-        );
+        fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ success: true }), { status: 200 }));
 
         const client = new RemoteLogClient({
             serverUrl: "https://example.com",
@@ -461,6 +466,7 @@ describe("Integration", () => {
 ### From graphty-element
 
 **Before (current graphty-element RemoteSink):**
+
 ```typescript
 // Internal sink used by GraphtyLogger
 import { createRemoteSink } from "@graphty/graphty-element/logging/sinks/RemoteSink";
@@ -475,6 +481,7 @@ sink.write(logRecord);
 ```
 
 **After (using @graphty/remote-logger):**
+
 ```typescript
 // In graphty-element's RemoteSink implementation
 import { RemoteLogClient } from "@graphty/remote-logger";
@@ -491,12 +498,8 @@ export function createRemoteSink(options: RemoteSinkOptions): Sink {
     return {
         name: "remote",
         write(record: LogRecord): void {
-            const message = formatRecord(record);  // graphty-element's formatting
-            client.log(
-                LOG_LEVEL_TO_NAME[record.level],
-                message,
-                record.data
-            );
+            const message = formatRecord(record); // graphty-element's formatting
+            client.log(LOG_LEVEL_TO_NAME[record.level], message, record.data);
         },
         async flush(): Promise<void> {
             await client.flush();
@@ -508,6 +511,7 @@ export function createRemoteSink(options: RemoteSinkOptions): Sink {
 ### From bjs-mantine
 
 **Before:**
+
 ```bash
 # Custom log server script
 npm run log-server
@@ -515,12 +519,14 @@ npm run log-server
 ```
 
 **After:**
+
 ```bash
 # Use the package directly
 npx @graphty/remote-logger --port 9077 --host dev.ato.ms --cert ... --key ...
 ```
 
 Or in package.json:
+
 ```json
 {
     "scripts": {
@@ -565,21 +571,8 @@ Or in package.json:
     "bin": {
         "remote-log-server": "./bin/remote-log-server.js"
     },
-    "files": [
-        "dist/",
-        "bin/",
-        "README.md",
-        "LICENSE"
-    ],
-    "keywords": [
-        "logging",
-        "remote",
-        "debugging",
-        "console",
-        "vr",
-        "xr",
-        "mobile"
-    ],
+    "files": ["dist/", "bin/", "README.md", "LICENSE"],
+    "keywords": ["logging", "remote", "debugging", "console", "vr", "xr", "mobile"],
     "dependencies": {
         "selfsigned": "^2.4.1"
     },
@@ -596,6 +589,7 @@ Or in package.json:
 ### Dependencies
 
 **Runtime Dependencies:**
+
 - `selfsigned` - Self-signed certificate generation for HTTPS
 
 **No other runtime dependencies** - the package is intentionally lightweight.
@@ -637,11 +631,11 @@ graphty-monorepo/
 
 ```yaml
 packages:
-  - "algorithms"
-  - "layout"
-  - "graphty-element"
-  - "graphty"
-  - "remote-logger"
+    - "algorithms"
+    - "layout"
+    - "graphty-element"
+    - "graphty"
+    - "remote-logger"
 ```
 
 ### Dependency Graph
@@ -656,14 +650,15 @@ packages:
 
 ## File Mapping from Existing Code
 
-| Original File (graphty-element) | New File (remote-logger) | Notes |
-|--------------------------------|--------------------------|-------|
-| `src/logging/sinks/RemoteSink.ts` | `src/client/RemoteLogClient.ts` | Simplified, no LogRecord dependency |
-| `src/logging/server/log-server.ts` | `src/server/log-server.ts` | Mostly unchanged |
-| `src/logging/server/self-signed-cert.ts` | `src/server/self-signed-cert.ts` | Unchanged |
-| `.storybook/console-capture-ui.ts` | `src/ui/ConsoleCaptureUI.ts` | Cleaned up, standalone |
+| Original File (graphty-element)          | New File (remote-logger)         | Notes                               |
+| ---------------------------------------- | -------------------------------- | ----------------------------------- |
+| `src/logging/sinks/RemoteSink.ts`        | `src/client/RemoteLogClient.ts`  | Simplified, no LogRecord dependency |
+| `src/logging/server/log-server.ts`       | `src/server/log-server.ts`       | Mostly unchanged                    |
+| `src/logging/server/self-signed-cert.ts` | `src/server/self-signed-cert.ts` | Unchanged                           |
+| `.storybook/console-capture-ui.ts`       | `src/ui/ConsoleCaptureUI.ts`     | Cleaned up, standalone              |
 
 **Files that stay in graphty-element:**
+
 - `src/logging/GraphtyLogger.ts` - Logger facade
 - `src/logging/LoggerConfig.ts` - Configuration
 - `src/logging/URLParamParser.ts` - URL parameters

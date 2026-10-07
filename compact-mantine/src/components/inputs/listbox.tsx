@@ -183,6 +183,61 @@ export function belowComboboxProps(): ComboboxProps {
     };
 }
 
+/**
+ * Whether a list belongs to a single-choice field (Select), which opens its list over the
+ * trigger, rather than to a field whose list opens below it.
+ * @param state - floating-ui's middleware state
+ * @returns true for a single-choice field
+ */
+function opensOverTrigger(state: ListState): boolean {
+    const { reference } = state.elements;
+    return reference instanceof Element && reference.closest(".cm-select") !== null;
+}
+
+/**
+ * The Combobox theme defaults: what a field's list falls back to for every key its caller's
+ * `comboboxProps` leaves out.
+ *
+ * Mantine merges a component's props over its theme defaults one level deep, so a caller's
+ * `comboboxProps={{ withinPortal: false }}` replaces the field's whole `comboboxProps` default.
+ * Every field spreads that object onto its Combobox, which merges over its own theme defaults,
+ * so defaults set here survive a caller's partial object. The Combobox cannot see which field
+ * it belongs to, so the placement asks the DOM: a `cm-select` field opens over its trigger,
+ * every other field below.
+ *
+ * ponytail: shift is one static object (Mantine spreads it, so it cannot be derived per field);
+ * a below-the-field list given partial `comboboxProps` clamps on both axes with no limiter, as
+ * a single-choice list does. Derive it per field if that ever shows.
+ * @returns the Combobox props
+ */
+export function listboxComboboxProps(): ComboboxProps {
+    const over = overTriggerComboboxProps();
+    const flipFor = (state: ListState): { mainAxis: boolean; crossAxis: boolean } => {
+        const on = !opensOverTrigger(state);
+        return { mainAxis: on, crossAxis: on };
+    };
+    return {
+        ...over,
+        offset: ((state: ListState) =>
+            opensOverTrigger(state) ? overTriggerOffset(state) : belowFieldOffset(state)) as unknown as number,
+        middlewares: {
+            ...over.middlewares,
+            // floating-ui derives a middleware's options from a function of its state; Mantine
+            // passes a non-boolean `flip` straight through. Both axes off is no flip at all.
+            flip: flipFor as unknown as boolean,
+            size: {
+                apply: (state: ListState) => {
+                    if (opensOverTrigger(state)) {
+                        listboxMinWidth(state);
+                    } else {
+                        belowMinWidth(state);
+                    }
+                },
+            },
+        },
+    };
+}
+
 /** The attribute on `<html>` saying how focus last moved: `"pointer"` or `"keyboard"`. */
 const MODALITY_ATTRIBUTE = "data-cm-modality";
 

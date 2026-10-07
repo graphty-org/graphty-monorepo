@@ -227,7 +227,7 @@ describe("AccelerationController: probing", () => {
 
         await controller.start();
 
-        assert.deepEqual(factory.mock.calls[0] as unknown[], [{ exactMaxNodes: 250_000, acceptSoftware: false }]);
+        assert.deepEqual(factory.mock.calls[0], [{ exactMaxNodes: 250_000, acceptSoftware: false }]);
         controller.dispose();
     });
 
@@ -243,10 +243,10 @@ describe("AccelerationController: probing", () => {
 
         await Promise.all([underAuto.start(), underRequired.start()]);
 
-        assert.deepEqual(autoFactory.mock.calls as unknown[], [[{ exactMaxNodes: undefined, acceptSoftware: false }]]);
+        assert.deepEqual(autoFactory.mock.calls, [[{ exactMaxNodes: undefined, acceptSoftware: false }]]);
         // Hardware first, and software only once the factory said software is all there is: that
         // refusal is how the controller knows the attachment is software.
-        assert.deepEqual(requiredFactory.mock.calls as unknown[], [
+        assert.deepEqual<unknown>(requiredFactory.mock.calls, [
             [{ exactMaxNodes: undefined, acceptSoftware: false }],
             [{ exactMaxNodes: undefined, acceptSoftware: true }],
         ]);

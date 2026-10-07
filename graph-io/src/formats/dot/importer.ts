@@ -514,7 +514,7 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
         if (!isPunct(token, "{")) {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
-        for (let depth = 1; depth > 0; ) {
+        for (let depth = 1; depth > 0;) {
             token = lexer.next();
             if (token.kind === "eof") {
                 throw new DotSyntaxError('missing "}" at the end of a graph', token.line);

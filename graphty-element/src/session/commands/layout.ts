@@ -76,11 +76,7 @@ interface ViewImmersiveCommand {
 
 /** Every layout op. */
 export type LayoutCommand =
-    | LayoutSetCommand
-    | LayoutScopeCommand
-    | ViewDimensionCommand
-    | LayoutTransportCommand
-    | ViewImmersiveCommand;
+    LayoutSetCommand | LayoutScopeCommand | ViewDimensionCommand | LayoutTransportCommand | ViewImmersiveCommand;
 
 /** The renderer's layout, as the layout ops reach it. A session that draws nothing has none. */
 export interface LayoutService {
@@ -179,6 +175,7 @@ const layoutSet: UndoableDefinition<LayoutSetCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => `Changed the layout to ${choiceOf(command, null).id}`,
+        fact: (command) => ({ code: "layout.set", params: { layout: choiceOf(command, null).id } }),
     },
     execute: async (command, ctx) => {
         const choice = choiceOf(command, ctx.state.layout);
@@ -197,6 +194,7 @@ const layoutScope: UndoableDefinition<LayoutScopeCommand> = {
         kind: "undoable",
         label: (command) =>
             command.scope === "graph" ? "Laid out the whole graph" : "Changed what the layout runs over",
+        fact: (command) => ({ code: command.scope === "graph" ? "layout.whole-graph" : "layout.scope", params: {} }),
     },
     execute: (command, ctx) => {
         const current = ctx.state.layout ?? DEFAULT_LAYOUT;
@@ -220,6 +218,7 @@ const viewDimension: UndoableDefinition<ViewDimensionCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => `Switched to ${command.dimension.toUpperCase()}`,
+        fact: (command) => ({ code: "view.dimension", params: { dimension: command.dimension } }),
     },
     execute: async (command, ctx) => {
         const current = ctx.state.layout ?? DEFAULT_LAYOUT;

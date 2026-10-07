@@ -78,6 +78,21 @@ export async function charactersExamined(body: () => Promise<void> | void): Prom
 }
 
 /**
+ * Run `body` and measure the CPU time the process spent on it. A RegExp's backtracking happens
+ * inside the engine, where no primitive can count it, so a complexity test of a pattern bounds
+ * this instead. Unlike a wall clock it leaves out the time a busy machine kept the process
+ * waiting for a core, so the bound measures the code, not the load.
+ * @param body - the work to meter
+ * @returns the CPU milliseconds, user and system
+ */
+export async function cpuMilliseconds(body: () => Promise<unknown> | unknown): Promise<number> {
+    const before = process.cpuUsage();
+    await body();
+    const { user, system } = process.cpuUsage(before);
+    return (user + system) / 1000;
+}
+
+/**
  * Count, from now on, the reads by index of a builder's node and edge column arrays. A column
  * name resolved through the builder's name index reads one slot; a scan by name reads every
  * earlier column, which is quadratic in the column count.
@@ -114,13 +129,22 @@ export async function arrayReadsOfLength(length: number, body: () => Promise<voi
     const OriginalArray = globalThis.Array;
     globalThis.Array = new Proxy(OriginalArray, {
         construct(target, args: unknown[], newTarget): object {
-            const array = Reflect.construct(target, args, newTarget === globalThis.Array ? target : newTarget) as unknown[];
+            const array = Reflect.construct(
+                target,
+                args,
+                newTarget === globalThis.Array ? target : newTarget,
+            ) as unknown[];
             if (args.length !== 1 || args[0] !== length) {
                 return array;
             }
             return new Proxy(array, {
                 get(inner, key, receiver): unknown {
-                    if (typeof key === "string" && key.length > 0 && key.charCodeAt(0) >= 48 && key.charCodeAt(0) <= 57) {
+                    if (
+                        typeof key === "string" &&
+                        key.length > 0 &&
+                        key.charCodeAt(0) >= 48 &&
+                        key.charCodeAt(0) <= 57
+                    ) {
                         reads++;
                     }
                     return Reflect.get(inner, key, receiver);

@@ -26,7 +26,13 @@
 import type { RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { AlgorithmRunCommand } from "../planning";
-import type { Dispatcher, DispatchFunction, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
+import type {
+    Dispatcher,
+    DispatchFunction,
+    TransactionOptions,
+    UndoableContext,
+    UndoableDefinition,
+} from "../project/Dispatcher";
 import { deepFreeze, type Draft } from "../project/draft";
 import type { RowUpdate } from "../types";
 
@@ -99,9 +105,18 @@ function required(service: RunService | undefined): RunService {
     return service;
 }
 
+/** The transaction running the algorithms a style template asks for. */
+export const TEMPLATE_RUNS: TransactionOptions = Object.freeze({
+    fact: Object.freeze({ code: "algo.template", params: Object.freeze({}) }),
+});
+
 const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
     op: "algo.run",
-    undo: { kind: "undoable", label: (command) => `Ran ${command.algorithm}` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Ran ${command.algorithm}`,
+        fact: (command) => ({ code: "algo.run", params: { algorithm: command.algorithm } }),
+    },
     moves: false,
     draws: true,
     // Written only in the commit tail, which is synchronous, so a run holds nothing while it
@@ -113,7 +128,11 @@ const algoRun: UndoableDefinition<AlgorithmRunCommand> = {
 
 const algoLegacy: UndoableDefinition<AlgoLegacyCommand> = {
     op: "algo.legacy",
-    undo: { kind: "undoable", label: (command) => `Ran ${command.namespace}:${command.type}` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Ran ${command.namespace}:${command.type}`,
+        fact: (command) => ({ code: "algo.legacy", params: { algorithm: `${command.namespace}:${command.type}` } }),
+    },
     moves: false,
     draws: true,
     renderer: true,
@@ -139,6 +158,10 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
         kind: "undoable",
         label: (command, state) =>
             `Removed ${state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`}`,
+        fact: (command, state) => ({
+            code: "algo.remove",
+            params: { run: command.runId, algorithm: state.runs.get(command.runId)?.command.algorithm ?? null },
+        }),
     },
     moves: false,
     draws: true,

@@ -81,49 +81,49 @@ interface Pair {
 }
 
 const PAIRS: Readonly<Record<CorpusFormat, Pair>> = {
-    cx: { exporter: null, importer: cxImporter as GraphImporter<AnyImportOptions> },
+    cx: { exporter: null, importer: cxImporter },
     cx2: {
-        exporter: cx2Exporter as GraphExporter<AnyExportOptions>,
-        importer: cx2Importer as GraphImporter<AnyImportOptions>,
+        exporter: cx2Exporter,
+        importer: cx2Importer,
     },
     csv: {
-        exporter: csvExporter as GraphExporter<AnyExportOptions>,
-        importer: csvImporter as GraphImporter<AnyImportOptions>,
+        exporter: csvExporter,
+        importer: csvImporter,
     },
     dot: {
-        exporter: dotExporter as GraphExporter<AnyExportOptions>,
-        importer: dotImporter as GraphImporter<AnyImportOptions>,
+        exporter: dotExporter,
+        importer: dotImporter,
     },
     gexf: {
-        exporter: gexfExporter as GraphExporter<AnyExportOptions>,
-        importer: gexfImporter as GraphImporter<AnyImportOptions>,
+        exporter: gexfExporter,
+        importer: gexfImporter,
     },
     gml: {
-        exporter: gmlExporter as GraphExporter<AnyExportOptions>,
-        importer: gmlImporter as GraphImporter<AnyImportOptions>,
+        exporter: gmlExporter,
+        importer: gmlImporter,
     },
     graphml: {
-        exporter: graphmlExporter as GraphExporter<AnyExportOptions>,
-        importer: graphmlImporter as GraphImporter<AnyImportOptions>,
+        exporter: graphmlExporter,
+        importer: graphmlImporter,
     },
     json: {
-        exporter: jsonExporter as GraphExporter<AnyExportOptions>,
-        importer: jsonImporter as GraphImporter<AnyImportOptions>,
+        exporter: jsonExporter,
+        importer: jsonImporter,
     },
     neo4j: {
-        exporter: neo4jExporter as GraphExporter<AnyExportOptions>,
-        importer: neo4jImporter as GraphImporter<AnyImportOptions>,
+        exporter: neo4jExporter,
+        importer: neo4jImporter,
     },
     pajek: {
-        exporter: pajekExporter as GraphExporter<AnyExportOptions>,
-        importer: pajekImporter as GraphImporter<AnyImportOptions>,
+        exporter: pajekExporter,
+        importer: pajekImporter,
     },
-    obo: { exporter: null, importer: oboImporter as GraphImporter<AnyImportOptions> },
+    obo: { exporter: null, importer: oboImporter },
     xgmml: {
-        exporter: xgmmlExporter as GraphExporter<AnyExportOptions>,
-        importer: xgmmlImporter as GraphImporter<AnyImportOptions>,
+        exporter: xgmmlExporter,
+        importer: xgmmlImporter,
     },
-    cys: { exporter: null, importer: cysImporter as GraphImporter<AnyImportOptions> },
+    cys: { exporter: null, importer: cysImporter },
 };
 
 /** The formats graph-io writes: the targets of the matrix. */

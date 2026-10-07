@@ -7,7 +7,6 @@
 
 import { Matrix, Vector3 } from "@babylonjs/core";
 
-import type { AdHocData } from "../../../src/config";
 import { Graph } from "../../../src/Graph";
 import { cleanupTestGraph, createTestGraph, setBehavior } from "../../helpers/testSetup";
 import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions, Vector3D } from "../types";
@@ -165,11 +164,11 @@ export async function setupTestGraph(options: TestGraphOptions = {}): Promise<Gr
 
     // Add initial nodes and edges if provided
     for (const nodeData of nodes) {
-        await graph.addNode(nodeData as unknown as AdHocData);
+        await graph.addNode(nodeData);
     }
 
     for (const edgeData of edges) {
-        await graph.addEdge(edgeData as unknown as AdHocData);
+        await graph.addEdge(edgeData);
     }
 
     // Wait for everything to settle

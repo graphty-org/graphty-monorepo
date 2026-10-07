@@ -140,14 +140,7 @@ export function seOracleOptions(
 
 /** The eight inspect() stages of one preset iteration in model order (K2, K3, K5 four ways, toScene, the K1 fold). */
 export type SeStageKey =
-    | "attraction"
-    | "force"
-    | "positions"
-    | "velocity"
-    | "displacement"
-    | "partials"
-    | "scene"
-    | "k1";
+    "attraction" | "force" | "positions" | "velocity" | "displacement" | "partials" | "scene" | "k1";
 /** The stage keys as an iteration list, in model order. */
 export const SE_STAGE_KEYS: readonly SeStageKey[] = Object.freeze([
     "attraction",

@@ -45,6 +45,7 @@ import "./src/graphty-element";
 // Core classes
 // =============================================================================
 export { Edge } from "./src/Edge";
+export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type { GraphtyElementEventMap } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
@@ -114,8 +115,9 @@ export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from ".
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
-// How many node labels the element draws, and why the rest are not (element.nodeLabelCounts)
-export type { NodeLabelCounts } from "./src/managers/LabelDeclutter";
+// How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
+// one node's label as drawn (element.labelOf)
+export type { NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
 
 // What a find box lists without selecting: `element.session.find(text)`
 export type {

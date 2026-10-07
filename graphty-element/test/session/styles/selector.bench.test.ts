@@ -23,7 +23,7 @@ import { assert, describe, it } from "vitest";
 
 import type { NodeId } from "../../../src/catalog/types";
 import type { ElementPredicate, SelectorSource } from "../../../src/session/styles/predicate";
-import { compileSelector,type Selector } from "../../../src/session/styles/selector";
+import { compileSelector, type Selector } from "../../../src/session/styles/selector";
 
 /** The element count the budget is stated at. */
 const ELEMENTS = 50_000;

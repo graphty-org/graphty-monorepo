@@ -36,16 +36,51 @@ export const MERGED_QUERY = `query($q: String!) {
  */
 
 /**
- * The `#n` references in a pull request's title and body that it does not close (design 5.1, the
- * row "Fixed elsewhere but still open"). A reference is an explicit fact, not a guess; numbers that
- * are not open issues are dropped when the refresh job is made.
+ * A closing keyword (`fixes #12`, `Closed: #12`, `resolves owner/repo#12`) or an explicit
+ * reference (`Refs #12`, `Ref: #12`, `Part of #12`), case-insensitive. A bare `#12` in prose
+ * ("filed as #12 and not changed here") names an issue without claiming any work on it.
+ */
+const KEYWORDS = new Set([
+    "close",
+    "closes",
+    "closed",
+    "fix",
+    "fixes",
+    "fixed",
+    "resolve",
+    "resolves",
+    "resolved",
+    "ref",
+    "refs",
+    "part of",
+]);
+// ponytail: `owner/repo#n` is read as this repository's issue; check the repository if a merge
+// ever names another one's.
+const EXPLICIT = /\b([a-z]+(?:\s+of)?):?\s+(?:[\w.-]+\/[\w.-]+)?#(\d+)\b/gi;
+
+/**
+ * The issues a text references explicitly (`KEYWORDS`): the one rule for pull request titles and
+ * bodies and commit messages on the default branch.
+ * @param {string} text the title and body, or the commit message
+ * @returns {number[]} the issue numbers, ascending, without duplicates
+ */
+export function explicitRefs(text) {
+    const nums = [...text.matchAll(EXPLICIT)]
+        .filter((m) => KEYWORDS.has(m[1].toLowerCase().replace(/\s+/, " ")))
+        .map((m) => Number(m[2]));
+    return [...new Set(nums)].sort((a, b) => a - b);
+}
+
+/**
+ * The issues a pull request's title and body reference explicitly that it does not close (design
+ * 5.1, the row "Fixed elsewhere but still open"). Numbers that are not open issues are dropped
+ * when the refresh job is made.
  * @param {string} text the title and body
  * @param {number[]} closes the issues it closes
- * @returns {number[]} the mentioned issue numbers, ascending
+ * @returns {number[]} the referenced issue numbers, ascending
  */
 function mentioned(text, closes) {
-    const nums = [...text.matchAll(/(?<![\w&/])#(\d+)\b/g)].map((m) => Number(m[1]));
-    return [...new Set(nums)].filter((n) => !closes.includes(n)).sort((a, b) => a - b);
+    return explicitRefs(text).filter((n) => !closes.includes(n));
 }
 
 /**
@@ -210,9 +245,9 @@ export async function backfillRefs(gitHub, repo, since, branch = "master", isAnc
 }
 
 /**
- * The commits on the default branch whose subject names an open issue as `#n` (word-bounded, so
- * `#9060` is not `#906`): a fix that says which issue it fixes without closing it.
- * @param {string} log `git log --format=%h%x09%s` output, one commit a line
+ * The commits on the default branch whose message references an open issue explicitly
+ * (`explicitRefs`): a fix that says which issue it fixes without closing it.
+ * @param {string} log `git log --format=%h%x09%B%x1e` output, one commit a record
  * @param {number[]} open the open issue numbers
  * @returns {Record<string, string[]>} issue number to short shas, newest first
  */
@@ -220,10 +255,9 @@ export function commitRefs(log, open) {
     const wanted = new Set(open);
     /** @type {Record<string, string[]>} */
     const refs = {};
-    for (const line of log.split("\n")) {
-        const [sha, subject = ""] = line.split("\t");
-        for (const m of subject.matchAll(/(?<![\w&/])#(\d+)\b/g)) {
-            const n = Number(m[1]);
+    for (const record of log.split("\x1e")) {
+        const [sha, message = ""] = record.trim().split(/\t([^]*)/);
+        for (const n of explicitRefs(message)) {
             if (!wanted.has(n) || refs[n]?.includes(sha)) continue;
             refs[n] ??= [];
             refs[n].push(sha);

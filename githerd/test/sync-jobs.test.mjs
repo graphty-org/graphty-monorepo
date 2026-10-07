@@ -579,7 +579,10 @@ describe("syncJobs: issues", () => {
         const state = base();
         issue(state, 42, ["enhancement", "priority:critical", "effort:low"]);
         issue(state, 43, ["bug", "priority:critical", "effort:low", "needs-decision"]);
-        state.merged.commitRefs = commitRefs("958d8e9c6\tfeat: a thing (#42)\n1234567ab\tfix: (#43)", [42, 43]);
+        state.merged.commitRefs = commitRefs(
+            "958d8e9c6\tfeat: a thing\n\nRefs #42\x1e1234567ab\tfix: Refs #43",
+            [42, 43],
+        );
         expect(sync(state).created).toEqual([]);
         // The owner's pick still brings it in, as the verify it is.
         state.orders = [{ id: "order-1", issues: [42] }];
@@ -672,7 +675,7 @@ describe("syncJobs: issues", () => {
         const state = base();
         issue(state, 906, LABELED);
         state.merged.commitRefs = commitRefs(
-            "958d8e9c6\tfix: a legend swatch (#906)\nabc123456\tfix: other (#9060)",
+            "958d8e9c6\tfix: a legend swatch\n\nRefs #906\x1eabc123456\tfix: other\n\nRefs #9060\x1edef123456\tfix: names #906 in prose",
             [906],
         );
         state.merged = accumulateMerged(state.merged, [
@@ -707,12 +710,15 @@ describe("syncJobs: issues", () => {
         // #966: a commit on master named it, and the session that read it left the issue open.
         const state = base();
         issue(state, 966, LABELED, { judgedRefs: ["b702301a5"] });
-        state.merged.commitRefs = commitRefs("b702301a5\ttest(graphty): space out the fixture (#966)", [966]);
+        state.merged.commitRefs = commitRefs("b702301a5\ttest(graphty): space out the fixture\n\nRefs #966", [966]);
         expect(sync(state).created).toEqual(["issue-966"]);
         expect(state.jobs["issue-966"].reason).toBe("front of the issue queue: high bug, effort low");
         expect(state.jobs["issue-966"].facts.references).toBeUndefined();
         delete state.jobs["issue-966"];
-        state.merged.commitRefs = commitRefs("1234567ab\tfix: the rest (#966)\nb702301a5\ttest: (#966)", [966]);
+        state.merged.commitRefs = commitRefs(
+            "1234567ab\tfix: the rest, refs #966\x1eb702301a5\ttest: refs #966",
+            [966],
+        );
         expect(sync(state).created).toEqual(["issue-966"]);
         expect(state.jobs["issue-966"].facts.references).toEqual(["1234567ab"]);
     });
@@ -721,7 +727,7 @@ describe("syncJobs: issues", () => {
         const state = base();
         issue(state, 966, LABELED);
         issue(state, 967, LABELED, { judgedRefs: ["aaaaaaaaa"] });
-        state.merged.commitRefs = commitRefs("b702301a5\tfix (#966)\naaaaaaaaa\tfix (#967)", [966, 967]);
+        state.merged.commitRefs = commitRefs("b702301a5\tfix: Refs #966\x1eaaaaaaaaa\tfix: Refs #967", [966, 967]);
         sync(state);
         const prs = Array.from({ length: 20 }, (_, i) => ({
             number: 100 + i,
@@ -739,7 +745,10 @@ describe("syncJobs: issues", () => {
     it("leaves an issue nothing on master names unchanged", () => {
         const state = base();
         issue(state, 906, LABELED);
-        state.merged.commitRefs = commitRefs("abc123456\tfix: other (#9060)", [906]);
+        state.merged.commitRefs = commitRefs(
+            "abc123456\tfix: other, refs #9060\x1edef123456\tfix: as #906 asked",
+            [906],
+        );
         expect(sync(state).created).toEqual(["issue-906"]);
         expect(state.jobs["issue-906"].reason).toBe("front of the issue queue: high bug, effort low");
         expect(state.jobs["issue-906"].facts.references).toBeUndefined();

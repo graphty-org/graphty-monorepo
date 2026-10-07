@@ -8,6 +8,7 @@ import {
     accumulateMerged,
     backfillRefs,
     commitRefs,
+    explicitRefs,
     landStacked,
     MERGED_QUERY,
     parseMerged,
@@ -38,14 +39,14 @@ describe("parseMerged", () => {
         expect(p365.closes).toEqual([135, 136, 141]);
     });
 
-    it("reads the issues a pull request mentions without closing them (design 5.1)", () => {
+    it("reads the issues a pull request references explicitly without closing them (design 5.1)", () => {
         const [pr] = parseMerged({
             search: {
                 nodes: [
                     {
                         number: 5,
-                        title: "fix(layout): see #12",
-                        body: "Closes #14. Related to #13 and #12; not a&#15; or x/#16.",
+                        title: "fix(layout): Refs #12",
+                        body: "Closes #14. Part of #13, ref: #12; see #11, not a&#15; or x/#16.",
                         mergedAt: "x",
                         closingIssuesReferences: { nodes: [{ number: 14 }] },
                     },
@@ -122,14 +123,36 @@ describe("accumulateMerged", () => {
 });
 
 describe("references on master", () => {
-    it("names an issue from a commit subject, word-bounded: #906 is not #9060", () => {
+    it("names an issue a commit message references explicitly, word-bounded: #906 is not #9060", () => {
         const log = [
-            "958d8e9c6\tfix(graphty-element): a legend swatch spells its value as the data does (#906)",
-            "111111111\tfix: something else (#9060)",
-            "222222222\tdocs: see #915 and #906",
-            "333333333\tfix: a closed one (#5)",
-        ].join("\n");
+            "958d8e9c6\tfix(graphty-element): a legend swatch spells its value\n\nRefs #906\n",
+            "111111111\tfix: something else\n\nRefs #9060",
+            "222222222\tdocs: the swatch\n\nFixes: graphty-org/graphty-monorepo#915, resolves #906",
+            "333333333\tfix: a closed one\n\nCloses #5",
+            "444444444\tfix: unrelated (#906)\n\nSee #915; #906 is not changed here.",
+        ].join("\x1e\n");
         expect(commitRefs(log, [906, 915])).toEqual({ 906: ["958d8e9c6", "222222222"], 915: ["222222222"] });
+    });
+
+    it("reads only a closing keyword or Refs / Ref / Part of as a reference, not a bare #n in prose", () => {
+        expect(
+            explicitRefs(
+                "close #1 Closes #2 closed: #3 FIX #4 fixes #5 Fixed #6 resolve #7 Resolves: #8 resolved #9 " +
+                    "refs #10 Ref: #11 part of #12 Part Of: owner/repo#13 prefixes #14 suffix #15 see #16 (#17)",
+            ),
+        ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    });
+
+    it("names no issue a merged pull request only mentions (#1384 and #1368)", () => {
+        const pr = (/** @type {number} */ number, /** @type {string} */ body) =>
+            parseMerged({ search: { nodes: [{ number, title: "fix: x", body, mergedAt: "x" }] } })[0];
+        expect(
+            pr(1384, "The repository's own test suite is slow. This is filed as #1373 and is not changed here.")
+                .mentions,
+        ).toEqual([]);
+        expect(pr(1368, "#1358 tracks measuring it on a GPU. The seed's cost is not changed here.").mentions).toEqual(
+            [],
+        );
     });
 
     it("keeps every issue a merged pull request closes or mentions, for good, without duplicates", () => {

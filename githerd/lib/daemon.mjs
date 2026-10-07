@@ -701,8 +701,9 @@ export async function startDaemon({
     state.incidents ??= {};
     state.issues ??= { since: null, byNumber: {} };
     state.merged ??= { lastScanAt: null, pending: [], closed: [] };
-    // References kept before only landed merges counted may name a stacked merge: read them again.
-    if (!state.merged.landedOnly) Object.assign(state.merged, { refs: {}, refsBackfilled: false, landedOnly: true });
+    // References kept under an earlier rule (a stacked merge, a bare `#n` in prose): read them again.
+    if (state.merged.refsRule !== 2)
+        Object.assign(state.merged, { refs: {}, refsBackfilled: false, commitRefs: undefined, refsRule: 2 });
     state.rate ??= {};
     state.writes ??= { pending: [] };
     state.github ??= { downSince: null, lastError: null };
@@ -2309,8 +2310,8 @@ export async function startDaemon({
         if (fetched && state.merged.stacked?.length) state.merged = await landStacked(state.merged, onBranch);
         if (!open.length) return;
         if (fetched || !state.merged.commitRefs) {
-            // ponytail: the whole history's subjects, every master move; a few ms locally
-            const log = await runGit(["log", `origin/${branch}`, "--format=%h%x09%s"]);
+            // ponytail: the whole history's messages, every master move; tens of ms locally
+            const log = await runGit(["log", `origin/${branch}`, "--format=%h%x09%B%x1e"]);
             if (log.code === 0)
                 state.merged.commitRefs = commitRefs(
                     log.stdout,

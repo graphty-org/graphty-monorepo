@@ -135,6 +135,7 @@ describe("Graphty JSON, the project file", () => {
 
     it("exports a document project.open opens as a project, without marking the project saved", async () => {
         const session = await triangle();
+        await session.project.rename("Triangle");
         assert.isTrue(session.project.dirty);
         const result = exportSession(session, "graphty");
         assert.deepEqual(result.lossNotes, []);

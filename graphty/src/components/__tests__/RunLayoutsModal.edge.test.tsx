@@ -43,25 +43,21 @@ describe("RunLayoutsModal - Edge Cases", () => {
             expect(screen.getByText(/requires Start Node/i)).toBeInTheDocument();
         });
 
-        it("should warn, but still allow Apply, for an arrangement whose grouping cannot be chosen", async () => {
+        it.each([
+            ["bipartite", "Bipartite"],
+            ["multipartite", "Multipartite"],
+        ])("should neither warn nor block %s, whose grouping is an optional groupBy", async (engine, label) => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            // The catalogue says the two-column arrangement reads a partition, and the engine
-            // publishes no option for one. It still runs, on the element's own split.
-            expect(getLayoutMetadata("bipartite")?.unsupplied).toContain("partition");
-            await selectLayout("Bipartite");
+            // The arrangement reads a partition, and the engine publishes groupBy for it with a
+            // default, so nothing is missing: unset, it runs on the element's own split.
+            const metadata = getLayoutMetadata(engine);
+            expect(metadata?.unsupplied).toHaveLength(0);
+            expect(metadata?.requiredFields).toHaveLength(0);
+            expect(metadata?.options.find((option) => option.name === "groupBy")?.type).toBe("partition");
+            await selectLayout(label);
 
-            expect(screen.getByText(/arranges the graph by partition/i)).toBeInTheDocument();
-            expect(screen.getByText("Apply Layout").closest("button")).not.toBeDisabled();
-        });
-
-        it("should warn for the multipartite engine on the same ground", async () => {
-            render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
-
-            expect(getLayoutMetadata("multipartite")?.unsupplied).toContain("partition");
-            await selectLayout("Multipartite");
-
-            expect(screen.getByText(/arranges the graph by partition/i)).toBeInTheDocument();
+            expect(screen.queryByText(/arranges the graph by/i)).not.toBeInTheDocument();
             expect(screen.getByText("Apply Layout").closest("button")).not.toBeDisabled();
         });
 
@@ -120,11 +116,11 @@ describe("RunLayoutsModal - Edge Cases", () => {
         it("should show warning icon beside a layout's missing input", async () => {
             render(<RunLayoutsModal opened={true} onClose={vi.fn()} onApply={vi.fn()} is2DMode={false} />);
 
-            await selectLayout("Bipartite");
+            await selectLayout("BFS Tree");
 
             // Should have a warning icon (AlertTriangle icon from lucide-react)
             // We check for the warning container with the icon
-            const warningText = screen.getByText(/arranges the graph by partition/i);
+            const warningText = screen.getByText(/requires Start Node/i);
             expect(warningText.closest("[class*='warning']") ?? warningText.parentElement).toBeInTheDocument();
         });
     });

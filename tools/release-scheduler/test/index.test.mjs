@@ -1,6 +1,9 @@
 // Tests of the release scheduler Worker, with a generated key and a stubbed fetch.
 //
-//   node --test tools/release-scheduler/test/
+//   node tools/release-scheduler/test/index.test.mjs
+//
+// Not `node --test` in a package.json script: that switches on knip's Node test
+// runner plugin, whose test globs then make every workspace's test/**/*.js an entry.
 import assert from "node:assert/strict";
 import { createVerify, generateKeyPairSync } from "node:crypto";
 import { describe, it } from "node:test";

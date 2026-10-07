@@ -153,7 +153,7 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
             const fields =
                 before === undefined || after === undefined
                     ? []
-                    : (["text", "targets", "cites", "mediaType", "extensions"] as const).filter(
+                    : (["text", "targets", "cites", "mediaType", "extensions", "done"] as const).filter(
                           (field) => before[field] !== after[field],
                       );
             if (before !== undefined && after !== undefined && fields.length === 0) {
@@ -203,6 +203,10 @@ export function createNotesApi(dependencies: NotesDependencies): NotesApi {
 
             if (options.author !== undefined) {
                 found = found.filter((note) => note.author === options.author);
+            }
+
+            if (options.done !== undefined) {
+                found = found.filter((note) => (note.done !== undefined) === options.done);
             }
 
             if (options.missing !== undefined) {

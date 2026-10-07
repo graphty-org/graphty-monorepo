@@ -65,6 +65,7 @@ import type {
     Note,
     NoteInput,
     NoteListOptions,
+    NotePatch,
     NoteTargetInput,
     ProjectSlice,
     RecordPage,
@@ -632,6 +633,32 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             });
 
             return note.id;
+        },
+        /* Only `done`, the one field the shell edits; the element stamps the time as this does. */
+        update: (id: string, patch: NotePatch): void => {
+            const at = notes.findIndex((held) => held.id === id);
+            const before = notes[at];
+
+            if (at === -1 || patch.done === undefined || patch.done === (before.done !== undefined)) {
+                return;
+            }
+
+            const { done: _done, ...rest } = before;
+            const after = Object.freeze(patch.done ? { ...rest, done: new Date().toISOString() } : rest) as Note;
+            const put = (note: Note, cause: string): void => {
+                notes[notes.findIndex((held) => held.id === id)] = note;
+                publish("note:changed", { id, change: "updated", fields: ["done"], note, cause });
+            };
+
+            put(after, "command");
+            record("Edited note", "note.update", ["notes"], {
+                undo: () => {
+                    put(before, "undo");
+                },
+                redo: () => {
+                    put(after, "redo");
+                },
+            });
         },
         remove: (id: string): void => {
             const note = notes.find((held) => held.id === id);

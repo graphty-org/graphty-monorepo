@@ -3715,6 +3715,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         onDeleteCaseNote={(noteId) => {
                             session?.notes.remove(noteId);
                         }}
+                        onSetCaseNoteDone={(noteId, done) => {
+                            session?.notes.update(noteId, { done });
+                        }}
                         timeSliderOn={canvasLayout.timeSlider}
                         onTimeSliderChange={(on) => {
                             setCanvasLayout((current) => ({ ...current, timeSlider: on }));
@@ -4367,6 +4370,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 // One undoable step in the element's history, so Undo brings the note back.
                 onDeleteNote: (noteId: string) => {
                     session?.notes.remove(noteId);
+                },
+                // Done is graphty-element's own note field: one undoable step, like any edit.
+                onSetNoteDone: (noteId: string, done: boolean) => {
+                    session?.notes.update(noteId, { done });
                 },
                 onSelectNeighbor: (nodeId: string) => {
                     graphSelectNode(graphtyRef.current?.element ?? null, nodeId);

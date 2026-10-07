@@ -1607,7 +1607,7 @@ class PajekParser {
     private extras(tokens: readonly string[], start: number, domain: "node" | "edge", line: number): RowExtras {
         const extras: RowExtras = { keys: [], values: [], spells: null };
         const seen = new Set<string>();
-        for (let i = start; i < tokens.length; ) {
+        for (let i = start; i < tokens.length;) {
             const token = tokens[i];
             if (token.startsWith("[")) {
                 extras.spells = this.intervals(token, domain);

@@ -16,11 +16,11 @@ to every artboard and is checked before any per-screen edit; a decision marked
 
 Section numbers this revision claims:
 
-| Number | Owner |
-|---|---|
-| 5.9 | XR (VR and AR) |
-| 6.7 | Explanation rule (info circles) |
-| 6.8 | Icon rule |
+| Number | Owner                           |
+| ------ | ------------------------------- |
+| 5.9    | XR (VR and AR)                  |
+| 6.7    | Explanation rule (info circles) |
+| 6.8    | Icon rule                       |
 
 Two passes both proposed "6.7". The Explanation rule takes it because the Icon
 rule cites it; the Icon rule takes 6.8.
@@ -55,7 +55,7 @@ Apply in this order. The first that fires wins.
 ## DEF-1 (rule) One treatment for a subtle action; the binding lives in the tooltip
 
 **Decision.** A panel action that is not its section's primary action is a
-*subtle action row*: transparent at rest, no border, 24 px tall, full panel
+_subtle action row_: transparent at rest, no border, 24 px tall, full panel
 width, 4 px radius, a 14 px leading icon in the dimmed colour, an 11 px label
 at weight 500, hover as its only chrome. Its trailing slot carries data about
 the action or nothing -- never its key. A binding appears in exactly four
@@ -134,7 +134,7 @@ invented a third place, a card-title pill.
 
 > Question groups, each a collapsible header. An open header shows the group
 > name alone. A collapsed header shows the group name and the card count as a
-> dimmed trailing number ("Find groups  4"), because the count is the only
+> dimmed trailing number ("Find groups 4"), because the count is the only
 > thing a collapsed group can tell you; its tooltip reads "4 questions in this
 > group". Cost classes are an internal cost model: they select each card's
 > estimate and its ask, warn, sampling and time-box behaviour, and they gate
@@ -220,18 +220,18 @@ other numeric column gives Number, default unit "step"; a low-cardinality text
 column given a Time role gives Ordered category; an ambiguous guess is marked
 "guessed"). The substitution table is authoritative:
 
-| Surface | Date and time | Number, unit "step" | Ordered category, unit "release" |
-|---|---|---|---|
-| Window size control | 30 with a unit select | 50 with a static label "steps" | 3 with a static label "releases" |
-| Step control | 7 days | 10 steps | 1 release |
-| Overlay readout | Viewing: 2026-01-05 to 2026-02-04 | Viewing: steps 1,200 to 1,250 | Viewing: v1.2 to v1.4 |
-| Cumulative form | Viewing: up to 2026-02-04 | Viewing: up to step 1,250 | Viewing: up to v1.4 |
-| Status bar slot | same string | same string | same string |
-| Filter chip | Time: 2026-01-05 to 2026-02-04 | Time: steps 1,200 to 1,250 | Time: v1.2 to v1.4 |
-| Track ticks | month or day labels by span | round numbers at the fitted interval | category names, evenly spaced |
-| Step tooltip | Step forward 7 days (.) | Step forward 10 steps (.) | Step forward 1 release (.) |
-| Playback speed | 1x (one window per second) | 1x (one window per second) | 1x (one window per second) |
-| Load window option | ts runs from A to B; pick a start and end | step runs from 0 to 5,000 | release runs from v1.0 to v2.3 |
+| Surface             | Date and time                             | Number, unit "step"                  | Ordered category, unit "release" |
+| ------------------- | ----------------------------------------- | ------------------------------------ | -------------------------------- |
+| Window size control | 30 with a unit select                     | 50 with a static label "steps"       | 3 with a static label "releases" |
+| Step control        | 7 days                                    | 10 steps                             | 1 release                        |
+| Overlay readout     | Viewing: 2026-01-05 to 2026-02-04         | Viewing: steps 1,200 to 1,250        | Viewing: v1.2 to v1.4            |
+| Cumulative form     | Viewing: up to 2026-02-04                 | Viewing: up to step 1,250            | Viewing: up to v1.4              |
+| Status bar slot     | same string                               | same string                          | same string                      |
+| Filter chip         | Time: 2026-01-05 to 2026-02-04            | Time: steps 1,200 to 1,250           | Time: v1.2 to v1.4               |
+| Track ticks         | month or day labels by span               | round numbers at the fitted interval | category names, evenly spaced    |
+| Step tooltip        | Step forward 7 days (.)                   | Step forward 10 steps (.)            | Step forward 1 release (.)       |
+| Playback speed      | 1x (one window per second)                | 1x (one window per second)           | 1x (one window per second)       |
+| Load window option  | ts runs from A to B; pick a start and end | step runs from 0 to 5,000            | release runs from v1.0 to v2.3   |
 
 Ordered category has no arithmetic: window and step are counts of categories,
 the track is evenly spaced, and the density sparkline is a bar per category.
@@ -287,7 +287,7 @@ gains one clause while the body loses more than two lines.
 both render ceiling rows with one detected block: a headline sentence, the
 measurement provenance, the consequence sentence, and two actions, Recalibrate
 and Change. Change discloses the four numeric fields pre-filled with the
-detected values and stamps the block "Set by you.  Use detected values". The
+detected values and stamps the block "Set by you. Use detected values". The
 numbers come from a first-run offscreen probe (browser facts plus a 512x512
 instanced render at 1,000 / 8,000 / 64,000 nodes, hard-capped at 2.5 s and
 abandoned the moment a file is opened), stored with a machine fingerprint and
@@ -424,7 +424,7 @@ New section 5.9, whose load-bearing content is:
   carries out everything the session changed plus one XR viewpoint bookmark,
   restores the flat camera, and an unexpected end takes the same path.
 - **Comfort and size.** The XR entry ceiling is 10,000 visible nodes or 50,000
-  visible edges -- the desktop *large-graph threshold*, not the render ceiling
+  visible edges -- the desktop _large-graph threshold_, not the render ceiling
   -- because the budget is two eyes in 13.8 ms. Labels capped at 20 at every
   size; Performance mode always on; automatic detail reduction below 72 Hz with
   "Reduced detail to keep the view smooth"; no camera acceleration ever.
@@ -810,7 +810,7 @@ ExplorePanel, StylePanel, StyleDiverging, FilterBuilderExpert, CommandPalette.
 
 - **Icon only**, when all four hold: the label is one verb from the icon
   register; the control repeats, on peer rows, peer sections or in a cluster of
-  three or more peers *that exist now*; one undo, or doing it again, restores
+  three or more peers _that exist now_; one undo, or doing it again, restores
   the prior state; and it acts on the object it sits inside, so the target is
   unambiguous from position.
 - **Icon plus text**, when the label is one register verb but the control is
@@ -886,13 +886,13 @@ verb that has not shipped keeps its text and its tag.
 
 **Decision.**
 
-| Home | Visibility | Max | Order | Acts on |
-|---|---|---|---|---|
-| Panel header | always | 3 plus overflow | view toggles, pin, overflow, close | the panel |
-| Section header | on section hover or focus | 2 plus overflow | verbs by frequency, then overflow | the section's content |
-| Row | on row hover or focus | 3 | edit, visibility, delete | that row |
-| Toolbar | always | none | as laid out | the surface |
-| Footer or action bar | n/a | 0 | n/a | n/a |
+| Home                 | Visibility                | Max             | Order                              | Acts on               |
+| -------------------- | ------------------------- | --------------- | ---------------------------------- | --------------------- |
+| Panel header         | always                    | 3 plus overflow | view toggles, pin, overflow, close | the panel             |
+| Section header       | on section hover or focus | 2 plus overflow | verbs by frequency, then overflow  | the section's content |
+| Row                  | on row hover or focus     | 3               | edit, visibility, delete           | that row              |
+| Toolbar              | always                    | none            | as laid out                        | the surface           |
+| Footer or action bar | n/a                       | 0               | n/a                                | n/a                   |
 
 The row order is fixed application-wide so position teaches the verb; a fourth
 row verb goes in the row's context menu. The pinned inspector action block and
@@ -1017,22 +1017,22 @@ shortcut, palette entry or workflow decision is removed.
 **Decision.** A fact rendered in its owning region is not repeated in a second
 region on the same screen. Owners:
 
-| Fact | Owner | Dropped from |
-|---|---|---|
-| Node and edge counts | status bar | Loaded data header, Analyze panel header, inspector line above the reading |
-| Shown of loaded of total | status bar | filter strip (which keeps the chips only) |
-| Active filter chips | filter strip when Explore is closed; the Explore panel when it is open | the other one |
-| Time window | the slider readout and the status bar Viewing slot | the filter strip's time chip, and the Explore chip's value while the slider is on |
-| Selection size | status bar plus the inspector header | the canvas marquee caption, the reading's opening restatement |
-| Cost estimate | the card's Run row | scope line, card title pill, warning line |
-| Scope | the panel's sticky scope line | every card whose scope matches it |
-| Run parameters | the run record (collapsed) | the caveats line, the card body |
-| A group's member count | the group table or list | the legend, when the panel lists every group |
-| Note count | the inspector (selection-scoped) and the status bar chip (dataset-scoped) | the legend, which keys the marker without a count |
-| Validation issue counts | the status bar chip | the rail badge, which becomes an unnumbered warning dot |
-| Palette name | Style's Palette select and the legend's overflow menu | the legend body |
-| File name | the top bar | the Loaded data first row |
-| Mapping | one Loaded data line with one Change | the second mapping line and its duplicate Change |
+| Fact                     | Owner                                                                     | Dropped from                                                                      |
+| ------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Node and edge counts     | status bar                                                                | Loaded data header, Analyze panel header, inspector line above the reading        |
+| Shown of loaded of total | status bar                                                                | filter strip (which keeps the chips only)                                         |
+| Active filter chips      | filter strip when Explore is closed; the Explore panel when it is open    | the other one                                                                     |
+| Time window              | the slider readout and the status bar Viewing slot                        | the filter strip's time chip, and the Explore chip's value while the slider is on |
+| Selection size           | status bar plus the inspector header                                      | the canvas marquee caption, the reading's opening restatement                     |
+| Cost estimate            | the card's Run row                                                        | scope line, card title pill, warning line                                         |
+| Scope                    | the panel's sticky scope line                                             | every card whose scope matches it                                                 |
+| Run parameters           | the run record (collapsed)                                                | the caveats line, the card body                                                   |
+| A group's member count   | the group table or list                                                   | the legend, when the panel lists every group                                      |
+| Note count               | the inspector (selection-scoped) and the status bar chip (dataset-scoped) | the legend, which keys the marker without a count                                 |
+| Validation issue counts  | the status bar chip                                                       | the rail badge, which becomes an unnumbered warning dot                           |
+| Palette name             | Style's Palette select and the legend's overflow menu                     | the legend body                                                                   |
+| File name                | the top bar                                                               | the Loaded data first row                                                         |
+| Mapping                  | one Loaded data line with one Change                                      | the second mapping line and its duplicate Change                                  |
 
 **Why.** The dominant waste across all four passes is not decoration; it is the
 same number drawn three or four times at once. 37 appears six times on
@@ -1243,7 +1243,7 @@ reading states; fold the directional degree breakdown onto the In / Out / All
 tabs, which carry their own counts; drop the neighbour-type prose line where
 type filter chips already carry the same numbers; drop the "Both N" line when
 it equals the section header count; render a long text value as its shape
-("sequence  393 aa, MEEPQSDPSV...") with a copy icon rather than 390 inline
+("sequence 393 aa, MEEPQSDPSV...") with a copy icon rather than 390 inline
 characters; move the count out of the header when the link beside it carries it
 ("Attributes" plus "Show all 12"); merge Neighbors-in-group and Share-of-
 neighbors into one row; delete the "Key attributes" sub-header inside a section
@@ -1432,7 +1432,7 @@ Type chip behaves the same way; Rename and Skip move to the header overflow.
 Tab and Shift+Tab move between column headers, Enter opens the focused chip's
 menu, arrows move within it, and Escape closes the menu without closing the
 dialog. When any role or type was guessed the summary carries a third line,
-"1 column was guessed.  Review", where Review scrolls the first guessed column
+"1 column was guessed. Review", where Review scrolls the first guessed column
 into view, focuses its Role chip, and steps to the next.
 
 **Why.** Correcting one wrong column cost four interactions (header, select,
@@ -1449,7 +1449,7 @@ the guessed-count line), ImportLargeFile, ImportAddToGraph, TableJoin.
 
 **Decision.** When the import assigned any role that was guessed or changed in
 the dialog, the completion toast adds a clause naming them -- "Loaded 200 nodes
-and 612 edges in 1 s. Mapped amount to weight, ts to time.  Details" -- and
+and 612 edges in 1 s. Mapped amount to weight, ts to time. Details" -- and
 Details opens Data with Loaded data expanded and its mapping line highlighted
 for two seconds. The highlight reveals that row's hover affordances for its
 duration. On the session's first load the panel switches to Explore so the
@@ -1536,7 +1536,7 @@ DataPanelLoaded.
 ## NAV-8 (rule) The Insights strip is recoverable and keyboard-reachable
 
 **Decision.** The strip's X raises a toast, "Suggestions hidden on every
-dataset.  Undo", for eight seconds, and is reversible at any later time from
+dataset. Undo", for eight seconds, and is reversible at any later time from
 Help > Show suggestions and from the palette. The strip's trailing line, "N more
 in Help", becomes a link that opens the Help menu with More suggestions
 expanded. Help's menu is: Keyboard shortcuts (?), Show suggestions, More
@@ -1722,7 +1722,7 @@ per-card scope line to the panel, MIN-12 deletes the panel's statistics block
 and the three "Pick a node first" lines, MIN-2 deletes "Not computed", and the
 info-circle pass proposed moving all fifteen one-line card descriptions behind
 circles. Applied together the panel becomes a list of bare names with a Run
-button, which is *more* intimidating for a novice, not less -- "what is
+button, which is _more_ intimidating for a novice, not less -- "what is
 Bridges?" is the question the description answers. The description is the most
 valuable text on an Analyze card and it stays inline in Cards view, which is the
 default. The circle takes over only in List view, where the spec already hid

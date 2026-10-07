@@ -11,9 +11,7 @@ describe("ConsoleCaptureUI Browser Tests", () => {
 
     beforeEach(() => {
         // Clean up any existing UI elements from previous tests
-        const existingContainer = document.getElementById(
-            "console-capture-container"
-        );
+        const existingContainer = document.getElementById("console-capture-container");
         if (existingContainer) {
             existingContainer.remove();
         }
@@ -135,9 +133,7 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             const modal = document.getElementById("console-logs-modal");
             expect(modal).not.toBeNull();
 
-            const textarea = document.getElementById(
-                "logs-textarea"
-            ) as HTMLTextAreaElement;
+            const textarea = document.getElementById("logs-textarea") as HTMLTextAreaElement;
             expect(textarea).not.toBeNull();
             expect(textarea.value).toContain("test message for modal");
         });
@@ -183,9 +179,7 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             showBtn?.click();
             await new Promise((resolve) => setTimeout(resolve, 100));
 
-            const textarea = document.getElementById(
-                "logs-textarea"
-            ) as HTMLTextAreaElement;
+            const textarea = document.getElementById("logs-textarea") as HTMLTextAreaElement;
             expect(textarea.value).toContain("log message");
             expect(textarea.value).toContain("info message");
             expect(textarea.value).toContain("warn message");
@@ -271,18 +265,14 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             ui = new ConsoleCaptureUI();
 
             expect(document.getElementById("console-capture-btn")).not.toBeNull();
-            expect(
-                document.getElementById("console-capture-menu")
-            ).not.toBeNull();
+            expect(document.getElementById("console-capture-menu")).not.toBeNull();
 
             ui.destroy();
             ui = null;
 
             expect(document.getElementById("console-capture-btn")).toBeNull();
             expect(document.getElementById("console-capture-menu")).toBeNull();
-            expect(
-                document.getElementById("console-capture-container")
-            ).toBeNull();
+            expect(document.getElementById("console-capture-container")).toBeNull();
         });
 
         test("should remove window.__console__ when destroyed", () => {

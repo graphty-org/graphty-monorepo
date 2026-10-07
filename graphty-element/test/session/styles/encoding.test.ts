@@ -939,7 +939,10 @@ describe("what encode() refuses", () => {
 
         assert.deepEqual(layer.selector, { match: "has", path: "results.cut.side" });
         assert.strictEqual(bindingOf(layer, "node.color").scale, "ordinal");
-        assert.strictEqual(codeOf(() => plan({ run: "cut", channel: "edge.color" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => plan({ run: "cut", channel: "edge.color" })),
+            "E_BAD_COMMAND",
+        );
     });
 
     it("refuses a result with nothing per element on it", () => {

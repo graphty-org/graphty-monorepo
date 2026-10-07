@@ -159,7 +159,10 @@ export function InspectorMetricRow(props: InspectorMetricRowProps): React.JSX.El
     const { registerMetric, deltaFor } = useInspectorPin();
     const formatter = useNumberFormatter();
 
-    useEffect(() => registerMetric({ metricId, name, value, display }), [display, metricId, name, registerMetric, value]);
+    useEffect(
+        () => registerMetric({ metricId, name, value, display }),
+        [display, metricId, name, registerMetric, value],
+    );
 
     const delta = deltaFor(metricId, value);
     let deltaText: string | null = null;

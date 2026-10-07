@@ -1123,7 +1123,12 @@ export class OperationQueueManager implements Manager {
             if (result) {
                 // Queue the custom triggered operation
                 this.fireAndForget(
-                    this.queueTriggeredOperation(result.category, operation.metadata, result.execute, result.description),
+                    this.queueTriggeredOperation(
+                        result.category,
+                        operation.metadata,
+                        result.execute,
+                        result.description,
+                    ),
                 );
             }
         }

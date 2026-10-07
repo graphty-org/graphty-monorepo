@@ -6,7 +6,6 @@
  * @module server/marker-utils
  */
 
-
 /**
  * Extract a project marker from a filesystem path.
  *

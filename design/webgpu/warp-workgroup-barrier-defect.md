@@ -28,19 +28,19 @@ the same shaders. The adapter's description string then reads "D3D12 driver vers
 
 ## The machine and the versions
 
-| | |
-| --- | --- |
-| Host | GitHub-hosted `windows-latest` runner, Microsoft Windows Server 2025 |
-| Runner image | `windows-2025-vs2026`, version 20260907.229.1 |
-| Adapter | vendor `microsoft`, architecture `warp`, device `microsoft-basic-render-driver` |
-| Adapter description, before | `D3D12 driver version 10.0.26100.33296` |
-| In-box renderer file version | `C:\Windows\System32\d3d10warp.dll` 10.0.26100.33296 (WinBuild.160101.0800) |
-| Adapter description, after the fix | `D3D12 driver version 1.0.21.0` |
-| Redistributable used | `Microsoft.Direct3D.WARP` 1.0.21, `build/native/bin/x64/d3d10warp.dll` |
-| WebGPU runtime | Dawn through the npm package `webgpu` 0.4.0 (dawn-node), on Node 22.23.2 |
-| Shader compiler in use | FXC (`d3dcompiler_47.dll`); see "the compiler" below for why DXC was not reachable |
-| Workgroup size | 256 lanes; device reports `maxComputeInvocationsPerWorkgroup` 1024 |
-| Subgroup operations | none. The device does not expose the WebGPU `subgroups` feature, and no kernel here uses a wave intrinsic |
+|                                    |                                                                                                           |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Host                               | GitHub-hosted `windows-latest` runner, Microsoft Windows Server 2025                                      |
+| Runner image                       | `windows-2025-vs2026`, version 20260907.229.1                                                             |
+| Adapter                            | vendor `microsoft`, architecture `warp`, device `microsoft-basic-render-driver`                           |
+| Adapter description, before        | `D3D12 driver version 10.0.26100.33296`                                                                   |
+| In-box renderer file version       | `C:\Windows\System32\d3d10warp.dll` 10.0.26100.33296 (WinBuild.160101.0800)                               |
+| Adapter description, after the fix | `D3D12 driver version 1.0.21.0`                                                                           |
+| Redistributable used               | `Microsoft.Direct3D.WARP` 1.0.21, `build/native/bin/x64/d3d10warp.dll`                                    |
+| WebGPU runtime                     | Dawn through the npm package `webgpu` 0.4.0 (dawn-node), on Node 22.23.2                                  |
+| Shader compiler in use             | FXC (`d3dcompiler_47.dll`); see "the compiler" below for why DXC was not reachable                        |
+| Workgroup size                     | 256 lanes; device reports `maxComputeInvocationsPerWorkgroup` 1024                                        |
+| Subgroup operations                | none. The device does not expose the WebGPU `subgroups` feature, and no kernel here uses a wave intrinsic |
 
 The shaders are written in WGSL and translated to HLSL by Dawn's Tint. The generated HLSL is quoted below, because
 one of the things that had to be ruled out was our own code generation.
@@ -137,15 +137,15 @@ blockOffsets == [0, 256]
 **Observed** on the in-box renderer. Four distinct results came out of six runs of this kernel in one CI job
 (a seventh run, with the renderer replaced, is in "what makes it go away" below):
 
-| Run | `out[255]` | `out[256]` | `blockSums` | `blockOffsets` |
-| --- | --- | --- | --- | --- |
-| Expected | 255 | 256 | `[256, 1]` | `[0, 256]` |
-| 1. Baseline, no toggles | 255 | untouched + 256 | `[256, untouched]` | `[0, 256]` |
-| 2. The same program again | 255 | untouched + 1 | `[1, untouched]` | `[0, 1]` |
-| 3. The same program again, with the generated HLSL dumped | 255 | untouched + 256 | `[256, untouched]` | `[0, 256]` |
-| 4. Compiled with debug symbols and optimisation skipped | 1 | untouched + 1 | `[1, untouched]` | `[0, 1]` |
-| 5. Compiled with the FXC optimiser on | 255 | 256 | `[256, 1]` | `[0, 256]` |
-| 6. Groupshared zero-initialisation turned off | 255 | untouched + 1 | `[1, untouched]` | `[0, 1]` |
+| Run                                                       | `out[255]` | `out[256]`      | `blockSums`        | `blockOffsets` |
+| --------------------------------------------------------- | ---------- | --------------- | ------------------ | -------------- |
+| Expected                                                  | 255        | 256             | `[256, 1]`         | `[0, 256]`     |
+| 1. Baseline, no toggles                                   | 255        | untouched + 256 | `[256, untouched]` | `[0, 256]`     |
+| 2. The same program again                                 | 255        | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
+| 3. The same program again, with the generated HLSL dumped | 255        | untouched + 256 | `[256, untouched]` | `[0, 256]`     |
+| 4. Compiled with debug symbols and optimisation skipped   | 1          | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
+| 5. Compiled with the FXC optimiser on                     | 255        | 256             | `[256, 1]`         | `[0, 256]`     |
+| 6. Groupshared zero-initialisation turned off             | 255        | untouched + 1   | `[1, untouched]`   | `[0, 1]`       |
 
 The raw words behind "untouched + 256" and "untouched + 1" are 3735928815 and 3735928560, the fill plus 256 and the
 fill plus 1.
@@ -237,7 +237,7 @@ Reproduction 2 came back correct in every run:
 3. A single-lane store (`if (lid.x == WG - 1u)`) at an index derived from the workgroup id, no barrier. Correct.
 4. The same single-lane store, after the eight-round barrier loop. Correct.
 5. A value published by one lane and read by another across barriers -- Reproduction 2 above. **This one failed.**
-6. A groupshared array written by *every* lane, then read across one barrier by lane 0 at an index that lane never
+6. A groupshared array written by _every_ lane, then read across one barrier by lane 0 at an index that lane never
    wrote. Correct.
 7. A constant stored at an index derived from the workgroup id, by every lane. Correct.
 

@@ -75,7 +75,7 @@ export function scoreError(got: ArrayLike<number>, want: ArrayLike<number>): num
 function ranks(a: ArrayLike<number>): Float64Array {
     const order = Array.from({ length: a.length }, (_, i) => i).sort((x, y) => a[x] - a[y]);
     const out = new Float64Array(a.length);
-    for (let i = 0; i < order.length; ) {
+    for (let i = 0; i < order.length;) {
         let j = i;
         while (j + 1 < order.length && a[order[j + 1]] === a[order[i]]) {
             j++;

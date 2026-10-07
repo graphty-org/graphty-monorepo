@@ -1165,9 +1165,21 @@ describe("release.yml", () => {
         assert.deepEqual(pushes, ['git push origin "${COMMIT}:refs/heads/${branch}"']);
     });
 
-    it("tries a release every 6 hours and on dispatch, from master's newest commit", () => {
-        assert.match(release, /schedule:\n\s+- cron: "0 0,6,12,18 \* \* \*"\n/);
-        assert.match(release, /workflow_dispatch:\n\s+inputs:\n\s+packages:/);
+    it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {
+        // the external scheduler (cron-job.org) dispatches with scheduled=true; GitHub's cron would fire twice a slot
+        const on = /^on:\n([\s\S]*?)\n\S/m.exec(release)[1];
+        assert.doesNotMatch(on, /^\s*schedule:/m);
+        assert.doesNotMatch(release, /^\s*- cron:/m);
+        assert.match(
+            release,
+            /workflow_dispatch:\n\s+inputs:\n\s+scheduled:\n\s+description: "Set by the release scheduler: [^"]*"\n\s+required: false\n\s+default: false\n\s+type: boolean\n\s+packages:/,
+        );
+        // one effective trigger for every job: a scheduler dispatch is a scheduled attempt, any other run its event
+        assert.match(
+            release,
+            /^env:\n {4}TRIGGER: \$\{\{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' \|\| github.event_name \}\}\n/m,
+        );
+        assert.doesNotMatch(release, /\$EVENT\b|\$GITHUB_EVENT_NAME|EVENT: \$\{\{/);
         assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' && /);
         // the run's own commit (the pushed commit for a restart), so the run, Coveralls and the lanes all name
         // the tested commit
@@ -1186,7 +1198,7 @@ describe("release.yml", () => {
         assert.match(pick, /pending \| held\) skip "release pull request #\$\{number\} is still open/);
         assert.match(pick, /\*\) gh pr close "\$number" --delete-branch/);
         // an open "Release held" issue stops the schedule; a restart and an ad hoc dispatch run anyway
-        assert.match(pick, /if \[ -n "\$held" \] && \[ "\$EVENT" = schedule \]; then\n\s+skip /);
+        assert.match(pick, /if \[ -n "\$held" \] && \[ "\$TRIGGER" = schedule \]; then\n\s+skip /);
         // the last release not tagged yet
         assert.match(pick, /has no tag \$\{project\}@\$\{version\} yet/);
         // nothing releasable: the same versioning the train runs, made locally, makes no commit
@@ -1314,9 +1326,10 @@ describe("release.yml", () => {
 
     describe("restarts a held release on a master push whose build passed", () => {
         // The pick job's "Skip while the previous release is pending" step, run in a scratch directory with
-        // stubs for gh (no release pull request), git (no release yet) and tools/release-held.sh (the held
-        // issue, or none).
-        const pending = (event, heldIssue) => {
+        // stubs for gh (no release pull request, or one still pending), git (no release yet) and
+        // tools/release-held.sh (the held issue, or none). `trigger` is the workflow's TRIGGER: "schedule" for a
+        // scheduler dispatch (scheduled=true), "workflow_dispatch" for one by hand.
+        const pending = (trigger, heldIssue, trainPr = false) => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -1324,7 +1337,9 @@ describe("release.yml", () => {
             try {
                 mkdirSync(join(dir, "tools"));
                 mkdirSync(join(dir, "bin"));
-                writeFileSync(join(dir, "bin", "gh"), "#!/bin/sh\n", { mode: 0o755 });
+                // `gh pr list` names the open train pull request; `gh pr view` finds it still pending
+                const gh = trainPr ? 'case "$2" in list) echo 77;; view) echo pending;; esac' : "";
+                writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
                 writeFileSync(join(dir, "tools", "release-held.sh"), `#!/bin/sh\necho ${heldIssue}\n`, { mode: 0o755 });
@@ -1336,7 +1351,7 @@ describe("release.yml", () => {
                     env: {
                         ...process.env,
                         PATH: `${join(dir, "bin")}:${process.env.PATH}`,
-                        EVENT: event,
+                        TRIGGER: trigger,
                         GITHUB_SERVER_URL: "https://github.com",
                         GITHUB_REPOSITORY: "o/r",
                         GITHUB_RUN_ID: "1",
@@ -1378,6 +1393,16 @@ describe("release.yml", () => {
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
         });
 
+        it("skips a scheduler dispatch while a train pull request or a held issue is open; runs one by hand", () => {
+            // scheduled=true: TRIGGER is "schedule"
+            assert.equal(pending("schedule", "", true), "pending=true\n");
+            assert.equal(pending("schedule", "1234"), "pending=true\n");
+            assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
+            // by hand (scheduled=false): runs despite the held issue, waits for an open train pull request
+            assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+            assert.equal(pending("workflow_dispatch", "", true), "pending=true\n");
+        });
+
         it("shares the one train group, so two pushes in a row never start two trains", () => {
             assert.match(
                 release,
@@ -1388,7 +1413,7 @@ describe("release.yml", () => {
         });
 
         it("comments on the same held issue when the restarted release fails again", () => {
-            assert.match(held, /\[ "\$EVENT" != workflow_run \] \|\| echo "This was a restarted release/);
+            assert.match(held, /\[ "\$TRIGGER" != workflow_run \] \|\| echo "This was a restarted release/);
             assert.match(held, /Refs #<this issue>/);
         });
     });

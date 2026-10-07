@@ -7,9 +7,9 @@ import type { InspectedKindId } from "./inspected";
  */
 export const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
     graph: ["layout.rerun", "layout.reshuffle", "notes.add"],
-    node: ["selection.neighborhood", "view.frame-selection", "notes.add"],
+    node: ["selection.neighborhood", "analyze.path", "view.frame-selection", "notes.add"],
     edge: ["selection.endpoints", "view.frame-selection", "notes.add"],
-    several: ["selection.neighborhood", "view.frame-selection", "notes.add"],
+    several: ["selection.neighborhood", "analyze.path", "view.frame-selection", "notes.add"],
     neighborhood: ["selection.grow-neighborhood", "view.frame-selection"],
     "measure-row": ["row.move-up", "row.move-down", "row.delete"],
     "run-row": ["row.move-up", "row.move-down", "row.delete"],

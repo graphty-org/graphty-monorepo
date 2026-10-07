@@ -13,7 +13,7 @@ import { formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { immersiveMode } from "./commands";
-import type { ToolbarPopover } from "./popover";
+import { openers, type ToolbarPopover } from "./popover";
 import { QuickActionsPalette } from "./QuickActionsPalette";
 import { ShowMenuRows } from "./ShowMenuRows";
 import { useSessionVersion } from "./useSessionVersion";
@@ -248,7 +248,26 @@ export function WorkspaceToolbar(): React.JSX.Element {
     return (
         <>
             <Toolbar aria-label="Canvas tools">
-                <Popover {...popoverProps("analyze")} closeOnEscape={false} width={380}>
+                <Popover
+                    {...popoverProps("analyze")}
+                    // Path between... (P, a node's menu) opens the same popover on its Path form.
+                    opened={dialog === "analyze" || dialog === "path"}
+                    onChange={(opened) => {
+                        if (!opened) {
+                            store.set((state) =>
+                                state.dialog === "analyze" || state.dialog === "path" ? { dialog: null } : {},
+                            );
+                        }
+                    }}
+                    onClose={() => {
+                        if (document.activeElement === null || document.activeElement === document.body) {
+                            (openers.path ?? anchors.current.analyze)?.focus();
+                        }
+                        delete openers.path;
+                    }}
+                    closeOnEscape={false}
+                    width={380}
+                >
                     <Popover.Target>
                         <CommandTool
                             ref={anchor("analyze")}
@@ -257,12 +276,17 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         />
                     </Popover.Target>
                     <Popover.Dropdown aria-label="Analyze">
-                        {dialog !== "analyze" || session === null ? null : (
+                        {(dialog !== "analyze" && dialog !== "path") || session === null ? null : (
                             <AnalyzePopover
                                 session={session}
+                                path={dialog === "path"}
                                 onClose={close}
                                 onStarted={(name) => {
                                     store.set({ announcement: `${name} added, running` });
+                                }}
+                                onPathStarted={(run) => {
+                                    // The new row is selected, so the inspector shows its path.
+                                    store.set({ inspected: { kind: "measure-row", id: run.id } });
                                 }}
                             />
                         )}

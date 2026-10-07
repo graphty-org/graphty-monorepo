@@ -458,3 +458,43 @@ export function weightReadWords(caveats: Pick<Caveats, "weight" | "weightSkipped
     const read = caveats.weight;
     return read === null || read === undefined ? "none (each edge counts 1)" : weightName(read.attribute, read.meaning);
 }
+
+/**
+ * A path run's ends and its answer, worded: its From and To by name, and the hops, or that no
+ * path joins them (the element publishes a path of length 0). Null for any other run, or before
+ * its result.
+ * @param session - the element's session.
+ * @param run - the run.
+ * @returns the words, or null.
+ */
+export function pathWords(session: GraphSession, run: Run): { from: string; to: string; hops: string | null } | null {
+    const graph = run.result?.graph;
+    if (run.shape !== "path" || graph === undefined) {
+        return null;
+    }
+    const name = (id: unknown): string =>
+        typeof id === "string" || typeof id === "number" ? (session.data.name(id) ?? String(id)) : "";
+    const hops = typeof graph.hops === "number" ? graph.hops : 0;
+    return {
+        from: name(run.params.source),
+        to: name(run.params.target),
+        hops: graph.length === 0 ? null : `${String(hops)} ${hops === 1 ? "hop" : "hops"}`,
+    };
+}
+
+/**
+ * The status line for a finished path search: "Shortest path added: Ava to Lee, 2 hops", or
+ * "No path from Ava to Lee.".
+ * @param session - the element's session.
+ * @param run - the run.
+ * @returns the line, or null for any other run.
+ */
+export function pathAnnouncement(session: GraphSession, run: Run): string | null {
+    const words = pathWords(session, run);
+    if (words === null) {
+        return null;
+    }
+    return words.hops === null
+        ? `No path from ${words.from} to ${words.to}.`
+        : `Shortest path added: ${words.from} to ${words.to}, ${words.hops}`;
+}

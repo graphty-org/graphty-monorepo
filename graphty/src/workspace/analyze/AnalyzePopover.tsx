@@ -1,11 +1,12 @@
 import { SearchInput } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { OptionsForm } from "../options/OptionsForm";
+import { PATH_ALGORITHM, PathForm } from "./PathForm";
 import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, wordsFor } from "./words";
 
 /** The type icon of the row a run adds, by heading. */
@@ -48,7 +49,8 @@ function nodeOptions(descriptor: AlgorithmDescriptor): string[] {
  * @returns the reason, or null.
  */
 function unavailable(session: GraphSession, descriptor: AlgorithmDescriptor): string | null {
-    const needed = nodeOptions(descriptor).length;
+    // The Path form picks its own ends, so it needs no selection.
+    const needed = descriptor.key === PATH_ALGORITHM ? 0 : nodeOptions(descriptor).length;
     if (needed > session.selection.nodes.length) {
         return needed === 1 ? "Select a node first" : `Select ${String(needed)} nodes first`;
     }
@@ -85,6 +87,10 @@ interface AnalyzePopoverProps {
     onClose: () => void;
     /** Called with a run's name as it starts, for the screen reader's "added, running". */
     onStarted: (name: string) => void;
+    /** Called with a path search's run as it starts, so its row is selected. */
+    onPathStarted?: (run: Run) => void;
+    /** Open straight on the Path form (P, Path between...): Esc then closes, with no way back. */
+    path?: boolean;
     /** An algorithm to open on, for a story. */
     initialPick?: string;
     /** The filter text to open with, for a story. */
@@ -104,19 +110,23 @@ interface AnalyzePopoverProps {
  * @param props.onStarted - Called with a run's name as it starts
  * @param props.initialPick - An algorithm to open on
  * @param props.initialFilter - The filter text to open with
+ * @param props.onPathStarted - Called with a path search's run as it starts
+ * @param props.path - Open straight on the Path form
  * @returns The popover's body
  */
 export function AnalyzePopover({
     session,
     onClose,
     onStarted,
+    onPathStarted,
+    path = false,
     initialPick,
     initialFilter = "",
 }: Readonly<AnalyzePopoverProps>): React.JSX.Element {
     const algorithms = session.catalog.algorithms();
     const [filter, setFilter] = useState(initialFilter);
     const [picked, setPicked] = useState<AlgorithmDescriptor | undefined>(() =>
-        algorithms.find((a) => a.key === initialPick),
+        algorithms.find((a) => a.key === (path ? PATH_ALGORITHM : initialPick)),
     );
     const [values, setValues] = useState<Record<string, unknown>>({});
     // The entry ArrowUp/Down moved to; null follows the filter (its first match, or none).
@@ -146,6 +156,31 @@ export function AnalyzePopover({
             pick(undefined);
         }
     };
+
+    if (picked?.key === PATH_ALGORITHM) {
+        return (
+            <PathForm
+                session={session}
+                descriptor={picked}
+                onBack={
+                    path
+                        ? undefined
+                        : () => {
+                              pick(undefined);
+                          }
+                }
+                onClose={onClose}
+                onRun={(params) => {
+                    // Each From and To is its own run, so its own row.
+                    const run = session.runs.start(picked.key, params);
+                    run.then(undefined, () => undefined);
+                    onStarted(wordsFor(picked).name);
+                    onPathStarted?.(run);
+                    onClose();
+                }}
+            />
+        );
+    }
 
     if (picked !== undefined) {
         return (

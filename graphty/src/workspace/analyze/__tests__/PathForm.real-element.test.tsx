@@ -1,0 +1,257 @@
+/**
+ * The Path popover (tier2-design.md section 2) on the REAL graphty-element: P opens it titled
+ * "Shortest path", From and To take typed names or a canvas pick, the selection fills them, Find
+ * path adds a row and selects it, Esc returns focus to the opener, and P does nothing in a field.
+ */
+
+// Registers the real <graphty-element>, as main.tsx does.
+import "@graphty/graphty-element";
+
+import type { GraphSession } from "@graphty/graphty-element/session";
+import userEvent from "@testing-library/user-event";
+import { assert, beforeAll, describe, it } from "vitest";
+import { page } from "vitest/browser";
+
+import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
+import { Workspace } from "../../Workspace";
+
+/** The element, as the page holds it. */
+type ElementUnderTest = import("@graphty/graphty-element").Graphty;
+
+/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
+const TIMEOUT_MS = 90_000;
+
+/** Ava - Ben - Lee, Ava - Dev, and Zed - Zoe apart. */
+const FRIENDS = "source,target\nAva,Ben\nBen,Lee\nAva,Dev\nZed,Zoe\n";
+
+/**
+ * A project with the friends graph loaded.
+ * @returns the store, the session and the element.
+ */
+async function openFriends(): Promise<{ store: WorkspaceStore; session: GraphSession; element: ElementUnderTest }> {
+    const store = createWorkspaceStore({ project: { name: "Friends", id: 1 } });
+    render(<Workspace store={store} />);
+    let element: ElementUnderTest | null = null;
+    await waitFor(
+        () => {
+            element = document.querySelector("graphty-element");
+            assert.isDefined(element?.session);
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    const el = element as unknown as ElementUnderTest;
+    const { session } = el;
+    await session.data.import(
+        { type: "csv", config: { data: FRIENDS } },
+        { mapping: { rowsAre: "edges", source: "source", target: "target" } },
+    );
+    await waitFor(() => {
+        assert.equal(session.data.statistics().nodeCount, 6);
+        assert.isFalse(analyzeTool().hasAttribute("aria-disabled"));
+    });
+    return { store, session, element: el };
+}
+
+/**
+ * The toolbar's Analyze tool.
+ * @returns the tool.
+ */
+function analyzeTool(): HTMLElement {
+    return within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", { name: "Analyze" });
+}
+
+/**
+ * The Path form.
+ * @returns the form.
+ */
+async function pathForm(): Promise<HTMLElement> {
+    return screen.findByRole("form", { name: "Shortest path" });
+}
+
+describe("the Path popover, on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    it(
+        "P with nothing selected: type From and To, Find path adds a row, selects it and says so",
+        async () => {
+            const { store, session, element } = await openFriends();
+            element.focus();
+            await userEvent.keyboard("p");
+
+            const form = await pathForm();
+            const from = within(form).getByRole("combobox", { name: "From" });
+            await waitFor(() => {
+                assert.equal(document.activeElement, from);
+            });
+            // A partial name lists the nodes it matches; clicking one fills the field.
+            await userEvent.type(from, "Av");
+            await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
+            assert.equal((from as HTMLInputElement).value, "Ava");
+            assert.isNull(within(form).queryByRole("listbox", { name: "From nodes" }));
+            const to = within(form).getByRole("combobox", { name: "To" });
+            await userEvent.type(to, "lee");
+            await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+
+            let runId = "";
+            await waitFor(
+                () => {
+                    const run = session.runs.list().find((r) => r.algorithm === "shortest-path");
+                    assert.equal(run?.status, "succeeded");
+                    assert.equal(run?.params.source, "Ava");
+                    assert.equal(run?.params.target, "Lee");
+                    runId = String(run?.id);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.deepEqual(store.get().inspected, { kind: "measure-row", id: runId });
+            await screen.findByText("Shortest path added: Ava to Lee, 2 hops");
+            // Committing closes the popover and hands focus back to the drawing.
+            assert.isNull(screen.queryByRole("form", { name: "Shortest path" }));
+            await waitFor(() => {
+                assert.equal(document.activeElement, element);
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "says when no path joins the two nodes",
+        async () => {
+            const { session } = await openFriends();
+            await session.selection.apply({ nodes: ["Ava", "Zoe"] });
+            await userEvent.keyboard("p");
+            const form = await pathForm();
+            await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
+            await screen.findByText("No path from Ava to Zoe.", undefined, { timeout: TIMEOUT_MS });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "fills From from one selected node and focuses To; two fill both and focus Find path",
+        async () => {
+            const { session, store } = await openFriends();
+            await session.selection.apply({ nodes: ["Ben"] });
+            await userEvent.keyboard("p");
+            let form = await pathForm();
+            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "From" }).value, "Ben");
+            await waitFor(() => {
+                assert.equal(document.activeElement, within(form).getByRole("combobox", { name: "To" }));
+            });
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(store.get().dialog);
+            });
+
+            await session.selection.apply({ nodes: ["Ben", "Dev"] });
+            await userEvent.keyboard("p");
+            form = await pathForm();
+            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "To" }).value, "Dev");
+            await waitFor(() => {
+                assert.equal(document.activeElement, within(form).getByRole("button", { name: "Find path" }));
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "keeps Tab inside the popover, and Esc closes it and returns focus to the opener",
+        async () => {
+            const { store, element } = await openFriends();
+            element.focus();
+            await userEvent.keyboard("p");
+            const form = await pathForm();
+            const dropdown = form.closest<HTMLElement>("[role=dialog]") ?? form;
+            for (let i = 0; i < 12; i++) {
+                await userEvent.tab();
+                assert.isTrue(dropdown.contains(document.activeElement), `Tab ${String(i + 1)} left the popover`);
+            }
+            // Esc in an empty field closes the popover (a filled one clears first).
+            within(form).getByRole("combobox", { name: "From" }).focus();
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(store.get().dialog);
+            });
+            await waitFor(() => {
+                assert.equal(document.activeElement, element);
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "a pick button takes the next node clicked on the canvas, without changing the selection",
+        async () => {
+            const { session, element } = await openFriends();
+            await session.selection.apply({ nodes: ["Ava"] });
+            await userEvent.keyboard("p");
+            const form = await pathForm();
+            const pickTo = within(form).getByRole("button", { name: "Pick To on the canvas" });
+            // Esc stops a pick before it closes the popover (the first Esc closes the button's
+            // tooltip, the innermost thing open).
+            await userEvent.click(pickTo);
+            assert.equal(pickTo.getAttribute("aria-pressed"), "true");
+            await userEvent.keyboard("{Escape}{Escape}");
+            await waitFor(() => {
+                assert.equal(pickTo.getAttribute("aria-pressed"), "false");
+            });
+            assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
+            await userEvent.click(pickTo);
+
+            let at = element.nodeScreenPosition("Lee");
+            await waitFor(() => {
+                at = element.nodeScreenPosition("Lee");
+                assert.isTrue(at?.visible);
+            });
+            const rect = element.getBoundingClientRect();
+            const init = {
+                clientX: rect.left + (at?.x ?? 0),
+                clientY: rect.top + (at?.y ?? 0),
+                bubbles: true,
+                composed: true,
+            };
+            for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
+                element.dispatchEvent(new PointerEvent(type, init));
+            }
+            element.dispatchEvent(new MouseEvent("click", init));
+
+            await waitFor(() => {
+                assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "To" }).value, "Lee");
+            });
+            // The click was the pick's alone: the popover is open and the selection unchanged.
+            assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
+            assert.deepEqual(session.selection.nodes, ["Ava"]);
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "P does nothing while focus is in a text field",
+        async () => {
+            const { store } = await openFriends();
+            await userEvent.click(screen.getByRole("combobox", { name: "Find" }));
+            await userEvent.keyboard("p");
+            assert.isNull(store.get().dialog);
+            assert.isNull(screen.queryByRole("form", { name: "Shortest path" }));
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "opens from Analyze > Shortest path with a way back to the list",
+        async () => {
+            await openFriends();
+            await userEvent.click(analyzeTool());
+            const box = await screen.findByRole("combobox", { name: "Filter analyses" });
+            await userEvent.type(box, "Shortest");
+            await userEvent.click(await screen.findByRole("option", { name: /^Shortest path/ }));
+            const form = await pathForm();
+            await userEvent.click(within(form).getByRole("button", { name: "Back to analyses" }));
+            assert.isNotNull(await screen.findByRole("combobox", { name: "Filter analyses" }));
+        },
+        TIMEOUT_MS,
+    );
+});

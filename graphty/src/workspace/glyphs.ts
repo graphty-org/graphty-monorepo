@@ -40,6 +40,7 @@ import {
     Menu,
     Minus,
     MoreHorizontal,
+    MousePointerClick,
     Network,
     Orbit,
     Paintbrush,
@@ -93,6 +94,8 @@ export const GLYPHS = {
     legend: List,
     quickActions: Search,
     filter: ListFilter,
+    // Take the next node clicked on the canvas.
+    pick: MousePointerClick,
     data: Database,
     notes: StickyNote,
     sample: Network,

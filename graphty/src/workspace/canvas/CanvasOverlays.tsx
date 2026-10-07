@@ -4,7 +4,7 @@ import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@grap
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { wordsFor } from "../analyze/words";
+import { pathAnnouncement, wordsFor } from "../analyze/words";
 import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { count } from "../inspector/words";
@@ -90,7 +90,11 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                         .algorithms()
                         .find((algorithm) => algorithm.key === change.run.algorithm);
                     const name = descriptor === undefined ? change.run.label : wordsFor(descriptor).name;
-                    store.set({ announcement: `${name} ${ended}` });
+                    // The event carries the run's record; its result is on the live run.
+                    const run = session.runs.get(change.run.id);
+                    const path =
+                        change.run.status === "succeeded" && run !== undefined ? pathAnnouncement(session, run) : null;
+                    store.set({ announcement: path ?? `${name} ${ended}` });
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {

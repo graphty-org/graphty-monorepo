@@ -11,6 +11,7 @@ import {
     type DataChoice,
     type Line,
     lineOf,
+    type NewLayer,
     propose,
     readsNothing,
     removeLine,
@@ -29,6 +30,8 @@ interface LabelSectionProps {
     row: readonly LayerId[];
     /** The row's layers on this side, bottom first. */
     layers: readonly Layer[];
+    /** The layer the row's first edit adds, when it is not the Everything row. */
+    fresh?: NewLayer;
 }
 
 /** Why the Label "+" adds nothing now, or null when it adds a line. */
@@ -86,9 +89,10 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
  * @param props.target - nodes or edges
  * @param props.row - the row's layers
  * @param props.layers - the row's layers on this side
+ * @param props.fresh - the layer the row's first edit adds, when it is not the Everything row
  * @returns The section
  */
-export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps>): React.JSX.Element | null {
+export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSectionProps>): React.JSX.Element | null {
     const { session, element, store } = useWorkspace();
     const [empty, setEmpty] = useState(false);
     const [listOpen, setListOpen] = useState(false);
@@ -103,14 +107,14 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
         store.set({ notice: { message: "The label could not be changed" } });
     };
     const writeStyle = (change: LabelStyle): void => {
-        writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }).catch(fail);
+        writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }, fresh).catch(fail);
     };
     const pick = (choice: DataChoice): void => {
         setListOpen(false);
         const proposal = propose(session, choice, channel);
         if (proposal.ok) {
             setEmpty(false);
-            writeLine(session, row, target, channel, { binding: proposal.binding }).catch(fail);
+            writeLine(session, row, target, channel, { binding: proposal.binding }, fresh).catch(fail);
         }
     };
     const blocked = blockedReason(line, empty);

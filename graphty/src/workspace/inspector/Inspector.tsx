@@ -8,7 +8,7 @@ import { Sections } from "../frame/menus";
 import { LayoutGroup } from "../layout/LayoutForm";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { GroupStyle, SelectionStyle, StyleTab } from "../style/StyleTab";
+import { GroupStyle, SelectionRowStyle, SelectionStyle, StyleTab } from "../style/StyleTab";
 import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
@@ -320,16 +320,26 @@ function bodyOf(
             };
         case "node":
             return {
-                style: <WhyThisLook target={{ node: resolved.node }} />,
+                style: (
+                    <>
+                        <SelectionRowStyle />
+                        <WhyThisLook target={{ node: resolved.node }} />
+                    </>
+                ),
                 values: <NodeValues id={resolved.node} />,
             };
         case "edge":
             return {
-                style: <WhyThisLook target={{ edge: resolved.edge }} />,
+                style: (
+                    <>
+                        <SelectionRowStyle />
+                        <WhyThisLook target={{ edge: resolved.edge }} />
+                    </>
+                ),
                 values: <EdgeValues id={resolved.edge} />,
             };
         case "several":
-            return { only: <SeveralValues version={version} /> };
+            return { style: <SelectionRowStyle />, values: <SeveralValues version={version} /> };
         case "neighborhood":
             return { only: <NeighborList center={resolved.node} /> };
         case "measure-row":

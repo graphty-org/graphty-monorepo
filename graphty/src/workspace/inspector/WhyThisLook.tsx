@@ -18,19 +18,20 @@ interface WinnerLine {
 }
 
 /**
- * The row a layer belongs to, for the line's link: a run's row, or one of the Graph place's
- * built-in rows. A layer someone wrote by hand has no row in tier 1.
+ * The row a layer belongs to, for the line's link: a run's row, one of the Graph place's
+ * built-in rows, or the reader's own layer row.
  * @param source - the layer's source.
+ * @param layerId - the layer.
  * @returns what the link opens, or null.
  */
-function rowOf(source: LayerSource | undefined): Resolved | null {
+function rowOf(source: LayerSource | undefined, layerId: string): Resolved | null {
     if (source?.by === "run") {
         return { kind: "run-row", run: source.runId };
     }
     if (source?.by === "element") {
         return source.reason === "selection" ? { kind: "selection-row" } : { kind: "everything-row" };
     }
-    return null;
+    return source?.by === "user" ? { kind: "layer-row", layer: layerId } : null;
 }
 
 /**
@@ -68,7 +69,7 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                 name: contribution.name,
                 swatch: color ?? null,
                 tokens: channelTokens(won.get(contribution.layerId) ?? []),
-                opens: rowOf(session.styles.get(contribution.layerId)?.source),
+                opens: rowOf(session.styles.get(contribution.layerId)?.source, contribution.layerId),
             };
         });
 
@@ -91,6 +92,8 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                                 const { opens } = line;
                                 if (opens !== null && "run" in opens) {
                                     store.set({ inspected: { kind: opens.kind, id: opens.run } });
+                                } else if (opens?.kind === "layer-row") {
+                                    store.set({ inspected: { kind: opens.kind, id: opens.layer } });
                                 } else if (opens !== null) {
                                     store.set({ inspected: { kind: opens.kind } });
                                 }

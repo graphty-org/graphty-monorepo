@@ -118,6 +118,75 @@ function without<T>(
     return Object.keys(rest).length === 0 ? undefined : (rest as Partial<Record<Channel, T>>);
 }
 
+/** The layer a row's first edit adds when the row has no layer the reader may edit. */
+export interface NewLayer {
+    readonly name: string;
+    readonly selector: Layer["selector"];
+    readonly userData?: Record<string, unknown>;
+}
+
+/** The reader's Everything layer, which the Everything row's first edit adds. */
+const EVERYTHING_LAYER: NewLayer = {
+    name: "Everything",
+    selector: { match: "everything" },
+    userData: { [EVERYTHING_KEY]: true },
+};
+
+/**
+ * The top layer of the paint tree's topmost row: the highest layer that is not the element's
+ * selection, hover or notes highlight, which stay on top.
+ * @param session - the element's session.
+ * @returns the layer, or undefined for an empty stack.
+ */
+function topmostRow(session: GraphSession): Layer | undefined {
+    return [...session.styles.list()]
+        .reverse()
+        .find((layer) => layer.source.by !== "element" || layer.source.reason === "default");
+}
+
+/**
+ * Whether two id lists hold the same ids.
+ * @param a - one list, or undefined for none.
+ * @param b - the other.
+ * @returns true when equal as sets.
+ */
+function sameIds(a: readonly (string | number)[] | undefined, b: readonly (string | number)[]): boolean {
+    const mine = new Set(a ?? []);
+    return mine.size === new Set(b).size && b.every((id) => mine.has(id));
+}
+
+/**
+ * The selection's own row: the reader's layers whose `{ match: "ids" }` selector names exactly
+ * the selected nodes and edges. One set of ids has one row, so selecting the same things again
+ * edits the same row.
+ * @param session - the element's session.
+ * @returns the row's layer ids, empty when the selection has no row yet.
+ */
+export function selectionRow(session: GraphSession): LayerId[] {
+    const { nodes, edges } = session.selection;
+    return session.styles
+        .list()
+        .filter(
+            ({ source, selector }) =>
+                source.by === "user" &&
+                selector.match === "ids" &&
+                sameIds(selector.nodes, nodes) &&
+                sameIds(selector.edges, edges),
+        )
+        .map((layer) => layer.id);
+}
+
+/**
+ * The layer the selection's first edit adds: its ids, named after what is selected.
+ * @param session - the element's session.
+ * @param name - the selection's name (a node's label, "3 nodes").
+ * @returns the layer to add.
+ */
+export function selectionLayer(session: GraphSession, name: string): NewLayer {
+    const { nodes, edges } = session.selection;
+    return { name, selector: { match: "ids", nodes: [...nodes], edges: [...edges] } };
+}
+
 /**
  * Writes one line of a row: a literal value or a binding, into the topmost layer of the row the
  * reader may edit. One undoable step of the element's.
@@ -126,6 +195,7 @@ function without<T>(
  * @param target - nodes or edges.
  * @param channel - the channel.
  * @param write - the value or the binding.
+ * @param fresh - the layer the row's first edit adds when it has none the reader may edit.
  * @returns the id of the layer written to.
  */
 export async function writeLine(
@@ -134,21 +204,22 @@ export async function writeLine(
     target: Target,
     channel: Channel,
     write: { readonly value: ChannelValue } | { readonly binding: DataBinding },
+    fresh: NewLayer = EVERYTHING_LAYER,
 ): Promise<LayerId> {
     const layers = rowLayers(session, ids, target);
     const own = [...layers].reverse().find((layer) => !layer.locked);
     const set = "value" in write ? { [channel]: write.value } : undefined;
     const encode = "binding" in write ? { [channel]: write.binding } : undefined;
     if (own === undefined) {
-        const base = layers.at(-1);
+        const base = layers.at(-1) ?? topmostRow(session);
         const added = await session.styles.add(
             {
-                name: "Everything",
+                name: fresh.name,
                 target,
-                selector: { match: "everything" },
+                selector: fresh.selector,
                 ...(set === undefined ? {} : { set }),
                 ...(encode === undefined ? {} : { encode }),
-                userData: { [EVERYTHING_KEY]: true },
+                ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
             },
             base === undefined ? undefined : { above: base.id },
         );

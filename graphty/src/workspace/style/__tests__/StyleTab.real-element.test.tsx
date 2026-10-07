@@ -649,3 +649,69 @@ describe("editing lines on the real element", () => {
         TIMEOUT_MS * 2,
     );
 });
+
+describe("the selection's own row on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * The reader's layers that name ids: the selections' own rows.
+     * @param session - the element's session.
+     * @returns the layers, bottom first.
+     */
+    function idLayers(session: GraphSession): ReturnType<GraphSession["styles"]["list"]> {
+        return readerLayers(session).filter((l) => l.selector.match === "ids");
+    }
+
+    it(
+        "a node's first edit adds its row and selects it; selecting it again edits that row",
+        async () => {
+            const { session, store } = await openWithGraph();
+            await session.selection.apply({ nodes: ["1"] });
+            await pickStyleTab();
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+            await waitFor(() => {
+                assert.equal(idLayers(session).length, 1);
+            });
+            const [row] = idLayers(session);
+            assert.equal(row.name, "1");
+            assert.deepEqual(row.selector, { match: "ids", nodes: ["1"], edges: [] });
+            await waitFor(() => {
+                assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row.id });
+            });
+
+            session.selection.clear();
+            await session.selection.apply({ nodes: ["1"] });
+            await pickStyleTab();
+            const field = await within(styleTab()).findByRole("textbox", { name: "Tooltip" });
+            await userEvent.type(field, "hello{Enter}");
+            await waitFor(() => {
+                assert.equal(session.styles.get(row.id)?.set?.["node.tooltip"], "hello");
+            });
+            assert.equal(idLayers(session).length, 1, "the same ids reuse their row");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "several selected share one row, named by their count, and Undo takes it away",
+        async () => {
+            const { session } = await openWithGraph();
+            await session.selection.apply({ nodes: ["2", "3", "4"] });
+            await pickStyleTab();
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+            await waitFor(() => {
+                assert.deepEqual(
+                    idLayers(session).map((l) => l.name),
+                    ["3 nodes"],
+                );
+            });
+            await session.undo();
+            await waitFor(() => {
+                assert.equal(idLayers(session).length, 0);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+});

@@ -13,9 +13,8 @@ export const registration = defineRegistration({
         // A single node always opens on Values (round 8).
         { kind: "node", tabs: ["style", "values"], alwaysOpenOn: "values" },
         { kind: "edge", tabs: ["style", "values"], defaultTab: "values" },
-        // Why this look reads one element; several wait for graphty-element #810, so these two
-        // kinds show their values alone, with no tabs.
-        { kind: "several", tabs: [] },
+        // Several selected share one Style row; Why this look reads one element, so it is left out.
+        { kind: "several", tabs: ["style", "values"], defaultTab: "values" },
         { kind: "neighborhood", tabs: [] },
         { kind: "measure-row", tabs: ["style", "values"], defaultTab: "style" },
         { kind: "run-row", tabs: ["style", "values"], defaultTab: "style" },

@@ -3,7 +3,7 @@ import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/grap
 import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Indicator, Menu, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -12,8 +12,11 @@ import {
     colorBlockOf,
     everythingRow,
     lineOf,
+    type NewLayer,
     rowLayers,
     runColorOf,
+    selectionLayer,
+    selectionRow,
     startingValue,
     type Target,
     writeGroupColor,
@@ -108,18 +111,103 @@ export function StyleTab({ layers }: Readonly<StyleTabProps>): React.JSX.Element
 }
 
 /**
+ * The name of the selection's own row: a node's label, an edge's ends, or how many are selected.
+ * @param session - the element's session.
+ * @returns the name.
+ */
+function selectionName(session: GraphSession): string {
+    const { nodes, edges } = session.selection;
+    // A node is named by its id until graphty-element publishes its name (#895), as the header does.
+    if (nodes.length === 1 && edges.length === 0) {
+        return String(nodes[0]);
+    }
+    const edge = edges.length === 1 && nodes.length === 0 ? session.data.edge(edges[0]) : undefined;
+    if (edge !== undefined) {
+        return `${String(edge.source)} to ${String(edge.target)}`;
+    }
+    const count = (n: number, word: string): string[] => (n === 0 ? [] : [`${String(n)} ${word}${n === 1 ? "" : "s"}`]);
+    return [...count(nodes.length, "node"), ...count(edges.length, "edge")].join(", ");
+}
+
+/**
+ * The Style tab of a node, an edge or several selected: the selection's own row, a reader layer
+ * whose `{ match: "ids" }` selector names exactly what is selected. The first edit adds it above
+ * the topmost row, named after the selection, and selects it, so later edits land on it.
+ * @returns The tab, or nothing before the element has come up
+ */
+export function SelectionRowStyle(): React.JSX.Element | null {
+    const { session, element } = useWorkspace();
+    useStyleVersion(session, element);
+    if (session === null) {
+        return null;
+    }
+    const { nodes, edges } = session.selection;
+    // Keyed by what is selected, so whether the row already existed is read afresh per selection.
+    return <SelectionRow key={JSON.stringify([nodes, edges])} session={session} />;
+}
+
+/**
+ * The selection's row, once the element has come up.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @returns The tab
+ */
+function SelectionRow({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const row = selectionRow(session);
+    const [had] = useState(row.length > 0);
+    const added = had ? undefined : row.at(-1);
+    useEffect(() => {
+        if (added !== undefined) {
+            store.set({ inspected: { kind: "layer-row", id: added } });
+        }
+    }, [added, store]);
+    const { nodes, edges } = session.selection;
+    const sides: Target[] = [
+        ...(nodes.length > 0 ? ["node" as const] : []),
+        ...(edges.length > 0 ? ["edge" as const] : []),
+    ];
+    return (
+        <RowStyle
+            key={row.join(" ")}
+            session={session}
+            row={row}
+            sides={sides}
+            fresh={selectionLayer(session, selectionName(session))}
+        />
+    );
+}
+
+/**
  * One row's Style tab.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.row - the row's layers
+ * @param props.sides - the sides the row can paint; one side draws no Nodes | Edges switch
+ * @param props.fresh - the layer the row's first edit adds, when it is not the Everything row
  * @returns The tab
  */
-function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: readonly LayerId[] }>): React.JSX.Element {
+function RowStyle({
+    session,
+    row,
+    sides = ["node", "edge"],
+    fresh,
+}: Readonly<{
+    session: GraphSession;
+    row: readonly LayerId[];
+    sides?: readonly Target[];
+    fresh?: NewLayer;
+}>): React.JSX.Element {
     // The reader's own lines only: the element's locked base layers set something on both sides
     // of the Everything row, which would make the dot say nothing.
     const sets = (target: Target): boolean =>
         rowLayers(session, row, target).some((l) => !l.locked && (l.set !== undefined || l.encode !== undefined));
-    const [side, setSide] = useState<Target>(() => (!sets("node") && sets("edge") ? "edge" : "node"));
+    const [side, setSide] = useState<Target>(() => {
+        if (sides.length === 1) {
+            return sides[0];
+        }
+        return !sets("node") && sets("edge") ? "edge" : "node";
+    });
     const layers = rowLayers(session, row, side);
     const colors = documentColors(session);
     const sideLabel = (target: Target, words: string): React.JSX.Element =>
@@ -134,21 +222,23 @@ function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: reado
 
     return (
         <Stack gap={8} p={8} data-testid="style-tab">
-            <SegmentedControl
-                size="xs"
-                aria-label="Paints"
-                value={side}
-                onChange={(value) => {
-                    setSide(value === "edge" ? "edge" : "node");
-                }}
-                data={[
-                    { value: "node", label: sideLabel("node", "Nodes") },
-                    { value: "edge", label: sideLabel("edge", "Edges") },
-                ]}
-            />
+            {sides.length > 1 && (
+                <SegmentedControl
+                    size="xs"
+                    aria-label="Paints"
+                    value={side}
+                    onChange={(value) => {
+                        setSide(value === "edge" ? "edge" : "node");
+                    }}
+                    data={[
+                        { value: "node", label: sideLabel("node", "Nodes") },
+                        { value: "edge", label: sideLabel("edge", "Edges") },
+                    ]}
+                />
+            )}
             {SECTIONS[side].map((section) =>
                 section.id === "label" ? (
-                    <LabelSection key={section.id} target={side} row={row} layers={layers} />
+                    <LabelSection key={section.id} target={side} row={row} layers={layers} fresh={fresh} />
                 ) : (
                     <Section
                         key={section.id}
@@ -157,6 +247,7 @@ function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: reado
                         row={row}
                         layers={layers}
                         documentColors={colors}
+                        fresh={fresh}
                     />
                 ),
             )}
@@ -174,6 +265,7 @@ function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: reado
  * @param props.row - the row's layers
  * @param props.layers - the row's layers on this side
  * @param props.documentColors - colors the document uses
+ * @param props.fresh - the layer the row's first edit adds, when it is not the Everything row
  * @returns The section
  */
 function Section({
@@ -182,12 +274,14 @@ function Section({
     row,
     layers,
     documentColors: colors,
+    fresh,
 }: Readonly<{
     section: StyleSection;
     target: Target;
     row: readonly LayerId[];
     layers: readonly Layer[];
     documentColors: readonly string[];
+    fresh?: NewLayer;
 }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     if (session === null) {
@@ -200,7 +294,7 @@ function Section({
     });
     const unset = channels.filter((d) => lineOf(layers, d.channel) === undefined);
     const add = (descriptor: ChannelDescriptor): void => {
-        writeLine(session, row, target, descriptor.channel, { value: startingValue(descriptor) }).catch(() => {
+        writeLine(session, row, target, descriptor.channel, { value: startingValue(descriptor) }, fresh).catch(() => {
             store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be added` } });
         });
     };

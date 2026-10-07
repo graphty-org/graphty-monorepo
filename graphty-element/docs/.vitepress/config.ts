@@ -64,6 +64,7 @@ export default defineConfig({
                         { text: "JavaScript API", link: "/guide/javascript-api" },
                         { text: "Styling", link: "/guide/styling" },
                         { text: "Coloring by a Column", link: "/guide/column-encoding" },
+                        { text: "Counting What a Layer Paints", link: "/guide/layer-counts" },
                         { text: "Palettes & Scales", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
                         { text: "Acceleration", link: "/guide/acceleration" },

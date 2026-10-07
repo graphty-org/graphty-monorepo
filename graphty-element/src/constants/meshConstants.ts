@@ -26,7 +26,14 @@ export enum PolyhedronType {
 }
 
 export const EDGE_CONSTANTS = {
-    DEFAULT_LINE_WIDTH: 8.0,
+    DEFAULT_LINE_WIDTH: 4.5,
+    /**
+     * How many `line.width` steps make one world unit. Every edge renderer converts the style's
+     * width to world units by dividing by this, so a solid, a patterned, a curved, an animated
+     * and a 2D line of the same width are the same thickness, and all of them grow and shrink
+     * with zoom as a node does.
+     */
+    LINE_WIDTH_PER_WORLD_UNIT: 40,
     DEFAULT_LINE_COLOR: "#FFFFFF",
     DEFAULT_ARROW_WIDTH: 1.25,
     DEFAULT_ARROW_LENGTH: 0.5,
@@ -60,4 +67,3 @@ export const EDGE_CONSTANTS = {
     BEZIER_CONTROL_POINT_OFFSET: 0.3,
     BEZIER_POINT_DENSITY: 8, // Lowered from 20 to reduce segment count and improve rendering
 } as const;
-

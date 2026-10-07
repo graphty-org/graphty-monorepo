@@ -262,7 +262,6 @@ const config: KnipConfig = {
         githerd: {
             entry: ["test/**/*.test.mjs"],
             project: ["bin/**/*.mjs!", "lib/**/*.mjs!", "test/**/*.mjs"],
-            ignore: ["coverage/**", "node_modules/**"],
         },
 
         // compact-mantine package

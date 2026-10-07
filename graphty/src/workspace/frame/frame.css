@@ -83,6 +83,9 @@
 .ws-main {
     position: relative;
     display: grid;
+    /* One column no wider than the main area: a wide table scrolls inside the dock instead of
+       widening the frame past the window. */
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
     min-width: 0;
     min-height: 0;

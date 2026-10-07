@@ -233,7 +233,65 @@ describe("the Data place on the real element", () => {
             await waitFor(() => {
                 assert.isTrue(store.get().dockOpen);
             });
-            assert.isNotNull(await screen.findByRole("region", { name: "Table" }));
+            const dock = await screen.findByRole("region", { name: "Table" });
+            // On the table that holds the attribute, and the ask is spent once it is shown.
+            assert.equal(within(dock).getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+            await waitFor(() => {
+                assert.isNull(store.get().dockColumn);
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "Show in table brings a column off the right edge into view",
+        async () => {
+            const { session } = await openDataPlace(TABLE_BUILT);
+            await session.data.import({ type: "json", name: "wide.json", config: { data: WIDE_JSON } });
+
+            const menu = await menuOf(await screen.findByRole("treeitem", { name: "m16, node attribute" }));
+            await userEvent.click(within(menu).getByRole("menuitem", { name: "Show in table" }));
+
+            const dock = await screen.findByRole("region", { name: "Table" });
+            await waitFor(() => {
+                const viewport = within(dock).getByTestId("data-table-viewport");
+                assert.isAbove(viewport.scrollLeft, 0, "the table scrolled toward the column");
+                const header = within(dock)
+                    .getAllByTestId("data-table-header")
+                    .find((cell) => cell.textContent === "m16");
+                const shown = header?.getBoundingClientRect();
+                const box = viewport.getBoundingClientRect();
+                assert.isTrue(shown !== undefined && shown.right <= box.right + 1 && shown.left >= box.left - 1);
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "the attribute inspector's ... holds the same Show in table and Add label line",
+        async () => {
+            const { session, store } = await openDataPlace(TABLE_BUILT);
+            await importGraphFile(session);
+            const before = session.styles.list().length;
+
+            await userEvent.click(await screen.findByRole("treeitem", { name: "label, node attribute" }));
+            await userEvent.click(await screen.findByRole("button", { name: "Attribute actions" }));
+            const menu = await screen.findByRole("menu");
+            assert.deepEqual(
+                within(menu)
+                    .getAllByRole("menuitem")
+                    .map((item) => item.textContent),
+                ["Add label line", "Show in table"],
+            );
+            await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
+            await waitFor(() => {
+                assert.equal(session.styles.list().length, before + 1);
+            });
+            const layer = session.styles.list().at(-1);
+            assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
+            await waitFor(() => {
+                assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
+            });
         },
         TIMEOUT_MS,
     );

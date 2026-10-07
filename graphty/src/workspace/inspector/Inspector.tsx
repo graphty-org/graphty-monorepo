@@ -3,8 +3,10 @@ import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { GLYPHS, KIND_GLYPHS } from "../glyphs";
+import { useAttributeActions } from "../data-place/attributeActions";
+import { AttributeMenuItems } from "../data-place/MenuItems";
 import { Sections } from "../frame/menus";
+import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { LayoutGroup } from "../layout/LayoutForm";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -62,6 +64,7 @@ export function Inspector(): React.JSX.Element {
     const remembered = useWorkspaceState((state) => state.tabs);
     const [picked, setPicked] = useState<{ identity: string; tab: "style" | "values" } | null>(null);
     const [draft, setDraft] = useState<{ run: string; values: Draft } | null>(null);
+    const attributeActionsOf = useAttributeActions();
 
     // The inspector shows the selected thing: a selection change closes an open row.
     useEffect(() => {
@@ -118,6 +121,14 @@ export function Inspector(): React.JSX.Element {
     });
     const body = bodyOf(resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
+    // An attribute's verbs are the Data place's row menu's, so the two cannot drift apart.
+    const attribute =
+        resolved.kind === "attribute"
+            ? session.data.attributes().find((candidate) => candidate.path === resolved.path)
+            : undefined;
+    const attributeActions = attributeActionsOf(
+        attribute === undefined ? null : { kind: attribute.kind, name: attribute.name },
+    );
     const KindIcon = KIND_GLYPHS[kindId];
 
     let content: React.ReactNode;
@@ -175,7 +186,7 @@ export function Inspector(): React.JSX.Element {
                                 {header.from.words}
                             </Anchor>
                         )}
-                        {menu.length > 0 && (
+                        {menu.length + attributeActions.length > 0 && (
                             <Menu position="bottom-end">
                                 <Menu.Target>
                                     <ActionIcon
@@ -189,6 +200,7 @@ export function Inspector(): React.JSX.Element {
                                 </Menu.Target>
                                 <Menu.Dropdown>
                                     <Sections sections={[menu.map((command) => command.id)]} />
+                                    <AttributeMenuItems actions={attributeActions} />
                                 </Menu.Dropdown>
                             </Menu>
                         )}

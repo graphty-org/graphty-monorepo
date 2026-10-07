@@ -7,12 +7,13 @@ import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useAttributeActions } from "./attributeActions";
+import { AttributeMenuItems, ItemLabel } from "./MenuItems";
 import {
     type AttributeRow,
     attributeRows,
     columnOf,
     FIND_PAST,
-    labelRefusalWords,
     type SourceKind,
     type SourceRow,
     sourceRows,
@@ -69,26 +70,6 @@ function Quiet({ children }: Readonly<{ children: React.ReactNode }>): React.JSX
         <span className="dp-quiet" data-pinned="">
             {children}
         </span>
-    );
-}
-
-/**
- * A menu item's label, with a disabled item's reason on its second line (section 4, "Disabled").
- * @param props - Component props
- * @param props.label - The item's label
- * @param props.reason - Why it is disabled, or null
- * @returns The label
- */
-function ItemLabel({ label, reason }: Readonly<{ label: string; reason: string | null }>): React.JSX.Element {
-    return (
-        <>
-            {label}
-            {reason === null ? null : (
-                <Text size="xs" c="dimmed">
-                    {reason}
-                </Text>
-            )}
-        </>
     );
 }
 
@@ -150,33 +131,14 @@ function attributeTree(session: GraphSession | null, needle: string): TreeNodeDa
 }
 
 /**
- * Why Add label line cannot bind an attribute, in the app's words, or null when it can.
- * @param session - the element's session.
- * @param spec - the column and the label channel.
- * @returns the reason, or null.
- */
-function labelRefusalFor(
-    session: GraphSession,
-    spec: Parameters<GraphSession["styles"]["proposeEncoding"]>[0],
-): string | null {
-    try {
-        const proposal = session.styles.proposeEncoding(spec);
-        return proposal.ok ? null : labelRefusalWords(proposal.refusal);
-    } catch {
-        // The attribute went away under the open menu.
-        return "No longer in the data";
-    }
-}
-
-/**
- * The Data place's row menu, for Tree's rowMenu: Edit source on a source; on an attribute, Add
- * label line (a node attribute) and Show in table (once the table dock is built). Other rows
- * (the Nodes and Edges subheads) have none.
+ * The Data place's row menu, for Tree's rowMenu: Edit source on a source; on an attribute, the
+ * attribute's verbs (the same as its inspector's "..."). Other rows (the Nodes and Edges
+ * subheads) have none.
  * @returns the rowMenu function.
  */
 function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
-    const { session, store } = useWorkspace();
-    const tableBuilt = useCommand("table.toggle") !== null;
+    const { store } = useWorkspace();
+    const actionsOf = useAttributeActions();
     return (node) => {
         if (node.id.startsWith("source")) {
             return (
@@ -189,56 +151,8 @@ function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
                 </Menu.Item>
             );
         }
-        const column = columnOf(node.id);
-        const labelSpec = column?.kind === "node" ? { column, channel: "node.label" as const } : null;
-        if (column === null || (labelSpec === null && !tableBuilt)) {
-            return null;
-        }
-        const labelRefusal = labelSpec === null || session === null ? null : labelRefusalFor(session, labelSpec);
-        /**
-         * Add label line (T10, the attribute menu's door): a new row on top whose label is bound
-         * to the attribute. It lands selected, so the inspector shows it; a refusal is one Problem
-         * notice.
-         * @param spec - the column and the label channel.
-         */
-        const addLabelLine = (spec: NonNullable<typeof labelSpec>): void => {
-            session?.styles.encode(spec).then(
-                (layer) => {
-                    store.set({ inspected: { kind: "layer-row", id: layer.id } });
-                },
-                () => {
-                    store.set({
-                        notice: {
-                            message: `Could not add a label line from "${spec.column.name}". Pick another attribute.`,
-                        },
-                    });
-                },
-            );
-        };
-        return (
-            <>
-                {labelSpec === null ? null : (
-                    <Menu.Item
-                        disabled={labelRefusal !== null}
-                        onClick={() => {
-                            addLabelLine(labelSpec);
-                        }}
-                    >
-                        <ItemLabel label="Add label line" reason={labelRefusal} />
-                    </Menu.Item>
-                )}
-                {tableBuilt ? (
-                    <Menu.Item
-                        onClick={() => {
-                            // Opens the dock; bringing the column into view is the Table dock's.
-                            store.set({ dockOpen: true });
-                        }}
-                    >
-                        Show in table
-                    </Menu.Item>
-                ) : null}
-            </>
-        );
+        const actions = actionsOf(columnOf(node.id));
+        return actions.length === 0 ? null : <AttributeMenuItems actions={actions} />;
     };
 }
 

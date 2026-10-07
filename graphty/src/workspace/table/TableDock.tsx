@@ -3,7 +3,7 @@ import "./table.css";
 import { type DataTableSort, MenuCheckItem, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -258,6 +258,35 @@ export function TableDock(): React.JSX.Element {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
     const { views, members } = arrangement;
+
+    // Show in table: bring the asked-for column into view, checking it first if the reader
+    // unchecked it, then forget the ask.
+    const wanted = useWorkspaceState((state) => state.dockColumn);
+    const root = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (wanted === null || session === null) {
+            return;
+        }
+        const kind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
+        const { hidden } = arrangement.views[kind];
+        if (hidden.includes(wanted)) {
+            // The next render draws it, and this runs again to scroll to it.
+            setArrangement((now) => ({
+                ...now,
+                views: { ...now.views, [kind]: { ...now.views[kind], hidden: hidden.filter((h) => h !== wanted) } },
+            }));
+            return;
+        }
+        const at = columnChoices(session, kind)
+            .filter((choice) => !hidden.includes(choice.id))
+            .findIndex((choice) => choice.id === wanted);
+        if (at >= 0) {
+            root.current
+                ?.querySelector(`.cm-dt-head [aria-colindex="${String(at + 1)}"]`)
+                ?.scrollIntoView({ block: "nearest", inline: "center" });
+        }
+        store.set({ dockColumn: null });
+    }, [wanted, session, store, arrangement]);
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
@@ -310,7 +339,7 @@ export function TableDock(): React.JSX.Element {
             : countOf(groupRun.groups.length, "group");
 
     return (
-        <div className="ws-table">
+        <div className="ws-table" ref={root}>
             <div className="ws-table-strip">
                 <Tabs
                     value={active}

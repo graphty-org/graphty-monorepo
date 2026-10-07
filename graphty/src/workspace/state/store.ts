@@ -62,6 +62,11 @@ export interface WorkspaceState {
      * is closed, and set by whatever opens the dock on a table (the Data place's source rows).
      */
     readonly dockTab: string;
+    /**
+     * A table column to bring into view once the dock shows it (`a:<attribute>`), set by Show in
+     * table and cleared by the dock; null when none is asked for.
+     */
+    readonly dockColumn: string | null;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -99,6 +104,7 @@ const INITIAL: WorkspaceState = {
     dockHeight: 240,
     dockOpen: false,
     dockTab: "nodes",
+    dockColumn: null,
     legendShown: true,
     exportOn: "image",
     singleKeyShortcuts: true,

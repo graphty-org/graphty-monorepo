@@ -1,6 +1,6 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 import { Text } from "@mantine/core";
 import React, { useId, useMemo, useState } from "react";
 
@@ -14,6 +14,25 @@ export const FIND_BOX_ID = "ws-find";
 
 /** How many element hits the list shows. */
 const LIMIT = 20;
+
+/**
+ * One line wording why the element refused a typed rule, from the refusal's reason code.
+ * @param error - what `selection.apply` threw.
+ * @returns the line, or null when the error is not a refused rule.
+ */
+function ruleRefusalWords(error: unknown): string | null {
+    if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
+        return null;
+    }
+    const details = (error.details ?? {}) as { reason?: unknown; position?: unknown };
+    if (details.reason === "number-needs-backticks") {
+        return "Put numbers in backticks: weight > `3`";
+    }
+    // The element counts from 0 after the "="; the reader counts from 1 including it.
+    return typeof details.position === "number"
+        ? `Not a rule Find can read (at character ${String(details.position + 2)})`
+        : "Not a rule Find can read";
+}
 
 /** One pickable entry of the list: an element hit or a value row. */
 type Option = { readonly type: "hit"; readonly hit: FindHit } | { readonly type: "value"; readonly row: FindValueRow };
@@ -51,6 +70,7 @@ export function FindBox(): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const [text, setText] = useState("");
     const [active, setActive] = useState(-1);
+    const [refusal, setRefusal] = useState<string | null>(null);
     const listId = useId();
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
@@ -88,6 +108,19 @@ export function FindBox(): React.JSX.Element {
         await element?.zoomToSelection();
     };
 
+    const runTyped = async (current: GraphSession, typed: string): Promise<void> => {
+        try {
+            await current.selection.apply({ text: typed });
+            setText("");
+        } catch (error) {
+            const words = ruleRefusalWords(error);
+            if (words === null) {
+                throw error;
+            }
+            setRefusal(words);
+        }
+    };
+
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.key === "ArrowDown" && options.length > 0) {
             event.preventDefault();
@@ -99,8 +132,7 @@ export function FindBox(): React.JSX.Element {
             event.preventDefault();
             if (found?.notSearchable !== undefined && session !== null) {
                 // A regex or expression is not run while typing; Enter runs it as a selection.
-                void session.selection.apply({ text });
-                setText("");
+                void runTyped(session, text);
             } else {
                 const option = options[Math.max(active, 0)];
                 if (option !== undefined) {
@@ -115,6 +147,12 @@ export function FindBox(): React.JSX.Element {
     };
 
     const open = found !== null;
+    let emptyLine = `No match for "${text}"`;
+    if (found?.notSearchable === "expression") {
+        emptyLine = "Rule: press Enter to select matches";
+    } else if (found?.notSearchable === "regex") {
+        emptyLine = `Press Enter to select "${text}"`;
+    }
 
     return (
         <div className="ws-find">
@@ -124,6 +162,7 @@ export function FindBox(): React.JSX.Element {
                 onChange={(next) => {
                     setText(next);
                     setActive(-1);
+                    setRefusal(null);
                 }}
                 onKeyDown={onKeyDown}
                 aria-label="Find"
@@ -133,6 +172,9 @@ export function FindBox(): React.JSX.Element {
                 aria-expanded={open && options.length > 0}
                 aria-controls={open ? listId : undefined}
                 aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+                // Mantine ties its error line to the box with aria-invalid and aria-describedby.
+                error={refusal}
+                errorProps={{ role: "alert" }}
                 disabled={session === null}
             />
             {found !== null && options.length > 0 ? (
@@ -200,9 +242,9 @@ export function FindBox(): React.JSX.Element {
                     ) : null}
                 </div>
             ) : null}
-            {found !== null && options.length === 0 ? (
+            {found !== null && options.length === 0 && refusal === null ? (
                 <Text role="status" size="xs" c="dimmed" className="ws-find-empty">
-                    {found.notSearchable === undefined ? `No match for "${text}"` : `Press Enter to select "${text}"`}
+                    {emptyLine}
                 </Text>
             ) : null}
         </div>

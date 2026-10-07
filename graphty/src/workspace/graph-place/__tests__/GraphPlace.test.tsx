@@ -189,6 +189,36 @@ describe("the Graph place", () => {
         });
     });
 
+    it("hints a rule while typing and words a refused rule from its reason, without an uncaught error", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", weight: 5 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "=weight > 3");
+        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
+        await userEvent.keyboard("{Enter}");
+        const line = await screen.findByText("Put numbers in backticks: weight > `3`");
+        assert.equal(box.getAttribute("aria-invalid"), "true");
+        assert.notEqual(line.id, "");
+        assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
+        assert.equal(session.selection.size, 0);
+
+        await userEvent.clear(box);
+        await userEvent.type(box, "=weight > `3`{Enter}");
+        await waitFor(() => {
+            assert.equal(session.selection.size, 1);
+        });
+        assert.isNull(screen.queryByRole("alert"));
+        assert.notEqual(box.getAttribute("aria-invalid"), "true");
+    });
+
+    it("words any other refused rule with where it went wrong", async () => {
+        renderPlace(await sessionWithGraph());
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "=side == 'law' ~{Enter}");
+        assert.match((await screen.findByRole("alert")).textContent ?? "", /^Not a rule Find can read \(at character \d+\)$/);
+    });
+
     it("focuses the find box from the find.focus command, moving to the Graph place", async () => {
         const session = await sessionWithGraph();
         const store = renderPlace(session);

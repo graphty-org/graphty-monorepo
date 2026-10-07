@@ -218,8 +218,9 @@ export function breadthFirstSearch(g: AdjacencyView, startNode: NodeRef, options
 export interface DirectionOptimizedBfsOptions {
     /**
      * Switch from top-down to bottom-up once the frontier's out-arcs exceed the unvisited nodes'
-     * in-arcs divided by `alpha`. Default 1: switch once a top-down step would read more arcs than
-     * a bottom-up step can, since a bottom-up step reads at most the unvisited nodes' in-arcs.
+     * in-arcs divided by `alpha`. A bottom-up step reads at most the unvisited nodes' in-arcs, so with
+     * an alpha of 1 the search switches once a top-down step would read more arcs than a bottom-up
+     * step can. Default 1.
      */
     readonly alpha?: number | undefined;
     /** Switch back to top-down once the frontier shrinks below `nodeCount / beta` nodes. Default 18. */

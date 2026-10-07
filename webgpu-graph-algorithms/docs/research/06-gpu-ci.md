@@ -43,7 +43,7 @@ owner's dev box on 2026-09-14 with the probe scripts under
 4. **What runs where**: default lane = build, lint, typecheck, the whole
    Node correctness suite on lavapipe, plus a small Chromium browser smoke
    on SwiftShader (`--enable-unsafe-webgpu --use-angle=swiftshader
-   --enable-unsafe-swiftshader`; verified locally: Chromium 139 SwiftShader
+--enable-unsafe-swiftshader`; verified locally: Chromium 139 SwiftShader
    adapter gives bit-identical results to the NVIDIA adapter on the probe
    kernel). GPU lane = the same suite on NVIDIA with `GRAPHTY_GPU_REQUIRE=nvidia`
    (so a silent software fallback fails), the limit-dependent tests
@@ -68,18 +68,18 @@ owner's dev box on 2026-09-14 with the probe scripts under
 
 ## 1. Constraints taken from the project and the owner's account
 
-| Fact | Evidence |
-|---|---|
-| graphty-org is an Organization on the **free** plan | `gh api /orgs/graphty-org --jq '{login,type,plan:.plan.name}'` -> `{"login":"graphty-org","plan":"free","type":"Organization"}` (run 2026-09-14) |
-| graphty-monorepo is **public** | `gh repo view graphty-org/graphty-monorepo --json isPrivate` -> `false` |
-| No repository-level self-hosted runners exist on the monorepo today | `gh api /repos/graphty-org/graphty-monorepo/actions/runners --jq .total_count` -> `0`; org-level listing needs `admin:org` (403 with the current token) |
-| The WebGPU package is not yet on GitHub under graphty-org (package.json still points at `github.com/graphty/webgpu-graph-algorithms`) | `/home/apowers/Projects/webgpu-graph-algorithms/package.json` `repository.url`; `gh repo view graphty-org/webgpu-graph-algorithms` -> not found |
-| The existing scaffold workflow is stale: Node 18/20 matrix, `npm ci`, Xvfb, and `--use-gl=swiftshader --use-vulkan=swiftshader` (forces software) | `/home/apowers/Projects/webgpu-graph-algorithms/.github/workflows/test.yml`; `vitest.config.ts` lines 13-20 (and the `launch` key that Vitest 2.1 rejects, per `HEADLESS_GPU_REPORT.md` line 107-109) |
-| Dev box: Docker container, Ubuntu 22.04.5, glibc 2.35, RTX 4070 SUPER, driver 580.173.02, `NVIDIA_DRIVER_CAPABILITIES=all`, no Docker CLI or socket inside the container, no `libegl1` | `HEADLESS_GPU_REPORT.md` lines 25-43; `which docker` -> not found; `ls /var/run/docker.sock` -> missing (checked 2026-09-14) |
-| Working recipe for headless Chromium on the NVIDIA GPU: `libEGL.so.1` on `LD_LIBRARY_PATH` + `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface` | `HEADLESS_GPU_REPORT.md` lines 19-23, 165-196 |
-| Dawn-in-Node already used by graph-format's GPU audit tests; falls back to llvmpipe when the NVIDIA ICD cannot init | `packages/graph-format/test/audit/gpu-upload.test.ts` lines 11-16 and `acquire()` lines 37-64; `packages/graph-format/package.json` devDependency `"webgpu": "^0.4.0"` |
-| Design doc 14.5 currently says the WebGPU package gets "a browser-only vitest project (Playwright Chromium on the real GPU)" | `/home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md` lines 4212-4217. The owner's new request ("tested primarily under nodejs with some light browser testing") supersedes this; the note below assumes Node-first and flags the amendment in section 10. |
-| The GPU package never falls back to CPU | design doc line 4243-4244; `/home/apowers/Projects/webgpu-graph-algorithms/CLAUDE.md` |
+| Fact                                                                                                                                                                                       | Evidence                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| graphty-org is an Organization on the **free** plan                                                                                                                                        | `gh api /orgs/graphty-org --jq '{login,type,plan:.plan.name}'` -> `{"login":"graphty-org","plan":"free","type":"Organization"}` (run 2026-09-14)                                                                                                                                          |
+| graphty-monorepo is **public**                                                                                                                                                             | `gh repo view graphty-org/graphty-monorepo --json isPrivate` -> `false`                                                                                                                                                                                                                   |
+| No repository-level self-hosted runners exist on the monorepo today                                                                                                                        | `gh api /repos/graphty-org/graphty-monorepo/actions/runners --jq .total_count` -> `0`; org-level listing needs `admin:org` (403 with the current token)                                                                                                                                   |
+| The WebGPU package is not yet on GitHub under graphty-org (package.json still points at `github.com/graphty/webgpu-graph-algorithms`)                                                      | `/home/apowers/Projects/webgpu-graph-algorithms/package.json` `repository.url`; `gh repo view graphty-org/webgpu-graph-algorithms` -> not found                                                                                                                                           |
+| The existing scaffold workflow is stale: Node 18/20 matrix, `npm ci`, Xvfb, and `--use-gl=swiftshader --use-vulkan=swiftshader` (forces software)                                          | `/home/apowers/Projects/webgpu-graph-algorithms/.github/workflows/test.yml`; `vitest.config.ts` lines 13-20 (and the `launch` key that Vitest 2.1 rejects, per `HEADLESS_GPU_REPORT.md` line 107-109)                                                                                     |
+| Dev box: Docker container, Ubuntu 22.04.5, glibc 2.35, RTX 4070 SUPER, driver 580.173.02, `NVIDIA_DRIVER_CAPABILITIES=all`, no Docker CLI or socket inside the container, no `libegl1`     | `HEADLESS_GPU_REPORT.md` lines 25-43; `which docker` -> not found; `ls /var/run/docker.sock` -> missing (checked 2026-09-14)                                                                                                                                                              |
+| Working recipe for headless Chromium on the NVIDIA GPU: `libEGL.so.1` on `LD_LIBRARY_PATH` + `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface` | `HEADLESS_GPU_REPORT.md` lines 19-23, 165-196                                                                                                                                                                                                                                             |
+| Dawn-in-Node already used by graph-format's GPU audit tests; falls back to llvmpipe when the NVIDIA ICD cannot init                                                                        | `packages/graph-format/test/audit/gpu-upload.test.ts` lines 11-16 and `acquire()` lines 37-64; `packages/graph-format/package.json` devDependency `"webgpu": "^0.4.0"`                                                                                                                    |
+| Design doc 14.5 currently says the WebGPU package gets "a browser-only vitest project (Playwright Chromium on the real GPU)"                                                               | `/home/apowers/Projects/graphty-monorepo/design/graph-format/graph-format-design.md` lines 4212-4217. The owner's new request ("tested primarily under nodejs with some light browser testing") supersedes this; the note below assumes Node-first and flags the amendment in section 10. |
+| The GPU package never falls back to CPU                                                                                                                                                    | design doc line 4243-4244; `/home/apowers/Projects/webgpu-graph-algorithms/CLAUDE.md`                                                                                                                                                                                                     |
 
 ---
 
@@ -94,26 +94,23 @@ Only two workflows exist: `.github/workflows/build.yml` and `labels.yml`.
   all, which sidesteps the fork-PR problem for the self-hosted runner.
 - Job `lint`: `runs-on: ubuntu-latest`, Python 3.12, poetry, safety/bandit,
   ruff/black. This is the "runs without a GPU" part; **no tests** run here.
-- Job `build` (`needs: lint`):
-  - `runs-on: cudaffi-gpu-runner` -- a **single custom label**, i.e. a
-    self-hosted runner registered with that label (GitHub-hosted labels are
-    `ubuntu-*`/`windows-*`/`macos-*` or larger-runner names configured in an
-    org; `cudaffi-gpu-runner` is neither). The runner itself is not
-    visible: `gh api /repos/atoms-org/cuda-ffi/actions/runners` -> 0
-    repo-level runners; the org listing needs admin; and
-    `/actions/runs` returns `total_count: 0` today, so the runs have aged
-    out or the runner was org-level and since removed. The `atoms-org`
-    org is on the **team** plan (`gh api /orgs/atoms-org`), so org-level
-    runner groups were available to it.
-  - `container: image: ghcr.io/apowers313/roc-dev:1.5.2`, `env: CUDA_HOME,
-    LD_LIBRARY_PATH=/usr/local/cuda/lib64:...`, `options: "--gpus all
-    --user root"`. So the GPU reaches the job through **Docker on the
-    runner host with the NVIDIA container toolkit** (`--gpus all`), the
-    runner process itself being a plain self-hosted runner that has Docker.
-  - Runs `make test` (pytest), `make coverage` -> Coveralls, `make docs` ->
-    gh-pages deploy. **Every test needs the GPU; nothing is gated or
-    skipped** -- there is no GPU-detection in `tests/conftest.py` (it only
-    clears module state) and no marker.
+- Job `build` (`needs: lint`): - `runs-on: cudaffi-gpu-runner` -- a **single custom label**, i.e. a
+  self-hosted runner registered with that label (GitHub-hosted labels are
+  `ubuntu-*`/`windows-*`/`macos-*` or larger-runner names configured in an
+  org; `cudaffi-gpu-runner` is neither). The runner itself is not
+  visible: `gh api /repos/atoms-org/cuda-ffi/actions/runners` -> 0
+  repo-level runners; the org listing needs admin; and
+  `/actions/runs` returns `total_count: 0` today, so the runs have aged
+  out or the runner was org-level and since removed. The `atoms-org`
+  org is on the **team** plan (`gh api /orgs/atoms-org`), so org-level
+  runner groups were available to it. - `container: image: ghcr.io/apowers313/roc-dev:1.5.2`, `env: CUDA_HOME,
+LD_LIBRARY_PATH=/usr/local/cuda/lib64:...`, `options: "--gpus all
+--user root"`. So the GPU reaches the job through **Docker on the
+  runner host with the NVIDIA container toolkit** (`--gpus all`), the
+  runner process itself being a plain self-hosted runner that has Docker. - Runs `make test` (pytest), `make coverage` -> Coveralls, `make docs` ->
+  gh-pages deploy. **Every test needs the GPU; nothing is gated or
+  skipped** -- there is no GPU-detection in `tests/conftest.py` (it only
+  clears module state) and no marker.
 - Nothing in the repo documents how the runner was registered (no runner
   scripts, no `docker/` directory despite the `docker-build` Makefile
   target, no README note on CI). `pyproject.toml` lists `gputil` as a
@@ -132,12 +129,12 @@ better because the WebGPU package wants its correctness suite on every PR.
 
 ### 3.1 Options table
 
-| Option | Availability for graphty-org | Cost | Security | Latency / capacity | Maintenance | Verdict |
-|---|---|---|---|---|---|---|
-| **GitHub GPU-hosted larger runner** (Linux 4 vCPU, 28 GB, 1x Tesla T4 16 GB, 176 GB SSD; Windows too) | **Not available**: larger runners require GitHub Team or Enterprise Cloud; graphty-org is on the free plan. Also "not free for public repositories". | $0.052/min Linux, $0.102/min Windows (2026 pricing), billed even for public repos; needs a credit card and spending limit | GitHub-managed ephemeral VMs (best) | Fast queue; T4 is a 2018 datacenter part, fine for correctness, weak for perf baselines | Low; image is the NVIDIA GPU-Optimized partner image (conda permissions gotcha per scikit-learn's write-up); `modprobe nvidia` was needed in one report | Rejected for now; re-evaluate if the org moves to Team ($4/user/month) |
-| **Self-hosted runner on the dev box** (RTX 4070 SUPER in an Ubuntu 22.04 container) | Available today; org or repo level | Free for public repos (the March-2026 $0.002/min self-hosted platform charge does not apply: "Runner usage in public repositories will remain free"); electricity only | Weakest by default: GitHub says self-hosted runners "should almost never be used for public repositories" because fork PRs can run code on them. Mitigations: `--ephemeral`/JIT registration, never trigger from fork PRs, require approval for all external contributors, no secrets in the GPU job, dedicated container not the dev workspace | Zero queue when up; single runner, so one GPU job at a time; unavailable when the box is off | Medium: runner image (needs `libegl1`, `libvulkan1`, `mesa-vulkan-drivers`), driver updates, ephemeral restart loop, `--disableupdate` | **Recommended GPU lane** |
-| **Third-party runner provider in your own cloud** (RunsOn, Cirun, machine.dev) | RunsOn: `runs-on=${{ github.run_id }}/family=g4dn.xlarge/image=ubuntu24-gpu-x64` in your AWS account, GPU AMIs with NVIDIA driver + container toolkit; Cirun: free for open source, runners on AWS/GCP/Azure/..., `.cirun.yml` with `gpu: nvidia-tesla-t4`; machine.dev: `runs-on: machine/gpu=t4`, spot from ~$0.003/min | RunsOn: flat licence (commercial tier quoted at EUR 300/year) + AWS spot; Cirun: $0 platform for public repos + cloud bill; machine.dev per-minute | Ephemeral cloud VMs (good); cloud account credentials to manage | Cold start 1-3 min (VM boot); scales to N | Medium-high: AWS/GCP account, quotas for GPU instances (often need a support ticket), image drift | Good fallback if the dev box is unreliable; needs a cloud account the project does not have today |
-| **Software adapter on `ubuntu-latest`** -- Dawn-in-Node on Mesa **lavapipe**; Chromium on bundled **SwiftShader** (or lavapipe under xvfb) | Available today, free | $0 for public repos | GitHub-hosted ephemeral VM (best) | Slow per kernel (see 3.5) but correct; 4 vCPUs | Low: `apt-get install mesa-vulkan-drivers libvulkan1`; pin `webgpu` version | **Recommended default lane** |
+| Option                                                                                                                                     | Availability for graphty-org                                                                                                                                                                                                                                                                                              | Cost                                                                                                                                                                   | Security                                                                                                                                                                                                                                                                                                                                        | Latency / capacity                                                                           | Maintenance                                                                                                                                             | Verdict                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| **GitHub GPU-hosted larger runner** (Linux 4 vCPU, 28 GB, 1x Tesla T4 16 GB, 176 GB SSD; Windows too)                                      | **Not available**: larger runners require GitHub Team or Enterprise Cloud; graphty-org is on the free plan. Also "not free for public repositories".                                                                                                                                                                      | $0.052/min Linux, $0.102/min Windows (2026 pricing), billed even for public repos; needs a credit card and spending limit                                              | GitHub-managed ephemeral VMs (best)                                                                                                                                                                                                                                                                                                             | Fast queue; T4 is a 2018 datacenter part, fine for correctness, weak for perf baselines      | Low; image is the NVIDIA GPU-Optimized partner image (conda permissions gotcha per scikit-learn's write-up); `modprobe nvidia` was needed in one report | Rejected for now; re-evaluate if the org moves to Team ($4/user/month)                            |
+| **Self-hosted runner on the dev box** (RTX 4070 SUPER in an Ubuntu 22.04 container)                                                        | Available today; org or repo level                                                                                                                                                                                                                                                                                        | Free for public repos (the March-2026 $0.002/min self-hosted platform charge does not apply: "Runner usage in public repositories will remain free"); electricity only | Weakest by default: GitHub says self-hosted runners "should almost never be used for public repositories" because fork PRs can run code on them. Mitigations: `--ephemeral`/JIT registration, never trigger from fork PRs, require approval for all external contributors, no secrets in the GPU job, dedicated container not the dev workspace | Zero queue when up; single runner, so one GPU job at a time; unavailable when the box is off | Medium: runner image (needs `libegl1`, `libvulkan1`, `mesa-vulkan-drivers`), driver updates, ephemeral restart loop, `--disableupdate`                  | **Recommended GPU lane**                                                                          |
+| **Third-party runner provider in your own cloud** (RunsOn, Cirun, machine.dev)                                                             | RunsOn: `runs-on=${{ github.run_id }}/family=g4dn.xlarge/image=ubuntu24-gpu-x64` in your AWS account, GPU AMIs with NVIDIA driver + container toolkit; Cirun: free for open source, runners on AWS/GCP/Azure/..., `.cirun.yml` with `gpu: nvidia-tesla-t4`; machine.dev: `runs-on: machine/gpu=t4`, spot from ~$0.003/min | RunsOn: flat licence (commercial tier quoted at EUR 300/year) + AWS spot; Cirun: $0 platform for public repos + cloud bill; machine.dev per-minute                     | Ephemeral cloud VMs (good); cloud account credentials to manage                                                                                                                                                                                                                                                                                 | Cold start 1-3 min (VM boot); scales to N                                                    | Medium-high: AWS/GCP account, quotas for GPU instances (often need a support ticket), image drift                                                       | Good fallback if the dev box is unreliable; needs a cloud account the project does not have today |
+| **Software adapter on `ubuntu-latest`** -- Dawn-in-Node on Mesa **lavapipe**; Chromium on bundled **SwiftShader** (or lavapipe under xvfb) | Available today, free                                                                                                                                                                                                                                                                                                     | $0 for public repos                                                                                                                                                    | GitHub-hosted ephemeral VM (best)                                                                                                                                                                                                                                                                                                               | Slow per kernel (see 3.5) but correct; 4 vCPUs                                               | Low: `apt-get install mesa-vulkan-drivers libvulkan1`; pin `webgpu` version                                                                             | **Recommended default lane**                                                                      |
 
 ### 3.2 GitHub GPU-hosted runners: details verified
 
@@ -165,8 +162,8 @@ better because the WebGPU package wants its correctness suite on every PR.
 ### 3.3 Self-hosted runner on the dev box: details verified
 
 - Registration: `./config.sh --url https://github.com/<owner>/<repo>
-  --token <registration token> --ephemeral [--labels gpu,nvidia
-  --disableupdate --unattended]`; the registration token comes from
+--token <registration token> --ephemeral [--labels gpu,nvidia
+--disableupdate --unattended]`; the registration token comes from
   `POST /repos/{owner}/{repo}/actions/runners/registration-token` (expires
   after one hour). With `--ephemeral` "the GitHub Actions service will
   automatically de-register the runner after it has processed one job".
@@ -256,24 +253,24 @@ better because the WebGPU package wants its correctness suite on every PR.
   gather + scale (PageRank / attraction access pattern), 50 iterations,
   timed after warm-up (`tmp/webgpu-plan/probe/bench-node.mjs`):
 
-  | Adapter | 50 iterations | per iteration |
-  |---|---|---|
-  | lavapipe, 32 threads (dev box) | 60-76 ms | 1.2-1.5 ms |
-  | lavapipe, `LP_NUM_THREADS=4` (hosted-runner core count) | 166-273 ms | 3.3-5.5 ms |
-  | NVIDIA RTX 4070 SUPER via Dawn | 4-36 ms | 0.1-0.7 ms |
+    | Adapter                                                 | 50 iterations | per iteration |
+    | ------------------------------------------------------- | ------------- | ------------- |
+    | lavapipe, 32 threads (dev box)                          | 60-76 ms      | 1.2-1.5 ms    |
+    | lavapipe, `LP_NUM_THREADS=4` (hosted-runner core count) | 166-273 ms    | 3.3-5.5 ms    |
+    | NVIDIA RTX 4070 SUPER via Dawn                          | 4-36 ms       | 0.1-0.7 ms    |
 
-  All runs produce the same checksum (999.712 over the first 1,000 nodes)
-  on lavapipe, SwiftShader and NVIDIA, i.e. the software adapters are
-  numerically faithful for this f32 gather.
+    All runs produce the same checksum (999.712 over the first 1,000 nodes)
+    on lavapipe, SwiftShader and NVIDIA, i.e. the software adapters are
+    numerically faithful for this f32 gather.
 
-  The 1M-invocation trivial kernel (20 dispatches + readback) took 8 ms on
-  lavapipe vs 1 ms on NVIDIA. Device acquisition: 20-30 ms lavapipe,
-  ~140 ms NVIDIA. Expect lavapipe at 4 threads to be roughly 10-50x slower
-  than the 4070 per dispatch on memory-bound kernels; a suite whose
-  kernels total a few seconds on the GPU will take tens of seconds to a few
-  minutes on the hosted runner. wgpu's whole GPU test job on lavapipe
-  "is normally 5-15 minutes" (comment in its ci.yml), which is the right
-  order of magnitude to budget.
+    The 1M-invocation trivial kernel (20 dispatches + readback) took 8 ms on
+    lavapipe vs 1 ms on NVIDIA. Device acquisition: 20-30 ms lavapipe,
+    ~140 ms NVIDIA. Expect lavapipe at 4 threads to be roughly 10-50x slower
+    than the 4070 per dispatch on memory-bound kernels; a suite whose
+    kernels total a few seconds on the GPU will take tens of seconds to a few
+    minutes on the hosted runner. wgpu's whole GPU test job on lavapipe
+    "is normally 5-15 minutes" (comment in its ci.yml), which is the right
+    order of magnitude to budget.
 
 **Chromium on SwiftShader (default lane, browser smoke).**
 
@@ -298,8 +295,8 @@ better because the WebGPU package wants its correctness suite on every PR.
   with `apt-get install -y mesa-vulkan-drivers xvfb`, `xvfb-run -a`, a
   **headed** Chromium (`headless: false` when `CI` is set), flags
   `--enable-unsafe-webgpu --enable-features=Vulkan --disable-vulkan-surface
-  --ignore-gpu-blocklist --disable-gpu-driver-bug-workarounds
-  --disable-gpu-watchdog --no-sandbox`, and
+--ignore-gpu-blocklist --disable-gpu-driver-bug-workarounds
+--disable-gpu-watchdog --no-sandbox`, and
   `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json` -- i.e.
   Chromium on lavapipe rather than SwiftShader, 5 shards, 30 min timeout,
   and an exception list of demos that time out or render black. Its
@@ -310,7 +307,7 @@ better because the WebGPU package wants its correctness suite on every PR.
   Chromium's GPU process failed Skia init (`HEADLESS_GPU_REPORT.md` lines
   125-134), and the same configuration in today's probe crashed the browser
   before the page loaded (`page.route: Target page, context or browser has
-  been closed`), so Chromium-on-lavapipe is **not** used in this plan;
+been closed`), so Chromium-on-lavapipe is **not** used in this plan;
   SwiftShader is enough for a browser smoke and needs no apt packages. If a
   headed Chromium under `xvfb-run` on Mesa 25.x is ever wanted (three.js's
   setup), treat it as a separate experiment on the hosted runner.
@@ -337,12 +334,12 @@ that reads environment variables). Two variables:
 
 Test tiers, expressed as vitest projects (names are proposals):
 
-| Project | Environment | Runs on default lane | Runs on GPU lane |
-|---|---|---|---|
-| `node` | Node + Dawn: every kernel, primitive and algorithm correctness test, differential tests vs `@graphty/algorithms` / `@graphty/layout` CPU results, upload-plan tests with **faked limits** (the DispatchPlanner and upload planner take limits as data, so the 128 MiB / 2 GiB / windowed cases are unit tests, not device tests) | yes (lavapipe) | yes (NVIDIA, `GRAPHTY_GPU_REQUIRE=nvidia`) |
-| `node-limits` | Node + Dawn: tests that need real limits above lavapipe's (bindings > 128 MiB, `maxBufferSize` near 2 GiB, 2D dispatch above 16,776,960 invocations on real data), and vendor-specific feature assertions | skipped by project selection (not by runtime detection) | yes |
-| `bench` | Node + Dawn: `vitest bench` for the primitives and the force-directed step at 10k/100k/1M; compares against a checked-in baseline per runner class the way the monorepo's `performance` job does for algorithms (`ci.yml` lines 656-703: download baseline artifact, run, upload with 90-day retention) | no (numbers on lavapipe are meaningless) | yes |
-| `browser-smoke` | Vitest browser mode, Playwright Chromium: device acquisition, one upload + trivial kernel + readback, one small force-directed run, `LayoutSimulation` contract in a page. A handful of files, not a mirror of `node`. | yes, SwiftShader flags | yes, NVIDIA flags + `LD_LIBRARY_PATH` with libEGL (until the runner image has `libegl1`) |
+| Project         | Environment                                                                                                                                                                                                                                                                                                                      | Runs on default lane                                    | Runs on GPU lane                                                                         |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `node`          | Node + Dawn: every kernel, primitive and algorithm correctness test, differential tests vs `@graphty/algorithms` / `@graphty/layout` CPU results, upload-plan tests with **faked limits** (the DispatchPlanner and upload planner take limits as data, so the 128 MiB / 2 GiB / windowed cases are unit tests, not device tests) | yes (lavapipe)                                          | yes (NVIDIA, `GRAPHTY_GPU_REQUIRE=nvidia`)                                               |
+| `node-limits`   | Node + Dawn: tests that need real limits above lavapipe's (bindings > 128 MiB, `maxBufferSize` near 2 GiB, 2D dispatch above 16,776,960 invocations on real data), and vendor-specific feature assertions                                                                                                                        | skipped by project selection (not by runtime detection) | yes                                                                                      |
+| `bench`         | Node + Dawn: `vitest bench` for the primitives and the force-directed step at 10k/100k/1M; compares against a checked-in baseline per runner class the way the monorepo's `performance` job does for algorithms (`ci.yml` lines 656-703: download baseline artifact, run, upload with 90-day retention)                          | no (numbers on lavapipe are meaningless)                | yes                                                                                      |
+| `browser-smoke` | Vitest browser mode, Playwright Chromium: device acquisition, one upload + trivial kernel + readback, one small force-directed run, `LayoutSimulation` contract in a page. A handful of files, not a mirror of `node`.                                                                                                           | yes, SwiftShader flags                                  | yes, NVIDIA flags + `LD_LIBRARY_PATH` with libEGL (until the runner image has `libegl1`) |
 
 Test timeouts: keep `testTimeout: 30000` from the scaffold but give the
 lavapipe lane a per-file budget; if a single file exceeds ~2 min on
@@ -373,8 +370,8 @@ lines; they were for a WebGL-era setup.
 - `workflow_dispatch`,
 - `pull_request` with `types: [opened, synchronize, reopened, labeled]`
   **and** `if: github.event.pull_request.head.repo.full_name ==
-  github.repository && contains(github.event.pull_request.labels.*.name,
-  'gpu')` -- same-repo branches only, and only when a maintainer applies the
+github.repository && contains(github.event.pull_request.labels.*.name,
+'gpu')` -- same-repo branches only, and only when a maintainer applies the
   `gpu` label (the scikit-learn pattern; fork PRs cannot satisfy the first
   clause).
 
@@ -425,7 +422,7 @@ on:
     pull_request:
         types: [opened, synchronize, reopened, labeled]
     schedule:
-        - cron: "17 6 * * *"   # nightly GPU lane
+        - cron: "17 6 * * *" # nightly GPU lane
     workflow_dispatch:
 
 permissions:
@@ -465,7 +462,7 @@ jobs:
 
             - name: Node correctness suite on lavapipe
               env:
-                  GRAPHTY_GPU_ADAPTER: llvmpipe      # dawn.create(["adapter=llvmpipe"])
+                  GRAPHTY_GPU_ADAPTER: llvmpipe # dawn.create(["adapter=llvmpipe"])
                   VK_DRIVER_FILES: /usr/share/vulkan/icd.d/lvp_icd.x86_64.json
               run: npx vitest run --project=node --coverage
 
@@ -484,7 +481,7 @@ jobs:
 
             - name: Browser smoke on SwiftShader
               env:
-                  GRAPHTY_BROWSER_GPU: swiftshader   # vitest.config picks the flag set
+                  GRAPHTY_BROWSER_GPU: swiftshader # vitest.config picks the flag set
               run: npx vitest run --project=browser-smoke
 
             - uses: actions/upload-artifact@v4
@@ -510,10 +507,10 @@ jobs:
         runs-on: [self-hosted, linux, x64, gpu, nvidia]
         timeout-minutes: 45
         concurrency:
-            group: gpu-runner            # one GPU, one job at a time
+            group: gpu-runner # one GPU, one job at a time
             cancel-in-progress: false
         env:
-            GRAPHTY_GPU_REQUIRE: nvidia          # software fallback = failure
+            GRAPHTY_GPU_REQUIRE: nvidia # software fallback = failure
             # Until the runner image has libegl1 (HEADLESS_GPU_REPORT.md appendix D):
             LD_LIBRARY_PATH: /opt/egl/usr/lib/x86_64-linux-gnu
         steps:
@@ -535,7 +532,7 @@ jobs:
 
             - name: Browser smoke on the real GPU (headless Chromium, Vulkan)
               env:
-                  GRAPHTY_BROWSER_GPU: nvidia      # the four flags from HEADLESS_GPU_REPORT.md
+                  GRAPHTY_BROWSER_GPU: nvidia # the four flags from HEADLESS_GPU_REPORT.md
               run: npx vitest run --project=browser-smoke
 
             - uses: actions/upload-artifact@v4
@@ -753,26 +750,26 @@ the full dependency graph to know that -- the label is explicit.
 
 ## 7. Exact packages and flags for the software-adapter path (ubuntu-latest)
 
-| Need | Exactly | Evidence |
-|---|---|---|
-| Vulkan loader + lavapipe ICD for Dawn-in-Node | `sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1` (installs `/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`; Mesa 25.2.8 on noble-updates) | node-webgpu `build.yml` installs `mesa-vulkan-drivers libvulkan1`; three.js `ci.yml` installs `mesa-vulkan-drivers xvfb`; Launchpad noble mesa 25.2.8-0ubuntu0.24.04.2; local ICD path |
-| Deterministic adapter choice in Node | `dawn.create(["adapter=llvmpipe"])`; optionally `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json` (or the older `VK_ICD_FILENAMES`) | node-webgpu `test/webgpu.js`; verified locally with `webgpu@0.4.0` |
-| `webgpu` npm version | `0.4.0` (Linux binary needs `GLIBC_2.34`; `0.6.1` needs `GLIBC_2.38`). ubuntu-24.04 (glibc 2.39) could run 0.6.1, the 22.04 dev box cannot; keep one version. | `strings dist/linux-x64.dawn.node \| grep GLIBC_` on both tarballs (2026-09-14); Launchpad noble glibc 2.39; `HEADLESS_GPU_REPORT.md` line 31 |
-| Browser smoke on SwiftShader | Playwright Chromium (`npx playwright install chromium --with-deps`), headless, args `--enable-unsafe-webgpu --use-angle=swiftshader --enable-unsafe-swiftshader`; request the adapter with `powerPreference: "high-performance"` or default and accept `isFallbackAdapter: true` on this lane only | Chromium `docs/gpu/swiftshader.md`; local probe (adapter `google/swiftshader`, checksum equal to NVIDIA) |
-| Browser on real GPU (GPU lane) | headless Chromium args `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface`; `libEGL.so.1` reachable (package `libegl1`); assert `adapter.info.vendor === "nvidia"` | `HEADLESS_GPU_REPORT.md` lines 19-23, 165-196, 227-231; jasonmayes/headless-chrome-nvidia-t4-gpu-support flags (adds `--headless=new --no-sandbox`; warns `--disable-vulkan-surface` breaks canvas presentation, irrelevant for compute) |
-| Not needed | `xvfb`, `libgl1-mesa-glx`, `libegl1-mesa`, `vulkan-tools` (handy for `vulkaninfo --summary` debugging only), `--use-gl=swiftshader`, `--use-vulkan=swiftshader`, `--ignore-gpu-blocklist`, Dawn blocklist toggles | scaffold `test.yml` lines 27-44 are the WebGL-era list; `HEADLESS_GPU_REPORT.md` lines 240-241 |
-| Thread count on lavapipe | leave default (uses all vCPUs); `LP_NUM_THREADS` exists to pin it (used above to emulate 4 vCPUs) | measured locally |
-| Chromium hang on close after GPU work | wrap browser runs in a hard timeout; three.js SIGKILLs the process tree because `browser.close()` can hang | three.js `test/e2e/puppeteer.js` lines 262-273; reproduced locally on the NVIDIA path |
+| Need                                          | Exactly                                                                                                                                                                                                                                                                                            | Evidence                                                                                                                                                                                                                                 |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vulkan loader + lavapipe ICD for Dawn-in-Node | `sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1` (installs `/usr/share/vulkan/icd.d/lvp_icd.x86_64.json`; Mesa 25.2.8 on noble-updates)                                                                                                     | node-webgpu `build.yml` installs `mesa-vulkan-drivers libvulkan1`; three.js `ci.yml` installs `mesa-vulkan-drivers xvfb`; Launchpad noble mesa 25.2.8-0ubuntu0.24.04.2; local ICD path                                                   |
+| Deterministic adapter choice in Node          | `dawn.create(["adapter=llvmpipe"])`; optionally `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json` (or the older `VK_ICD_FILENAMES`)                                                                                                                                                    | node-webgpu `test/webgpu.js`; verified locally with `webgpu@0.4.0`                                                                                                                                                                       |
+| `webgpu` npm version                          | `0.4.0` (Linux binary needs `GLIBC_2.34`; `0.6.1` needs `GLIBC_2.38`). ubuntu-24.04 (glibc 2.39) could run 0.6.1, the 22.04 dev box cannot; keep one version.                                                                                                                                      | `strings dist/linux-x64.dawn.node \| grep GLIBC_` on both tarballs (2026-09-14); Launchpad noble glibc 2.39; `HEADLESS_GPU_REPORT.md` line 31                                                                                            |
+| Browser smoke on SwiftShader                  | Playwright Chromium (`npx playwright install chromium --with-deps`), headless, args `--enable-unsafe-webgpu --use-angle=swiftshader --enable-unsafe-swiftshader`; request the adapter with `powerPreference: "high-performance"` or default and accept `isFallbackAdapter: true` on this lane only | Chromium `docs/gpu/swiftshader.md`; local probe (adapter `google/swiftshader`, checksum equal to NVIDIA)                                                                                                                                 |
+| Browser on real GPU (GPU lane)                | headless Chromium args `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface`; `libEGL.so.1` reachable (package `libegl1`); assert `adapter.info.vendor === "nvidia"`                                                                                       | `HEADLESS_GPU_REPORT.md` lines 19-23, 165-196, 227-231; jasonmayes/headless-chrome-nvidia-t4-gpu-support flags (adds `--headless=new --no-sandbox`; warns `--disable-vulkan-surface` breaks canvas presentation, irrelevant for compute) |
+| Not needed                                    | `xvfb`, `libgl1-mesa-glx`, `libegl1-mesa`, `vulkan-tools` (handy for `vulkaninfo --summary` debugging only), `--use-gl=swiftshader`, `--use-vulkan=swiftshader`, `--ignore-gpu-blocklist`, Dawn blocklist toggles                                                                                  | scaffold `test.yml` lines 27-44 are the WebGL-era list; `HEADLESS_GPU_REPORT.md` lines 240-241                                                                                                                                           |
+| Thread count on lavapipe                      | leave default (uses all vCPUs); `LP_NUM_THREADS` exists to pin it (used above to emulate 4 vCPUs)                                                                                                                                                                                                  | measured locally                                                                                                                                                                                                                         |
+| Chromium hang on close after GPU work         | wrap browser runs in a hard timeout; three.js SIGKILLs the process tree because `browser.close()` can hang                                                                                                                                                                                         | three.js `test/e2e/puppeteer.js` lines 262-273; reproduced locally on the NVIDIA path                                                                                                                                                    |
 
 ---
 
 ## 8. Timeouts, artifacts, retention -- summary
 
-| Job | timeout-minutes | Artifacts | Retention |
-|---|---|---|---|
-| default `test` (Node on lavapipe + SwiftShader smoke) | 30 (wgpu budgets 30 for a 5-15 min lavapipe suite; three.js 30 per shard) | `coverage-webgpu-graph-algorithms` (lcov) | 1 day (matches monorepo) |
-| `test-gpu` | 45 | `gpu-results-*` (`gpu-report.json`, `bench/results.json`); no lcov | 90 days (matches `performance-baseline`) |
-| nightly `test-gpu` | 45 | same + open/refresh a tracking issue on failure (optional, `actions/github-script`) | 90 days |
+| Job                                                   | timeout-minutes                                                           | Artifacts                                                                           | Retention                                |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------- |
+| default `test` (Node on lavapipe + SwiftShader smoke) | 30 (wgpu budgets 30 for a 5-15 min lavapipe suite; three.js 30 per shard) | `coverage-webgpu-graph-algorithms` (lcov)                                           | 1 day (matches monorepo)                 |
+| `test-gpu`                                            | 45                                                                        | `gpu-results-*` (`gpu-report.json`, `bench/results.json`); no lcov                  | 90 days (matches `performance-baseline`) |
+| nightly `test-gpu`                                    | 45                                                                        | same + open/refresh a tracking issue on failure (optional, `actions/github-script`) | 90 days                                  |
 
 Split the default Node suite into two shards (`--shard=1/2`) if it passes
 ~10 min on lavapipe; the monorepo already shards graphty-element five ways

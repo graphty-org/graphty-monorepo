@@ -539,7 +539,11 @@ describe("GraphStore lifecycle", () => {
         store.touch();
         const s = store.getSnapshot();
         assert.strictEqual(s.directed, false);
-        assert.throws(() => store.builder.setDirected(true), /locked/, "config.data.directed wins over any later writer");
+        assert.throws(
+            () => store.builder.setDirected(true),
+            /locked/,
+            "config.data.directed wins over any later writer",
+        );
     });
 
     it("locks an explicitly DIRECTED builder too", () => {

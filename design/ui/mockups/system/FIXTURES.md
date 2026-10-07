@@ -15,18 +15,18 @@ them, and nothing else.
 
 ## 0. The three datasets, at a glance
 
-| | cat social network | fraud ring | ovarian STRING |
-|---|---|---|---|
-| File on screen | `cat-social-network.json` | `fraud-ring-synthetic.json` | `ovarian_de_string.tsv` |
-| Source of truth | REAL: `CAT_SOCIAL_NETWORK` in `graphty/src/data/sampleGraphs.ts` | INVENTED | INVENTED |
-| Nodes | 20 | 200 | 318 |
-| Edges | 29 | 612 | 1,104 |
-| Direction | undirected | directed | undirected |
-| Weight | `value` (1 to 10) | `amount` | `combined_score` (0.4 to 0.99) |
-| Time | none | `opened` (node date attribute) | none |
-| Mean degree | 2.9 | 6.1 | 6.9 |
-| Density | 0.153 | 0.031 | 0.022 |
-| Components | 1 | 1 | 1 |
+|                 | cat social network                                               | fraud ring                     | ovarian STRING                 |
+| --------------- | ---------------------------------------------------------------- | ------------------------------ | ------------------------------ |
+| File on screen  | `cat-social-network.json`                                        | `fraud-ring-synthetic.json`    | `ovarian_de_string.tsv`        |
+| Source of truth | REAL: `CAT_SOCIAL_NETWORK` in `graphty/src/data/sampleGraphs.ts` | INVENTED                       | INVENTED                       |
+| Nodes           | 20                                                               | 200                            | 318                            |
+| Edges           | 29                                                               | 612                            | 1,104                          |
+| Direction       | undirected                                                       | directed                       | undirected                     |
+| Weight          | `value` (1 to 10)                                                | `amount`                       | `combined_score` (0.4 to 0.99) |
+| Time            | none                                                             | `opened` (node date attribute) | none                           |
+| Mean degree     | 2.9                                                              | 6.1                            | 6.9                            |
+| Density         | 0.153                                                            | 0.031                          | 0.022                          |
+| Components      | 1                                                                | 1                              | 1                              |
 
 A fourth file appears on three boards and is included at the end because it
 carried a verified contradiction: `security-events-120k.csv`.
@@ -75,13 +75,13 @@ below stands as computed and only the pointer was repaired.
 
 The whole ranking is 4,4,4 then twelve 3s then five 2s.
 
-| rank | id | links |
-|---|---|---|
-| 1 | Mr_Whiskers | 4 |
-| 2 | The_Vet | 4 |
-| 3 | Mrs_Henderson | 4 |
-| 4 | Princess_Fluffington | 3 |
-| 5 | Garbage_Bandit | 3 |
+| rank | id                   | links |
+| ---- | -------------------- | ----- |
+| 1    | Mr_Whiskers          | 4     |
+| 2    | The_Vet              | 4     |
+| 3    | Mrs_Henderson        | 4     |
+| 4    | Princess_Fluffington | 3     |
+| 5    | Garbage_Bandit       | 3     |
 
 Distribution, exact and complete: **2 links: 5 nodes; 3 links: 12 nodes;
 4 links: 3 nodes.** 5 + 12 + 3 = 20. No node has 1 link, so that bin is not
@@ -89,11 +89,11 @@ drawn. Size legend domain: **1 to 4**.
 
 ### 1.4 Bridges (betweenness, normalized, unweighted, direction ignored)
 
-| rank | id | value |
-|---|---|---|
-| 1 | The_Vet | 0.35 |
-| 2 | Chonky_Boy | 0.28 |
-| 3 | Zoom_Zoom | 0.17 |
+| rank | id         | value |
+| ---- | ---------- | ----- |
+| 1    | The_Vet    | 0.35  |
+| 2    | Chonky_Boy | 0.28  |
+| 3    | Zoom_Zoom  | 0.17  |
 
 min 0.00, max 0.35. Neighbor_Dog_Rex is 0.00.
 
@@ -109,12 +109,12 @@ the real edge list rather than chosen.
 - Group internal density: Group 1 0.43, Group 2 0.40, Group 3 0.50, Group 4 1.00.
 - **Modularity 0.447**, COMPUTED. Not 0.537, which four boards printed. See 1.5.1.
 
-| group | members | internal edges | density |
-|---|---|---|---|
-| 1 | Mrs_Henderson, Chonky_Boy, Garbage_Bandit, Butterscotch, Old_Tom, Shadow_Ninja, Ghost_Cat | 9 | 9/21 = **0.43** |
-| 2 | Princess_Fluffington, Sir_Naps_A_Lot, The_Vet, Professor_Pawsington, Bella_Ballerina, Therapy_Cat_Whisper | 6 | 6/15 = **0.40** |
-| 3 | Zoom_Zoom, Window_Watcher_Wendy, Tiny_Terror, Midnight_Howler | 3 | 3/6 = **0.50** |
-| 4 | Mr_Whiskers, Mittens_The_Destroyer, Neighbor_Dog_Rex | 3 | 3/3 = **1.00** |
+| group | members                                                                                                   | internal edges | density         |
+| ----- | --------------------------------------------------------------------------------------------------------- | -------------- | --------------- |
+| 1     | Mrs_Henderson, Chonky_Boy, Garbage_Bandit, Butterscotch, Old_Tom, Shadow_Ninja, Ghost_Cat                 | 9              | 9/21 = **0.43** |
+| 2     | Princess_Fluffington, Sir_Naps_A_Lot, The_Vet, Professor_Pawsington, Bella_Ballerina, Therapy_Cat_Whisper | 6              | 6/15 = **0.40** |
+| 3     | Zoom_Zoom, Window_Watcher_Wendy, Tiny_Terror, Midnight_Howler                                             | 3              | 3/6 = **0.50**  |
+| 4     | Mr_Whiskers, Mittens_The_Destroyer, Neighbor_Dog_Rex                                                      | 3              | 3/3 = **1.00**  |
 
 9 + 6 + 3 + 3 = 21 internal edges; the other 8 of the 29 cross groups.
 Group 4 is the only triangle in the graph, which is why its density is 1.00.
@@ -138,6 +138,7 @@ checks out against that set:
   Butterscotch-Tiny_Terror, Old_Tom-Tiny_Terror. So **Group 2: 1 edge,
   Group 3: 2 edges, Group 4: 0 edges**. Matches (The_Vet in Group 2,
   Tiny_Terror in Group 3).
+
 ### 1.5.1 Modularity -- COMPUTED, 0.447
 
 Four boards printed **0.537**. With the membership above and the real edge
@@ -145,12 +146,12 @@ list, Newman modularity is
 
 Q = sum over groups of ( L_c / m - (d_c / 2m)^2 ), m = 29
 
-| group | internal edges L | degree sum d | L/m | (d/2m)^2 | term |
-|---|---|---|---|---|---|
-| 1 | 9 | 21 | 0.3103 | 0.1311 | 0.1793 |
-| 2 | 6 | 17 | 0.2069 | 0.0859 | 0.1210 |
-| 3 | 3 | 11 | 0.1034 | 0.0360 | 0.0675 |
-| 4 | 3 | 9 | 0.1034 | 0.0241 | 0.0794 |
+| group | internal edges L | degree sum d | L/m    | (d/2m)^2 | term   |
+| ----- | ---------------- | ------------ | ------ | -------- | ------ |
+| 1     | 9                | 21           | 0.3103 | 0.1311   | 0.1793 |
+| 2     | 6                | 17           | 0.2069 | 0.0859   | 0.1210 |
+| 3     | 3                | 11           | 0.1034 | 0.0360   | 0.0675 |
+| 4     | 3                | 9            | 0.1034 | 0.0241   | 0.0794 |
 
 **Q = 0.447.** Three decimals, the form the set already used. It still sits in
 the "clearly separated" band (above 0.3), so no reading's band word changes --
@@ -167,10 +168,10 @@ the graph holds 5 outdoor nodes, not the 7 that a 2.4 expectation implies, and
 Computed against the pinned Group 1 above and the real whole-graph counts
 (stray 4, indoor 7, outdoor 5, mixed 3, and C(20,7) = 77,520):
 
-| row | count in group | expected | raw p |
-|---|---|---|---|
-| `indoorOutdoor: stray` | 4 of 7 | 7 x 4 / 20 = 1.4 | C(4,4)C(16,3)/C(20,7) = 560/77520 = **0.01** |
-| `breed: mixed` | 2 of 7 | 7 x 3 / 20 = 1.1 | P(X>=2) = (3 x 6188 + 2380)/77520 = **0.27** |
+| row                    | count in group | expected         | raw p                                        |
+| ---------------------- | -------------- | ---------------- | -------------------------------------------- |
+| `indoorOutdoor: stray` | 4 of 7         | 7 x 4 / 20 = 1.4 | C(4,4)C(16,3)/C(20,7) = 560/77520 = **0.01** |
+| `breed: mixed`         | 2 of 7         | 7 x 3 / 20 = 1.1 | P(X>=2) = (3 x 6188 + 2380)/77520 = **0.27** |
 
 Group 1 holds all four strays (Garbage_Bandit, Shadow_Ninja, Old_Tom,
 Ghost_Cat) and two of the three mixed-breed cats (Garbage_Bandit, Old_Tom).
@@ -213,13 +214,13 @@ Attributes: 8 node, 4 edge.
 
 ### 2.2 Degree, top five -- the shared table
 
-| rank | id | links |
-|---|---|---|
-| 1 | merch-88 | 44 |
-| 2 | dev-19c2 | 40 |
-| 3 | acct-4471 | 37 |
-| 4 | ph-2076 | 31 |
-| 5 | acct-1187 | 24 |
+| rank | id        | links |
+| ---- | --------- | ----- |
+| 1    | merch-88  | 44    |
+| 2    | dev-19c2  | 40    |
+| 3    | acct-4471 | 37    |
+| 4    | ph-2076   | 31    |
+| 5    | acct-1187 | 24    |
 
 Graph maximum 44, minimum 1. **Every size-by-degree legend on this dataset
 reads `1 to 44, sqrt scale`**, and every degree histogram axis runs 1 to 44,
@@ -238,16 +239,16 @@ Same counts on every board that draws it, sums to 200, and is consistent with
 612 edges (midpoint degree sum 1,303, inside the 1,103 to 1,503 the bins allow
 for the true 1,224).
 
-| bin | nodes | | bin | nodes |
-|---|---|---|---|---|
-| 1 to 3 | 94 | | 25 to 27 | 2 |
-| 4 to 6 | 45 | | 28 to 30 | 1 |
-| 7 to 9 | 22 | | 31 to 33 | 1 (ph-2076) |
-| 10 to 12 | 12 | | 34 to 36 | no nodes |
-| 13 to 15 | 8 | | 37 to 39 | 1 (acct-4471) |
-| 16 to 18 | 5 | | 40 to 42 | 1 (dev-19c2) |
-| 19 to 21 | 4 | | 43 to 45 | 1 (merch-88) |
-| 22 to 24 | 3 | | | |
+| bin      | nodes |     | bin      | nodes         |
+| -------- | ----- | --- | -------- | ------------- |
+| 1 to 3   | 94    |     | 25 to 27 | 2             |
+| 4 to 6   | 45    |     | 28 to 30 | 1             |
+| 7 to 9   | 22    |     | 31 to 33 | 1 (ph-2076)   |
+| 10 to 12 | 12    |     | 34 to 36 | no nodes      |
+| 13 to 15 | 8     |     | 37 to 39 | 1 (acct-4471) |
+| 16 to 18 | 5     |     | 40 to 42 | 1 (dev-19c2)  |
+| 19 to 21 | 4     |     | 43 to 45 | 1 (merch-88)  |
+| 22 to 24 | 3     |     |          |               |
 
 The 34-to-36 bin is empty and is drawn as an empty track, never as a bar.
 The bell-shaped alternative (34/39/31/25/19/14/11/8/6/5/3/2/1/1/1) is
@@ -256,13 +257,13 @@ the 1,224 that 612 edges allow. It is retired.
 
 ### 2.4 Named node metrics
 
-| id | degree | betweenness | PageRank | group (of 7) |
-|---|---|---|---|---|
-| acct-4471 | 37, rank 3 | 0.41, rank 1 | 0.038, rank 1 | 3 |
-| dev-19c2 | 40, rank 2 | 0.33, rank 2 | 0.029, rank 3 | 3 |
-| ph-2076 | 31, rank 4 | 0.29, rank 3 | 0.026, rank 4 | 5 |
-| merch-88 | 44, rank 1 | -- | -- | -- |
-| acct-1187 | 24, rank 5 | -- | -- | -- |
+| id        | degree     | betweenness  | PageRank      | group (of 7) |
+| --------- | ---------- | ------------ | ------------- | ------------ |
+| acct-4471 | 37, rank 3 | 0.41, rank 1 | 0.038, rank 1 | 3            |
+| dev-19c2  | 40, rank 2 | 0.33, rank 2 | 0.029, rank 3 | 3            |
+| ph-2076   | 31, rank 4 | 0.29, rank 3 | 0.026, rank 4 | 5            |
+| merch-88  | 44, rank 1 | --           | --            | --           |
+| acct-1187 | 24, rank 5 | --           | --            | --           |
 
 acct-4471: In 14 / Out 23 / All 37 on the Neighbors tabs; 0.41 is "on 41% of
 the shortest paths"; top 0.5%, rank 1 of 200; opened 2026-03-18, country RO,
@@ -287,13 +288,13 @@ One partition per run record. Every list sums to 200.
 
 Types and instances are stated separately and never collapsed.
 
-| issue type | instances |
-|---|---|
-| repeated pairs (parallel edges) | 5 |
-| edges without amount | 14 |
-| non-date values in `opened` | 6 |
-| self-loops | 2 |
-| **4 types** | **27 issues** |
+| issue type                      | instances     |
+| ------------------------------- | ------------- |
+| repeated pairs (parallel edges) | 5             |
+| edges without amount            | 14            |
+| non-date values in `opened`     | 6             |
+| self-loops                      | 2             |
+| **4 types**                     | **27 issues** |
 
 Status chip: `4 data issues`, titled `4 issue types, 27 issues`. Panel stub:
 `4 issue types (27)`. No fraud board carries "3 issue types, 8 issues", and no

@@ -8,11 +8,11 @@
 
 ### 🚀 Features
 
-- ⚠️  **graph-format:** freeze the invariants and cut 1.0.0 ([#12](https://github.com/graphty-org/graphty-monorepo/issues/12))
+- ⚠️ **graph-format:** freeze the invariants and cut 1.0.0 ([#12](https://github.com/graphty-org/graphty-monorepo/issues/12))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **graph-format:** freeze the invariants and cut 1.0.0  ([#12](https://github.com/graphty-org/graphty-monorepo/issues/12))
+- **graph-format:** freeze the invariants and cut 1.0.0 ([#12](https://github.com/graphty-org/graphty-monorepo/issues/12))
   @graphty/graph-format is 1.0.0; invariants I1-I18 are frozen. FORMAT_VERSION stays
   1 and the wire stays [1, 0].
 

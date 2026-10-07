@@ -77,12 +77,7 @@ interface SetRestoreCommand {
 
 /** Every kept-set op. */
 export type SetCommand =
-    | SetCreateCommand
-    | SetRenameCommand
-    | SetRedefineCommand
-    | SetMembersCommand
-    | SetRemoveCommand
-    | SetRestoreCommand;
+    SetCreateCommand | SetRenameCommand | SetRedefineCommand | SetMembersCommand | SetRemoveCommand | SetRestoreCommand;
 
 /**
  * The session's sets, as the set ops reach them: each call checks one command against the sets

@@ -167,11 +167,11 @@ engine, and it fails for real defects. There are fewer than thirty such tests in
 
 Only two files in the package read real pixels, and between them they hold three tests:
 
-| Test | What it proves |
-|---|---|
-| `test/browser/style-paint-pixels.test.ts:251` "draws the element's own default colour, and says it is drawing it" | The element's base-layer node colour reaches the canvas |
-| `test/browser/style-paint-pixels.test.ts:269` "draws an algorithm's ramp, node by node, in the colours it reports" | An algorithm's colour encoding reaches the canvas at two nodes |
-| `test/browser/node-instance-color.test.ts:151` "two nodes of ONE source mesh are drawn in two colours" | Babylon can draw one source mesh in two per-instance colours. Two meshes placed by hand; no graph |
+| Test                                                                                                               | What it proves                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `test/browser/style-paint-pixels.test.ts:251` "draws the element's own default colour, and says it is drawing it"  | The element's base-layer node colour reaches the canvas                                           |
+| `test/browser/style-paint-pixels.test.ts:269` "draws an algorithm's ramp, node by node, in the colours it reports" | An algorithm's colour encoding reaches the canvas at two nodes                                    |
+| `test/browser/node-instance-color.test.ts:151` "two nodes of ONE source mesh are drawn in two colours"             | Babylon can draw one source mesh in two per-instance colours. Two meshes placed by hand; no graph |
 
 `style-paint-pixels.test.ts` is good work and it explains itself well (`:11`):
 
@@ -197,7 +197,7 @@ and two of them are deliberate:
   cannot catch a fault upstream of the model: if a layer resolves to nothing, `explain()` reports the
   base colour, the canvas shows the base colour, the two agree, and the test passes. Its one guard
   against that -- `assert.strictEqual(new Set(checked).size, 2, "the busiest node and the quietest
-  are not painted alike")` -- is built from the model's values, not the drawn pixels, so it detects a
+are not painted alike")` -- is built from the model's values, not the drawn pixels, so it detects a
   collapsed model rather than a collapsed picture.
 
 ### 4. Story tests -- 131 of them, with no assertions at all
@@ -435,13 +435,13 @@ bug landing, and it also covers `edge.label`, `node.labelStyle`, and layer remov
 This recommendation is no longer hypothetical. **Five uncommitted files of exactly these shapes are
 in the working tree right now**, written while fixing the bug:
 
-| File | Size | What it asserts |
-|---|---|---|
-| `test/helpers/paint-assertions.ts` | 429 lines, no tests | The shared assertions: has every element been painted by the stack at all, did a layer actually paint, did a write verb's run settle |
-| `test/browser/label-paint.test.ts` | 417 lines, 4 tests | Label words, edge-label words, label typography and label removal, read off real frames |
-| `test/browser/style-layer-ordering.test.ts` | 371 lines, 11 tests | A layer added in the order a render function must use survives and paints |
-| `test/browser/first-paint-after-load.test.ts` | 231 lines, 1 matrix | Three ways a graph arrives, times four moments a layer can be asked for |
-| `test/browser/story-contract.test.ts` | 185 lines, 3 tests | That `setup` only works under `renderFn`, the pairing nothing enforced |
+| File                                          | Size                | What it asserts                                                                                                                      |
+| --------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `test/helpers/paint-assertions.ts`            | 429 lines, no tests | The shared assertions: has every element been painted by the stack at all, did a layer actually paint, did a write verb's run settle |
+| `test/browser/label-paint.test.ts`            | 417 lines, 4 tests  | Label words, edge-label words, label typography and label removal, read off real frames                                              |
+| `test/browser/style-layer-ordering.test.ts`   | 371 lines, 11 tests | A layer added in the order a render function must use survives and paints                                                            |
+| `test/browser/first-paint-after-load.test.ts` | 231 lines, 1 matrix | Three ways a graph arrives, times four moments a layer can be asked for                                                              |
+| `test/browser/story-contract.test.ts`         | 185 lines, 3 tests  | That `setup` only works under `renderFn`, the pairing nothing enforced                                                               |
 
 `label-paint.test.ts` is the template for the frame-reading half. It counts near-black pixels in a
 90-pixel neighbourhood with a threshold of 70 per channel, takes every measurement before and after
@@ -499,43 +499,43 @@ described above change four rows once they land: `node.label`, `edge.label` and 
 gain frame coverage from `label-paint.test.ts`, and "two layer stacks producing two pictures" gains
 `style-layer-ordering.test.ts`. Everything else in the table is still true after they land.
 
-| Capability | Would a test fail if it stopped rendering? | Real-graph test files writing it | Stories | Where it stops |
-|---|---|---|---|---|
-| node.color, base layer | **Yes -- pixels** | 16 | 10 | `style-paint-pixels.test.ts:251` |
-| node.color, algorithm ramp | **Yes -- pixels** | 16 | 10 | `style-paint-pixels.test.ts:269`, two nodes only |
-| Per-instance colour on a shared mesh | **Yes -- pixels**, but not of a graph | n/a | n/a | `node-instance-color.test.ts:151`, hand-placed meshes |
-| Arrowhead position and orientation | **Yes -- geometry** | 2 | 6 | Real `Vector3.Distance` against computed expectations (26 tests) |
-| Node shape reattaching its edges | **Yes -- geometry** | 5 | 5 | `node-shape-edge-reattach.test.ts`, asserts a real move |
-| node.size | No | 6 | 4 | Resolved style: `assert.strictEqual(after?.style.shape?.size, 9)` |
-| node.shape as drawn | No | 5 | 5 | Mesh key identity, and `assert.isNotNull(mesh)` per shape name |
-| node.opacity | No | 1 | 2 | Resolved style; the closest to a drawn check anywhere is `assert.closeTo(mesh.visibility, 0.5, 0.01)` in `test/Edge.bezier.test.ts:161` |
-| edge.color | No | 5 | 9 | Resolved style. No pixel test can see an edge -- the sampler discards grey |
-| edge.width | No | 3 | 3 | Resolved style |
-| edge.style (9 dash patterns) | No | 1 | 2 | `assert.strictEqual(mesh.metadata.is2D, true)` -- a tag the code set on itself |
-| edge.opacity | No | 1 | 2 | Resolved style |
-| **node.label** | **No** | **0** | 6 | Resolved paint record only (`style-painter.test.ts:293`) |
-| **node.labelStyle** | **No** | **0** | 4 | Channel descriptor table only |
-| **edge.label** | **No** | **0** | 2 | Only the negative is asserted (`test/unit/edge-identity.test.ts:233`) |
-| **edge.labelStyle** | **No** | **0** | 2 | Channel descriptor table only |
-| **node.outline** | **No** | **0** | **0** | Glow-layer membership, from a hand-built config, never from the channel |
-| **node.glow** | **No** | **0** | **0** | As above |
-| **node.wireframe** | **No** | **0** | 2 | Resolved style |
-| **node.flat** | **No** | **0** | **0** | Nothing |
-| **node.tooltip** | **No** | **0** | **0** | Nothing |
-| **edge.curvature** | **No** | **0** | 1 | `assert.exists(mesh)`. A bezier that drew a straight line passes |
-| **edge.arrowTail** | **No** | **0** | 2 | Nothing |
-| **edge.animationSpeed** | **No** | **0** | **0** | Nothing |
-| **edge.tooltip** | **No** | **0** | **0** | Nothing |
-| Layer ordering (upper layer wins) | No | -- | 14 | Resolved value in a test-double repaint engine |
-| Two layer stacks producing two pictures | **No** | -- | 14 | Nothing compares one rendering to another, anywhere |
-| Selection highlighting | No | -- | 4 | `assert.equal(selected?.id, "node1")`. Nothing asserts it looks different |
-| Layout positions reaching the meshes | No | -- | -- | The `ElementPositions` array is asserted thoroughly; no test asserts the positions reached the node meshes |
-| Background colour and skybox | No | -- | -- | A config read. The pixel sampler classifies background as grey and skips it |
-| 2D vs 3D mode | No | -- | -- | Z flattening and `metadata.is2D` tags |
-| Camera framing, presets, zoomToFit | No | -- | -- | Camera parameters and bounding-box arithmetic |
-| Screenshot / video image content | **Impossible in three of the four projects** | -- | 2 | `test/setup.ts:9` stubs `CreateScreenshotAsync` to a fixed 1x1 white PNG for the `default`, `browser` and `interactions` projects. The 13 files in `test/browser/screenshot/` assert blob type and metadata |
-| Any story rendering as intended | **No** | -- | 131 | 131 generated tests with zero assertions |
-| The suite not silently shrinking | **No** | -- | -- | One test per story, so deleting stories reduces the count with everything still green |
+| Capability                              | Would a test fail if it stopped rendering?   | Real-graph test files writing it | Stories | Where it stops                                                                                                                                                                                              |
+| --------------------------------------- | -------------------------------------------- | -------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| node.color, base layer                  | **Yes -- pixels**                            | 16                               | 10      | `style-paint-pixels.test.ts:251`                                                                                                                                                                            |
+| node.color, algorithm ramp              | **Yes -- pixels**                            | 16                               | 10      | `style-paint-pixels.test.ts:269`, two nodes only                                                                                                                                                            |
+| Per-instance colour on a shared mesh    | **Yes -- pixels**, but not of a graph        | n/a                              | n/a     | `node-instance-color.test.ts:151`, hand-placed meshes                                                                                                                                                       |
+| Arrowhead position and orientation      | **Yes -- geometry**                          | 2                                | 6       | Real `Vector3.Distance` against computed expectations (26 tests)                                                                                                                                            |
+| Node shape reattaching its edges        | **Yes -- geometry**                          | 5                                | 5       | `node-shape-edge-reattach.test.ts`, asserts a real move                                                                                                                                                     |
+| node.size                               | No                                           | 6                                | 4       | Resolved style: `assert.strictEqual(after?.style.shape?.size, 9)`                                                                                                                                           |
+| node.shape as drawn                     | No                                           | 5                                | 5       | Mesh key identity, and `assert.isNotNull(mesh)` per shape name                                                                                                                                              |
+| node.opacity                            | No                                           | 1                                | 2       | Resolved style; the closest to a drawn check anywhere is `assert.closeTo(mesh.visibility, 0.5, 0.01)` in `test/Edge.bezier.test.ts:161`                                                                     |
+| edge.color                              | No                                           | 5                                | 9       | Resolved style. No pixel test can see an edge -- the sampler discards grey                                                                                                                                  |
+| edge.width                              | No                                           | 3                                | 3       | Resolved style                                                                                                                                                                                              |
+| edge.style (9 dash patterns)            | No                                           | 1                                | 2       | `assert.strictEqual(mesh.metadata.is2D, true)` -- a tag the code set on itself                                                                                                                              |
+| edge.opacity                            | No                                           | 1                                | 2       | Resolved style                                                                                                                                                                                              |
+| **node.label**                          | **No**                                       | **0**                            | 6       | Resolved paint record only (`style-painter.test.ts:293`)                                                                                                                                                    |
+| **node.labelStyle**                     | **No**                                       | **0**                            | 4       | Channel descriptor table only                                                                                                                                                                               |
+| **edge.label**                          | **No**                                       | **0**                            | 2       | Only the negative is asserted (`test/unit/edge-identity.test.ts:233`)                                                                                                                                       |
+| **edge.labelStyle**                     | **No**                                       | **0**                            | 2       | Channel descriptor table only                                                                                                                                                                               |
+| **node.outline**                        | **No**                                       | **0**                            | **0**   | Glow-layer membership, from a hand-built config, never from the channel                                                                                                                                     |
+| **node.glow**                           | **No**                                       | **0**                            | **0**   | As above                                                                                                                                                                                                    |
+| **node.wireframe**                      | **No**                                       | **0**                            | 2       | Resolved style                                                                                                                                                                                              |
+| **node.flat**                           | **No**                                       | **0**                            | **0**   | Nothing                                                                                                                                                                                                     |
+| **node.tooltip**                        | **No**                                       | **0**                            | **0**   | Nothing                                                                                                                                                                                                     |
+| **edge.curvature**                      | **No**                                       | **0**                            | 1       | `assert.exists(mesh)`. A bezier that drew a straight line passes                                                                                                                                            |
+| **edge.arrowTail**                      | **No**                                       | **0**                            | 2       | Nothing                                                                                                                                                                                                     |
+| **edge.animationSpeed**                 | **No**                                       | **0**                            | **0**   | Nothing                                                                                                                                                                                                     |
+| **edge.tooltip**                        | **No**                                       | **0**                            | **0**   | Nothing                                                                                                                                                                                                     |
+| Layer ordering (upper layer wins)       | No                                           | --                               | 14      | Resolved value in a test-double repaint engine                                                                                                                                                              |
+| Two layer stacks producing two pictures | **No**                                       | --                               | 14      | Nothing compares one rendering to another, anywhere                                                                                                                                                         |
+| Selection highlighting                  | No                                           | --                               | 4       | `assert.equal(selected?.id, "node1")`. Nothing asserts it looks different                                                                                                                                   |
+| Layout positions reaching the meshes    | No                                           | --                               | --      | The `ElementPositions` array is asserted thoroughly; no test asserts the positions reached the node meshes                                                                                                  |
+| Background colour and skybox            | No                                           | --                               | --      | A config read. The pixel sampler classifies background as grey and skips it                                                                                                                                 |
+| 2D vs 3D mode                           | No                                           | --                               | --      | Z flattening and `metadata.is2D` tags                                                                                                                                                                       |
+| Camera framing, presets, zoomToFit      | No                                           | --                               | --      | Camera parameters and bounding-box arithmetic                                                                                                                                                               |
+| Screenshot / video image content        | **Impossible in three of the four projects** | --                               | 2       | `test/setup.ts:9` stubs `CreateScreenshotAsync` to a fixed 1x1 white PNG for the `default`, `browser` and `interactions` projects. The 13 files in `test/browser/screenshot/` assert blob type and metadata |
+| Any story rendering as intended         | **No**                                       | --                               | 131     | 131 generated tests with zero assertions                                                                                                                                                                    |
+| The suite not silently shrinking        | **No**                                       | --                               | --      | One test per story, so deleting stories reduces the count with everything still green                                                                                                                       |
 
 Read the map as a prediction. **Thirteen renderable channels are written by no test that builds a
 real graph**, and six of those have no story either, so not even a working visual-diff service could
@@ -582,7 +582,7 @@ not a complete answer.
 1. **A story with no baseline.** One story is new in this change set: `ArrowHead` under
    `Styles/Edge`. A new story id has nothing to differ from -- Chromatic presents it as a fresh
    snapshot to accept. If it were born broken, accepting it is the only option offered, and from then
-   on the broken picture *is* the baseline. It sits in `stories/EdgeStyles.stories.ts`, all nine of
+   on the broken picture _is_ the baseline. It sits in `stories/EdgeStyles.stories.ts`, all nine of
    whose stories have no play function, so no test asserts anything about it either.
 2. **A channel no story exercises.** `node.outline`, `node.glow`, `node.flat`, `node.tooltip`,
    `edge.animationSpeed` and `edge.tooltip` appear in no story in the package. A snapshot service
@@ -593,7 +593,7 @@ not a complete answer.
    is handed a wall of legitimate diffs and must accept or deny each. "The labels are gone" is one
    row among hundreds, and bulk-accepting writes it into the baseline permanently. This is not
    hypothetical drift -- the raised thresholds above, and commits titled `05fa69de "test: fix flaky
-   chromatic tests"` and `4b2bd026 "test: passing chromatic builds (build number 149)"`, are its
+chromatic tests"` and `4b2bd026 "test: passing chromatic builds (build number 149)"`, are its
    fingerprints.
 
 Chromatic is a **change detector reviewed by a human**, and its reliability degrades exactly in
@@ -619,16 +619,16 @@ of test.** Eight commits on this branch touch `src/Node.ts`, `src/Edge.ts`, `src
 `src/session/styles/`. Every one of them also changed test files. Only two touched a test that reads
 a frame, and in both cases the test was the one being created:
 
-| Commit | Subject | Rendering source files | Test files | Story files | Frame test |
-|---|---|---|---|---|---|
-| `a4f8d2c0` | move graph data off the render objects into a store | 2 | 10 | 0 | -- |
-| `82af6b59` | give selection real sets and add a visibility model | 1 | 6 | 0 | -- |
-| `8036cc2d` | replace evaluated style expressions with declarative layers | 17 | 13 | 0 | -- |
-| `c3561815` | derive an algorithm's styling from what its result declares | 1 | 2 | 5 | -- |
-| `2d9648c2` | scope what an algorithm's layer paints, and register palettes | 7 | 4 | 0 | added `style-paint-pixels.test.ts` |
-| `ecf4461e` | name edge endpoints source and target, and give every edge its own id | 1 | 7 | 0 | -- |
-| `5f444b73` | give the layouts edge weights and keep a reader's pins | 1 | 15 | 0 | -- |
-| `e108753a` | settle the custom element's attributes and events | 3 | 7 | 0 | -- |
+| Commit     | Subject                                                               | Rendering source files | Test files | Story files | Frame test                         |
+| ---------- | --------------------------------------------------------------------- | ---------------------- | ---------- | ----------- | ---------------------------------- |
+| `a4f8d2c0` | move graph data off the render objects into a store                   | 2                      | 10         | 0           | --                                 |
+| `82af6b59` | give selection real sets and add a visibility model                   | 1                      | 6          | 0           | --                                 |
+| `8036cc2d` | replace evaluated style expressions with declarative layers           | 17                     | 13         | 0           | --                                 |
+| `c3561815` | derive an algorithm's styling from what its result declares           | 1                      | 2          | 5           | --                                 |
+| `2d9648c2` | scope what an algorithm's layer paints, and register palettes         | 7                      | 4          | 0           | added `style-paint-pixels.test.ts` |
+| `ecf4461e` | name edge endpoints source and target, and give every edge its own id | 1                      | 7          | 0           | --                                 |
+| `5f444b73` | give the layouts edge weights and keep a reader's pins                | 1                      | 15         | 0           | --                                 |
+| `e108753a` | settle the custom element's attributes and events                     | 3                      | 7          | 0           | --                                 |
 
 `35c48108` ("delete the old style system", 83 files, +5,194/-3,280) added the other frame test,
 `node-instance-color.test.ts`.
@@ -664,7 +664,7 @@ both about node colour, plus nothing that walks a story.
 `git log --all -S "extractLabelText" -- graphty-element/test/` returns nothing: no test in the
 history of this repository has ever named that method. The commit did assert the new negative
 (`test/unit/edge-identity.test.ts:233`, "draws no label on an edge nothing named"), which is the
-right instinct. Nothing anywhere asserts the positive -- that an edge somebody *did* name draws that
+right instinct. Nothing anywhere asserts the positive -- that an edge somebody _did_ name draws that
 name.
 
 **Twenty-six story files were rewritten under a commit typed `test`.** `ff12a515` ("test: drive a
@@ -685,14 +685,14 @@ tests ran against commit N's source.
 
 This is the part that turns a good test into no test.
 
-| Project | Tests | Pre-push hook | CI |
-|---|---|---|---|
-| `default` | 4,837 in 235 files | **Yes** | `graphty-element-default` |
-| `bench` | timing only | No | same shard |
-| `browser` (holds all 3 frame tests) | 1,481 in 116 files | **No** | `graphty-element-browser-1..5` |
-| `interactions` | 227 in 19 files | **No** | same 5 shards |
-| `storybook` | 131 in 29 files | **No** | `graphty-element-storybook-1..4` |
-| `llm-regression` | -- | **No** | **no shard at all** |
+| Project                             | Tests              | Pre-push hook | CI                               |
+| ----------------------------------- | ------------------ | ------------- | -------------------------------- |
+| `default`                           | 4,837 in 235 files | **Yes**       | `graphty-element-default`        |
+| `bench`                             | timing only        | No            | same shard                       |
+| `browser` (holds all 3 frame tests) | 1,481 in 116 files | **No**        | `graphty-element-browser-1..5`   |
+| `interactions`                      | 227 in 19 files    | **No**        | same 5 shards                    |
+| `storybook`                         | 131 in 29 files    | **No**        | `graphty-element-storybook-1..4` |
+| `llm-regression`                    | --                 | **No**        | **no shard at all**              |
 
 `tools/prepush.sh:98` is explicit about it:
 
@@ -719,7 +719,7 @@ shard.
 
 **Four of the five projects could not be run locally at all until recently.** `e8d29dae`
 ("test(graphty-element): repair the browser test projects, which never ran locally"), which landed
-*inside* this change set, reports: "Four vitest projects printed their banner and then produced no
+_inside_ this change set, reports: "Four vitest projects printed their banner and then produced no
 output, forever. They had never once passed on a development machine, while passing in CI the whole
 time." The pixel test added in `35c48108` was written into a project that could not be run locally
 and has never been run by CI.
@@ -766,14 +766,14 @@ and how it fails.
 returned run on the element (an array property, or a module-level `WeakMap` keyed by element --
 `renderFn` returns the element, so a play function can find it), and add a meta-level `play` in each
 story file that awaits them and asserts none was refused.
-*Catches:* every story whose layers the element rejects -- silently, today, for the reader and for
+_Catches:_ every story whose layers the element rejects -- silently, today, for the reader and for
 the test. That is the class the layered-style fault falls into.
-*Build cost:* one function plus a one-line addition to the 30 story files' `meta` objects. Half a
+_Build cost:_ one function plus a one-line addition to the 30 story files' `meta` objects. Half a
 day.
-*Run cost:* zero new test files; the 131 existing generated tests become real. Story tests that
+_Run cost:_ zero new test files; the 131 existing generated tests become real. Story tests that
 currently finish in 150ms will take as long as the layers take, which is the point.
-*How it fails:* a story that legitimately expects a refusal needs to say so. There are none today.
-*Note:* the global wait in `.storybook/preview.ts:119` must move out of `parameters` into each
+_How it fails:_ a story that legitimately expects a refusal needs to say so. There are none today.
+_Note:_ the global wait in `.storybook/preview.ts:119` must move out of `parameters` into each
 `meta`'s own `play` slot at the same time, or the 32 play-less stories will still be asserting
 against a graph that has not drawn a frame.
 
@@ -781,41 +781,41 @@ against a graph that has not drawn a frame.
 `test/helpers/paint-assertions.ts`, `test/browser/label-paint.test.ts`,
 `test/browser/style-layer-ordering.test.ts`, `test/browser/first-paint-after-load.test.ts` and
 `test/browser/story-contract.test.ts` already exist in the working tree and are the right shapes.
-*Catches:* the label fault, `edge.label`, `node.labelStyle`, label removal, both ordering defects,
+_Catches:_ the label fault, `edge.label`, `node.labelStyle`, label removal, both ordering defects,
 and the `setup`/`renderFn` pairing that nothing enforced.
-*Build cost:* already paid. The remaining work is making them the default habit rather than five
+_Build cost:_ already paid. The remaining work is making them the default habit rather than five
 one-offs: new appearance tests should import `paint-assertions.ts`, not reinvent a sampler.
-*Run cost:* measured on the sibling pixel test -- `style-paint-pixels.test.ts` is 1.8 seconds of test
+_Run cost:_ measured on the sibling pixel test -- `style-paint-pixels.test.ts` is 1.8 seconds of test
 time for two tests, 5.9 seconds wall including browser startup. These add roughly 19 tests of the
 same kind, so seconds, not minutes, in plain headless Chromium with no GPU flags.
-*How it fails:* `label-paint.test.ts`'s ink threshold is tuned to the element's default whitesmoke
+_How it fails:_ `label-paint.test.ts`'s ink threshold is tuned to the element's default whitesmoke
 background and indigo node. A future default in the same darkness range would need it revisited --
 so pin the background explicitly in the fixture rather than relying on the default.
 
 **3. Put the `browser` project in the pre-push gate.**
 `tools/prepush.sh:100` runs only `--project=default` for graphty-element. All frame tests are in
 `browser`.
-*Catches:* nothing new by itself. It is what makes items 2 and 4 actually run before code leaves a
+_Catches:_ nothing new by itself. It is what makes items 2 and 4 actually run before code leaves a
 machine, which is the difference between a test and a decoration.
-*Build cost:* one line.
-*Run cost:* the `browser` project is 1,481 tests. If that is too slow for a hook, run a named subset
+_Build cost:_ one line.
+_Run cost:_ the `browser` project is 1,481 tests. If that is too slow for a hook, run a named subset
 -- the two or three frame-test files -- rather than nothing.
-*How it fails:* a slow hook gets bypassed. Keep the subset small and explicit.
+_How it fails:_ a slow hook gets bypassed. Keep the subset small and explicit.
 
 **4. Fix `test:shards:parallel` so `npm test` can fail.**
 Replace the bare `wait` with per-job status collection, or run the three projects sequentially with
 `&&`. Every assertion added anywhere is worth less while the command a developer runs before pushing
 returns zero unconditionally.
-*Build cost:* one line.
-*Run cost:* sequential is slower; collecting PIDs and waiting on each keeps the parallelism.
-*How it fails:* it does not.
+_Build cost:_ one line.
+_Run cost:_ sequential is slower; collecting PIDs and waiting on each keeps the parallelism.
+_How it fails:_ it does not.
 
 **5. Push the branch, and do not bulk-accept the Chromatic build.**
 The first run will be a wall of legitimate diffs. Review the `Styles/Label`, `Styles/Layered` and
 `Styles/Edge` components row by row before accepting anything, and treat the one new story
 (`Styles/Edge` / `ArrowHead`) as having no safety net at all -- there is no baseline and no test.
-*Build cost:* reviewer time, once.
-*How it fails:* by the reviewer being tired. Which is why items 1, 2 and 7 exist.
+_Build cost:_ reviewer time, once.
+_How it fails:_ by the reviewer being tired. Which is why items 1, 2 and 7 exist.
 
 **6. Make "the order a render function must use" a required case, not an exotic one.**
 Every style test in the package loads the data first and awaits each edit; a story cannot do either.
@@ -824,13 +824,13 @@ first, sets the data second, and awaits nothing -- and must assert that every wr
 reached an answer. `test/browser/first-paint-after-load.test.ts` and
 `test/browser/style-layer-ordering.test.ts` (both uncommitted, see item 2) are that rule made
 concrete: a matrix of three load paths times four moments a layer can be asked for.
-*Catches:* the whole class of ordering defect that blanked over fifty stories while
+_Catches:_ the whole class of ordering defect that blanked over fifty stories while
 `property-order-independence.test.ts` reported 34 green variants of operation order, none of them
 the product's own.
-*Build cost:* the matrix exists. The ongoing cost is a convention, plus adding a row when a new load
+_Build cost:_ the matrix exists. The ongoing cost is a convention, plus adding a row when a new load
 path or write verb appears.
-*Run cost:* one real Babylon scene per cell.
-*How it fails:* a matrix grows combinatorially. Keep it to load paths times edit moments and resist
+_Run cost:_ one real Babylon scene per cell.
+_How it fails:_ a matrix grows combinatorially. Keep it to load paths times edit moments and resist
 adding channels to it -- channels belong in item 7.
 
 ### Do next
@@ -841,44 +841,44 @@ consequence differs from the unstyled default: for `node.label`, a label object 
 text matches; for `node.shape`, a different mesh key and different geometry; for `edge.arrowHead`,
 an arrow mesh with a transform. Drive the list off `CHANNEL_DESCRIPTORS` in
 `src/session/styles/channels.ts` so a new channel cannot be added without a row.
-*Catches:* the thirteen channels currently driven by no real-graph test, and it fails the build when
+_Catches:_ the thirteen channels currently driven by no real-graph test, and it fails the build when
 a twenty-second channel appears without one.
-*Build cost:* one file, a day or two. Most channels need only a mesh-existence or key-changed
+_Build cost:_ one file, a day or two. Most channels need only a mesh-existence or key-changed
 assertion, not pixels.
-*Run cost:* 21 cases on a small graph, seconds.
-*How it fails:* a channel whose consequence is genuinely invisible in the scene graph (a shader
+_Run cost:_ 21 cases on a small graph, seconds.
+_How it fails:_ a channel whose consequence is genuinely invisible in the scene graph (a shader
 uniform, say) needs a frame read instead. Expect two or three such exceptions and write them as
 frame tests.
 
 **8. A distinctness check per story family.**
 Build the element the way a story does, fingerprint the result from the scene graph (per node:
 resolved colour, mesh key, label text), and assert no two stories in a family share a fingerprint.
-*Catches:* "they all render identically", the exact reported symptom, for every family at once, with
+_Catches:_ "they all render identically", the exact reported symptom, for every family at once, with
 no reference image and no acceptance step.
-*Build cost:* one file plus a way to drive `stories/helpers.ts` from a test. Note that no file under
+_Build cost:_ one file plus a way to drive `stories/helpers.ts` from a test. Note that no file under
 `test/` imports `stories/helpers.ts` today, which is its own gap: the tests and the stories are two
 independent translation layers and only one of them is tested.
-*Run cost:* one mount per story in the families that have one, so seconds per family.
-*How it fails:* two stories that are genuinely meant to look the same need an allowlist. There are
+_Run cost:_ one mount per story in the families that have one, so seconds per family.
+_How it fails:_ two stories that are genuinely meant to look the same need an allowlist. There are
 none today.
 
 **9. Extend the existing pixel harness through `styles.add`, not only `styles.encode`.**
 `style-paint-pixels.test.ts` never calls `styles.add` with a selector -- the exact API the broken
 stories use. Two layers with disjoint expression selectors, then assert the two groups of nodes are
 not painted alike **in the frame** rather than in the model.
-*Catches:* a layer stack that resolves correctly and draws nothing, which the current
+_Catches:_ a layer stack that resolves correctly and draws nothing, which the current
 model-versus-canvas oracle cannot see by construction.
-*Build cost:* two tests in an existing file, an afternoon.
-*Run cost:* under a second each.
-*How it fails:* it does not cover edges, because the sampler discards grey. Accept that or give edges
+_Build cost:_ two tests in an existing file, an afternoon.
+_Run cost:_ under a second each.
+_How it fails:_ it does not cover edges, because the sampler discards grey. Accept that or give edges
 a saturated colour in the fixture.
 
 **10. Give the suite a floor.**
 Assert the story count, or that every story file contributes at least one test. Deleting nineteen
 stories currently produces a smaller green number and no signal.
-*Build cost:* one test.
-*Run cost:* milliseconds.
-*How it fails:* it needs updating whenever stories are deliberately added or removed, which is the
+_Build cost:_ one test.
+_Run cost:_ milliseconds.
+_How it fails:_ it needs updating whenever stories are deliberately added or removed, which is the
 intended behaviour.
 
 **11. Stop counting mock tests as element coverage.**
@@ -888,9 +888,9 @@ at the real `RichTextLabel` through a real engine, or move them out of the `defa
 headline number stops implying label coverage that does not exist. Delete or rewrite the ten
 tautological tests in `test/browser/Edge.label.test.ts` for the same reason -- they occupy the
 filename a person greps.
-*Catches:* nothing. It stops the suite from lying about what it covers, which is why nobody thought
+_Catches:_ nothing. It stops the suite from lying about what it covers, which is why nobody thought
 to write the real test.
-*Build cost:* a decision and a directory move, or a week to rewrite them properly against real
+_Build cost:_ a decision and a directory move, or a week to rewrite them properly against real
 meshes.
 
 **12. Re-home or delete `test/browser/dash-spacing-measurement.test.ts`.**

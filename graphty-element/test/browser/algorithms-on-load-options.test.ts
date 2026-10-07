@@ -85,8 +85,7 @@ function drawn(element: Graphty): Map<string, { radius: number; colour: string }
         element.graph.getNodes().map((node) => {
             node.mesh.computeWorldMatrix(true);
             const color = (node.mesh as InstancedMesh).instancedBuffers.color as
-                | { r: number; g: number; b: number }
-                | undefined;
+                { r: number; g: number; b: number } | undefined;
 
             return [
                 String(node.id),

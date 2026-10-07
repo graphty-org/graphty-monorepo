@@ -698,7 +698,11 @@ describe("the interner behind a mesh key", () => {
         interner.begin();
         interner.pushNumber(4999);
 
-        assert.strictEqual(interner.end(() => -1), 4999, "an existing style is found, not re-minted");
+        assert.strictEqual(
+            interner.end(() => -1),
+            4999,
+            "an existing style is found, not re-minted",
+        );
         assert.strictEqual(interner.size, 5000);
     });
 });
@@ -907,7 +911,11 @@ describe("the bindings the last pass painted from", () => {
         const entry = harness.stack().find((candidate) => candidate.layer.id === second.id);
 
         assert.isDefined(entry);
-        assert.deepStrictEqual(harness.engine.encoding(entry), [], "and it reports its own nothing, not the old layer's size ramp");
+        assert.deepStrictEqual(
+            harness.engine.encoding(entry),
+            [],
+            "and it reports its own nothing, not the old layer's size ramp",
+        );
     });
 
     /**

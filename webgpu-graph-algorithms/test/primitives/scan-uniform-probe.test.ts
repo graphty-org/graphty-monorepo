@@ -252,13 +252,11 @@ function buildPipeline(ctx: GpuContext, spec: PipelineSpec): ProbePipeline {
         ctx.device.createBindGroupLayout({ label: `${spec.label}/layout0`, entries: [] }),
         ctx.device.createBindGroupLayout({
             label: `${spec.label}/layout1`,
-            entries: spec.storage.map(
-                (type, binding): GPUBindGroupLayoutEntry => ({
-                    binding,
-                    visibility: ShaderStage.COMPUTE,
-                    buffer: { type },
-                }),
-            ),
+            entries: spec.storage.map((type, binding): GPUBindGroupLayoutEntry => ({
+                binding,
+                visibility: ShaderStage.COMPUTE,
+                buffer: { type },
+            })),
         }),
     ];
     if (spec.uniform) {
@@ -463,7 +461,11 @@ async function runRingCase(ctx: GpuContext, name: string, mode: RingMode): Promi
             constants: null,
         });
         const groups = uniforms.map((buffer, index) =>
-            bindGroupsOf(ctx, `${name}/${String(index)}`, pipe, [whole(out)], { buffer, offset: 0, size: PARAMS_BYTES }),
+            bindGroupsOf(ctx, `${name}/${String(index)}`, pipe, [whole(out)], {
+                buffer,
+                offset: 0,
+                size: PARAMS_BYTES,
+            }),
         );
         const encoder = ctx.device.createCommandEncoder({ label: name });
         const dispatch = (pass: GPUComputePassEncoder, slot: number): void => {
@@ -634,13 +636,7 @@ async function runScanShapeCase(ctx: GpuContext): Promise<ProbeReport> {
             uniform: false,
             constants: { WG, COUNT },
         });
-        const level0Groups = bindGroupsOf(
-            ctx,
-            `${name}/level0`,
-            level0,
-            [whole(src), whole(out), whole(sums0)],
-            null,
-        );
+        const level0Groups = bindGroupsOf(ctx, `${name}/level0`, level0, [whole(src), whole(out), whole(sums0)], null);
         const level1Groups = bindGroupsOf(
             ctx,
             `${name}/level1`,

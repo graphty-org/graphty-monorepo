@@ -74,16 +74,7 @@ export interface GeneratedGraph {
  * Available graph types for generation.
  */
 export type GraphType =
-    | "tree"
-    | "random"
-    | "grid"
-    | "cycle"
-    | "complete"
-    | "star"
-    | "path"
-    | "clusters"
-    | "bipartite"
-    | "multipartite";
+    "tree" | "random" | "grid" | "cycle" | "complete" | "star" | "path" | "clusters" | "bipartite" | "multipartite";
 
 /**
  * How the "random" graph places its nodes: "force-directed" runs a short force simulation after

@@ -253,16 +253,7 @@ const addEdge: UndoableDefinition<AddEdge> = {
 
 /** Every fake command. */
 export type FakeCommand =
-    | SetStyles
-    | SetConfig
-    | FailAfterWrite
-    | FailBeforeWrite
-    | Select
-    | Run
-    | Import
-    | AddNode
-    | Pin
-    | AddEdge;
+    SetStyles | SetConfig | FailAfterWrite | FailBeforeWrite | Select | Run | Import | AddNode | Pin | AddEdge;
 
 /** One slot on the fake queue. */
 interface FakeSlot {

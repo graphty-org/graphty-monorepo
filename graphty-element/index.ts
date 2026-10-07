@@ -47,7 +47,13 @@ import "./src/graphty-element";
 export { Edge } from "./src/Edge";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
-export type { GraphtyElementEventMap } from "./src/graphty-element";
+export type {
+    GraphtyCapabilitiesChangeDetail,
+    GraphtyElementEventMap,
+    GraphtyHistoryChangeDetail,
+    GraphtyNoteChangeDetail,
+    GraphtyRunChangeDetail,
+} from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";

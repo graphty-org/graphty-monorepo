@@ -2161,6 +2161,11 @@ export class Graphty extends LitElement {
 export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
 
 // @public
+export interface GraphtyCapabilitiesChangeDetail {
+    readonly capabilities: AccelerationCapabilities;
+}
+
+// @public
 export type GraphtyElementEventMap = {
     [K in keyof HTMLElementEventMap as K extends `graphty-${string}` ? K : never]: HTMLElementEventMap[K];
 };
@@ -2569,6 +2574,22 @@ export type GraphtyErrorTarget = {
     readonly kind: "scope";
     readonly id: string;
 };
+
+// @public
+export interface GraphtyHistoryChangeDetail {
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    readonly position: number;
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    readonly steps: number;
+    readonly version: number;
+}
+
+// @public
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+// @public
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
 
 // @public
 export type GraphtyWarningCode =

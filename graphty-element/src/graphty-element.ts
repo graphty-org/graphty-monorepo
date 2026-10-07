@@ -297,7 +297,7 @@ export class Graphty extends LitElement {
 
         this.dispatchEvent(
             new CustomEvent("graphty-run-change", {
-                detail: { run: change.run, phase: change.phase },
+                detail: { run: change.run, phase: change.phase } satisfies GraphtyRunChangeDetail,
                 bubbles: true,
                 composed: true,
             }),
@@ -389,7 +389,7 @@ export class Graphty extends LitElement {
                     steps: history.steps.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
-                },
+                } satisfies GraphtyHistoryChangeDetail,
                 bubbles: true,
                 composed: true,
             }),
@@ -482,7 +482,7 @@ export class Graphty extends LitElement {
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
                 new CustomEvent("graphty-note-change", {
-                    detail: { id, change, fields, cause },
+                    detail: { id, change, fields, cause } satisfies GraphtyNoteChangeDetail,
                     bubbles: true,
                     composed: true,
                 }),
@@ -4109,7 +4109,7 @@ export class Graphty extends LitElement {
                 this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
-                        detail: { capabilities: controller.capabilities },
+                        detail: { capabilities: controller.capabilities } satisfies GraphtyCapabilitiesChangeDetail,
                         bubbles: true,
                         composed: true,
                     }),
@@ -4143,6 +4143,37 @@ if (registered === undefined) {
     );
 }
 
+/** The detail of `graphty-run-change`: the run as it stands now, and which phase it reached. */
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+/**
+ * The detail of `graphty-history-change`: the undo cursor and what the next undo and redo would do,
+ * enough for an Undo and a Redo button. A history panel reads `session.history` for the steps.
+ */
+export interface GraphtyHistoryChangeDetail {
+    /** Why the history changed. */
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    /** `session.history.version`: bumps on every change. */
+    readonly version: number;
+    /** `session.history.position`: how many steps are applied. */
+    readonly position: number;
+    /** How many steps the history holds. */
+    readonly steps: number;
+    /** Whether an undo would do anything. */
+    readonly canUndo: boolean;
+    /** Whether a redo would do anything. */
+    readonly canRedo: boolean;
+}
+
+/** The detail of `graphty-note-change`: which note, what happened to it, and what caused it. */
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+/** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
+export interface GraphtyCapabilitiesChangeDetail {
+    /** The acceleration capabilities after the change. */
+    readonly capabilities: AccelerationCapabilities;
+}
+
 /*
  * The tag, declared to TypeScript.
  *
@@ -4166,21 +4197,14 @@ declare global {
     // on every element names nothing a page could already be using, and
     // `element.addEventListener("graphty-run-change", (e) => e.detail)` type-checks without a cast.
     interface HTMLElementEventMap {
-        "graphty-run-change": CustomEvent<Pick<RunChange, "run" | "phase">>;
+        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
         "graphty-progress-change": CustomEvent<ProgressChange>;
         "graphty-selection-change": CustomEvent<SelectionDelta>;
         "graphty-visibility-change": CustomEvent<VisibilityChange>;
-        "graphty-history-change": CustomEvent<{
-            readonly reason: SessionEventMap["history:changed"]["reason"];
-            readonly version: number;
-            readonly position: number;
-            readonly steps: number;
-            readonly canUndo: boolean;
-            readonly canRedo: boolean;
-        }>;
-        "graphty-note-change": CustomEvent<Pick<NoteChange, "id" | "change" | "fields" | "cause">>;
+        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
+        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
-        "graphty-capabilities-change": CustomEvent<{ readonly capabilities: AccelerationCapabilities }>;
+        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;
         "graphty-node-hover": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;

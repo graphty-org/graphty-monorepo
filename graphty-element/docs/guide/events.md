@@ -188,8 +188,8 @@ renderer is about to dispose.
 ```javascript
 // A run started, made progress, or finished. This is what a progress bar hangs off.
 element.addEventListener("graphty-run-change", (e) => {
-    const { run, phase } = e.detail; // phase: "start" | "progress" | "end" | "error"
-    console.log(run.label, phase, run.progress);
+    const { run, phase } = e.detail; // phase: "queued" | "start" | "progress" | "end" | "removed" | "restored"
+    console.log(run.label, phase, run.status); // how far it got arrives as graphty-progress-change
 });
 
 // Elements joined or left the selection. Only a real movement arrives -- selecting what is
@@ -247,7 +247,8 @@ See [Labels](./labels).
 ### graphty-history-change
 
 The undo history changed: a step was recorded, merged, undone or redone, or pending work started
-or finished. The detail is plain values, enough for an Undo and a Redo button:
+or finished. The detail (the exported type `GraphtyHistoryChangeDetail`) is plain values, enough
+for an Undo and a Redo button:
 
 ```javascript
 element.addEventListener("graphty-history-change", (e) => {

@@ -647,6 +647,19 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(shown).toBeLessThan(1400);
     });
 
+    it("a tooltip stays hidden until overlayBehavior has decided whether to hold it", async () => {
+        // The decision runs on the tooltip's mount animation. Its 1 ms can end a frame before
+        // animationstart is dispatched, so a tooltip must not depend on the animation to stay
+        // hidden: one whose mount was never seen (here, no animation at all) is not shown.
+        await renderFigma(
+            <div className="cm-tooltip" style={{ animation: "none" }}>
+                unseen
+            </div>,
+        );
+        await new Promise((r) => setTimeout(r, 50));
+        expect(computed(document.querySelector(".cm-tooltip") as HTMLElement).visibility).toBe("hidden");
+    });
+
     it("Tab from a visible tooltip's trigger hands off at once (warm), as the pointer does", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await commands.mouseAway();

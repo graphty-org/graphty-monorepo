@@ -19,7 +19,9 @@
  *
  * Tooltip and menu mounts are seen through the `cm-tooltip-mount` and `cm-overlay-mount`
  * animations the CSS gives them, whose `animationstart` bubbles to the document: no
- * MutationObserver over the whole page.
+ * MutationObserver over the whole page. A tooltip stays hidden until it is marked
+ * `data-cm-seen`: its 1 ms mount animation can end a frame before `animationstart` is
+ * dispatched, so the animation alone would let a focus-opened tooltip show before it is held.
  */
 import { TOOLTIP_CLOSE_DELAY, TOOLTIP_OPEN_DELAY } from "../../theme/styles/overlays";
 
@@ -35,9 +37,6 @@ const AUTO_SCROLL_STEP = 4;
 let installed = false;
 /** Until when (performance.now()) a focus-opened tooltip counts as a warm hand-off. */
 let warmUntil = 0;
-/** Tooltips whose mount has been seen (and held, when focus-opened); a newer one is not yet painted. */
-const seenTooltips = new WeakSet<Element>();
-
 /**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
  * @param except - the tooltip to ignore
@@ -47,7 +46,7 @@ function anotherTooltipVisible(except?: Element): boolean {
     return Array.from(document.querySelectorAll(".cm-tooltip")).some(
         (tooltip) =>
             tooltip !== except &&
-            seenTooltips.has(tooltip) &&
+            tooltip.hasAttribute("data-cm-seen") &&
             !tooltip.hasAttribute("data-cm-held") &&
             !tooltip.hasAttribute("data-cm-dismissed"),
     );
@@ -81,22 +80,31 @@ function dismissTooltips(): void {
 }
 
 /**
- * Hold a tooltip that opened on keyboard focus for the cold delay.
+ * Whether a tooltip that just mounted opened on keyboard focus while tooltips are cold.
+ * @param tooltip - the tooltip element that just mounted
+ * @returns true when it must wait the cold delay
+ */
+function mustHold(tooltip: HTMLElement): boolean {
+    const trigger = triggerOf(tooltip);
+    if (!trigger || trigger !== document.activeElement || trigger.matches(":hover")) {
+        return false;
+    }
+    return performance.now() >= warmUntil && !anotherTooltipVisible(tooltip);
+}
+
+/**
+ * Hold a tooltip that opened on keyboard focus for the cold delay, then mark it seen. The CSS
+ * hides a tooltip until it is seen, so it never shows before this decision.
  * @param tooltip - the tooltip element that just mounted
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
-    seenTooltips.add(tooltip);
-    const trigger = triggerOf(tooltip);
-    if (!trigger || trigger !== document.activeElement || trigger.matches(":hover")) {
-        return;
+    if (mustHold(tooltip)) {
+        tooltip.setAttribute("data-cm-held", "");
+        window.setTimeout(() => {
+            tooltip.removeAttribute("data-cm-held");
+        }, TOOLTIP_OPEN_DELAY);
     }
-    if (performance.now() < warmUntil || anotherTooltipVisible(tooltip)) {
-        return;
-    }
-    tooltip.setAttribute("data-cm-held", "");
-    window.setTimeout(() => {
-        tooltip.removeAttribute("data-cm-held");
-    }, TOOLTIP_OPEN_DELAY);
+    tooltip.setAttribute("data-cm-seen", "");
 }
 
 function menuRows(menu: Element): HTMLElement[] {

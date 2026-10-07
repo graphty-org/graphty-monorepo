@@ -14,7 +14,7 @@
  * bottom-up trio: a `fill` zeroing the frontier bitset, `bfs-bitset-build` setting the frontier's bits, and
  * `bfs-bottom-up` sweeping the unvisited list over the REVERSE core (each unvisited vertex reads its in-neighbours
  * until the first one in the bitset and claims itself), and last `bfs-next-degree` (the out-degree sum of whatever
- * the level claimed, into the block's `nextDegreeSum` word: Beamer's m_f for the NEXT boundary, measured on the
+ * the level claimed, into the block's `nextDegreeSum` word, while their in-degrees leave `unvisitedDegreeSum`: Beamer's m_f for the NEXT boundary, measured on the
  * frontier that boundary decides for -- issue #391, which found the previous proxy, the degree of the frontier just
  * expanded, one level stale and missing the switch at the level holding two thirds of the 1M / 10M R-MAT's arcs).
  * Every kernel is a grid-stride dispatch of a host-planned grid (`planGridStride`) that loops to its count word and
@@ -26,7 +26,7 @@
  * thousands of levels and a per-level `mapAsync` would be slower than the CPU. A level recorded past the end is a
  * no-op (its boundary finds `done` set, writes path 0 and moves no counter), so the loop needs no diameter and
  * ends on `done`; a traversal has at most `n` levels, so more submits than that is E_VALIDATION, never a hang. The
- * thresholds are uniform fields (`FUSED_FRONTIER_MAX`; alpha derived as `max(1, floor(arcCount / n))`, PD-21;
+ * thresholds are uniform fields (`FUSED_FRONTIER_MAX`; `BEAMER_ALPHA`, issue #1358;
  * `BEAMER_BETA`; `mode 1` pinning top-down -- each unless the tuning says otherwise), so a test forces any path
  * without recompiling; the block's `fusedLevels` / `twoPhaseLevels` / `bottomUpLevels` / `overflowLevels` /
  * `switches` words record which path each level took.
@@ -55,7 +55,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-format";
 
-import { BEAMER_BETA, FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../constants.js";
+import { BEAMER_ALPHA, BEAMER_BETA, FUSED_FRONTIER_MAX, MAX_LEVELS_PER_SUBMIT, U32_MAX } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
@@ -125,9 +125,9 @@ const RESULT_BATCH_SLOTS = 2 + 4 * 8;
  * @internal
  */
 export interface BfsTuning {
-    /** `"auto"` (default) lets the selector choose per level by Beamer's test; `"top-down"` disables the bottom-up candidate (`mode 1`). */
-    readonly direction?: "auto" | "top-down" | undefined;
-    /** Beamer's alpha (`max(1, floor(arcCount / n))` when absent, PD-21): top-down switches to bottom-up when the frontier's degree sum exceeds the unvisited degree sum divided by it and the frontier is growing. */
+    /** `"auto"` (default) lets the selector choose per level by Beamer's test; `"top-down"` disables the bottom-up candidate (`mode 1`); `"bottom-up"` switches in at every growing level whose frontier has an out-arc (`mode 2`; with `beta: 0` nothing switches back). */
+    readonly direction?: "auto" | "top-down" | "bottom-up" | undefined;
+    /** Beamer's alpha (`BEAMER_ALPHA` when absent, issue #1358): top-down switches to bottom-up when the frontier's out-degree sum exceeds the larger of the unvisited count and the unvisited in-degree sum divided by it, and the frontier is growing. */
     readonly alpha?: number | undefined;
     /** Beamer's beta (`BEAMER_BETA` when absent): bottom-up switches back when `next * beta < unvisitedCount` and the frontier is shrinking; 0 makes that half of the test true whenever anything is unvisited. */
     readonly beta?: number | undefined;
@@ -312,7 +312,7 @@ export async function bfsWithTuning(
     }
     const reverse = s.directed ? coreOfView(ctx.residency.view(s, "reverse"), s.arcCount) : core;
     const backward = coreWindows(reverse);
-    // the two degree views the unvisited rebuild reads (P8-T8)
+    // the two degree views: in-degrees for the unvisited rebuild and both for bfs-next-degree (P8-T8, issue #1358)
     const outDegree = degreeView(ctx, s, "outDegree");
     const inDegree = degreeView(ctx, s, "inDegree");
     const scope = algorithmScope(ctx, ALGORITHM, bfsRingSlots(forward.length, levelsPerSubmit));
@@ -378,7 +378,7 @@ export async function bfsWithTuning(
          */
         const recordRebuild = (pass: GPUComputePassEncoder): void => {
             const params = scope.params(FRONTIER_PARAMS, { wg, n, stride: flagsPlan.stride ?? n });
-            const bound = unvisited.bind({ outDegree, inDegree, depth, flags, counters, P: params.binding });
+            const bound = unvisited.bind({ inDegree, depth, flags, counters, P: params.binding });
             unvisited.dispatch(pass, bound, flagsPlan, [params.offset]);
             compact.record(pass, {
                 queue: iota,
@@ -410,8 +410,8 @@ export async function bfsWithTuning(
         // the levels: MAX_LEVELS_PER_SUBMIT per submit, four bytes back (PD-7); Beamer's test chooses the direction
         // per level (mode 0; mode 1 pins top-down), with the fused path below fusedMax (P8-T7)
         const fields: FrontierFinalizeFields = {
-            mode: tuning.direction === "top-down" ? 1 : 0,
-            alpha: tuning.alpha ?? Math.max(1, Math.floor(s.arcCount / n)),
+            mode: { auto: 0, "top-down": 1, "bottom-up": 2 }[tuning.direction ?? "auto"],
+            alpha: tuning.alpha ?? BEAMER_ALPHA,
             beta: tuning.beta ?? BEAMER_BETA,
             fusedMax: tuning.fusedMax ?? FUSED_FRONTIER_MAX,
             maxDepth,
@@ -503,11 +503,13 @@ export async function bfsWithTuning(
                     bottomUp.dispatch(pass, boundSweep, sweepPlan, [sweepParams.offset]);
                 }
                 // the next frontier's out-degree sum (issue #391): whichever path claimed, the vertices are in the output
-                // queue now, and the next boundary reads word 25 as Beamer's m_f for the frontier it is about to expand
+                // queue now, and the next boundary reads word 25 as Beamer's m_f for the frontier it is about to expand;
+                // their in-degrees leave unvisitedDegreeSum in the same pass (issue #1358)
                 const degreeParams = scope.params(FRONTIER_PARAMS, { wg, n, stride: degreePlan.stride ?? wg });
                 const boundDegree = nextDegree.bind({
                     frontier: frontier.output,
                     outDegree,
+                    inDegree,
                     counters,
                     P: degreeParams.binding,
                 });

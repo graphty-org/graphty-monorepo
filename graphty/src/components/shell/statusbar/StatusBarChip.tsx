@@ -85,8 +85,7 @@ function chipPadding(hasCaret: boolean): string {
 export function StatusBarChip(props: StatusBarChipProps): React.JSX.Element {
     const { children, title, leading, caret, caretSlot, onClick, muted } = props;
     const hasCaret = caret === true || caretSlot !== undefined;
-    const ground: React.CSSProperties =
-        muted === true ? { ...CHIP_STYLE, color: PANEL_INK.CHROME } : CHIP_STYLE;
+    const ground: React.CSSProperties = muted === true ? { ...CHIP_STYLE, color: PANEL_INK.CHROME } : CHIP_STYLE;
     // REGISTER-1.5 fixes the menu affordance as its own entry -- 8 px at stroke 2,
     // polyline "3,6 8,11 13,6" -- which is a different drawing from `UiGlyph`'s 12 px
     // disclosure chevron. Spec 02 section 4.2 slot 4: "Use the register."

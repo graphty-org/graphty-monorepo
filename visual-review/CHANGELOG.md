@@ -1,3 +1,13 @@
+## 0.2.13 (2026-10-07)
+
+### 🩹 Fixes
+
+- **visual-review:** compare a merge-queue batch with the commit it sits on ([2752fc86d](https://github.com/graphty-org/graphty-monorepo/commit/2752fc86d))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.2.12 (2026-10-06)
 
 ### 🚀 Features
@@ -179,12 +189,12 @@ This was a version bump only for visual-review to align it with other projects, 
 ### 🩹 Fixes
 
 - **visual-review:** an unseeded reference item counts as captured, so status stops alternating ([#632](https://github.com/graphty-org/graphty-monorepo/issues/632))
-- ⚠️  **visual-review:** every story needs an approved baseline before a merge ([a7f350b1](https://github.com/graphty-org/graphty-monorepo/commit/a7f350b1))
+- ⚠️ **visual-review:** every story needs an approved baseline before a merge ([a7f350b1](https://github.com/graphty-org/graphty-monorepo/commit/a7f350b1))
 - **visual-review:** fail closed on projects with no baselines ([6e413454](https://github.com/graphty-org/graphty-monorepo/commit/6e413454))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **visual-review:** every story needs an approved baseline before a merge  ([a7f350b1](https://github.com/graphty-org/graphty-monorepo/commit/a7f350b1))
+- **visual-review:** every story needs an approved baseline before a merge ([a7f350b1](https://github.com/graphty-org/graphty-monorepo/commit/a7f350b1))
   the gate fails every story without an approved baseline,
   and visual-review.config.json refuses the removed "gate" project setting.
 

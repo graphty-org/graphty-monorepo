@@ -103,15 +103,7 @@ export type Fa2Sim = ForceSimulation<ForceAtlas2Options, ForceAtlas2Stats>;
 
 /** The nine parity graphs paritySnapshot() builds (hub10k and rmat14 are the P4-T6 tier graphs: the same generators and seeds as fixture() in graphs.ts). */
 export type ParityGraph =
-    | "karate"
-    | "grid10"
-    | "star200"
-    | "random1k"
-    | "path10"
-    | "complete6"
-    | "isolated34"
-    | "hub10k"
-    | "rmat14";
+    "karate" | "grid10" | "star200" | "random1k" | "path10" | "complete6" | "isolated34" | "hub10k" | "rmat14";
 /** The four graphs of spec 11.4's force parity. */
 const PARITY_GRAPHS: readonly ParityGraph[] = Object.freeze(["karate", "grid10", "star200", "random1k"]);
 

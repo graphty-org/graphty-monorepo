@@ -1,3 +1,7 @@
+## 2.0.8 (2026-10-07)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 2.0.7 (2026-10-06)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
@@ -30,11 +34,11 @@ This was a version bump only for @graphty/remote-logger to align it with other p
 
 ### 🩹 Fixes
 
-- ⚠️  **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
+- ⚠️ **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge  ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
+- **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
   generateSelfSignedCert() from
   @graphty/remote-logger/server now returns Promise<GeneratedCert>,
   because selfsigned 5 generates asynchronously. Callers must await it.

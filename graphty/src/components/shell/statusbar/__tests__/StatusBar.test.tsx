@@ -143,7 +143,11 @@ describe("StatusBar", () => {
                     counts,
                     issues: { notes: { label: "5 notes", onClick: vi.fn() } },
                     layout,
-                    running: { label: "Computing Bridges (betweenness)... 42%", cancellable: true, percentLabel: "42%" },
+                    running: {
+                        label: "Computing Bridges (betweenness)... 42%",
+                        cancellable: true,
+                        percentLabel: "42%",
+                    },
                     selection: { label: "1 selected" },
                     viewing: { label: "Viewing: 2026-01-05 to 2026-02-04" },
                     xr: { mode: "VR", onExit: vi.fn() },

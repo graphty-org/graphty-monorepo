@@ -414,7 +414,10 @@ interface DirectionBoundary {
  * @param depth - the settled depths
  * @returns the sizes and the out-degree sums, indexed by level
  */
-export function levelStatsOf(s: GraphSnapshot, depth: U32): { readonly sizes: number[]; readonly degreeSums: number[] } {
+export function levelStatsOf(
+    s: GraphSnapshot,
+    depth: U32,
+): { readonly sizes: number[]; readonly degreeSums: number[] } {
     const sizes: number[] = [];
     const degreeSums: number[] = [];
     for (let v = 0; v < depth.length; v++) {

@@ -377,14 +377,7 @@ export type ShellCommandId =
  * Where a binding applies, as 5.6's Scope column names it.
  */
 export type KeyBindingScope =
-    | "ai-console"
-    | "canvas"
-    | "drop-zone"
-    | "global"
-    | "inspector-notes"
-    | "insights-strip"
-    | "panel"
-    | "time-slider";
+    "ai-console" | "canvas" | "drop-zone" | "global" | "inspector-notes" | "insights-strip" | "panel" | "time-slider";
 
 /**
  * Who fires the binding. "dispatcher" is the shell's single keydown dispatcher;

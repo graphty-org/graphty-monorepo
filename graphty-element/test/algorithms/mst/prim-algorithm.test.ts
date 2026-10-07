@@ -24,7 +24,6 @@ describe("PrimAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "prim");
             assert.strictEqual(AlgClass, PrimAlgorithm);
         });
-
     });
 
     describe("Configuration", () => {

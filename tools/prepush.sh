@@ -25,6 +25,14 @@ cd "$ROOT_DIR"
 # landed on the branch being pushed. No step needs them; each runs from this directory.
 unset $(git rev-parse --local-env-vars)
 
+# A push to a pull request in Mergify's merge queue dequeues it and throws away its batch run, so it
+# is refused before the gate starts (ALLOW_PUSH_WHILE_QUEUED=1 for a deliberate one). It checks the
+# checked-out branch, the one this gate tests.
+PUSH_BRANCH="$(git symbolic-ref --short -q HEAD)"
+if [ -n "$PUSH_BRANCH" ] && ! node tools/queued-push-guard.mjs "$PUSH_BRANCH"; then
+    exit 1
+fi
+
 # node_modules must match the lockfile, or everything below runs against dependency versions CI
 # (pnpm install --frozen-lockfile) does not have. pnpm copies the lockfile it installed from to
 # node_modules/.pnpm/lock.yaml, byte for byte.
@@ -99,9 +107,8 @@ run_step "No signing bypass in tools/ and .husky/" \
 # (2026-10-05). They run first and on every push, docs-only pushes included, so the commonest
 # failures stop the gate before the build starts.
 
-# Prettier on the files this branch adds or modifies. The tree is not formatted as a whole yet
-# (issue #239), so this stops new drift without asking a branch to reformat what it never touched.
-run_step "Formatting (changed files)" "pnpm run format:check:changed"
+# Prettier on the whole tree (issue #239).
+run_step "Formatting" "pnpm run format:check"
 
 # Every package that has its own eslint.config.js is linted with that file alone, so it must spread
 # the root config; a stale copy silently drops every rule the root gained since. Run for every push,

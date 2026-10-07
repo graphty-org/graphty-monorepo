@@ -24,6 +24,5 @@ describe("LabelPropagationAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "label-propagation");
             assert.strictEqual(AlgClass, LabelPropagationAlgorithm);
         });
-
     });
 });

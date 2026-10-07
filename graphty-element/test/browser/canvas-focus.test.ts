@@ -57,7 +57,9 @@ describe("canvas focus", () => {
             window.scrollTo(0, 0);
             assert.strictEqual(window.scrollY, 0);
 
-            canvas.dispatchEvent(new PointerEvent("pointerdown", { clientX: 10, clientY: 10, button: 0, bubbles: true }));
+            canvas.dispatchEvent(
+                new PointerEvent("pointerdown", { clientX: 10, clientY: 10, button: 0, bubbles: true }),
+            );
 
             assert.strictEqual(document.activeElement, canvas, `${mode}: pointer down did not focus the canvas`);
             assert.strictEqual(window.scrollY, 0, `${mode}: focusing the canvas scrolled the page`);

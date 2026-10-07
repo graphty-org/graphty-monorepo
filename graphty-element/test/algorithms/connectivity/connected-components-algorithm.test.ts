@@ -24,6 +24,5 @@ describe("ConnectedComponentsAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "connected-components");
             assert.strictEqual(AlgClass, ConnectedComponentsAlgorithm);
         });
-
     });
 });

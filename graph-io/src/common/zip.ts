@@ -317,7 +317,7 @@ function zip64Extra(
     fields: { compressedSize: number; size: number; localOffset: number },
 ): { compressedSize: number; size: number; localOffset: number } {
     const out = { ...fields };
-    for (let p = at; p + 4 <= at + length; ) {
+    for (let p = at; p + 4 <= at + length;) {
         const id = view.getUint16(p, true);
         const dataLength = view.getUint16(p + 2, true);
         if (id === 1) {

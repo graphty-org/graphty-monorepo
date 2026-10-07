@@ -1,11 +1,11 @@
 /**
  * The Data place's words and arrangement (tier1-design.md section 2.6): what each Sources row and
  * each Attributes row says, in which order. Every fact comes from graphty-element
- * (`data.source()`, `data.lastImport()`, `data.attributes()`); this file only words and orders it.
+ * (`data.sources()`, `data.lastImport()`, `data.attributes()`); this file only words and orders it.
  */
 
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { CodedFact, ColumnRef, DataSourceDescriptor, ImportReport } from "@graphty/graphty-element/session";
+import type { CodedFact, ColumnRef, ImportReport, LoadedSource } from "@graphty/graphty-element/session";
 
 /** What a Sources row's glyph shows: a graph file holding both tables, or one table. */
 export type SourceKind = "file" | "nodes" | "edges";
@@ -54,27 +54,72 @@ export function count(n: number, noun: string): string {
 }
 
 /**
- * The Sources rows for what the element says was loaded. A graph file that brought both node and
- * edge records is one row that expands to its node table and edge table; a source that brought
- * one kind of record is that one table.
- * @param source - `data.source()`.
+ * What a load added, as its row's quiet line.
+ * @param added - `LoadedSource.added`.
+ * @returns such as "20 nodes, 41 edges".
+ */
+function addedWords(added: LoadedSource["added"]): string {
+    return `${count(added.nodes, "node")}, ${count(added.edges, "edge")}`;
+}
+
+/**
+ * The glyph of a load that read one table: a graph file when it brought both nodes and edges.
+ * @param added - `LoadedSource.added`.
+ * @returns the kind.
+ */
+function kindOf(added: LoadedSource["added"]): SourceKind {
+    if (added.nodes > 0 && added.edges > 0) {
+        return "file";
+    }
+    return added.edges > 0 ? "edges" : "nodes";
+}
+
+/**
+ * The Sources rows for what the element says was loaded: one row per load, oldest first
+ * (`data.sources()`). A load that read several tables expands to them. A graph that came from one
+ * load of one table keeps the tier 1 rows: a graph file expands to its node table and edge table
+ * (counted from `data.lastImport()`), and a source that brought one kind of record is that table.
+ * @param sources - `data.sources()`.
  * @param report - `data.lastImport()`.
  * @returns the rows, empty when nothing was imported.
  */
-export function sourceRows(source: DataSourceDescriptor | null, report: ImportReport | null): SourceRow[] {
-    if (source === null || report === null) {
-        return [];
+export function sourceRows(sources: readonly LoadedSource[], report: ImportReport | null): SourceRow[] {
+    const [only] = sources;
+    if (sources.length === 1 && only.tables.length <= 1 && report !== null) {
+        return oneTableRows(only.name ?? "Untitled data", report);
     }
-    const name = source.name ?? "Untitled data";
+    return sources.map((load, index) => {
+        const id = `source:${String(index)}`;
+        const name = load.name ?? (load.tables.join(" and ") || "Untitled data");
+        if (load.tables.length > 1) {
+            const children = load.tables.map((table, at): SourceRow => ({
+                id: `${id}:${String(at)}`,
+                kind: "file",
+                name: table,
+                quiet: "",
+            }));
+            return { id, kind: "file", name, quiet: addedWords(load.added), children };
+        }
+        return { id, kind: kindOf(load.added), name, quiet: addedWords(load.added) };
+    });
+}
+
+/**
+ * The rows for a graph that came from one load of one table.
+ * @param name - the load's name.
+ * @param report - `data.lastImport()`.
+ * @returns the rows.
+ */
+function oneTableRows(name: string, report: ImportReport): SourceRow[] {
     const { nodes, edges, nodeRecords, edgeRecords } = report.counts;
     const nodeTable: SourceRow = {
-        id: "source:nodes",
+        id: "source:0:nodes",
         kind: "nodes",
         name: "Node table",
         quiet: `${count(nodeRecords, "row")}, ${count(nodes, "node")}`,
     };
     const edgeTable: SourceRow = {
-        id: "source:edges",
+        id: "source:0:edges",
         kind: "edges",
         name: "Edge table",
         quiet: `${count(edgeRecords, "row")}, ${count(edges, "edge")}`,
@@ -82,7 +127,7 @@ export function sourceRows(source: DataSourceDescriptor | null, report: ImportRe
     if (nodeRecords > 0 && edgeRecords > 0) {
         return [
             {
-                id: "source",
+                id: "source:0",
                 kind: "file",
                 name,
                 quiet: `${count(nodes, "node")}, ${count(edges, "edge")}`,
@@ -91,8 +136,25 @@ export function sourceRows(source: DataSourceDescriptor | null, report: ImportRe
         ];
     }
     // A lone node table reads "77 nodes"; only an edge table counts its rows (section 2.6).
-    const only = edgeRecords > 0 ? edgeTable : { ...nodeTable, quiet: count(nodes, "node") };
-    return [{ ...only, id: "source", name }];
+    const table = edgeRecords > 0 ? edgeTable : { ...nodeTable, quiet: count(nodes, "node") };
+    return [{ ...table, id: "source:0", name }];
+}
+
+/**
+ * The graph header's provenance line: the one file the graph came from, or how many.
+ * @param sources - `data.sources()`.
+ * @returns such as "From friends.csv" or "From 3 files"; undefined when nothing was loaded.
+ */
+export function sourcesWords(sources: readonly LoadedSource[]): string | undefined {
+    const files = sources.flatMap((load) =>
+        load.tables.length > 1 ? load.tables : [load.name ?? load.tables[0] ?? "Untitled data"],
+    );
+    if (files.length <= 1) {
+        return files.length === 0 ? undefined : `From ${files[0]}`;
+    }
+    // A URL is not a file.
+    const noun = sources.some((load) => load.config?.url !== undefined) ? "sources" : "files";
+    return `From ${String(files.length)} ${noun}`;
 }
 
 /**

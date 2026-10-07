@@ -10,7 +10,7 @@
 import { browserProjects, type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
 
 import type { CommandContext } from "../commands/registry";
-import { openDataPage } from "../data-page/request";
+import { openDataPage, rememberLoad } from "../data-page/request";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, type RecentProject, refreshStored, rememberRecent } from "./recent";
@@ -369,6 +369,7 @@ async function openInSession(
         }
         if (report.opened === "graph") {
             await report.draft?.load({ mode: "replace" });
+            rememberLoad(session, { files: [file] });
         }
         if (report.opened !== "project") {
             if (!fresh) {

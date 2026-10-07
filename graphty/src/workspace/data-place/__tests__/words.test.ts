@@ -1,8 +1,8 @@
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { ImportReport } from "@graphty/graphty-element/session";
+import type { ImportReport, LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { attributeRows, columnOf, count, fillOf, sourceRows } from "../words";
+import { attributeRows, columnOf, count, fillOf, sourceRows, sourcesWords } from "../words";
 
 /**
  * An import report with these counts; the rest of the report is not read.
@@ -13,6 +13,23 @@ function report(counts: Partial<ImportReport["counts"]>): ImportReport {
     return {
         counts: { nodes: 0, edges: 0, nodeRecords: 0, edgeRecords: 0, rejected: 0, ...counts },
     } as ImportReport;
+}
+
+/**
+ * One load as `data.sources()` lists it.
+ * @param name - the source's name.
+ * @param tables - the tables it read.
+ * @param added - the nodes and edges it added.
+ * @param url - the address it was read from; null for a file.
+ * @returns the entry.
+ */
+function loaded(
+    name: string | undefined,
+    tables: readonly string[],
+    added: LoadedSource["added"],
+    url: string | null = null,
+): LoadedSource {
+    return { ...(name === undefined ? {} : { name }), ...(url === null ? {} : { config: { url } }), tables, added };
 }
 
 /**
@@ -39,13 +56,13 @@ describe("the Data place's words", () => {
     });
 
     it("lists nothing before an import", () => {
-        assert.deepEqual(sourceRows(null, null), []);
-        assert.deepEqual(sourceRows({ name: "a.gml" }, null), []);
+        assert.deepEqual(sourceRows([], null), []);
+        assert.equal(sourcesWords([]), undefined);
     });
 
     it("draws a graph file as one row that expands to its node table and edge table", () => {
         const [file] = sourceRows(
-            { type: "gml", name: "karate.gml" },
+            [loaded("karate.gml", ["karate.gml"], { nodes: 34, edges: 78 })],
             report({ nodes: 34, edges: 78, nodeRecords: 34, edgeRecords: 78 }),
         );
         assert.equal(file.kind, "file");
@@ -61,7 +78,10 @@ describe("the Data place's words", () => {
     });
 
     it("draws an edge list as one edge table", () => {
-        const rows = sourceRows({ name: "edges.csv" }, report({ nodes: 30, edges: 254, edgeRecords: 254 }));
+        const rows = sourceRows(
+            [loaded("edges.csv", ["edges.csv"], { nodes: 30, edges: 254 })],
+            report({ nodes: 30, edges: 254, edgeRecords: 254 }),
+        );
         assert.deepEqual(
             rows.map((r) => [r.kind, r.name, r.quiet, r.children]),
             [["edges", "edges.csv", "254 rows, 254 edges", undefined]],
@@ -69,10 +89,51 @@ describe("the Data place's words", () => {
     });
 
     it("draws a lone node table with its node count only", () => {
-        const rows = sourceRows({ name: "les miserables" }, report({ nodes: 77, nodeRecords: 77 }));
+        const rows = sourceRows(
+            [loaded("les miserables", [], { nodes: 77, edges: 0 })],
+            report({ nodes: 77, nodeRecords: 77 }),
+        );
         assert.deepEqual(
             rows.map((r) => [r.kind, r.name, r.quiet]),
             [["nodes", "les miserables", "77 nodes"]],
+        );
+    });
+
+    it("lists every load, oldest first, a load of two tables expanding to them", () => {
+        const loads = [
+            loaded(undefined, ["people.csv", "messages.csv"], { nodes: 12, edges: 30 }),
+            loaded("friends.csv", ["friends.csv"], { nodes: 3, edges: 41 }),
+        ];
+        const rows = sourceRows(loads, report({ nodes: 3, edges: 41, edgeRecords: 41 }));
+        assert.deepEqual(
+            rows.map((r) => [r.id, r.kind, r.name, r.quiet, r.children?.map((t) => [t.id, t.name])]),
+            [
+                [
+                    "source:0",
+                    "file",
+                    "people.csv and messages.csv",
+                    "12 nodes, 30 edges",
+                    [
+                        ["source:0:0", "people.csv"],
+                        ["source:0:1", "messages.csv"],
+                    ],
+                ],
+                ["source:1", "file", "friends.csv", "3 nodes, 41 edges", undefined],
+            ],
+        );
+    });
+
+    it("names the one file the graph came from, or counts them", () => {
+        assert.equal(
+            sourcesWords([loaded("friends.csv", ["friends.csv"], { nodes: 20, edges: 41 })]),
+            "From friends.csv",
+        );
+        const two = loaded(undefined, ["people.csv", "messages.csv"], { nodes: 12, edges: 30 });
+        assert.equal(sourcesWords([two]), "From 2 files");
+        assert.equal(sourcesWords([two, loaded("more.csv", ["more.csv"], { nodes: 1, edges: 2 })]), "From 3 files");
+        assert.equal(
+            sourcesWords([two, loaded("g.json", [], { nodes: 1, edges: 2 }, "https://a.org/g.json")]),
+            "From 3 sources",
         );
     });
 

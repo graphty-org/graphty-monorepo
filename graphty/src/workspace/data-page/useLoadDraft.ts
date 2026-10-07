@@ -119,12 +119,15 @@ export interface LoadDraftState {
  * @param session - the element's session, or null before it has come up.
  * @param mode - "replace" for a new graph, "merge" to add to the open project.
  * @param initial - the source a door handed over, if any.
+ * @param initialChoices - the choices a door handed over with it (Edit source...), kept while the
+ *     page reads that same source with no file settings.
  * @returns the page's state and setters.
  */
 export function useLoadDraft(
     session: GraphSession | null,
     mode: "replace" | "merge",
     initial: PageSource | null,
+    initialChoices: PageChoices = INITIAL_CHOICES,
 ): LoadDraftState {
     const [source, setSource] = useState<PageSource | null>(initial);
     const [settings, setSettings] = useState<ReadSettings>({});
@@ -154,7 +157,7 @@ export function useLoadDraft(
         setReportError(null);
         setReadError(null);
         setRows(null);
-        setChoices(INITIAL_CHOICES);
+        setChoices(source === initial && Object.keys(settings).length === 0 ? initialChoices : INITIAL_CHOICES);
         setLoadError(null);
         setFilter("all");
         if (session === null || source === null) {
@@ -188,7 +191,7 @@ export function useLoadDraft(
                 held.dispose();
             }
         };
-    }, [session, source, settings]);
+    }, [session, source, settings, initial, initialChoices]);
 
     // What a load with these choices would do: recomputed on the held rows, no I/O.
     useEffect(() => {

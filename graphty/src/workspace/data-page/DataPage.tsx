@@ -46,7 +46,7 @@ import {
     setWeightMeaning,
     weightHolder,
 } from "./choices";
-import { takeDataPageRequest } from "./request";
+import { rememberLoad, takeDataPageRequest } from "./request";
 import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
 import {
     baseName,
@@ -111,9 +111,10 @@ export function DataPage(): React.JSX.Element {
     const { store, session } = workspace;
     const [request] = useState(() => takeDataPageRequest(store));
     const projectName = useWorkspaceState((state) => state.project?.name ?? "Untitled");
-    const initial: PageSource | null =
-        request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null;
-    const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial);
+    const [initial] = useState<PageSource | null>(() =>
+        request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null,
+    );
+    const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial, request.choices);
     const fileInput = useRef<HTMLInputElement>(null);
     // The door that opened the page (New from data... on the start screen) goes with the start
     // screen; focus goes to the page's first ask, "choose a file...", or its first control.
@@ -152,6 +153,9 @@ export function DataPage(): React.JSX.Element {
         // A refused load stays on the page, its problem block shown and Load disabled (T5).
         if (!(await page.load())) {
             return;
+        }
+        if (session !== null && source?.kind === "files") {
+            rememberLoad(session, { files: source.files, choices: page.choices });
         }
         // A loaded new graph is named after its file; inside a project nothing is renamed.
         store.set((state) => ({

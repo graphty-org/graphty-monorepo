@@ -8,6 +8,7 @@ import { useAttributeActions } from "../data-place/attributeActions";
 import { FilterStepEditor } from "../data-place/Filters";
 import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
+import { sourcesWords } from "../data-place/words";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { LayoutGroup } from "../layout/LayoutForm";
@@ -267,11 +268,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
     };
     switch (resolved.kind) {
         case "graph": {
-            const source = session.data.source()?.name;
-            return {
-                name: "Graph",
-                from: source === undefined ? undefined : { words: `From ${source}`, open: openData },
-            };
+            const words = sourcesWords(session.data.sources());
+            return { name: "Graph", from: words === undefined ? undefined : { words, open: openData } };
         }
         // A node is named by its id until graphty-element publishes its name (#895).
         case "node":

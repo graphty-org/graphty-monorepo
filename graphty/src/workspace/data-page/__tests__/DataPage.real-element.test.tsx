@@ -11,6 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { assert, describe, it } from "vitest";
+import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -273,6 +274,68 @@ describe("the Data page on the real element", () => {
             await screen.findByRole("combobox", { name: "source;target" }, { timeout: TIMEOUT_MS });
         },
         TIMEOUT_MS * 2,
+    );
+
+    it(
+        "lists each load in Sources, and Edit source... reopens a load on its own tables and roles",
+        async () => {
+            await page.viewport(1366, 768);
+            const { store } = await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));
+            await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+            await pick("name", "Attribute");
+            await userEvent.click(loadButton());
+            await waitFor(
+                () => {
+                    assert.equal(store.get().page, "panels");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+
+            act(() => {
+                openDataPage(store, { intent: "add" });
+            });
+            await chooseFiles(new File(["source,target\nc,d\n"], "more.csv"));
+            const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+            await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+            await userEvent.click(loadButton());
+            await waitFor(
+                () => {
+                    assert.equal(store.get().page, "panels");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+
+            act(() => {
+                store.set({ place: "data" });
+            });
+            const sources = await screen.findByRole("tree", { name: "Sources" });
+            const first = within(sources).getByRole("treeitem", { name: "people.csv and ties.csv" });
+            assert.isNotNull(
+                within(sources).getByRole("treeitem", { name: "more.csv" }),
+                "the second load has its row",
+            );
+            assert.isNotNull(within(sources).getByRole("treeitem", { name: "ties.csv" }), "a load lists its tables");
+
+            first.focus();
+            await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
+            await screen.findByRole("heading", { name: "Add to people" });
+            const tables = await screen.findByRole("region", { name: "Tables" }, { timeout: TIMEOUT_MS });
+            assert.isNotNull(await within(tables).findByText("Nodes: people.csv", {}, { timeout: TIMEOUT_MS }));
+            assert.isNotNull(within(tables).getByText("Edges: ties.csv"));
+            await waitFor(
+                () => {
+                    assert.equal(
+                        screen.getByRole<HTMLInputElement>("combobox", { name: "name" }).value,
+                        "Attribute",
+                        "the role the reader chose comes back",
+                    );
+                },
+                { timeout: TIMEOUT_MS },
+            );
+        },
+        TIMEOUT_MS * 3,
     );
 
     it(

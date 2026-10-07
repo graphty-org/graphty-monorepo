@@ -5,6 +5,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { editSource } from "../data-page/request";
 import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
@@ -83,10 +84,9 @@ function sourceItem(row: SourceRow): TreeNodeData {
     return {
         id: row.id,
         name: row.name,
-        description: row.quiet,
         icon: SOURCE_GLYPHS[row.kind],
         strong: false,
-        actions: <Quiet>{row.quiet}</Quiet>,
+        ...(row.quiet === "" ? {} : { description: row.quiet, actions: <Quiet>{row.quiet}</Quiet> }),
         ...(row.children === undefined ? {} : { children: row.children.map(sourceItem) }),
     };
 }
@@ -132,20 +132,23 @@ function attributeTree(session: GraphSession | null, needle: string): TreeNodeDa
 }
 
 /**
- * The Data place's row menu, for Tree's rowMenu: Edit source on a source; on an attribute, the
+ * The Data place's row menu, for Tree's rowMenu: Edit source on a source (and on its tables),
+ * which opens the Data page on that load's own files and roles; on an attribute, the
  * attribute's verbs (the same as its inspector's "..."). Other rows (the Nodes and Edges
  * subheads) have none.
  * @returns the rowMenu function.
  */
 function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
-    const { store } = useWorkspace();
+    const { store, session } = useWorkspace();
     const actionsOf = useAttributeActions();
     return (node) => {
         if (node.id.startsWith("source")) {
+            // Row ids are `source:<load>` and `source:<load>:<table>`.
+            const index = Number(node.id.split(":")[1]);
             return (
                 <Menu.Item
                     onClick={() => {
-                        store.set({ page: "data-page" });
+                        editSource(store, session?.data.sources()[index]);
                     }}
                 >
                     Edit source...
@@ -217,7 +220,7 @@ function AttributesSection(): React.JSX.Element {
 /**
  * The Data place (tier1-design.md section 2.6): the graph's name, then Sources, Filters
  * (tier2-design.md section 1) and Attributes.
- * Every fact is the element's: `data.source()` and `data.lastImport()` for Sources,
+ * Every fact is the element's: `data.sources()` and `data.lastImport()` for Sources,
  * `data.attributes()` for Attributes.
  *
  * Not drawn until graphty-element provides them: Rename on a source (#894) and the attributes'
@@ -233,7 +236,7 @@ export function DataPlace(): React.JSX.Element {
         (door) => door !== null,
     );
 
-    const sources = session === null ? [] : sourceRows(session.data.source(), session.data.lastImport());
+    const sources = session === null ? [] : sourceRows(session.data.sources(), session.data.lastImport());
 
     const rowMenu = useRowMenu();
     const tableBuilt = useCommand("table.toggle") !== null;
@@ -276,7 +279,7 @@ export function DataPlace(): React.JSX.Element {
                     <Tree
                         label="Sources"
                         items={sources.map(sourceItem)}
-                        defaultExpanded={["source"]}
+                        defaultExpanded={sources.map((row) => row.id)}
                         multiselect={false}
                         selected={[]}
                         onSelect={openSource}

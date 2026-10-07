@@ -187,7 +187,7 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
-export type { ExportGraphOptions, ExportResult } from "./src/data/export";
+export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";

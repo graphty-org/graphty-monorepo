@@ -2779,20 +2779,20 @@ export class Graphty extends LitElement {
 
     /**
      * Write the graph in a file format: data, current positions, algorithm results and the drawn
-     * colours and sizes, wherever the format has a place for them. `lossNotes` lists everything
-     * the format could not hold.
+     * colours and sizes, wherever the format has a place for them. `losses` lists everything the
+     * format could not hold, as codes with the columns and counts they are about.
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
      *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
      * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
      *     admin-import file; `{ notes: true }` adds the `graphty.notes.count` and
      *     `graphty.notes.text` columns (notes are left out by default, and reported as
      *     `W_GRAPHTY_NOTES`)
-     * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
+     * @returns What the export loses, and the document as `text()` or as UTF-8 `bytes`
      * @since 3.0.0
      * @example
      * ```typescript
      * const result = await element.exportGraph("graphml");
-     * for (const note of result.lossNotes) console.warn(note.message);
+     * for (const loss of result.losses) console.warn(loss.code, loss.params.columns, loss.params.count);
      * download(await result.text());
      * ```
      */

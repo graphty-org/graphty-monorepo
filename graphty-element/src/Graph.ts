@@ -5950,7 +5950,8 @@ export class Graph implements GraphContext {
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
      * and the element's `notes`.
-     * @returns The loss notes, and the document as text or as UTF-8 chunks.
+     * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
+     * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
      * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option the format's `writerOptions` does not
      * accept, `E_UNSUPPORTED` when the writer's up-front check refuses this graph under these

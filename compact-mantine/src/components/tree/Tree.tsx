@@ -268,6 +268,13 @@ export interface TreeProps {
      */
     onRename?: (id: string, name: string) => void;
     /**
+     * The id of the row whose name is being edited (controlled), or null. Lets a caller open the
+     * rename from elsewhere -- a menu's Rename -- or refuse one for a row that cannot be renamed.
+     */
+    renaming?: string | null;
+    /** Called when a rename opens (F2, a double-click) or closes, with the row's id or null. */
+    onRenamingChange?: (id: string | null) => void;
+    /**
      * Called when a row is dropped somewhere new, or moved one place among its siblings with
      * Alt+ArrowUp / Alt+ArrowDown. `index` counts the new parent's children with the moved item
      * already removed. Giving it makes rows draggable and turns on the keyboard move; the tree
@@ -329,6 +336,8 @@ export interface TreeProps {
  * @param props.onExpandedChange - Called with the expanded ids
  * @param props.multiselect - Allow several selected rows
  * @param props.onRename - Called with a new name; turns renaming on
+ * @param props.renaming - The row being renamed (controlled)
+ * @param props.onRenamingChange - Called when a rename opens or closes
  * @param props.onMove - Called when a row is dropped somewhere new or moved from the keyboard
  * @param props.stickyRoots - Pin expanded top-level rows while scrolling
  * @param props.height - The scrolling height when virtualized
@@ -362,6 +371,8 @@ export function Tree({
     onExpandedChange,
     multiselect = true,
     onRename,
+    renaming: renamingProp,
+    onRenamingChange,
     onMove,
     stickyRoots = false,
     height = 480,
@@ -394,7 +405,11 @@ export function Tree({
     const indexOf = useMemo(() => new Map(rows.map((r, i) => [r.node.id, i])), [rows]);
 
     const [focusedId, setFocusedId] = useState<string | null>(null);
-    const [renaming, setRenaming] = useState<string | null>(null);
+    const [renaming, setRenaming] = useUncontrolled<string | null>({
+        value: renamingProp,
+        finalValue: null,
+        onChange: onRenamingChange,
+    });
     const [drop, setDrop] = useState<TreeDrop | null>(null);
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [menuNode, setMenuNode] = useState<TreeNodeData | null>(null);

@@ -15,7 +15,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent as realInput } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -199,6 +199,86 @@ describe("the Graph place on the real element", () => {
             await waitFor(() => {
                 assert.isNull(store.get().notice);
             });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "gives a run row and a layer row one command list, in the inspector's ... and the row's menu",
+        async () => {
+            const { session, store } = await openGraph();
+            await session.runs.start("pagerank");
+            const run = session.runs.list()[0];
+            const layerIds = session.runs.bindings(run.id);
+            await waitFor(() => {
+                assert.include(treeRows(), run.label);
+            });
+
+            // Selection and Everything have no commands: no "..." and no menu.
+            for (const name of ["Selection", "Everything"]) {
+                await userEvent.click(screen.getByRole("treeitem", { name }));
+                assert.isNull(screen.queryByRole("button", { name: `${name} actions` }), `${name} has no "..."`);
+                await realInput.click(screen.getByRole("treeitem", { name }), { button: "right" });
+                assert.isNull(screen.queryByRole("menu"), `${name} has no menu`);
+            }
+
+            // The inspector's "..." deletes the run, with an Undo notice that brings it back.
+            await userEvent.click(screen.getByRole("treeitem", { name: run.label }));
+            await userEvent.click(screen.getByRole("button", { name: "Measure actions" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
+            await waitFor(() => {
+                assert.deepEqual(treeRows(), ["Selection", "Everything"]);
+            });
+            assert.notInclude(
+                session.styles.list().map((layer) => layer.id),
+                layerIds[0],
+                "its layers went with it",
+            );
+            store.get().notice?.action?.run();
+            await waitFor(() => {
+                assert.include(treeRows(), run.label);
+            });
+            assert.include(
+                session.styles.list().map((layer) => layer.id),
+                layerIds[0],
+            );
+
+            // The row's own menu holds the same command.
+            await realInput.click(screen.getByRole("treeitem", { name: run.label }), { button: "right" });
+            const menu = await screen.findByRole("menu");
+            assert.deepEqual(
+                within(menu)
+                    .getAllByRole("menuitem")
+                    .map((item) => item.textContent),
+                ["DeleteDelete"],
+            );
+            await userEvent.keyboard("{Escape}");
+
+            // A layer row adds Rename, which opens its name in place.
+            const layer = await session.styles.add({
+                name: "Mine",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.opacity": 1 },
+            });
+            const mine = await screen.findByRole("treeitem", { name: "Mine" });
+            await userEvent.click(mine);
+            await userEvent.click(screen.getByRole("button", { name: "Layer actions" }));
+            assert.deepEqual(
+                (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
+                ["RenameF2", "DeleteDelete"],
+            );
+            await userEvent.click(screen.getByRole("menuitem", { name: /^Rename/ }));
+            // The field takes focus with the name selected, so typing replaces it.
+            const field = await screen.findByRole("textbox", { name: "Layer name" });
+            await waitFor(() => {
+                assert.equal(document.activeElement, field);
+            });
+            await userEvent.keyboard("Hubs{Enter}");
+            await waitFor(() => {
+                assert.equal(session.styles.get(layer.id)?.name, "Hubs");
+            });
+            assert.isNull(store.get().renamingRow);
         },
         TIMEOUT_MS * 2,
     );

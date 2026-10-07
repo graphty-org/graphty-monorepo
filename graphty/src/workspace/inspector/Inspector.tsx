@@ -4,6 +4,7 @@ import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text } 
 import React, { useEffect, useState } from "react";
 
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
+import { Sections } from "../frame/menus";
 import { LayoutGroup } from "../layout/LayoutGroup";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -20,7 +21,7 @@ import { groupName, KIND_WORDS, runDate } from "./words";
 /**
  * The commands each kind's "..." holds (tier1-design.md section 2.7), the same list as its
  * context menu. A command another package has not built is left out, and a kind with none draws
- * no "...": a row's verbs (rerun, remove, rename) arrive with the Graph place's row menus.
+ * no "..." (Selection, Everything, a group row).
  */
 const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
     graph: ["layout.rerun", "layout.reshuffle"],
@@ -28,6 +29,9 @@ const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
     edge: ["view.frame-selection"],
     several: ["view.frame-selection"],
     neighborhood: ["view.frame-selection"],
+    "measure-row": ["row.delete"],
+    "run-row": ["row.delete"],
+    "layer-row": ["row.rename", "row.delete"],
 };
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
@@ -199,16 +203,7 @@ export function Inspector(): React.JSX.Element {
                                     </ActionIcon>
                                 </Menu.Target>
                                 <Menu.Dropdown>
-                                    {menu.map((command) => (
-                                        <Menu.Item
-                                            key={command.id}
-                                            onClick={() => {
-                                                runCommand(command.id);
-                                            }}
-                                        >
-                                            {command.label}
-                                        </Menu.Item>
-                                    ))}
+                                    <Sections sections={[menu.map((command) => command.id)]} />
                                 </Menu.Dropdown>
                             </Menu>
                         )}

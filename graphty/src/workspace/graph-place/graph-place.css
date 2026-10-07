@@ -55,7 +55,7 @@
     padding: 6px 8px 0;
 }
 
-.ws-paint-tree {
+.ws-graph-place > .cm-tree {
     flex: 1 1 auto;
     min-height: 0;
 }
@@ -64,16 +64,8 @@
     display: inline-block;
     width: 24px;
     height: 8px;
-    margin-inline-end: 6px;
     border-radius: 2px;
     vertical-align: middle;
-}
-
-.ws-paint-count {
-    margin-inline-end: 4px;
-    color: var(--cm-text-secondary);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
 }
 
 .ws-graph-footer {

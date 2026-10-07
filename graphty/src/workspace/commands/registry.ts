@@ -55,6 +55,12 @@ export interface Command {
      * modifier is a single-key shortcut, which the reader can switch off (WCAG 2.1.4).
      */
     readonly keys?: readonly string[];
+    /**
+     * Keys that run it on the focused row of the paint tree, for the row: listed with the other
+     * keys, but bound by the tree rather than window-wide, so one may repeat a window key (F2
+     * renames the project anywhere else).
+     */
+    readonly rowKeys?: readonly string[];
     /** Extra words Quick actions matches ("field", "column"). */
     readonly keywords?: readonly string[];
     /** A tooltip sentence, where the label alone is not enough. */
@@ -145,7 +151,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],
-    "graph-place": ["find.focus"],
+    "graph-place": ["find.focus", "row.rename", "row.delete"],
     style: ["style.add-label-line"],
     table: ["table.toggle"],
     export: ["file.export"],

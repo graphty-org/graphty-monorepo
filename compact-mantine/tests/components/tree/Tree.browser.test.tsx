@@ -241,6 +241,47 @@ describe("Tree: keyboard", () => {
         expect(focused()).toBe("frame");
     });
 
+    it("opens a rename the caller asks for, and keeps one the caller refuses closed", async () => {
+        const asked: (string | null)[] = [];
+        /**
+         * A caller that renames only "other", and opens it from its own button.
+         * @returns the tree and the button
+         */
+        function Caller(): React.JSX.Element {
+            const [renaming, setRenaming] = React.useState<string | null>(null);
+            return (
+                <>
+                    <Tree
+                        items={ITEMS}
+                        onRename={vi.fn()}
+                        renaming={renaming}
+                        onRenamingChange={(id) => {
+                            asked.push(id);
+                            setRenaming(id === "frame" ? null : id);
+                        }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setRenaming("other");
+                        }}
+                    >
+                        Rename Other
+                    </button>
+                </>
+            );
+        }
+        await renderThemed(<Caller />);
+        await tabIn();
+        await userEvent.keyboard("{F2}");
+        expect(asked).toEqual(["frame"]);
+        expect(screen.queryByRole("textbox")).toBeNull();
+
+        await userEvent.click(screen.getByRole("button", { name: "Rename Other" }));
+        const field = await screen.findByRole("textbox", { name: "Layer name" });
+        expect((field as HTMLInputElement).value).toBe("Other");
+    });
+
     it("does not rename without onRename", async () => {
         await renderThemed(<Tree items={ITEMS} />);
         await tabIn();

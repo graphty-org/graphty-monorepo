@@ -17,7 +17,41 @@ import { openSample } from "../start/open";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 
 /**
- * One menu row for a command, or nothing when the command is a stub.
+ * One menu row for a command. A disabled row stays focusable with its reason (tier1-design.md
+ * section 4, "Disabled"), so it is marked rather than given the `disabled` attribute.
+ * @param props - Component props
+ * @param props.label - The command's label
+ * @param props.shortcut - Its first key, or undefined
+ * @param props.reason - Why it cannot run now, or null
+ * @param props.onRun - Runs it
+ * @returns The row
+ */
+export function CommandMenuItem({
+    label,
+    shortcut,
+    reason,
+    onRun,
+}: Readonly<{ label: string; shortcut: string | undefined; reason: string | null; onRun: () => void }>): React.JSX.Element {
+    return (
+        <Menu.Item
+            onClick={reason === null ? onRun : undefined}
+            closeMenuOnClick={reason === null}
+            aria-disabled={reason !== null}
+            data-disabled={reason === null ? undefined : true}
+            rightSection={shortcut === undefined ? undefined : formatKey(shortcut)}
+        >
+            {label}
+            {reason === null ? null : (
+                <Text component="span" display="block" size="xs" c="var(--cm-text-menu-secondary)">
+                    {reason}
+                </Text>
+            )}
+        </Menu.Item>
+    );
+}
+
+/**
+ * One menu row for a registered command, or nothing when the command is a stub.
  * @param props - Component props
  * @param props.id - The command id
  * @returns The row
@@ -28,24 +62,13 @@ function CommandItem({ id }: Readonly<{ id: string }>): React.JSX.Element | null
         return null;
     }
     const { command, disabledReason, run } = door;
-    const key = command.keys?.[0];
     return (
-        // A disabled row stays focusable with its reason (tier1-design.md section 4, "Disabled"),
-        // so it is marked rather than given the `disabled` attribute.
-        <Menu.Item
-            onClick={disabledReason === null ? run : undefined}
-            closeMenuOnClick={disabledReason === null}
-            aria-disabled={disabledReason !== null}
-            data-disabled={disabledReason === null ? undefined : true}
-            rightSection={key === undefined ? undefined : formatKey(key)}
-        >
-            {command.label}
-            {disabledReason === null ? null : (
-                <Text component="span" display="block" size="xs" c="var(--cm-text-menu-secondary)">
-                    {disabledReason}
-                </Text>
-            )}
-        </Menu.Item>
+        <CommandMenuItem
+            label={command.label}
+            shortcut={command.keys?.[0] ?? command.rowKeys?.[0]}
+            reason={disabledReason}
+            onRun={run}
+        />
     );
 }
 

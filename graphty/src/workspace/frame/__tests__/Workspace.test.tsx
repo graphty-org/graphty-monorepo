@@ -190,8 +190,10 @@ describe("the workspace frame", () => {
 
         await userEvent.keyboard("?");
         const sheet = await screen.findByRole("region", { name: "Keyboard shortcuts" });
-        assert.isNotNull(within(sheet).getByText("Rename"));
-        assert.isNotNull(within(sheet).getByText("F2"));
+        // The project's Rename, and a style row's Rename and Delete, which act on the focused row.
+        assert.lengthOf(within(sheet).getAllByText("Rename"), 2);
+        assert.lengthOf(within(sheet).getAllByText("F2"), 2);
+        assert.isNotEmpty(within(sheet).getAllByText("Delete"));
         // A stub's key is not listed until its command is built.
         assert.isNull(within(sheet).queryByText("Later tool"));
     });

@@ -48,6 +48,8 @@ export interface WorkspaceState {
     readonly dialog: string | null;
     /** Whether the project name is being renamed in place. */
     readonly renaming: boolean;
+    /** The paint-tree row whose name is being edited in place, or null. */
+    readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
     /** The tab last chosen per inspected kind. */
     readonly tabs: Readonly<Record<string, "style" | "values">>;
@@ -84,6 +86,7 @@ const INITIAL: WorkspaceState = {
     place: "graph",
     dialog: null,
     renaming: false,
+    renamingRow: null,
     inspected: null,
     tabs: {},
     leftWidth: PANEL_MIN,

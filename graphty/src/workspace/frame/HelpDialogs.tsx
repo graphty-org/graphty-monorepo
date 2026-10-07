@@ -45,9 +45,10 @@ function ShortcutsDialog(): React.JSX.Element | null {
     };
     const groups = new Map<string, { label: string; keys: string[] }[]>();
     for (const command of registry.live) {
-        if (command.keys !== undefined && command.keys.length > 0) {
+        const keys = [...(command.keys ?? []), ...(command.rowKeys ?? [])];
+        if (keys.length > 0) {
             const rows = groups.get(command.group) ?? [];
-            rows.push({ label: command.label, keys: command.keys.map(formatKey) });
+            rows.push({ label: command.label, keys: keys.map(formatKey) });
             groups.set(command.group, rows);
         }
     }

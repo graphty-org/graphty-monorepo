@@ -1,3 +1,17 @@
+## 0.9.8 (2026-10-07)
+
+### 🩹 Fixes
+
+- **compact-mantine:** report change-end for eyedropper and swatch picks ([#435](https://github.com/graphty-org/graphty-monorepo/issues/435))
+- **compact-mantine:** forward aria-expanded and aria-controls in toggle rows ([#138](https://github.com/graphty-org/graphty-monorepo/issues/138))
+- **compact-mantine:** merge caller comboboxProps over list defaults ([#434](https://github.com/graphty-org/graphty-monorepo/issues/434))
+- **compact-mantine:** tree rows take an accessible name and description ([f0b15c18f](https://github.com/graphty-org/graphty-monorepo/commit/f0b15c18f))
+- **compact-mantine:** a ToolButton can be disabled with its reason ([97c2db6ab](https://github.com/graphty-org/graphty-monorepo/commit/97c2db6ab))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.7 (2026-10-06)
 
 This was a version bump only for compact-mantine to align it with other projects, there were no code changes.

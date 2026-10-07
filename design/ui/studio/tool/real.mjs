@@ -9,7 +9,10 @@
 //       a blank line or one starting with # is skipped. A setup step that misses fails the start.
 //       --sr (screen-reader mode): after every step, prints what a screen reader would say: the
 //       focused element's role, accessible name, value and states ("focus: ..."), and the text of
-//       every live region that appeared or changed ("live: ...").
+//       every live region that appeared or changed ("live: ..."). A focused control that points at a
+//       highlighted option (aria-activedescendant) is reported with that option, as a screen reader
+//       reads it. A region that arrived with its text already in it is marked unconfirmed: many
+//       screen readers read only a change to a region already on the page (role=alert excepted).
 //   node real.mjs --step <session dir> <steps...>
 //       acts on the live session, waits for the drawing to settle, saves the next NN.png and prints
 //       what a participant would notice
@@ -35,6 +38,8 @@
 //   --reopen               closes the tab and opens the app again in a new one, same browser storage
 //   --drop <file>          drops a file on the middle of the window
 //   --wait <ms>            lets the app run on its own for a moment
+//   --read                 reads the open dialog, or else the region around focus, as a screen
+//                          reader's browse mode would: text, headings and controls in order
 //   --expect | --expect-not "<text>"  (role=<role>, role=<role>:<name>, selected=N)
 // A file is a path, or a bare name from files/ beside this tool.
 //
@@ -61,7 +66,8 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../..");
-const dist = join(repo, "graphty/dist");
+// REAL_DIST serves a copy of a build instead, one a rebuild cannot replace mid-session
+const dist = process.env.REAL_DIST ? resolve(process.env.REAL_DIST) : join(repo, "graphty/dist");
 const files = join(here, "files");
 const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
@@ -111,6 +117,7 @@ const ARITY = {
     ),
     "--drag": 2,
     "--reopen": 0,
+    "--read": 0,
 };
 const KEYS = new Set([
     "Shift",
@@ -354,6 +361,7 @@ async function serve(dir, sr) {
                     else if (req.op === "start") r = await opStart(s, req.setup);
                     else if (req.op === "step") r = await opStep(s, req.steps);
                     else if (req.op === "plant-spin") r = await plantSpin(s, req.on);
+                    else if (req.op === "plant-live") r = await plantLive(s);
                     else if (req.op === "end") r = { out: [`session ended: ${dir}`], code: 0, end: true };
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
@@ -435,10 +443,19 @@ function watchLive() {
             if (r.parentElement?.closest(LIVE) || r.closest("[aria-hidden=true]") || !r.checkVisibility()) continue;
             const text = r.textContent.replace(/\s+/g, " ").trim();
             if (last.get(r) === text) continue;
+            // a region first seen with its text already in it was never changed while on the page
+            const arrivedFilled = !last.has(r);
             last.set(r, text);
             const role = r.getAttribute("role");
             const level = r.getAttribute("aria-live") || (role === "alert" ? "assertive" : "polite");
-            if (text) window.__srLive.push(`${role || "region"} (${level}): ${JSON.stringify(text)}`);
+            if (text)
+                window.__srLive.push(
+                    `${role || "region"} (${level}): ${JSON.stringify(text)}${
+                        arrivedFilled && role !== "alert"
+                            ? " -- unconfirmed: the region arrived with this text already in it, which many screen readers do not read"
+                            : ""
+                    }`,
+                );
         }
     };
     new MutationObserver(scan).observe(document, {
@@ -451,38 +468,97 @@ function watchLive() {
 const SR_STATES = new Set(["checked", "pressed", "expanded", "selected", "disabled", "invalid", "required"]);
 // What a screen reader says for the focused element (through shadow roots), from Chromium's own
 // accessibility tree, and the live-region text recorded since the last call
+const FOCUSED =
+    "(() => { let e = document.activeElement; while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement; return e === document.body ? null : e; })()";
+// role "name" value "..." states, for one accessibility node
+function axSays(n) {
+    const states = (n.properties || [])
+        .filter((p) => SR_STATES.has(p.name) && p.value.value !== false && p.value.value !== "false")
+        .map((p) => (p.value.value === true || p.value.value === "true" ? p.name : `${p.name}=${p.value.value}`));
+    return [
+        n.role?.value || "unknown role",
+        n.name?.value ? JSON.stringify(n.name.value) : "(no name)",
+        n.value?.value !== undefined && n.value.value !== "" ? `value ${JSON.stringify(String(n.value.value))}` : "",
+        states.join(", "),
+    ]
+        .filter(Boolean)
+        .join(" ");
+}
+async function axOf(s, objectId) {
+    const { nodes } = await s.cdp.send("Accessibility.getPartialAXTree", { objectId, fetchRelatives: false });
+    return nodes[0];
+}
+const evalObject = async (s, expression) => (await s.cdp.send("Runtime.evaluate", { expression })).result.objectId;
 async function srReport(s, out) {
     s.cdp ??= await s.context.newCDPSession(s.page);
-    const { result } = await s.cdp.send("Runtime.evaluate", {
-        expression:
-            "(() => { let e = document.activeElement; while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement; return e === document.body ? null : e; })()",
-    });
     let said = "nothing (the page itself)";
-    if (result.objectId) {
-        const { nodes } = await s.cdp.send("Accessibility.getPartialAXTree", {
-            objectId: result.objectId,
-            fetchRelatives: false,
-        });
-        const n = nodes[0];
-        const states = (n?.properties || [])
-            .filter((p) => SR_STATES.has(p.name) && p.value.value !== false && p.value.value !== "false")
-            .map((p) => (p.value.value === true || p.value.value === "true" ? p.name : `${p.name}=${p.value.value}`));
-        said =
-            !n || n.ignored
-                ? "an element screen readers skip (no role in the accessibility tree)"
-                : [
-                      n.role?.value || "unknown role",
-                      n.name?.value ? JSON.stringify(n.name.value) : "(no name)",
-                      n.value?.value !== undefined && n.value.value !== ""
-                          ? `value ${JSON.stringify(String(n.value.value))}`
-                          : "",
-                      states.join(", "),
-                  ]
-                      .filter(Boolean)
-                      .join(" ");
+    const focused = await evalObject(s, FOCUSED);
+    if (focused) {
+        const n = await axOf(s, focused);
+        said = !n || n.ignored ? "an element screen readers skip (no role in the accessibility tree)" : axSays(n);
+        // a combobox, listbox or grid keeps focus and points at the highlighted item: a screen
+        // reader reads that item, so the tool does too
+        const active = await evalObject(
+            s,
+            `(() => { const e = ${FOCUSED}; const id = e?.getAttribute("aria-activedescendant"); return id ? e.getRootNode().getElementById(id) : null; })()`,
+        );
+        if (active) {
+            const a = await axOf(s, active);
+            said += `; highlighted: ${!a || a.ignored ? "an element screen readers skip" : axSays(a)}`;
+        }
     }
     out.push(`focus: ${said}`);
-    srLive(s, out);
+    await srLive(s, out);
+}
+// What browse mode reads in the open dialog, or else in the region, landmark or form around focus:
+// text a line at a time, headings and controls as role "name", in document order
+async function srRead(s, out) {
+    // read as one item, not walked into (ROLES: every control a click can name)
+    const items = new Set([...ROLES, "heading", "img", "image", "slider", "spinbutton", "progressbar", "meter", "row"]);
+    s.cdp ??= await s.context.newCDPSession(s.page);
+    const where = await evalObject(
+        s,
+        `(() => {
+            const modal = [...document.querySelectorAll("[aria-modal=true], dialog[open]")].filter((m) => m.checkVisibility()).pop();
+            if (modal) return modal;
+            const e = ${FOCUSED};
+            return e?.closest("[role=dialog], [role=alertdialog], [role=region], [role=main], [role=navigation], [role=complementary], [role=banner], [role=contentinfo], [role=search], [role=form], main, nav, aside, header, footer, form, section[aria-label], section[aria-labelledby]") || document.body;
+        })()`,
+    );
+    const { node } = await s.cdp.send("DOM.describeNode", { objectId: where });
+    const { nodes } = await s.cdp.send("Accessibility.getFullAXTree");
+    const byId = new Map(nodes.map((n) => [n.nodeId, n]));
+    const root = nodes.find((n) => n.backendDOMNodeId === node.backendNodeId);
+    if (!root) return out.push("read: nothing (the region is not in the accessibility tree)");
+    const lines = [];
+    let text = [];
+    const flush = () => {
+        const t = text.join(" ").replace(/\s+/g, " ").trim();
+        if (t) lines.push(t);
+        text = [];
+    };
+    const walk = (n, top) => {
+        const role = n.role?.value;
+        if (!n.ignored && role === "StaticText") text.push(n.name?.value || "");
+        else if (!n.ignored && !top && items.has(role)) {
+            flush();
+            const level = (n.properties || []).find((p) => p.name === "level")?.value.value;
+            lines.push(
+                role === "heading" && level ? axSays(n).replace(/^heading/, `heading level ${level}`) : axSays(n),
+            );
+            return;
+        } else if (role === "InlineTextBox") return;
+        for (const id of n.childIds || []) {
+            const c = byId.get(id);
+            if (c) walk(c, false);
+        }
+    };
+    if (!root.ignored) lines.push(`${axSays(root)}:`);
+    walk(root, true);
+    flush();
+    const MAX = 80;
+    for (const l of lines.slice(0, MAX)) out.push(`read: ${l}`);
+    if (lines.length > MAX) out.push(`read: ... and ${lines.length - MAX} more lines`);
 }
 async function srLive(s, out) {
     const live = await s.page.evaluate(() => (window.__srLive || []).splice(0)).catch(() => []);
@@ -608,18 +684,41 @@ async function plantSpin(s, on) {
     return { out: [], code: 0 };
 }
 
+// --prove only: a status region added with its text already in it, and one added empty and then filled
+async function plantLive(s) {
+    await s.page.evaluate(() => {
+        const region = (text) => {
+            const r = document.createElement("div");
+            r.setAttribute("role", "status");
+            r.textContent = text;
+            document.body.append(r);
+            return r;
+        };
+        region("Planted already filled");
+        const later = region("");
+        setTimeout(() => (later.textContent = "Planted change"), 100);
+    });
+    return { out: [], code: 0 };
+}
+
+// In screen-reader mode the participant has no pointer: these steps are refused before anything runs
+const POINTER = new Set([...Object.keys(CLICKS), ...Object.keys(AT), "--hover-icon", "--drag", "--wheel", "--drop"]);
+
 async function opStep(s, steps) {
+    const pointer = s.sr && steps.find(([a]) => POINTER.has(a));
+    if (pointer) return { out: [`${pointer[0]} is refused in screen-reader mode: use --key and --type`], code: 2 };
     const out = [];
     const r = await run(s, steps, out);
     out.push(await shot(s));
     return { out, code: r.code };
 }
 
+// The screenshot is always saved for graders; a screen-reader participant is not told where
 async function shot(s) {
     const n = readdirSync(s.dir).filter((f) => /^\d+\.png$/.test(f)).length + 1;
     const file = join(s.dir, `${String(n).padStart(2, "0")}.png`);
     await s.page.screenshot({ path: file });
-    return file;
+    return s.sr ? "(a screenshot was kept for the graders)" : file;
 }
 
 // The DOM stops changing, then the drawing settles: graphty-element's waitForStableFrame
@@ -946,6 +1045,8 @@ async function run(s, steps, out) {
             await page.waitForTimeout(400);
         } else if (a === "--wait") {
             await page.waitForTimeout(+v);
+        } else if (a === "--read") {
+            await srRead(s, out);
         } else if (a === "--key") {
             await page.keyboard.press(v);
             await page.waitForTimeout(400);
@@ -1162,14 +1263,19 @@ async function prove() {
         );
         // the save picker is answered, the file lands in the session folder, and a new tab on the
         // same storage lists it under Recent projects and reopens it
-        x = step(A, "--key", "Escape", "--key", "Control+s", "--click", "Save");
-        check(
-            "a first save is answered and its file copied to the session folder",
-            x.code === 0 &&
-                /the save picker chose florentine\.graphty\.json/.test(x.out) &&
-                existsSync(join(A, "saved/florentine.graphty.json")),
-            x.out,
+        // the first Save of a project asks for its name (Save as), then keeps it in this browser
+        x = step(
+            A,
+            "--key",
+            "Escape",
+            "--key",
+            "Control+s",
+            "--click",
+            "Save",
+            "--expect",
+            "Saved florentine in this browser",
         );
+        check("a first save names the project and keeps it in this browser", x.code === 0, x.out);
         x = step(A, "--reopen", "--click", "florentine", "--expect", "role=button:Project: florentine");
         check(
             "a reopened tab keeps the browser storage: Recent projects reopens the saved file",
@@ -1224,16 +1330,29 @@ async function prove() {
     node(["--end", C]);
     // screen-reader mode: the focused element's role and name after every step, and live-region text
     const D = join(base, "session-d");
-    r = node(["--start", D, "empty", "--sr"]);
+    const srSetup = join(base, "setup-sr.txt");
+    await writeFile(srSetup, "--click No thanks\n--click Open project or file\n--upload florentine.gml\n");
+    r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
-        "an --sr start prints what has focus",
-        r.status === 0 && /^focus: /m.test(r.stdout),
+        "an --sr start prints what has focus and no screenshot path",
+        r.status === 0 && /^focus: /m.test(r.stdout) && !/\.png$/m.test(r.stdout),
         `exit ${r.status} ${r.stdout}${r.stderr}`,
     );
     if (r.status === 0) {
-        let x = step(D, "--click", "No thanks", "--click", "Open project or file", "--upload", "florentine.gml");
-        check("every step prints a focus line", (x.out.match(/^focus: /gm) || []).length === 3, x.out);
-        x = step(D, "--click", "Find");
+        const before = pngs(D).length;
+        let x = step(D, "--click", "Find");
+        check(
+            "a planted pointer step is refused in screen-reader mode, before anything runs",
+            x.code === 2 && /refused in screen-reader mode/.test(x.out) && pngs(D).length === before,
+            x.out,
+        );
+        x = step(D, "--key", "Tab", "--key", "Tab", "--key", "Tab");
+        check(
+            "every step prints a focus line, and no screenshot path",
+            (x.out.match(/^focus: /gm) || []).length === 3 && !/\.png$/m.test(x.out) && pngs(D).length === before + 1,
+            x.out,
+        );
+        x = step(D, "--key", "Escape", "--key", "/");
         check(
             "the focus line gives the role and the accessible name",
             /^focus: (combobox|textbox|searchbox) "[^"]+"/m.test(x.out),
@@ -1243,6 +1362,28 @@ async function prove() {
         check(
             "a live region's new text is printed",
             /^live: status \(polite\): "No match for \\"zzzz\\""/m.test(x.out) && /value "zzzz"/.test(x.out),
+            x.out,
+        );
+        // the find box keeps focus and points at the highlighted result: that result is reported
+        x = step(D, "--key", "Control+a", "--type", "Strozzi", "--key", "ArrowDown");
+        check(
+            "a focused combobox reports its highlighted option (aria-activedescendant)",
+            /^focus: combobox "Find".*; highlighted: option "[^"]*Strozzi/m.test(x.out),
+            x.out,
+        );
+        // a region that arrives with its text is marked unconfirmed; one that changes on the page is not
+        await ask(D, { op: "plant-live" });
+        x = step(D, "--wait", "400");
+        check(
+            "a live region inserted already filled is marked unconfirmed, a changed one is not",
+            /^live: status \(polite\): "Planted already filled" -- unconfirmed/m.test(x.out) &&
+                /^live: status \(polite\): "Planted change"$/m.test(x.out),
+            x.out,
+        );
+        x = step(D, "--key", "Escape", "--key", "Control+e", "--read");
+        check(
+            "--read reads the open dialog: its name first, then its text and controls",
+            /^read: dialog "[^"]+"[^\n]*:$/m.test(x.out) && /^read: (button|tab|radio) "/m.test(x.out),
             x.out,
         );
     }

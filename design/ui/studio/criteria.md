@@ -157,6 +157,9 @@ that sessions leave open, with >= 70% direct success, at least 8 participants an
    5 mistake.
 9. Tasks and this file are frozen; the round folder is new; participants are given only the
    `tasks.md` prompt and their persona file, never `answers.md`, the notes or the digests.
+10. Every change the last round's decisions carried into this round is listed as built or not
+    built, each checked on the served build (a scripted step or a look at the screen), not from
+    the commit log. A change decided and never built otherwise slips through a round unnoticed.
 
 ## How a fix is accepted
 
@@ -250,3 +253,6 @@ changes a bar or an answer; each removes a way the study, not the app, decided a
 - 2026-10-06 -- **The rating question is asked as written in `tasks.md`** (1 = very difficult,
   7 = very easy). Reason: round 1's session prompt asked it the other way round, so every ease
   had to be converted (8 minus the rating).
+- 2026-10-07 -- Preflight item 10: every change carried into the round is listed as built or not
+  built, checked on the served build. Reason: a run named by its method was decided after round 1
+  and reached round 2 unbuilt without anyone noticing.

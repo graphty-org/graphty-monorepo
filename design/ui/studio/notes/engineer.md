@@ -67,9 +67,13 @@ acceptance test. "The studio worktree" is
     a cloud (`repro/r2-s40/run/13.png`); Effects Outline black blobs; CSV headers internal.
 11. (2026-10-06) Re-record the answer key after every wording change (T11 refusal line, T13 tabs,
     and run names once (c) lands).
-12. (2026-10-06) Simulated participants are one model; the study tool's screen-reader mode does
-    not follow `aria-activedescendant`, has no browse mode, and logs pre-filled live regions. Trust
-    a scripted repro or a cause in code over a participant count.
+12. (2026-10-07) Baseline on 4a7a1a7fb (`rounds/round-2/baseline/bars.md`): bar 9 = 42 app words
+    at rest (36 without the dataset title), so no round 3 fix may push it above 42; bar 8 axe fails
+    on ONE cause, dimmed `#8c8c8c` on `#2c2c2c` (4.15:1) = compact-mantine `compactDarkColors[2]`.
+    Re-measure with `tool/bars.mjs <out> [--dist <copy>]`. Simulated participants are one model:
+    trust a scripted repro or a cause in code over a participant count. Others rebuild
+    `graphty/dist` every few minutes in a fix phase, so a `--prove` fails on vanished assets: copy
+    the build, use `REAL_DIST=<copy>` (real.mjs) or `--dist` (bars.mjs).
 13. (2026-10-06) Iterate locally: change, rebuild (element first, then `pnpm exec nx run
     graphty:build`), re-run with `tool/real.mjs`. Never push. Stage only my hunks; check
     `pgrep -af "real.mjs --prove"` and rebuilds before trusting a FAIL.
@@ -129,6 +133,17 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-07) Study tool (`tool/real.mjs`): a focus line adds `; highlighted: option "..."`
+  for `aria-activedescendant` (resolved in its own root, read from the AX tree); `--read` is
+  browse mode over the open modal, else the region/landmark/form around focus (full AX tree, text
+  runs, headings with level, controls as single items, 80-line cap); a live region first seen
+  already filled ends `-- unconfirmed` (not `role=alert`, read on arrival); `REAL_DIST` serves a
+  build copy. Proof: `--prove` 33/33 on the frozen build (`tmp/engineer/prove3.out`); the three
+  new checks fail on the old tool. New `tool/bars.mjs` (bar 8 axe, bar 9 words) gave the
+  4a7a1a7fb baseline in `rounds/round-2/baseline/`. Added preflight item 10 to `criteria.md`.
+  Rejected: the option's DOM text (a screen reader reads its accessible name). Left to the round
+  3 runner: re-running r2-s07 first (a persona session).
 
 - (2026-10-07) 2D Fit: fix the view's unit, not the camera's. `fitToGraph` answers zoom as
   `5 / half-width`, the unit `setCameraState`, `getCameraState`, `setCameraZoom` and `zoomStep`
@@ -221,34 +236,24 @@ acceptance test. "The studio worktree" is
   finishes; tier 1 is built as the real app under `graphty/src/workspace/` at `/?next` (no more
   mocks); the element is neutral about presentation. The group-row color fallback in
   `graph-place/rows.ts` stays until #1099 removes it.
-- 2026-10-06 -- Study tooling element APIs: `nodeScreenPosition(id)`, `elementAt({x, y})`,
-  `labelOf(id) -> { text, drawn }`. Held PRs awaiting the owner's name confirmation; merged into
-  the studio worktree so the study tool can use them. Studio proposed; owner to confirm. The
-  seeded default layout merged with them (issue #801) is withdrawn; see the next entry.
-- 2026-10-06 -- No default layout seed in graphty-element; the app passes its own (owner). The
-  element's seed default is undone and recorded in `owner-decisions.md` so held #801 does not land.
-  App: seed on the tag (not `session.layout.set` at open, an undo step) and on Method picks.
-  Evidence: `LayoutSeed.real-element.test.tsx`; `tmp/check-r0-seed-out-of-element/a/` (02 and 04
-  byte-identical across a reopen).
+- 2026-10-06 -- Study tooling element APIs `nodeScreenPosition(id)`, `elementAt({x, y})`,
+  `labelOf(id) -> { text, drawn }`: held PRs merged into the studio worktree; owner to confirm
+  names. The element's default layout seed was undone (owner; `owner-decisions.md`); the app seeds
+  on the tag and on Method picks (`LayoutSeed.real-element.test.tsx`).
 - 2026-10-06 -- Studies run on a local production build of the studio worktree, not on graphty.app
   and not after the release. Owner (this run's brief).
 
-- 2026-10-06 -- Smaller fixes, all proven (details in the commits and `tmp/check-r0-*`):
-  a GraphML/GEXF file cut short is refused whole (`E_PARSE_FAILED`, `importDocument`); camera
-  keys ignore modifier chords and clear on blur (`cameras/InputUtils.ts`); the themed Modal
-  always has an overlay (compact-mantine); a failed open returns to the start screen with a
-  notice that stays (`start/open.ts`); exported images carry the legend (c77e473ab, public
-  `ScreenshotOptions.legend`, owner to confirm); a load draws every node its edges name
-  (92882d5fd, `session/project/ingest.ts`); chrome tooltips (f60a81711); `keyBlocks()` keeps the
-  legend and Style lines truthful (377c526e1); one Everything row (1889d513a); exports write a
-  group as its size rank (a file-format change in `owner-decisions.md`).
+- 2026-10-06 -- Smaller fixes, all proven (commits and `tmp/check-r0-*`): truncated
+  GraphML/GEXF refused whole; camera keys ignore chords; themed Modal always has an overlay; a
+  failed open returns to start with a lasting notice; exported images carry the legend
+  (c77e473ab, public `ScreenshotOptions.legend`, owner to confirm); a load draws every node its
+  edges name; chrome tooltips; truthful `keyBlocks()`; one Everything row; exports write a group
+  as its size rank (file format, `owner-decisions.md`).
 
 ## Tried: worked / did not work
 
-- **(2026-10-06) Screen-reader mode in `real.mjs`: worked.** Name from CDP
-  `Accessibility.getPartialAXTree` on the deep `activeElement`; live regions through an
-  init-script MutationObserver. Another agent's `--prove` deletes `tmp/prove/` under a running
-  one: a FAIL with ENOENT there is that, not a defect.
+- **(2026-10-06) Screen-reader mode in `real.mjs`: worked** (CDP AX tree on the deep
+  `activeElement`; init-script MutationObserver for live regions).
 
 - **(2026-10-06) Mouse wheel zooms the 3D orbit camera: worked** (d9e5cc8dc). A canvas `wheel`
   listener in `OrbitInputController` (passive: false, added/removed in enable/disable), not a
@@ -298,14 +303,9 @@ acceptance test. "The studio worktree" is
   again, the fix is the element returning codes, not an app rename. Also: root prettier reflows a
   line in `graphty-element/test/session/styles/encoding.test.ts`; format only my own hunks there.
 
-- **Project name after "New from data..." (2026-10-06).** After Load the header still read
-  "Untitled", though `DataPage.tsx` load renames a new graph after its file. Seen in
-  `tmp/check-r0-new-from-data-empty-canvas/04.png`; not looked into yet.
-
-- **Other refusal codes on open.** `notReadSentence` writes its own words only for
-  `E_PARSE_FAILED`; any other code still shows the element's English message. If the study meets
-  another refusal on open (E_UNKNOWN_FORMAT, E_EMPTY_LOAD), map it there, reusing the Data page's
-  `refusalFor` words where they fit the start screen (its "File settings" advice does not).
+- **(2026-10-06) Untraced, small.** Header still "Untitled" after "New from data..." Load
+  (`tmp/check-r0-new-from-data-empty-canvas/04.png`). `notReadSentence` words only
+  `E_PARSE_FAILED`; another open refusal shows element English: map it there from `refusalFor`.
 
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only

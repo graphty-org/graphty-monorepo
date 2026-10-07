@@ -9,7 +9,8 @@ The app under study is the production build in `graphty/dist` of this worktree, 
 (the tier 1 workspace; the parameter goes away when that workspace becomes the default). The tool
 serves the build itself on a loopback port, so no dev server or network is involved. Rebuild the
 app after changing it: `pnpm exec nx run graphty:build` from the worktree root, with the Sentry
-variables unset.
+variables unset. To study a build that others' rebuilds must not replace mid-session, copy
+`graphty/dist` and start with `REAL_DIST=<the copy>`; the session serves that copy until `--end`.
 
 ## A session
 
@@ -52,6 +53,7 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 | `--upload <file>`                                                                   | Answers the open file chooser (or the next one to open within 3 seconds), including the app's project-file picker (Locate...).                                                                                                                       |
 | `--reopen`                                                                          | Closes the tab and opens the app again in a new tab with the same browser storage: Recent projects and the saved files are still there.                                                                                                              |
 | `--drop <file>`                                                                     | Drops the file on the middle of the window.                                                                                                                                                                                                          |
+| `--read`                                                                            | Prints what a screen reader's browse mode reads in the open dialog, or else the region around focus (see "Screen-reader mode").                                                                                                                      |
 | `--wait <ms>`                                                                       | Lets the app work on its own for a moment.                                                                                                                                                                                                           |
 | `--expect "<text>"`, `--expect-not "<text>"`                                        | Fails unless the text is (or is not) on screen. Also `role=<role>`, `role=<role>:<name>` and `selected=N`.                                                                                                                                           |
 
@@ -107,7 +109,11 @@ node $T/real.mjs --step $S --click "<project name>"       # reopens the saved fi
 
 For a participant who uses a screen reader, start the session with `--sr`. After every step (and
 at the start) the tool prints what a screen reader would say, read from Chromium's own
-accessibility tree, as well as the screenshot:
+accessibility tree. The screenshot is still saved for graders, but its path is not printed, and
+every pointer step (`--click` and its variants, `--click-at` and its variants, `--hover`,
+`--hover-icon`, `--drag`, `--wheel`, `--drop`) is refused with exit 2 before anything runs: only
+`--key`, `--type`, `--read`, `--upload`, `--reopen` and `--wait` work. A setup start still runs its own
+clicks, unseen, before the participant arrives.
 
 ```
 focus: combobox "Find" value "zzzz"
@@ -118,10 +124,21 @@ live: status (polite): "No match for \"zzzz\""
   value, and its states (`expanded`, `checked`, `selected`, `pressed`, `disabled`, ...). `(no name)`
   means a screen reader would say only the role. `nothing (the page itself)` means focus is on no
   control, for example after a dialog closed without handing focus back.
+- `; highlighted:` follows a `focus:` line when the focused control keeps focus and points at an
+  item inside it (`aria-activedescendant`), as a combobox does while Arrow keys move through its
+  options: `focus: combobox "Find" value "Stro" expanded; highlighted: option "Strozzi" selected`.
+  A screen reader reads that item, not only the box.
 - `live:` is the text of a live region (`aria-live`, `role=status`, `role=alert`, `role=log`) each
   time it appears or changes, with its politeness. A region inside another one is read as part of
   it; a hidden one is not read. Text that changes several times in one step (typing a letter at a
-  time) prints each version; a real screen reader may speak only the last.
+  time) prints each version; a real screen reader may speak only the last. A region that arrived
+  on the page with its text already in it ends with `-- unconfirmed: ...`: many screen readers
+  read only a change to a region that was already there, so that text may never be spoken. A
+  `role=alert` is read on arrival and is never marked.
+- `--read` reads the open dialog, or else the region, landmark or form around focus, the way a
+  screen reader's browse mode reads it: one `read:` line per run of text, heading and control, in
+  page order, starting with the container's own role and name. It moves nothing and focuses
+  nothing. It shows what a participant could hear by reading the screen, not what was announced.
 - What it cannot tell: how a particular screen reader phrases it, or when it would cut itself off.
   Read the lines as what the page offers a screen reader, not as a transcript of speech.
 - `session.json` records `"screenReaderMode": true`.
@@ -143,5 +160,20 @@ label, a click at a point, a hover tooltip, typing, an upload, a download, a nam
 dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
 planted spin (a camera key held on the canvas) that must be reported, setup starts (one that works,
 one that fails), a screen-reader session (a focus line after every step, a live region's new
-text) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
+text, the highlighted option of the find box, a planted region that arrives filled marked
+unconfirmed, `--read` in the Export dialog) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`.
+
+## Measuring the accessibility and word-count bars
+
+```bash
+node design/ui/studio/tool/bars.mjs <out dir> [--dist <build dir>]
+```
+
+Measures two of the bars in `criteria.md` on a production build: axe-core on each core screen of
+bar 8 (tags `wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`; a serious or critical violation fails),
+and bar 9, the app's own words on screen at rest (Les Miserables loaded, nothing selected,
+1440 x 900; data values, node names, numbers and the drawing left out, every counted word
+printed). It writes `<out dir>/bars.json` and exits 1 when either bar fails. The other parts of
+bar 8 (shared names, focus drops, focus visibility, announcements) are not in it. To measure a
+build before fixes replace it, copy `graphty/dist` first and pass the copy with `--dist`.

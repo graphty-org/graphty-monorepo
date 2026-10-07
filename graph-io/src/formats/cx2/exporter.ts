@@ -293,6 +293,10 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         if (gen.column !== null && bypassNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
             continue;
         }
+        if (gen.code === LOSS.COLUMN_NAME_CHANGED && gen.message.startsWith("edge column")) {
+            // only the node label is written into the "n" slot; an edge label keeps its own name (below)
+            continue;
+        }
         if (gen.code === LOSS.ID_CHARSET || gen.code === LOSS.ID_MANGLED) {
             // counted below: CX2 also keeps integer ids beyond 2^53, which the generic rule refuses
             continue;
@@ -310,6 +314,16 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
             fatal = new GraphFormatError("E_DIRECTED", gen.message, { reason: "mixed direction" });
         }
         notes.push(gen);
+    }
+
+    const edgeLabel = snapshot.edges.byRole("label");
+    if (edgeLabel !== null) {
+        note(
+            LOSS.ROLE,
+            `edge column "${edgeLabel.meta.name}" (label) is written as a plain attribute; CX2 edges have no label slot and the role is lost`,
+            edgeLabel.meta.name,
+            edgeLabel.length - edgeLabel.nullCount,
+        );
     }
 
     const folding = pairFolding(snapshot);

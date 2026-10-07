@@ -36,6 +36,7 @@ const gridLayoutOptionsSchema = defineOptions({
 
 const GridLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(100),
     columns: z.number().int().positive().nullable().default(null),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -50,8 +51,6 @@ export class GridLayout extends SnapshotLayoutEngine {
     static type = "grid";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = gridLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: GridLayoutConfigType;
 
@@ -98,7 +97,7 @@ export class GridLayout extends SnapshotLayoutEngine {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
             }),
-            GridLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

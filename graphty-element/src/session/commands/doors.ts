@@ -132,6 +132,16 @@ function addNodes(...records: Readonly<Record<string, unknown>>[]): SessionComma
 }
 
 /**
+ * The step a node replacement adds its records with: read by the id path the replacement was given.
+ * @param idPath - Where a record's id is.
+ * @param records - The records.
+ * @returns The command.
+ */
+function addNodesBy(idPath: string, ...records: Readonly<Record<string, unknown>>[]): SessionCommand {
+    return { op: "data.apply", mutation: { kind: "add-nodes", records, idPath } };
+}
+
+/**
  * The command adding edge records.
  * @param records - The records.
  * @returns The command.
@@ -590,7 +600,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Called while the element holds n1, n2 and n3: the ones not named again go.
             nodeData: assigns(
                 [{ id: "x1" }],
-                batchOf("Replaced the nodes", removes("remove-nodes", ["n1", "n2", "n3"]), addNodes({ id: "x1" })),
+                batchOf(
+                    "Replaced the nodes",
+                    removes("remove-nodes", ["n1", "n2", "n3"]),
+                    addNodesBy("id", { id: "x1" }),
+                ),
             ),
             // The row above took every edge with the nodes, so there is nothing to remove.
             edgeData: assigns(
@@ -842,7 +856,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
                 batchOf(
                     "Replaced the nodes",
-                    addNodes(
+                    addNodesBy(
+                        "id",
                         { id: "n1" },
                         { id: "n2" },
                         { id: "n3" },
@@ -1181,7 +1196,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
                 batchOf(
                     "Replaced the nodes",
-                    addNodes(
+                    addNodesBy(
+                        "id",
                         { id: "n1" },
                         { id: "n2" },
                         { id: "n3" },

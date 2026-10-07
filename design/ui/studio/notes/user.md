@@ -12,42 +12,44 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- 2026-10-06 -- Round 1 on the real app: 26 of 29 graded succeeded, first-time personas 20 of 22,
-  no false "done" in 29, the whole first session 5 of 5. Passes are weak evidence (one model plays
-  every persona); 14 finished first runs are still owed a grade.
-- 2026-10-06 -- "Failed ... 40m00s" in the study list is the session runner's timeout (the clock
-  counted the wait for one of 4 browser slots), never the app. Do not restart first runs that
-  have a "b" re-run; the 7 timed-out "b" cells join round 2's roster on the fixed runner; Morgan's
-  7 screen-reader sessions wait for the tool's screen-reader mode.
-- 2026-10-06 -- Round 2's first measure: "one character and his ties" (ease 2.75, worst tier 1
-  task). The pilot build already opens "Javert's 17 connections" from the Neighborhood key G. Watch
-  whether people now finish by the route they reached for. No Degree-row cue unless this fails.
-- 2026-10-06 -- The pattern I watch above all: right control found, next step fails silently or
-  lands somewhere useless. Round 2 checks each fixed dead end: Selection row, Data > Sources
-  tables, the empty Size arrow, "No crossings" (now a red line under Method; pilot confirmed).
-- 2026-10-06 -- New dead ends found by the pilot, to watch in round 2: "Force, flat" seems to run
-  no layout (an even disc that never moves); Spectral packs 70 of 77 nodes under the toolbar;
-  the legend card covers a node. Each makes "did it help?" unanswerable, not just ugly.
-- 2026-10-06 -- The whole first session stays the acceptance walk. Pilot reached all five parts on
-  both datasets in 18 steps, but exported names are soft and the top-ranked names are overdrawn:
-  the picture passes the checklist yet may not answer "who matters" on its own.
-- 2026-10-06 -- Words at rest still written for developers: CSV header
-  "results.louvain.group", the CSV warning about "generic dialect", "from the file: directed 0".
-  These are trust failures for Elena, not polish. Bar 9's baseline count must come before fixes.
-- 2026-10-06 -- A run will be named by its method ("PageRank") everywhere. 12 paused on
-  "Influence"; none failed. Watch that the rename costs no one a step on two domains.
-- 2026-10-06 -- Wheel zoom in 3D and a visible focus ring land before any "show hidden names"
-  control or any new signpost.
+- 2026-10-07 -- Round 2 closed: 52 of 54 tier 1 sessions passed, first-time personas 34 of 34, no
+  false "done" in 56. A pass is weak (one model plays everyone); a failure, a script repro or a
+  cause in the code is strong. No confirmed severity 4 remains; the worst is severity 3.
+- 2026-10-07 -- Re-pilot on the fixed build: every tier 1 task reaches its end state with no
+  blocker. Landed and walked: "Show all labels" (T10 in 5 steps), group layouts offering
+  "Communities" after a run (T11), runs named "PageRank" on key, list and node. Round 3 must
+  confirm these with participants, not the pilot.
+- 2026-10-07 -- New top risk: a picture that looks right and answers wrong. In 3D perspective the
+  #2 PageRank dot (Ava) draws bigger than #1 (Farah), and Farah sits behind Chloe. "Biggest dot
+  matters most" gives the wrong name. Push for the sized drawing to read true (element encoding
+  or 2D for sized views) before polish.
+- 2026-10-07 -- Layouts still help little: Spectral knots, Circle is a sphere in 3D, Rings by group
+  nests groups. Only Columns by group separates clusters. Force re-applied as a still cloud is
+  untraced; I want the trace done before round 3, as decided.
+- 2026-10-07 -- Watch in round 3, first: the menu-to-dialog focus fix (the only session-ending
+  defect), r2-s07 re-run first; Size "+" opening its picker (18 of 18 guessed the Size chain);
+  whether "Show all labels" is found without the task echoing it.
+- 2026-10-07 -- Words still leak developer and element strings: "from the file: directed 0",
+  'layout "bipartite" ... "results.louvain.group" names 6', "G is not planar". The element must
+  return codes for refusals; the app words them. Count them in the words-at-rest baseline.
+- 2026-10-07 -- Everything's Style tab shows base "Size 1" and blue after sizing by PageRank. A
+  newcomer going there to add names may think the sizing was lost. Watch, do not fix blind.
+- 2026-10-07 -- friends.csv (the user's own file) draws 20 anonymous dots. Names are 3 steps away.
+  Still the likeliest "not useful" verdict for Elena; whether a file opens with names is open.
+- 2026-10-07 -- A fixed layout seed makes an overlap 100% exposure per dataset (Farah behind
+  Chloe; Pazzi and Blacheville under the key). Count once, weight fully; fix placement, not seed.
+- 2026-10-07 -- Hold, do not change: icon-only toolbar, no names by default (pending friends.csv
+  evidence), hover tooltips off, raw scores on the key, the Analyze list, Export by menu or
+  Control+E, the Degree row as the neighbor route. None caused a failure.
+- 2026-10-07 -- Baselines before fixes: axe-core and the words-at-rest count on the round 2 build,
+  or they are lost again. The study tool must hear the highlighted option before screen-reader
+  findings count.
 - 2026-10-06 -- Every count on screen is computed from live state or removed, and a count that
-  stands for members leads to the members by name ("Babet (1)" goes).
-- 2026-10-06 -- Grade from what ended on screen, never from self-ratings. A failure is strong
-  evidence, a pass weak; "seen in 8 sessions" may be one shared guess.
-- 2026-10-06 -- Task wording never reuses screen words at the target; every wording fix is tested
-  on two domains (owner rule, 2026-09-29).
-- 2026-10-06 -- No novice crutches: undo, working defaults, (i) on terms, tooltips, Quick actions,
-  samples. Graph logic goes in graphty-element; each fix names its package.
-- 2026-10-06 -- Hold, do not change yet: icon-only toolbar, no names by default, the Style-tab
-  signpost, Size under Shape. Each cost steps, none caused a failure.
+  stands for members leads to the members by name.
+- 2026-10-06 -- Grade from what ended on screen, never from self-ratings. Task wording never
+  reuses screen words at the target; every wording fix tested on two domains (owner, 2026-09-29).
+- 2026-10-06 -- No novice crutches: undo, working defaults, (i) on terms, tooltips, samples.
+  Graph logic goes in graphty-element; each fix names its package.
 
 ## Priorities and values
 
@@ -105,6 +107,34 @@ something, or change my mind. Summarize when it passes about 25 KB.
   how a newcomer learns.
 
 ## Decisions and reasons
+
+- 2026-10-07 (studio, round 2 decisions; I agree) -- Twelve changes for round 3, in the package
+  that owns each cause: menu-dialog focus (compact-mantine Menu), key omits a fully covered layer
+  (element legend), 2D Fit frames the graph (element camera), group layouts accept community
+  results through the existing `optionsFor` (element) rendered by the app, load and run finished
+  announcements (app), the drawing named with a focus ring (element), Size "+" opens its picker
+  (app), row glyph inside the row (compact-mantine DataRow), runs named by method (app),
+  "Show all labels" writing the element's existing declutter setting (app), study tool hears the
+  active option, answer key re-recorded. Not changed: Force still cloud (trace first), 4x export
+  (element, later), key placement and seed, toolbar, hover, Analyze words. Reason: smallest
+  reproduced fixes on the first-time path, no redesign. My view: matches my order; the
+  "Show all labels" switch passes my test because it visibly changes the drawing and is not
+  novice-only. T10 kept its prompt -- I had asked to reword it; the studio's reason (a real goal
+  that now measures a real fix) is better, and I accept it.
+
+- 2026-10-07 (me, round 2 critique) -- Round 3 changes, in order, with the reason each is the
+  smallest fix on the first-time path: menu-to-dialog focus (app `workspace/frame/menus.tsx` or
+  compact-mantine Menu; only reproduced session-ending defect, and it also fails a sighted
+  keyboard user, so it is not only a screen-reader-tool artifact); Force re-apply and 2D Fit
+  (graphty-element / layout; both leave a picture that answers nothing); groupings as an element
+  fact (app `layout/methods.ts:83` decides graph logic itself -- architecture defect); key omits a
+  layer every node of which is painted over (element legend); Size "+" opens its picker (app; same
+  rule as the label "+" from 2026-10-02); chevron inside the row button (app
+  `inspector/NodeValues.tsx:144`); load/run finished live-region words (app, from element events).
+  Not changed: toolbar, default names, hover, key wording, Analyze list, "show all names".
+  Challenged: the "stale key" is not stale -- the Connections row is still in the layer list
+  (r2-s56 07.png) but painted over; the fix is a visibility fact, not a refresh. Overlay
+  frequency under a fixed seed is 100% per dataset, not "one event".
 
 - 2026-10-06 (me, round 1 critique) -- Round 2 changes, in order: (1) the Neighborhood command
   opens the named neighbor list when one node is selected (app, `workspace/toolbar/commands.ts`;
@@ -187,6 +217,19 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-07 -- RE-PILOT after round 2 fixes (T6, T7, T9-T13, T15, T16, both datasets). WORKED:
+  every end state, no console errors; Show all labels (77 labels, 7 hidden -> 77 labels); group
+  layouts enabled with "Group by: Communities" preselected; Columns by group separates clusters;
+  PageRank "Start here" picked unprompted on friends.csv and read right. DID NOT: Spectral and
+  Circle (3D sphere) do not help; 3D perspective inverts size order; exported names soft at 2x;
+  Overview direction row overflows with raw file syntax; Sources rows truncated ("Node t...").
+
+- 2026-10-07 -- ROUND 2 (real app, 56 sessions). WORKED: G/Degree row neighbor list (T12 1 of 3
+  -> 8 of 8, 0.9x path), "No crossings" refusal, broken-file refusal (ease 6), save and reopen,
+  sample one click from start, PageRank "Start here" (5 of 9 picked it unaided). DID NOT: removing
+  the empty Size "Open list" (18 of 18 still named the Size chain); the chevron drawn outside the
+  Degree row's button (4 of 6 missed first click); layouts (T11 ease 3.33, 5.2x).
+
 - 2026-10-06 -- PILOT (rebuilt app, every tier 1 task by the answer key's path): all end states
   reached on both datasets, no console errors. WORKED: G on one node opens the neighbor list;
   "No crossings" refusal shown under Method; keyboard-only ranking (Enter runs PageRank); Export
@@ -231,39 +274,16 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Thinking
 
-- 2026-10-06 -- What to test first, in order. (1) The whole first session on Les Miserables from
-  the empty app, because it is the acceptance walk and the only test of the chain. (2) Names from a
-  field, alone, to separate a label failure from a chain failure. (3) Find Javert and name some of
-  the characters he shares chapters with. (4) Color or size by a result, because it was never
-  measured (the mock never applied size). (5) Bring your own file and read what loaded, past the
-  Load button, which the mock never let anyone pass.
-- 2026-10-06 -- Where I expect the real app to hurt a newcomer, before seeing anyone use it:
-  - Arrowheads on an undirected sample and "from the file: directed 0" -- the first screen states
-    a fact the user cannot parse and draws a fact that is false for their data.
-  - No names on any node at rest. Elena "clicks prominent nodes" and "searches for entities she
-    knows"; unlabeled dots give her nothing to recognize. Whether a sample should open with names on
-    is a question for the data (a sample's own style) and the element's label defaults, not a
-    newcomer-only aid -- I hold it open until participants show it matters.
-  - The picture without its legend (#133).
-  - Element issues closed but not adopted by the app (node names, degree histogram, legend reading
-    facts, Show all labels, attribute roles). Cheap wins: adopt them before blaming the design.
-  - Icons-only toolbar with a 1000 ms tooltip delay (studio asked 500 ms). Watch first clicks on
-    Layout and View against the owner's half-of-first-clicks condition.
-- 2026-10-06 -- How I will judge a fix proposed during local iteration: does it make a committed
-  change visible, a count true, a word match the result, or a dead end disappear? If it instead
-  adds explanation text, a hint, a first-run-only element or a second way to the same state, I
-  oppose it.
-- 2026-10-06 -- On participants: simulated personas again, so I want the first-time personas'
-  files strengthened (three are about 4.5 KB against 20-40 KB for older ones) and at least one
-  keyboard-only and one screen-reader participant on the chained walk. A pass is weak evidence; I
-  will say so in every report.
-- 2026-10-06 -- On success criteria for this run, what I will argue for: the chained first session
-  at 80% or better; each tier 1 task at 80%; no confirmed severity-4 left open; ease reported per
-  task and compared with round 8 rather than held to 5.5 alone (5.5 has never been met and the
-  simulated scale is uncalibrated); every number reported with and without study-tool defects.
-- 2026-10-06 -- Open problems the studio has not settled and I should push on when evidence
-  arrives: the "attribute" word; Size's home; Analyze headings; the usage-data wording; whether a
-  run's suggested style should land above a hand-written layer that colors everything.
+- 2026-10-06, folded 2026-10-07 -- Standing expectations, still open: names off at rest hurts
+  Elena (she clicks prominent nodes and searches names she knows); words at rest written for
+  developers; watch first clicks on icon-only Layout and View against the owner's half-of-first-
+  clicks condition; judge any fix by whether it makes a change visible, a count true, a word match
+  its result or a dead end disappear -- oppose hints, first-run-only elements and second routes.
+- 2026-10-06 -- Success criteria I argue for: chained first session and each tier 1 task at 80%;
+  no confirmed severity 4; ease compared within one scale; numbers with and without tool defects;
+  one keyboard-only and one screen-reader participant on the chained walk; real people eventually.
+- 2026-10-06 -- Open problems: the "attribute" word; Size's home; Analyze headings; usage-data
+  wording; whether a run's suggested style lands above a hand-written layer that colors everything.
 
 ## Sources
 

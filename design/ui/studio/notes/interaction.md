@@ -15,50 +15,39 @@ save and reopen.
 
 ## Top of mind
 
-- 2026-10-06 **Round 2's first test: does the Neighborhood command (G, menu, selection bar) on
-  one node now open "<name>'s N connections"?** Round 1's worst task (ease 2.75, 4.3x the path)
-  failed because the door people took only selected and landed on the several-node Summary.
-  Decided: one function behind both doors. The pilot on the rebuilt app confirms the list opens
-  by Degree and by G. Watch: if the routed build still fails, only then add a cue on Degree.
-- 2026-10-06 **Every detour must work or not look clickable.** Decided for round 2: the Selection
-  row shows the Summary instead of emptying the inspector; Data > Sources tables stop opening the
-  import page; an empty combo draws no "Open list" arrow (fixed in compact-mantine, all callers).
-  Watch: new detours on the same task.
-- 2026-10-06 **Refusals in place, under the field, until the value changes.** "No crossings" now
-  writes "No crossings could not lay out this graph, so the drawing is unchanged" under Method
-  (pilot T11/05). No public refusal code; the app knows what it asked for. Watch whether readers
-  read it and pick another method.
-- 2026-10-06 **Focus after a pick goes to what the pick made.** The Style "+" menu removes its own
-  trigger, so "return focus to the trigger" cannot work: focus moves to the new line's first
-  control. Plus a visible :focus-visible ring on every control (compact-mantine). Sam's keyboard
-  names session runs first in round 2, after these land.
-- 2026-10-06 **New in the pilot: "Force, flat" does not lay out** (an even disc, unchanged after
-  10 s). A method that silently does nothing is my silent-commit rule; confirm in graphty-element
-  and treat it like "No crossings" if it cannot run.
-- 2026-10-06 **Overlays cover the drawing:** legend card over a Florentine node, the group key
-  over a Les Miserables node, the camera centering a searched node so half the graph runs under
-  the bottom toolbar. Deferred until traced (fit padding may already exist in the element).
-- 2026-10-06 **One name per run.** Round 2 names a run by its method ("PageRank", not
-  "Influence") in row, legend, layer list and table header, from the app's own words. Measure on
-  two datasets; graders accept either.
-- 2026-10-06 **The mouse wheel zooms the 3D view** (element fix). It comes before any "show
-  hidden names" control; that control is built only if round 2 still shows people stuck.
-- 2026-10-06 **"Failed" sessions at 40m00s were the runner, not the app.** The clock counted the
-  wait for one of 4 browser slots (17-50 min). First runs with a "b" re-run need no restart; 14
-  unrated first runs get graded, not re-run; 7 timed-out "b" runs move into round 2's roster on
-  the fixed runner. Never read a void as a design result.
-- 2026-10-06 **The recurring failure is the second step after a correct first click.** Round 8
-  and round 1 agree. Criterion 1 stands.
-- 2026-10-06 **Simulated participants never hover and are one model.** Hover cues are untested; a
-  signifier that matters is visible at rest. Agreement across personas is not independence; trust
-  reproductions and causes in code, and failures over passes.
-- 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped
-  (why the Degree cue and the Size move were held back).
-- 2026-10-06 **Notices: 6 s, pause on hover, never under an open popover, never the only way
-  back.** Undo instead of asking; Esc one thing per press (unconfirmed: Esc on the selection menu
-  also cleared the selection, r1-s19b -- check in round 2).
-- 2026-10-06 **Not doing for round 2:** first-run tour, toolbar words, graph-Style signpost,
-  "Show all labels", Size move. Each was severity 1-2 with about 1-step recovery.
+- 2026-10-07 **Round 3 must prove the unwalked fixes, not assume them.** The re-pilot (build
+  b7590f8de) walked every tier 1 task by pointer and all reach their end state, but no pilot
+  touched the menu-to-dialog focus, 2D Fit, the chevron hit area, the canvas name and focus ring,
+  or the finished-load and finished-run announcements. Preflight runs `repro/r2-s07/repro-menu.sh`,
+  a 2D Fit, a chevron click and one `--sr` session before any participant.
+- 2026-10-07 **Watch the sizing detour.** Size "+" now opens its list (decided over my "arrive
+  bound to the run": on a community run that would size by a group id -- the Director was right).
+  Esc on that list leaves a fixed "1", no Size key row, focus on the chain-link (T9 B/06). Count
+  how many stop there believing they sized.
+- 2026-10-07 **Watch "Show all labels".** It reaches every name in 5 steps (T10), but names are
+  tiny and overlap once all are on. Record "unreadable" as opinion, not a failed step.
+- 2026-10-07 **Recovery routes are first-class.** Fit is what a lost reader presses. A broken
+  recovery route outranks a slow forward route. Also watch selection recentering that pushes
+  nodes under the toolbar (T12) and Spectral framing a knot under it (T11).
+- 2026-10-07 **A decided change that is not verified on the served build is not done.** The run
+  rename slipped a whole round; it is now built (T7: "PageRank" on row, key, inspector).
+- 2026-10-07 **Feedback that contradicts the drawing:** Everything's Style tab shows Color blue,
+  Size 1 while every dot is orange and sized by the run above it (T15 finding 4). Same trust
+  failure as round 8's "panel says one thing, drawing another". Watch; candidate for round 4.
+- 2026-10-07 **Overlays hide nodes and the element cannot frame around them** (no fit inset).
+  Needs public element API; the owner's call, after round 3, as a placement question.
+- 2026-10-07 **Element English leaks into my refusals** (layout refusal sentence, "centre").
+  The in-place refusal pattern holds; its words must come from codes (issue #867 family).
+- 2026-10-07 **The neighbors flow is done** (round 2: 8 of 8; re-pilot via G also works). Do not
+  add a Degree cue or touch the Neighborhood command.
+- 2026-10-07 **Simulated participants are one model; the study tool is deaf to active options,
+  browse mode and pre-filled live regions.** Trust reproductions and causes in code.
+- 2026-10-06 **Change one thing per problem per round,** so the round can tell what helped.
+- 2026-10-06 **Every detour must work or not look clickable. Refusals in place, under the field,
+  until the value changes.** Held through round 2.
+- 2026-10-06 **Notices: 6 s, pause on hover, never the only way back.** Esc one thing per press.
+- 2026-10-06 **Not doing yet:** first-run tour, toolbar words, names drawn by default, the Size
+  move, a chain-link label.
 - 2026-10-06 **Where a fix goes:** graph logic in graphty-element; flows, focus, words in the app;
   shared control defects in compact-mantine.
 
@@ -206,6 +195,19 @@ Each with its reason. A screen that breaks one is a defect.
   control; focus to the new Style line; runs named by method. Rejected: Degree cue (two changes at
   once), Summary listing names (second neighbor surface), new refusal code, notice-slot changes.
 
+- 2026-10-07 Round 2 decisions (Design Director), with my proposals' fate: menu dialogs keep
+  focus -- fixed in compact-mantine's Menu, not per caller (mine was app or shared; the shared
+  fix is right: a third `returnFocus={false}` copy is the forbidden pattern). Clickable row's
+  trailing glyph inside the hit area, compact-mantine (mine, taken). Key leaves out a fully
+  covered layer, element (mine, taken; the element already detected the cover and only said it in
+  English). 2D Fit frames the whole graph, element. Finished load and run announced in the one
+  polite region, replacing "added, running" (mine, taken). Canvas gets the host's `aria-label`
+  and a visible focus ring. Group layouts offer community results via `catalog.optionsFor`
+  (app's `groupings()` deleted). Runs named by method. "Show all labels" beside the hidden count.
+  REJECTED: my "Size arrives bound to the run" -- a community run would size by group id; Size
+  "+" opens its picker instead (Label "+" pattern). Not changed: Force unsettled cloud (untraced),
+  4x print export, key placement and fit inset (new API, seed is the owner's).
+
 ## Tried: worked / did not work
 
 - 2026-09-13 v1 shell panel locks and autohide: did not work. Locking one panel closed the other;
@@ -252,6 +254,25 @@ Each with its reason. A screen that breaks one is a defect.
   an unlaid disc; overlays and the camera hide nodes; developer words in the CSV warning and the
   Overview's direction line; project name and outline disagree after save.
 
+- 2026-10-07 Round 2 (56 graded, commit 4a7a1a7fb): worked -- the neighbors list (8 of 8, ease
+  2.86 to 5.25 though round 1's scale was reversed), first-time personas 34 of 34, the in-place
+  refusal, save and reopen, no false "done". Did not: the menu-to-dialog focus (ended r2-s07), the
+  row chevron outside the button, the stale key row, 2D Fit, the sizing chain (18 of 18), no
+  "finished" announcement, layouts (T11 ease 3.33: unsettled Force, group layouts disabled after a
+  community run because the app's `groupings()` reads only file attributes). The run-name change
+  decided for round 2 was never built. Taught: a decided change that does not land must be
+  carried, not forgotten; and the task wording (T10 "every name") can manufacture a 3.5x.
+
+- 2026-10-07 Re-pilot after round 2 fixes (build b7590f8de, T6-T16 by pointer): every task
+  reaches its end state on the answer key's route; no console errors. Worked: run named
+  "PageRank" everywhere (T7); Size "+" opens its list and binds in 8 steps (T9); group layouts
+  enabled after Louvain (T11); "Show all labels" gives every name (T10); Enter opens the only
+  Analyze entry. Still: Overview "Undirected, from the file: directed 0" overflows (every pilot);
+  run rows open on Style, so Top 10 needs the Values tab; inspector subtitle "Measure from
+  PageRank" names the row after itself; equal-bar histograms; element English refusals. Not
+  walked: keyboard, screen reader, 2D Fit, menu focus. Taught: a pointer pilot cannot certify
+  focus and announcement fixes; they need their own scripted checks.
+
 ## Thinking
 
 - 2026-10-06 **The chained first session is the real test of my work.** Each tier 1 task passes
@@ -286,28 +307,14 @@ Each with its reason. A screen that breaks one is a defect.
 
 ## Sources
 
-- `design/ui/studio/digests/` (decisions, framework, owner-voice, study-rounds, tier1), read
-  2026-10-06.
-- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/decision-log.md` (rounds
-  1-8, especially "Round 7" shared interaction rules and "Round 8" decisions and rejected list).
-- `.../prototype/study/round-8/insights.md` (findings 3, 4, 7, 9, 16; skeleton defects table).
-- `.../prototype/study/structure-comparison/structure-b-refined.md` section 2.5 "One pattern per
-  job" (surfaces, tooltip, rename, delete, notices, Esc, menus, lists, disabled).
-- `.../prototype/study/structure-comparison/interaction-designer-groups-list.md` (my 2026-09-30
-  groups-list specification).
-- `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/tier1-design.md` sections 4, 5 (T15),
-  6 (state summary), 9 and "Adversarial review changes".
-- `design/ui/framework/interaction-patterns.md` sections 3.1-3.6 (via the framework digest).
-- Built code on the studio worktree: `graphty/src/workspace/frame/NoticeSlot.tsx` (6 s, pointer
-  hover pause only), `graphty/src/workspace/keys/keys.ts`,
-  `graphty/src/workspace/project/ProjectDialogs.tsx` ("Discard unsaved changes?").
-- `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl` -- owner messages 2026-09-26
-  16:09 and 21:24 (undo coverage), 2026-09-28 14:40, 2026-09-30 10:07 and 15:25, 2026-10-01 00:52,
-  2026-10-03 05:20; extracted with `design/ui/studio/tmp/interaction_owner.py`.
-- `design/ui/studio/rounds/round-1/` insights.md, scores.md, sessions r1-s17b, s29b, s43b, read
-  2026-10-06.
-- `.claudehistory/fac8191f-78c2-4de2-8ae0-bd963cf90bd9.jsonl` -- owner messages 2026-09-12 to
-  2026-09-14 (panel lifecycle, focus, rename, interaction under-specified).
-- `.claudehistory/3a19ea55-.../subagents/workflows/wf_94d61710-fbb/` (2026-09-30, interaction
-  designer walks of structures A and B) and `wf_b726172d-481/` (2026-10-01, skeleton review);
-  located with `design/ui/studio/tmp/interaction_agents.py`.
+- `design/ui/studio/digests/` (decisions, framework, owner-voice, study-rounds, tier1), 2026-10-06.
+- `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/` -- decision-log.md (rounds
+  1-8), round-8/insights.md, structure-comparison/ (structure-b-refined.md 2.5, my groups-list spec).
+- `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/tier1-design.md` sections 2.7, 4-6, 9.
+- `design/ui/framework/interaction-patterns.md` sections 3.1-3.6.
+- Built code: `graphty/src/workspace/frame/NoticeSlot.tsx`, `keys/keys.ts`,
+  `project/ProjectDialogs.tsx`, `WorkspaceToolbar.tsx` (status region).
+- Owner messages in `.claudehistory/` (sessions 3a19ea55 and fac8191f), extracted with
+  `design/ui/studio/tmp/interaction_owner.py` and `interaction_agents.py`.
+- `design/ui/studio/rounds/round-1/`, `round-2/` (insights, decisions, scores, repro r2-s07, s19,
+  s56), `r2/pilot/T6-T16/pilot.md`, read 2026-10-07.

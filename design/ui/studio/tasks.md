@@ -57,6 +57,40 @@ are not run in tier 1 rounds (see `criteria.md`, "Round plan").
   - "clusters" (T11) is in an Analyze description; T11 is solved in Layout, so it can only lure.
   - Words that appear only in usage-data or settings text (between, help, helped, read, see,
     leading, together, short, computer) name no target control.
+- The wording check of 2026-10-06 for round 2 (`tmp/researcher/r2/wording-check.py` over 48
+  screens of commit 4a7a1a7fb, T2 now included; it catches a planted echo) found these further
+  shared words, kept for the reasons given, plus one reworded (T14's "back", above):
+  - "data" (every sample prompt's "not on your own data"; T2 "your own data") is the left rail's
+    "Data" button. The phrase is the same in round 1, so rounds stay comparable. It is a target
+    only in T6 (Data lists the recorded facts); T6's facts are also on the table and the Values,
+    and graders record whether a T6 participant went to Data straight after reading the word.
+  - "file", "change", "answer", "help", "see", "back" (T2) are the start screen's "Open project or
+    file...", the usage card, its "Change this in Settings > Privacy" line, the analysis forms'
+    Back arrow and the menu's "Back to start". T2's target is a sample; "change" leads to the line
+    that answers T2's last sentence, which is a measure, not graded.
+  - "keep" (T8 "keep turning up", T13, T16) and "pick" (T8 "pick out") are the Layout list's "Keep
+    positions" and the label pop-out's "Pick an attribute". Neither is on those tasks' paths, so
+    they can only lure (a possible false fail, never a false pass).
+  - "saved" and "computer" (T3, T5, T14, T15) are the Export dialog's footer "Saved to this
+    computer only" and the start screen's "Files are read on this computer". Neither names the
+    control a task measures; the footer shows only after Export is found.
+  - "drawing" (T9, T10, T13, T15) also shows in the label pop-out and the Export dialog's Image
+    description, after the step that matters is done.
+  - "numbers" and "open" (T13) are on the Analyze list, the Data page and the main menu's "Open"
+    rows, not on the export path.
+  - "carry", "point", "reached", "drawn", "away" are words of the Analyze list's method
+    descriptions; no task's target is a method found by those words.
+- Words the planned round 3 build adds (checked 2026-10-07 against the prompts; to be re-run with
+  the wording check on the served round 3 build at preflight). No prompt changes:
+  - The "Show all labels" switch is a target in T10 and T15 only. Neither prompt says "show",
+    "all" or "labels" (T10 asks for "every character's name", kept on purpose: it is the real goal,
+    and rewording it to fit the build would hide a gap). T10 B's `label` (the attribute) shares a
+    word with the switch; the per-dataset rule above already treats a B-only pass as an echo.
+  - "show" (T9 "make the drawing show") and "all" (T3 "all of it arrived", T14 "all of your
+    work") share words with the switch; none of those tasks' targets is the switch, so they can
+    only lure.
+  - Runs named by method ("PageRank", "Louvain") and the Size list opening at once add no word a
+    prompt uses. No prompt says "picker", "method" or a method's name.
 
 ## The tasks
 
@@ -240,13 +274,17 @@ Every empty start meets the usage card, so the card is measured across all of th
 - **Prompt:** "You have been working on the ready-made network of Les Miserables characters that
   comes with this program: you had it work out which characters matter most, and you put their
   names on the drawing. You must stop for the day. Make sure the work is kept on this computer
-  under a name you choose, put it away as you would at the end of the day, and then bring it back
-  as if it were tomorrow. Tell us whether everything came back."
+  under a name you choose, put it away as you would at the end of the day, and then return to it
+  as if it were tomorrow. Tell us whether all of your work was there when you returned."
 - **Start:** setup -- `rounds/pilot/T14/setup.txt`: `--click No thanks`; `--click Open the Les
   Miserables sample`; select Everything; on its Style tab add a label line bound to `name`; then
   run PageRank from Analyze (`--key Shift+A`, `--type PageRank`, `--click PageRank`, `--click
   Run`).
 - **Files:** none. **Suits:** everyone; weekly analysts especially.
+- **Changed before round 2 (2026-10-06):** "bring it back" and "everything came back" became
+  "return to it" and "all of your work was there when you returned": the round 2 build's main
+  menu closes a project with "Back to start", the step this task measures, so "back" became a
+  word of the target control (wording check of 2026-10-06 on commit 4a7a1a7fb).
 - **Changed from round 8 (r8-t14):** a setup start with work to keep, so "everything came back"
   can be checked; asks the participant to say whether it did.
 

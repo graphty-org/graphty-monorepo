@@ -5,45 +5,45 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-06 (round 1 closed; decisions and re-pilot read).
+Last updated: 2026-10-07 (round 2 closed; re-pilot read; round 3 watch list on top).
 
 ## Top of mind
 
-1. (2026-10-06, round 1 closed) Two doors, two results was the root of the worst task (neighbors
-   by name, ease 2.75, 4.3x path). Decided: the Neighborhood command (menu, G) opens the same
-   neighbor list as the Degree row. Re-pilot: both routes reach "Javert's 17 connections". Round 2
-   watch: does T12 ease rise with only this change?
-2. (2026-10-06) The chevron on clickable DataRows was REJECTED for round 2 (two changes at once
-   would hide which one helped). Bring it back only if the routed build still fails T12.
-3. (2026-10-06, owner) Figma's authority covers CONTROLS AND GESTURES ONLY; structure comes from
+1. (2026-10-07) Round 3 measures the twelve round-2 changes. The re-pilot reached every end state
+   with no blocker: Size "+" opens its list at once (T9), runs read "PageRank" everywhere (T7,
+   T16), group layouts enable after Louvain with "Group by: Communities" chosen (T11), "Show all
+   labels" shows every name (T10). Watch whether ease on sizing and names moves; that is credit.
+2. (2026-10-07) "Show all labels" was decided against my "do not add it yet". The forcing fact was
+   good: the element already has the capability and the switch visibly changes the drawing, so it
+   is not the round 8 "Show labels" trap. Accept it; watch that words at rest do not rise.
+3. (2026-10-07) New top risk, element: in the default 3D view perspective makes a nearer dot look
+   bigger, so "biggest dot" can name the wrong node (Ava drawn larger than Farah, T15). Figma never
+   lies about size; a size encoding must survive the camera. Open choice: element fix or the app
+   opening a sized drawing in 2D. Not mine to decide; push for a recorded decision.
+4. (2026-10-07) The key over a node: the element's fit has no inset (fixed 5 percent), so no
+   consumer can keep the graph clear of an overlay. Needs a public option: an owner decision.
+   Chrome over content stays a Figma violation; propose it for round 4 if round 3 confirms it.
+5. (2026-10-07) The element still writes English refusals the app shows as is ('the layout
+   "planar" ... G is not planar', '"results.louvain.group" names 6'). Words-at-rest debt; the fix
+   is an element code plus app words, never an app rewrite of the sentence.
+6. (2026-10-07) Before a round: check every decided change in the served build (preflight). The
+   run rename slipped through round 2 unbuilt.
+7. (2026-10-07) Check the Degree-row chevron and menu-to-dialog focus in round 3 on pointer and
+   keyboard sessions; the re-pilot used Control+E and clicked the row word, so neither is proven.
+8. (2026-10-06, owner) Figma's authority covers CONTROLS AND GESTURES ONLY; structure comes from
    graphty's ontology.
-4. (2026-10-06) Every control must visibly change canvas, legend or popover. Round 2 fixes in that
-   class: "No crossings" now says why under Method (verified in re-pilot), empty "Open list"
-   arrow removed in ComboInput, Selection row and Data > Sources rows stop dead-ending. Watch
-   "Force, flat": re-pilot shows it does not move any node -- same defect class, element side.
-5. (2026-10-06) Runs will be named by method everywhere ("PageRank", not "Influence"). One word
-   per meaning, Figma's consistency rule; element's English run.label stays (public API).
-6. (2026-10-06) Overlays covering the canvas (legend card over a node, toolbar and Layout popover
-   over the bottom, camera centering a searched node under the toolbar). Figma keeps chrome off
-   the content; deferred pending a trace of the element's fit padding. Push it in round 2.
-7. (2026-10-06) Focus: a visible ring on every focusable control (compact-mantine foundation CSS)
-   and focus on the new line after a Style "+" pick. Fix in the shared component, never the app.
-8. (2026-10-06) Wheel zoom on the orbit camera in graphty-element: graph convention beats Figma's
-   wheel-pans. Zoom comes before any "show hidden names" control (deferred).
-9. (2026-10-06) Multi-node Summary: "Babet (1)" is dropped (not reworded); "Edges 0" dropped. My
-   "N different values" wording was rejected as adding words. Fine: deletion is more Figma.
-10. (2026-10-06) Held, all Figma-consistent: graph Style tab with no signpost, bind icon, icon-only
-    toolbar, 1000 ms tooltip, Size placement. Re-argue only on round 2 failures.
-11. (2026-10-06) Words the app still leaks: CSV warning written for developers, export columns
-    "results.louvain.group", "directed 0" in the Overview. Figma's panel words are the user's
-    content; flag these as word-budget debt for bar 9.
-12. (2026-09-26, owner) No wizards, coach marks, first-run UI or suggestion cards.
-13. (2026-10-06) Study reading: simulated participants share one model; failure strong, pass weak;
-    "failed 40m00s" sessions were runner timeouts in the browser queue, not app failures.
-14. (2026-10-06) Ledger debt: `figma-crosswalk.md` section 4 still lacks rows for undo notices,
-    the Discard prompt and Save/Save as. Still owed.
-15. (2026-10-06) Labels: no false "done" in 29; the empty-line Label "+" held. Exported names are
-    soft and the top-ranked names get overdrawn -- watch T15 images.
+9. (2026-10-06) Every control must visibly change canvas, legend or popover. A key row for a
+   painted-over layer is this class; round 2 decision removes fully covered blocks only.
+10. (2026-10-06) Held, Figma-consistent: graph Style tab with no signpost, bind icon, icon-only
+    toolbar, 1000 ms tooltip. No round-2 failure argues against them.
+11. (2026-09-26, owner) No wizards, coach marks, first-run UI or suggestion cards.
+12. (2026-10-07) Study reading: one model plays every persona; a failure is strong, a pass weak;
+    the screen-reader tool now must follow the active option before its findings count.
+13. (2026-10-07) Do not ask for what the build cannot do in a task prompt; a missing control is a
+    finding, not a 3.5x measure.
+14. (2026-10-06) Ledger debt: `figma-crosswalk.md` section 4 lacks rows for undo notices, the
+    Discard prompt and Save/Save as.
+15. (2026-10-07) Lesson kept: one smallest change per failure, so a round can attribute results.
 
 ## Priorities and values
 
@@ -109,6 +109,23 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- 2026-10-07 (studio, round 2 close) Twelve changes for round 3, one per problem, in the owning
+  package: menu-to-dialog focus (compact-mantine Menu defaults); the key drops a block painted
+  over on every node (element, owner-decision record); 2D Fit frames the graph (element); group
+  layouts offered community results through `catalog.optionsFor` "partition" values (element; app
+  `groupings()` deleted); load and run finished announced (app words, element facts); the canvas
+  takes the host's aria-label and a focus ring (element); Size "+" opens its list; the trailing
+  glyph joins the row's hit area (compact-mantine DataRow); runs named by method (app `runName`);
+  "Show all labels" writing the element's declutter setting; study tool hears the active option;
+  answer key for new routes, T10 prompt kept. All of my proposal accepted except "no show-all
+  control yet" (overruled with a forcing fact I accept). Not changed: key placement and fit
+  insets (new API, owner), 4x export (element, later), Size pre-bound to the result.
+- 2026-10-07 (me, round 2 critique) Round 3 proposal: menu-to-dialog focus, chevron in the hit
+  area, Size "+" opens its list, key from winning layers, 2D Fit, group fact from the element,
+  ship the run rename. Not changed: toolbar, tooltip delay, signposts, default labels or hover,
+  a show-all-names control, ranking that also sizes. Reason: smallest fixes for verified failures
+  on the core path; the rest is opinion or prompt-made.
+
 - 2026-09-25 (owner) Figma studied in depth by capture: components, measurements, styles, dark
   mode, flows, saved in `design/ui/figma/`. Reason: compact-mantine replicates them and the app
   borrows their grammar.
@@ -155,6 +172,19 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   position: 1000 ms is Figma's measured value; change only on study evidence.
 
 ## Tried: worked / did not work
+
+- 2026-10-07 Re-pilot of round 2's fixes (nine tasks, scripted). Worked: Size "+" opens "Size by
+  attribute" at once with Fixed size first and id/name disabled "Holds groups, not amounts" (the
+  Label "+" pattern transferred cleanly); runs named "PageRank" on key, row and node; group layouts
+  enable after a community run with the group preselected; "Show all labels" removes the hidden
+  count. Not yet shown: whether newcomers find these unprompted. Columns by group was the only
+  layout that made clusters easier to tell apart; Circle in 3D reads as a filled disc.
+- 2026-10-07 Round 2 on the real app. Worked: neighbors task 8 of 8 at 0.9x (all through the
+  Degree row, the round-1 unification); first-time personas 34 of 34; no false done in 56; save
+  and reopen 3 of 3. Did not: removing the empty Size "Open list" (sizing chain still 18 of 18);
+  the run rename decided in round 1 never shipped; the chevron added to the Degree row sits outside
+  its button (4 of 6 pointer users clicked it first). Lesson: a decided change must be checked in
+  the build before the round, and a glyph that looks clickable must be inside the hit area.
 
 - 2026-10-06 Round 1 close. Accepted from my proposal: Neighborhood opens the list, empty Size
   list fixed (by hiding the arrow, not filling the list), No crossings refusal, wheel zoom, focus
@@ -209,6 +239,17 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   menu instead of the field list for Columns). Lesson: fix the shared component first.
 
 ## Thinking
+
+- (2026-10-07) Perspective and size. Figma's canvas is orthographic: an object's on-screen size is
+  its size. graphty's default 3D view breaks that for any size encoding. When a style line binds
+  size, the honest drawing is one where size reads true. Candidate Figma-consistent move: the
+  bound size is the claim, so the view must not contradict it. Bring evidence, not taste.
+- (2026-10-07) Preselecting "Group by: Communities" after a run is Figma's "sensible default
+  immediately": the first Apply pays off. Same rule as the Size list opening at once.
+- (2026-10-07) The stale "Color: Connections" key row is true about the layer stack and false
+  about the drawing (Communities wins color, last writer). A key is a reading of the canvas, so it
+  must list only the layer that wins each property. Which layer wins is a graph-styling fact:
+  graphty-element's to compute, the app's to word.
 
 - (2026-10-06) Where Figma's grammar is load-bearing for tier 1: the Style tab ("+" adds,
   popover edits, bind icon, empty sections), selection driving the inspector, the find box,

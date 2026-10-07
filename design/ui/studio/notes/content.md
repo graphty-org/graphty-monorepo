@@ -7,51 +7,44 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Top of mind
 
-- 2026-10-06 Round 2's first word check: is every run named by its method ("PageRank",
-  "Betweenness", "Louvain") in the inspector row, legend, layer list, table header and exported
-  CSV? Decided for round 2 (decisions change 11), but the re-pilot build e82708488 still said
-  "Influence" and "Communities" everywhere. Verify live before any session runs; the answer key
-  keeps "Influence" as accepted.
-- 2026-10-06 Words cannot fix a missing route. Round 1's worst task (neighbors by name, ease 2.75)
-  is fixed by routing: the Neighborhood command on one node opens "<Name>'s N connections".
-  The Degree-row cue I proposed (chevron, "17 connections") was rejected so round 2 can tell what
-  helped. Do not reword the Degree row until the routed build is measured.
-- 2026-10-06 Fix by deletion first. Round 2's summary fixes delete words: no commonest value when
-  it occurs once ("Babet (1)" for 18 nodes), no "Edges 0" beside "Edges among them". "18
-  different names" was rejected: it adds words on an unchecked fact.
-- 2026-10-06 Refusals sit next to the control that failed, never in the notice slot. The build
-  says, under Method: "No crossings could not lay out this graph, so the drawing is unchanged".
-  It passes my caps loosely (12 words); it names the method and the outcome. Keep it; check it
-  stays until the method changes.
-- 2026-10-06 The honest label count works: 0 false "done" on names in 29 sessions (round 8: 10 of
-  21). Keep "N labels, M hidden to avoid overlap" word for word. Next step is wheel zoom (now
-  fixed in the element), then a control only if people still stall -- never more words.
-- 2026-10-06 Internal names leak where the reader leaves the app: exported CSV headers
-  (`results.louvain.group`), the CSV warning (`"style.color"`, "generic dialect", "importer"),
-  and "Undirected, from the file: directed 0" / `"directed": f`. These are my defects; queue them
-  for the words-at-rest baseline and the export pass. Export column names may be a format contract
-  -- check before renaming (possible one-way door).
-- 2026-10-06 A word must never promise what the screen does not do, and every count is computed
-  from the live state or removed. A number names its unit and its whole ("1,204 of 9,113 edges").
-- 2026-10-06 The app writes ALL reader-facing words (owner 2026-10-03: graphty-element returns
-  facts plus `{ code, params }`). Wrong words are my app defects; a missing FACT is an element
-  issue. The element's English `run.label` is a recorded defect, not removed in round 2 (public
-  API).
-- 2026-10-06 Standard terms stay: betweenness, PageRank, degree, components, modularity (owner
-  2026-09-26). Friendly words only as search aliases.
-- 2026-10-06 One name per thing: after a save the header says "Les Mis work" while the outline
-  says "Graph Les Miserables". Raise it; one project, one name.
-- 2026-10-06 "Attribute" still under test (round 8: 5 of 12 not their word). Re-test on two
-  domains before changing it.
-- 2026-10-06 Budgets: at rest with a graph loaded, at most 50 words of app text; an inspector about
-  30, max 40. Bar 9's script on the round 1 build is the baseline -- no fix may add at-rest words.
-- 2026-10-06 Usage-data card: owner's text stays until the owner chooses; my tightened draft is in
-  Thinking (6 of 6 misread "his Claude Code sessions" and "replay").
-- 2026-10-06 Simulated evidence caveat: all participants are one model; a fail is strong, a pass
-  is weak. Agreement across personas is not independent confirmation. Word findings need a code
-  cause or a reproduction.
-- 2026-10-06 Task wording never echoes the words a fix puts on screen; every wording change is
-  tested on two domains (owner 2026-09-29).
+- 2026-10-07 Re-pilot of the round 3 build (b7590f8de) confirms built: runs named "PageRank" on
+  outline, key, inspector title, "Made with"; "Show all labels" checkbox; count shortened to
+  "77 labels, 7 hidden" -> "77 labels"; Size "+" opens its list at once, titled "Size by attribute"
+  (the same name as the chain tooltip -- the two-name split is gone without a word change).
+- 2026-10-07 Method naming is NOT finished: the layout form's "Group by: Communities", the key's
+  "Group 1..6", and the inspector subtitle "Measure from PageRank, Oct 7" still carry result or
+  generic words. Round 3 check: one name per run on every surface, including layout forms.
+- 2026-10-07 New leak: layout refusals show graphty-element's own English as is ('the layout
+  "bipartite" needs exactly two groups, and "results.louvain.group" names 6'; "No crossings ...
+  planar"). Element must return a code and params; app words it under Method. File it, no app
+  rewording of the English string.
+- 2026-10-07 Still unfixed and deferred by the Director (severity 2, all succeeded): one refusal
+  for a damaged file on both routes (Data page E_PARSE_FAILED reuses the Open route's sentence);
+  Overview "Undirected, from the file: directed 0" overflows and "Edges per ..." truncates. Push
+  both into round 4 -- they pay for any words added since.
+- 2026-10-07 Announcements decided (round 2 change 5): "<Name>: 77 nodes, 254 edges" on load,
+  "PageRank finished" on a run, replacing "added, running". Watch for double speech and that the
+  run name used is the method name.
+- 2026-10-07 CSV export headers still `results.louvain.group`, `results.louvain.groupSize`, and the
+  CSV warning is developer prose. Before renaming, confirm whether column names are a format
+  contract (one-way door -> owner-decisions.md).
+- 2026-10-07 Keep word for word: "N labels, M hidden" + "Show all labels", the Open-route refusal,
+  the usage card, "Saved in this browser". Do not reword T10; it now measures the switch.
+- 2026-10-07 Everything's Style shows a raw hex "Color 6366F1" and "Size 1" after a run sized the
+  dots -- a value with no meaning to a reader and stale against the drawing. Candidate for round 4.
+- 2026-10-07 Nothing after a run says what PageRank measures; the description lives only in the
+  Analyze list. Do not add help text; watch whether participants misstate the basis in T7.
+- 2026-10-06 Words cannot fix a missing route; fix by deletion first; refusals sit next to the
+  control that failed; a word never promises what the screen does not do.
+- 2026-10-06 The app writes ALL reader-facing words; a missing fact or an English string from the
+  element is an element defect, never reworded in the app.
+- 2026-10-06 Budgets: at rest <= 50 words, inspector ~30 (max 40). Bar 9 (words at rest) has never
+  run -- it must run on the round 3 build before fixes replace it.
+- 2026-10-06 Simulated evidence: a fail is strong, a pass weak; word findings need a code cause or a
+  reproduction; screen-reader findings on the tool's blind spots are not shown.
+- 2026-10-06 Task wording never echoes a fix's words; every wording change tested on two domains.
+- 2026-10-06 One name per thing: header "Les Mis work" vs outline "Graph Les Miserables" after a
+  save; still open.
 
 ## Priorities and values
 
@@ -148,6 +141,29 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Tried: worked / did not work
 
+- 2026-10-07 WORKED (re-pilot, round 3 build): method names on every run surface listed above;
+  "Show all labels" reached every name on two datasets in 5 steps; the count shortening kept words
+  at rest flat. Lesson: an unbuilt decision is found only by a preflight on the served build.
+- 2026-10-07 LEARNED (round 2 closing): the insights filed the unbuilt run rename as a design
+  opinion; the Director corrected it to an unbuilt decision. Severity of a word defect depends on
+  whether it was decided -- always cite the decision.
+- 2026-10-07 LEARNED: the bind door's two names merged when Size "+" opened the list titled
+  "Size by attribute"; an IA route fix removed a word problem. Fix the route first, then words.
+
+- 2026-10-07 WORKED (round 2): the Degree row as the door to the neighbor names, 8 of 8 (no word
+  change; the chevron cue did it). The Open-route refusal again (3 of 3, ease 6). The hidden count
+  again: every participant who read it said names were missing. The usage card: no wrong belief.
+- 2026-10-07 DID NOT WORK (round 2): the Data page's damaged-file refusal ("could not be read as
+  GraphML. Check the file, or pick another format in File settings") -- no cause, no line, remedy
+  points at format; `data-page/words.ts` E_PARSE_FAILED still carries the stale "#803" comment
+  though the element now reports the line (`project/actions.ts` notReadSentence uses it).
+  Lesson: one code, one sentence -- share the function, do not write a second.
+- 2026-10-07 DID NOT WORK: "Undirected, from the file: directed 0" (6 sessions) -- raw file syntax
+  pushes the label out; "Edges per ..." truncates (`inspector/words.ts` directionWords).
+- 2026-10-07 DID NOT WORK: the bind door has two names, "Size by attribute" (tooltip and
+  accessible name, `style/words.ts` bindLabel) and "Size from data" (popover title,
+  `style/SetLine.tsx`); a participant read the chain icon as "links to her file".
+
 - 2026-09-28 to 10-02 WORKED: the broken-file refusal naming faults with line numbers (8 of 8 would
   forward it); "never uploaded" / "Local only"; "Covered by PageRank for Color"; "Note on:
   <thing>" before typing; the Privacy page's "Where your data goes" (5 of 6 would forward it);
@@ -194,6 +210,10 @@ I read this file at the start of every session and update it as I decide and lea
 
 ## Thinking
 
+- 2026-10-07 Announcement words (round 3 proposal): load "<Name>: 77 nodes, 254 edges"; run
+  "<Method> running" then "<Method> finished". Both from the element's load and run events; no
+  English from the element. Watch for double speech with the existing "added, running".
+
 - **Labels (T10, T15).** The build follows the round 8 decision: the Label "+" (tooltip "Add label
   line") adds an empty line and opens "Pick an attribute". Risk to watch: an empty line's
   accessible name "Label, Above: no attribute, draws nothing" is honest but long; and whether
@@ -228,7 +248,12 @@ I read this file at the start of every session and update it as I decide and lea
 - **Disabled reasons** are words too: every disabled control states its reason in its tooltip and
   aria-describedby, e.g. the toolbar with nothing drawn.
 
-- **Round 2 watch list.** (1) method names live on every surface; (2) does anyone still miss the
+- **Round 3 watch list (2026-10-07).** (1) every run named by its method, including layout
+  "Group by" and the key's group rows; (2) participants reading element English in layout refusals;
+  (3) does "Show all labels" read as the route to every name, without the task echoing it; (4) do
+  load/run announcements speak once, with the method name; (5) bar 9 word count on the served
+  build; (6) does anyone misstate what PageRank measures with no on-screen basis.
+- **Round 2 watch list (closed).** (1) method names live on every surface; (2) does anyone still miss the
   neighbor list once Neighborhood opens it -- if so, then the Degree-row cue; (3) do people zoom
   to hidden names now, or still click the count; (4) exported CSV and warning wording (check
   whether column names are a contract first); (5) the refusal line's wording as participants

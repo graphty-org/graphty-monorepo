@@ -253,6 +253,16 @@ changes a bar or an answer; each removes a way the study, not the app, decided a
 - 2026-10-06 -- **The rating question is asked as written in `tasks.md`** (1 = very difficult,
   7 = very easy). Reason: round 1's session prompt asked it the other way round, so every ease
   had to be converted (8 minus the rating).
+- 2026-10-06 -- **Round 2 runs 56 sessions, not the full sizes above** (the studio's cap per
+  round; full sizes would need 81). No bar changes. The core four keep their full size (T15 at 10,
+  6 Les Miserables and 4 own file; T10, T12 and T9 at 4 and 4): T12 is below its bar, T10 and T9
+  are open, and the four decide the stall rule. Every other tier 1 task was touched by a change
+  since round 1, so every one runs, but at 2 or 3 sessions (T14, T5, T11 at 3; T13, T6, T3, T7 on
+  the running club, T8 at 2), not at "4 or more as a regression check"; as in round 1, such a task
+  passes bar 1 only if every session succeeds. T2 runs once (1 of 1), for its first step and the
+  usage-data question no other task asks. T16 runs twice. "Every task has at least 3 first-time
+  participants" holds for every core half but T15's own-file half (2 of 4, as in round 1) and not
+  for the reduced tasks (1 or 2 each). Allocation: `roster.md`; scoring: `rounds/round-2/plan.md`.
 - 2026-10-07 -- Preflight item 10: every change carried into the round is listed as built or not
   built, checked on the served build. Reason: a run named by its method was decided after round 1
   and reached round 2 unbuilt without anyone noticing.

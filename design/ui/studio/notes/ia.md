@@ -7,46 +7,47 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
 
 ## Top of mind
 
-1. (2026-10-06) Round 2's first IA question: does fixing the door people already used (G /
-   Neighborhood now opens "X's N connections" for one node; pilot T12 confirms) rescue the
-   neighbors task WITHOUT a cue on the Degree row? The chevron and "17 connections" were rejected
-   for round 2 to keep one variable. If T12 still fails on the routed build, they are my first
-   proposal for round 3.
-2. (2026-10-06) Lesson: fix the door people reach for before marking the door they ignore. All 4
-   went to Neighborhood; the route they took was broken, not missing.
-3. (2026-10-06) Dead-end doors are being fixed: Selection row shows the Summary; Sources tables
-   open the table or stop looking like an action; an empty combo draws no "Open list". Watch in
-   round 2 that each now lands where its label says, and that "does nothing" did not replace
-   "lands wrong" as a silent door.
-4. (2026-10-06) One name per run: the method word ("PageRank", "Betweenness") everywhere after a
-   run, from the app's words. Watch the run row, legend, table header and Size option agree; the
-   CSV still exports "results.louvain.group" -- a second name at the data door (pilot T13).
-5. (2026-10-06) "No crossings" refusal now sits under Method, beside its control (pilot T11/07).
-   The pattern to keep: a refusal lives next to the control that caused it, not in a notice slot.
-6. (2026-10-06) Overlays hide content: legend card over a node, toolbar and Layout popover over
-   the canvas, select-to-focus pushes nodes under the toolbar. A place that hides another place
-   is an IA problem too; legend fit is deferred to round 3 -- keep it on the list.
-7. (2026-10-06) Rejected and why (do not re-propose without new evidence): a Style-tab pointer to
-   node styling (one model's shared first guess, all recovered in 1 step); filling Size's list
-   (second bind door); names in the Summary (second neighbor list); "Show all labels" (wait for
-   wheel zoom).
-8. (2026-10-06) The recurring failure is still the step after the right click: it did nothing
-   visible or named no one. Test the next step, not just the first click.
-9. (2026-10-06) Small structure drift seen in the pilot: project name "Les Mis work" vs outline
-   "Graph Les Miserables" after save -- one object, two names. Propose a fix if round 2 shows it.
-10. (2026-10-06) Method names that mislead about place/shape: "Circle" draws a sphere in 3D,
-    "Force, flat" does not lay out (element defect). A label must say what lands; watch T11.
-11. (2026-10-06) "Failed 40m00s" sessions were the runner's queue, not the app; the 7 timed-out
-    re-runs move to round 2, Morgan's screen-reader sessions wait for the tool's reader mode.
-    A void is not evidence; never count it as a fail of a place.
-12. (2026-10-06) One home per object and state; commands have doors; never two reachable controls
-    with the same name (bar 8's script decides "Graph", "Export", "Neighborhood").
-13. (2026-10-06) Do not change: rail (Graph, Data), Analyze headings and search, export doors,
-    file intake, "Values" -- round 1 traced no failure to them and the pilot walked all paths.
-14. (2026-10-06) Simulated participants share one model: a pass is weak, a failure strong;
-    hover cues are untested by them. Grade from the screen.
-15. (2026-10-06) graphty-element owns graph facts (neighbors, refusals, hidden labels); I own
-    where things are and what they are called.
+1. (2026-10-07) Round 3 watch, sizing: Size "+" now opens its picker at once (pilot T9 and T15
+   reach the end in one step fewer). The only sizing change, so round 3 credits it. Pass bar:
+   fewer than half of sizing sessions name the path as a guess (round 2: 18 of 18). If it still
+   costs, next candidate is the "Shape" heading: the menu still reads "Add to Shape: Size, Shape".
+2. (2026-10-07) Round 3 watch, names: "Show all labels" beside "N labels, M hidden" (pilot T10
+   both datasets, 5 steps). T10 keeps its prompt, so it now tests the switch. Watch whether people
+   see it and whether the full-names drawing (overlapping names) reads as done or as a mess.
+3. (2026-10-07) I was wrong that a show-all control had to wait for the element: the element
+   already had `layoutBehavior.labels.declutter`. Before calling a door "blocked on the element",
+   read the element's existing config and catalog.
+4. (2026-10-07) A run is named by its method everywhere (pilot T7, T16: row, key, inspector,
+   "Made with"). My subtitle-only proposal lost to "no third naming state" -- correct by one home.
+   Watch for anyone missing the result word ("Influence") now that it is gone.
+5. (2026-10-07) Grouping candidates come from the element (`optionsFor` "partition" values); the
+   app's `groupings()` goes. Pilot T11: Rings and Columns by group open with "Group by:
+   Communities". New IA watch: Spectral, Circle (a sphere in 3D) and concentric Rings did not
+   untangle anything -- the Layout list may offer methods that do not answer the task.
+6. (2026-10-07) The Degree-row chevron is now part of the row (shared compact-mantine fix). Pass
+   bar: no dead first click on the chevron. Keep Neighborhood (G) for keyboard; add no doors.
+7. (2026-10-07) Still open, deferred to after round 3: the key box covering nodes on every load
+   (placement question; needs element API; the seed is the owner's); one refusal sentence for a
+   damaged file from both intake doors; Overview "Undirected, from the file: directed 0" overflow
+   and truncated "Edges per ...", "Les Mis..." (pilot T6, unfixed two builds running).
+8. (2026-10-07) "Selection 18" vs "Javert's 17 connections": my "Javert and his 17" was rejected
+   (the app cannot know gender). If the mismatch recurs, propose a neutral form ("Javert and 17
+   connections") rather than re-sending the old one.
+9. (2026-10-07) The first drawing shows no names (pilot T16): the likely reason a newcomer stops.
+   A default, not a door; raise it only with evidence from the first-look task.
+10. (2026-10-07) Lesson: propose one change per path. Two of my round 2 proposals (bound Size plus
+    a heading rename) were cut to one so round 3 can credit it. Pick the stronger one myself.
+11. (2026-10-06) Fix the door people reach for before marking the door they ignore; then mark it
+    -- the chevron cue was what people used.
+12. (2026-10-06) A refusal lives next to the control that caused it; one refusal per cause, same
+    words from every door.
+13. (2026-10-06) Rejected, do not re-propose without new evidence: filling Size's list with results
+    (second bind door); names in the Summary (second neighbor list); a Style-tab pointer to Label;
+    Size arriving pre-bound to the row's result (sizes by a group id on a community run).
+14. (2026-10-07) Do not change: rail (Graph, Data), Analyze and "Start here", File list and intake,
+    Values tab, save and reopen. No failure traced to them in rounds 1-2.
+15. (2026-10-06) Simulated participants share one model: a pass is weak, a failure strong. Count a
+    deterministic layout event once per dataset, but remember every user of that sample meets it.
 
 ## Priorities and values
 
@@ -157,6 +158,22 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   Everything (one model's shared guess, recovered in 1 step). I accept both: a clean single-variable
   test of the door fix is worth more than shipping my cue now.
 
+- 2026-10-07 (IA proposal for round 3, after round 2): bind a Size line added on a result row
+  to that result; "Size and shape" section heading; the Degree row's chevron inside the button;
+  partition candidates from the element; hidden-label words that say what brings names back;
+  method word in the run's inspector subtitle; neighborhood heading that includes the node.
+  Reason: these are the round 2 costs on the first-time core path that trace to structure or
+  words; everything else passed or belongs to other roles (focus return, export fidelity).
+
+- 2026-10-07 (Design Director, round 2 decisions, on my proposal): adopted -- chevron inside the
+  row (as a shared compact-mantine DataRow fix, not app-only); partition candidates from the
+  element's existing `optionsFor` (no new export). Replaced -- bound Size by "Size + opens its
+  picker" (bound Size would size by a group id on a community run); hidden-label words by a "Show
+  all labels" switch (the element already had the setting); subtitle method word by the method
+  name everywhere (no third naming state). Rejected -- "Size and shape" heading (confounds the
+  sizing change), "Javert and his 17 connections" (gender unknowable). I accept all: each reason
+  is a graph fact or a one-home argument, not taste.
+
 ## Tried: worked / did not work
 
 - 2026-09-28 to 10-02 -- Tree tests (text outline only). Worked as a ranking of where to look:
@@ -194,6 +211,21 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   from a selected node opens "Javert's 17 connections" with focus on it (T12 13.png); the refusal
   under Method names the method (T11 07.png). Doors work for the scripted path; round 2 tests
   whether people take them.
+
+- 2026-10-07 (round 2) -- Degree-row chevron: worked (T12 8 of 8, 0.9x; round 1 0 of 4), but its
+  hit area was outside the row button (4 of 6 clicked dead space first). Neighborhood (G) fixed
+  but unused (0 of 8): a working door nobody sees is not a door.
+- 2026-10-07 (round 2) -- Size under a "Shape" heading with "+" and a chain-icon bind: did not
+  work as a findable path (18 of 18 named it; all succeeded by guessing).
+- 2026-10-07 (round 2) -- "N hidden to avoid overlap": honest (no false done), but every T10
+  session spent its extra steps hunting a door that does not exist (r2-s12: 5 wrong turns).
+- 2026-10-07 (round 2) -- One name per run did not ship as the method word: rows and key say the
+  result ("Influence"), the method appears nowhere after the run.
+
+- 2026-10-07 (re-pilot, build b7590f8de, graphty@0.8.53) -- every round 3 change reaches its
+  end state on the scripted path: Size picker (T9, T15), Show all labels (T10, both datasets),
+  group layouts after Louvain (T11), method names (T7, T16), export (T13). Scripted success says
+  the doors exist; round 3 says whether people take them.
 
 ## Thinking
 
@@ -234,6 +266,13 @@ it as I decide and learn. Seeded 2026-10-06 from the studio digests and the desi
   picture, export the numbers, save and reopen.
 
 ## Sources
+
+- `design/ui/studio/rounds/round-2/decisions.md`, `insights.md`; `rounds/r2/pilot/T6`-`T16/pilot.md`
+  (2026-10-07)
+
+- `design/ui/studio/rounds/round-2/insights.md`, `scores.md`; screenshots `repro/r2-s19/run1/04.png`,
+  `repro/r2-s56/run/07.png`, `sessions/r2-s29/09.png`, `sessions/r2-s12/10.png`;
+  `graphty/src/workspace/layout/methods.ts` `groupings()` (2026-10-07)
 
 - `design/ui/studio/rounds/round-1/insights.md`, `scores.md`, sessions r1-s17b, s29b, s10b
   screenshots (2026-10-06)

@@ -5,45 +5,49 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-06 (round 1 closed; re-pilot of every tier 1 task read: `rounds/r1/pilot/`).
+Last updated: 2026-10-07 (round 2 closed; round 3 build re-piloted: `rounds/r2/pilot/`).
 
 ## Top of mind
 
-- 2026-10-06: Round 1 closed. Re-pilot of every tier 1 task on build e82708488 (graphty@0.8.53):
-  all walked tasks reach their end state by the key's path, no console errors, deterministic
-  screenshots (`rounds/r1/pilot/all/pilot.md`). The build is fit to study; failures in round 2
-  are design signal, not machinery -- once the runner is fixed.
-- 2026-10-06: "failed 40m00s" in the study list is the runner, not the app or the participant: the
-  40-minute clock ran while the agent queued for one of 4 browser slots. Do not restart round 1
-  sessions: first runs with a "b" re-run are covered, 14 first runs need grading only, the 7
-  timed-out "b" re-runs move into round 2's roster. Morgan's 7 screen-reader sessions wait on a
-  tool mode.
-- 2026-10-06: Fix the runner before any round 2 session: at most 4 agents, clock from slot
-  acquisition, always `--end` in a finally, ease asked as 7 = very easy.
-- 2026-10-06: Re-record the answer key before round 2: the "No crossings" line's actual words, T13's
-  Export kinds are tabs, T8 "Group 1" matches 4 controls. A stale key grades a pass as a failure.
-- 2026-10-06: New element suspect from the re-pilot: "Force, flat" leaves nodes in their starting
-  disc (no iterations). Confirm in graphty-element before round 2; if real, T11 fails for the
-  wrong reason. Spectral on Les Miserables packs ~70 of 77 nodes under the toolbar.
-- 2026-10-06: Overlays covering the drawing is now the most repeated app finding (legend card,
-  group key, Layout popover, toolbar, camera centering a selected node). Truthful-screen bar:
-  a result the user cannot see is fatal. Watch it in T9, T11, T12; fit inset is element API.
-- 2026-10-06: Neighbors (worst task, ease 2.75): fix the Neighborhood route only, NO Degree cue in
-  round 2 (one variable at a time). Re-pilot shows both routes now open the list.
-- 2026-10-06: A run is named by its method everywhere ("PageRank"); the re-piloted build still says
-  "Influence", so round 2's build must change it and the key must follow.
-- 2026-10-06: "No crossings": the element rejects a set it cannot build; the app writes the line.
-  No new public refusal code.
-- 2026-10-06: Developer words leaking to readers (raw `directed 0`, `results.louvain.group` CSV
-  headers, the CSV warning's dialect text) -- app words, cheap, count against words at rest.
-- Gates: each task >= 80% and each dataset half >= 75%; first-time >= 80%; 0 confirmed sev-4,
-  silent commits, count/drawing mismatches, false "done"; keyboard only; automated a11y; app words
-  at rest <= 50. Done = all 9 bars in one round, or round 3 finished, or no gain on T15/T10/T12/T9.
-- A build defect is confirmed at ONE participant once scripted on the build. Behavior and opinion
-  still need two. Simulated passes are weak signal; failures strong.
-- Remove before adding; app words at rest never rise. Graph logic in graphty-element,
-  shared-control fixes in compact-mantine, words in the app; public API in `owner-decisions.md`.
-- Owner rule: graphty-element imposes no default layout seed; the app passes its own.
+- 2026-10-07: Round 3 build b7590f8de (graphty@0.8.53) re-piloted on 9 tasks: every end state
+  reached, no blockers. Confirmed built: runs named "PageRank" everywhere, Size "+" opens its list
+  (T15 one step shorter), "Show all labels" (count "77 labels, 7 hidden" -> "77 labels"), group
+  layouts enabled after Louvain with "Group by: Communities" prefilled, Enter opens the only
+  Analyze entry, no constant-size key entry, drawing no longer turns on its own.
+- 2026-10-07: Still to confirm before launch: axe-core and words-at-rest count on the round 3
+  build, and one `--sr` session for the new announcements (labels count, "Exported ...", run
+  finished). The re-pilot ran no keyboard or screen-reader path.
+- 2026-10-07: Element emits English where it should return a code plus parameters: layout
+  refusals ('"planar" ... G is not planar', '"bipartite" needs exactly two groups') in
+  `session/planning.ts`, and graph-io's CSV export warnings. Breaks "element returns neutral
+  facts". High-priority element issue; app words them. Not a round 3 blocker.
+- 2026-10-07: Study tool counts a label and its control as two ("Show all labels", "Format",
+  "Table"): fix in `real.mjs` before round 3 so graders do not log false `ambiguous`.
+- 2026-10-07: Watch in round 3, do not pre-fix: T16 friends.csv first drawing has no names (a
+  newcomer's likely "not useful"); Everything's Style tab still shows blue / Size 1 under a
+  PageRank-sized drawing (may read as "sizing lost"); Spectral and Circle-in-3D do not help T11,
+  Columns by group does; selection recenters the camera under the toolbar.
+- 2026-10-07: Owner one-way doors from round 3 (record each in `owner-decisions.md` when built):
+  `legend()` drops covered blocks; `optionsFor` fills partition values; canvas takes the host's
+  `aria-label`. Behavior changes to existing methods, no new exported name.
+- 2026-10-07: A decision is done only when preflight confirms it on the served build (the round 2
+  run rename slipped). The re-pilot is that check per task; keep it.
+- 2026-10-07: Traces owed, not blocking: Force re-applied with a new spring length freezes as a
+  cloud; 4x print is the 2x picture enlarged (element, no app hiding).
+- Round 2 result: 52 of 54 sessions; first-time 34 of 34; neighbors 8 of 8 via the Degree row.
+  Failing: bar 5 (stale key row), bar 7 (screen-reader menu focus). Bars 8 and 9 never ran.
+- Sizing by a result was the largest ease cost (18 of 18). Round 3 has one sizing change only
+  (Size "+" opens its picker) so the round can credit it.
+- Gates: each task >= 80%, each dataset half >= 75%; first-time >= 80%; 0 confirmed sev-4, silent
+  commits, count/drawing mismatches, false "done"; keyboard only; automated a11y; app words at rest
+  <= 50. Done = all 9 bars in one round, or round 3 finished, or no gain on T15/T10/T12/T9.
+- Build defects confirm at one scripted participant; behavior and opinion need two. Simulated
+  passes weak, failures strong. Screen-reader tool blind spots make findings "not shown".
+- Before a new element API, grow an existing method. Remove before adding; words at rest never
+  rise. Graph logic in the element, shared controls in compact-mantine, words in the app.
+- Owner rule: the element imposes no default seed; the app passes its own. Key over Pazzi /
+  Blacheville and Farah behind Chloe are fixed-seed placements every user meets: revisit after
+  round 3 as key placement / overlap, not seed.
 - Open owner items: usage-data card wording, tooltip delay (500 vs 1000 ms), whether a run's
   suggested style lands above a reader's color-everything layer.
 
@@ -170,6 +174,41 @@ Last updated: 2026-10-06 (round 1 closed; re-pilot of every tier 1 task read: `r
   for 7 cells costs more than it tells. Sam's keyboard names session runs first, after the focus
   fixes.
 
+- 2026-10-07 -- Round 3 changes (me), `rounds/round-2/decisions.md`. Taken, severity first: a
+  menu that opened a dialog does not take focus back (compact-mantine Menu; remove the per-caller
+  copies it covers); `styles.legend()` drops a block covered on every element and its English
+  "painted over by" sentence (`legend.ts:730` already detects it); 2D Fit traced and fixed in the
+  element; `catalog.optionsFor` fills a partition option's `values` with groupable columns,
+  results included, and the app deletes `groupings()`; load and run-finished announcements in the
+  existing status region; the canvas named from the host's `aria-label` with a visible ring;
+  Size "+" opens its picker; DataRow's decorative trailing glyph joins the row's hit area; runs
+  named by method through one `runName()`; a "Show all labels" switch writing the element's
+  existing `layoutBehavior.labels.declutter`, the count shortened to "N labels, M hidden" so words
+  do not rise; the study tool follows `aria-activedescendant` and gets a read-region command;
+  answer key re-recorded. Evidence: code read for each (menus.tsx, StyleTab.tsx:355, legend.ts,
+  methods.ts:83, optionsFor.ts, ElementHost.tsx:11, DataRow.tsx, Graph.ts:1389) and the round 2
+  reproductions.
+- 2026-10-07 -- Rejected for round 3 (me): `returnFocus={false}` on MainMenu (breaks Escape;
+  third copy); a new element call listing groupable attributes (an existing method covers it);
+  the app filtering `run.fields` itself (graph logic in the app); Size arriving bound to the row's
+  result (sizes by a group id on a community run); a word on the chain-link icon or a tooltip
+  rename (second change on one path); renaming only the inspector subtitle (third naming state);
+  "Javert and his 17 connections" (gender unknown); a zoom hint under the count; rewording T10;
+  removing the 4x choice in the app (hides an element defect); key placement or fit insets (new
+  element API; later). Deferred: Force spring-length cloud and 4x print (trace first), damaged-file
+  refusal on both routes, Overview deletions, export selection ring.
+- 2026-10-07 -- Reversed my 2026-10-06 "No Show all labels": round 2 answered the question it
+  waited on. The count alone did not suffice (every names session hunted for a way out), and the
+  switch changes the drawing visibly, so it is not the round 8 "Show labels" trap.
+
+- 2026-10-07 -- After the round 3 re-pilot (me): launch round 3 once axe, words-at-rest and one
+  `--sr` session pass and the tool's label/control double count is fixed. Not changing before the
+  round, to keep one variable per path: names on friends.csv by default, Everything showing
+  inherited values, the Overview "directed 0" row (overflow and wording; fix as a trivial app
+  defect only if it touches no task path), "Id" vs "id", equal-bar histograms, the self-naming
+  inspector subtitle. Filed for the element, not the app: English refusal and export sentences.
+  Evidence: `rounds/r2/pilot/T*/pilot.md`.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-02 -- Eight simulated study rounds (rounds 1-6 on static mocks, 7-8 on a
@@ -225,34 +264,41 @@ Last updated: 2026-10-06 (round 1 closed; re-pilot of every tier 1 task read: `r
   three stale answer-key entries and one likely element defect ("Force, flat" does nothing) at the
   cost of ~20 scripted sessions. Keep: pilot every round whose build changed.
 
+- 2026-10-07 (round 2) -- Did not work: the run rename was decided for round 2 but not built, and
+  nothing caught it until the scores. Lesson: preflight lists every carried decision as built or
+  not built on the served build.
+- 2026-10-07 (round 2) -- Worked: the screen-reader mode let Morgan's sessions run, but its blind
+  spots (no active option, no browse mode) turned tool limits into scored "findings" until the
+  skeptics withdrew them. Lesson: a new tool mode gets a pilot against a known-good widget first.
+- 2026-10-07 (round 3 triage) -- Worked: the red team checking every proposal in source. It
+  showed two "new API" proposals were already half-built in the element (`coveredBy()`,
+  `optionsFor`) and that the cheapest-looking focus fix broke Escape. Keep asking for it.
+- 2026-10-07 (round 2) -- Worked: one route fix for neighbors (round 1's Neighborhood command
+  routing) plus no cue moved T12 from failing to 8 of 8; people used the Degree row. One variable
+  at a time paid off.
+
+- 2026-10-07 (re-pilot of round 3 build) -- Worked: every decided round 3 change I could check
+  was on screen, and the pilots named source files for what remained (`planning.ts`). The
+  preflight-per-decision lesson held. Gap: no keyboard or screen-reader walk, so bar 7 is
+  unverified.
+
 ## Thinking
 
-- **Watch in round 2:** whether overlays hide the node the task asks about (T9 Florentine legend,
-  T12 camera recenter, T11 Spectral knot); whether "PageRank" naming removes the T7 "what is it
-  based on" pauses; whether participants pick "Force, flat" in T11 and call it broken; whether
-  readers of the exported image can read the top names (soft, overdrawn labels at 2x); whether the
-  outline/project-name mismatch after save confuses T14.
-
-- **Round 2 must answer first:** does the routed Neighborhood command alone fix the neighbors task
-  (if not, the Degree cue is next); does the "No crossings" line clear bar 4; does wheel zoom remove
-  the pull toward a "show hidden names" control; do the focus fixes let Sam finish without
-  abandoning.
-- **Round 1 asked:** do the three round 8 fixes hold up with newcomers (they reach
-  their end state in the pilot), and does the chained first session finish once the spin and the
-  image key are fixed?
-- **The pilot changed my risk list.** The biggest threats are no longer design questions but
-  machinery: a spinning camera, a tool that cannot save, a key that does not match the build.
-  Every one would have produced failures the study is not trying to learn. Next round: pilot first
-  again, always.
-- **Watch in round 1:** stopping at "Degree 17" without clicking it (T12); missing the dim 9 px
-  hidden count (T10 SD and truth-on-screen); "Influence" answers to "what is it based on" (T7,
-  T9); perspective read as size (T9, T15); "Components" not read as reachability (T6).
+- **Round 3 must answer first:** does Size "+" opening its picker cut the sizing cost (it is the
+  only sizing change); does "Show all labels" end the names hunt without adding words; does the
+  key pass bar 5 once covered layers drop; do the group layouts and 2D Fit lift T11; does the
+  focus fix let the screen-reader whole first session finish.
+- **Watch in round 3:** T16 newcomers on friends.csv calling it "not useful" for lack of names;
+  readers on Everything believing sizing was lost; Rings vs Columns by group splitting "helped"
+  opinions; Escape on the Size list leaving a fixed "1" (honest, but a detour); a covered-layer rule that drops a partly visible layer (false key by
+  omission); the runName change confusing T7/T9 graders; announcements spoken twice; the switch
+  read as "Show labels" and left on, cluttering names.
 - **Where fixes go.** Before each fix ask: graph logic (element), a word or arrangement (app), or
-  a shared control (compact-mantine)? A fix in the wrong package is a second bug.
+  a shared control (compact-mantine)? A fix in the wrong package is a second bug. Before a new
+  element API, look for an existing method to grow.
 - **Open tension:** "a run paints as soon as it finishes" vs a reader's Everything color
   suppressing it ("Hidden by your layer"). Watch it in sessions.
-- **Ease is held down by a few places.** If round 1 ease is near 4, look for the same handful
-  (labels, size, neighbors, find) rather than a broad redesign.
+- **Ease is held down by a few places** (sizing, layouts, names). Round 3 targets exactly those.
 
 ## Sources
 

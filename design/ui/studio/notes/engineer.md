@@ -15,79 +15,64 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) Round 3 proposal, in order (round 2 ran on 4a7a1a7fb): (a) menu-to-dialog focus
-   -- Main menu > Export... / Keyboard shortcuts leave focus on "Main menu" behind the open modal
-   (`rounds/round-2/repro/r2-s07/run-menu.log`); same race as the Style "+" menu, fix the same way
-   (`returnFocus={false}` on `MainMenu` in `frame/menus.tsx` and the table dock's options menu),
-   prove Esc still returns to the trigger; (b) stale key -- done, see 2; (c) run named by method, decided in
-   round 1 and STILL unbuilt (`run.label` in Inspector, NodeValues, RunValues, reads, legendWords);
-   (d) "Degree N >" chevron inside the row's button; (e) group layouts after a community run (done);
-   (f) 2D Fit: DONE 2026-10-07, see 8. (g) load and run announcements: DONE 2026-10-07.
-2. (2026-10-07) DONE: the key leaves out a covered layer. Traced first: after Degree then
-   Louvain, `covers()` in `StylesApi.ts` DID prove the cover (Louvain's `has group` test passes
-   on every row Degree measured); the only gap was that the element said so in English the app
-   drops. Now `buildLegend()` skips a block `coveredBy()` finds and the English departure is gone;
-   a partly covered layer keeps its block. No exported name changed; behavior change recorded in
-   `owner-decisions.md`. Proof: `test/browser/legend-covered-layer.test.ts` (real Degree + Louvain)
-   and the unit tests in `legend.test.ts` / `StylesApi.test.ts` fail on the old file;
-   `tmp/check-r2-key-drops-covered-layer/a/07.png` and its exported PNG show only
-   "Color: Communities". The Style tree still lists the Connections row (it is a layer, not a key).
-3. (2026-10-07) DONE: grouping layouts take run results. `catalog.optionsFor` fills a node
-   partition's `values` (attributes + finished runs' categorical node fields, no key/label, no
-   value-per-node); the app's `useLayouts()` in `layout/methods.ts` resolves the grouping layouts
-   and `OptionsForm` lists `option.values`. Owner door recorded. Left: Two columns shows the
-   element's English estimate reason ("needs exactly two groups ... names 4") -- needs a code.
-4. (2026-10-07) DONE: Size "+" opens its from-data list at once, "Fixed size" first and
-   highlighted (one Enter keeps the fixed 1 and focuses its number); the chain-link stays the way
-   back. App only: `openListNext()` in `useFocusLine.ts` (module state, survives the tab remount),
-   `fixedLabel`/`onFixed` on `FromDataList`. Only node Size; edge Width and Color "+" unchanged.
-   Proof: the two T9 tests in `StyleTab.real-element.test.tsx`; `tmp/check-r2-size-plus-opens-picker/`
-   10.png (list open), 11.png (bound 1 to 3, "Size: Influence"), 15.png (Fixed size, focus on "1").
-5. (2026-10-07) Not for round 3: 4x print re-render (T13 passed 2 of 2; labels are textures, a
-   render-target capture is a risky swap), selection ring in export, label-count-vs-dot overlap,
-   hover tooltip default, key placement / fit insets (owner API), a "show all names" control
-   (T10's prompt asked for what the build lacks; reword the task first).
-6. (2026-10-06) Graph logic goes in graphty-element, never the app; an app comment explaining why
-   the element could not be used is an element bug report. The element returns neutral facts and
-   `{ code, params }`; the app owns words. Style only through layers; suggested layers paint only
-   their result. Public element API = owner one-way door: `owner-decisions.md` + `npm run api:report`.
-7. (2026-10-06) No default layout seed in the element (owner). The app seeds itself: `LAYOUT_SEED`
-   and `takesSeed()` in `layout/methods.ts`; seed on the tag in `ElementHost.tsx` and on every
-   Method pick. Any new layout path passes the seed. A fixed seed makes overlay overlaps one event
-   per dataset, not per session.
-8. (2026-10-06) Test the element first, and check whether an existing door reaches the wrong
-   screen before designing a new affordance (planar refusal, Neighborhood route).
-9. (2026-10-07) DONE: 2D Fit frames the whole graph. The app's Fit is
-   `applyCameraView("fitToGraph")`, not `zoomToBoundingBox` (the decision's suspect, correct). The
-   built-in view answered 2D zoom in pixels per unit with the aspect inverted; the camera reads
-   zoom as 5 / half-width. Fixed in `camera/builtins.ts` (`FLAT_HALF_WIDTH_AT_ZOOM_ONE`, shared
-   with `RenderManager`), zoom documented on `CameraState`, owner-decisions entry. Also fixes
-   Frame selection and `zoomToNodes` in 2D. Proof: `fit-frames-whole-graph.test.ts` (wide and
-   tall rings; 2D fails on old code), stories "Camera Controls/Fit 2D" and "Fit 3D" (new
-   baselines), `tmp/check-r2-fit-2d-whole-graph/a/06.png`, `08.png`.
-10. (2026-10-06) Every count on screen is computed from live element state, and every claim is
-   checked against the drawing. Look for motion first ("0 labels" was the camera spin).
-11. (2026-10-06) Open items still untraced: live Selection row blank after the neighbor route;
-    reopened run row has no count (element); Force re-applied with a new spring length freezes as
-    a cloud (`repro/r2-s40/run/13.png`); Effects Outline black blobs; CSV headers internal.
-12. (2026-10-07) Baseline on 4a7a1a7fb (`rounds/round-2/baseline/bars.md`): bar 9 = 42 app words
-    at rest (36 without the dataset title), so no round 3 fix may push it above 42; bar 8 axe fails
-    on ONE cause, dimmed `#8c8c8c` on `#2c2c2c` (4.15:1) = compact-mantine `compactDarkColors[2]`.
-    Re-measure with `tool/bars.mjs <out> [--dist <copy>]`. Simulated participants are one model:
-    trust a scripted repro or a cause in code over a participant count. Others rebuild
-    `graphty/dist` every few minutes in a fix phase, so a `--prove` fails on vanished assets: copy
-    the build, use `REAL_DIST=<copy>` (real.mjs) or `--dist` (bars.mjs).
-13. (2026-10-06) Iterate locally: change, rebuild (element first, then `pnpm exec nx run
-    graphty:build`), re-run with `tool/real.mjs`. Never push. Stage only my hunks; check
-    `pgrep -af "real.mjs --prove"` and rebuilds before trusting a FAIL.
-14. (2026-10-06) Focus follows the pick (`focusNodeValuesNext()`, `focusLineNext()`); a Menu whose
-    item opens something that takes focus needs `returnFocus={false}`. No two reachable controls
-    share a name. Use compact-mantine defaults; fix the shared component. One group number
-    everywhere (`partitionGroupRanks()`); the legend shows only what the drawing shows.
-15. (2026-10-07) The drawing's canvas is named by the host's `aria-label` (app: "Graph drawing"
-    in `ElementHost.tsx`), has no autofocus, and draws the browser ring inside itself. Re-record
-    any answer key or repro that expected `Canvas (no name)` or focus on the canvas after an open:
-    focus now stays on the page body after a file opens.
+1. (2026-10-07) Round 2 closed; all ten of its build changes landed on design/studio-tier1
+   (895e5fab3..b7590f8de, build b7590f8de, graphty 0.8.53) and the re-pilots of T6, T7, T9-T13,
+   T15, T16 all reach their end state with no blocker. Round 3 measures THOSE changes: do not land
+   another change on a path a round 3 task measures until round 3 has run (two changes on one
+   path confound the measure; decisions rule).
+2. (2026-10-07) Watch in round 3, by change: menu-to-dialog focus (re-run r2-s07 first); key
+   drops a covered layer; 2D Fit; group layouts after Louvain; load/run announcements (tool
+   blind spot 3: a region inserted already filled is "unconfirmed"); canvas name and focus ring;
+   Size "+" opens its list (credit any T9 ease change to it alone); trailing chevron in the row;
+   run named by method; "Show all labels". A regression there is mine to trace first.
+3. (2026-10-07) Biggest remaining element defect class: element English reaching the screen.
+   Re-pilots found it in layout refusals (`session/planning.ts` planar/bipartite: "G is not
+   planar", "results.louvain.group names 6"), layout descriptions (`catalog/layouts.ts`, British
+   "centre"), graph-io's CSV export warnings, and `run.label`. Fix = `{ code, params }` from the
+   element, words in the app; never an app rename or string match.
+4. (2026-10-07) Perspective in the default 3D view makes a nearer dot look bigger: on friends.csv
+   Ava reads larger than Farah though Farah ranks first (T15, T9 re-pilots; also exported). This
+   can make a size answer meaning-wrong. Candidate for round 3 decisions; the fix (flat/ortho by
+   default when sizing, or screen-constant sizes) is element behavior, likely an owner door.
+5. (2026-10-07) Key covers nodes (Florentine top-left node fully hidden, T9; Les Mis rings, T11).
+   Needs a fit inset on the element's zoom-to-fit (`OrbitCameraController` fixed 5%) -- new
+   public option, owner door. Deferred to after round 3 as a placement question; have the
+   owner-decisions entry drafted, do not build it.
+6. (2026-10-07) Still deferred, with reasons in round 2 decisions: 4x print re-render
+   (`ScreenshotCapture.ts` scales; labels also soft at 2x), selection ring in export, name behind
+   a dot counted as shown, Force re-apply cloud (untraced -- trace before round 3 launches and
+   file an element issue with the cause, do not hold the round), refusal parity for "New from
+   data...".
+7. (2026-10-07) Small open defects from the re-pilots (not on a measured path, safe after round
+   3): Columns by group ignores group order (6,1,5,3,4,2); Circle draws a sphere in 3D; group
+   named three ways ("Louvain", "Group N", "Communities" in Group by); Overview direction row
+   shows raw "from the file: directed 0" and overflows; truncated "Node t..." labels; Id/id;
+   Florentine histogram of 15 equal bars; Everything's Style shows base Size 1/blue after sizing.
+8. (2026-10-07) Study tool: `ambiguous` on a label plus its input (Show all labels, Format,
+   Table) is a tool defect, not a participant wrong turn. Fix in `tool/real.mjs` (treat a label
+   and the control it labels as one match) before round 3 grading, or graders over-count.
+9. (2026-10-06) Graph logic goes in graphty-element, never the app; an app comment explaining why
+   the element could not be used is an element bug report. Element returns neutral facts; app owns
+   words. Style only through layers. Public element API or behavior change = owner door:
+   `owner-decisions.md` + `npm run api:report`.
+10. (2026-10-06) No default layout seed in the element (owner). The app seeds itself
+   (`LAYOUT_SEED`, `takesSeed()` in `layout/methods.ts`); any new layout path passes it. Fixed
+   seed = overlay overlaps are one event per dataset, not per session.
+11. (2026-10-07) A decision's file list is a start, not the set: grep every route of the value
+   (run-name change missed Why this look). Any NEW site showing a run calls `runName`, never
+   `run.label`. Tests assert literal method names, not `run.label`.
+12. (2026-10-07) Bars baseline on 4a7a1a7fb: 42 app words at rest (no fix may push it above);
+   axe fails on one cause, `#8c8c8c` on `#2c2c2c` (compact-mantine `compactDarkColors[2]`).
+   Re-measure with `tool/bars.mjs`. Trust a scripted repro or a cause in code over a participant
+   count (one model plays every persona).
+13. (2026-10-06) Iterate locally: element build, then `pnpm exec nx run graphty:build`, re-run
+   with `tool/real.mjs`. Others rebuild `graphty/dist` often: copy the build and use
+   `REAL_DIST=<copy>`; check `pgrep -af "real.mjs --prove"` before trusting a FAIL. Never push.
+14. (2026-10-07) Focus: the compact-mantine Menu theme returns focus only from inside the menu;
+   never add `returnFocus={false}` again. The canvas is named by the host's `aria-label`, has no
+   autofocus; focus stays on the body after an open (re-record keys that expected otherwise).
+15. (2026-10-06) Still untraced: live Selection row blank after the neighbor route; reopened run
+   row has no count (element); Effects Outline black blobs; header "Untitled" after New from data.
 
 ## Priorities and values
 
@@ -137,6 +122,44 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-07) **Show all labels (b7590f8de, app only).** A Mantine Checkbox "Show all labels",
+  off by default, beside the label line's count in `LabelSection.tsx`; the count now reads
+  "N labels, M hidden" ("N labels" while on). State is the store's `allLabelsShown` (a reader
+  preference, not saved with the project, like `legendShown`); `ElementHost.tsx` writes
+  `layoutBehavior={{ labels: { declutter: !allLabelsShown } }}` on the tag (memoized). Did not
+  work: assigning `element.layoutBehavior` from the section -- the app's `no-element-mutation`
+  lint rule refuses it (the property can also set saved pacing fields, so it is a dispatching
+  door). Writing it declaratively on the tag, as the constant was, passes. No element change:
+  the element already re-runs the declutter pass when the setting flips. Proof: the T10 test in
+  `StyleTab.real-element.test.tsx` (stacked nodes: switch on -> `hiddenByOverlap` 0, every
+  `labelOf().drawn`, "4 labels"; off -> hidden again) fails on the old files;
+  `tmp/check-r2-show-all-labels-switch/06-08.png` (Les Miserables: "77 labels, 7 hidden", on
+  draws Gillenormand, Marguerite, Mother Innocent..., off hides them again). Study tool quirk:
+  `--click "Show all labels"` prints `ambiguous` (input and its label), takes the input, works.
+  Answer key T10/T15 must be re-recorded with the new words.
+
+- (2026-10-07) **A clickable DataRow's trailing glyph is part of the row (compact-mantine).**
+  Cause: `DataRow` drew `trailing` outside its `<button>`, so a click on the "Degree 17 >"
+  chevron landed on the inspector's "Summary values" group and did nothing (4 of 6 pointer users
+  clicked it first). Fix: the slot sits in a `role="presentation"`, `display: contents` wrapper
+  whose click activates the row (focus moves to the row's button, source "pointer") unless the
+  click lands on a control INSIDE the slot (button, link, input, label, a role other than
+  presentation, tabindex) -- `closest()` must be bounded by the slot, or the row's own stat group
+  and the inspector's group above it read as controls. Keyboard unchanged (one stop). Not moving
+  the glyph into the button: a caller's glyph and a caller's reset button cannot be told apart
+  statically, and a button inside a button is invalid. No exported name changed. Proof: two tests
+  in `compact-mantine/tests/components/rows/DataRow.test.tsx` (chevron click activates; fails on
+  the old file); `tmp/check-r2-datarow-trailing-hit-area/a/05.png` opens "Javert's 17
+  connections" from the chevron at 1410,236 where `repro/r2-s19/run1/05.png` did nothing. The
+  only trailing caller today is NodeValues' Degree row.
+- (2026-10-07) **Menu-to-dialog focus (b7db5da7d, compact-mantine).** Mantine's
+  `useFocusReturn` refocused the menu button 10 ms after close. The Menu theme now remembers the
+  opener and returns focus only when focus is inside the dropdown or on body (`overlayBehavior.ts`).
+  Finding the button by `aria-labelledby` failed (Tooltip drops the id). Gate:
+  `MenuFocusReturn.browser.test.tsx`; proof `tmp/check-r2-menu-dialog-focus/run/`. Open: Export
+  dialog Copy fails headless and drops focus to body; compact-mantine `figma/tree.browser.test.tsx`
+  is order-dependent on old code too.
+
 - (2026-10-07) Size "+" opens its list (studio decision: 18 of 18 round-2 sizing sessions named
   the fixed "1" that changes nothing). Adding node Size writes the fixed 1 as before, then the
   line's own bind pop-out opens as it is drawn, with "Fixed size" as its first, highlighted row;
@@ -146,65 +169,27 @@ acceptance test. "The studio worktree" is
   tab). Kept to node Size: edge Width and Color "+" behave as before. Re-record the T9 answer key
   path ("Size by attribute" click is gone) after every wording change, as with T11 and T13.
 
-- (2026-10-07) Study tool (`tool/real.mjs`): a focus line adds `; highlighted: option "..."`
-  for `aria-activedescendant` (resolved in its own root, read from the AX tree); `--read` is
-  browse mode over the open modal, else the region/landmark/form around focus (full AX tree, text
-  runs, headings with level, controls as single items, 80-line cap); a live region first seen
-  already filled ends `-- unconfirmed` (not `role=alert`, read on arrival); `REAL_DIST` serves a
-  build copy. Proof: `--prove` 33/33 on the frozen build (`tmp/engineer/prove3.out`); the three
-  new checks fail on the old tool. New `tool/bars.mjs` (bar 8 axe, bar 9 words) gave the
-  4a7a1a7fb baseline in `rounds/round-2/baseline/`. Added preflight item 10 to `criteria.md`.
-  Rejected: the option's DOM text (a screen reader reads its accessible name). Left to the round
-  3 runner: re-running r2-s07 first (a persona session).
+- (2026-10-07) Study tool: focus lines name the highlighted option (`aria-activedescendant`),
+  `--read` is browse mode, a pre-filled live region ends `-- unconfirmed`, `REAL_DIST` serves a
+  build copy; `tool/bars.mjs` measures the a11y and word bars. Proof: `--prove` 33/33.
 
-- (2026-10-07) 2D Fit: fix the view's unit, not the camera's. `fitToGraph` answers zoom as
-  `5 / half-width`, the unit `setCameraState`, `getCameraState`, `setCameraZoom` and `zoomStep`
-  already use. Rejected: zoom as pixels per unit (breaks every saved camera state), a new
-  `CameraViewInput` field for the constant 5. The unit-only fix passed my wide-ring test, but the
-  new story's tall graph still failed: the aspect was also inverted. Lessons: test framing with a
-  graph taller than the canvas as well as wider; trace the app's actual call before the named
-  suspect -- an unresolved repro step (r2-s14's canvas click) was not the cause.
+- (2026-10-07) 2D Fit: fixed the view's unit (5 / half-width), not the camera's; see Top of mind 9.
+  Lessons: test framing with a graph taller than the canvas too; trace the app's actual call first.
 
-- (2026-10-07) Load and run announced on one status line. The store holds `announcement`; the
-  toolbar's persistent polite region renders it. `useCanvasReading` writes "<project>: N nodes, M
-  edges" (from `data.statistics()`) on the load's progress `end`, and "<Method> finished / failed /
-  stopped" on a command run's `end` (method name from `wordsFor(descriptor)`, else `run.label`);
-  each replaces "added, running". `StateCard` lost `role="status"`: the study tool showed its
-  lines arrive pre-filled (unconfirmed) and the empty card's "No nodes to draw" flashing past
-  during a sample open. Proof: two "status line" tests in `CanvasOverlays.test.tsx` fail on the
-  old code; T7 in `toolbar/__tests__/tasks.real-element.test.tsx` waits for "Untitled: 34 nodes, 78
-  edges" and "PageRank finished"; `tmp/check-r2-announce-load-and-run/` (screen-reader mode: one
-  confirmed live line per event). Not done: a "Reading <name>" line at load start (long loads say
-  nothing until done; add if a study shows a wait); refused loads (#902). Known gap: the same text
-  twice in a row (reopening the same sample) is not re-announced. Seen in passing: after opening a
-  sample from the start screen, focus falls to the page body.
+- (2026-10-07) Load and run announced on one status line: the store's `announcement`, rendered
+  by the toolbar's polite region ("<project>: N nodes, M edges"; "<Method> finished / failed /
+  stopped"). `StateCard` lost `role="status"`. Proof: `CanvasOverlays.test.tsx` status-line tests,
+  T7 in `tasks.real-element.test.tsx`, `tmp/check-r2-announce-load-and-run/`. Gaps: no line at
+  load start; the same text twice is not re-announced; focus falls to body after a start-screen
+  sample open.
 
-- (2026-10-07) Canvas name, focus ring, no autofocus (element, `Graph.ts` and
-  `graphty-element.ts`). Causes found: (a) the canvas sits in the element's shadow root, so nothing
-  on the page could name it; (b) the browser's ring WAS drawn (`outline: auto`, `:focus-visible`
-  matched) but outside the canvas box, and the app's `.ws-canvas` (`overflow: hidden`) clipped it
-  -- found by walking computed `overflow` up from the canvas, no CSS anywhere set `outline: none`;
-  (c) `autofocus` on the canvas pulled focus into the drawing when it mounted after a file opened.
-  Fix: the element observes `aria-label` and copies it to the canvas (kept across the WebGPU
-  canvas swap), `canvas:focus-visible { outline-offset: -2px }` in the host styles, autofocus
-  removed. Public API (owner door, in `owner-decisions.md`): `observedAttributes` and
-  `attributeChangedCallback` on `Graphty` in the API report, `"aria-label"` in the JSX props.
-  Rejected: a `canvas-label` attribute (a second name for `aria-label`), an English default name,
-  a ring color variable. Proof: `test/browser/element-canvas-a11y.test.ts` (3 tests, all fail on
-  the old element); `tmp/check-r2-canvas-name-focus-ring/sr/` prints `focus: Canvas "Graph
-  drawing"` and `nothing (the page itself)` after the open; `vis2/06.png` shows the ring (1px
-  #101010 plus 2px white inside the canvas edge), `05.png` none.
+- (2026-10-07) Canvas name, focus ring, no autofocus (element): the element copies `aria-label`
+  to its shadow canvas, rings it inside (`outline-offset: -2px`; the app's `overflow: hidden`
+  clipped the ring), and dropped `autofocus`. Owner door recorded. Rejected a `canvas-label`
+  attribute, an English default name. Proof: `test/browser/element-canvas-a11y.test.ts`.
 
-- (2026-10-07) Which columns can group a layout is answered by `catalog.optionsFor`, not a new
-  method: it already resolves data-dependent option facts (node ids, bounds), so a partition's
-  `values` is the same kind of fact and adds no exported name. Labels: attribute `plainName`, run
-  `label` (the app already shows run labels verbatim). `layout.set` already took
-  `results.<run>.group` (`layout/groupBy.ts`), so the defect was only the app's list. Evidence:
-  `test/session/options-for.test.ts` ("offers a grouping layout every column..."), app test
-  `LayoutPopover.real-element.test.tsx` ("offers Rings by group once a community run..."),
-  `tmp/check-r2-group-layouts-take-results/04.png` (disabled before) and `10-12.png` (enabled,
-  "Group by: Communities", rings drawn). Async `optionsFor` means the app resolves in a hook;
-  the static descriptors stand in until the answer arrives.
+- (2026-10-07) Which columns can group a layout: answered by `catalog.optionsFor` (a partition's
+  `values`), not a new method; see Top of mind 3. Async, so the app resolves it in a hook.
 
 - (2026-10-07) A covered legend block is dropped, not flagged. `styles.legend()` omits a block
   whose channel a higher enabled layer of the same target paints on every element the block's
@@ -222,18 +207,11 @@ acceptance test. "The studio worktree" is
   once hides which helped), a refusal code (app knows the method), filling the Size list (second
   bind route), a Style-tab signpost (one model's guess).
 
-- (2026-10-06) Focus after a Style pick (commit e82708488): a pick moves focus to the first
-  control of the line it made (`[data-line]`, waiting for `[data-bound]` after a bind); the "+"
-  Menu has `returnFocus={false}` so Mantine's 10 ms return cannot win; Esc still returns. Rejected
-  per-component state (lost on remount). Proof: "focus after a pick" in
-  `StyleTab.real-element.test.tsx`; `tmp/check-r1-focus-after-pick/`.
-
-- (2026-10-06) Study runner: a session idle 15 minutes closes itself (7d40cfe59); at most 3
-  session agents, `--end` after every attempt; ease asked 1 (very difficult) to 7 (very easy).
-
-- (2026-10-06) Keyboard focus ring for plain controls (28bcb71a0): compact-mantine rings any
-  `.mantine-focus-never` control with no `cm-` class on `:focus-visible`. App code never adds its
-  own focus ring; a missing ring is a compact-mantine fix.
+- (2026-10-06, folded 2026-10-07) Focus after a Style pick moves to the first control of the
+  new line (e82708488; its `returnFocus={false}` is superseded by the Menu theme fix, Top of mind
+  14). Study runner: idle sessions close after 15 minutes, at most 3 session agents, `--end` after
+  every attempt. Focus rings for plain controls are compact-mantine's (28bcb71a0); app code never
+  draws its own.
 
 - 2026-10-06 -- "No crossings" on a non-planar graph: the element already refuses (`E_INTERNAL`,
   previous layout kept; `test/browser/planar-refusal.test.ts`); the app's notice never reached the
@@ -250,12 +228,25 @@ acceptance test. "The studio worktree" is
 - 2026-10-06 -- Studies run on a local production build of the studio worktree, not on graphty.app
   and not after the release. Owner (this run's brief).
 
-- 2026-10-06 -- Smaller fixes, all proven (commits and `tmp/check-r0-*`): truncated
-  GraphML/GEXF refused whole; camera keys ignore chords; themed Modal always has an overlay; a
-  failed open returns to start with a lasting notice; exported images carry the legend
-  (c77e473ab, public `ScreenshotOptions.legend`, owner to confirm); a load draws every node its
-  edges name; chrome tooltips; truthful `keyBlocks()`; one Everything row; exports write a group
-  as its size rank (file format, `owner-decisions.md`).
+- 2026-10-06 -- Smaller fixes, all proven (`tmp/check-r0-*`): truncated GraphML/GEXF refused
+  whole; camera keys ignore chords; Modal always has an overlay; failed open returns to start;
+  exported images carry the legend (public `ScreenshotOptions.legend`, owner to confirm); exports
+  write a group as its size rank (`owner-decisions.md`).
+
+- (2026-10-07) **Round 2 changes, built and re-piloted (detail folded from Top of mind).**
+  Key: `buildLegend()` skips a block `coveredBy()` finds; partial cover keeps its block
+  (`legend-covered-layer.test.ts`). Run name: `runName()` in `analyze/words.ts` keeps the scope
+  qualifier, passes through labels not starting with the plain name. Grouping: `catalog.optionsFor`
+  fills partition `values` with categorical node columns incl. run results; app `groupings()`
+  deleted. Size "+": `openListNext()` in `useFocusLine.ts`, "Fixed size" first. 2D Fit: built-in
+  view used pixels per unit with aspect inverted; `FLAT_HALF_WIDTH_AT_ZOOM_ONE` in
+  `camera/builtins.ts` (also fixes Frame selection, `zoomToNodes` in 2D). Re-pilots confirm each
+  on screen. Why it worked: every change traced the cause first and named a test failing on the
+  old build.
+- (2026-10-07) **Round 2 lesson: trace before fixing paid off.** Key: the insights said "build
+  the key from the live style stack", but the element already proved the cover and only said it
+  in English. 2D Fit: the cause was the built-in view's zoom units, not the bounds math. Keep
+  "trace first" in every change.
 
 ## Tried: worked / did not work
 
@@ -275,10 +266,8 @@ acceptance test. "The studio worktree" is
   the live element; not yet traced. Escape from the neighbor list now returns to the single node,
   so the Selection row is the only way to the several-node Summary from the neighbor route.
 
-- **(2026-10-06) Worked, small:** summary rows that say nothing (b11881bb2), the empty
-  ComboInput arrow (b7bc18953, compact-mantine), undirected arrowheads, dead-end clicks (cae3dca4d). The Selection row renders `SeveralValues`;
-  a Sources table click opens the dock via the one-shot store request `tableOn`. Tests fail on old;
-  `tmp/check-r1-dead-end-clicks/s1/`.
+- **(2026-10-06) Worked, small:** empty summary rows, ComboInput arrow, undirected arrowheads,
+  dead-end clicks (b11881bb2, b7bc18953, cae3dca4d); proofs under `tmp/check-r1-*`.
 - **(2026-10-06) A "missing route" was a routing bug: worked.** The Neighborhood command never set `inspected: neighborhood`; routing it through `openNeighborhood` fixed it (8f4891b7c). Lesson: before designing a new affordance for a hard task, check whether an existing door reaches the wrong screen.
 
 - 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
@@ -304,6 +293,10 @@ acceptance test. "The studio worktree" is
   assert on `element.graph.getNodes()` too.
 
 ## Thinking
+
+- **(2026-10-07) The files a decision lists are a start, not the set.** The run-name decision
+  listed ten files; Why this look printed the run's layer name too. Grep every route of the value
+  (`run.label`, the name of a run-owned layer) before calling it done.
 
 - **Element English in descriptors (2026-10-06).** `channels.ts` plainName still says "Node
   Colour" and Layer.ts validation messages build sentences from it. If one reaches the screen

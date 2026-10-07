@@ -16,44 +16,47 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-06) A "failed 40m00s" in the study list is the runner's 40-minute agent limit, whose
-   clock counted the browser queue -- not an app failure. Do not restart first runs that have a
-   "b" re-run; grade the 14 valid first runs; the 7 timed-out "b" re-runs move into round 2 only
-   after the runner fix (at most 4 agents, clock starts at the browser slot) passes a dry run.
-   Morgan's 7 screen-reader sessions are blocked on tooling, not owed.
-2. (2026-10-06) Round 1 is partial (29 of 56 graded) and one model plays every participant: a pass
-   is weak, a failure strong, a scripted repro or a code cause is solid. Never quote a bar before
-   scores.md and insights.md agree; never carry a mock score forward.
-3. (2026-10-06) The re-pilot (commit e82708488) reaches every tier 1 task's end state by the
-   answer key's path, on both datasets, with no console error. So round 1's failures are design
-   and detour problems, not blockers. Round 2 must re-pilot on its own commit before launching.
-4. (2026-10-06) Neighbors (worst task, ease 2.75, 4.3x path): route the existing Neighborhood
-   command to `openNeighborhood` when one node is selected. No new list, no Degree cue in round 2
-   (two changes at once). Watch: do first-time users reach "Javert's 17 connections" through it?
-5. (2026-10-06) "Babet (1)": delete the useless value and the "Edges 0" row; invent nothing.
-6. (2026-10-06) "No crossings": trace first whether the element rejects a non-planar graph; the
-   fix replaces the silence with one sentence, never adds a notice or a public error code unless
-   the trace proves the element gives the app nothing.
-7. (2026-10-06) Empty Size list and focus ring are compact-mantine fixes (every caller benefits);
-   they churn story baselines, so the owner reviews images. Do not bundle with Size relocation.
-8. (2026-10-06) Run names: "Influence" for PageRank paused 12. Watch that the fix (method name
-   everywhere) does not just rename in the app while the element still emits English `run.label`
-   -- that is an element-neutrality defect to trace.
-9. (2026-10-06) Rejected for round 2: Style-tab node signpost, "Show all labels" control, notice-
-   slot redesign, renames beyond the method name, layout descriptions on one anecdote, toolbar
-   labels (owner ruled icons only; revisit only if under half of first clicks find Layout/View).
-10. (2026-10-06) Fix by removing, not adding. One door per job, one surface per question. No
-    persona features, first-run UI, suggestion cards, tours (owner, v1 lesson).
-11. (2026-10-06) Overfitting guard: task words never echo a fix's screen words; the answer-key
-    update (Neighborhood route, method names) is fixed before round 2 runs, both scorings reported.
-12. (2026-10-06) Grade from final screen and transcript, never self-ratings. A check that inspects
-    zero items fails.
-13. (2026-10-06) Word budget (50 words at rest) was not measured in round 1; run bar 9 in round 2
-    and make "app words at rest never rise" a gate -- round 2 adds sentences (No crossings, focus).
-14. (2026-10-06) Graph logic goes in the element, words in the app. Every local fix gets one
-    question: would a third-party consumer need this too?
-15. (2026-10-06) Analyses ran on samples only; T15-B on friends.csv now walks clean -- keep a
-    user-brought file in every chained task so "ids not names" can show.
+1. (2026-10-07) Round 3 measures fixes, not a redesign. The pilots on build b7590f8de reach every
+   tier 1 end state with no blocker (T6, T7, T9, T10, T11, T12, T13, T15, T16). So round 3's
+   failures, if any, are about words, perception and legibility -- not dead controls. Grade those.
+2. (2026-10-07) New top risk: perspective lies about size. In 3D, a nearer dot looks bigger:
+   on friends.csv Ava (0.06423) draws larger than Farah (0.06608), in the export too (T15, T9
+   pilots). A "biggest dot" answer can be wrong from a screen that looks right. Fix belongs in the
+   element (a size encoding that survives perspective) or as a 2D default the app passes; trace
+   before choosing. Do not add a notice.
+3. (2026-10-07) Element English keeps leaking to first-time readers: layout refusals ('"planar"
+   ... G is not planar', '"bipartite" ... "results.louvain.group"'), "centre", CSV warnings from
+   graph-io, run.label. Fix = codes plus parameters from the element, words in the app. Never
+   rewrite the strings in the app.
+4. (2026-10-07) Watch the group named three ways (run "Louvain", groups "Group 1-6", layout form
+   "Communities"). One word per thing; the form should name the run. Columns by group ignores the
+   groups' order (6,1,5,3,4,2): element defect.
+5. (2026-10-07) "Show all labels" (a checkbox, not a switch) works: 5 steps to every name. Now
+   watch the cost it buys -- overlapping, tiny, soft names (T10, export blur). Judge legibility
+   only on real-size renders, never on downscaled shots. No zoom hint under the count.
+6. (2026-10-07) Everything's Style tab shows base Color 6366F1 and Size 1 while every dot is
+   orange and sized by the run row above (T15). Watch for "my sizing was lost". Answer is the
+   layer list reading true, not a second readout.
+7. (2026-10-07) Key over nodes is now on three tasks (T9 Florentine, T11, T13 ok). Fitting around
+   it needs a new public element option (inset/padding) -- an owner one-way door. Count it once
+   per dataset; raise it only with that framing.
+8. (2026-10-07) Overview row "Undirected, from the file: directed 0" overflows and leaks file
+   syntax: seen on four pilots, deferred twice. Fix by deleting the raw half, not adding words.
+9. (2026-10-07) Study tool: "ambiguous" prints on a checkbox and its own label, and on labeled
+   selects. Graders must not score them as wrong turns. Answer key says "switch", build draws a
+   checkbox -- fix the key's word.
+10. (2026-10-07) Still owed before round 3 fixes are judged: axe and app-words-at-rest on the
+    round 2 build (decision 11). Without the baseline no word or a11y claim is comparable.
+11. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
+    repro or code cause solid. Count deterministic layout events once per dataset.
+12. (2026-10-06) Fix by removing, not adding. One door per job. No persona features, first-run
+    UI, suggestion cards, tours (owner, v1 lesson).
+13. (2026-10-06) Overfitting guard: task words never echo a fix's screen words ("Show all
+    labels", "picker"); answer key fixed before the round; report both scorings.
+14. (2026-10-06) Graph logic in the element, words in the app; check existing element API before
+    proposing new API (three times now it already existed: legend cover, run.fields, declutter).
+15. (2026-10-07) Screen-reader findings need a tool with active-option and browse mode, or a real
+    user; do not fix to the tool's blind spots.
 
 ## Priorities and values
 
@@ -153,23 +156,10 @@ served at `/?next`.
   browser cannot know are removed (save folder, "to Downloads"); the inspector's "label hidden" note
   and the data export's hidden-label warning dropped. Studio.
 
-- 2026-10-06 -- Round 1 criteria review (my positions, studio to rule): first-time bar must not be
-  lower than the all-sessions bar (80% vs 85% inverted the owner's priority); the answer key needs
-  reference values recorded on the build for every ranking and grouping answer and every count a
-  grader checks; T15's "runs an analysis unprompted" measure is void because the prompt asks for
-  it; the two-file join (T4) is not tier 1 and should not gate; T10's overlap-hidden names need a
-  ruling so designed behavior is not scored as a false "done"; T8's "center" is undefined.
-
-
-- 2026-10-06 -- Round 1 critique (my positions): (a) neighbors-by-name is fixed by making the
-  several-selected Summary list member names when a column's values are all distinct (the
-  surface chosen 2026-10-03), not by marking the Degree row; the statistics already come from the
-  element's selection.statistics(), so this is app presentation, not a workaround. (b) Insight 9
-  (Graph Style tab has no node styling signpost) is one model's shared guess, 1-step recovery: no
-  change. (c) Insight 10 (PageRank shown as "Influence"): no rename on one round; it never failed a
-  task. (d) Do not move Size to its own heading while its empty list is broken -- two changes at
-  once. (e) Graph inspector at rest shows "Undirected, from the file: directed 0" and a truncated
-  "Edges per n..." (r1-s29b 05.png): word-budget items, count them in bar 9 before touching.
+- 2026-10-06 -- Round 1 (folded): first-time bar not lower than all-sessions bar; reference
+  values recorded for every graded answer; T4 two-file join not tier 1; neighbors fixed by
+  routing the existing command, not a second list; no Degree cue; no "Influence" rename on one
+  round; word-budget items (Overview direction row) counted in bar 9 before touching.
 
 - 2026-10-06 -- Round 2 attack (my positions): (a) neighbors = route the Neighborhood command to
   `openNeighborhood` when one node is selected; withdraw my Summary-lists-names (second list).
@@ -187,6 +177,35 @@ served at `/?next`.
   sessions are blocked on tooling, not owed re-runs. (j) Reconcile scores.md and insights.md
   before anyone quotes a bar.
 
+- 2026-10-07 -- Round 2 critique (my positions): see Top of mind 1-7. Also: do not move the key
+  (Pazzi/Blacheville overlap is one seeded event per dataset), no export selection option (the
+  preview shows what is exported), no label-count rework (the count is true), no "saved in this
+  browser" warning (start screen already says it), no run renames. 4x export: render at the
+  target size in the element; if that cannot land, remove the 4x/"For print" choice rather than
+  ship a false one. Force re-apply: no fix without a traced cause. Announcements (load, run
+  finished) are app words from element events and add no visible text -- allowed, low priority.
+  Evidence read: insights.md, scores.md, repro r2-s07/run-menu/23, r2-s56/run/07, r2-s19/run1/04,
+  r2-s40/run/13, r2-s14/run/06; methods.ts:83; NodeValues.tsx:140-148; frame/menus.tsx MainMenu.
+
+- 2026-10-07 -- Round 3 proposals attack (my positions). Code read: legend.ts:20-40,730-770;
+  LegendCard.tsx:69-76 (#867, #912); Mantine Menu.mjs:129; StyleTab.tsx:355; methods.ts:83;
+  Run.ts:677 fields; catalog/types.ts:403; ElementHost.tsx:11; LabelSection.tsx:137. Changes to my
+  round 2 positions: (a) accept the declutter switch -- my rejection was of a no-effect control,
+  this one has an effect and is pure element config; (b) accept the run rename -- the trace I
+  required is done. Held: Size "+" opens picker; no key move; no seed change; Force/4x trace only.
+  New: the stale-key and group-layout fixes need no new public API; the per-caller
+  returnFocus={false} fix breaks Escape.
+
+- 2026-10-07 -- Round 2 closed. Decided (decisions.md): 12 changes, defect fixes only, each in
+  the owning package -- menu focus in compact-mantine; key omits fully covered block and group
+  layouts read optionsFor "partition" values (element, no new exported name); 2D Fit and canvas
+  name/ring (element); load/run announced (app words); Size "+" opens picker; DataRow chevron;
+  run named by method; "Show all labels" writes declutter; tool hears active option. Not changed:
+  Force re-apply and 4x (trace first, element fix later -- not removing 4x, which hides the
+  defect, reversing my earlier "remove if it cannot land"), key placement and seed (owner),
+  "Javert and his 17", zoom hint. My positions were all adopted except 4x removal. Reason for the
+  reversal: removing an app choice to hide an element defect is the workaround pattern.
+
 ## Tried: worked / did not work
 
 - 2026-10-06 -- Round 1 close-out: holding the Degree cue and my Summary-names idea back in favor of
@@ -194,6 +213,10 @@ served at `/?next`.
   argument. The skeptic pass dropped both bar 5 items (each count was true) -- taught: a "wrong
   count" finding needs the count checked against live state before it is filed.
 
+- 2026-10-07 -- Round 2 result of my round 1 position "route the existing command, no new list, no
+  Degree cue": worked. T12 failed in round 1, passed 8 of 8 in round 2 (0.9x path), through the
+  Degree row that runs the same command. Taught: one command with one visible door beat adding a
+  list. The remaining cost is a hit-area bug (chevron outside the button), not the design.
 - 2026-09-06 -- v1's suggestion strip, "Try it" boxes, auto-generated summaries and novice text:
   did not work. The owner called it text-heavy and cluttered; later the "muddled mess of v1".
   Taught: help-for-beginners text is the clutter.
@@ -227,6 +250,15 @@ served at `/?next`.
   29), loading, ranking, groups, save/reopen, legend in exported picture. Did not work: the study
   runner (40-minute agent limit counted the browser queue; 35 first runs and 7 re-runs void).
   Taught: the runner is part of the build under test; preflight it like the app.
+
+- 2026-10-07 -- Re-pilots of round 3 changes on b7590f8de: worked. Picker-first Size cut a step
+  (T15 one step fewer, T9 8 steps), run names read "PageRank" everywhere (T7, T16), group layouts
+  enable after Louvain (T11), every name reachable (T10). Taught: removal-or-reuse fixes (reuse
+  Label's pattern, reuse element declutter, reuse optionsFor) landed cleanly; none added a door.
+  Not yet seen: whether participants find them unprompted -- that is round 3's job.
+- 2026-10-07 -- Pilots surfaced what the defects were hiding: perspective size distortion, element
+  English refusals, three names for one grouping, soft names in export. Taught: once the controls
+  work, the next layer of failure is perception and words. Expect it to dominate round 3.
 
 ## Thinking
 

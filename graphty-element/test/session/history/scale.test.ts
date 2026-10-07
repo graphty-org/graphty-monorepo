@@ -319,7 +319,7 @@ describe("at a million nodes and five million edges, without a scene", () => {
 
             const degrees = snapshot.degree();
             const result = createRunResult({
-                runId: "deg" as never,
+                runId: "deg",
                 shape: "node-metric",
                 fields: [
                     {

@@ -422,7 +422,7 @@ describe("Edge Case Handling", () => {
             const point = new Vector3(5, 5, 5);
 
             // This should not throw
-            EdgeMesh.transformMesh(mesh as AbstractMesh, point, point);
+            EdgeMesh.transformMesh(mesh, point, point);
 
             // Mesh should still exist
             assert.exists(mesh);
@@ -442,7 +442,7 @@ describe("Edge Case Handling", () => {
             const srcPoint = new Vector3(-10, -10, -10);
             const dstPoint = new Vector3(10, 10, 10);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Midpoint should be at origin
             assert.closeTo((mesh as AbstractMesh).position.x, 0, 0.001);
@@ -463,7 +463,7 @@ describe("Edge Case Handling", () => {
             const srcPoint = new Vector3(1000, 1000, 1000);
             const dstPoint = new Vector3(1500, 1000, 1000);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Should calculate correct position
             assert.closeTo((mesh as AbstractMesh).position.x, 1250, 0.001);

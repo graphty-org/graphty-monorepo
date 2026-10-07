@@ -2,7 +2,6 @@ import { StandardMaterial, Vector3 } from "@babylonjs/core";
 import { assert, beforeEach, describe, test } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { addStyleLayer, asData, edgeBetween, styleEveryEdge } from "../helpers/testSetup";
 
 describe("Edge 2D Patterns Integration", () => {
@@ -54,7 +53,7 @@ describe("Edge 2D Patterns Integration", () => {
 
         // Verify edge mesh is a PatternedLineMesh
         assert("elements" in edge.mesh, "Edge mesh should be a PatternedLineMesh with elements property");
-        const patternMesh = edge.mesh as unknown as PatternedLineMesh;
+        const patternMesh = edge.mesh;
 
         // Verify pattern meshes use StandardMaterial in 2D mode
         assert(patternMesh.elements.length > 0, "PatternedLineMesh should have at least one mesh");
@@ -111,7 +110,7 @@ describe("Edge 2D Patterns Integration", () => {
 
         // Verify edge mesh is a PatternedLineMesh
         assert("elements" in edge.mesh, "Edge mesh should be a PatternedLineMesh with elements property");
-        const patternMesh = edge.mesh as unknown as PatternedLineMesh;
+        const patternMesh = edge.mesh;
 
         // Verify pattern meshes do NOT use StandardMaterial in 3D mode (use ShaderMaterial)
         assert(patternMesh.elements.length > 0, "PatternedLineMesh should have at least one mesh");
@@ -197,7 +196,7 @@ describe("Edge 2D Patterns Integration", () => {
             assert(edge, `Edge ${edgeId} should exist`);
 
             assert("elements" in edge.mesh, `Edge ${edgeId} should be a PatternedLineMesh with elements property`);
-            const patternMesh = edge.mesh as unknown as PatternedLineMesh;
+            const patternMesh = edge.mesh;
             assert(patternMesh.elements.length > 0, `Edge ${edgeId} should have at least one mesh`);
 
             for (const mesh of patternMesh.elements) {

@@ -28,7 +28,6 @@ export {
     canonicalIdentity,
     canonicalize,
     canonicalizeParams,
-    computeScopeDigest,
     deriveRunId,
     stableDigest,
 } from "./runId";

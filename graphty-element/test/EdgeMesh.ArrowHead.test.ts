@@ -100,7 +100,7 @@ describe("Arrow Shape Generation", () => {
                 meshCache,
                 "test-invalid",
 
-                { type: "invalid-type" as any, width: 1.0, color: "#FF0000" },
+                { type: "invalid-type", width: 1.0, color: "#FF0000" },
                 scene,
             );
         });

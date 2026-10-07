@@ -424,6 +424,14 @@ export interface Neighbor {
     readonly excludedBy?: { readonly kind: "filter" };
 }
 
+/** The weight a graph was loaded with: `session.data.loadedWeight()`. */
+export interface LoadedWeight {
+    /** The edge attribute the weights were read from. */
+    readonly attribute: string;
+    /** What the weight means, or null when the load did not say. */
+    readonly meaning: WeightMeaning["meaning"] | null;
+}
+
 /** A {@link RecordPage} of neighbors, plus what the numbers measured. */
 export interface NeighborPage extends RecordPage<Neighbor> {
     /** The weight the rows were combined by, or null when every row's `weight` is an edge count. */
@@ -833,6 +841,12 @@ export interface SessionDataApi {
      */
     lastImport(): LoadReport | null;
     /**
+     * The weight the graph was loaded with: the edge column the last load read weights from and
+     * the meaning chosen for it at load (`TableMapping.weightMeaning`), null when none was chosen.
+     * @returns the weight, or null when the last load read no weight
+     */
+    loadedWeight(): LoadedWeight | null;
+    /**
      * Where the graph was loaded from: the format, the name the reader knows the data by, the
      * URL, and the file's size. It follows undo and redo like the graph does, so a top bar that
      * names the dataset reads it again after either.
@@ -1153,6 +1167,12 @@ export interface TableMapping {
     readonly target?: string | Endpoint;
     /** The edge weight column; null weighs every edge 1, and the legacy `value` column is not read. */
     readonly weight?: string | null;
+    /**
+     * What the weight means. Written to `data.knownFields.edgeWeightMeaning`, so it is saved with
+     * the project and moved by undo; null (and absent, when the table names a weight) says the
+     * reader did not choose. `session.data.loadedWeight()` reads it back.
+     */
+    readonly weightMeaning?: WeightMeaning["meaning"] | null;
     /** The column holding a time. Written to `data.knownFields.nodeTimePath` or `edgeTimePath`. */
     readonly time?: string | null;
     /** The column holding an edge's own id. Written to `data.knownFields.edgeIdPath`. */

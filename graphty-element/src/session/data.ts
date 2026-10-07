@@ -80,6 +80,7 @@ import type {
     FindResult,
     GraphStatistics,
     LoadChoices,
+    LoadedWeight,
     LoadedSource,
     Neighbor,
     NeighborOptions,
@@ -545,7 +546,18 @@ export class SessionData implements SessionDataApi {
         // Dispatched at once whenever nothing has to be read to settle the format, so the load
         // takes its turn in the order it was asked for.
         const resolved = resolveImportSource(source);
-        await send(command(resolved instanceof Promise ? await resolved : resolved));
+        const step = command(resolved instanceof Promise ? await resolved : resolved);
+        // A new graph does not inherit the last one's weight meaning (as `Draft.plan` does).
+        // ponytail: only this door and the draft reset it; another replace route keeps the old one.
+        const resets = step.mode !== "merge" && this.readConfig().knownFields.edgeWeightMeaning !== null;
+        await send(
+            resets
+                ? {
+                      op: "batch",
+                      steps: [{ op: "config.set", values: { data: { knownFields: { edgeWeightMeaning: null } } } }, step],
+                  }
+                : step,
+        );
     }
 
     /**
@@ -1260,6 +1272,18 @@ export class SessionData implements SessionDataApi {
         this.requireLive("lastImport");
         const recorded = this.writes.slice().values.get("importReport") as LoadReport | undefined;
         return recorded ?? this.graphStore.lastImport ?? null;
+    }
+
+    /**
+     * The weight the graph was loaded with, and the meaning chosen for it at load.
+     * @returns the weight, or null when the last load read none
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    loadedWeight(): LoadedWeight | null {
+        const attribute = this.lastImport()?.weights.attribute ?? null;
+        return attribute === null
+            ? null
+            : Object.freeze({ attribute, meaning: this.readConfig().knownFields.edgeWeightMeaning });
     }
 
     /**

@@ -550,3 +550,34 @@ hiding sizes in 3D, or a warning in the app (rejected by the studio).
 
 **Known limits.** It costs a pass over the nodes on every frame while on, and re-trims every edge
 whenever a node's scale changes (each orbit drag), which may show on very large graphs.
+
+## 2026-10-07 -- A weight's meaning chosen at load: `TableMapping.weightMeaning` and `loadedWeight()`
+
+**What.** Four additions to graphty-element's public API, none breaking:
+
+- `TableMapping.weightMeaning` (the load mapping an edge table takes in `session.data.import` and
+  `LoadDraft.load`): `"strength"`, `"distance"`, `"capacity"` or `null`. Refused on a node table
+  or for any other word (`E_BAD_COMMAND`).
+- `data.knownFields.edgeWeightMeaning` in the config, default `null`, written by a load that names
+  a weight or a meaning. Being config, it is saved in the project file and undo and redo move it.
+  A load that names a weight but no meaning writes `null`, so an earlier file's meaning never
+  describes a new weight.
+- `WeightMeaning.meaning` (the caveat on a run and a neighbor page) grows from
+  `"distance" | "strength"` to also take `"capacity"`. Marked as an open union.
+- `session.data.loadedWeight()`: `{ attribute, meaning }` for the weight the last load read
+  (`meaning` null when none was chosen), or `null` when the last load read no weight. New type
+  `LoadedWeight`.
+
+**Why.** One weight column is read as "strength" by community detection and as "distance" by
+shortest paths (tier 2 audit), because nothing records what the number means. Tier 2 lets the
+reader say it once, when loading, and every run and every screen has to read the same answer.
+This change records the answer and exposes it; making each run use it is separate work.
+
+**Alternatives.** A `{ column, meaning }` object as the `weight` role, like `source` and
+`target` take `{ column }` (every reader of `weight` as a string would change). Keeping the
+meaning in the load report (not certainly saved or undone the way config is). A separate graph
+value (a new command and save format for one field). Renaming `WeightMeaning` (asked not to).
+
+**Known limits.** A load with no mapping at all leaves the last meaning in place; the attribute
+comes from the last load's report, so the pair can only disagree if a load without a mapping
+reads a different weight column. Runs still choose their own meaning.

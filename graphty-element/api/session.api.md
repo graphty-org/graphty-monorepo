@@ -1606,6 +1606,12 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadedWeight {
+    readonly attribute: string;
+    readonly meaning: WeightMeaning["meaning"] | null;
+}
+
+// @public
 export interface LoadError {
     readonly code: string;
     readonly field?: string;
@@ -3064,6 +3070,7 @@ export interface SessionDataApi {
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
     lastImport(): LoadReport | null;
+    loadedWeight(): LoadedWeight | null;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
@@ -3573,6 +3580,7 @@ export interface TableMapping {
     readonly target?: string | Endpoint;
     readonly time?: string | null;
     readonly weight?: string | null;
+    readonly weightMeaning?: WeightMeaning["meaning"] | null;
 }
 
 // @public
@@ -3689,7 +3697,7 @@ export interface VisibilitySummary {
 // @public
 export interface WeightMeaning {
     readonly attribute: string;
-    readonly meaning: "distance" | "strength";
+    readonly meaning: "distance" | "strength" | "capacity";
 }
 
 // @public

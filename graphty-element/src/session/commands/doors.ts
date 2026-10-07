@@ -1453,6 +1453,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             resultColumns: READ,
             neighbors: READ,
             lastImport: READ,
+            loadedWeight: READ,
             source: READ,
             sources: READ,
             renameSource: {

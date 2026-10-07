@@ -657,7 +657,16 @@ export class Draft implements LoadDraft {
             });
         }
 
-        const named = knownFieldsOf(mapping, choices.mapping, read);
+        const named: Plan["knownFields"] = knownFieldsOf(mapping, choices.mapping, read);
+        if (
+            choices.mode !== "merge" &&
+            !("edgeWeightMeaning" in named) &&
+            this.host.config().knownFields.edgeWeightMeaning !== null
+        ) {
+            // A new graph does not inherit the last one's weight meaning.
+            Object.assign(named, { edgeWeightMeaning: null });
+        }
+
         // A graph file's label column, which the element reads by itself, labels the nodes as the
         // draft's mapping says it will, unless a label path is configured already.
         const label = read.tables[0].table.fixed ? (mapping.tables.nodes?.label ?? null) : null;
@@ -853,12 +862,37 @@ function withChoice(held: HeldTable, base: TableMappingRead, choice: TableMappin
     const rowsAre = choice.rowsAre ?? base.rowsAre;
     const out: Record<string, unknown> = { ...base, rowsAre };
     for (const [role, value] of Object.entries(choice)) {
-        if (value !== undefined && role !== "rowsAre") {
+        if (role === "weightMeaning") {
+            out[role] = checkedMeaning(held, rowsAre, value);
+        } else if (value !== undefined && role !== "rowsAre") {
             out[role] = checkedRole(held, rowsAre, role, value);
         }
     }
 
     return Object.freeze(out) as unknown as TableMappingRead;
+}
+
+/** The meanings an edge weight can be given at load. */
+const WEIGHT_MEANINGS: ReadonlySet<unknown> = new Set(["distance", "strength", "capacity", null, undefined]);
+
+/**
+ * A reader's weight meaning, checked.
+ * @param held - The table.
+ * @param rowsAre - What its rows become.
+ * @param value - The meaning.
+ * @returns The meaning.
+ * @throws `E_BAD_COMMAND` for a node table's meaning or one the element does not know.
+ */
+function checkedMeaning(held: HeldTable, rowsAre: "nodes" | "edges", value: unknown): unknown {
+    if ((rowsAre === "nodes" && value !== undefined) || !WEIGHT_MEANINGS.has(value)) {
+        throw badCommand(`A weight meaning is "distance", "strength", "capacity" or null, on a table of edges.`, {
+            table: held.table.id,
+            role: "weightMeaning",
+            meanings: ["distance", "strength", "capacity"],
+        });
+    }
+
+    return value;
 }
 
 /**
@@ -918,6 +952,11 @@ function tableFields(nodes: boolean, choice: TableMapping): Record<string, strin
 
     if (choice.weight !== undefined) {
         out.edgeWeightPath = choice.weight;
+    }
+
+    if (choice.weight !== undefined || choice.weightMeaning !== undefined) {
+        // A weight named without a meaning clears the last load's, so it never describes this one.
+        out.edgeWeightMeaning = choice.weightMeaning ?? null;
     }
 
     if (choice.edgeId !== undefined) {

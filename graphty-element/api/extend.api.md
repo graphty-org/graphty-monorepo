@@ -1984,7 +1984,7 @@ export interface ViewInsets {
 // @public
 export interface WeightMeaning {
     readonly attribute: string;
-    readonly meaning: "distance" | "strength";
+    readonly meaning: "distance" | "strength" | "capacity";
 }
 
 // @public

@@ -42,6 +42,9 @@ interface XRSessionConfig {
  *   the one WebXRNearInteraction loads by default, saved as JSON.
  */
 const OFFLINE_XR_OPTIONS = {
+    // The element draws its own XR controls (opt-in, `xr.ui.enabled`); Babylon's enter/exit
+    // button would otherwise stay on the canvas after the first session request.
+    disableDefaultUI: true,
     inputOptions: { disableOnlineControllerRepository: true },
     handSupportOptions: {
         jointMeshes: { enablePhysics: false },

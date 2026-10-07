@@ -108,6 +108,14 @@ function xrControl(selector: string): Element | null {
 }
 
 /**
+ * Babylon's default WebXR enter/exit button, wherever Babylon put it (next to the canvas).
+ * @returns the button, or null
+ */
+function babylonXRButton(): Element | null {
+    return xrControl(".babylonVRicon") ?? document.querySelector(".babylonVRicon");
+}
+
+/**
  * Attach an element with XR on, and wait for its XR buttons to appear, which happens at the end
  * of `Graph.init()`.
  * @param handTracking - whether the element's hand tracking is on
@@ -154,6 +162,9 @@ describe.each([
             assert.isNull(xrControl(".webxr-not-available"), "XR is available, yet the element said not");
 
             await element.setViewMode(viewMode);
+
+            // Only the element's own controls: Babylon's default enter/exit button stays out.
+            assert.isNull(babylonXRButton(), "Babylon's default XR button was drawn");
 
             assert.strictEqual(iwer.sessions.length, 1, "exactly one session should have been requested");
             const [record] = iwer.sessions;
@@ -213,6 +224,8 @@ describe.each([
                 "xr",
                 "and one after it does not",
             );
+
+            assert.isNull(babylonXRButton(), "Babylon's default XR button was left on the canvas");
 
             const orbit = graph.camera.getActiveController()?.camera;
 

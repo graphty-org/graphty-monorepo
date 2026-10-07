@@ -496,7 +496,7 @@ describe("rerun", () => {
 
 describe("staleness", () => {
     it("is derived rather than tracked, and only once there are numbers to qualify", async () => {
-        const note = { ranOn: 4, nowVisible: 2, scopeSpec: "visible" as const };
+        const note = { reason: "scope-changed" as const, ranOn: 4, nowVisible: 2, scopeSpec: "visible" as const };
         const { run, queue } = makeRun(
             finishAtOnce,
             {},

@@ -161,14 +161,25 @@ export interface Progress {
     readonly message?: string;
 }
 
+/** Why a finished run went out of date; see {@link StaleNote.reason}. */
+export type StaleReason = "data-changed" | "scope-changed";
+
 /**
  * Why a run's numbers no longer describe what is on screen.
  *
- * This is DERIVED rather than tracked: the element compares the scope digest the run recorded
- * against the current resolution of the same scope specification, so "computed on 200 nodes,
- * now showing 120" is answerable with the consumer tracking nothing.
+ * This is DERIVED rather than tracked: the element compares the data digest and the scope digest
+ * the run recorded against the graph's data and the current resolution of the same scope
+ * specification, so "computed on 200 nodes, now showing 120" is answerable with the consumer
+ * tracking nothing.
  */
 export interface StaleNote {
+    /**
+     * Why the numbers no longer describe the graph: `data-changed` when the data the run read
+     * was replaced or edited (a reload with new weights), `scope-changed` when the same data
+     * resolves to other elements (a filter, the selection or a set changed). A data change wins
+     * when both happened.
+     */
+    readonly reason: StaleReason;
     /** How many elements the run was computed over. */
     readonly ranOn: number;
     /** How many the same scope resolves to now. */
@@ -317,10 +328,16 @@ export interface RunScopeRecord {
     };
     /** Which edges came with the scope's nodes. OPEN UNION, as {@link EdgeReading}. */
     readonly reading?: EdgeReading;
+    /**
+     * A digest of the graph's data (records, endpoints, weights) when the run resolved its
+     * scope; a different one now means the data changed under the run. Absent when the session
+     * records none.
+     */
+    readonly data?: string;
 }
 
 /** What a run records about the set its scope named, beside the resolution. */
-export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading">;
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "data">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {

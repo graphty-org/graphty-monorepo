@@ -83,6 +83,7 @@ import {
     type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
+import { dataDigest } from "./project/digest";
 import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
@@ -2292,6 +2293,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return spec;
     };
     const canned: CannedOutcomes = new Map();
+    // What a run compares to tell "the data changed under me" from "my scope moved".
+    const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot());
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.
@@ -2309,8 +2312,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             const reading = readingOfScope(spec, referentReading(dependencies)) as EdgeReading;
             const kept = typeof spec === "object" && "set" in spec ? sets.get(spec.set) : undefined;
 
-            return kept === undefined ? { reading } : { set: { id: kept.id, revision: kept.revision }, reading };
+            const data = dataNow();
+
+            return kept === undefined
+                ? { reading, data }
+                : { set: { id: kept.id, revision: kept.revision }, reading, data };
         },
+        dataDigest: () => dataNow(),
         setName: (id: SetId) => sets.get(id)?.name,
         execute: sharingIndexes(
             answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),

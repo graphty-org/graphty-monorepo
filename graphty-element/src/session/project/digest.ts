@@ -31,6 +31,12 @@ interface DigestOptions {
 /** The columns the positions lane lends every snapshot: coordinates, not rows. */
 const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", "graphty.pinned"]);
 
+/** What a data digest leaves out besides the lane: the edge ids the element assigns per load. */
+const NOT_DATA: ReadonlySet<string> = new Set([...LANE_COLUMNS, "graphty.edgeId"]);
+
+/** Nothing left out. */
+const NO_COLUMNS: ReadonlySet<string> = new Set();
+
 /**
  * The canonical text of a value.
  * @param value - Any value state holds.
@@ -138,10 +144,43 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `attributes=${canonical(state.attributes, path)}`,
     ];
     if (options.snapshot !== undefined) {
-        parts.push(`rows=${rowsDigest(options.snapshot, path, options.arrangement === true)}`);
+        parts.push(`rows=${rowsDigest(options.snapshot, path, options.arrangement === true ? NO_COLUMNS : LANE_COLUMNS)}`);
     }
 
     return stableDigest(parts.join("\n"));
+}
+
+/** The data digest of each graph slice, with the snapshot it was read beside. */
+const dataDigests = new WeakMap<object, { readonly snapshot: GraphSnapshot; readonly digest: string }>();
+
+/**
+ * The digest of the graph's data alone: its node and edge records, and its rows (ids, endpoints,
+ * weights and columns). Equal for two loads of the same data, whatever else the project holds, so
+ * a run can tell that the numbers it was computed from have changed under it.
+ *
+ * Memoised per slice and snapshot, both of which are replaced, never edited, when data moves.
+ * ponytail: hashes the whole graph once per data change; hash per column if a large graph's edits
+ * make it show up in a profile.
+ * @param graph - The `graph` slice.
+ * @param snapshot - The snapshot of its rows.
+ * @returns The digest.
+ */
+export function dataDigest(graph: ProjectState["graph"], snapshot: GraphSnapshot): string {
+    const held = dataDigests.get(graph);
+    if (held?.snapshot === snapshot) {
+        return held.digest;
+    }
+
+    const path = new WeakSet();
+    // Edge records by value: the element assigns an edge id per load, so a reload of the same
+    // file names the same edges afresh.
+    const edges = [...graph.edges.values()].map((edge) => canonical(edge, path)).sort();
+    const digest = stableDigest(
+        `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(snapshot, path, NOT_DATA)}`,
+    );
+    dataDigests.set(graph, { snapshot, digest });
+
+    return digest;
 }
 
 /**
@@ -149,10 +188,10 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
  * except the column names.
  * @param snapshot - The snapshot.
  * @param path - The cycle guard of the digest being written.
- * @param lane - Whether the columns the positions lane lends are hashed too.
+ * @param skip - The columns left out.
  * @returns Its text.
  */
-function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>, lane: boolean): string {
+function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>, skip: ReadonlySet<string>): string {
     const { ids, weights, edgeToArc } = snapshot;
     const edges = Array.from({ length: snapshot.edgeCount }, (_, edge) => [
         ids.idOf(snapshot.edgeSource(edge)),
@@ -162,7 +201,7 @@ function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>, lane: boolea
     const tables = { nodes: snapshot.nodes, edges: snapshot.edges, graph: snapshot.graph };
     const columns = Object.entries(tables).map(([table, columns]) =>
         [...columns.names()]
-            .filter((name) => lane || !LANE_COLUMNS.has(name))
+            .filter((name) => !skip.has(name))
             .sort()
             .map((name) => {
                 const values = Array.from({ length: columns.rowCount }, (_, row) => columns.value(name, row));

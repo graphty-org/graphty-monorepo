@@ -2758,6 +2758,7 @@ export interface RunsApi {
 
 // @public
 export interface RunScopeRecord {
+    readonly data?: string;
     readonly digest: string;
     readonly edges: number;
     readonly nodes: number;
@@ -3421,8 +3422,12 @@ export interface SetUser {
 export interface StaleNote {
     readonly nowVisible: number;
     readonly ranOn: number;
+    readonly reason: StaleReason;
     readonly scopeSpec: Scope;
 }
+
+// @public
+export type StaleReason = "data-changed" | "scope-changed";
 
 // @public
 export interface StartOptions extends RunOptions {

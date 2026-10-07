@@ -57,6 +57,7 @@ export type {
     RunStatus,
     RunStyle,
     StaleNote,
+    StaleReason,
     StartOptions,
     SuggestionOutcome,
     WeightMeaning,

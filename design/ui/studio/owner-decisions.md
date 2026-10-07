@@ -4,6 +4,33 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- A run goes out of date when its data changes, and says why: `StaleNote.reason`
+
+**What.** `run.stale` (and `run.record.stale`) is no longer null after a load or an edit changes
+the data the run read while its scope still holds the same nodes and edges. The note gains
+`reason: "data-changed" | "scope-changed"` (new exported type `StaleReason`): `data-changed` when
+the graph's node and edge records, endpoints or weights differ from when the run started (a
+reload of the same people with new weights), `scope-changed` when the same data resolves to other
+elements (a filter, the selection or a set changed). Data wins when both happened. The run record
+carries the digest it compares, as a new optional field `scope.data` on `RunScopeRecord`, so a
+saved project keeps it; a record without it (an older file) compares scopes only, as before.
+Starting a run again under an id whose data changed now re-runs it instead of returning the old
+result. A replacing load keeps runs, style layers and notes (checked; no change needed).
+
+**Why.** Staleness compared the scope's membership only, so replacing a file with one holding the
+same nodes and new weights left every PageRank, community and path run looking current while its
+numbers described the old data. The tier 2 design shows such a run as out of date with a reason
+the reader can act on ("the data changed" means re-run; "the filter changed" may be intended), and
+the app must not compute that itself.
+
+**Alternatives.** Compare an input counter instead of a content digest: cheaper, but reloading the
+same file would mark every run out of date. Track only the columns a run read: exact, but the
+element does not yet record which attributes an algorithm read (weight, node weight). Put the
+digest inside the scope digest: the scope digest is documented as membership only, and merging
+them loses the reason. Edge ids are left out of the digest, because the element assigns them per
+load; an edge-metric run's values after a reload of the same file are therefore not flagged even
+though they are keyed by the old edge ids (open).
+
 ## 2026-10-07 -- Every run reads the loaded weight: `descriptor.weightMeaning` and one `weight` option
 
 **What.** Every algorithm with a weighted form now reads the weight the graph was loaded with, unless

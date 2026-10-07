@@ -202,6 +202,11 @@ export interface RunsApiOptions {
      */
     readonly scopeFacts?: (spec: Scope) => RunScopeFacts;
     /**
+     * The digest of the graph's data now, compared with the one a run's scope facts recorded.
+     * Absent compares scopes only.
+     */
+    readonly dataDigest?: () => string;
+    /**
      * The name of a kept set, for a run label.
      * @param id - The set.
      * @returns The name, or undefined when no set has the id.
@@ -1282,7 +1287,20 @@ class Runs implements SessionRunsApi {
             return true;
         }
 
-        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest;
+        return (
+            this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest || this.dataMoved(run)
+        );
+    }
+
+    /**
+     * Whether the graph's data changed since a run recorded it.
+     * @param run - The run.
+     * @returns False when the run recorded no data digest, or the session gives none.
+     */
+    private dataMoved(run: ManagedRun): boolean {
+        const recorded = run.dataDigest;
+
+        return recorded !== undefined && this.options.dataDigest !== undefined && this.options.dataDigest() !== recorded;
     }
 
     /**
@@ -1716,10 +1734,11 @@ class Runs implements SessionRunsApi {
             return null;
         }
 
+        const dataChanged = this.dataMoved(run);
         let nowVisible: number;
         try {
             const current = this.options.resolveScope(run.scope.spec);
-            if (current.digest === run.scope.digest) {
+            if (!dataChanged && current.digest === run.scope.digest) {
                 return null;
             }
 
@@ -1735,6 +1754,7 @@ class Runs implements SessionRunsApi {
         }
 
         return Object.freeze({
+            reason: dataChanged ? "data-changed" : "scope-changed",
             ranOn: run.scope.nodeCount,
             nowVisible,
             scopeSpec: run.scope.spec,

@@ -62,6 +62,7 @@ A file is a path, or a name from `files/`:
 | File                   | What it is                                                                                    |
 | ---------------------- | --------------------------------------------------------------------------------------------- |
 | `friends.csv`          | A links spreadsheet: `source,target,weight`, 41 rows between 20 people.                       |
+| `friends-v2.csv`       | The same 41 links between the same 20 people, with new weights (each weight `w` is now `6 - w`). |
 | `florentine.gml`       | A small GML network: marriages between 15 Florentine families.                                |
 | `club-members.graphml` | A GraphML file cut off part way through, which the app cannot read.                           |
 | `people.csv`           | A node spreadsheet: `id,name,team`, 12 staff of a small nonprofit.                            |

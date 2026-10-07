@@ -2016,7 +2016,8 @@ const OTHER_FORMATS: readonly RegExp[] = [
 /**
  * Sniff confidence for the registry: 0 for XML, JSON, GML, DOT (also a leading C comment) and Pajek
  * openings after the leading `#` / `%` comment lines the reader skips, and 0 for a head that is
- * only such comments (the comments of another format, too long to see past); otherwise a
+ * only such comments (the comments of another format, too long to see past), and 0 for text
+ * holding a C0 control character (hasControlCharacter); otherwise a
  * delimited first row with endpoint headers is 0.9 (even when a later row has the wrong width, which
  * the importer reports), with an id header 0.6, and other consistently delimited rows 0.3, except
  * rows of more than three space-separated words, which is plain text such as a sentence, not a
@@ -2033,7 +2034,7 @@ function sniff(head: Uint8Array): number {
     }
     // the decoder drops the BOM it was chosen by; the reader skips leading comment lines
     const body = stripLeadingComments(new TextDecoder(label).decode(head.subarray(0, HEAD_BYTES)), COMMENT_CHARS);
-    if (body.trim().length === 0 || OTHER_FORMATS.some((r) => r.test(body))) {
+    if (body.trim().length === 0 || hasControlCharacter(body) || OTHER_FORMATS.some((r) => r.test(body))) {
         return 0;
     }
     const newline = sniffNewline(body);
@@ -2058,6 +2059,24 @@ function sniff(head: Uint8Array): number {
         return 0;
     }
     return looksLikeProse(body, newline, delimiter) ? 0 : 0.3;
+}
+
+/**
+ * Whether text holds a C0 control character other than TAB, LF and CR (a final Ctrl-Z, the DOS
+ * end-of-file marker, aside): such text is binary data or another format, never a CSV a reader
+ * means to load, so it is only read as CSV when the caller names the format.
+ * @param text - the decoded head
+ * @returns whether it holds one
+ */
+function hasControlCharacter(text: string): boolean {
+    const last = text.length - 1;
+    for (let i = 0; i <= last; i++) {
+        const c = text.codePointAt(i) ?? 0;
+        if (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d && !(c === 0x1a && i === last)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /** A cell that reads as part of a sentence: words with a sentence end after a letter (`Monday.`, `world. Thanks`). */

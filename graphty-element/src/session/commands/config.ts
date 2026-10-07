@@ -206,6 +206,10 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     undo: {
         kind: "undoable",
         label: labelOf,
+        fact: (command) => ({
+            code: "config.set",
+            params: { keys: configLeaves(command.values).map(([path]) => path) },
+        }),
         // Dragging a colour picker is one step: sets of the same keys recorded close together merge.
         coalesce: (command) =>
             `config:${configLeaves(command.values)

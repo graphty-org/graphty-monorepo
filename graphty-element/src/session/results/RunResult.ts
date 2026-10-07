@@ -36,6 +36,7 @@ import {
     topOfRanking,
 } from "./statistics";
 import {
+    bindResultPath,
     compareGroupKeys,
     groupName,
     type Histogram,
@@ -810,7 +811,11 @@ class Result implements RunResult {
     ) {
         this.runId = init.runId;
         this.shape = init.shape;
-        this.fields = Object.freeze([...init.fields]);
+        // An algorithm declares its fields before any run exists, as "results.$.value"; the
+        // result a consumer reads names its own run, the path a layer selects on.
+        this.fields = Object.freeze(
+            init.fields.map((field) => ({ ...field, path: bindResultPath(field.path, init.runId) })),
+        );
         this.measured = Object.freeze({ nodes: init.measured.nodes, edges: init.measured.edges });
         this.graph = graph;
         this.#nodes = nodes;

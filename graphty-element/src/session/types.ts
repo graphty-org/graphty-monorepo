@@ -69,7 +69,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
-import type { ColumnRef, ProgressChange, ResultRef } from "./shared";
+import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type { ElementPaint, SessionStylesApi, StyleChange, StylesApi } from "./styles";
 import type { SessionVisibilityApi, VisibilityApi, VisibilityChange } from "./visibility";
 
@@ -1470,12 +1470,132 @@ export type HistoryStepId = string & { readonly __brand: "HistoryStepId" };
 /** The id of one item in `session.history.pending`. */
 export type PendingId = string & { readonly __brand: "PendingId" };
 
+/**
+ * What a history step did, as the `code` of its {@link HistoryStep.fact}. The application words
+ * it; graphty-element writes no sentence for it. Each code's `params`:
+ *
+ * | Code | Params |
+ * | --- | --- |
+ * | `algo.run`, `algo.legacy` | `algorithm`: the algorithm's key |
+ * | `algo.remove` | `run`: the run's id; `algorithm`: its algorithm, or null when unknown |
+ * | `algo.batch` | `label`: the name `runs.batch` was given, or null; `count`: how many runs |
+ * | `algo.template` | none: the runs a style template asks for |
+ * | `batch` | `label`: the batch's own `label`, or null; `steps`: how many commands |
+ * | `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges` | `count` |
+ * | `data.edit` | `target`: `"node"` or `"edge"`; `count`: how many rows |
+ * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
+ * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
+ * | `data.expand` | `node`: the id expanded |
+ * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
+ * | `data.set-source` | `name`: the source's name, or null |
+ * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
+ * | `style.remove-layers` | `count` |
+ * | `style.highlight` | `run`: the run highlighted |
+ * | `style.fix-channel` | `channel`; `layer`: its name, or its id |
+ * | `style.encode` | `channel`; `run` |
+ * | `style.template` | none |
+ * | `style.suggested` | `algorithms`: the algorithms whose suggested styles were applied |
+ * | `visibility.filter` | `kind`: the filter's kind |
+ * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
+ * | `visibility.show-context`, `visibility.hide-context` | none |
+ * | `set.create` | `name`: the set's name, or null |
+ * | `set.rename` | `set`: its name before, or its id; `name`: the new name |
+ * | `set.redefine`, `set.members`, `set.remove`, `set.restore` | `set`: its name, or its id |
+ * | `note.add`, `note.update`, `note.remove` | none |
+ * | `note.merge` | `source`: the merged document's name, or null |
+ * | `view.save`, `view.remove` | `names`: the views |
+ * | `view.dimension` | `dimension`: `"2d"` or `"3d"` |
+ * | `view.immersive` | `mode`: `"vr"` or `"ar"` (a switch to 3D on the way in) |
+ * | `config.set` | `keys`: the setting paths changed |
+ * | `positions.set`, `positions.pin`, `positions.release` | `count`: how many nodes |
+ * | `node.drag` | `node`: the id dragged |
+ * | `layout.set` | `layout`: the layout's id |
+ * | `layout.behavior` | `layout`: the layout's id |
+ * | `layout.scope`, `layout.whole-graph` | none |
+ * | `project.open` | `name`: the project's name, or null |
+ * | `document.open` | none |
+ * | `transaction` | `label`: the label given to `session.transaction`, or null |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ */
+export type HistoryCode =
+    | "algo.run"
+    | "algo.legacy"
+    | "algo.remove"
+    | "algo.batch"
+    | "algo.template"
+    | "batch"
+    | "data.add-nodes"
+    | "data.add-edges"
+    | "data.remove-nodes"
+    | "data.remove-edges"
+    | "data.edit"
+    | "data.clear"
+    | "data.set"
+    | "data.replace-nodes"
+    | "data.replace-edges"
+    | "data.import"
+    | "data.expand"
+    | "data.declare"
+    | "data.set-source"
+    | "style.add-layer"
+    | "style.update-layer"
+    | "style.remove-layer"
+    | "style.move-layer"
+    | "style.remove-layers"
+    | "style.highlight"
+    | "style.fix-channel"
+    | "style.encode"
+    | "style.template"
+    | "style.suggested"
+    | "visibility.filter"
+    | "visibility.clear-filter"
+    | "visibility.window"
+    | "visibility.clear-window"
+    | "visibility.show-context"
+    | "visibility.hide-context"
+    | "set.create"
+    | "set.rename"
+    | "set.redefine"
+    | "set.members"
+    | "set.remove"
+    | "set.restore"
+    | "note.add"
+    | "note.update"
+    | "note.remove"
+    | "note.merge"
+    | "view.save"
+    | "view.remove"
+    | "view.dimension"
+    | "view.immersive"
+    | "config.set"
+    | "positions.set"
+    | "positions.pin"
+    | "positions.release"
+    | "node.drag"
+    | "layout.set"
+    | "layout.behavior"
+    | "layout.scope"
+    | "layout.whole-graph"
+    | "project.open"
+    | "document.open"
+    | "transaction";
+
 /** One undoable step: everything one command, gesture or transaction changed. Frozen. */
 export interface HistoryStep {
     /** Stable for the life of the step. */
     readonly id: HistoryStepId;
-    /** What a history list shows, such as "Changed colour of Hubs". */
+    /**
+     * What a history list shows, such as "Changed colour of Hubs".
+     * @deprecated English written by the element. Word {@link HistoryStep.fact} instead; removed in
+     * the next major release.
+     */
     readonly label: string;
+    /**
+     * What the step did, as a code and its values, for the application to word. A step merged
+     * from several (a drag, a transaction) carries the fact of the whole.
+     */
+    readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the last commit or merge into the step. */
     readonly at: string;
     /** The ops of the commands in the step, in the order they ran. Payloads are not kept for display. */
@@ -1492,8 +1612,14 @@ export interface HistoryStep {
 export interface PendingStep {
     /** Pass it to `history.cancel`. */
     readonly id: PendingId;
-    /** The label the step will have. */
+    /**
+     * The label the step will have.
+     * @deprecated English written by the element. Word {@link PendingStep.fact} instead; removed in
+     * the next major release.
+     */
     readonly label: string;
+    /** The fact the step will have: see {@link HistoryStep.fact}. */
+    readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
     readonly since: string;
     /** The runs this work is waiting on. */

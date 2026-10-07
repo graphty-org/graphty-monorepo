@@ -364,11 +364,11 @@ saved note and a held note share an id but disagree, `onConflict` decides:
 
 No graph format holds notes as notes, so a GEXF, GraphML, CSV or other export leaves them out by
 default, and says so: every export of a session holding notes reports a `W_GRAPHTY_NOTES` loss
-note with the number left out.
+with the number left out.
 
 ```typescript
 const result = await element.exportGraph("graphml", { notes: true });
-result.lossNotes; // [{ code: "W_GRAPHTY_NOTES", count: 3, ... }]
+result.losses; // [{ code: "W_GRAPHTY_NOTES", params: { columns: [], count: 3 } }]
 ```
 
 With `{ notes: true }`, noted nodes and edges gain two columns: `graphty.notes.count`, and

@@ -142,7 +142,8 @@ karateMeta.citation; // what to cite
 | `datasets/go-slim-generic`                   | Generic GO slim, term to parent (directed)                | 140 / 62       | `namespace`  |
 
 The root entry exports `DATASETS`, the metadata of every dataset (title, description, citation,
-source, license, counts, columns, what it showcases) without any of the graph data. The
+source, license, counts, columns, what it showcases) without any of the graph data, and
+`DATASET_NAMES`, only their names, for checking a name without bundling the metadata. The
 geographic datasets carry `latitude` and `longitude` node columns in degrees. The Cytoscape and
 ontology datasets are read from their published files (a Cytoscape session, a CX2 network, an OBO
 ontology) by `@graphty/graph-io`'s own importers; the drawn ones carry the saved `x` and `y`, with

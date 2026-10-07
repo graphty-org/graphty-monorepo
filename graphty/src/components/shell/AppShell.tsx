@@ -86,7 +86,7 @@ import {
     PopoutRegion,
     usePopoutManager,
 } from "@graphty/compact-mantine";
-import type { ScreenshotOptions } from "@graphty/graphty-element";
+import type { FindHit, FindOptions, ScreenshotOptions } from "@graphty/graphty-element";
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import {
     type AccelerationPolicy,
@@ -150,7 +150,7 @@ import { EgoNetworkControl } from "./canvas/EgoNetworkControl";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
 import { legendAvailable } from "./canvas/legendAvailability";
-import { legendChannels as canvasLegendChannels } from "./canvas/legendChannels";
+import { legendChannels as canvasLegendChannels, legendNamesOf } from "./canvas/legendChannels";
 import { type WelcomeSample, WelcomeSampleList } from "./canvas/WelcomeSampleList";
 import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 import {
@@ -2043,7 +2043,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
         });
         const unwatchStyle = session.on("style:changed", () => {
-            setColourChannel(canvasLegendChannels(session.styles.legend()));
+            setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
         });
         const unwatchRuns = session.on("run:changed", ({ run, phase }) => {
             if (phase === "restored") {
@@ -2853,7 +2853,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                               .filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
                       }),
             });
-            setColourChannel(canvasLegendChannels(session.styles.legend()));
+            setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
             openPanelAt("analyze");
 
             /* Spec 5643-5648 and 7300: the card is retired once the reader has been taken
@@ -3182,7 +3182,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    took the legend off the screen while the colours it named were still on
                    it, which is exactly the obligation floor item 5 states. */
                 if (block !== undefined) {
-                    setColourChannel(canvasLegendChannels(session.styles.legend()));
+                    setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
                 }
 
                 openPanelAt("analyze");
@@ -3264,6 +3264,27 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, []);
     const zoomToSelection = useCallback(() => {
         graphZoomToSelection(graphtyRef.current?.element ?? null);
+    }, []);
+    /* The palette's node and edge rows: the element finds them, and choosing one selects it the
+       way a click on the canvas does; a node is also framed. */
+    const paletteFind = useCallback(
+        (text: string, options: FindOptions) => graphtyRef.current?.session?.find(text, options) ?? null,
+        [],
+    );
+    const pickPaletteElement = useCallback((hit: FindHit) => {
+        const handle = graphtyRef.current;
+        const session = handle?.session ?? null;
+
+        if (session === null) {
+            return;
+        }
+
+        session.selection
+            .apply(hit.target)
+            .then(() => (hit.kind === "node" ? handle?.element?.zoomToNodes(hit.id) : undefined))
+            .catch((error: unknown) => {
+                console.error("[shell] the element could not select the palette's pick:", error);
+            });
     }, []);
     const resetView = useCallback(() => {
         graphResetView(graphtyRef.current?.element ?? null);
@@ -5451,6 +5472,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         setPaletteOpen(false);
                     }}
                     items={paletteItems}
+                    find={paletteFind}
+                    onPickElement={pickPaletteElement}
                 />
 
                 <FeedbackModal

@@ -5,7 +5,7 @@
  * in the middle of the pre-push gate. tools/ci-workflows.test.mjs fails if a test file runs git
  * without importing this.
  *
- * The global config is a temporary file holding only an identity, not /dev/null, so a commit works
+ * The global config is a temporary file holding an identity, not /dev/null, so a commit works
  * without one. Signing stays at git's default, off, because nothing sets it; a test that turns
  * signing on in its own repository (the visual-review accept and serve tests do) still can, which a
  * command-line override would prevent. The system config is skipped. Only the
@@ -18,7 +18,9 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const CONFIG = "[user]\n\tname = t\n\temail = t@t\n";
+// No automatic maintenance or gc: after every fetch and push they spawn more git processes, which
+// only cost a short-lived test repository time.
+const CONFIG = "[user]\n\tname = t\n\temail = t@t\n[maintenance]\n\tauto = false\n[gc]\n\tauto = 0\n";
 
 // What git exports to a hook, and what would aim a test's git at the repository the hook runs in.
 const HOOK_VARS = [

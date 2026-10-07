@@ -62,9 +62,7 @@ describe("session.journal", () => {
         let appended = 0;
         session.on("journal:appended", () => appended++);
 
-        const failure = await Promise.resolve(
-            session.execute({ op: "set.rename", id: "set_missing", name: "x" } as SessionCommand),
-        ).then(
+        const failure = await Promise.resolve(session.execute({ op: "set.rename", id: "set_missing", name: "x" })).then(
             () => null,
             (error: unknown) => error,
         );

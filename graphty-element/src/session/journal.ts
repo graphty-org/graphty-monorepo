@@ -33,17 +33,7 @@ export interface JournalEntry {
      * OPEN UNION: kinds may be added in a minor release; handle one you do not know.
      */
     readonly kind:
-        | "data"
-        | "run"
-        | "style"
-        | "filter"
-        | "window"
-        | "layout"
-        | "view"
-        | "selection"
-        | "config"
-        | "note"
-        | "set";
+        "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
     /** The command, exactly as it ran, as plain data. */
     readonly command: SessionCommand;
     /**

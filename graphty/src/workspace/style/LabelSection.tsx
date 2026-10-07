@@ -5,7 +5,7 @@ import { ActionIcon, Button, Checkbox, Group, Stack, Text, Tooltip } from "@mant
 import React, { useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useWorkspace } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FromDataList } from "./FromDataList";
 import {
     type DataChoice,
@@ -87,8 +87,9 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
  * word both add an empty label line at the next free position (Above) and open its attribute list.
  * The Show checkbox sits on the header, only when a layer beneath this row draws a label. One
  * label line per row until the element has labels keyed by position. The line states its result
- * from the element's `nodeLabelCounts`. An empty line writes nothing and is dropped when the
- * selection changes (the Style tab remounts this section per row).
+ * from the element's `nodeLabelCounts`, beside Show all labels (off by default), which the
+ * element host writes to the element's `layoutBehavior.labels.declutter`. An empty line writes
+ * nothing and is dropped when the selection changes (the Style tab remounts this section per row).
  * @param props - Component props
  * @param props.target - nodes or edges
  * @param props.row - the row's layers
@@ -100,6 +101,7 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
     const { session, element, store } = useWorkspace();
     const [empty, setEmpty] = useState(false);
     const [listOpen, setListOpen] = useState(false);
+    const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     if (session === null) {
         return null;
     }
@@ -134,7 +136,6 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
         }
     };
     const reads = readsOf(session, target, channel, line);
-    const declutter = element?.layoutBehavior?.labels?.declutter === true;
 
     return (
         <Stack gap={2} role="group" aria-label="Label" data-section="label">
@@ -194,9 +195,20 @@ export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSecti
                 />
             )}
             {line !== undefined && target === "node" && element !== null ? (
-                <Text size="xs" c="dimmed" pl={4} aria-live="polite">
-                    {labelStatement(element.nodeLabelCounts, declutter)}
-                </Text>
+                <Group gap={8} pl={4} wrap="nowrap">
+                    <Text size="xs" c="dimmed" aria-live="polite">
+                        {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
+                    </Text>
+                    <Checkbox
+                        size="xs"
+                        ml="auto"
+                        label="Show all labels"
+                        checked={allLabelsShown}
+                        onChange={(event) => {
+                            store.set({ allLabelsShown: event.currentTarget.checked });
+                        }}
+                    />
+                </Group>
             ) : null}
         </Stack>
     );

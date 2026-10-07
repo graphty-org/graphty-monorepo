@@ -69,10 +69,7 @@ describe("the Style tab's words and arrangement", () => {
     });
 
     it("states the label line's result from the counts, the hidden part only while the overlap rule is on", () => {
-        assert.equal(
-            labelStatement({ labeled: 77, hiddenByOverlap: 64 }, true),
-            "77 labels, 64 hidden to avoid overlap",
-        );
+        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 64 }, true), "77 labels, 64 hidden");
         assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 0 }, false), "77 labels");
         assert.equal(labelStatement({ labeled: 1, hiddenByOverlap: 0 }, false), "1 label");
     });

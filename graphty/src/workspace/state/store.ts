@@ -70,6 +70,11 @@ export interface WorkspaceState {
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
+     * Show all labels (section 2.7): off, a label that would overlap another is hidden. The
+     * reader's preference, not the project's; the element's tag carries it.
+     */
+    readonly allLabelsShown: boolean;
+    /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. The table dock's Export... sets the table that is showing.
      */
@@ -111,6 +116,7 @@ const INITIAL: WorkspaceState = {
     dockTab: "nodes",
     dockColumn: null,
     legendShown: true,
+    allLabelsShown: false,
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,

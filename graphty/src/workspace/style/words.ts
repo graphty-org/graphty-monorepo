@@ -374,14 +374,14 @@ export function positionWord(location: LabelLocation | undefined): string {
  * @param counts.labeled - nodes whose label has text.
  * @param counts.hiddenByOverlap - of those, labels the overlap rule hid.
  * @param declutter - whether the overlap rule is on.
- * @returns "77 labels, 64 hidden to avoid overlap", or "77 labels".
+ * @returns "77 labels, 64 hidden", or "77 labels".
  */
 export function labelStatement(
     counts: { readonly labeled: number; readonly hiddenByOverlap: number },
     declutter: boolean,
 ): string {
     const labels = `${String(counts.labeled)} ${counts.labeled === 1 ? "label" : "labels"}`;
-    return declutter ? `${labels}, ${String(counts.hiddenByOverlap)} hidden to avoid overlap` : labels;
+    return declutter ? `${labels}, ${String(counts.hiddenByOverlap)} hidden` : labels;
 }
 
 /**

@@ -1,14 +1,9 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { LAYOUT_SEED } from "../layout/methods";
-
-/**
- * Labels that would land on each other are thinned out until the reader turns on Show all
- * labels (tier1-design.md section 2.7). A view setting written on the tag; it records no step.
- */
-const LAYOUT_BEHAVIOR = { labels: { declutter: true } } as const;
+import { useWorkspaceState } from "../state/WorkspaceContext";
 
 /**
  * The element's force layout (its catalog id; the element picks the engine), from the app's
@@ -41,6 +36,10 @@ interface ElementHostProps {
  */
 export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
+    // Labels that would land on each other are thinned out until the reader turns on Show all
+    // labels (tier1-design.md section 2.7). A view setting written on the tag; it records no step.
+    const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
+    const layoutBehavior = useMemo(() => ({ labels: { declutter: !allLabelsShown } }), [allLabelsShown]);
 
     useEffect(() => {
         let disposed = false;
@@ -69,7 +68,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             aria-label="Graph drawing"
             layout={LAYOUT_ID}
             layoutConfig={LAYOUT_CONFIG}
-            layoutBehavior={LAYOUT_BEHAVIOR}
+            layoutBehavior={layoutBehavior}
             xr={XR_CONFIG}
             style={{ display: "block", width: "100%", height: "100%" }}
         />

@@ -512,10 +512,32 @@ describe("labels from an attribute (task T10) on the real element", () => {
                     assert.equal(labeled, NODES.length);
                     assert.isAbove(hiddenByOverlap, 0, "stacked labels overlap");
                     assert.isNotNull(
-                        within(styleTab()).getByText(
-                            `${String(labeled)} labels, ${String(hiddenByOverlap)} hidden to avoid overlap`,
-                        ),
+                        within(styleTab()).getByText(`${String(labeled)} labels, ${String(hiddenByOverlap)} hidden`),
                     );
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            // Show all labels turns the overlap rule off on the element: every label is drawn.
+            const showAll = within(styleTab()).getByRole("checkbox", { name: "Show all labels" });
+            assert.isFalse((showAll as HTMLInputElement).checked);
+            await userEvent.click(showAll);
+            await waitFor(
+                () => {
+                    assert.isFalse(element.layoutBehavior?.labels?.declutter);
+                    assert.equal(element.nodeLabelCounts.hiddenByOverlap, 0);
+                    for (const node of NODES) {
+                        assert.isTrue(element.labelOf(node.id)?.drawn, node.name);
+                    }
+                    assert.isNotNull(within(styleTab()).getByText(`${String(NODES.length)} labels`));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            // And back: the rule hides the stacked labels again.
+            await userEvent.click(within(styleTab()).getByRole("checkbox", { name: "Show all labels" }));
+            await waitFor(
+                () => {
+                    assert.isTrue(element.layoutBehavior?.labels?.declutter);
+                    assert.isAbove(element.nodeLabelCounts.hiddenByOverlap, 0);
                 },
                 { timeout: TIMEOUT_MS },
             );

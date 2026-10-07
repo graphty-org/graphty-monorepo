@@ -37,10 +37,10 @@
 import type { Channel, ChannelValue, EdgeId, Encoding, LayerId, LayerSpec, NodeId, Path } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { CHANNELS, type ChannelValues, isChannel } from "./channels";
-import type { PreparedBinding } from "./encoding";
+import { type PreparedBinding, requireChannel } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
 import type { EncodingLookup } from "./legend";
-import { columnsFor, type SelectorSource, type SelectorTarget } from "./predicate";
+import { columnsFor, type ElementColumns, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ResolvedStyle } from "./repaint";
 
 // ---------------------------------------------------------------------------------------------
@@ -89,6 +89,65 @@ export interface StyleExplanation {
      * channel and its rows must not move when a layer is added.
      */
     readonly channels: readonly ChannelExplanation[];
+}
+
+/** One value a channel is painted across several elements, and the layer that decided it. */
+export interface ChannelShare {
+    /** The value, as {@link StyleExplanation.merged} reports it for one element. */
+    readonly value: unknown;
+    /** The topmost layer that painted it. */
+    readonly layerId: LayerId;
+    /** How many of the elements are painted this value by this layer. */
+    readonly count: number;
+}
+
+/**
+ * One channel across several elements: whether every element painted on it agrees, and on what.
+ *
+ * Two elements agree only when they carry the same value AND the same layer decided it, so a
+ * layer that writes the value the layer beneath already wrote is a second answer, not the same
+ * one. Elements nothing painted on the channel are left out of the comparison and counted in
+ * `unpainted`.
+ */
+export type ChannelAgreement =
+    | {
+          /** The channel. */
+          readonly channel: Channel;
+          /** Every painted element carries the same value from the same layer. */
+          readonly state: "agree";
+          /** The value they all carry. */
+          readonly value: unknown;
+          /** The layer that decided it for all of them. */
+          readonly layerId: LayerId;
+          /** How many elements of this channel's kind nothing painted on it. */
+          readonly unpainted: number;
+      }
+    | {
+          /** The channel. */
+          readonly channel: Channel;
+          /** The painted elements carry more than one value, or one value from more than one layer. */
+          readonly state: "mixed";
+          /** Each value and deciding layer, most elements first. */
+          readonly breakdown: readonly ChannelShare[];
+          /** How many elements of this channel's kind nothing painted on it. */
+          readonly unpainted: number;
+      };
+
+/** How several elements look, channel by channel. */
+export interface StyleAgreement {
+    /**
+     * One entry per channel something painted on at least one element, in the order the channel
+     * table lists them.
+     */
+    readonly channels: readonly ChannelAgreement[];
+}
+
+/** The elements an agreement is read over, as dense indices. */
+export interface AgreementElements {
+    /** The nodes. */
+    readonly nodes: Iterable<number>;
+    /** The edges. */
+    readonly edges: Iterable<number>;
 }
 
 /** A layer that cannot paint because this session answers none of what it reads. */
@@ -279,6 +338,56 @@ function applies(entry: CompiledLayer, at: Located): boolean {
     return selector.test === null || selector.test(at.index);
 }
 
+/** One layer of the stack with the bindings it paints from, looked up once per read. */
+interface StackEntry {
+    /** The compiled layer. */
+    readonly entry: CompiledLayer;
+    /** Its prepared bindings, in the order the repaint applies them. */
+    readonly bindings: readonly PreparedBinding[];
+}
+
+/**
+ * The stack, bottom first, with each layer's bindings looked up once.
+ * @param sources - Where the stack and the bindings are read.
+ * @returns The stack a walk reads.
+ */
+function prepareStack(sources: ExplainSources): readonly StackEntry[] {
+    return sources.stack().map((entry) => ({ entry, bindings: sources.encoding(entry.layer.id) }));
+}
+
+/**
+ * Walk the stack over one element, bottom first, and report every value a layer paints on it.
+ *
+ * THE ONE WALK. {@link explainStyle} and {@link styleAgreement} both read through this, so the
+ * answer about one element and the answer about many cannot drift apart.
+ * @param stack - The stack with its bindings.
+ * @param at - Where the element sits.
+ * @param columns - What the session can read about elements of its kind.
+ * @param paint - Called once per value painted, in paint order; a later call for the same channel
+ *     paints over an earlier one.
+ */
+function paintOne(
+    stack: readonly StackEntry[],
+    at: Located,
+    columns: ElementColumns,
+    paint: (layer: Layer, prepared: PreparedBinding, result: unknown) => void,
+): void {
+    for (const { entry, bindings } of stack) {
+        if (!applies(entry, at)) {
+            continue;
+        }
+
+        for (const prepared of bindings) {
+            const value = prepared.path === null ? undefined : columns.value(at.index, prepared.path);
+            const result = prepared.paint(value);
+
+            if (result !== undefined) {
+                paint(entry.layer, prepared, result);
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Whether a channel can be edited where it is
 // ---------------------------------------------------------------------------------------------
@@ -330,59 +439,41 @@ function refusal(winner: Winner, channel: Channel): string | undefined {
  */
 export function explainStyle(target: ExplainTarget, sources: ExplainSources): StyleExplanation {
     const at = locate(target, sources);
-    const columns = columnsFor(sources.elements, at.target);
     const style: Partial<ChannelValues> = {};
     const merged = style as Record<string, unknown>;
     const winners = new Map<Channel, Winner>();
     const painted = new Map<LayerId, Painting>();
     const order: Painting[] = [];
 
-    for (const entry of sources.stack()) {
-        if (!applies(entry, at)) {
-            continue;
+    paintOne(prepareStack(sources), at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
+        const { channel } = prepared;
+        merged[channel] = result;
+        winners.set(channel, { layer, mode: prepared.path === null ? "static" : "encoded", path: prepared.path });
+
+        let painting = painted.get(layer.id);
+        if (painting === undefined) {
+            painting = { layer, properties: [], values: {} };
+            painted.set(layer.id, painting);
+            order.push(painting);
         }
 
-        const { layer } = entry;
-
-        for (const prepared of sources.encoding(layer.id)) {
-            const value = prepared.path === null ? undefined : columns.value(at.index, prepared.path);
-            const result = prepared.paint(value);
-
-            if (result === undefined) {
-                continue;
-            }
-
-            const { channel } = prepared;
-            merged[channel] = result;
-            winners.set(channel, { layer, mode: prepared.path === null ? "static" : "encoded", path: prepared.path });
-
-            let painting = painted.get(layer.id);
-            if (painting === undefined) {
-                painting = { layer, properties: [], values: {} };
-                painted.set(layer.id, painting);
-                order.push(painting);
-            }
-
-            if (!painting.properties.includes(channel)) {
-                painting.properties.push(channel);
-            }
-
-            painting.values[channel] = result;
+        if (!painting.properties.includes(channel)) {
+            painting.properties.push(channel);
         }
-    }
+
+        painting.values[channel] = result;
+    });
 
     if (order.length === 0) {
         return NOTHING_PAINTED;
     }
 
-    const contributions = order.map(
-        (painting): StyleContribution => ({
-            layerId: painting.layer.id,
-            name: painting.layer.name,
-            properties: Object.freeze([...painting.properties]),
-            values: Object.freeze({ ...painting.values }),
-        }),
-    );
+    const contributions = order.map((painting): StyleContribution => ({
+        layerId: painting.layer.id,
+        name: painting.layer.name,
+        properties: Object.freeze([...painting.properties]),
+        values: Object.freeze({ ...painting.values }),
+    }));
 
     const channels: ChannelExplanation[] = [];
     for (const channel of CHANNELS) {
@@ -407,6 +498,105 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         contributions: Object.freeze(contributions),
         channels: Object.freeze(channels),
     };
+}
+
+/** A tally of one channel across the elements read so far. */
+interface Tally {
+    /** Each value and deciding layer, keyed so equal answers fold together. */
+    readonly shares: Map<string, { value: unknown; layerId: LayerId; count: number }>;
+    /** How many elements something painted on this channel. */
+    painted: number;
+}
+
+/**
+ * The key two answers fold together under: the deciding layer and the value, compared by content.
+ * @param layerId - The deciding layer.
+ * @param value - The painted value.
+ * @returns The key.
+ */
+function shareKey(layerId: LayerId, value: unknown): string {
+    return JSON.stringify([layerId, typeof value, value]);
+}
+
+/**
+ * Answer how several elements look, channel by channel.
+ *
+ * ONE PASS over the elements, and each one is read through the same walk {@link explainStyle}
+ * takes, so what this says about an element is what an explanation of it says.
+ * @param elements - The nodes and edges to read, as dense indices.
+ * @param sources - The stack, the prepared encodings and the element columns.
+ * @param only - One channel to restrict the answer to. Absent, every channel is answered.
+ * @returns Per channel, the value they agree on or how they split, and how many nothing painted.
+ * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `only` names no channel.
+ */
+export function styleAgreement(elements: AgreementElements, sources: ExplainSources, only?: Channel): StyleAgreement {
+    if (only !== undefined) {
+        requireChannel(only);
+    }
+
+    const stack = prepareStack(sources);
+    const tallies = new Map<Channel, Tally>();
+    const totals = { node: 0, edge: 0 };
+    const winners = new Map<Channel, { layerId: LayerId; value: unknown }>();
+
+    const read = (target: SelectorTarget, indices: Iterable<number>): void => {
+        const columns = columnsFor(sources.elements, target);
+
+        for (const index of indices) {
+            totals[target]++;
+            winners.clear();
+            paintOne(stack, { target, index }, columns, (layer, prepared, result) => {
+                if (only === undefined || prepared.channel === only) {
+                    winners.set(prepared.channel, { layerId: layer.id, value: result });
+                }
+            });
+
+            for (const [channel, { layerId, value }] of winners) {
+                let tally = tallies.get(channel);
+                if (tally === undefined) {
+                    tally = { shares: new Map(), painted: 0 };
+                    tallies.set(channel, tally);
+                }
+
+                tally.painted++;
+                const key = shareKey(layerId, value);
+                const share = tally.shares.get(key);
+                if (share === undefined) {
+                    tally.shares.set(key, { value, layerId, count: 1 });
+                } else {
+                    share.count++;
+                }
+            }
+        }
+    };
+
+    read("node", elements.nodes);
+    read("edge", elements.edges);
+
+    const channels: ChannelAgreement[] = [];
+    for (const channel of CHANNELS) {
+        const tally = tallies.get(channel);
+
+        if (tally === undefined) {
+            continue;
+        }
+
+        const unpainted = totals[channel.startsWith("node.") ? "node" : "edge"] - tally.painted;
+        const shares = [...tally.shares.values()];
+        const [first] = shares;
+
+        if (shares.length === 1 && first !== undefined) {
+            channels.push({ channel, state: "agree", value: first.value, layerId: first.layerId, unpainted });
+            continue;
+        }
+
+        // A stable sort: equal counts keep the order they were first met in.
+        shares.sort((a, b) => b.count - a.count);
+        const breakdown = shares.map((share): ChannelShare => Object.freeze({ ...share }));
+        channels.push({ channel, state: "mixed", breakdown: Object.freeze(breakdown), unpainted });
+    }
+
+    return { channels: Object.freeze(channels) };
 }
 
 /**

@@ -1,0 +1,4 @@
+# A returning user's club list, already open
+--click No thanks
+--click Open project or file...
+--upload friends.csv

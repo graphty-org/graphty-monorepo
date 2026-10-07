@@ -69,25 +69,25 @@ it took on the build from the state before, so a grader can compare a participan
 walks are `tmp/researcher/keypaths.mjs` (output `keypaths.out`, `keypaths2.out`, `keypaths3.out`)
 and, for the own file, a `real.mjs` session (`tmp/researcher/kb-T15B/`). Common steps:
 
-- *Card:* Tab to "No thanks" (11), Enter. Focus then falls to the page body (an accessibility
+- _Card:_ Tab to "No thanks" (11), Enter. Focus then falls to the page body (an accessibility
   defect for bar 8, not a participant error).
-- *Open a sample:* Tab to "Open the <name> sample" (6 for Les Miserables, 8 College football, 9
+- _Open a sample:_ Tab to "Open the <name> sample" (6 for Les Miserables, 8 College football, 9
   Florentine families, from the body), Enter. Focus lands on the drawing.
-- *Open the own file:* Control+o (or Tab to "Open project or file..." (5), Enter), then the file.
-- *Rank:* Shift+A, type PageRank, Enter (the form opens with Run focused), Enter. The live region
+- _Open the own file:_ Control+o (or Tab to "Open project or file..." (5), Enter), then the file.
+- _Rank:_ Shift+A, type PageRank, Enter (the form opens with Run focused), Enter. The live region
   says "PageRank added, running"; no "finished" announcement was seen.
-- *Select a row:* Tab to the outline (14 to 15 from the drawing; the outline's tab stop is its last
+- _Select a row:_ Tab to the outline (14 to 15 from the drawing; the outline's tab stop is its last
   focused row), Down arrow to the row, Enter.
-- *Style tab:* Tab to the inspector's tab (6), Left arrow to "Style", Enter.
-- *Names:* select Everything; Tab to "Add label line" (14), Enter; type the attribute (`name`,
+- _Style tab:_ Tab to the inspector's tab (6), Left arrow to "Style", Enter.
+- _Names:_ select Everything; Tab to "Add label line" (14), Enter; type the attribute (`name`,
   `label` or `id`), Enter. Focus falls to the page body; the live region reads "77 labels, 7 hidden
   to avoid overlap" (or the dataset's count).
-- *Sizes:* select the result's row (Influence); Style tab; Tab to "Add to Shape" (6), Enter; Enter
+- _Sizes:_ select the result's row (Influence); Style tab; Tab to "Add to Shape" (6), Enter; Enter
   on "Size" (focus falls to the body); Tab to "Size by attribute" (22), Enter; Enter on
   "Influence". Focus falls to the body; the legend reads "Size: Influence". No live announcement.
   Round 3 (walked): Enter on "Size" opens the list with focus in it; Down arrow to "PageRank",
   Enter; the legend reads "Size: PageRank". No "Size by attribute" step.
-- *Image:* Control+e; Tab to "Export" (9), Enter. The live region reads "Exported
+- _Image:_ Control+e; Tab to "Export" (9), Enter. The live region reads "Exported
   <file>.png".
 
 **On-screen names of runs.** Round 2's build (commit 4a7a1a7fb) still names a run on screen by its
@@ -160,40 +160,40 @@ Connections lists nine; Core depth and How tightly knit list nobody on Les Miser
 friends.csv. A participant who then reads the order from the table or the drawing gets SD, not F;
 a top three that includes a tie is right in either order of the tied names.
 
-| Dataset | Fact | Value |
-|---|---|---|
-| Les Miserables | characters, connections, attributes | 77, 254; nodes `id` and `name`, edges `shared_chapters`; one component; Undirected |
-| Les Miserables | PageRank ("Influence") top 3 | Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577; range 0.003299 to 0.07543 |
-| Les Miserables | Degree ("Connections") top 3 | Valjean 36, Gavroche 22, Marius 19 |
-| Les Miserables | Betweenness ("Bridges") top 3 | Valjean 1,624, Myriel 504, Gavroche 470.6 |
-| Les Miserables | Closeness ("Reach") top 3 | Valjean 0.008475, Marius 0.006993, then Javert and Thenardier tied at 0.006803 |
-| Les Miserables | Eigenvector ("Influence by association") top 3 | Gavroche 1, Valjean 0.8409, Enjolras 0.8395 |
-| Les Miserables | Katz ("Influence at a distance") top 3 | Gavroche 1, Valjean 0.8408, Enjolras 0.8395 |
-| Les Miserables | HITS ("Hubs and authorities") top 3 | Gavroche 0.3178, Valjean 0.2676, Enjolras 0.2672 |
-| Les Miserables | Core depth, How tightly knit, How far from everything else | Top 10 empty or tied; these do not measure how much the network depends on a node (see T7) |
-| Les Miserables | Louvain ("Communities") | 6 groups, sizes 20, 17, 11, 11, 10, 8; modularity 0.5556; identical on 3 of 3 fresh loads. Group 1 (20): Bamatabois, Brevet, Champmathieu, Chenildieu, Cochepaille, Fauchelevent, Gervais, Gribier, Isabeau, Judge, Labarre, Marguerite, MlleBaptistine, MmeDeR, MmeMagloire, MotherInnocent, Scaufflaire, Valjean, Woman1, Woman2. The Members list shows the first 10 only |
-| Les Miserables | label line statement at 1440 x 900 | "77 labels, 7 hidden to avoid overlap" with sizes unchanged; "77 labels, 6 hidden to avoid overlap" once sized by Influence (T15). Round 3 (recorded): "77 labels, 7 hidden", "77 labels, 6 hidden" once sized; with "Show all labels" checked it reads "77 labels" and every name is drawn |
-| Les Miserables | Javert's degree and neighbors | 17 (list under T12) |
-| College football | teams, games, name attribute | 115, 613; `label` (also `value`, the conference) |
-| College football | label line statement at 1440 x 900 | "115 labels, 14 hidden to avoid overlap"; round 3 (recorded): "115 labels, 14 hidden", and "115 labels" with "Show all labels" checked |
-| Florentine families | families, marriages, attributes | 15, 20; `id` and `name` |
-| Florentine families | the Medici's marriages | 6: Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni ("Medici's 6 connections") |
-| Florentine families | PageRank ("Influence") | Medici 0.1458, Guadagni 0.0984, Strozzi 0.0881; range 0.03066 to 0.1458 |
-| Florentine families | Degree ("Connections") | Medici 6, then Guadagni and Strozzi tied at 4 |
-| Florentine families | Betweenness ("Bridges") | Medici 47.5, Guadagni 23.17, Albizzi 19.33 |
-| Florentine families | Closeness ("Reach") | Medici 0.04, Ridolfi 0.03571, then Albizzi and Tornabuoni tied at 0.03448 |
-| Florentine families | Eigenvector ("Influence by association") | Medici 1, Strozzi 0.8072, Ridolfi 0.7698 |
-| Florentine families | Katz ("Influence at a distance") | Medici 1, Strozzi 0.6539, Guadagni 0.6138 |
-| Florentine families | HITS ("Hubs and authorities") | Medici 0.4303, Strozzi 0.356, Ridolfi 0.3416 |
-| friends.csv | people, ties, the attribute that holds the names, weight | 20, 41; Directed; the names are in `id`; `weight` (not used by runs on this build) |
-| friends.csv | PageRank ("Influence") top 3, as computed (directed, unweighted) | Farah 0.06608, Ava 0.06423, Hana 0.05883; range 0.04382 to 0.06608 |
-| friends.csv | Degree ("Connections") | Ava 6, Ivan 5, then a tie at 4 (the Top 10 lists only Ava and Ivan) |
-| friends.csv | Betweenness ("Bridges") | Ava 51.27, Ivan 40.02, Sana 21.35 |
-| friends.csv | Closeness ("Reach") | Ava 0.02632, Ivan 0.025, Sana 0.02273 |
-| friends.csv | Eigenvector ("Influence by association") | Ava 1, Ivan 0.6709, Chloe 0.4502 |
-| friends.csv | Katz ("Influence at a distance") | Ava 1, Ivan 0.7025, Theo 0.3871 |
-| friends.csv | HITS ("Hubs and authorities") | Ava 0.48, Ivan 0.3792, Theo 0.3338 |
-| friends.csv | label line statement at 1440 x 900, bound to `id`, sized | "20 labels, 0 hidden to avoid overlap"; round 3: "20 labels, 0 hidden" (unsized: "20 labels, 1 hidden", Chloe) |
+| Dataset             | Fact                                                             | Value                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Les Miserables      | characters, connections, attributes                              | 77, 254; nodes `id` and `name`, edges `shared_chapters`; one component; Undirected                                                                                                                                                                                                                                                                                           |
+| Les Miserables      | PageRank ("Influence") top 3                                     | Valjean 0.07543, Myriel 0.04278, Gavroche 0.03577; range 0.003299 to 0.07543                                                                                                                                                                                                                                                                                                 |
+| Les Miserables      | Degree ("Connections") top 3                                     | Valjean 36, Gavroche 22, Marius 19                                                                                                                                                                                                                                                                                                                                           |
+| Les Miserables      | Betweenness ("Bridges") top 3                                    | Valjean 1,624, Myriel 504, Gavroche 470.6                                                                                                                                                                                                                                                                                                                                    |
+| Les Miserables      | Closeness ("Reach") top 3                                        | Valjean 0.008475, Marius 0.006993, then Javert and Thenardier tied at 0.006803                                                                                                                                                                                                                                                                                               |
+| Les Miserables      | Eigenvector ("Influence by association") top 3                   | Gavroche 1, Valjean 0.8409, Enjolras 0.8395                                                                                                                                                                                                                                                                                                                                  |
+| Les Miserables      | Katz ("Influence at a distance") top 3                           | Gavroche 1, Valjean 0.8408, Enjolras 0.8395                                                                                                                                                                                                                                                                                                                                  |
+| Les Miserables      | HITS ("Hubs and authorities") top 3                              | Gavroche 0.3178, Valjean 0.2676, Enjolras 0.2672                                                                                                                                                                                                                                                                                                                             |
+| Les Miserables      | Core depth, How tightly knit, How far from everything else       | Top 10 empty or tied; these do not measure how much the network depends on a node (see T7)                                                                                                                                                                                                                                                                                   |
+| Les Miserables      | Louvain ("Communities")                                          | 6 groups, sizes 20, 17, 11, 11, 10, 8; modularity 0.5556; identical on 3 of 3 fresh loads. Group 1 (20): Bamatabois, Brevet, Champmathieu, Chenildieu, Cochepaille, Fauchelevent, Gervais, Gribier, Isabeau, Judge, Labarre, Marguerite, MlleBaptistine, MmeDeR, MmeMagloire, MotherInnocent, Scaufflaire, Valjean, Woman1, Woman2. The Members list shows the first 10 only |
+| Les Miserables      | label line statement at 1440 x 900                               | "77 labels, 7 hidden to avoid overlap" with sizes unchanged; "77 labels, 6 hidden to avoid overlap" once sized by Influence (T15). Round 3 (recorded): "77 labels, 7 hidden", "77 labels, 6 hidden" once sized; with "Show all labels" checked it reads "77 labels" and every name is drawn                                                                                  |
+| Les Miserables      | Javert's degree and neighbors                                    | 17 (list under T12)                                                                                                                                                                                                                                                                                                                                                          |
+| College football    | teams, games, name attribute                                     | 115, 613; `label` (also `value`, the conference)                                                                                                                                                                                                                                                                                                                             |
+| College football    | label line statement at 1440 x 900                               | "115 labels, 14 hidden to avoid overlap"; round 3 (recorded): "115 labels, 14 hidden", and "115 labels" with "Show all labels" checked                                                                                                                                                                                                                                       |
+| Florentine families | families, marriages, attributes                                  | 15, 20; `id` and `name`                                                                                                                                                                                                                                                                                                                                                      |
+| Florentine families | the Medici's marriages                                           | 6: Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni ("Medici's 6 connections")                                                                                                                                                                                                                                                                                  |
+| Florentine families | PageRank ("Influence")                                           | Medici 0.1458, Guadagni 0.0984, Strozzi 0.0881; range 0.03066 to 0.1458                                                                                                                                                                                                                                                                                                      |
+| Florentine families | Degree ("Connections")                                           | Medici 6, then Guadagni and Strozzi tied at 4                                                                                                                                                                                                                                                                                                                                |
+| Florentine families | Betweenness ("Bridges")                                          | Medici 47.5, Guadagni 23.17, Albizzi 19.33                                                                                                                                                                                                                                                                                                                                   |
+| Florentine families | Closeness ("Reach")                                              | Medici 0.04, Ridolfi 0.03571, then Albizzi and Tornabuoni tied at 0.03448                                                                                                                                                                                                                                                                                                    |
+| Florentine families | Eigenvector ("Influence by association")                         | Medici 1, Strozzi 0.8072, Ridolfi 0.7698                                                                                                                                                                                                                                                                                                                                     |
+| Florentine families | Katz ("Influence at a distance")                                 | Medici 1, Strozzi 0.6539, Guadagni 0.6138                                                                                                                                                                                                                                                                                                                                    |
+| Florentine families | HITS ("Hubs and authorities")                                    | Medici 0.4303, Strozzi 0.356, Ridolfi 0.3416                                                                                                                                                                                                                                                                                                                                 |
+| friends.csv         | people, ties, the attribute that holds the names, weight         | 20, 41; Directed; the names are in `id`; `weight` (not used by runs on this build)                                                                                                                                                                                                                                                                                           |
+| friends.csv         | PageRank ("Influence") top 3, as computed (directed, unweighted) | Farah 0.06608, Ava 0.06423, Hana 0.05883; range 0.04382 to 0.06608                                                                                                                                                                                                                                                                                                           |
+| friends.csv         | Degree ("Connections")                                           | Ava 6, Ivan 5, then a tie at 4 (the Top 10 lists only Ava and Ivan)                                                                                                                                                                                                                                                                                                          |
+| friends.csv         | Betweenness ("Bridges")                                          | Ava 51.27, Ivan 40.02, Sana 21.35                                                                                                                                                                                                                                                                                                                                            |
+| friends.csv         | Closeness ("Reach")                                              | Ava 0.02632, Ivan 0.025, Sana 0.02273                                                                                                                                                                                                                                                                                                                                        |
+| friends.csv         | Eigenvector ("Influence by association")                         | Ava 1, Ivan 0.6709, Chloe 0.4502                                                                                                                                                                                                                                                                                                                                             |
+| friends.csv         | Katz ("Influence at a distance")                                 | Ava 1, Ivan 0.7025, Theo 0.3871                                                                                                                                                                                                                                                                                                                                              |
+| friends.csv         | HITS ("Hubs and authorities")                                    | Ava 0.48, Ivan 0.3792, Theo 0.3338                                                                                                                                                                                                                                                                                                                                           |
+| friends.csv         | label line statement at 1440 x 900, bound to `id`, sized         | "20 labels, 0 hidden to avoid overlap"; round 3: "20 labels, 0 hidden" (unsized: "20 labels, 1 hidden", Chloe)                                                                                                                                                                                                                                                               |
 
 ## The picture checklist (T13 and T15)
 
@@ -253,7 +253,7 @@ An exported image passes when all of these hold against the final screenshot:
   `p13`) that names someone not on the staff list and knowingly either left it out (12 nodes, 22
   edges) or added the unknown person (13 nodes, 23 edges).
 - **Path (r, about 6):** `--click "New from data..."`; `--upload people.csv`; `--click "Add a
-  table"`; `--click "File..."`; `--upload messages.csv`; set a role only if the page did not propose it; read the match report;
+table"`; `--click "File..."`; `--upload messages.csv`; set a role only if the page did not propose it; read the match report;
   `--click "Leave out"` (or "Add"); `--click "Load"`.
 - **Partial:** SD if the stray row was noticed only after loading. F codes: one file only,
   `stopped-before-load`, `false-done` ("everything arrived" without the stray row).
@@ -296,7 +296,7 @@ An exported image passes when all of these hold against the final screenshot:
   they are stated.
 - **B (running club):** the same on `friends.csv`, from the setup start (names are in `id`).
 - **Path (6 on round 1's build, 7 on round 2's):** open the sample; `--key Shift+A`; `--type
-  PageRank`; `--click "PageRank"`; `--click "Run"`; `--click "Influence"` (select the run row);
+PageRank`; `--click "PageRank"`; `--click "Run"`; `--click "Influence"` (select the run row);
   read Top 10 on its Values. On round 2's build the row opens on its Style tab, so add
   `--click "role=tab:Values"` before reading (walked: `rounds/round-2/pilot/T7-A/`, `T7-B/`).
 - **Round 3 path (7, walked: `rounds/r2/pilot/T7/`):** round 2's path including the Values step:
@@ -346,7 +346,7 @@ An exported image passes when all of these hold against the final screenshot:
   `rounds/round-2/pilot/T9-A/`, `T9-B/`). Round 2's Size field draws no "Open list" arrow before
   it is bound.
 - **Round 3 path (8 steps, 10 commands; walked: `rounds/r2/pilot/T9/`):** open the sample; rank; `--click
-  "PageRank"` (the run row, opening on Style); `--click "Add to Shape"`; `--click "Size"` (the
+"PageRank"` (the run row, opening on Style); `--click "Add to Shape"`; `--click "Size"` (the
   from-data list opens at once, with "Fixed size" first); `--click "role=option:PageRank"`. End
   state: Size reads "1 to 3", the legend reads "Size: PageRank". The chain-link icon ("Size by
   attribute") stays as the way back to the list after a fixed size was chosen (walked: Escape on
@@ -396,19 +396,19 @@ An exported image passes when all of these hold against the final screenshot:
   that is the switch working, not a defect against the task.
 - **Round 2 and round 3 scoring.** The success definition does not change: a label line bound to
   the name attribute on a row covering every node, names drawn, and the count read correctly.
-  - Round 2 (no switch): S = names drawn, the participant reads "N hidden to avoid overlap" and
-    says why some are not drawn. Reaching every name was possible only by View > 2D or zooming,
-    and was recorded, not required.
-  - Round 3, switch on: S = names drawn, the statement shows no hidden part, and the participant
-    says every name is now written. That claim matches the screen and is not `false-done`.
-  - Round 3, switch not found: graded exactly as round 2 (S when the hidden count is read and
-    explained; SD when the hidden names were never noticed). The prompt asks for every name, so
-    record "every name reached: yes / no" for every session apart from the grade; that share is
-    what credits or fails the switch.
-  - Both rounds: a claim that every name is written while the statement shows a hidden part is a
-    false "done" (`truth-on-screen`). Turning the switch on and then saying names are still
-    missing, with the statement showing none hidden, is `read-wrong` on that claim only.
-  - Record wrong turns spent hunting for the hidden names (about 5 per session in round 2).
+    - Round 2 (no switch): S = names drawn, the participant reads "N hidden to avoid overlap" and
+      says why some are not drawn. Reaching every name was possible only by View > 2D or zooming,
+      and was recorded, not required.
+    - Round 3, switch on: S = names drawn, the statement shows no hidden part, and the participant
+      says every name is now written. That claim matches the screen and is not `false-done`.
+    - Round 3, switch not found: graded exactly as round 2 (S when the hidden count is read and
+      explained; SD when the hidden names were never noticed). The prompt asks for every name, so
+      record "every name reached: yes / no" for every session apart from the grade; that share is
+      what credits or fails the switch.
+    - Both rounds: a claim that every name is written while the statement shows a hidden part is a
+      false "done" (`truth-on-screen`). Turning the switch on and then saying names are still
+      missing, with the statement showing none hidden, is `read-wrong` on that claim only.
+    - Record wrong turns spent hunting for the hidden names (about 5 per session in round 2).
 - **Keyboard path (54 keys on Les Miserables, 56 on College football):** card; open; names (type
   `name` or `label`). **Screen-reader check:** the live region's "77 labels, 7 hidden to avoid
   overlap" ("115 labels, 14 hidden to avoid overlap" on College football), also the line's text
@@ -443,7 +443,7 @@ An exported image passes when all of these hold against the final screenshot:
 - **Group layouts after a community run (round 3, walked: `rounds/r2/pilot/T11/groups/`).** Trying a group layout after
   a community run is the right model for "clusters easier to tell apart". Path (about 8): open the
   sample; `--key Shift+A`; `--type Louvain`; `--click "Louvain"`; `--click "Run"`; `--click
-  "Layout"`; `--click "Rings by group"` (or "Columns by group"); the form opens grouped by the
+"Layout"`; `--click "Rings by group"` (or "Columns by group"); the form opens grouped by the
   Louvain result; `--click "Apply"`. End state: positions change and the groups sit apart.
   "Two columns" needs exactly two groups and stays refused on Louvain's six, with graphty-element's
   own sentence 'the layout "bipartite" needs exactly two groups, and "results.louvain.group" names
@@ -454,16 +454,16 @@ An exported image passes when all of these hold against the final screenshot:
   4, 2 left to right); a participant who matches columns to the key by color has read it right.
 - **Round 2 and round 3 scoring.** The success definition does not change (a different layout
   applied, positions changed; "helped" is an opinion).
-  - Round 2: the group layouts stayed greyed with "Needs a node attribute to group by" even after
-    a community run. A participant who read that and applied another layout is S (SD if it took a
-    detour); one who stopped there with nothing applied is F `dead-end`, marked build-decided.
-  - Round 3: a group layout applied with the community result is S. If a group layout is still
-    greyed after a finished community run, that is a build defect (the change did not land):
-    record it, and grade a participant who stopped there F `dead-end`, build-decided, as in round 2.
-    Greyed before any community run (Les Miserables has no attribute to group by) is correct and
-    not a defect.
-  - Record for every session whether a community run was made and whether a group layout was
-    tried; that share is what credits the change.
+    - Round 2: the group layouts stayed greyed with "Needs a node attribute to group by" even after
+      a community run. A participant who read that and applied another layout is S (SD if it took a
+      detour); one who stopped there with nothing applied is F `dead-end`, marked build-decided.
+    - Round 3: a group layout applied with the community result is S. If a group layout is still
+      greyed after a finished community run, that is a build defect (the change did not land):
+      record it, and grade a participant who stopped there F `dead-end`, build-decided, as in round 2.
+      Greyed before any community run (Les Miserables has no attribute to group by) is correct and
+      not a defect.
+    - Record for every session whether a community run was made and whether a group layout was
+      tried; that share is what credits the change.
 
 ## T12. One character and who he is tied to
 
@@ -511,12 +511,12 @@ An exported image passes when all of these hold against the final screenshot:
 - **Success:** two downloads: an image whose picture matches the screen and carries the key to
   the group colors; a CSV (or XLSX) with one row per character and the group each is in.
 - **Path (6, round 1's build):** `--key Control+e` (or Main menu > Export...); `--click
-  "role=tab:Image"`; `--click "role=button:Export"`; `--key Control+e`; `--click
-  "role=tab:Data"`; `--click "role=button:Export"`. Until the export dialog fix, its two kinds are
+"role=tab:Image"`; `--click "role=button:Export"`; `--key Control+e`; `--click
+"role=tab:Data"`; `--click "role=button:Export"`. Until the export dialog fix, its two kinds are
   grid cells: use `role=gridcell:Image` and `role=gridcell:Data`. A bare "Data" can reach the left
   rail's Data button behind the dialog.
 - **Path (9, round 2's build; walked: `rounds/round-2/pilot/T13-v2/`, `T13-v5/`):** `--key
-  Control+e` (Image is the first row and already chosen); `--click "role=button:Export"`
+Control+e` (Image is the first row and already chosen); `--click "role=button:Export"`
   (`les-miserables_current-view.png`); `--key Control+e`; `--click "Data"` (inside the open
   dialog it resolves to the dialog's row); `--click "Format"`, `--click "role=option:CSV"`;
   `--click "Table"`, `--click "role=option:Nodes"`; `--click "role=button:Export"`
@@ -548,7 +548,7 @@ An exported image passes when all of these hold against the final screenshot:
   Project name menu > `--click "Close project"`; `--click "<their name>"` under Recent projects (r).
 - **Path (6, round 2's build; walked: `rounds/round-2/pilot/T14-v2/`):** `--key Control+s` (the
   first Save opens "Save Les Miserables as" with a Name field); `--type "<their name>"`; `--key
-  Enter` ("Saved <name> in this browser."; the header shows the name); `--click "Main menu"`;
+Enter` ("Saved <name> in this browser."; the header shows the name); `--click "Main menu"`;
   `--click "Back to start"`; `--click "<their name>"` under Recent projects ("In this browser - 77
   nodes - <date>"; "Opened <name>"). No file is written: the project is kept in the browser.
   "Save local copy..." in the main menu downloads a `.graphty.json` file; a participant who also
@@ -635,3 +635,187 @@ An exported image passes when all of these hold against the final screenshot:
   without being asked; if one was, whether its result was read correctly (against the reference
   values); the verdict (keep using it or not) and its reason; which data was used (sample or
   `friends.csv`).
+
+# Tier 2 answer key -- GRADERS ONLY
+
+The tasks are in `tasks.md`, "Tier 2 tasks". Grading follows tier 1's rules above (S, SD, F, G;
+answers count only when on screen first; build defects confirmed by a scripted repro).
+
+**Where the values come from.** Every reference value below was read from graphty-element on the
+served build `ca8b3b916c22 graphty@0.8.55` (https://dev.ato.ms:9366/?next, 2026-10-07), two ways:
+a probe that loads each file through the element's own import and reads filter counts, routes and
+rankings (`rounds/tier-2/preflight/reference/probe.mjs`, `probe2.mjs`; output `reference.json`,
+`reference-open.json`), and a pilot of every task through the app with `tool/real.mjs`, whose
+screenshots show the same values (`rounds/tier-2/preflight/<task>/`). Where the two agree the value
+is given once. A ranking is the element's PageRank, which follows each tie from its first column
+to its second (a CSV opened "as the file says" is directed); NetworkX's undirected PageRank gives a
+different order, so never grade against a hand calculation.
+
+**Success paths** are `real.mjs` steps, walked once each on that build (pilots). Steps marked
+(click-at) use a point from the pilot's screenshot.
+
+**New failure codes for tier 2:**
+
+- `weight-not-read` -- the answer was computed without the tie's number when the task needed it
+  (a route counted in links, not minutes or kilometers)
+- `added-not-replaced` -- the new file was added beside the old one (doubled ties) instead of
+  replacing it
+- `stale-read` -- a value read from a run that was out of date (computed on the old file)
+- `work-lost` -- the participant's earlier run, colors or reminders are gone at the end
+- `not-kept` -- reminders made but not there after closing and reopening
+
+## T4. Two spreadsheets as one network (tier 2)
+
+- **A (office): 12 people and 22 links arrived; messages.csv has 23 rows, and one of them (line 24,
+  `p11,p13,6`: Kemi Bello emails p13 six times) names p13, who is not on the staff list.** The Data
+  page says so before loading: "12 node rows and 23 edge rows read; the load makes 12 nodes and 22
+  edges." and "1 edge row names 1 node no node row holds. Show the 1 unmatched row", with "Leave
+  out" chosen (`preflight/T4A/05.png`). After Load: header "From 2 files", Overview Nodes 12, Edges
+  22, and a Sources row whose name is cut to "people.cs..." (people.csv and messages.csv), "12
+  nodes, 22 edges", with both tables under it (`T4A/06.png`, `07.png`). Choosing "Add" instead loads 13 nodes and 23 edges (p13 becomes a
+  node with no name); either choice is correct if the participant says which row did not fit.
+- **B (football team): 10 players and 17 passes arrived; passes.csv has 18 rows, and one
+  (`s04,s11,3`: Dina Moss passes 3 times to s11) names s11, who is not in players.csv.** Data
+  page: "10 node rows and 18 edge rows read; the load makes 10 nodes and 17 edges", "1 edge row
+  names 1 node no node row holds" (`T4B/03.png`); after Load: "From 2 files", 10 nodes, 17 edges
+  (`T4B/04.png`). With "Add": 11 and 18.
+- **Success path:** `--click "No thanks"`; `--click "New from data..."`; `--click "choose a
+file..." --upload people.csv`; `--click-at 271,107` ("Add a table"); `--click "File..." --upload
+messages.csv`; read the report; `--click "Load"`; `--click "Data"` (Sources).
+- **Other routes:** opening people.csv from "Open project or file..." loads it straight in (12
+  nodes, no ties); then Control+O with messages.csv goes through the Data page as an addition
+  (not piloted). Grade SD if the end state and the unmatched row are right.
+- **S:** the drawing holds both files' rows, the counts are stated, and the unmatched row is named
+  (or "one email row names someone not on the staff list"). **SD:** counts right but the unmatched
+  row found only after a detour, or not named but counted ("22 of 23"). **F:** `false-done`
+  ("everything arrived" with 22 of 23 links), `never-found` (only one file in), wrong counts.
+- **Note:** the people's names are an Attribute, not the label, by default; the drawing shows no
+  names. Not part of the task; record any participant who stops to put names on.
+
+## T17. Only the strong ties
+
+- **A (running club): 19 of the 20 people are still in it, joined by 12 ties.** Theo is the one
+  left out (none of his ties reaches 4). Screen: header chip "19 of 20 nodes"; the Filters row
+  "weight is at least 4 20 to 19 nodes" with its checkbox ticked; the drawing shows 12 ties
+  (`preflight/T17A/09.png`). The edge count is not written anywhere on screen; 12 is for a
+  participant who counts the lines and is not required. **Back:** untick the step's checkbox
+  ("Apply step: weight is at least 4"); the row reads "weight is at least 4 off" and the chip
+  goes (`T17A/12.png`). Undo or deleting the step is equally right.
+- **B (Les Miserables): 26 of the 77 characters are still in it, joined by 51 ties.** Chip "26 of
+  77 nodes", row "shared_ch... 77 to 26 nodes" (`T17B/03.png`). Back as in A.
+- **Success path (A):** `--click "Data"`; `--click "weight"` (the attribute row); `--click
+"Attribute actions"`; `--click "Filter to..."`; `--click "Value" --type 4`; `--click "Add step"`;
+  read the chip; `--click "Apply step: weight is at least 4"`. On B the attribute is
+  `shared_chapters` and the value 5. The Filters "+" ("Add filter step") then Attribute, "weight",
+  "at least", 4 is the other door; in the pilot the attribute list's "weight" option was hard to
+  click by name (the tool clicked the tree row), so graders accept either door.
+- **S:** the drawing narrowed, the count read from the chip or the row (19, or 26), and the whole
+  graph back. **SD:** narrowed by a wrong first comparison then corrected; count read by counting
+  dots. **F:** `wrong-attribute`, the count stated before the drawing changed, selection used
+  instead (selected dots highlighted but nothing left out: the chip never appears), or never
+  brought back (`work-lost` if the step was deleted with no way back and the participant believed
+  the club gone).
+
+## T18. The fewest people in between
+
+- **A (running club): Chloe, Ava, Ivan, Kofi, Milo -- 4 introductions, 3 people in between. It is
+  the only chain of that length.** Screen: Path popover, then the run's Values: "Route 5 nodes, 4
+  edges", "Nodes in order" Chloe 1, Ava 2, Ivan 3, Kofi 4, Milo 5; Made with "Weight: not read --
+  weight has no meaning chosen, and a path needs a distance" (`preflight/T18A/04.png`). The tie
+  numbers are runs together, not distances: a participant who sets them as a distance gets a
+  different chain and is wrong for this task (`meaning-wrong`).
+- **B (Florentine families): Strozzi, Ridolfi, Medici, Salviati, Pazzi -- 4 marriages, 3
+  families in between; the only chain of that length.** Values as in A; Made with "Weight: none
+  (each edge counts 1)" (`T18B/04.png`).
+- **Success path (A):** `--key p` (or a node's menu "Path between...", or Analyze, "Shortest
+  path"); `--type Chloe --click "Chloe"` (the option); `--click "To" --type Milo --click "Milo"`;
+  `--click "Find path"`; `--click "Values"`. The pick buttons beside From and To also take a click
+  on a node, but friends.csv and the Florentine sample draw no names by default, so a participant
+  must name the people by typing or put names on first.
+- **Known on this build:** typing a name and pressing Enter in From does not move to To; a second
+  name typed lands in From ("No node named DepotHarbor", `T20A/10.png`). Record it as a wrong turn
+  caused by the build, not the participant. The Graph tree row reads "Shortest path 61" (a count
+  that is not the chain), and the legend reads "Shortest route (edges) 24": neither is the answer.
+- **S:** names in order and the count (4 introductions, or 3 people between, or 5 people in the
+  chain) read off the Values or the drawing with names on. **SD:** right chain after a detour, or
+  read from the highlighted drawing with names put on. **F:** a longer chain, a guess from the
+  drawing with no names on screen (`not-run`), or the tree row's number given as the count
+  (`read-wrong`).
+
+## T19. Reminders that stay with the work
+
+- **Success state (A): two notes in the Notes place, "Moving away in May; ask who takes over the
+  Tuesday run" with the chip "Farah", and "Spring list, checked against the sign-up sheet" with
+  the chip "Graph"; the project saved; after closing and reopening, both notes are listed again.**
+  (`preflight/T19A/06.png` before, `11.png` after reopening from Recent projects.) The inspector
+  header of Farah reads "1 note", and of the graph "1 note".
+- **B:** the same with "Check the 1434 return from exile" on "Medici" and "Marriages only; business
+  ties are a separate list" on "Graph" (`T19B/07.png`, `10.png`).
+- **Success path (A):** `--key /` `--type Farah` `--key Enter` (selects Farah); `--key n`; `--type
+"<text>"`; `--key Control+Enter`; `--key Escape --key Escape` (nothing selected: the next note is
+  about the graph); `--key n`; type; `--key Control+Enter`; `--key Control+s`; `--click Save`;
+  `--reopen`; click the project in Recent projects (click-at its row: the sample of the same name
+  is also on the start screen, B); `--click "Notes"`. The menus' "Add note" (a node's canvas menu,
+  the inspector "...") and the Notes place "+" are the same command.
+- **S:** both notes, each on the right target, there after reopening, and the participant shows
+  the Notes place (or the inspector's "1 note" link). **SD:** one note on the wrong target fixed
+  after a detour; or the reminders kept but found only after searching. **F:** `not-kept` (no save,
+  or the notes missing after reopening), `wrong-row` (both notes on the graph, or the Farah note
+  on another person), a note typed into another field (Find, a label).
+- **Watch:** after Find selects a person, the drawing is framed so that part of the graph is off
+  the canvas until the next fit (`T19A/04.png`, `check-notes-sources/04.png`). Record any
+  participant who reads it as lost data.
+
+## T20. A number that means "farther"
+
+- **A (bus stops): Depot, Market, Park, Clinic, Harbor -- 14 minutes.** Screen: Values "Route 5
+  nodes, 4 edges", "Total distance 14", Nodes in order; Made with "Weight: minutes (farther)"
+  (`preflight/T20A/16.png`); the graph's Overview "Loaded weight minutes (farther)" (`T20A/08.png`).
+  **The wrong answers:** read without the minutes, the program counts links and returns Depot,
+  Station, Harbor (2 links, 29 minutes) or Depot, School, Harbor (2 links, 21 minutes); both are
+  `weight-not-read`.
+- **B (hiking trails): Trailhead, Creek, Meadow, Ridge, Summit -- 7.5 km.** Values "Total distance
+  7.5", Made with "Weight: km (farther)" (`T20B/08.png`). Wrong: Trailhead, Pine Fork, Summit (2
+  links, 9.0 km), `weight-not-read`.
+- **Success path (A), the load-time route:** `--click "No thanks"`; `--click "New from data..."`;
+  `--click "choose a file..." --upload bus-stops.csv`; open the minutes column's role (click-at
+  728,205, the box showing "Attribute"); `--click "Weight"`; `--click "Farther"` (under "Higher
+  means"); `--click "Load"`; `--key p`; From Depot, To Harbor as in T18; `--click "Find path"`;
+  `--click "Values"`.
+- **The per-run route:** opened from "Open project or file..." the file loads straight in with no
+  weight ("Weight: none" on the Data page; no "Loaded weight" in the Overview). The Path popover's
+  Weight list then offers "minutes (farther)", which gives the right route and total
+  (`T20A-open/05.png`), but only for that run. **Grade it SD**: the route is right, but the task
+  asked that every calculation treat minutes as a length, and the next calculation would not.
+- **S:** the load-time route, the right stops in order and the total, and the participant points
+  to "Loaded weight minutes (farther)" or Made with "Weight: minutes (farther)". **SD:** the
+  per-run route; or the load-time route found after a detour. **F:** `weight-not-read`; Closer
+  chosen (paths then ignore the number: same wrong routes); a total added by hand from a wrong
+  route.
+
+## T21. The list was updated
+
+- **A (running club): first before, Farah (PageRank 0.0639); first now, Ava (0.0801).** The rest
+  of the new top four: Farah 0.0656, Hana 0.0643, Ivan 0.0614. Still 20 people and 41 ties.
+  Screens: Data page titled "Replace: friends-v2.csv", "Was 20 nodes, 41 edges; now 20, 41"
+  (`preflight/T21A/04.png`); after Load the PageRank row carries the out-of-date mark and its
+  inspector the bar "Data changed since this run" with "Rerun" (`T21A/07.png`); after Rerun the
+  Values' Top 10 starts "Ava 0.08012" and the key reads 0.02872 to 0.08012 (`T21A/09.png`).
+- **B (team): 14 people now (and 21 ties; were 12 and 16); first before, Hal (0.1293); first now,
+  Di (0.1339), then Hal 0.1305, Ed 0.1245.** "Replace: team-v2.csv", "Was 12 nodes, 16 edges; now
+  14, 21" (`T21B/03.png`); after Rerun, Top 10 "Di 0.1339" (`T21B/06.png`).
+- **Success path (A):** `--click "Data"`; `--rclick "friends.csv"` (the Sources row; its "..."
+  menu works too); `--click "Replace with file..." --upload friends-v2.csv`; `--click "Load"`;
+  `--click "PageRank"` (the run row, now marked out of date); `--click "Rerun"`; `--click
+"Values"`. "First before" is read from the Values before the replacement (or from the setup's
+  open run).
+- **Traps on this build:** after Load, the old colors stay on the drawing and the key keeps the old
+  range (0.03779 to 0.06394) until Rerun: reading the top person then is `stale-read` (Farah, or
+  Hal on B). "Edit source..." on the same row opens "Add to friends" and its Load doubles the ties
+  (41 to 82, `check-notes-sources/05.png`): `added-not-replaced`. Control+O with friends-v2.csv
+  goes to the same "Add to" page (not piloted). Opening friends-v2.csv as a new project and running PageRank again gives the right
+  name but loses the earlier work: SD at best (`work-lost` if the participant claims the work was
+  kept).
+- **S:** replaced (counts as above), rerun, both names right (B: and 14 people). **SD:** right
+  after a detour (an addition undone, a new project), or the rerun found only after a stale read
+  that the participant caught. **F:** `stale-read`, `added-not-replaced` left in place, `false-done`.

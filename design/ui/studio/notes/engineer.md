@@ -15,74 +15,73 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) **Replace with file + out-of-date runs DONE (ca8b3b916, no door).** Source row
-   menu "Replace with file..." when `canReplace(data.sources())` (one load, <= 1 table;
-   `data-page/request.ts`), `start/open.ts pickFile`, then `replaceSource` -> Data page intent
-   `"replace"` (mode replace, Cancel back to panels, title "Replace: <file>", header line
-   `replaceWords` "Was 20 nodes, 41 edges; now 20, 41", remembered roles carried, loaded weight
-   meaning re-applied once per draft by `useCarriedMeaning`; Load focus is the Footer's existing
-   clean-file rule). Status line `replacedWords` after load. Stale: `rows.ts` state `"stale"`
-   (succeeded + `run.stale !== null`), glyph `GLYPHS.outOfDate` (History), tree `label` "<name>,
-   out of date", tooltip/description `inspector/words.ts staleWords(reason)`; `RunStateBar` stale
-   branch with Rerun = `runs.start(algorithm, params, { as: id, scope: stale.scopeSpec })`.
-   Proof: `Replace.real-element.test.tsx`; `tmp/t2feat-app-replace/s1/08-13.png`. Open: a replace
-   lays the graph out afresh (positions not kept); focus lands on the Everything row after Load.
-2. (2026-10-07) **Neighborhood header DONE (no door).** `NodeValues.tsx NeighborList`: Hops
+1. (2026-10-07) **Tier 2 study prep DONE (no door): tasks, answers, personas, preflight.**
+   `tasks.md` and `answers.md` "Tier 2" sections: T4 (two sheets), T17 filter, T18 fewest in
+   between, T19 reminders, T20 farther weight, T21 updated list; two datasets each; new files in
+   `tool/files` (bus-stops, trails, players+passes, team, team-v2; `rounds/tier-2/preflight/
+reference/gen.py`). Values read from the element (`reference/probe.mjs`), all 12 pilots reach
+   the answer. Preflight `rounds/tier-2/preflight.md`: every tier2-design decision built / not /
+   differs. Not built: "No filters.", Follow in Path popover, path row summary (shows 61), never
+   "route"; Edit source... still ADDS (41 -> 82). Owner starts the study; wording check not run.
+2. (2026-10-07) **Replace with file + out-of-date runs DONE (ca8b3b916, no door).** Offered when
+   `canReplace(data.sources())` (one load, <= 1 table); Data page intent `"replace"` ("Replace:
+   <file>", `replaceWords` "Was ...; now ...", roles and meaning carried). Stale row: `rows.ts`
+   state `"stale"`, `GLYPHS.outOfDate`, label "<name>, out of date"; `RunStateBar` Rerun =
+   `runs.start(algorithm, params, { as: id, scope })`. Open: positions not kept; focus lands on
+   Everything after Load. Proof: `Replace.real-element.test.tsx`.
+3. (2026-10-07) **Neighborhood header DONE (no door).** `NodeValues.tsx NeighborList`: Hops
    1|2|3, Follow Out|In|All only when directed; a change = `selection.apply({ neighborsOf, depth,
-   direction })` + one status line; "Filter to neighbors" appends a `neighborhood` step. ELEMENT
+direction })` + one status line; "Filter to neighbors" appends a `neighborhood` step. ELEMENT
    GAP: that filter rule has no `direction` (button hidden unless All). Proof: toolbar
    `tasks.real-element.test.tsx`, `tmp/t2feat-app-neighborhood/s1/`.
-3. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** One row per
+4. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** One row per
    `data.sources()` entry (ids `source:<i>[:<j>]`), header `sourcesWords` ("From 2 files");
    `request.ts` remembers each load's files + `PageChoices` in a WeakMap keyed by `LoadedSource`
    (`rememberLoad`). ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles. Load on
    an edited source ADDS again. Proof: `DataPage.real-element.test.tsx`, `tmp/t2feat-app-sources/`.
-4. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
+5. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
    Analyze > Shortest path open one popover (`analyze/PathForm.tsx`); pick button = capture-phase
    swallow + `elementAt`; status from `pathAnnouncement` reading `session.runs.get(id)`. Open:
    no Follow (Dijkstra always undirected; would be an owner door); same From/To reuses its run id.
    Proof: `PathForm.real-element.test.tsx`, `tmp/t2feat-app-path-popover/`.
-5. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
+6. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
    `filterWords.ts`, `filterSteps.ts`; editor = inspected kind `filter-step`; counts from
    `plan({ op: "visibility.steps" })`; `FilterChip` in Header; read a step BEFORE undoing it.
    `keys.isTypingTarget` no longer swallows shortcuts on checkbox/radio. Open: row name truncates
    at 240px. Proof: `Filters.real-element.test.tsx`, `tmp/t2feat-app-filters/s2`.
-6. (2026-10-07) **Tier 2 element work landed (owner doors, hold + needs-decision):** edge pick
+7. (2026-10-07) **Tier 2 element work landed (owner doors, hold + needs-decision):** edge pick
    (5a2b3b605), filter steps (8966b0888), stale runs (ce34f31f3; edge-metric runs keyed by old
    edge ids), every load a source (f141b1283), loaded weight + meaning, edge-attribute filter
-   (559f5dcb2), coded selector refusals (3d89d43c3). App sides all done.
-7. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
+   (559f5dcb2), coded selector refusals (3d89d43c3). App sides all done. CSV intake: a data file opened into an open project goes through the Data page
+   (52ae4b683; tests click "Add" in the Match report).
+8. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
    edge inspector (`edgeName()`, ends, attributes, per-run `result.edge(id)`), "Select
    endpoints"; status line announces every selection. Open: Frame selection disabled in the edge
    menu (unchecked whether `scope: "selection"` frames an edge). Proof: `tmp/t2feat-app-edge-select/`.
-8. (2026-10-07) **CSV intake FIXED (52ae4b683, no door).** A data file opened into an open project
-   goes through the Data page (`openInSession` -> `openDataPage({ intent: "add", files })`); the
-   start screen still loads straight in. Tests must click "Add" in the Match report.
-9. (2026-10-07) **Tier 2 audit defects still open (`tmp/t2-audit/`):** path row counts 61
-   (`summary.measured`, `graph-place/rows.ts`) and the header calls a path a "Measure"
-   (`rowKindOf`); Edit source... ADDS a re-chosen file (41 -> 74 edges), never replaces (Replace with
-   file... covers one source); element caps a load at one node + one edge table. No app UI for Select
-   where, node weight. Fixed: path Values (2df88ddef), Find hint/refusal (f09aae3aa),
-   Sources (8569342f6).
+9. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
+   `graph-place/rows.ts`), header calls a path "Measure"; picking From by keys leaves focus in From;
+   Edit source... ADDS (41 -> 82); adding a file of all-new people defaults to "Leave out" (adds
+   nothing); a reopened project's Direction row shows raw `"directed": f...`; Find framing leaves the
+   graph off-canvas; element caps a load at one node + one edge table.
 10. (2026-10-07) **Remaining element plan:** a run result says each field's type (fixes (a) at the
-   root); several node types / Links to / One edge per Pair is the largest item -- last.
-   Undecided by the design: OR/NOT between steps (keep "all"), Path popover grouping key.
+    root); several node types / Links to / One edge per Pair is the largest item -- last.
+    Undecided by the design: OR/NOT between steps (keep "all"), Path popover grouping key.
 11. (2026-10-07) Element English still on screen: Analyze's algorithm refusals (codes exist,
-   `AnalyzePopover.tsx` `estimate.reason`), `MetricAvailability.reason`, layout descriptions,
-   `run.label`, partition choice labels. Fix = codes from the element, words in the app.
+    `AnalyzePopover.tsx` `estimate.reason`), `MetricAvailability.reason`, layout descriptions,
+    `run.label`, partition choice labels. Fix = codes from the element, words in the app.
 12. (2026-10-07) Focus after close FIXED (element `delegatesFocus` + app targets +
-   compact-mantine Menu). A control that removes itself names where focus goes
-   (`frame/focus.ts focusIsLost()`); never `returnFocus={false}`. Keyboard repro scripts must
-   count Tabs from the drawing, not the page body.
+    compact-mantine Menu). A control that removes itself names where focus goes
+    (`frame/focus.ts focusIsLost()`); never `returnFocus={false}`. Keyboard repro scripts must
+    count Tabs from the drawing, not the page body.
 13. (2026-10-06) Graph logic goes in graphty-element; an app comment explaining why the element
-   could not be used is an element bug report. Neutral facts from the element, words in the app,
-   style only through layers (selection is the documented exception: drawn from the mask).
-   Public element API or behavior change = owner door: `owner-decisions.md` + `npm run api:report`.
+    could not be used is an element bug report. Neutral facts from the element, words in the app,
+    style only through layers (selection is the documented exception: drawn from the mask).
+    Public element API or behavior change = owner door: `owner-decisions.md` + `npm run api:report`.
 14. (2026-10-06/07) No default layout seed in the element (owner): the app seeds (`LAYOUT_SEED`,
-   `takesSeed()`). Grep every route of a value; any NEW site showing a run calls `runName`.
+    `takesSeed()`). Grep every route of a value; any NEW site showing a run calls `runName`.
 15. (2026-10-07) Bars: 41 app words at rest (limit 50); axe 0 on all 13 screens in both schemes
-   (`tool/bars.mjs <out> --scheme light`). New `c="dimmed"` text sits on panel/field/menu. Small open defects: Columns by group order; Circle
-   draws a sphere in 3D; group named three ways; truncated labels; Id/id.
+    (`tool/bars.mjs <out> --scheme light`). New `c="dimmed"` text sits on panel/field/menu. Small open defects: Columns by group order; Circle
+    draws a sphere in 3D; group named three ways; truncated labels; Id/id.
 
 ## Priorities and values
 
@@ -153,15 +152,11 @@ acceptance test. "The studio worktree" is
   the removed row). Known: "+" and the menu item share the name "Add note" (one command, two
   doors), which the study tool reports as `ambiguous` while both are on screen.
 
-- (2026-10-07) **Weight meaning in the app (no new API).** Data page "Higher means: Closer |
-  Farther | Capacity" (SegmentedControl, value "" = unset; glossary gloss beneath) sent as
-  `TableMapping.weightMeaning` only while the table has a Weight column; no weight says "Weight:
-  none (each edge counts 1)". Analyze/Made with: one Weight select (loaded first, None = null,
-  other number|integer edge columns with the meaning the algorithm reads); Made with adds
-  "Weight: <read or skip>" as wrapping Text (a DataRow truncated the skip and hid its name);
-  Overview "Loaded weight". Proof: words/choices/OptionsForm/DataPage tests; served walks
-  `tmp/t2feat-app-weight/s2` (Closer: PageRank reads emails, path "not read") and `s3` (Farther:
-  path reads weight, Total distance).
+- (2026-10-07) **Weight meaning in the app (no new API).** Data page "Higher means" SegmentedControl
+  ("" = unset, gloss beneath) sent as `TableMapping.weightMeaning` only with a Weight column;
+  Analyze/Path/Made with: one Weight select (loaded first, None = null, other number columns);
+  Made with "Weight: <read or skip>" as wrapping Text; Overview "Loaded weight". Proof: unit tests,
+  `tmp/t2feat-app-weight/s2`, `s3`.
 
 - (2026-10-07) **A run's Values view is chosen from its shape (2df88ddef, no door).** `viewOf()`
   in `RunValues.tsx`: groups -> sizes; highlight with `order` -> path; other highlight -> count;
@@ -194,21 +189,13 @@ acceptance test. "The studio worktree" is
 - (2026-10-07) **Export Data warnings worded by the app (eef118341).** `export/lossWords.ts`, one
   sentence per loss code; after merging master read `result.losses` (8a2450863).
 - (2026-10-07) **Focus after a control goes (element + app + compact-mantine; owner door).**
-  Element: `delegatesFocus`, `render()` returns `nothing` (Lit moved the container and dropped a
-  focus given at mount). App: new project's drawing focused when its element comes up; per-control
-  targets (UsageDataCard, RecentProjects, NoticeSlot, DataPage, TableDock, Style removes). Tree: a
-  deleted focused row hands focus on. Rejected: autofocus on load, reaching into the shadow root.
-  Proof: `FocusAfterClose.real-element.test.tsx`, `element-canvas-a11y.test.ts`, Tree test.
-  Open: the WebGPU canvas swap still drops a focused canvas (unmeasured; the app runs WebGL).
+  Element `delegatesFocus`, `render()` returns `nothing`; per-control focus targets in the app; a
+  deleted focused Tree row hands focus on. Rejected: autofocus on load, reaching into the shadow
+  root. Open: the WebGPU canvas swap may drop a focused canvas (unmeasured).
 
-- (2026-10-07) **Condensed element fixes (proofs under `tmp/r3fix-*`).** Force publishes ngraph's
-  real defaults (b6011c01d; schema = engine). `node.depthIndependentSize` (optional, not
-  `.default(false)`; `UpdateManager.sizeNodesForDepth`). Other-size capture drawn at that size
-  (6783ba895; render-target screenshot + `CustomLineRenderer.setPixelScale`). `fitToGraph`
-  `keepAngle` (6f1cf692b; ~20% margin ceiling). Layout refusals as codes (481c6715a;
-  `refused(reason, code, params)`; gap: Method select shows no reason). `viewInsets`
-  (fa260f20d; `camera/insets.ts freeArea()`, lens shift for orbit). All owner doors.
-
+- (2026-10-07) **Condensed element fixes (owner doors; proofs `tmp/r3fix-*`).** Force publishes
+  ngraph's real defaults; `node.depthIndependentSize`; other-size capture drawn at its size;
+  `fitToGraph` `keepAngle`; layout refusals as codes; `viewInsets` (`camera/insets.ts`).
 - (2026-10-07) A covered legend block is dropped, not flagged (`styles.legend()` omits it; the
   English `painted over by` departure deleted). Rejected a `coveredBy` field and the app parsing
   the sentence. Lesson: when the element "already detects" something, check whether it says so
@@ -234,21 +221,25 @@ acceptance test. "The studio worktree" is
   `role=radio:2` finds nothing. Plain `npx vite build` in `graphty/` OOMs AND empties `dist`.
 - (2026-10-07) The element FREEZES Babylon's active-mesh list on a still frame: a mesh toggled
   outside an update pass needs `getUpdateManager().meshesShownOrHidden()`.
+- (2026-10-07) **Study prep: what worked and what bit.** Reference values: a Playwright probe on
+  :9366 that imports each file with `session.data.import({ config: { file: new File([text], n) } },
+{ mapping: { weight, weightMeaning } })` (two tables: `config: { nodeFile, edgeFile }`), then
+  `runs.start(...)`, awaiting the Run with `new Promise(ok => run.then(ok, ok))` and reading
+  `run.result` (awaiting the thenable gave no result). `session.project.open(file)` does NOT load
+  into the current element. The knownFields of one import leak into the next (a weight stays
+  mapped), so per-file values need a fresh page per file (`probe2.mjs`). Element PageRank on a CSV
+  is DIRECTED (matches NetworkX `DiGraph`, not `Graph`). CSV columns `start,end` are not read as
+  endpoints (`from,to` are). real.mjs traps: `"name#2"` picked the sample, not the Recent project
+  (click-at the row); `--key /` while Find has focus types "/"; a role list's option is easiest
+  as the combobox's shown value then `--click "Weight"`. `design/ui/studio/tmp/` is gitignored:
+  evidence must be copied under `rounds/`.
 - (2026-10-07) **Study tool habits (moved from Top of mind).** Study tool: `ambiguous` on a label plus its input is a tool defect. No
-   `--shift-click-at`: select two unlabeled nodes with Find `=id == 'A' || id == 'B'`; `--key /`
-   then `--type Ava --key Enter` selects one. Copy `graphty/dist`, use `REAL_DIST`. Trust a
-   scripted repro over a participant count; re-measure old numbers before trusting them.
+  `--shift-click-at`: select two unlabeled nodes with Find `=id == 'A' || id == 'B'`; `--key /`
+  then `--type Ava --key Enter` selects one. Copy `graphty/dist`, use `REAL_DIST`. Trust a
+  scripted repro over a participant count; re-measure old numbers before trusting them.
   On the Data page `--click "name"` is ambiguous (column header button + combobox); pick a role
   by clicking the combobox's shown value instead. The Sources "+" is not drawn (the `data.add-*`
   commands are not registered): add a file to an open project with `--key Control+o --upload`.
-- (2026-10-07) **Committing beside others' dirty hunks (8569342f6): worked.** Private index in
-  the scratchpad: `GIT_INDEX_FILE=<sp>/x.index git read-tree HEAD`, `git add` my whole files,
-  `git apply --cached --unidiff-zero` my hunks of a shared file, commit with the copied hooks,
-  then `git reset -q HEAD -- <my paths>` in the real index so it does not show my change undone.
-  Testing Library: a Data page table row's text is "Nodes: people.csv" (one node), and Tree
-  children are flat siblings of their parent in the DOM (query the tree, not the parent row).
-
-
 - (2026-10-07) **A list that closes on blur moved Find path from under the pointer.** The
   pointer's press blurred the field, the in-flow list closed, the popover shrank before Floating
   UI re-placed it, and the release landed off the button (first click lost). Fix: the list floats
@@ -286,10 +277,10 @@ acceptance test. "The studio worktree" is
   file input (`pickFile`) with `--click ... --upload <file>` (2026-10-07, replace walk).
 
 - (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Others stage and commit
-  here continuously: commit from an empty `git diff --cached`, then check `git show --stat HEAD`
-  lists only my files (8966b0888 caught a stranger's file). For a file others have dirty, stage only
-  my hunks (`git apply --cached --unidiff-zero`) or a private index (`GIT_INDEX_FILE`); never
-  commit `npm run api:report` output wholesale. 52ae4b683: quick commit worked.
+  here continuously: commit from an empty `git diff --cached`, check `git show --stat HEAD` lists
+  only my files. For a file others have dirty: a private index (`GIT_INDEX_FILE=<sp>/x.index git
+read-tree HEAD`, add my files, `git apply --cached --unidiff-zero` my hunks, commit, then `git
+reset -q HEAD -- <my paths>` in the real index). Never commit `npm run api:report` wholesale.
 - (2026-10-06 to 10-07) **Builds.** Wait on another agent's build by PID, never `pgrep -f`. Nx may
   restore a partial element dist: `npm run build` in graphty-element. App build:
   `NODE_OPTIONS=--max-old-space-size=12288 npm run build` in `graphty/`. The app reads the element
@@ -297,7 +288,7 @@ acceptance test. "The studio worktree" is
   Builds by others clean `dist/` mid-test ("Cannot find package"): wait, never debug it.
   (2026-10-07) `nx run graphty:build` runs `tsc` first and fails on other agents' half-done edits
   (e.g. `choices.test.ts`, `QuickActionsPalette.tsx`): worked around by `NODE_OPTIONS=...16384 npx
-  vite build --outDir <session>/dist` + `REAL_DIST` (plain heap OOMs and drops `core.*` files).
+vite build --outDir <session>/dist` + `REAL_DIST` (plain heap OOMs and drops `core.*` files).
 - (2026-10-07) **Pixel assertions in browser tests: worked.** `waitForStableFrame()`, then
   `graph.scene.render()`, then `engine.readPixels(x, h - y - half, ...)` (rows from the bottom);
   take the darkest pixel in a 6x6 square to read a thin line's color on a light canvas.
@@ -310,7 +301,7 @@ acceptance test. "The studio worktree" is
   Prove "fails without" against HEAD only for a file nobody else edited. Never call an unexplained
   failure a flake.
 - (2026-10-07) **Reading the element.** A run's per-node values: `session.data.nodePage({ limit:
-  Infinity, columns: [runId] })` (not `node.data`, not `results.get(run).nodes`). Query syntax is
+Infinity, columns: [runId] })` (not `node.data`, not `results.get(run).nodes`). Query syntax is
   JMESPath (numbers in backticks). Rerunning an algorithm replaces its run id. Single-table source:
   `session.project.open(file)` then `draft.load()`. Audit a tier by grepping the app's command ids
   (`grep -rhn -A1 'id: "' --include=commands.ts`): no command, no door.
@@ -325,6 +316,7 @@ acceptance test. "The studio worktree" is
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only
   passes today through Recent projects. Adoption should be a small app change.
+
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

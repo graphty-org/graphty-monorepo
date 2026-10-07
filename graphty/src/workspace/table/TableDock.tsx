@@ -19,6 +19,8 @@ const CHROME_HEIGHT = 64;
 interface View {
     /** Column ids the reader unchecked. */
     readonly hidden: readonly string[];
+    /** The reader's column order, ids first to last; ids missing from it keep their place after it. */
+    readonly order: readonly string[];
     readonly sort: DataTableSort | null;
 }
 
@@ -30,7 +32,24 @@ interface Members {
     readonly scope: ScopeInput;
 }
 
-const EMPTY_VIEW: View = { hidden: [], sort: null };
+const EMPTY_VIEW: View = { hidden: [], order: [], sort: null };
+
+/**
+ * The columns a view shows, in the reader's order: the keys first, then the order the reader set.
+ * @param choices - every column the table can show.
+ * @param view - the reader's view.
+ * @returns the shown columns, first to last.
+ */
+function shownColumns(choices: readonly TableColumnChoice[], view: View): TableColumnChoice[] {
+    const rank = (choice: TableColumnChoice): number => {
+        if (choice.group === "key") {
+            return -1;
+        }
+        const at = view.order.indexOf(choice.id);
+        return at === -1 ? view.order.length : at;
+    };
+    return choices.filter((choice) => !view.hidden.includes(choice.id)).sort((a, b) => rank(a) - rank(b));
+}
 
 /** The reader's arrangement of the dock: each table's view and the members chip (the tab is the store's). */
 interface Arrangement {
@@ -140,8 +159,8 @@ function ColumnsMenu({ choices, hidden, onHiddenChange }: Readonly<ColumnsMenuPr
     return (
         <Menu closeOnItemClick={false} position="bottom-end">
             <Menu.Target>
-                <Button variant="subtle" size="compact-xs">
-                    {`Columns: ${String(shown)} of ${String(choices.length)}`}
+                <Button variant="subtle" size="compact-xs" className="ws-table-columns">
+                    <span className="ws-table-ellipsis">{`Columns: ${String(shown)} of ${String(choices.length)}`}</span>
                 </Button>
             </Menu.Target>
             <Menu.Dropdown mah={320} style={{ overflowY: "auto" }}>
@@ -268,7 +287,8 @@ export function TableDock(): React.JSX.Element {
             return;
         }
         const kind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
-        const { hidden } = arrangement.views[kind];
+        const view = arrangement.views[kind];
+        const { hidden } = view;
         if (hidden.includes(wanted)) {
             // The next render draws it, and this runs again to scroll to it.
             setArrangement((now) => ({
@@ -277,9 +297,7 @@ export function TableDock(): React.JSX.Element {
             }));
             return;
         }
-        const at = columnChoices(session, kind)
-            .filter((choice) => !hidden.includes(choice.id))
-            .findIndex((choice) => choice.id === wanted);
+        const at = shownColumns(columnChoices(session, kind), view).findIndex((choice) => choice.id === wanted);
         if (at >= 0) {
             root.current
                 ?.querySelector(`.cm-dt-head [aria-colindex="${String(at + 1)}"]`)
@@ -322,7 +340,7 @@ export function TableDock(): React.JSX.Element {
     const choices = columnChoices(session, kind);
     const groupRun = groups.find((run) => `g:${run.id}` === active);
     const view = views[kind];
-    const visible = choices.filter((choice) => !view.hidden.includes(choice.id));
+    const visible = shownColumns(choices, view);
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
     // A chip whose run went away (undo, remove) goes with it.
     const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
@@ -342,6 +360,7 @@ export function TableDock(): React.JSX.Element {
         <div className="ws-table" ref={root}>
             <div className="ws-table-strip">
                 <Tabs
+                    className="ws-table-tabs"
                     value={active}
                     onChange={(value) => {
                         if (value !== null) {
@@ -359,7 +378,7 @@ export function TableDock(): React.JSX.Element {
                         ))}
                     </Tabs.List>
                 </Tabs>
-                <Text size="xs" c="dimmed" className="ws-table-count">
+                <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>
                 {active === "nodes" && shownMembers !== null ? (
@@ -398,6 +417,16 @@ export function TableDock(): React.JSX.Element {
                         setView({ sort });
                     }}
                     height={tableHeight}
+                    onMoveColumn={(id, by) => {
+                        const ids = visible.filter((choice) => choice.group !== "key").map((choice) => choice.id);
+                        const from = ids.indexOf(id);
+                        const to = from + by;
+                        if (from === -1 || to < 0 || to >= ids.length) {
+                            return;
+                        }
+                        [ids[from], ids[to]] = [ids[to], ids[from]];
+                        setView({ order: ids });
+                    }}
                 />
             ) : (
                 <GroupTable

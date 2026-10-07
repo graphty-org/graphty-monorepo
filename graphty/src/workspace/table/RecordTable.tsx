@@ -7,6 +7,7 @@ import type {
     RecordPage,
     ScopeInput,
 } from "@graphty/graphty-element/session";
+import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
 import { elementSort, type RecordKind, type TableColumnChoice } from "./columns";
@@ -31,6 +32,8 @@ interface RecordTableProps {
     sort: DataTableSort | null;
     onSortChange: (sort: DataTableSort | null) => void;
     height: number;
+    /** Moves a column one place left (-1) or right (1) among the columns that are not keys. */
+    onMoveColumn: (id: string, by: -1 | 1) => void;
 }
 
 /**
@@ -60,6 +63,7 @@ function tableValue(value: unknown): DataTableValue {
  * @param props.sort - The sorted column
  * @param props.onSortChange - Called with a new sort
  * @param props.height - The table's height in pixels
+ * @param props.onMoveColumn - Moves a column one place
  * @returns The table
  */
 export function RecordTable({
@@ -70,6 +74,7 @@ export function RecordTable({
     sort,
     onSortChange,
     height,
+    onMoveColumn,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
@@ -88,12 +93,36 @@ export function RecordTable({
         kind === "node" ? session.data.nodePage(options) : session.data.edgePage(options);
 
     const rows = page.records.map((record, index): Row => ({ record, index }));
+    // The keys stay first; every other column moves from its header menu, which a finger reaches too.
+    const movable = columns.filter((column) => column.group !== "key").map((column) => column.id);
     const tableColumns = columns.map((column): DataTableColumn<Row> => {
         const at = column.run === undefined ? -1 : runIds.indexOf(column.run);
+        const place = movable.indexOf(column.id);
         return {
             id: column.id,
             header: column.header,
             align: column.numeric ? "end" : "start",
+            menu:
+                place === -1 ? undefined : (
+                    <>
+                        <Menu.Item
+                            disabled={place === 0}
+                            onClick={() => {
+                                onMoveColumn(column.id, -1);
+                            }}
+                        >
+                            Move left
+                        </Menu.Item>
+                        <Menu.Item
+                            disabled={place === movable.length - 1}
+                            onClick={() => {
+                                onMoveColumn(column.id, 1);
+                            }}
+                        >
+                            Move right
+                        </Menu.Item>
+                    </>
+                ),
             value:
                 at >= 0
                     ? (row) => page.columns?.[at]?.values[row.index]

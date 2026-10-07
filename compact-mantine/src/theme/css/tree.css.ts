@@ -623,6 +623,10 @@ const css = `
 .cm-dt .cm-dt-header:hover .cm-dt-header-menu,
 .cm-dt .cm-dt-header:focus-within .cm-dt-header-menu,
 .cm-dt .cm-dt-header-menu[aria-expanded="true"] { opacity: 1; }
+/* A touch screen has no hover to reveal the column menu, so its caret stays visible. */
+@media (hover: none) {
+    .cm-dt .cm-dt-header-menu { opacity: 1; }
+}
 .cm-dt .cm-dt-sort-priority { flex: none; color: var(--cm-text-secondary); ${cmFont("caption")} }
 .cm-dt .cm-dt-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-dt-empty {

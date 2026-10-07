@@ -1,7 +1,7 @@
 /**
  * The table dock on the REAL graphty-element: Shift+T opens it on Nodes; a run's result is a
  * column the element sorts and fills; the Columns chooser hides a column; a group run gets an item
- * tab whose "Show members in table" narrows Nodes; a row click selects a node or an edge through
+ * tab whose "Show members in table" narrows Nodes; a column moves from its header menu; a row click selects a node or an edge through
  * the element; Export... opens the one Export dialog on the table that is showing; closing and
  * reopening the dock keeps the reader's arrangement. Every assertion reads what the element
  * reports or what the table draws from it, never pixels.
@@ -115,6 +115,22 @@ describe("the table dock", () => {
             await within(dock).findByRole("button", { name: `Columns: ${String(Number(all) - 1)} of ${all}` });
             assert.isNull(within(dock).queryByRole("button", { name: /^team/ }));
             await userEvent.keyboard("{Escape}");
+
+            // A column moves from its header menu (a finger reaches it too); the key stays first.
+            const grid = screen.getByRole("grid", { name: "Nodes" });
+            const headers = (): string[] =>
+                within(grid)
+                    .getAllByRole("columnheader")
+                    .map((cell) => cell.textContent ?? "");
+            const before = headers();
+            assert.isAtLeast(before.length, 3);
+            await userEvent.click(within(grid).getAllByTestId("data-table-header-menu")[0]);
+            const left = await screen.findByRole("menuitem", { name: "Move left" });
+            assert.isTrue(left.hasAttribute("disabled") || left.getAttribute("data-disabled") === "true");
+            await userEvent.click(screen.getByRole("menuitem", { name: "Move right" }));
+            await waitFor(() => {
+                assert.deepEqual(headers(), [before[0], before[2], before[1], ...before.slice(3)]);
+            });
 
             // A row click selects that node through the element.
             await userEvent.click(within(dock).getAllByRole("gridcell", { name: expected[0] })[0]);

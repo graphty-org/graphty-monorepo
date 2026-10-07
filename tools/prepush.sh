@@ -1,10 +1,13 @@
 #!/bin/bash
 # Pre-push validation script
-# Runs build, lint (including knip), the CI test shards (graphty-element's long browser and storybook shards
+# Runs build, lint, the CI test shards (graphty-element's long browser and storybook shards
 # only when the push changes a file they test) and the screenshots -- for the packages
 # this push AFFECTS only. "Affected" is nx's answer for
 # the commits since this branch left origin/master: a package whose files changed, and
 # every package that depends on one -- the same set a pull request's CI tests.
+# Knip (both passes) and the published-dependency check run on EVERY push, a push that affects
+# no package included: they check the whole repository, root files (knip.config.ts, package.json
+# scripts, tools/) too, and CI's Build job always runs them. About 35 seconds (2026-10-06).
 # PREPUSH_ALL=1 runs every package.
 # This script avoids nx to work around git hook issues with nx daemon
 
@@ -205,14 +208,10 @@ sonar_reminder() {
 }
 
 if [ -z "$PROJECT_LIST" ]; then
-    echo -e "${GREEN}No package is affected by this push; no package to check.${NC}"
-    # A push that touches only tools/ or the root still gets the SonarQube step, in the foreground.
-    start_sonar
-    join_sonar
-    sonar_reminder
-    exit "$FAILED"
+    echo -e "${GREEN}No package is affected by this push; only the whole-repository checks run.${NC}"
+else
+    echo "Affected packages: $PROJECT_LIST"
 fi
-echo "Affected packages: $PROJECT_LIST"
 echo ""
 
 # Build the affected packages (nx builds what they depend on first: build dependsOn ^build).
@@ -247,6 +246,18 @@ run_step "Knip (dead code detection)" "pnpm run lint:knip"
 # pass above counts devDependencies and test files as legitimate users of a package, so it cannot
 # see a runtime dependency that nothing at run time imports. About 9 seconds (2026-09-24).
 run_step "Knip (production dependencies)" "pnpm run lint:knip:prod"
+
+# A push that affects no package (tools/, the root package.json scripts, knip.config.ts, docs) stops
+# here: knip has checked it, and everything below is per affected package. The published-dependency
+# check (below for the other pushes) runs over every package, as CI's does: a change to the check
+# itself, or to tools/workspace-files.mjs, can fail it. The SonarQube step runs in the foreground.
+if [ -z "$PROJECT_LIST" ]; then
+    run_step "Published dependencies" "pnpm run check:published-deps"
+    start_sonar
+    join_sonar
+    sonar_reminder
+    exit "$FAILED"
+fi
 
 # Lint the affected packages
 run_step "Lint" "NX_DAEMON=false pnpm exec nx run-many -t lint --projects=$PROJECT_LIST --parallel=3 --skip-nx-cache"

@@ -1499,6 +1499,14 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadError {
+    readonly code: string;
+    readonly field?: string;
+    readonly line?: number;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+// @public
 export type LoadMapping = TableMapping | {
     readonly tables: Readonly<Record<string, TableMapping>>;
 };
@@ -1515,6 +1523,7 @@ export interface LoadReport extends ImportReport {
         readonly rows: number;
         readonly ids: readonly (string | number)[];
     };
+    readonly errors: readonly LoadError[];
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;

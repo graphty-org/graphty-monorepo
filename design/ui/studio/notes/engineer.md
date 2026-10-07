@@ -15,21 +15,31 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) Round 2 closed; all ten of its build changes landed on design/studio-tier1
-   (895e5fab3..b7590f8de, build b7590f8de, graphty 0.8.53) and the re-pilots of T6, T7, T9-T13,
-   T15, T16 all reach their end state with no blocker. Round 3 measures THOSE changes: do not land
-   another change on a path a round 3 task measures until round 3 has run (two changes on one
-   path confound the measure; decisions rule).
-2. (2026-10-07) Watch in round 3, by change: menu-to-dialog focus (re-run r2-s07 first); key
-   drops a covered layer; 2D Fit; group layouts after Louvain; load/run announcements (tool
-   blind spot 3: a region inserted already filled is "unconfirmed"); canvas name and focus ring;
-   Size "+" opens its list (credit any T9 ease change to it alone); trailing chevron in the row;
-   run named by method; "Show all labels". A regression there is mine to trace first.
-3. (2026-10-07) Biggest remaining element defect class: element English reaching the screen.
-   Re-pilots found it in layout refusals (`session/planning.ts` planar/bipartite: "G is not
-   planar", "results.louvain.group names 6"), layout descriptions (`catalog/layouts.ts`, British
-   "centre"), graph-io's CSV export warnings, and `run.label`. Fix = `{ code, params }` from the
-   element, words in the app; never an app rename or string match.
+1. (2026-10-07) Re-measured for tier 2 on build b40f264a9 (`next-steps/verify/results.md`):
+   every unit's tests, bars dark + light (axe 0/13 both, 41 words at rest), `--prove` and the
+   app checks pass, except Force at spring length 80, still an even cloud (ngraph physics, not a
+   frozen engine; bounding the field is an open app choice). Round 3 repro scripts count Tabs
+   from the page body, so their leftover "page itself" lines are Tab overruns, not focus loss:
+   re-count Tabs before reusing them. A regression on a fixed path is mine to trace first.
+1a. (2026-10-07) A committed file can differ from what was built: 2538731dc committed
+   `camera/builtins.ts` mid-edit (did not compile) while every build used the working copy
+   (fixed ebb2cfcba). Before trusting a build stamp, `git status` for modified source; a stamp
+   says nothing about uncommitted files.
+2. (2026-10-07) Focus after close FIXED (element + app + compact-mantine). Targets: a graph opens
+   (sample, file, recent, New project, Data page Load) -> the drawing; start screen comes back,
+   usage card answered, file refused, last Recent row removed -> "Open project or file...";
+   Recent row removed -> the row now in its place; style line removed -> its section's first
+   control; tree row deleted -> the row now in its place (Tree); table or notice closed -> the
+   drawing; members chip x -> Nodes tab; New from data... -> "choose a file...". Dialogs and
+   menus return to their opener (the drawing too, via `delegatesFocus`). Keyboard repro scripts
+   written before this count Tabs from the page body: re-count them from the new focus.
+3. (2026-10-07) Element English on screen: layout refusals FIXED (481c6715a, owner door, hold +
+   needs-decision): `CostEstimate.refusal` = `{ code, params }`, 16 codes (`layout.*`,
+   `algorithm.*`, `estimate.*`); app words in `layout/refusalWords.ts`. Still English: Analyze's
+   algorithm refusals (codes exist, app words not written -- `AnalyzePopover.tsx` `estimate.reason`),
+   `MetricAvailability.reason`, layout descriptions (`catalog/layouts.ts`, "with `dim: 2`",
+   "centre"), `run.label`, partition choice labels (`root.label`).
+   Fix = codes from the element, words in the app; never an app rename or string match.
 4. (2026-10-07) 3D size misreading FIXED (owner door, hold + needs-decision): element
    `layoutBehavior.node.depthIndependentSize` (off by default) scales each node mesh by its view
    depth over the orbit pivot's in `UpdateManager.sizeNodesForDepth`; the app turns it on while a
@@ -67,10 +77,9 @@ acceptance test. "The studio worktree" is
 11. (2026-10-07) A decision's file list is a start, not the set: grep every route of the value
    (run-name change missed Why this look). Any NEW site showing a run calls `runName`, never
    `run.label`. Tests assert literal method names, not `run.label`.
-12. (2026-10-07) Bars baseline on 4a7a1a7fb: 42 app words at rest (no fix may push it above);
-   axe fails on one cause, `#8c8c8c` on `#2c2c2c` (compact-mantine `compactDarkColors[2]`).
-   Re-measure with `tool/bars.mjs`. Trust a scripted repro or a cause in code over a participant
-   count (one model plays every persona).
+12. (2026-10-07) Bars: 41 app words at rest (limit 50); axe 0 on all 13 screens in both schemes
+   (`tool/bars.mjs <out> --scheme light`). New `c="dimmed"` text sits on panel/field/menu, never
+   on default-hover. Trust a scripted repro or a cause in code over a participant count.
 13. (2026-10-06) Iterate locally: element build, then `pnpm exec nx run graphty:build`, re-run
    with `tool/real.mjs`. Others rebuild `graphty/dist` often: copy the build and use
    `REAL_DIST=<copy>`; check `pgrep -af "real.mjs --prove"` before trusting a FAIL. Never push.
@@ -78,8 +87,9 @@ acceptance test. "The studio worktree" is
    chunks", core dumps in `graphty/`): build with `NODE_OPTIONS=--max-old-space-size=12288`.
    Other agents rebuild the element mid-build; wait until no element build runs first.
 14. (2026-10-07) Focus: the compact-mantine Menu theme returns focus only from inside the menu;
-   never add `returnFocus={false}` again. The canvas is named by the host's `aria-label`, has no
-   autofocus; focus stays on the body after an open (re-record keys that expected otherwise).
+   never add `returnFocus={false}` again. The canvas has no autofocus; the app hands focus to the
+   drawing with `element.focus()` (host `delegatesFocus`). A control that removes itself must
+   name where focus goes (`frame/focus.ts focusIsLost()` before handing it on); never leave it.
 15. (2026-10-07) The element FREEZES Babylon's active-mesh list on a still frame
    (`UpdateManager.settleActiveMeshFreeze`). A mesh enabled or disabled outside an update pass is
    ignored until something unfreezes it: call `getUpdateManager().meshesShownOrHidden()`. Suspect
@@ -135,49 +145,39 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-07) **Export Data warnings worded by the app (eef118341, no door).** `export/lossWords.ts`:
+  one sentence per loss code from `code`, `column`, `count`, never `message`; unknown codes get a
+  generic sentence. This branch reads `lossNotes`; after merging master switch `DataOutput` to
+  `result.losses` (`{ code, params: { columns[], count } }`, 8a2450863).
+- (2026-10-07) **CSV adjacency export fixed (2143deaae).** The catalog's `header` default true
+  made every adjacency CSV export fail; `writerFor` drops an unasked `header` for adjacency.
+- (2026-10-07) **Focus after a control goes (element + app + compact-mantine; owner door).**
+  Element: `delegatesFocus`, `render()` returns `nothing` (Lit moved the container and dropped a
+  focus given at mount). App: new project's drawing focused when its element comes up; per-control
+  targets (UsageDataCard, RecentProjects, NoticeSlot, DataPage, TableDock, Style removes). Tree: a
+  deleted focused row hands focus on. Rejected: autofocus on load, reaching into the shadow root.
+  Proof: `FocusAfterClose.real-element.test.tsx`, `element-canvas-a11y.test.ts`, Tree test.
+  Open: the WebGPU canvas swap still drops a focused canvas (unmeasured; the app runs WebGL).
+
 - (2026-10-07) **Force publishes the defaults ngraph runs (b6011c01d, element, no API change).**
-  Trace: the re-applied engine DID step (instrumented `NGraphEngine.step`); it settled at ~190
-  steps as a cloud because `springLength: 80` was 8x ngraph's real 10, not 2.7x the shown 30.
-  `resolveLayoutOptions` fills defaults only for classes with a `static descriptor`; ngraph has
-  none, so the zod defaults were documentation only (since 4fb076175). Fix: schema defaults =
-  ngraph's own (same as Spring Electrical's), constructor starts from `getDefaults(schema)`.
-  No default drawing changes. Rejected: honoring the old declared values (moves every force
-  baseline, jitters to the 1000-step cap, breaks parity with the GPU twin); scaling repulsion
-  with spring length (changes what ngraph's options mean: owner door); a stricter settle rule
-  (moves default drawings, and L=80 converges to ratio 0.56 anyway). Proof:
-  `test/browser/force-reapplied-settles.test.ts` (2x the published default; 0.72 old, passes
-  new); app `tmp/r3fix-force-reapply-cloud/run20/` groups, `run80/` still a cloud.
-  Ratio check scripts: `tmp/r3fix-force-reapply-cloud/exp*.mjs` (ngraph in Node, no browser).
+  ngraph has no `static descriptor`, so its zod defaults (spring 30...) were documentation only;
+  the engine ran ngraph's own (10, 0.8, -12...). Schema defaults now = ngraph's; constructor uses
+  `getDefaults(schema)`. Rejected: honoring old values, scaling repulsion (owner door), stricter
+  settle. Proof: `test/browser/force-reapplied-settles.test.ts`, `tmp/r3fix-force-reapply-cloud/`.
 
 - (2026-10-07) **A size bound to data compares at any depth (element option, owner door).**
-  Cause (traced): perspective divides world size by depth; style and world sizes were right.
-  `node.depthIndependentSize` in `config/GraphBehavior.ts` (optional, not `.default(false)`: a
-  default makes the field required in the parsed output type and broke tests that build the
-  full config). `UpdateManager.update()` runs `sizeNodesForDepth()` after the pass: mesh scale =
-  depth / pivot depth (orbit + perspective only; 2D and XR reset to 1), and when any scale
-  changes it invalidates every edge's position cache and walks the edges in the same frame.
-  `pictureIsFinished()` is false until the switch reaches the meshes, so `waitForStableFrame`
-  does not return early (the on-then-off test failed until this). Labels and halos are children
-  of the node mesh, so they scale too. Proof: `test/browser/camera/depth-independent-size.test.ts`
-  (fails on the old UpdateManager), the T9 test in `StyleTab.real-element.test.tsx` (fails on the
-  old ElementHost), `tmp/r3fix-fix-3d-size/trace/` and `repro/` (export: Farah ~106 px, Ava ~100).
-  Rejected: on by default, the element deciding when to turn it on, camera distance, app warning.
+  `node.depthIndependentSize` (optional, not `.default(false)`: a default makes the parsed field
+  required). `UpdateManager.sizeNodesForDepth()` scales meshes by depth over pivot depth (orbit +
+  perspective only), invalidates edge caches; `pictureIsFinished()` false until applied. Proof:
+  `test/browser/camera/depth-independent-size.test.ts`, T9 test in `StyleTab.real-element.test.tsx`,
+  `tmp/r3fix-fix-3d-size/`. Rejected: on by default, element deciding, app warning.
 
-- (2026-10-07) **A capture of another size is drawn at that size (6783ba895, element only, no
-  API change).** Cause: Babylon's `CreateScreenshotAsync` copies the canvas (device pixels) and
-  `drawImage`-scales it to the requested size, so "For print, 4x" was the canvas stretched (no
-  browser clamp; `precision` was being fed the JPEG quality, shrinking JPEGs). Now a size other
-  than the canvas with the canvas's shape goes through `CreateScreenshotUsingRenderTargetAsync`
-  (MSAA 4 when the engine antialiases); a different shape keeps the old fitted copy (ponytail:
-  sharp letterboxing not built). Label textures did NOT need re-rendering: they are drawn at
-  48 px per line, which covers a 4x export of a normal view (measured 10-90% glyph rise 1 px at
-  1x and at 4x). What did break: line width is in pixels (`resolution` uniform), so 4x edges came
-  out a quarter as thick; `CustomLineRenderer.setPixelScale(scene, k)` divides the resolution for
-  the capture and resets in `finally`. Proof: `test/browser/screenshot/screenshot-sharp-names.test.ts`
-  (rise 6 px stretched vs 1 px; edge 5 px at both sizes without the line scale vs 15-25 wanted);
-  app `tmp/r3fix-export-sharp-names-4x/run/` (Florentine, name on every node, Show all labels,
-  For print 4x: `medici-1to1.png`, rise 1 px). The study browser renders labels in a serif
-  fallback font; that is the tool, not the export.
+- (2026-10-07) **A capture of another size is drawn at that size (6783ba895, element only).**
+  Babylon's `CreateScreenshotAsync` stretched the canvas; a same-shape other size now uses
+  `CreateScreenshotUsingRenderTargetAsync`. Line width is in pixels, so
+  `CustomLineRenderer.setPixelScale(scene, k)` during the capture. Labels (48 px/line) did not
+  need re-rendering. Proof: `test/browser/screenshot/screenshot-sharp-names.test.ts`,
+  `tmp/r3fix-export-sharp-names-4x/run/`.
 
 - (2026-10-07) **"Whole graph" export keeps the on-screen angle (6f1cf692b, owner door).**
   `fitToGraph` `keepAngle` (default false) keeps direction and roll, fits every padded corner of
@@ -186,20 +186,16 @@ acceptance test. "The studio worktree" is
   `test/cameras/fit-to-graph-keep-angle.test.ts`, `tmp/r3fix-export-whole-graph-angle/`. Ceiling:
   boxing, not nodes, leaves ~20% margin; tighter needs node positions in `CameraViewInput`.
 
-- (2026-10-07) **Export leaves the selection ring out (4c087d8bc, element + app; owner door).**
-  `ScreenshotOptions.showSelection` (default true); `false` disables every enabled
-  `graphty-selection-halo` mesh (`SELECTION_HALO_MESH`, now exported from `Node.ts`) for that
-  capture, tells `UpdateManager.meshesShownOrHidden()` (new, public via the main entry), draws a
-  frame, captures, and re-enables in the outer `finally` (success and failure). Selection state
-  and events untouched. App: `screenshotOptions()` always passes `showSelection: false` (export
-  and preview); no dialog control. Rejected: deselect/reselect in the app (fires events, loses a
-  multi-selection), default false (moves every caller's picture), `selection: false` (reads as "no
-  selection"). Did not work first: disabling the halo alone -- the frozen active-mesh list kept
-  drawing it (Top of mind 15). Proof: `test/browser/screenshot/screenshot-selection.test.ts`
-  (real Babylon capture via `vi.importActual`; fails on the old capture with 18214 differing
-  pixels); app run `design/ui/studio/tmp/r3fix-export-no-selection/run/` (06 Medici ringed,
-  08 preview no ring, downloads/florentine_current-view.png no ring, 09 still ringed and
-  "Selection 1"). `owner-decisions.md` entry; PR needs hold + needs-decision.
+- (2026-10-07) **Layout refusals as codes (481c6715a, owner door).** `refused(reason, code,
+  params)` in `cost/estimate.ts` builds sentence and code together; union `EstimateRefusalCode`;
+  a grouping refusal names its run (`PlanningContext.runOf`) so the app uses `runName()`. App
+  deleted its partition pre-check. Proof: `test/session/estimate-refusal-codes.test.ts`,
+  `LayoutPopover.real-element.test.tsx`, `tmp/r3fix-layout-refusal-codes/`. Gap: the inspector's
+  Method select disables a refused layout with no reason shown.
+
+- (2026-10-07) **Export leaves the selection ring out (4c087d8bc, owner door).**
+  `ScreenshotOptions.showSelection` (default true); false hides halo meshes and calls
+  `meshesShownOrHidden()`. Proof: `test/browser/screenshot/screenshot-selection.test.ts`.
 
 - (2026-10-07) **The key never covers a node: view insets (fa260f20d, owner door).** Element
   `viewInsets` (`setViewInsets`/`getViewInsets`, `CameraViewInput.insets`, device px);
@@ -208,23 +204,17 @@ acceptance test. "The studio worktree" is
   (`legendBox()`), not the screen's. App `LegendCard` `useReservedMargin`. Proof:
   `test/browser/camera/view-insets.test.ts`, `tmp/r3fix-key-view-insets/`.
 
-- (2026-10-07) **Show all labels (b7590f8de, app only).** Checkbox beside the label count in
-  `LabelSection.tsx` ("N labels, M hidden"); store `allLabelsShown` (reader preference, not saved);
-  `ElementHost.tsx` writes `layoutBehavior={{ labels: { declutter: !allLabelsShown } }}` on the tag
-  (assigning `element.layoutBehavior` is refused by the `no-element-mutation` lint rule). Proof:
-  T10 test in `StyleTab.real-element.test.tsx`; `tmp/check-r2-show-all-labels-switch/`.
+- (2026-10-07) **Show all labels (b7590f8de, app only).** Checkbox by the label count; store
+  `allLabelsShown` (not saved) -> `layoutBehavior.labels.declutter` on the tag.
 
-- (2026-10-07) **A clickable DataRow's trailing glyph is part of the row (compact-mantine).** The
-  `trailing` slot sits in a `display: contents` wrapper whose click activates the row unless it
-  lands on a control inside the slot (`closest()` bounded by the slot). Proof: two tests in
-  `compact-mantine/tests/components/rows/DataRow.test.tsx`; `tmp/check-r2-datarow-trailing-hit-area/`.
+- (2026-10-07) **A DataRow's trailing glyph clicks the row (compact-mantine)** unless the click is
+  on a control in the slot. Tests in `DataRow.test.tsx`.
 - (2026-10-07) **Menu-to-dialog focus (b7db5da7d, compact-mantine).** Mantine's
   `useFocusReturn` refocused the menu button 10 ms after close. The Menu theme now remembers the
   opener and returns focus only when focus is inside the dropdown or on body (`overlayBehavior.ts`).
   Finding the button by `aria-labelledby` failed (Tooltip drops the id). Gate:
   `MenuFocusReturn.browser.test.tsx`; proof `tmp/check-r2-menu-dialog-focus/run/`. Open: Export
-  dialog Copy fails headless and drops focus to body; compact-mantine `figma/tree.browser.test.tsx`
-  is order-dependent on old code too.
+  dialog Copy fails headless and drops focus to body.
 
 - (2026-10-07) Size "+" opens its list (18 of 18 round-2 sizers named the fixed "1"): node Size
   writes the fixed 1, then opens its own bind list with "Fixed size" first. Rejected a separate
@@ -260,27 +250,35 @@ acceptance test. "The studio worktree" is
 - 2026-10-06 -- Studies run on a local production build of the studio worktree, not on graphty.app
   and not after the release. Owner (this run's brief).
 
-- 2026-10-06 -- Smaller fixes, all proven (`tmp/check-r0-*`): truncated GraphML/GEXF refused
-  whole; camera keys ignore chords; Modal always has an overlay; failed open returns to start;
-  exported images carry the legend (public `ScreenshotOptions.legend`, owner to confirm); exports
-  write a group as its size rank (`owner-decisions.md`).
+- 2026-10-06 -- Smaller fixes proven in `tmp/check-r0-*`: truncated GraphML/GEXF refused whole;
+  camera keys ignore chords; failed open returns to start; exports carry the legend.
 
-- (2026-10-07) **Round 2 changes, built and re-piloted (detail folded from Top of mind).**
-  Key: `buildLegend()` skips a block `coveredBy()` finds; partial cover keeps its block
-  (`legend-covered-layer.test.ts`). Run name: `runName()` in `analyze/words.ts` keeps the scope
-  qualifier, passes through labels not starting with the plain name. Grouping: `catalog.optionsFor`
-  fills partition `values` with categorical node columns incl. run results; app `groupings()`
-  deleted. Size "+": `openListNext()` in `useFocusLine.ts`, "Fixed size" first. 2D Fit: built-in
-  view used pixels per unit with aspect inverted; `FLAT_HALF_WIDTH_AT_ZOOM_ONE` in
-  `camera/builtins.ts` (also fixes Frame selection, `zoomToNodes` in 2D). Re-pilots confirm each
-  on screen. Why it worked: every change traced the cause first and named a test failing on the
-  old build.
-- (2026-10-07) **Lesson: trace before fixing** (key cover was already proved by the element, only
-  in English; 2D Fit was the view's zoom units). Again on 2026-10-07: the halo "hidden but drawn"
-  was the frozen mesh list.
+- (2026-10-07) **Gray helper text contrast (3680c6698, compact-mantine).** Dark dimmed text
+  #a3a3a3, light gray-6 #6e6e6e, light `--cm-text-secondary` #0000008c; export preview moved off
+  default-hover. Test `tests/theme/text-contrast.test.ts`. Left: placeholders (40%) under 4.5.
 
 ## Tried: worked / did not work
 
+- **(2026-10-07) compact-mantine figma tree test failing only in a mixed run: traced, fixed
+  (b40f264a9).** Not hover (pointer parked), not focus: the `touchDrag` command left CDP touch
+  emulation on, so `(hover: none)` matched in every later file and the tree toggles showed.
+  Debugged with one temporary `console.log` of `:hover`, `:focus-within` and computed opacity.
+  Lesson: an order-dependent browser test means leaked page state (emulation, media, pointer).
+
+- **(2026-10-07) Sources row of a single-table file opens its table: FIXED (71be6d4fb).**
+  `DataPlace.openSource` now finds the clicked row (top level or child) and opens the table dock
+  on its `kind` unless it is a `file` row; before, only the ids `source:nodes`/`source:edges`
+  opened, so an edge list's lone row (id `source`, kind `edges`) did nothing. Test: the
+  real-element test opens the file with `session.project.open(file)` then `draft.load()` -- the
+  app's route. `data.import({ config: { file } })` or `{ type: "csv", config: { data } }` gives
+  `nodeRecords > 0` and so a two-table row: use the open route to reproduce a single-table
+  source. Checked on the app: click and keyboard-only Enter (dock closed first) both open Edges,
+  41 edges (`tmp/r3fix-sources-row-opens-table/`). `real.mjs --read` reads only the focused
+  region, so the dock shows in the PNG, not in the read text.
+
+- **(2026-10-07) Probing every export's loss codes with a throwaway real-element test: worked.**
+  Import the four samples with `?raw`, run Louvain, loop `formatRows(session.catalog.formats())`
+  through `element.exportGraph`, print the notes: ~33 codes in practice, plus the adjacency bug.
 - **(2026-10-07) Per-node depth scaling on instanced node meshes: worked.** Setting
   `mesh.scaling` on the instance is enough; edges only follow if their position cache is
   invalidated (their dirty check reads positions, not sizes). Edge ends and arrowheads looked
@@ -292,9 +290,6 @@ acceptance test. "The studio worktree" is
   A run's per-node values are NOT on `node.data` nor in `session.results.get(run).nodes` (empty
   for a node metric); read them with `session.data.nodePage({ limit: Infinity, columns: [runId] })`.
   The view menu button is found by `getByRole("toolbar", { name: "Canvas tools" })` then name /^View/.
-
-- **(2026-10-06) Screen-reader mode in `real.mjs`: worked** (CDP AX tree on the deep
-  `activeElement`; init-script MutationObserver for live regions).
 
 - **(2026-10-06) Open: the live Selection row is blank after the neighbor route**
   (`tmp/check-r1-summary-cleanup/06-08.png`); renders in a headless test. Suspect `useAsyncValue`
@@ -311,9 +306,8 @@ acceptance test. "The studio worktree" is
   `aria-disabled` to clear; "0 labels" was motion keeping the view unsettled. Never call an
   unexplained failure a flake; two `--prove` runs clobber `tmp/prove/`.
 
-- 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
-  `aria-activedescendant`, first match active): worked; `tmp/check-r0-analyze-keyboard-pick/`.
-  The `AnalyzeFiltered` story's baseline changed (owner review).
+- (2026-10-06) Worked: screen-reader mode in `real.mjs` (CDP AX tree, live-region observer);
+  Analyze keyboard pick as the ARIA combobox pattern (`tmp/check-r0-analyze-keyboard-pick/`).
 - (2026-10-06) **Layout and load checks (folded from Top of mind).** Check a layout against a
   reference before a study offers it (Spectral was wrong until matched against numpy). A load the
   counts say worked can still draw nothing (store and render half fed separately in `ingest.ts`):

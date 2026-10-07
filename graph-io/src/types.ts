@@ -368,6 +368,12 @@ export interface LossNote {
     readonly column: string | null;
     /** How many nodes, edges or values are affected, or null when not counted. */
     readonly count: number | null;
+    /**
+     * Every column the note is about, when it is about several and `column` is null: the graph
+     * attributes a format has no place for, or the node columns a CSV edge table leaves for the node
+     * table. Absent on a note about one column or none.
+     */
+    readonly columns?: readonly string[];
 }
 
 /**
@@ -458,13 +464,7 @@ export interface GraphExporter<Opts = unknown> {
  * @category Reports and errors
  */
 export type IssueCategory =
-    | "parse-error"
-    | "missing-value"
-    | "validation-error"
-    | "unsupported"
-    | "precision"
-    | "coercion"
-    | "merged";
+    "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
 
 /**
  * One problem found while importing.

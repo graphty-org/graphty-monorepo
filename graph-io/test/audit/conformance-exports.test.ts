@@ -127,6 +127,7 @@ interface DesignLossNote {
     readonly message: string;
     readonly column: string | null;
     readonly count: number | null;
+    readonly columns?: readonly string[];
 }
 interface DesignCommonExportOptions {
     sanitizeIds?: "error" | "mangle" | undefined;
@@ -144,13 +145,7 @@ interface DesignGraphExporter<Opts = unknown> {
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
 }
 type DesignIssueCategory =
-    | "parse-error"
-    | "missing-value"
-    | "validation-error"
-    | "unsupported"
-    | "precision"
-    | "coercion"
-    | "merged";
+    "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
 interface DesignImportIssue {
     readonly category: IssueCategory;
     readonly severity: "error" | "warning";

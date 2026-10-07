@@ -714,6 +714,7 @@ export interface GraphSession {
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     readonly history: SessionHistory;
+    readonly journal: JournalApi;
     readonly layout: SessionLayout;
     readonly notes: NotesApi;
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
@@ -1308,6 +1309,30 @@ export type ItemKey = {
     readonly field: string;
     readonly value: string | number | boolean;
 };
+
+// @public
+export interface JournalApi {
+    cap: number;
+    clear(): void;
+    readonly entries: readonly JournalEntry[];
+    get(id: JournalId): JournalEntry | undefined;
+    subscribe(fn: (entry: JournalEntry) => void): () => void;
+}
+
+// @public
+export interface JournalEntry {
+    readonly at: string;
+    readonly coalesceKey?: string;
+    readonly command: SessionCommand;
+    readonly durationMs: number;
+    readonly engine: EngineVersions;
+    readonly id: JournalId;
+    readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
+    readonly runId?: RunId;
+}
+
+// @public
+export type JournalId = string;
 
 // @public
 export interface Layer {
@@ -2958,6 +2983,9 @@ export interface SessionEventMap {
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
+    };
+    "journal:appended": {
+        readonly entry: JournalEntry;
     };
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;

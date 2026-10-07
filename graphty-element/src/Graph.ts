@@ -50,8 +50,9 @@ const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 const ZOOM_STEP_FACTOR = 1.25;
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
+import { fullInsets } from "./camera/insets.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
-import type { CameraState, DrawingMode, GraphBounds } from "./camera/types.js";
+import type { CameraState, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
@@ -345,6 +346,8 @@ export class Graph implements GraphContext {
     #cameraPlaced = false;
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
     #autoFrame = true;
+    /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
+    #viewInsets: Required<ViewInsets> = fullInsets(undefined);
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
     /**
@@ -1379,6 +1382,7 @@ export class Graph implements GraphContext {
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
         this.camera = this.renderManager.camera;
+        this.camera.setViewInsets(this.#viewInsets);
         this.scene.clearColor = background;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
@@ -3627,6 +3631,27 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The margins of the canvas something else covers; see {@link setViewInsets}.
+     * @returns CSS pixels per side, 0 where nothing is reserved.
+     */
+    getViewInsets(): Required<ViewInsets> {
+        return this.#viewInsets;
+    }
+
+    /**
+     * Reserve margins of the canvas that something laid over it covers -- a key, a toolbar --
+     * so no fit puts a node under them: the automatic framing after a load or a layout,
+     * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
+     * the part left free. Does not move the camera by itself; the element's own framing, when on,
+     * picks the margins up at its next fit. A preference of the view, not saved in a project file.
+     * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
+     */
+    setViewInsets(insets: ViewInsets | undefined): void {
+        this.#viewInsets = fullInsets(insets);
+        this.camera.setViewInsets(this.#viewInsets);
+    }
+
+    /**
      * Set how far the camera stands from the graph, and stop the element framing the graph on its
      * own. Undefined hands framing back to zoom-to-fit.
      *
@@ -5860,11 +5885,16 @@ export class Graph implements GraphContext {
         // nothing there, and a plugin would have no way to tell it was meaningless.
         const fov = mode === "3d" && "fov" in camera && typeof camera.fov === "number" ? camera.fov : undefined;
 
+        // The insets are CSS pixels; a view reads device pixels, as the viewport is.
+        const ratio = this.canvas.clientWidth > 0 ? width / this.canvas.clientWidth : 1;
+        const { top, right, bottom, left } = this.#viewInsets;
+
         return {
             bounds,
             mode,
             aspect: height === 0 ? 1 : width / height,
             viewport: { width, height },
+            insets: { top: top * ratio, right: right * ratio, bottom: bottom * ratio, left: left * ratio },
             ...(fov === undefined ? {} : { fov }),
             current: this.getCameraState(),
             ...(options === undefined ? {} : { options }),

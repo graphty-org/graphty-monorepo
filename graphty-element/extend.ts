@@ -179,6 +179,7 @@ export type {
     DrawingMode,
     GraphBounds,
     Vec3,
+    ViewInsets,
 } from "./src/camera/types";
 export {
     clearRegisteredCamerasForTesting,

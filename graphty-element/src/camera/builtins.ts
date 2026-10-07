@@ -24,6 +24,7 @@
  * from changing what an existing name means.
  */
 
+import { freeArea } from "./insets";
 import type { CameraState, CameraViewInput } from "./types";
 
 /**
@@ -124,27 +125,32 @@ function fitToGraph(input: CameraViewInput): CameraState {
 
     if (input.mode === "2d") {
         // The width that shows the whole box: its own width, or the width a frame of this aspect
-        // (width over height) needs to show its height, whichever is more. The zoom is the
-        // half-width at zoom 1 over half of that. NOT pixels per unit: the camera never reads a
-        // zoom that way, and on a graph tens of units wide that number put a single edge across
-        // the whole screen.
-        const extent = Math.max(bounds.size.x, bounds.size.y * input.aspect);
+        // (width over height) needs to show its height, whichever is more -- each over the share
+        // of that side the insets leave free. The zoom is the half-width at zoom 1 over half of
+        // that. NOT pixels per unit: the camera never reads a zoom that way, and on a graph tens
+        // of units wide that number put a single edge across the whole screen.
+        const extent = Math.max(bounds.size.x / free.width, (bounds.size.y * input.aspect) / free.height);
+        const halfWidth = (extent * FLAT_PADDING) / 2;
+        const halfHeight = input.aspect > 0 ? halfWidth / input.aspect : halfWidth;
 
         return {
             type: "orthographic",
-            zoom: FLAT_HALF_WIDTH_AT_ZOOM_ONE / ((extent * FLAT_PADDING) / 2),
-            pan: { x: center.x, y: center.y },
+            zoom: FLAT_HALF_WIDTH_AT_ZOOM_ONE / halfWidth,
+            // Centered on the free area, not on the canvas.
+            pan: { x: center.x - free.x * halfWidth, y: center.y - free.y * halfHeight },
         };
     }
 
     const fov = input.fov ?? DEFAULT_FOV;
     const keptAngle = input.options.keepAngle === true ? fromCurrentAngle(input, fov) : undefined;
+    // The part of the viewport the view insets leave free; all of it when there are none.
+    const free = freeArea(input.insets, input.viewport.width, input.viewport.height);
     if (keptAngle !== undefined) {
-        return keptAngle;
+        return farther(keptAngle, room);
     }
 
     const straightOn = (bounds.maxDimension / Math.tan(fov / 2)) * PERSPECTIVE_PADDING;
-    const distance = straightOn * ISOMETRIC_FACTOR;
+    const distance = (straightOn * ISOMETRIC_FACTOR) / room;
 
     return {
         type: "arcRotate",
@@ -155,6 +161,9 @@ function fitToGraph(input: CameraViewInput): CameraState {
         },
         target: center,
     };
+    // In 3D the camera already centers what it looks at on the free area; the box only has to be
+    // small enough for it, so the distance grows by the narrower free share.
+    const room = Math.min(free.width, free.height);
 }
 
 /**
@@ -175,6 +184,29 @@ function topView(input: CameraViewInput): CameraState {
             pan: { x: center.x, y: center.y },
         };
     }
+/**
+ * Move an orbit state back along its line of sight, so the box fits a smaller free area.
+ * @param state - A state with a position and a target.
+ * @param room - The free share of the viewport, 1 for all of it.
+ * @returns The state, its distance divided by `room`.
+ */
+function farther(state: CameraState, room: number): CameraState {
+    const { position, target } = state;
+    if (room === 1 || position === undefined || target === undefined) {
+        return state;
+    }
+
+    return {
+        ...state,
+        position: {
+            x: target.x + (position.x - target.x) / room,
+            y: target.y + (position.y - target.y) / room,
+            z: target.z + (position.z - target.z) / room,
+        },
+        ...(state.cameraDistance === undefined ? {} : { cameraDistance: state.cameraDistance / room }),
+    };
+}
+
 
     const distance = input.bounds.maxDimension * STRAIGHT_ON_DISTANCE;
 

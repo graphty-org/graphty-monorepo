@@ -7,6 +7,7 @@
  * tests each get their own.
  */
 
+import type { ViewInsets } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
@@ -75,6 +76,11 @@ export interface WorkspaceState {
      */
     readonly allLabelsShown: boolean;
     /**
+     * The canvas margins the legend card covers, reported by the card and handed to the element
+     * so a fit never puts a node under it. Empty while no card is drawn.
+     */
+    readonly viewInsets: ViewInsets;
+    /**
      * Where the Export dialog opens (section T13): on Image, or on Data with the nodes or the
      * edges table. The table dock's Export... sets the table that is showing.
      */
@@ -117,6 +123,7 @@ const INITIAL: WorkspaceState = {
     dockColumn: null,
     legendShown: true,
     allLabelsShown: false,
+    viewInsets: {},
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,

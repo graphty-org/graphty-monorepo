@@ -12,6 +12,62 @@ const FONT = "12px system-ui, sans-serif";
 const BOLD = "600 12px system-ui, sans-serif";
 
 /**
+ * Measures the card: as wide as its widest line, as tall as its lines.
+ * @param ctx - A 2D context to measure text with, at canvas scale.
+ * @param sections - The key.
+ * @returns The width inside the card's padding and the card's height, in canvas pixels.
+ */
+function measure(
+    ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+    sections: readonly ScreenshotLegendSection[],
+): { inner: number; height: number } {
+    const width = (font: string, text: string): number => {
+        ctx.font = font;
+        return ctx.measureText(text).width;
+    };
+    let inner = RAMP_WIDTH;
+    let height = PAD;
+    for (const section of sections) {
+        inner = Math.max(inner, width(BOLD, section.title));
+        height += LINE;
+        for (const row of section.rows ?? []) {
+            const chip = row.color === undefined ? 0 : CHIP + GAP;
+            const value = row.value === undefined ? 0 : GAP * 2 + width(FONT, row.value);
+            inner = Math.max(inner, chip + width(FONT, row.label) + value);
+            height += LINE;
+        }
+        if (section.ramp) {
+            inner = Math.max(inner, width(FONT, section.ramp.min) + GAP * 2 + width(FONT, section.ramp.max));
+            height += RAMP_HEIGHT + GAP + LINE;
+        }
+        if (section.note !== undefined) {
+            inner = Math.max(inner, width(FONT, section.note));
+            height += LINE;
+        }
+        height += GAP;
+    }
+    height += PAD - GAP;
+
+    return { inner, height };
+}
+
+/**
+ * Where the key {@link drawLegend} draws sits, with a gap of the card's own padding around it.
+ * @param sections - The key.
+ * @returns The card's right and bottom edges from the image's top left, in canvas (CSS) pixels.
+ */
+export function legendBox(sections: readonly ScreenshotLegendSection[]): { right: number; bottom: number } {
+    const ctx = new OffscreenCanvas(1, 1).getContext("2d");
+    if (!ctx) {
+        return { right: 0, bottom: 0 };
+    }
+
+    const { inner, height } = measure(ctx, sections);
+
+    return { right: PAD + inner + PAD * 2 + PAD, bottom: PAD + height + PAD };
+}
+
+/**
  * Draws a key onto a captured image at its top left: a light card holding each section's title,
  * its rows (color chip, label, value at the right), its ramp and its note.
  * @param blob - The captured image.
@@ -42,33 +98,7 @@ export async function drawLegend(
     ctx.scale(scale, scale);
     ctx.textBaseline = "middle";
 
-    // Measure: the card is as wide as its widest line.
-    const width = (font: string, text: string): number => {
-        ctx.font = font;
-        return ctx.measureText(text).width;
-    };
-    let inner = RAMP_WIDTH;
-    let height = PAD;
-    for (const section of sections) {
-        inner = Math.max(inner, width(BOLD, section.title));
-        height += LINE;
-        for (const row of section.rows ?? []) {
-            const chip = row.color === undefined ? 0 : CHIP + GAP;
-            const value = row.value === undefined ? 0 : GAP * 2 + width(FONT, row.value);
-            inner = Math.max(inner, chip + width(FONT, row.label) + value);
-            height += LINE;
-        }
-        if (section.ramp) {
-            inner = Math.max(inner, width(FONT, section.ramp.min) + GAP * 2 + width(FONT, section.ramp.max));
-            height += RAMP_HEIGHT + GAP + LINE;
-        }
-        if (section.note !== undefined) {
-            inner = Math.max(inner, width(FONT, section.note));
-            height += LINE;
-        }
-        height += GAP;
-    }
-    height += PAD - GAP;
+    const { inner, height } = measure(ctx, sections);
 
     // The card, at the canvas legend's place.
     ctx.fillStyle = "rgba(255, 255, 255, 0.92)";

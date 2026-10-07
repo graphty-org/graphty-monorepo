@@ -1571,6 +1571,7 @@ export class Graph implements GraphContext {
     getStyles(): Styles;
     getSuggestedStyles(algorithmKey: string): readonly StyleSuggestion[];
     getUpdateManager(): UpdateManager;
+    getViewInsets(): Required<ViewInsets>;
     getViewMode(): ViewMode;
     getVoiceAdapter(): VoiceInputAdapter;
     getXRConfig(): XRConfig | undefined;
@@ -1694,6 +1695,7 @@ export class Graph implements GraphContext {
     setRunning(running: boolean): void;
     setSelectionStyle(selection: GraphSelectionStyleInput): void;
     setStartingCameraDistance(distance: number | undefined): void;
+    setViewInsets(insets: ViewInsets | undefined): void;
     setViewMode(mode: ViewMode, options?: QueueableOptions): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
     shutdown(): void;
@@ -2138,6 +2140,8 @@ export class Graphty extends LitElement {
         id: string | number;
         [key: string]: unknown;
     }[], options?: QueueableOptions): Promise<void>;
+    get viewInsets(): ViewInsets;
+    set viewInsets(value: ViewInsets | undefined);
     get viewMode(): ViewMode | undefined;
     set viewMode(value: ViewMode | undefined);
     waitForSettled(): Promise<void>;
@@ -4357,6 +4361,18 @@ export class UpdateManager implements Manager {
 
 // @public
 export const VIEW_MODE_VALUES: readonly ["2d", "3d", "ar", "vr"];
+
+// @public
+export interface ViewInsets {
+    // (undocumented)
+    readonly bottom?: number;
+    // (undocumented)
+    readonly left?: number;
+    // (undocumented)
+    readonly right?: number;
+    // (undocumented)
+    readonly top?: number;
+}
 
 // @public
 export type ViewMode = (typeof VIEW_MODE_VALUES)[number];

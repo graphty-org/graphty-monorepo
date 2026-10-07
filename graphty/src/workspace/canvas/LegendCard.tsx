@@ -1,8 +1,9 @@
 import { DataRow, RampRow } from "@graphty/compact-mantine";
 import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 
+import { useWorkspace } from "../state/WorkspaceContext";
 import { isSizeBlock, overflowLine, paintWords, rowName, sectionTitle, swatchName, swatchText } from "./legendWords";
 
 /** Props for LegendCard. */
@@ -69,6 +70,49 @@ function List({ block, layerName }: Readonly<{ block: LegendBlock; layerName?: s
     );
 }
 
+/** Room left between the card and the nearest node, in CSS pixels. */
+const CARD_GAP = 12;
+
+/**
+ * Reports the card's box to the element as a view inset, on mount, on every resize of the card
+ * or the canvas, and clears it when the card goes: on the left of a tall card, above a wide one,
+ * whichever costs the canvas the smaller share. Above, the toolbar's height is kept at the bottom.
+ * @returns The ref to put on the card.
+ */
+function useReservedMargin(): React.RefObject<HTMLElement | null> {
+    const { store } = useWorkspace();
+    const ref = useRef<HTMLElement>(null);
+    useLayoutEffect(() => {
+        const card = ref.current;
+        const canvas = card?.parentElement;
+        if (!card || !canvas) {
+            return undefined;
+        }
+        const report = (): void => {
+            const left = card.offsetLeft + card.offsetWidth + CARD_GAP;
+            const top = card.offsetTop + card.offsetHeight + CARD_GAP;
+            const byLeft = left / Math.max(1, canvas.clientWidth) <= top / Math.max(1, canvas.clientHeight);
+            // Pushed down, the graph would run under the toolbar at the bottom: keep it clear too.
+            const dock = canvas.querySelector<HTMLElement>(".ws-toolbar-dock");
+            const bottom = byLeft || !dock ? undefined : canvas.clientHeight - dock.offsetTop + CARD_GAP;
+            const next = byLeft ? { left } : { top, bottom };
+            const now = store.get().viewInsets;
+            if (now.left !== next.left || now.top !== next.top || now.bottom !== next.bottom) {
+                store.set({ viewInsets: next });
+            }
+        };
+        const observer = new ResizeObserver(report);
+        observer.observe(card);
+        observer.observe(canvas);
+        report();
+        return () => {
+            observer.disconnect();
+            store.set({ viewInsets: {} });
+        };
+    }, [store]);
+    return ref;
+}
+
 /**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
  * from the data, the row that wins on top. Each section is titled "<Property>: <row>".
@@ -81,10 +125,19 @@ function List({ block, layerName }: Readonly<{ block: LegendBlock; layerName?: s
  * @returns the card
  */
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
+    const ref = useReservedMargin();
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const ordered = [...blocks].reverse();
     return (
-        <Paper component="section" aria-label="Legend" className="ws-legend-card" withBorder shadow="xs" p="xs">
+        <Paper
+            ref={ref}
+            component="section"
+            aria-label="Legend"
+            className="ws-legend-card"
+            withBorder
+            shadow="xs"
+            p="xs"
+        >
             <Stack gap="xs">
                 {ordered.map((block) => {
                     const title = sectionTitle(block, rowName(session, block));

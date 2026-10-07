@@ -200,6 +200,7 @@ export interface GraphtyElementJSXProps {
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];
     startingCameraDistance?: Graphty["startingCameraDistance"];
+    viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
     xr?: Graphty["xr"];
 }

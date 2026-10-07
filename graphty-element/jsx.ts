@@ -145,6 +145,10 @@ export interface GraphtyElementJSXProps {
      */
     autoFrame?: Graphty["autoFrame"];
     /**
+     * Sets the view insets.
+     */
+    viewInsets?: Graphty["viewInsets"];
+    /**
      * Sets whether to run algorithms when a style template loads. Updates graph configuration.
      */
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];

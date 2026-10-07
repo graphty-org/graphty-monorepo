@@ -40,6 +40,8 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     // labels (tier1-design.md section 2.7). A view setting written on the tag; it records no step.
     const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     const layoutBehavior = useMemo(() => ({ labels: { declutter: !allLabelsShown } }), [allLabelsShown]);
+    // The legend card's margins: the element keeps every fit clear of them.
+    const viewInsets = useWorkspaceState((state) => state.viewInsets);
 
     useEffect(() => {
         let disposed = false;
@@ -69,6 +71,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             layout={LAYOUT_ID}
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={layoutBehavior}
+            viewInsets={viewInsets}
             xr={XR_CONFIG}
             style={{ display: "block", width: "100%", height: "100%" }}
         />

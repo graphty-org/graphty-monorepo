@@ -8,17 +8,24 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
+import type { ViewInsets } from "../camera/types.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
 import { SELECTION_HALO_MESH } from "../Node.js";
 import { downloadBlob } from "../utils/download.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
-import { drawLegend } from "./drawLegend.js";
+import { drawLegend, legendBox } from "./drawLegend.js";
 import { resolvePreset } from "./presets.js";
 import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import { enableTransparentBackground, restoreBackground } from "./transparency.js";
-import type { ClipboardStatus, QualityEnhancementOptions, ScreenshotOptions, ScreenshotResult } from "./types.js";
+import type {
+    ClipboardStatus,
+    QualityEnhancementOptions,
+    ScreenshotLegendSection,
+    ScreenshotOptions,
+    ScreenshotResult,
+} from "./types.js";
 
 /**
  * Handles screenshot capture for graph visualizations using Babylon.js rendering engine.
@@ -100,6 +107,20 @@ export class ScreenshotCapture {
     }
 
     /**
+     * The view insets that keep the key's own box clear: on the side that costs the canvas the
+     * smaller share, left of a tall key or above a wide one.
+     * @param legend - The key the capture draws.
+     * @returns The insets to frame the capture with, in CSS pixels.
+     */
+    private reserveLegend(legend: readonly ScreenshotLegendSection[]): ViewInsets {
+        const { right, bottom } = legendBox(legend);
+        const width = this.canvas.clientWidth || this.canvas.width;
+        const height = this.canvas.clientHeight || this.canvas.height;
+
+        return right / width <= bottom / height ? { left: right } : { top: bottom };
+    }
+
+    /**
      * Performs the actual screenshot capture logic.
      * Handles timing options, camera overrides, quality enhancement, format conversion,
      * and destinations (blob, download, clipboard). Ensures proper cleanup of temporary
@@ -140,6 +161,7 @@ export class ScreenshotCapture {
 
         // 3. Handle camera override
         let originalCameraState;
+        let originalInsets: Required<ViewInsets> | undefined;
         let zoomToFitWasEnabled = false;
         if (options.camera) {
             originalCameraState = this.graph.getCameraState();
@@ -151,14 +173,32 @@ export class ScreenshotCapture {
                 updateManager.disableZoomToFit();
             }
 
+            // A named view frames the graph for the picture, and the picture has none of the
+            // screen's chrome in it: the only thing over it is the key this capture draws, so that
+            // is the one margin the framing keeps clear.
+            if ("preset" in options.camera) {
+                originalInsets = this.graph.getViewInsets();
+                const legend = options.legend ?? [];
+                this.graph.setViewInsets(legend.length > 0 ? this.reserveLegend(legend) : {});
+            }
+
             // Resolve preset or use provided state
-            const cameraState =
-                "preset" in options.camera
-                    ? this.graph.resolveCameraPreset(
-                          options.camera.preset,
-                          options.camera.params === undefined ? undefined : { params: options.camera.params },
-                      )
-                    : options.camera;
+            let cameraState;
+            try {
+                cameraState =
+                    "preset" in options.camera
+                        ? this.graph.resolveCameraPreset(
+                              options.camera.preset,
+                              options.camera.params === undefined ? undefined : { params: options.camera.params },
+                          )
+                        : options.camera;
+            } catch (error: unknown) {
+                if (originalInsets) {
+                    this.graph.setViewInsets(originalInsets);
+                }
+
+                throw error;
+            }
 
             await this.graph.setCameraState(cameraState);
             await this.waitForRender();
@@ -331,6 +371,11 @@ export class ScreenshotCapture {
             }
             if (hiddenHalos.length > 0) {
                 this.graph.getUpdateManager().meshesShownOrHidden();
+            }
+
+            // The screen's own margins first: in 3D they decide where the restored camera centers.
+            if (originalInsets) {
+                this.graph.setViewInsets(originalInsets);
             }
 
             // Restore camera if it was overridden

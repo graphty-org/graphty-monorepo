@@ -91,6 +91,18 @@ export interface CameraState {
     cameraDistance?: number;
 }
 
+/**
+ * Margins of the drawing surface that something else covers, such as a key or a toolbar laid
+ * over the canvas, in CSS pixels per side. Every fit keeps the elements it frames out of them,
+ * and in 3D the camera's center of view is the center of what is left. A side left out is 0.
+ */
+export interface ViewInsets {
+    readonly top?: number;
+    readonly right?: number;
+    readonly bottom?: number;
+    readonly left?: number;
+}
+
 /** Everything a view is told before it decides where the viewer stands. */
 export interface CameraViewInput {
     /**
@@ -114,6 +126,11 @@ export interface CameraViewInput {
      * extension point exists to prevent.
      */
     readonly viewport: { readonly width: number; readonly height: number };
+    /**
+     * The view insets in force, in the same device pixels as `viewport`. A view that frames
+     * should keep the box out of them; absent or all zero, the whole viewport is free.
+     */
+    readonly insets?: Required<ViewInsets>;
     /** The vertical field of view in radians. Absent in 2D, which has no perspective. */
     readonly fov?: number;
     /** Where the camera is right now, so a view can be relative to it. */

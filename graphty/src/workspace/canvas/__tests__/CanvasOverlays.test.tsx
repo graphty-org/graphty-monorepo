@@ -243,7 +243,12 @@ describe("the status line", () => {
         });
         assert.equal(store.get().announcement, "PageRank added, running");
         act(() => {
-            emit("run:changed", { run: { ...run, status: "succeeded" }, phase: "end", cause: "command", generation: 1 });
+            emit("run:changed", {
+                run: { ...run, status: "succeeded" },
+                phase: "end",
+                cause: "command",
+                generation: 1,
+            });
         });
         assert.equal(store.get().announcement, "PageRank finished");
         act(() => {
@@ -308,6 +313,20 @@ describe("the legend card", () => {
         const confessing = block({ departures: ["Values above p98 are drawn at the top color."] });
         renderOver(standIn({ blocks: [confessing], layers: { "layer-1": "Mine" } }).session);
         assert.isNull(screen.queryByText(/p98/));
+    });
+
+    it("reserves its own box as the element's view inset, and gives it back when it goes", async () => {
+        const store = renderOver(standIn(facts).session);
+        const card = screen.getByRole("region", { name: "Legend" });
+        await vi.waitFor(() => {
+            const { left, top } = store.get().viewInsets;
+            const reserved = left ?? top ?? 0;
+            assert.isAtLeast(reserved, (left === undefined ? card.offsetHeight : card.offsetWidth) + 12);
+        });
+        act(() => {
+            store.set({ legendShown: false });
+        });
+        assert.deepEqual(store.get().viewInsets, {});
     });
 
     it("is hidden when the reader switched the legend off", () => {

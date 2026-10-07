@@ -258,6 +258,43 @@ for that yet). Name it `hideSelection` or `selection` (`selection: false` reads 
 not "not drawn"). Have the app deselect and reselect around the export (a workaround that fires
 events and loses a multi-node selection).
 
+## 2026-10-07 -- Margins a fit keeps clear: `viewInsets`
+
+**What.** `<graphty-element>` gains a property `viewInsets` (`{ top?, right?, bottom?, left? }` in
+CSS pixels, type `ViewInsets`, exported from the root and from `./extend`): the margins of the
+canvas that something laid over it covers, such as a key or a toolbar. Every fit keeps the nodes
+out of them -- the element's own framing after a load or a layout change, `zoomToFit()`, and the
+built-in `fitToGraph` view (so Fit, Frame selection and `zoomToNodes` too). In 3D the camera is
+also shifted sideways so the point it orbits sits at the center of the free part, and stays there
+while the reader turns and zooms. Changing the insets refits when `autoFrame` is on. A side left
+out, negative or not finite is 0; the getter returns every side. `Graph` gains `getViewInsets()`
+and `setViewInsets()`, and `CameraViewInput` gains `insets` (the same margins in device pixels,
+like `viewport`), so a third-party camera view can honor them too. A capture that draws a key
+(`captureScreenshot({ legend, camera: { preset } })`) reserves the key's own measured box on top
+of the screen's insets, on the side that costs less, and gives the screen its insets back after.
+A preference of the view: not saved in a project file, records no undo step. With no insets
+every number is unchanged, so no saved picture moves.
+
+The graphty app's legend card reports its own box (to the right of a tall card, below a wide one,
+plus a 12 px gap) on mount, on every resize of the card or the canvas, and clears it when the card
+goes.
+
+**Why.** The key card covered the Pazzi family completely on Florentine families after any run,
+and the camera never refit around it; the same card was drawn into exported pictures. Where a
+node lands on screen is the element's to decide, and an app cannot keep a node out from under its
+own chrome without computing the camera itself.
+
+**Alternatives.** Grow an existing option: none takes a margin (`autoFrame` is a boolean,
+`startingCameraDistance` a distance), and a padding percentage on the fit cannot be one-sided. A
+rectangle to avoid instead of per-side margins (the element would have to choose a side; margins
+are the shape map libraries use for the same job). Move the card (the canvas has no free corner on
+a graph that fills it). Shrink the graph symmetrically in 3D instead of shifting the camera (wastes
+the free side; no new behavior to explain). Name it `fitPadding` or `padding`.
+
+**Known limit.** A "Current view" export keeps the screen's camera, so it is protected by the
+screen's insets only; the exported key is drawn at the top left in its own size, which is smaller
+than the app's card in practice but is not checked.
+
 ## 2026-10-07 -- Why something cannot run, as a code: `CostEstimate.refusal`
 
 **What.** `CostEstimate` (what `session.estimate()` returns, and the `cost` of a plan) gains

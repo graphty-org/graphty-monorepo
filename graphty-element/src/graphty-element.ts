@@ -8,6 +8,7 @@ import {
     type Capabilities,
     isAccelerationPolicy,
 } from "./acceleration";
+import type { ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
@@ -2051,6 +2052,42 @@ export class Graphty extends LitElement {
         const oldValue = this.autoFrame;
         this.#graph.setAutoFrame(value);
         this.requestUpdate("autoFrame", oldValue);
+    }
+
+    /**
+     * Margins of the canvas that something laid over it covers, such as a key or a toolbar, in CSS
+     * pixels per side.
+     * @remarks
+     * Every fit keeps the graph out of them: the framing after a load or a layout change,
+     * `zoomToFit()`, and the `fitToGraph` camera view. In 3D the camera also centers what it looks
+     * at on the part left free. Changing them frames the graph again when `autoFrame` is on. A
+     * preference of this view, not part of the project: not saved in a project file. A side left
+     * out is 0.
+     * @since 3.17.0
+     * @example
+     * ```typescript
+     * // A key 260 pixels wide sits over the canvas's left edge.
+     * element.viewInsets = { left: 260 };
+     * ```
+     * @returns The insets in force, every side filled in
+     */
+    @property({ attribute: false })
+    get viewInsets(): ViewInsets {
+        return this.#graph.getViewInsets();
+    }
+    /**
+     * Sets the view insets.
+     */
+    set viewInsets(value: ViewInsets | undefined) {
+        const oldValue = this.viewInsets;
+        this.#graph.setViewInsets(value);
+        const now = this.viewInsets;
+        const changed = (["top", "right", "bottom", "left"] as const).some((side) => now[side] !== oldValue[side]);
+        if (changed && this.autoFrame) {
+            this.#graph.zoomToFit();
+        }
+
+        this.requestUpdate("viewInsets", oldValue);
     }
 
     /**

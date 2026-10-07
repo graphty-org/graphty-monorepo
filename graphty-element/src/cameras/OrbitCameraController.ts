@@ -1,5 +1,7 @@
 import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 
+import { type FreeArea, freeArea } from "../camera/insets";
+import type { ViewInsets } from "../camera/types";
 import { PivotController } from "./PivotController";
 
 export interface OrbitConfig {
@@ -32,8 +34,17 @@ export class OrbitCameraController {
 
     private pivotController: PivotController;
 
+    /**
+     * Margins of the canvas something else covers, in CSS pixels. Every fit keeps the graph out
+     * of them, and the camera is shifted sideways so the pivot sits at the center of what is
+     * left -- a lens shift, so the graph still turns about its own center.
+     */
+    public viewInsets: ViewInsets = {};
+
     /** Half the diagonal of the last bounding box fitted by zoomToBoundingBox. */
     #sceneRadius = 0;
+
+    readonly #canvas: Element;
 
     /**
      * Expose pivot TransformNode for compatibility with existing code.
@@ -52,6 +63,7 @@ export class OrbitCameraController {
      */
     constructor(canvas: Element, scene: Scene, config: OrbitConfig) {
         this.config = config;
+        this.#canvas = canvas;
 
         this.scene = scene;
         this.scene.clearColor = new Color4(0, 0, 0, 1);
@@ -127,8 +139,16 @@ export class OrbitCameraController {
         // Parent the camera to the pivot for proper transformation
         this.camera.parent = this.pivot;
 
-        // Set local position relative to pivot
-        this.camera.position.set(0, 0, -this.cameraDistance);
+        // Set local position relative to pivot, shifted sideways so the pivot lands at the
+        // center of the part of the canvas the view insets leave free. The shift is a share of
+        // the distance, so the pivot stays at that point on screen as the reader zooms.
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
+        this.camera.position.set(
+            -free.x * tanX * this.cameraDistance,
+            -free.y * tanY * this.cameraDistance,
+            -this.cameraDistance,
+        );
 
         // Reset camera rotation - when parented, the camera inherits the pivot's rotation
         this.camera.rotation.set(0, 0, 0);
@@ -137,6 +157,42 @@ export class OrbitCameraController {
         // far plane has to follow the graph. A layout that settles tens of thousands of units
         // across would otherwise be clipped away by Babylon's default 10000.
         this.camera.maxZ = Math.max(DEFAULT_FAR_PLANE, this.cameraDistance + this.#sceneRadius * 2);
+    }
+
+    /**
+     * Called when the canvas resizes: the shift that centers the free area depends on its aspect.
+     */
+    public onResize(): void {
+        this.updateCameraPosition();
+    }
+
+    /**
+     * The part of the canvas the view insets leave free.
+     * @returns The free area in normalized device coordinates.
+     */
+    #freeArea(): FreeArea {
+        const { clientWidth, clientHeight } = this.#canvas;
+        return freeArea(this.viewInsets, clientWidth, clientHeight);
+    }
+
+    /**
+     * The tangents of half the horizontal and the vertical field of view.
+     * @returns Both tangents.
+     */
+    #halfFovTangents(): { tanX: number; tanY: number } {
+        const engine = this.scene.getEngine();
+        const aspectRatio = engine.getRenderWidth() / engine.getRenderHeight() || 1;
+
+        let verticalFov = 0.8; // default ~45.8 degrees
+        if (this.camera.fovMode === Camera.FOVMODE_VERTICAL_FIXED) {
+            verticalFov = this.camera.fov;
+        } else if (this.camera.fovMode === Camera.FOVMODE_HORIZONTAL_FIXED && this.camera.fov) {
+            // Convert horizontal to vertical
+            verticalFov = 2 * Math.atan(Math.tan(this.camera.fov / 2) / aspectRatio);
+        }
+
+        const tanY = Math.tan(verticalFov / 2);
+        return { tanX: tanY * aspectRatio, tanY };
     }
 
     /**
@@ -155,25 +211,10 @@ export class OrbitCameraController {
         this.pivot.position.copyFrom(center);
         this.pivot.computeWorldMatrix(true);
 
-        // Get canvas dimensions
         const engine = this.scene.getEngine();
         engine.resize(); // Ensure we have current dimensions
-        const canvasWidth = engine.getRenderWidth();
-        const canvasHeight = engine.getRenderHeight();
-        const aspectRatio = canvasWidth / canvasHeight;
-
-        // Get camera FOV (vertical)
-        let verticalFov = 0.8; // default ~45.8 degrees
-        if (this.camera.fovMode === Camera.FOVMODE_VERTICAL_FIXED) {
-            verticalFov = this.camera.fov;
-        } else if (this.camera.fovMode === Camera.FOVMODE_HORIZONTAL_FIXED && this.camera.fov) {
-            // Convert horizontal to vertical
-            verticalFov = 2 * Math.atan(Math.tan(this.camera.fov / 2) / aspectRatio);
-        }
-
-        // Calculate horizontal FOV from vertical FOV and aspect ratio
-        const halfFovY = verticalFov / 2;
-        const halfFovX = Math.atan(Math.tan(halfFovY) * aspectRatio);
+        const { tanX, tanY } = this.#halfFovTangents();
+        const free = this.#freeArea();
 
         // For 3D scenes, we need to account for perspective projection.
         // Objects at different Z depths will project differently on screen.
@@ -189,15 +230,16 @@ export class OrbitCameraController {
         // - It projects to screen_y = y * focal / (d - z)
         //
         // To fit within FOV: |screen_x| < tan(fovX/2) * (d - z), etc.
-        // Rearranging: d > z + |x| / tan(fovX/2)  and  d > z + |y| / tan(fovY/2)
+        //
+        // With view insets the box must fit the free area instead: half as wide as the free share
+        // (`free.width` in NDC) and centered on it. The camera is shifted so the center lands
+        // there, and a corner at depth z then sits (x / tanX - free.x * z) / (d + z) from that
+        // center, so d >= |x / tanX - free.x * z| / free.width - z. No insets gives the old rule.
 
         const halfWidth = size.x / 2;
         const halfHeight = size.y / 2;
         const halfDepth = size.z / 2;
 
-        // Check all 8 corners of the bounding box
-        // Each corner has coordinates relative to center: (±halfWidth, ±halfHeight, ±halfDepth)
-        // We need to find the minimum distance that fits all corners
         let maxRequiredDistance = 0;
 
         for (const sx of [-1, 1]) {
@@ -207,13 +249,8 @@ export class OrbitCameraController {
                     const y = sy * halfHeight;
                     const z = sz * halfDepth;
 
-                    // Distance needed to fit this corner horizontally
-                    // d > z + |x| / tan(fovX/2)
-                    const distanceForX = z + Math.abs(x) / Math.tan(halfFovX);
-
-                    // Distance needed to fit this corner vertically
-                    // d > z + |y| / tan(fovY/2)
-                    const distanceForY = z + Math.abs(y) / Math.tan(halfFovY);
+                    const distanceForX = Math.abs(x / tanX - free.x * z) / free.width - z;
+                    const distanceForY = Math.abs(y / tanY - free.y * z) / free.height - z;
 
                     maxRequiredDistance = Math.max(maxRequiredDistance, distanceForX, distanceForY);
                 }

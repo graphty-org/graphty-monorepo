@@ -336,6 +336,7 @@ export interface CameraViewInput {
     readonly bounds: GraphBounds;
     readonly current: CameraState;
     readonly fov?: number;
+    readonly insets?: Required<ViewInsets>;
     // (undocumented)
     readonly mode: DrawingMode;
     readonly options: Readonly<Record<string, unknown>>;
@@ -1958,6 +1959,18 @@ export interface Vec3 {
     readonly y: number;
     // (undocumented)
     readonly z: number;
+}
+
+// @public
+export interface ViewInsets {
+    // (undocumented)
+    readonly bottom?: number;
+    // (undocumented)
+    readonly left?: number;
+    // (undocumented)
+    readonly right?: number;
+    // (undocumented)
+    readonly top?: number;
 }
 
 // @public

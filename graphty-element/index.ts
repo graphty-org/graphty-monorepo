@@ -297,6 +297,7 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
+export type { ViewInsets } from "./src/camera/types";
 export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
 export type {
     CameraAnimationOptions,

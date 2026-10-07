@@ -2,6 +2,7 @@ import { CreateScreenshotAsync } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, test, vi } from "vitest";
 
 import type { Graph } from "../../../src/Graph";
+import { legendBox } from "../../../src/screenshot/drawLegend";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -74,4 +75,50 @@ test("an empty legend leaves the image untouched", async () => {
     const result = await graph.captureScreenshot({ legend: [] });
 
     assert.equal(result.blob.type, "image/png");
+});
+
+test("a framed capture keeps every node out from under the key it draws, not the screen's margins, then gives those back", async () => {
+    graph = await createTestGraphWithData();
+    // A ball of nodes wide enough that a fit centered on the whole canvas reaches its left edge.
+    await graph.addNodes(
+        Array.from({ length: 16 }, (_, i) => {
+            const a = (i / 16) * Math.PI * 2;
+            return {
+                id: `b${String(i)}`,
+                position: { x: 40 * Math.cos(a), y: 25 * Math.sin(a), z: 10 * Math.sin(a * 2) },
+            };
+        }),
+    );
+    await graph.setLayout("fixed", { dim: 3 });
+    await graph.waitForSettled();
+    graph.setViewInsets({ right: 30 });
+
+    // A tall key: twenty rows, so it is reserved at the left.
+    const tall = [
+        {
+            title: "Color: Group",
+            rows: Array.from({ length: 20 }, (_, i) => ({ label: `Group ${String(i)}`, color: "#ff0000", value: "1" })),
+        },
+    ];
+    const { right } = legendBox(tall);
+
+    let leftmost = Infinity;
+    let insetsDuring: unknown;
+    vi.mocked(CreateScreenshotAsync).mockImplementation(() => {
+        insetsDuring = graph.getViewInsets();
+        for (const node of graph.getNodes()) {
+            const at = graph.nodeScreenPosition(node.id);
+            if (at !== undefined && String(node.id).startsWith("b")) {
+                leftmost = Math.min(leftmost, at.x);
+            }
+        }
+        return Promise.resolve(document.createElement("canvas").toDataURL("image/png"));
+    });
+
+    await graph.captureScreenshot({ legend: tall, camera: { preset: "fitToGraph" } });
+
+    // The picture has no screen chrome in it: only the key's margin applies.
+    assert.deepEqual(insetsDuring, { top: 0, right: 0, bottom: 0, left: right });
+    assert.isAbove(leftmost, right, "no node center lies under the key");
+    assert.deepEqual(graph.getViewInsets(), { top: 0, right: 30, bottom: 0, left: 0 });
 });

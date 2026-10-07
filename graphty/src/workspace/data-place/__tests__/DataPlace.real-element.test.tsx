@@ -214,6 +214,28 @@ describe("the Data place on the real element", () => {
     );
 
     it(
+        "opens the edge table when the source row of an edge list, which has no children, is clicked",
+        async () => {
+            const { session, store } = await openDataPlace(TABLE_BUILT);
+            // A dropped edge list, opened as the start page opens it.
+            const csv = "source,target,weight\nAva,Ben,3\nBen,Cy,5\nCy,Ava,1\n";
+            const opened = await session.project.open(new File([csv], "friends.csv"), { fileName: "friends.csv" });
+            await opened.draft?.load({ mode: "replace" });
+            assert.isFalse(store.get().dockOpen);
+
+            const row = await screen.findByRole("treeitem", { name: "friends.csv" });
+            assert.isNull(row.getAttribute("aria-expanded"), "a single-table source has nothing to expand");
+            await userEvent.click(row);
+            assert.isTrue(store.get().dockOpen);
+            assert.equal(store.get().dockTab, "edges");
+            await waitFor(() => {
+                assert.equal(screen.getByRole("tab", { name: "Edges" }).getAttribute("aria-selected"), "true");
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "Add label line binds a new layer's node label to the attribute and selects it, as one undoable step",
         async () => {
             const { session, store } = await openDataPlace();

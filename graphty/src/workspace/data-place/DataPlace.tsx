@@ -235,12 +235,14 @@ export function DataPlace(): React.JSX.Element {
 
     const rowMenu = useRowMenu();
     const tableBuilt = useCommand("table.toggle") !== null;
-    // A source's Node table or Edge table row opens the table dock on that table; the source
-    // itself only expands to its tables. Its menu's Edit source... opens the Data page.
+    // A table row opens the table dock on that table: a file's Node table or Edge table, or a
+    // source that produced one table (an edge list) and so has no children. A file holding both
+    // tables only expands to them. Its menu's Edit source... opens the Data page.
     const openSource = (ids: string[]): void => {
         const id = ids.at(-1);
-        if (tableBuilt && (id === "source:nodes" || id === "source:edges")) {
-            store.set({ dockOpen: true, dockTab: id === "source:nodes" ? "nodes" : "edges" });
+        const row = sources.flatMap((source) => [source, ...(source.children ?? [])]).find((r) => r.id === id);
+        if (tableBuilt && row !== undefined && row.kind !== "file") {
+            store.set({ dockOpen: true, dockTab: row.kind });
         }
     };
 

@@ -212,7 +212,11 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     for (let i = 0; i < edgeCount; i++) {
         // Fixed rather than random, so a selector that compares against a weight selects the
         // same edges on every run.
-        edgeRows.push(edgeData ? rowOf({ id: `edge-${i}`, ...edgeData(i) }) : { "data.id": `edge-${i}`, "data.weight": (i % 10) / 10 });
+        edgeRows.push(
+            edgeData
+                ? rowOf({ id: `edge-${i}`, ...edgeData(i) })
+                : { "data.id": `edge-${i}`, "data.weight": (i % 10) / 10 },
+        );
     }
 
     const selectorSource: SelectorSource = {

@@ -190,6 +190,7 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    "aria-label"?: string;
     /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
      * keeps its row and its edges, and one it no longer names goes, with its edges.

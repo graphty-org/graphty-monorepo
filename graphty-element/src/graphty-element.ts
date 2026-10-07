@@ -104,7 +104,22 @@ export class Graphty extends LitElement {
             height: 100%;
             aspect-ratio: 2 / 1;
         }
+
+        /* The browser's own focus ring, drawn just inside the canvas: outside it, the ring is cut
+           off whenever the page clips the box the element fills. */
+        canvas:focus-visible {
+            outline-offset: -2px;
+        }
     `;
+
+    /**
+     * The host's standard `aria-label` is also watched, so it names the canvas that takes keyboard
+     * focus: the drawing is announced by the page's own words rather than as an unnamed canvas.
+     * @returns The attributes this element observes.
+     */
+    static override get observedAttributes(): string[] {
+        return [...super.observedAttributes, "aria-label"];
+    }
 
     #graph: Graph;
     #element: Element;
@@ -461,6 +476,26 @@ export class Graphty extends LitElement {
                 );
             }
         }
+    }
+
+    /**
+     * Copies the host's `aria-label` onto the canvas; every other attribute goes to Lit.
+     * @param name - The attribute's name
+     * @param old - Its previous value
+     * @param value - Its new value, or null when removed
+     */
+    override attributeChangedCallback(name: string, old: string | null, value: string | null): void {
+        if (name === "aria-label") {
+            if (value === null) {
+                this.#graph.canvas.removeAttribute(name);
+            } else {
+                this.#graph.canvas.setAttribute(name, value);
+            }
+
+            return;
+        }
+
+        super.attributeChangedCallback(name, old, value);
     }
 
     /**

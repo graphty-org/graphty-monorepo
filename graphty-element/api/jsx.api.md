@@ -46,6 +46,8 @@ import { z as z_2 } from 'zod';
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
+    // (undocumented)
+    "aria-label"?: string;
     "auto-frame"?: boolean;
     "data-source"?: string;
     "data-source-config"?: string;

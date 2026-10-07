@@ -1905,6 +1905,7 @@ export class Graphty extends LitElement {
     } & CameraAnimationOptions): Promise<void>;
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
+    attributeChangedCallback(name: string, old: string | null, value: string | null): void;
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
     get background(): GraphBackgroundConfig | undefined;
@@ -2043,6 +2044,7 @@ export class Graphty extends LitElement {
     get nodeLabelPath(): string | undefined;
     set nodeLabelPath(value: string | undefined);
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
+    static get observedAttributes(): string[];
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     pin(ids: (string | number) | readonly (string | number)[]): void;

@@ -66,6 +66,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     return (
         <graphty-element
             ref={ref}
+            aria-label="Graph drawing"
             layout={LAYOUT_ID}
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={LAYOUT_BEHAVIOR}

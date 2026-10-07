@@ -4,6 +4,28 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- The element's `aria-label` names its canvas
+
+**What.** `<graphty-element>` now watches its own standard `aria-label` attribute and copies it onto
+the canvas inside its shadow root, the one part of the element that takes keyboard focus; changing
+or removing the attribute changes or removes the canvas's name. The attribute is a new entry in
+`observedAttributes`, so the API report lists `observedAttributes` and `attributeChangedCallback`
+on `Graphty`, and the generated JSX props gain `"aria-label"`. Two behavior changes ship with it
+and add no API: the canvas no longer carries `autofocus`, so mounting the element never pulls the
+page's focus into the drawing, and the browser's own focus ring is drawn just inside the canvas
+(`outline-offset: -2px`), so a page that clips the box the element fills no longer hides it.
+
+**Why.** The canvas is in every keyboard walk through a page, and a screen reader announced it as
+"Canvas" with no name (WCAG 4.1.2); its focus ring was drawn outside its box and cut off by the
+app's clipped canvas panel (WCAG 2.4.7). A consumer cannot reach into the shadow root to fix
+either, and the words belong to the page, so the page's standard attribute is the door.
+
+**Alternatives.** A new `canvas-label` attribute or property (a second, element-specific name for
+what `aria-label` already means). `role="img"` plus a label on the host with the canvas taken out
+of the tab order (the canvas's keyboard camera controls need focus). A built-in English default
+name (the element would be writing words; the app owns them). A themable focus-ring color (a new
+CSS variable; the browser's ring already meets the need).
+
 ## 2026-10-07 -- `catalog.optionsFor` lists the columns a grouping layout can group by
 
 **What.** `session.catalog.optionsFor(key)` now fills `values` on a "partition" option on nodes

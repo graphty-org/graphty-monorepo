@@ -1355,6 +1355,11 @@ export class Graph implements GraphContext {
         const background = this.scene.clearColor;
         this.renderManager.dispose();
         this.inputManager.dispose();
+        const label = this.canvas.getAttribute("aria-label");
+        if (label !== null) {
+            canvas.setAttribute("aria-label", label);
+        }
+
         this.canvas.replaceWith(canvas);
         this.canvas = canvas;
         // The engine was opened on a canvas not yet in the page, which sized it 300 by 150.
@@ -1391,7 +1396,8 @@ export class Graph implements GraphContext {
         const canvas = document.createElement("canvas");
         canvas.setAttribute("id", `graphty-canvas-${Date.now()}`);
         canvas.setAttribute("touch-action", "none");
-        canvas.setAttribute("autofocus", "true");
+        // Focusable from the keyboard, but never on its own: no autofocus, so mounting the element
+        // does not pull the page's focus into the drawing.
         canvas.setAttribute("tabindex", "0");
         canvas.style.width = "100%";
         canvas.style.height = "100%";

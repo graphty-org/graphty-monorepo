@@ -323,6 +323,7 @@ export interface CommandOutcomeMap {
     "view.save": Promise<void>;
     "visibility.context": Promise<void>;
     "visibility.set": Promise<void>;
+    "visibility.steps": Promise<void>;
     "visibility.window": Promise<void>;
     batch: Promise<void>;
 }
@@ -675,6 +676,13 @@ export interface FilterResult {
         readonly nodes: number;
         readonly edges: number;
     };
+}
+
+// @public
+export interface FilterStep {
+    readonly id: string;
+    readonly on: boolean;
+    readonly rule: RuleTree;
 }
 
 // @public
@@ -1274,7 +1282,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1975,6 +1983,17 @@ export type PlanEffect = {
     readonly nodesInFrame: number;
     readonly legendChannels: number;
     readonly bytes: number;
+} | {
+    readonly kind: "steps";
+    readonly start: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly steps: readonly {
+        readonly id: string;
+        readonly nodes: number;
+        readonly edges: number;
+    }[];
 } | {
     readonly kind: "none";
 };
@@ -3644,8 +3663,10 @@ export interface VisibilityApi {
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
+    setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
+    readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     readonly window: TimeWindow | null;
 }

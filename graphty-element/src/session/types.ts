@@ -1524,6 +1524,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
+ * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
+ * | `visibility.steps` | none: several steps changed at once, or a reorder |
  * | `set.create` | `name`: the set's name, or null |
  * | `set.rename` | `set`: its name before, or its id; `name`: the new name |
  * | `set.redefine`, `set.members`, `set.remove`, `set.restore` | `set`: its name, or its id |
@@ -1581,6 +1583,12 @@ export type HistoryCode =
     | "visibility.clear-window"
     | "visibility.show-context"
     | "visibility.hide-context"
+    | "visibility.step-add"
+    | "visibility.step-edit"
+    | "visibility.step-on"
+    | "visibility.step-off"
+    | "visibility.step-remove"
+    | "visibility.steps"
     | "set.create"
     | "set.rename"
     | "set.redefine"
@@ -1758,6 +1766,8 @@ export interface CommandOutcomeMap {
     "visibility.window": Promise<void>;
     /** Settles once the flag is recorded and the pass that follows it has run. */
     "visibility.context": Promise<void>;
+    /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
+    "visibility.steps": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */

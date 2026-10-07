@@ -1,6 +1,7 @@
 /**
- * @file The visibility ops: `visibility.set` (the filter), `visibility.window` (the time window)
- * and `visibility.context` (whether hidden nodes are drawn faintly). Each is one undoable step.
+ * @file The visibility ops: `visibility.set` (the filter), `visibility.steps` (the filter steps),
+ * `visibility.window` (the time window) and `visibility.context` (whether hidden nodes are drawn
+ * faintly). Each is one undoable step.
  *
  * All three run on the immediate lane: the value is written to the `visibility` slice when the
  * command is dispatched, and the masks are evaluated on the derivation lane against whatever the
@@ -9,10 +10,12 @@
  * design/undo/undo-design.md sections 3.4, 9.2 and 11.3.
  */
 
+import type { FilterStep } from "../../catalog/types";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
 import type { HistoryCode } from "../types";
 import { assertVisibility, type RuleTree, type TimeWindow } from "../visibility/filter";
+import { assertSteps, stepsFact } from "../visibility/steps";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
 interface VisibilitySetCommand {
@@ -32,8 +35,15 @@ interface VisibilityContextCommand {
     readonly show: boolean;
 }
 
+/** `visibility.steps`: replace the filter steps, combined with AND; an empty list clears them. */
+interface VisibilityStepsCommand {
+    readonly op: "visibility.steps";
+    readonly steps: readonly FilterStep[];
+}
+
 /** Every visibility op. */
-export type VisibilityCommand = VisibilitySetCommand | VisibilityWindowCommand | VisibilityContextCommand;
+export type VisibilityCommand =
+    VisibilitySetCommand | VisibilityWindowCommand | VisibilityContextCommand | VisibilityStepsCommand;
 
 /** The session's visibility model, as the visibility ops reach it. */
 export interface VisibilityService {
@@ -119,5 +129,31 @@ const visibilityContext: UndoableDefinition<VisibilityContextCommand> = {
     },
 };
 
+const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
+    ...COMMON,
+    op: "visibility.steps",
+    keys: () => ["visibility/steps"],
+    undo: {
+        kind: "undoable",
+        label: () => "Changed the filter steps",
+        fact: (command, state) => stepsFact(state.visibility.steps, command.steps),
+        // ponytail: no coalescing, so each add, edit, toggle or delete is its own step; a dragged
+        // step's bounds would need a key naming the step if that drag ever records too many.
+    },
+    execute: (command, ctx) => {
+        assertSteps(command.steps);
+        const service = ctx.services.visibility;
+        for (const step of command.steps) {
+            if (service === undefined) {
+                assertVisibility(step.rule, null);
+            } else {
+                service.check(step.rule, null);
+            }
+        }
+
+        ctx.draft.visibility.set("steps", Object.freeze([...command.steps]));
+    },
+};
+
 /** The visibility ops' definitions. */
-export const VISIBILITY_DEFINITIONS = [visibilitySet, visibilityWindow, visibilityContext] as const;
+export const VISIBILITY_DEFINITIONS = [visibilitySet, visibilityWindow, visibilityContext, visibilitySteps] as const;

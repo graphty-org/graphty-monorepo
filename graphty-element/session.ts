@@ -355,6 +355,7 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
 export type {
     FilterResult,
+    FilterStep,
     RuleTree,
     TimeStep,
     TimeWindow,

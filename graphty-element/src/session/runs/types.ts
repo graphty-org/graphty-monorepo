@@ -190,8 +190,12 @@ export type RunDirection = "directed" | "undirected" | "as-loaded";
 export interface WeightMeaning {
     /** The attribute the weight was read from. */
     readonly attribute: string;
-    /** Whether a larger weight means further apart or more strongly connected. */
-    readonly meaning: "distance" | "strength";
+    /**
+     * Whether a larger weight means further apart, more strongly connected, or more room for flow.
+     *
+     * OPEN UNION: later releases may add meanings.
+     */
+    readonly meaning: "distance" | "strength" | "capacity";
 }
 
 /**

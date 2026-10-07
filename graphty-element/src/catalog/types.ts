@@ -1167,6 +1167,20 @@ export type RuleTree =
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
 
+/**
+ * One step of a stepped visibility filter: a rule that can be switched off without being lost.
+ * The steps that are on combine with AND, in order, so each one narrows what the step before it
+ * left.
+ */
+export interface FilterStep {
+    /** The step's id, unique among the steps. */
+    readonly id: string;
+    /** Whether the step applies. A step that is off keeps its rule and hides nothing. */
+    readonly on: boolean;
+    /** What the step keeps. */
+    readonly rule: RuleTree;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and how it came to exist
 //

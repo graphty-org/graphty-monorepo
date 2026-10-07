@@ -529,7 +529,13 @@ function write(
             version: VERSION,
             config: configOf(session),
             layout: { id: layout.id, engine: layout.engine, options: layout.options, dimension: layout.dimension },
-            visibility: { filter: visibility.filter, window: visibility.window, showContext: visibility.showContext },
+            visibility: {
+                filter: visibility.filter,
+                window: visibility.window,
+                showContext: visibility.showContext,
+                // Written only when there are steps, so a project without them saves as before.
+                ...(visibility.steps.length === 0 ? {} : { steps: visibility.steps }),
+            },
             sets: session.sets.list().map((set) => ({ id: set.id, name: set.name, definition: set.definition })),
             views: [...session.views].map(([name, camera]) => ({ name, camera })),
         },
@@ -875,6 +881,10 @@ async function clearInto(tx: TransactionScope): Promise<void> {
         await tx.visibility.setWindow(null);
     }
 
+    if (tx.visibility.steps.length > 0) {
+        await tx.visibility.setSteps([]);
+    }
+
     await tx.data.clear();
 }
 
@@ -1160,6 +1170,15 @@ async function readProject(
 
             if (visibility.window !== null && visibility.window !== undefined) {
                 await tx.visibility.setWindow(visibility.window as never);
+            }
+
+            if (Array.isArray(visibility.steps) && visibility.steps.length > 0) {
+                await tx.visibility.setSteps(
+                    // A malformed step is passed on as it is, for setSteps to refuse with its reason.
+                    (visibility.steps as ({ rule?: unknown } | null)[]).map((step) =>
+                        typeof step === "object" && step !== null ? { ...step, rule: remap(step.rule) } : step,
+                    ) as never,
+                );
             }
 
             tx.visibility.showContext = visibility.showContext === true;

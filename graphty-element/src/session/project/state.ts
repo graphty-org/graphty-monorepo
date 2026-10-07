@@ -12,7 +12,16 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { EdgeId, LayoutId, MeasurementDeclaration, NodeId, RunId, Scope, SetId } from "../../catalog/types";
+import type {
+    EdgeId,
+    FilterStep,
+    LayoutId,
+    MeasurementDeclaration,
+    NodeId,
+    RunId,
+    Scope,
+    SetId,
+} from "../../catalog/types";
 import type { Note, NoteId, NoteStatus } from "../notes/types";
 import type { AlgorithmRunCommand } from "../planning";
 import type { RunResult } from "../results/types";
@@ -121,6 +130,8 @@ export interface VisibilityState {
     readonly filter: RuleTree | null;
     readonly window: TimeWindow | null;
     readonly showContext: boolean;
+    /** The filter steps; the ones that are on combine with the filter by AND. */
+    readonly steps: readonly FilterStep[];
 }
 
 /** One note, as the `notes` slice keeps it: the record, and where it was opened from. */
@@ -194,7 +205,9 @@ export function createProjectState(init: Partial<ProjectState> = {}): ProjectSta
         arrangement: init.arrangement ?? null,
         runs: new Map(init.runs),
         styles: init.styles ?? Object.freeze([]),
-        visibility: init.visibility ?? Object.freeze({ filter: null, window: null, showContext: false }),
+        visibility:
+            init.visibility ??
+            Object.freeze({ filter: null, window: null, showContext: false, steps: Object.freeze([]) }),
         sets: new Map(init.sets),
         views: new Map(init.views),
         notes: new Map(init.notes),

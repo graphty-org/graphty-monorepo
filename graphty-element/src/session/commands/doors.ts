@@ -505,6 +505,11 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
+    steps: READ,
+    setSteps: calls(
+        [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
+        [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
+    ),
 };
 
 /** A layer the style doors add. */
@@ -1936,6 +1941,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            rule: READ,
+            previewSteps: READ,
         },
     },
     {

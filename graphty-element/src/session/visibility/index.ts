@@ -14,6 +14,7 @@
  */
 
 export type { AttributeLeafNodes } from "../../catalog/types";
+export type { FilterStep } from "../../catalog/types";
 export {
     assertVisibility,
     type CompiledVisibility,

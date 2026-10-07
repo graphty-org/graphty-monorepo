@@ -66,6 +66,9 @@ export const COMMANDS: Readonly<{
     readonly "visibility.context": {
         readonly undo: "undoable";
     };
+    readonly "visibility.steps": {
+        readonly undo: "undoable";
+    };
     readonly "set.create": {
         readonly undo: "undoable";
     };

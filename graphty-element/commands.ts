@@ -51,6 +51,7 @@ export const COMMANDS = Object.freeze({
     "visibility.set": { undo: "undoable" },
     "visibility.window": { undo: "undoable" },
     "visibility.context": { undo: "undoable" },
+    "visibility.steps": { undo: "undoable" },
     "set.create": { undo: "undoable" },
     "set.rename": { undo: "undoable" },
     "set.redefine": { undo: "undoable" },

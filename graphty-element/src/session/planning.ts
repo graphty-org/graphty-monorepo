@@ -25,6 +25,7 @@ import type {
     AlgorithmKey,
     CostClass,
     FieldDescriptor,
+    FilterStep,
     RunId,
     Scope,
     SetId,
@@ -58,6 +59,7 @@ import {
 } from "./cost";
 import type { Caveats, ResolvedScope } from "./runs";
 import type { GraphStatistics } from "./types";
+import type { StepCounts } from "./visibility/VisibilityApi";
 
 // ---------------------------------------------------------------------------------------------
 // The command
@@ -197,6 +199,18 @@ export type PlanEffect =
           readonly bytes: number;
       }
     | {
+          /**
+           * What a filter-steps change would leave visible: `start` before the first step (the
+           * filter and the time window alone), then one entry per step that is on, in order, with
+           * the nodes and edges left after it.
+           */
+          readonly kind: "steps";
+          /** What is left before any step. */
+          readonly start: { readonly nodes: number; readonly edges: number };
+          /** What is left after each step that is on. */
+          readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
+      }
+    | {
           /** Nothing to preview. */
           readonly kind: "none";
       };
@@ -277,6 +291,8 @@ export interface PlanningContext {
     readonly nodeValues?: (path: string) => readonly unknown[] | null;
     /** The run whose result field a `groupBy` path is, or undefined for a data attribute. */
     readonly runOf?: (path: string) => string | undefined;
+    /** What a filter-steps list would leave visible, step by step. */
+    readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -507,6 +523,31 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             effect: Object.freeze({ kind: "none" as const }),
             caveats: context.defaultCaveats,
         });
+    }
+
+    if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
+        const cost = unavailableEstimate(undefined, notEstimated(command));
+        try {
+            const counts = context.previewSteps(command.steps);
+            return Object.freeze({
+                ok: true,
+                cost,
+                effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
+                caveats: context.defaultCaveats,
+            });
+        } catch (error) {
+            if (!(error instanceof GraphtyError)) {
+                throw error;
+            }
+
+            return Object.freeze({
+                ok: false,
+                blocked: Object.freeze({ code: error.code, reason: error.message }),
+                cost,
+                effect: Object.freeze({ kind: "none" as const }),
+                caveats: context.defaultCaveats,
+            });
+        }
     }
 
     if (command.op !== "algo.run") {

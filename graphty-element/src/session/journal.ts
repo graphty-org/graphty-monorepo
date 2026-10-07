@@ -116,6 +116,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "view.save": "view",
     "visibility.context": "filter",
     "visibility.set": "filter",
+    "visibility.steps": "filter",
     "visibility.window": "window",
 };
 

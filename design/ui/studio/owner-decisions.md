@@ -4,6 +4,34 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- Filter steps: `visibility.steps` and `visibility.setSteps()`
+
+**What.** The visibility filter can be an ordered list of steps `{ id, on, rule }` (new exported
+type `FilterStep`; `rule` is the existing `RuleTree`). The steps that are on combine with AND, in
+order, and with the existing single filter (`visibility.set`), which keeps working unchanged.
+`session.visibility.steps` reads the list; `session.visibility.setSteps(steps)` replaces it and is
+one undoable step (new op `visibility.steps` in `COMMANDS`). The step's history fact names what
+changed by diffing the list: `visibility.step-add`, `-edit`, `-on`, `-off`, `-remove` with
+`{ id }`, or `visibility.steps` with no params for a reorder or several changes at once.
+`plan({ op: "visibility.steps", steps })` returns a new `PlanEffect` kind `"steps"`:
+`{ start: { nodes, edges }, steps: [{ id, nodes, edges }] }`, the counts before the first step
+and after each step that is on. The project file's `graphty-session` member saves `steps` beside
+`filter` only when there are some, so a project without steps saves exactly as before; a step
+that is off is saved and reopened off.
+
+**Why.** The tier 2 design shows a filter as a list of steps a reader ticks on and off, each with
+its own "n left" count. The element had one filter value: the app would have had to combine
+rules itself, keep the unticked ones in its own state (lost on undo and on reopen) and count each
+prefix itself, which is graph computation in the app.
+
+**Alternatives.** Four verbs (`addStep`, `editStep`, `toggleStep`, `removeStep`): more surface for
+the same thing, and a consumer editing a list in a form already holds the whole list. Fold steps
+into the single filter as `{ kind: "all", of: [...] }`: loses which rules are off. Per-step counts
+on `visibility.summary` (live, always computed): a pass per step on every change, paid by every
+consumer; `plan` computes them only when asked. Not decided by the design and not built: OR or NOT
+between steps (only AND), and merging a dragged step's edits into one history step (every call
+is its own step; a consumer dragging a slider can wrap the drag in a transaction).
+
 ## 2026-10-07 -- Every load is kept as a source: `data.sources()`
 
 **What.** `session.data.sources()` returns one entry per load still in the graph, oldest first:

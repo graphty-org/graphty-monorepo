@@ -354,6 +354,35 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.set", filter: null },
     },
     {
+        name: "visibility.steps: add a step",
+        tags: BOTH,
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: switch a step off",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: false, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: edit a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] },
+    },
+    {
+        name: "visibility.steps: remove a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [] },
+    },
+    {
         name: "visibility.window",
         tags: BOTH,
         command: { op: "visibility.window", window: { attribute: "data.t", from: 0, to: 10 } },

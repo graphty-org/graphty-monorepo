@@ -2058,7 +2058,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // API are built below.
     const dependencies: DependencySources = {
         referent: (id: SetId) => setsStoreOf(sets).get(id)?.definition,
-        visibility: () => visibility.filter,
+        visibility: () => visibility.rule,
         pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
         shapeOf: (run: RunId) => runs.get(run)?.result?.shape,
         fieldKinds,
@@ -2118,9 +2118,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     ? [{ user: { kind: "layer" as const, id: layer.id, label: layer.name }, scope: layer.selector.of }]
                     : [],
             ),
-            ...(visibility.filter === null
+            ...(visibility.rule === null
                 ? []
-                : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.filter }]),
+                : [{ user: { kind: "filter" as const, label: "Visibility filter" }, scope: visibility.rule }]),
             ...hostUsers.flatMap((provider) => [...provider()]),
             // And notes naming it, labeled with the note's first line (design/notes 5.7). A set a file
             // named is that file's, not this session's set of the same id.
@@ -2303,7 +2303,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         // under another filter or selection is another result (design/sets 15.3, item 34).
         liveScope: (keyword: LiveKeyword) =>
             keyword === "visible"
-                ? { filter: visibility.filter, window: visibility.window }
+                ? { filter: visibility.rule, window: visibility.window }
                 : frozenSelection(requireSelection(selection).nodeMembers().ids()),
         scopeFacts: (spec: Scope) => {
             const reading = readingOfScope(spec, referentReading(dependencies)) as EdgeReading;
@@ -2335,7 +2335,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 [
                     ...keptSets.list().map((set) => set.definition),
                     ...layerScopesOf(stack),
-                    visibility.filter,
+                    visibility.rule,
                     // A note's item target selects what its run held (design/notes 5.6).
                     ...[...dispatcher.state.notes.values()].flatMap((entry) =>
                         boundTargets(entry).flatMap((target) =>
@@ -2717,6 +2717,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
         runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
+        previewSteps: (steps) => visibility.previewSteps(steps),
     };
 
     const session = new Session({

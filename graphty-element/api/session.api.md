@@ -199,12 +199,33 @@ export interface Caveats {
 export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
 
 // @public
+export type ChannelAgreement = {
+    readonly channel: Channel;
+    readonly state: "agree";
+    readonly value: unknown;
+    readonly layerId: LayerId;
+    readonly unpainted: number;
+} | {
+    readonly channel: Channel;
+    readonly state: "mixed";
+    readonly breakdown: readonly ChannelShare[];
+    readonly unpainted: number;
+};
+
+// @public
 export interface ChannelExplanation {
     readonly channel: Channel;
     readonly editable: boolean;
     readonly layerId: LayerId;
     readonly mode: "static" | "encoded";
     readonly reason?: string;
+}
+
+// @public
+export interface ChannelShare {
+    readonly count: number;
+    readonly layerId: LayerId;
+    readonly value: unknown;
 }
 
 // @public
@@ -3294,6 +3315,11 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export interface StyleAgreement {
+    readonly channels: readonly ChannelAgreement[];
+}
+
+// @public
 export interface StyleChange {
     readonly cause: HistoryCause;
     readonly layers: readonly LayerId[];
@@ -3336,6 +3362,7 @@ export interface StyleProblem {
 // @public
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
+    agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;

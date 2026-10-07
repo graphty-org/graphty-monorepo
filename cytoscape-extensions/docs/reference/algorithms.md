@@ -107,10 +107,10 @@ Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twi
 
 With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
-| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                       |
+| ----------------- | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                             |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair once; with `directed: true` each order is its own row, and `topK` counts rows. |
 
 ### `graphtyAdamicAdarScore`
 
@@ -192,13 +192,13 @@ How near each node is to all others: 1 / the sum of its shortest-path distances.
 
 Returns `ScoreResult & { closeness(node: ElementRef): number | undefined; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyClosenessCentralityAsync`.
 
-| Option       | Type            | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `normalized` | `boolean`       | `false`              | Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality` (its default `wf_improved=True`), multiply the value with `normalized: true` by the number of other nodes reached; the value without `normalized` times that number is NetworkX's `wf_improved=False`. |
-| `harmonic`   | `boolean`       | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                                                                                                                                           |
-| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                                                                                                                                            |
-| `k`          | `number`        |                      | Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled.                                                                                                                                                                                                               |
-| `sources`    | `NodeSelection` | every node           | The nodes to run from, a selector or a collection; default every node. Each node's value is 1 / the sum of its distances from these sources, so with source `#a` on the path a - b - d, b scores 1 and d 0.5. A node no source reaches scores 0, and so does a source no other source reaches. For one node's own closeness, use `graphtyNodeClosenessCentrality`.                                                 |
+| Option          | Type                                              | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------- | ------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `normalization` | `"none" \| "per-other-node" \| "wasserman-faust"` | `"none"`             | How the value is scaled, with r the other nodes a node reaches and n the node count: `"none"` is 1 / the sum of distances (the sum of 1 / distance with `harmonic`); `"per-other-node"` is r / sum / (n - 1), or the harmonic sum / (n - 1); `"wasserman-faust"` is (r / sum) * (r / (n - 1)), NetworkX's `closeness_centrality` default (`wf_improved=True`), and is refused with `harmonic`. |
+| `harmonic`      | `boolean`                                         | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                                                                                                                       |
+| `cutoff`        | `number`                                          | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                                                                                                                        |
+| `k`             | `number`                                          |                      | Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled.                                                                                                                                                                                           |
+| `sources`       | `NodeSelection`                                   | every node           | The nodes to run from, a selector or a collection; default every node. Each node's value is 1 / the sum of its distances from these sources, so with source `#a` on the path a - b - d, b scores 1 and d 0.5. A node no source reaches scores 0, and so does a source no other source reaches. For one node's own closeness, use `graphtyNodeClosenessCentrality`.                             |
 
 ### `graphtyCommonNeighborsForPairs`
 
@@ -220,10 +220,10 @@ Returns `PredictedLink[]`. Reads no edge weights. Takes no `field`. No Async twi
 
 With `directed: true`, a shared neighbor of (source, target) is a node w with arcs source -> w and w -> target, so the score is not symmetric, and a node with no out-arcs has no candidates.
 
-| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                                                         |
-| ----------------- | --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                                                               |
-| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above). |
+| Option            | Type      | Default            | Meaning                                                                                                                                                                                                                                                       |
+| ----------------- | --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `includeExisting` | `boolean` | `false`            | Also score pairs already joined by an arc u -> v.                                                                                                                                                                                                             |
+| `topK`            | `number`  | every pair above 0 | Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair once; with `directed: true` each order is its own row, and `topK` counts rows. |
 
 ### `graphtyCommonNeighborsScore`
 
@@ -416,9 +416,9 @@ Returns `Partition<{ modularity: number; levels: number; level(k: number): Parti
 
 | Option             | Type     | Default | Meaning                                                                                   |
 | ------------------ | -------- | ------- | ----------------------------------------------------------------------------------------- |
+| `maxIterations`    | `number` | `100`   | Cap on rounds of edge removal.                                                            |
 | `maxCommunities`   | `number` |         | Stop once a level has at least this many communities of `minCommunitySize` or more nodes. |
 | `minCommunitySize` | `number` | `1`     | Communities smaller than this do not count towards `maxCommunities`.                      |
-| `maxIterations`    | `number` | `100`   | Cap on rounds of edge removal.                                                            |
 
 ### `graphtyGreedyBipartiteMatching`
 
@@ -478,11 +478,11 @@ Returns `ScoreResult & { hub(node: ElementRef): number | undefined; authority(no
 
 `score` is the authority value.
 
-| Option          | Type      | Default    | Meaning                                                                                                                     |
-| --------------- | --------- | ---------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                              |
-| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change.                                                                    |
-| `normalized`    | `boolean` | `true`     | `true`: each vector has length 1 (L2 norm). `false`: each vector is divided by its largest entry, so its top node scores 1. |
+| Option          | Type      | Default    | Meaning                                                                                                                                                                                               |
+| --------------- | --------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                                                                                                        |
+| `tolerance`     | `number`  | `0.000001` | Convergence tolerance. The run stops at the first iteration whose summed (L1) change over both vectors is below `tolerance` times their summed size, a change of `tolerance` relative to the vectors. |
+| `normalized`    | `boolean` | `true`     | `true`: each vector has length 1 (L2 norm). `false`: each vector is divided by its largest entry, so its top node scores 1.                                                                           |
 
 ### `graphtyIsBipartite`
 
@@ -535,13 +535,13 @@ Influence counted over walks of every length, the shorter walks counting more.
 
 Returns `ScoreResult & { iterations: number; converged: boolean; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyKatzCentralityAsync`.
 
-| Option          | Type      | Default    | Meaning                                                  |
-| --------------- | --------- | ---------- | -------------------------------------------------------- |
-| `maxIterations` | `number`  | `100`      | Iteration cap.                                           |
-| `tolerance`     | `number`  | `0.000001` | Convergence tolerance on the largest single-node change. |
-| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                 |
-| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbor's score.        |
-| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.             |
+| Option          | Type      | Default    | Meaning                                                                                                                                                                                                                                                                              |
+| --------------- | --------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                                                                                                                                                                                       |
+| `tolerance`     | `number`  | `0.000001` | Per-node convergence tolerance. The run stops at the first iteration whose summed (L1) change over all nodes is below `nodeCount * tolerance`. Every score is at least `beta`, so with the default `beta` of 1 that is a change of at most `tolerance` relative to the whole vector. |
+| `normalized`    | `boolean` | `true`     | Rescale the scores to [0, 1] by min-max.                                                                                                                                                                                                                                             |
+| `alpha`         | `number`  | `0.1`      | Attenuation factor applied to a neighbor's score.                                                                                                                                                                                                                                    |
+| `beta`          | `number`  | `1`        | Base score every node starts with and keeps.                                                                                                                                                                                                                                         |
 
 ### `graphtyKruskalMST`
 
@@ -600,9 +600,9 @@ Returns `Partition<{ modularity: number; iterations: number; }>`. Reads edge wei
 
 | Option          | Type     | Default | Meaning                                                                                                                        |
 | --------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `maxIterations` | `number` | `100`   | Cap on whole passes over the original graph, each running as many levels as it needs. The result's `iterations` counts levels. |
 | `resolution`    | `number` | `1`     | Resolution gamma: above 1 favors smaller communities.                                                                          |
 | `randomSeed`    | `number` | `42`    | Seed of the visit orders.                                                                                                      |
-| `maxIterations` | `number` | `100`   | Cap on whole passes over the original graph, each running as many levels as it needs. The result's `iterations` counts levels. |
 | `threshold`     | `number` | `1e-7`  | Stop once a pass improves modularity by no more than this.                                                                     |
 
 ### `graphtyLouvain`
@@ -615,9 +615,9 @@ Returns `Partition<{ modularity: number; iterations: number; }>`. Reads edge wei
 
 | Option          | Type     | Default | Meaning                                                                |
 | --------------- | -------- | ------- | ---------------------------------------------------------------------- |
-| `resolution`    | `number` | `1`     | Resolution gamma: above 1 favors smaller communities.                  |
 | `maxIterations` | `number` | `100`   | Cap on aggregation levels, and on node visits per node within a level. |
 | `tolerance`     | `number` | `1e-6`  | Stop when a level improves modularity by less than this.               |
+| `resolution`    | `number` | `1`     | Resolution gamma: above 1 favors smaller communities.                  |
 
 ### `graphtyMarkovClustering`
 
@@ -691,12 +691,12 @@ The closeness of one node, without computing every node's.
 
 Returns `number`. Reads edge weights from `weight`. Takes no `field`. No Async twin: it runs on the CPU only.
 
-| Option       | Type            | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------ | --------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `root`       | `NodeSelection` | required             | The start node: a selector or a collection (its first node).                                                                                                                                                                                                                                                                                                                                                       |
-| `normalized` | `boolean`       | `false`              | Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality` (its default `wf_improved=True`), multiply the value with `normalized: true` by the number of other nodes reached; the value without `normalized` times that number is NetworkX's `wf_improved=False`. |
-| `harmonic`   | `boolean`       | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                                                                                                                                           |
-| `cutoff`     | `number`        | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                                                                                                                                            |
+| Option          | Type                                              | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                                        |
+| --------------- | ------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `root`          | `NodeSelection`                                   | required             | The start node: a selector or a collection (its first node).                                                                                                                                                                                                                                                                                                                                   |
+| `normalization` | `"none" \| "per-other-node" \| "wasserman-faust"` | `"none"`             | How the value is scaled, with r the other nodes a node reaches and n the node count: `"none"` is 1 / the sum of distances (the sum of 1 / distance with `harmonic`); `"per-other-node"` is r / sum / (n - 1), or the harmonic sum / (n - 1); `"wasserman-faust"` is (r / sum) * (r / (n - 1)), NetworkX's `closeness_centrality` default (`wf_improved=True`), and is refused with `harmonic`. |
+| `harmonic`      | `boolean`                                         | `false`              | Sum `1 / distance` instead of taking `1 / sum(distance)`; better on disconnected graphs.                                                                                                                                                                                                                                                                                                       |
+| `cutoff`        | `number`                                          | every reachable node | Stop searching from nodes this far away or farther. A node past the cutoff is still counted when an edge reaches it from a node closer than the cutoff.                                                                                                                                                                                                                                        |
 
 ### `graphtyPageRank`
 
@@ -704,13 +704,13 @@ Importance from links: a node ranks high when high-ranking nodes link to it.
 
 Returns `ScoreResult & { rank(node: ElementRef): number | undefined; iterations: number; converged: boolean; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyPageRankAsync`.
 
-| Option            | Type                             | Default    | Meaning                                                                                                                                              |
-| ----------------- | -------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dampingFactor`   | `number`                         | `0.85`     | Probability of following a link.                                                                                                                     |
-| `maxIterations`   | `number`                         | `100`      | Iteration cap.                                                                                                                                       |
-| `tolerance`       | `number`                         | `0.000001` | Convergence tolerance on the per-iteration change.                                                                                                   |
-| `convergenceNorm` | `"l1" \| "max"`                  | `"l1"`     | How the per-iteration change is measured against `tolerance`: `"l1"` (default) sums it over all nodes, `"max"` takes the largest single-node change. |
-| `initialRanks`    | `(node: NodeSingular) => number` |            | Starting rank of each node.                                                                                                                          |
+| Option            | Type                             | Default    | Meaning                                                                                                                                                                                                                                                                          |
+| ----------------- | -------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dampingFactor`   | `number`                         | `0.85`     | Probability of following a link.                                                                                                                                                                                                                                                 |
+| `maxIterations`   | `number`                         | `100`      | Iteration cap.                                                                                                                                                                                                                                                                   |
+| `tolerance`       | `number`                         | `0.000001` | Convergence tolerance. The run stops at the first iteration whose summed (L1) change over all nodes is below `tolerance`. The scores sum to 1, so that is a change of `tolerance` relative to the whole vector, the rule HITS and `@graphty/webgpu-graph-algorithms` follow too. |
+| `convergenceNorm` | `"l1" \| "max"`                  | `"l1"`     | How the per-iteration change is measured: `"l1"` (default) sums it over all nodes; `"max"` takes the largest single-node change. Either is compared with `tolerance`.                                                                                                            |
+| `initialRanks`    | `(node: NodeSingular) => number` |            | Starting rank of each node.                                                                                                                                                                                                                                                      |
 
 ### `graphtyPersonalizedPageRank`
 
@@ -718,14 +718,14 @@ PageRank seen from a set of nodes: importance relative to `personalization`.
 
 Returns `ScoreResult & { rank(node: ElementRef): number | undefined; iterations: number; converged: boolean; }`. Reads edge weights from `weight`. Async twin, which can run on the GPU: `graphtyPersonalizedPageRankAsync`.
 
-| Option            | Type                                                | Default    | Meaning                                                                                                                                              |
-| ----------------- | --------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `dampingFactor`   | `number`                                            | `0.85`     | Probability of following a link.                                                                                                                     |
-| `maxIterations`   | `number`                                            | `100`      | Iteration cap.                                                                                                                                       |
-| `tolerance`       | `number`                                            | `0.000001` | Convergence tolerance on the per-iteration change.                                                                                                   |
-| `convergenceNorm` | `"l1" \| "max"`                                     | `"l1"`     | How the per-iteration change is measured against `tolerance`: `"l1"` (default) sums it over all nodes, `"max"` takes the largest single-node change. |
-| `personalization` | `NodeSelection \| ((node: NodeSingular) => number)` | required   | The teleport set: a selection (uniform over it) or a weight per node.                                                                                |
-| `initialRanks`    | `(node: NodeSingular) => number`                    |            | Starting rank of each node.                                                                                                                          |
+| Option            | Type                                                | Default    | Meaning                                                                                                                                                                                                                                                                          |
+| ----------------- | --------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dampingFactor`   | `number`                                            | `0.85`     | Probability of following a link.                                                                                                                                                                                                                                                 |
+| `maxIterations`   | `number`                                            | `100`      | Iteration cap.                                                                                                                                                                                                                                                                   |
+| `tolerance`       | `number`                                            | `0.000001` | Convergence tolerance. The run stops at the first iteration whose summed (L1) change over all nodes is below `tolerance`. The scores sum to 1, so that is a change of `tolerance` relative to the whole vector, the rule HITS and `@graphty/webgpu-graph-algorithms` follow too. |
+| `convergenceNorm` | `"l1" \| "max"`                                     | `"l1"`     | How the per-iteration change is measured: `"l1"` (default) sums it over all nodes; `"max"` takes the largest single-node change. Either is compared with `tolerance`.                                                                                                            |
+| `personalization` | `NodeSelection \| ((node: NodeSingular) => number)` | required   | The teleport set: a selection (uniform over it) or a weight per node.                                                                                                                                                                                                            |
+| `initialRanks`    | `(node: NodeSingular) => number`                    |            | Starting rank of each node.                                                                                                                                                                                                                                                      |
 
 ### `graphtyPrimMST`
 

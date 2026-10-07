@@ -117,14 +117,14 @@ interface Override {
 
 const SAMPLED_K =
     "Draw this many source nodes instead of using every node; the same node count and `k` draw the same nodes every time. With `sources` it must equal the number of sources. The result is not rescaled.";
-const CLOSENESS_NORMALIZED =
-    "Multiply by the share of the other nodes that are reached, reached / (n - 1), which changes nothing on a connected graph; with `harmonic`, divide by `n - 1` instead. For NetworkX's `closeness_centrality` (its default `wf_improved=True`), multiply the value with `normalized: true` by the number of other nodes reached; the value without `normalized` times that number is NetworkX's `wf_improved=False`.";
+const CLOSENESS_NORMALIZATION =
+    'How the value is scaled, with r the other nodes a node reaches and n the node count: `"none"` is 1 / the sum of distances (the sum of 1 / distance with `harmonic`); `"per-other-node"` is r / sum / (n - 1), or the harmonic sum / (n - 1); `"wasserman-faust"` is (r / sum) * (r / (n - 1)), NetworkX\'s `closeness_centrality` default (`wf_improved=True`), and is refused with `harmonic`.';
 const BETWEENNESS_SOURCES: Override = {
     doc: "The nodes to run from, a selector or a collection; default every node. Sums only the shortest paths that start at these nodes, and is not rescaled by n / k as NetworkX does.",
 };
 const PREDICTION_TOP_K: Override = {
     default: "every pair above 0",
-    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair twice, once in each order, and `topK` counts rows, not pairs. A directed graph lists each pair once (see above).",
+    doc: "Keep only the best `topK` pairs; 0 or less keeps every pair. A pair that scores 0 is never listed, so the list can be shorter than `topK`. An undirected graph lists each pair once; with `directed: true` each order is its own row, and `topK` counts rows.",
 };
 const CANDIDATES_TOP_K: Override = {
     default: "`10`",
@@ -174,8 +174,8 @@ const OVERRIDES: Readonly<Record<string, Override>> = {
     "graphtyGrsbm.maxIterations": { doc: "Iteration cap of the eigenvector iteration." },
     "graphtyGrsbm.tolerance": { doc: "Convergence tolerance of the eigenvector iteration." },
     "graphtyEdgeBetweennessCentrality.sources": BETWEENNESS_SOURCES,
-    "graphtyClosenessCentrality.normalized": { doc: CLOSENESS_NORMALIZED },
-    "graphtyNodeClosenessCentrality.normalized": { doc: CLOSENESS_NORMALIZED },
+    "graphtyClosenessCentrality.normalization": { doc: CLOSENESS_NORMALIZATION },
+    "graphtyNodeClosenessCentrality.normalization": { doc: CLOSENESS_NORMALIZATION },
     "graphtyCommonNeighborsPrediction.topK": PREDICTION_TOP_K,
     "graphtyAdamicAdarPrediction.topK": PREDICTION_TOP_K,
     "graphtyTopCandidatesForNode.topK": CANDIDATES_TOP_K,

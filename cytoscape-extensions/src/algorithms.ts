@@ -1012,7 +1012,7 @@ interface WalkOptions extends Rooted {
     readonly maxDepth?: number;
 }
 
-interface FlowOptions extends AlgorithmOptions, Omit<MaxFlowOptions, "weights"> {
+interface FlowOptions extends AlgorithmOptions, Omit<MaxFlowOptions, "weights" | "weighted"> {
     /** The node the flow leaves. */
     readonly source: NodeSelection;
     /** The node the flow arrives at. */
@@ -1284,7 +1284,7 @@ const IMPLS = {
     eigenvectorCentrality: (
         c: Ctx,
         o: AlgorithmOptions &
-            Omit<EigenvectorOptions, "startVector"> & {
+            Omit<EigenvectorOptions, "startVector" | "weighted"> & {
                 /** Starting value of each node; default uniform. */
                 readonly startVector?: (node: NodeSingular) => number;
             } = {},
@@ -1335,7 +1335,7 @@ const IMPLS = {
     ): number => nodeClosenessCentrality(c.s, req(c, o.root, "root"), { ...c.rest, weighted: c.weighted }),
     betweennessCentrality: (
         c: Ctx,
-        o: AlgorithmOptions & Omit<BetweennessOptions, "sources"> & Sampled = {},
+        o: AlgorithmOptions & Omit<BetweennessOptions, "sources" | "weighted"> & Sampled = {},
     ): MaybeAsync<
         ScoreResult & {
             betweenness(node: ElementRef): number | undefined;
@@ -1445,7 +1445,7 @@ const IMPLS = {
     modularity: (
         c: Ctx,
         o: AlgorithmOptions &
-            Omit<ModularityOptions, "weights"> & {
+            Omit<ModularityOptions, "weights" | "weighted"> & {
                 /** The clusters (a partition result, or selections), or the node data field holding each node's cluster. */
                 readonly clusters: string | readonly NodeSelection[];
             },
@@ -1454,14 +1454,14 @@ const IMPLS = {
     // Community detection and clustering
     louvain: (
         c: Ctx,
-        _o: AlgorithmOptions & LouvainOptions = {},
+        _o: AlgorithmOptions & Omit<LouvainOptions, "weighted"> = {},
     ): Partition<{ modularity: number; iterations: number }> => {
         const r = louvain(c.s, c.rest);
         return partition(c, r.labels, { modularity: r.modularity, iterations: r.iterations });
     },
     leiden: (
         c: Ctx,
-        _o: AlgorithmOptions & LeidenOptions = {},
+        _o: AlgorithmOptions & Omit<LeidenOptions, "weighted"> = {},
     ): Partition<{ modularity: number; iterations: number }> => {
         const r = leiden(c.s, c.rest);
         return partition(c, r.labels, { modularity: r.modularity, iterations: r.iterations });
@@ -1495,7 +1495,7 @@ const IMPLS = {
     },
     girvanNewman: (
         c: Ctx,
-        _o: AlgorithmOptions & GirvanNewmanOptions = {},
+        _o: AlgorithmOptions & Omit<GirvanNewmanOptions, "weighted"> = {},
     ): Partition<{
         modularity: number;
         levels: number;
@@ -1515,14 +1515,14 @@ const IMPLS = {
     },
     markovClustering: (
         c: Ctx,
-        _o: AlgorithmOptions & Omit<MarkovOptions, "weights"> = {},
+        _o: AlgorithmOptions & Omit<MarkovOptions, "weights" | "weighted"> = {},
     ): Partition<{ iterations: number; converged: boolean }> => {
         const r = markovClustering(c.s, c.rest);
         return partition(c, r.labels, { iterations: r.iterations, converged: r.converged });
     },
     spectralClustering: (
         c: Ctx,
-        o: AlgorithmOptions & Omit<SpectralOptions, "weights">,
+        o: AlgorithmOptions & Omit<SpectralOptions, "weights" | "weighted">,
     ): Partition<{ converged: boolean; eigenvalues: Float64Array }> => {
         // required by the type, checked for callers without types
         if ((o.k as number | undefined) === undefined) {
@@ -1593,7 +1593,7 @@ const IMPLS = {
     minSTCut: (c: Ctx, o: FlowOptions): CutResult =>
         minCut(c, minSTCut(c.s, req(c, o.source, "source"), req(c, o.sink, "sink"), c.rest)),
     stoerWagner: (c: Ctx, _o: AlgorithmOptions = {}): CutResult => minCut(c, stoerWagner(c.s)),
-    kargerMinCut: (c: Ctx, _o: AlgorithmOptions & Omit<KargerOptions, "weights"> = {}): CutResult =>
+    kargerMinCut: (c: Ctx, _o: AlgorithmOptions & Omit<KargerOptions, "weights" | "weighted"> = {}): CutResult =>
         minCut(c, kargerMinCut(c.s, c.rest)),
     maximumBipartiteMatching: (c: Ctx, o: MatchingOptions = {}): MatchingResult =>
         matched(c, maximumBipartiteMatching(c.s, { ...c.rest, left: maskOf(c, o.left), right: maskOf(c, o.right) })),

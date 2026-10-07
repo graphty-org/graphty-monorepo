@@ -5,7 +5,7 @@
  */
 
 import { GraphBuilder, GraphFormatError, type NodeId } from "@graphty/graph-format";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { pajekImporter } from "../../src/formats/pajek/index.js";
 import { importAllGraphs, importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/index.js";
@@ -96,9 +96,9 @@ describe("Pajek robustness: counts", () => {
 
     it("refuses *Vertices past the builder's id map limit at the header, before any vertex is created", async () => {
         const sink = new GraphBuilder({ directed: true });
-        const started = performance.now();
+        const addNode = vi.spyOn(sink, "addNode");
         const err = await rejects(pajekImporter.import("*Vertices 2000000000\n", sink));
-        expect(performance.now() - started).toBeLessThan(1000);
+        expect(addNode).not.toHaveBeenCalled();
         expect(fatalCode(err)).toBe("E_PAJEK_VERTICES_COUNT");
         expect(err.message).toMatch(/^line 1: \*Vertices 2000000000: the sink cannot hold that many \(/);
         expect(issue(err.report, "E_PAJEK_VERTICES_COUNT").line).toBe(1);

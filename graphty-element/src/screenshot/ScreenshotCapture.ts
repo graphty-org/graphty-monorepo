@@ -153,7 +153,12 @@ export class ScreenshotCapture {
 
             // Resolve preset or use provided state
             const cameraState =
-                "preset" in options.camera ? this.graph.resolveCameraPreset(options.camera.preset) : options.camera;
+                "preset" in options.camera
+                    ? this.graph.resolveCameraPreset(
+                          options.camera.preset,
+                          options.camera.params === undefined ? undefined : { params: options.camera.params },
+                      )
+                    : options.camera;
 
             await this.graph.setCameraState(cameraState);
             await this.waitForRender();

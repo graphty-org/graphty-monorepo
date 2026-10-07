@@ -247,6 +247,16 @@ export function backgroundRefusal(format: ImageFormat, background: ImageBackgrou
 }
 
 /**
+ * The camera a view choice asks for. "Whole graph" frames every node from the angle on screen,
+ * not from the element's fixed diagonal, so the picture is the drawing the reader turned.
+ * @param view - a camera id from `session.catalog.cameras()`.
+ * @returns the screenshot's camera option.
+ */
+function cameraOf(view: string): NonNullable<ScreenshotOptions["camera"]> {
+    return view === "fitToGraph" ? { preset: view, params: { keepAngle: true } } : { preset: view };
+}
+
+/**
  * The options for one capture.
  * @param choices - the image choices.
  * @param destination - where the element sends the image.
@@ -267,7 +277,7 @@ export function screenshotOptions(
         showSelection: false,
         ...(preset?.enhance === true ? { enhanceQuality: true } : {}),
         ...(preset?.quality === undefined ? {} : { quality: preset.quality }),
-        ...(choices.view === "current" ? {} : { camera: { preset: choices.view } }),
+        ...(choices.view === "current" ? {} : { camera: cameraOf(choices.view) }),
         destination,
         ...(downloadFilename === undefined ? {} : { downloadFilename }),
     };

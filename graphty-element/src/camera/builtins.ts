@@ -72,6 +72,48 @@ const STRAIGHT_ON_DISTANCE = 1.5;
 const ISOMETRIC_BETA = Math.acos(1 / Math.sqrt(3));
 
 /**
+ * Frame everything from the direction the camera looks from now (`fitToGraph`'s `keepAngle`).
+ *
+ * The distance puts the box's bounding sphere, padded, inside the narrower of the two fields of
+ * view, so every node is in shot from any angle. The pivot rotation is carried over, so a turn
+ * the reader gave the drawing (roll included) is kept.
+ * @param input - The box to frame and where the camera is now.
+ * @param fov - The vertical field of view in radians.
+ * @returns The state, or undefined when the current state has no direction to keep.
+ */
+function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | undefined {
+    const { current, bounds, aspect } = input;
+    if (current.position === undefined || current.target === undefined) {
+        return undefined;
+    }
+
+    const dx = current.position.x - current.target.x;
+    const dy = current.position.y - current.target.y;
+    const dz = current.position.z - current.target.z;
+    const length = Math.hypot(dx, dy, dz);
+    if (length === 0 || !Number.isFinite(length)) {
+        return undefined;
+    }
+
+    const radius = (Math.hypot(bounds.size.x, bounds.size.y, bounds.size.z) / 2) * PERSPECTIVE_PADDING;
+    const halfFov = aspect > 0 ? Math.min(fov / 2, Math.atan(Math.tan(fov / 2) * aspect)) : fov / 2;
+    const distance = radius / Math.sin(halfFov);
+    const { center } = bounds;
+
+    return {
+        type: "arcRotate",
+        position: {
+            x: center.x + (dx / length) * distance,
+            y: center.y + (dy / length) * distance,
+            z: center.z + (dz / length) * distance,
+        },
+        target: center,
+        ...(current.pivotRotation === undefined ? {} : { pivotRotation: current.pivotRotation }),
+        cameraDistance: distance,
+    };
+}
+
+/**
  * Frame everything: an angled view in three dimensions, straight on in two.
  * @param input - The box to frame, the drawing mode, the viewport and the field of view.
  * @returns The state that puts the whole box in shot.
@@ -96,6 +138,11 @@ function fitToGraph(input: CameraViewInput): CameraState {
     }
 
     const fov = input.fov ?? DEFAULT_FOV;
+    const keptAngle = input.options.keepAngle === true ? fromCurrentAngle(input, fov) : undefined;
+    if (keptAngle !== undefined) {
+        return keptAngle;
+    }
+
     const straightOn = (bounds.maxDimension / Math.tan(fov / 2)) * PERSPECTIVE_PADDING;
     const distance = straightOn * ISOMETRIC_FACTOR;
 

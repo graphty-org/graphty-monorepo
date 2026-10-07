@@ -62,7 +62,12 @@ export interface ScreenshotOptions {
     };
     downloadFilename?: string;
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
-    camera?: CameraState | { preset: string };
+    /**
+     * The camera to capture from, restored afterwards: a state, or a named view with its own
+     * options, e.g. `{ preset: "fitToGraph", params: { keepAngle: true } }` to frame every node
+     * from the angle on screen.
+     */
+    camera?: CameraState | { preset: string; params?: Readonly<Record<string, unknown>> };
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;

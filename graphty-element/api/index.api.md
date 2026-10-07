@@ -4074,9 +4074,9 @@ export interface ScreenshotLegendSection {
 
 // @public (undocumented)
 export interface ScreenshotOptions {
-    // (undocumented)
     camera?: CameraState | {
         preset: string;
+        params?: Readonly<Record<string, unknown>>;
     };
     // (undocumented)
     destination?: {

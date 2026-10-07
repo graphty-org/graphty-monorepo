@@ -292,3 +292,26 @@ sentence on; it has no coded refusal yet. The app's Analyze popover still shows 
 refusals in the element's words: the codes exist now, the app's words for them do not. The
 inspector's Method select disables a layout that cannot run but does not say why (the Layout
 popover does).
+
+## 2026-10-07 -- "Fit to graph" can keep the current angle: `keepAngle`
+
+**What.** The built-in camera view `fitToGraph` declares one option, `keepAngle` (boolean, default
+false), in its catalog descriptor. With it on, in 3D the view frames every node from the direction
+the camera looks from now -- the pivot rotation, roll included, is kept and only the target and the
+distance change -- instead of jumping to the fixed diagonal. It has no effect in 2D. The screenshot
+option `camera` also accepts `{ preset, params }`, so a capture can pass a named view's options:
+`captureScreenshot({ camera: { preset: "fitToGraph", params: { keepAngle: true } } })`. The graphty
+app asks for it when the Export dialog's View is "Whole graph". The distance puts the box's bounding
+sphere, padded 10 percent, inside the narrower field of view, so every node is in shot from any
+angle. Without the option every number is unchanged to the digit, so no saved picture moves.
+
+**Why.** "Whole graph" in 3D exported a picture turned to an angle the reader never chose, with a
+quarter of it empty: the drawing on screen and the drawing in the file did not match. A third-party
+consumer exporting "everything, as I see it" had no way to ask for it except computing the camera
+itself, which is graph functionality the element owns.
+
+**Alternatives.** A new built-in view, such as `fitFromHere` (a second name for nearly the same
+rule, and one more entry in every picker). Change `fitToGraph` to always keep the angle (moves every
+saved picture and every "Fit" press). Have the app compute the camera from the bounds (a workaround
+of exactly the kind the repository forbids). Name the option differently (`fromCurrent`,
+`preserveDirection`).

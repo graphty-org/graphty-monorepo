@@ -27,10 +27,9 @@ function labelled(name: string): GraphSnapshot {
 describe("W_COLUMN_NAME_CHANGED names only columns that are renamed on re-import", () => {
     for (const format of GRAPH_FORMATS as readonly FormatName[]) {
         for (const name of ["label", "title"]) {
-            // GML and DOT write a label column not named "label" under its own name, yet report it
-            // as reading back as "label": expected failures until those notes are fixed
-            const known = name === "title" && (format === "gml" || format === "dot");
-            (known ? it.fails : it)(`${format}, label columns named "${name}"`, async () => {
+            // OBO reports its edge label as read back as "name", but writes it as a qualifier
+            // (issue #1396): an expected failure until that note is fixed
+            (format === "obo" ? it.fails : it)(`${format}, label columns named "${name}"`, async () => {
                 const snapshot = labelled(name);
                 const notes = checkExport(snapshot, format).filter((n) => n.code === "W_COLUMN_NAME_CHANGED");
                 const back = (await importGraph(await exportGraphToBytes(snapshot, format), { format })).snapshot;
@@ -38,6 +37,11 @@ describe("W_COLUMN_NAME_CHANGED names only columns that are renamed on re-import
                     const table = note.message.startsWith("edge column") ? back.edges : back.nodes;
                     const column = note.column ?? "";
                     expect(table.has(column), `${format}: ${note.message}`).toBe(false);
+                    // and the name the note promises is there, holding the column's values
+                    const promised = /reads back as "([^"]+)"$/.exec(note.message)?.[1] ?? "";
+                    expect(table.get(promised)?.value(0), `${format}: ${note.message}`).toBe(
+                        table === back.edges ? "ab1" : "A",
+                    );
                 }
             });
         }
@@ -63,5 +67,65 @@ describe("CX2 label rename note (issue #962)", () => {
             expect(edge.value(0)).toBe("ab1");
             expect(edge.meta.role).toBe(null);
         }
+    });
+});
+
+describe("GML and DOT label columns not named label (issue #1360)", () => {
+    for (const format of ["gml", "dot"] as const) {
+        it(`${format} writes the label role under label, where its importer gives it the role back`, async () => {
+            const snapshot = labelled("title");
+            const notes = checkExport(snapshot, format);
+            expect(notes.filter((n) => n.code === "W_COLUMN_NAME_CHANGED").map((n) => n.column)).toEqual([
+                "title",
+                "title",
+            ]);
+            expect(notes.filter((n) => n.code === "W_ROLE_DROPPED")).toEqual([]);
+            const back = (await importGraph(await exportGraphToBytes(snapshot, format), { format })).snapshot;
+            for (const [table, first] of [
+                [back.nodes, "A"],
+                [back.edges, "ab1"],
+            ] as const) {
+                const label = table.require("label");
+                expect(label.meta.role).toBe("label");
+                expect(label.value(0)).toBe(first);
+                expect(table.has("title")).toBe(false);
+            }
+        });
+    }
+
+    it("DOT does not write a plain label column beside a label role named otherwise", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.declareNodeColumn({ name: "title", dtype: "string", role: "label" });
+        b.declareNodeColumn({ name: "label", dtype: "string" });
+        b.addNode(1);
+        b.setNodeValue("title", 0, "A");
+        b.setNodeValue("label", 0, "plain");
+        const snapshot = b.freeze();
+        const notes = checkExport(snapshot, "dot");
+        expect(notes.filter((n) => n.code === "W_DOT_ATTRIBUTE_CLASH").map((n) => n.column)).toEqual(["label"]);
+        expect(notes.filter((n) => n.code === "W_ROLE_ASSUMED")).toEqual([]);
+        const back = (await importGraph(await exportGraphToBytes(snapshot, "dot"), { format: "dot" })).snapshot;
+        expect(back.nodes.require("label").value(0)).toBe("A");
+    });
+
+    it("GML gives the label key to the label role and mangles a plain label column beside it", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.declareNodeColumn({ name: "label", dtype: "string" });
+        b.declareNodeColumn({ name: "title", dtype: "string", role: "label" });
+        b.addNode(1);
+        b.setNodeValue("title", 0, "A");
+        b.setNodeValue("label", 0, "plain");
+        const snapshot = b.freeze();
+        expect(
+            checkExport(snapshot, "gml")
+                .filter((n) => n.code === "E_GML_RESERVED_KEY")
+                .map((n) => n.column),
+        ).toEqual(["label"]);
+        const options = { sanitizeKeys: "mangle" } as const;
+        const back = (await importGraph(await exportGraphToBytes(snapshot, "gml", options), { format: "gml" }))
+            .snapshot;
+        expect(back.nodes.require("label").value(0)).toBe("A");
+        expect(back.nodes.require("label").meta.role).toBe("label");
+        expect(back.nodes.require("label_2").value(0)).toBe("plain");
     });
 });

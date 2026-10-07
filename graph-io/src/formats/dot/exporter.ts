@@ -377,6 +377,11 @@ class ExportPlan {
 
     private readonly targetPort: Column | null;
 
+    /** The node and edge label role columns, written under `label` whatever their name. */
+    private readonly nodeLabel: Column | null;
+
+    private readonly edgeLabel: Column | null;
+
     private readonly children: ChildrenCsr;
 
     private readonly extraNotes: LossNote[] = [];
@@ -417,6 +422,8 @@ class ExportPlan {
         this.folding = pairFolding(snapshot);
         this.sourcePort = edges.byRole("sourcePort");
         this.targetPort = edges.byRole("targetPort");
+        this.nodeLabel = nodes.byRole("label");
+        this.edgeLabel = edges.byRole("label");
         this.nodeColumns = [...nodes].filter((c) => this.writesNodeColumn(c));
         this.edgeColumns = [...edges].filter((c) => this.writesEdgeColumn(c));
         this.graphColumns = [...graph].filter(
@@ -444,7 +451,7 @@ class ExportPlan {
             this.clash("node", name, "the position role is written as pos");
             return false;
         }
-        return true;
+        return this.labelFree("node", column, this.nodeLabel);
     }
 
     /**
@@ -468,7 +475,23 @@ class ExportPlan {
             this.clash("edge", name, "the weight is written as weight");
             return false;
         }
-        return true;
+        return this.labelFree("edge", column, this.edgeLabel);
+    }
+
+    /**
+     * Whether a column may be written: false (reported) for a plain `label` column when the label
+     * role column is named otherwise, since that one is written as `label`.
+     * @param domain - the table
+     * @param column - the column
+     * @param labelRole - the table's label role column, or null
+     * @returns true when written
+     */
+    private labelFree(domain: string, column: Column, labelRole: Column | null): boolean {
+        if (column.meta.name !== LABEL_ATTRIBUTE || labelRole === null || labelRole === column) {
+            return true;
+        }
+        this.clash(domain, column.meta.name, "the label role is written as label");
+        return false;
     }
 
     /**
@@ -703,7 +726,7 @@ class ExportPlan {
         }
         for (const columns of [this.nodeColumns, this.edgeColumns, this.graphColumns]) {
             for (const column of columns) {
-                visit(column.meta.name, "attribute name");
+                visit(this.attributeName(column), "attribute name");
                 if (column.dtype === "string" || column.dtype === "dict") {
                     for (let r = 0; r < column.length; r++) {
                         if (column.isSet(r)) {
@@ -845,6 +868,16 @@ class ExportPlan {
     }
 
     /**
+     * The attribute a column is written as: `label` for a node or edge label role column (the
+     * importer gives that attribute the role back), the column name otherwise.
+     * @param column - the column
+     * @returns the attribute name
+     */
+    private attributeName(column: Column): string {
+        return column === this.nodeLabel || column === this.edgeLabel ? LABEL_ATTRIBUTE : column.meta.name;
+    }
+
+    /**
      * The `name=value` attributes of one row over a column list (set cells only).
      * @param columns - the columns
      * @param row - the row
@@ -858,7 +891,7 @@ class ExportPlan {
             }
             const text = cellText(column, row);
             if (text !== null) {
-                out.push(`${quoteDotId(column.meta.name)}=${writeId(text)}`);
+                out.push(`${quoteDotId(this.attributeName(column))}=${writeId(text)}`);
             }
         }
         return out;

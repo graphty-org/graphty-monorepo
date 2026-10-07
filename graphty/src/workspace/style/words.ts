@@ -207,6 +207,8 @@ const COMPOUND_LINES: readonly CompoundLine[] = [
         parts: [
             { channel: "edge.style", word: "Pattern", atRest: true },
             { channel: "edge.patternCount", word: "Count", caveat: true },
+            // It moves only a straight solid line, so it is a setting of the pattern, not a line.
+            { channel: "edge.animationSpeed", word: "Animation speed", caveat: true },
         ],
         adds: "edge.style",
     },

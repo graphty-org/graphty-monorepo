@@ -253,26 +253,21 @@ export async function removeLine(session: GraphSession, layer: Layer, ...channel
 
 /**
  * The value a line starts with when "+" adds it: the element's own default for the channel, else
- * the first value it accepts.
+ * the least or first value the element says it accepts, else no value for a text. The app never
+ * invents a graph value: a channel the element states none of these for is an element defect.
  * @param descriptor - the channel.
  * @returns the value.
  */
 export function startingValue(descriptor: ChannelDescriptor): ChannelValue {
-    if (descriptor.default !== undefined) {
-        return descriptor.default;
+    const value =
+        descriptor.default ??
+        (descriptor.accepts === "number" ? descriptor.min : undefined) ??
+        (descriptor.accepts === "enum" ? descriptor.values?.[0] : undefined) ??
+        (descriptor.accepts === "text" ? "" : undefined);
+    if (value === undefined) {
+        throw new Error(`graphty-element states no starting value for ${descriptor.channel}`);
     }
-    switch (descriptor.accepts) {
-        case "color":
-            return "#000000";
-        case "number":
-            return descriptor.min ?? 0;
-        case "boolean":
-            return true;
-        case "enum":
-            return descriptor.values?.[0] ?? "";
-        default:
-            return "";
-    }
+    return value;
 }
 
 /**

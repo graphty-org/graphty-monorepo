@@ -180,7 +180,13 @@ export function SetLine({
                 style={{ height: "auto", alignItems: "flex-end", paddingBlock: 4 }}
             >
                 <div style={{ display: "flex", alignItems: "flex-end", gap: 4 }}>
-                    <ColorValue name={name} value={line.value} documentColors={documentColors} write={write} />
+                    <ColorValue
+                        name={name}
+                        value={line.value}
+                        fallback={descriptor.default}
+                        documentColors={documentColors}
+                        write={write}
+                    />
                     {bindIcon}
                 </div>
             </FieldRow>
@@ -346,7 +352,15 @@ function ValueEditor({
     const label = channelWord(descriptor.channel);
     switch (descriptor.accepts) {
         case "color":
-            return <ColorValue name={label} value={value} documentColors={documentColors} write={write} />;
+            return (
+                <ColorValue
+                    name={label}
+                    value={value}
+                    fallback={descriptor.default}
+                    documentColors={documentColors}
+                    write={write}
+                />
+            );
         case "enum":
             return descriptor.channel === "node.shape" ? (
                 <ShapeValue descriptor={descriptor} value={value} write={write} />
@@ -424,6 +438,7 @@ function ValueEditor({
  * @param props - Component props
  * @param props.name - the property's name
  * @param props.value - the value
+ * @param props.fallback - what the element draws when the value is unset
  * @param props.documentColors - colors the document uses
  * @param props.write - writes the line
  * @returns The paint field
@@ -431,21 +446,23 @@ function ValueEditor({
 function ColorValue({
     name,
     value,
+    fallback,
     documentColors,
     write,
 }: Readonly<{
     name: string;
     value: ChannelValue | undefined;
+    fallback: ChannelValue | undefined;
     documentColors: readonly string[];
     write: (next: { value: ChannelValue }) => void;
 }>): React.JSX.Element {
     const chosen = colorOf(value);
-    const color = chosen ?? { hex: "#000000", percent: 100 };
+    const color = chosen ?? colorOf(fallback) ?? { hex: "#000000", percent: 100 };
     return (
         <CompactColorInput
             label={name}
             width={PAINT_FIELD_WIDTH}
-            // Unset (a glow's color), the field shows it as not chosen rather than as black.
+            // Unset (a glow's color), the field shows what the element draws, as not chosen.
             color={chosen?.hex}
             defaultColor={color.hex}
             opacity={color.percent}

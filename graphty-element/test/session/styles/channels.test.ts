@@ -16,6 +16,8 @@ import {
     type ChannelValues,
     COLOR_CHANNELS,
     type ColorChannel,
+    DEFAULT_GLOW_COLOR,
+    DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
     type NodeShapeValue,
@@ -267,7 +269,11 @@ describe("what the element can really draw", () => {
     it("draws a glow with no strength at 1, and offers no strength the node style refuses", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].default, 1);
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].min, 0.1);
-        assert.isUndefined(CHANNEL_DESCRIPTORS["node.glow"].default, "an unset glow draws nothing");
+    });
+
+    it("states the colour a switched-on outline or glow is drawn in when none is named", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glow"].default, DEFAULT_GLOW_COLOR);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].default, DEFAULT_OUTLINE_COLOR);
     });
 });
 
@@ -281,8 +287,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelStyle",
         "node.tooltip",
         "node.tooltipStyle",
-        "node.outline",
-        "node.glow",
         "node.marker",
         "edge.patternCount",
         "edge.arrowHeadText",

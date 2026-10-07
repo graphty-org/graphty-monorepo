@@ -379,6 +379,12 @@ describe("the Style tab on the real element", () => {
             await userEvent.click(within(styleTab()).getByRole("button", { name: /^Glow: / }));
             const popover = await screen.findByRole("dialog", { name: "Glow" });
             assert.isNotNull(within(popover).getByRole("group", { name: "Color" }));
+            // Unset, the color shows what the element draws, not an invented black.
+            const glowColor = String(channelsFor("node").find((d) => d.channel === "node.glow")?.default);
+            assert.include(
+                [...popover.querySelectorAll("input")].map((i) => `#${i.value}`.toUpperCase()),
+                glowColor.toUpperCase(),
+            );
             assert.isNotNull(within(popover).getByRole("combobox", { name: "Glow strength" }));
             await userEvent.click(within(popover).getByRole("button", { name: /close/i }));
             await waitFor(() => {
@@ -405,7 +411,7 @@ describe("the Style tab on the real element", () => {
     );
 
     it(
-        "lists an edge's arrows as Head arrow and Tail arrow, and Pattern's count with the element's caveat",
+        "lists an edge's arrows as Head arrow and Tail arrow, and Pattern's count and animation in its popover",
         async () => {
             await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
@@ -430,6 +436,10 @@ describe("the Style tab on the real element", () => {
             assert.isNotEmpty(caveat);
             assert.isNotNull(within(popover).getByText(caveat));
             assert.isNotNull(within(popover).getByRole("combobox", { name: "Pattern count" }));
+            // Animation moves only a straight solid line: a setting of Pattern, not a line of its own.
+            assert.isNotNull(within(popover).getByRole("combobox", { name: /animation/i }));
+            assert.isNull(within(line).queryByRole("button", { name: /^Animation/ }));
+            assert.isNull(within(line).queryByText(/^Animation/));
         },
         TIMEOUT_MS * 2,
     );

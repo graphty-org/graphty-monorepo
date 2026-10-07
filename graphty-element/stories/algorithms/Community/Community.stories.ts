@@ -1,3 +1,4 @@
+import { OTHER_GROUP_COLOR } from "../../../src/config/palettes/categorical";
 import { assertGraphLoaded, drawn, holds, renderedElement } from "../../assertions";
 import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
@@ -55,7 +56,7 @@ const cliqueEdges = CLIQUE_SIZES.flatMap((size, clique) =>
 );
 
 /** The colour an overflowing group encoding paints every group past the palette. */
-const OTHER_GREY = "#505050";
+const OTHER_GREY = OTHER_GROUP_COLOR;
 
 /**
  * More communities than the default palette has colours.

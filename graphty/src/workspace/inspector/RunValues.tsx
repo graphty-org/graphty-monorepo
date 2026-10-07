@@ -15,7 +15,16 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, groupName, queuedWords, rankedName, runDate, runFailureWords } from "./words";
+import {
+    count,
+    formatNumber,
+    groupName,
+    queuedWords,
+    rankedName,
+    routeWords,
+    runDate,
+    runFailureWords,
+} from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -270,8 +279,91 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
 }
 
 /**
- * A run row's Values tab (tier1-design.md section 2.7): a measure's histogram and top 10, or a
- * grouping's summary and sizes; then Made with.
+ * A path run's values: how big the route is, its total distance when it read a distance weight,
+ * then its nodes from source to target, each selecting that node.
+ * @param props - Component props
+ * @param props.session - The session
+ * @param props.run - The run
+ * @returns The sections
+ */
+function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run }>): React.JSX.Element | null {
+    const { result } = run;
+    if (result === undefined) {
+        return null;
+    }
+    const { length, hops, cost } = result.graph;
+    const nodes = result
+        .ranking("order")
+        .filter((entry) => Number.isFinite(entry.value))
+        .sort((a, b) => a.value - b.value);
+    const distance = run.caveats.weight?.meaning === "distance" && typeof cost === "number";
+    return (
+        <>
+            <ControlSection label="Summary" defaultOpened>
+                {typeof length === "number" && typeof hops === "number" && (
+                    <DataRow stat name="Route" value={routeWords(length, hops)} />
+                )}
+                {distance && <DataRow stat name="Total distance" value={formatNumber(cost)} />}
+            </ControlSection>
+            <ControlSection label="Nodes in order" defaultOpened>
+                {nodes.map((entry) => (
+                    <DataRow
+                        key={nodeKey(entry.id)}
+                        name={String(entry.id)}
+                        value={formatNumber(entry.value + 1)}
+                        onClick={() => {
+                            selectNode(session, entry.id);
+                        }}
+                    />
+                ))}
+            </ControlSection>
+        </>
+    );
+}
+
+/**
+ * A set run's values: how many nodes or edges it holds.
+ * @param props - Component props
+ * @param props.run - The run
+ * @returns The section
+ */
+function SetValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
+    const size = run.result?.graph.count;
+    if (typeof size !== "number") {
+        return null;
+    }
+    return (
+        <ControlSection label="Summary" defaultOpened>
+            <DataRow stat name="Holds" value={count(size, measuredNoun(run))} />
+        </ControlSection>
+    );
+}
+
+/**
+ * Which values view a finished run gets, from its shape's contract and its primary field's type:
+ * a grouping's summary, a path's route, a set's size, a number's histogram, or none.
+ * @param run - the run.
+ * @returns the view.
+ */
+function viewOf(run: Run): "groups" | "path" | "set" | "measure" | null {
+    const contract = RESULT_SHAPE_CONTRACTS[run.shape];
+    const { nodeFields }: { nodeFields: readonly string[] } = contract;
+    if (run.status !== "succeeded" || contract.primaryField === null) {
+        return null;
+    }
+    if (rowKindOf(run) === "run-row") {
+        return "groups";
+    }
+    if (contract.layer === "highlight") {
+        return nodeFields.includes("order") ? "path" : "set";
+    }
+    const type = run.fields.find((field) => field.name === contract.primaryField)?.type;
+    return type === "number" || type === "integer" ? "measure" : null;
+}
+
+/**
+ * A run row's Values tab (tier1-design.md section 2.7): a measure's histogram and top 10, a
+ * grouping's summary and sizes, a path's route or a set's size; then Made with.
  * @param props - Component props
  * @param props.run - The run
  * @param props.draft - The reader's changes to its settings
@@ -292,13 +384,13 @@ export function RunValues({
         return null;
     }
     const field = RESULT_SHAPE_CONTRACTS[run.shape].primaryField;
-    const grouping = rowKindOf(run) === "run-row";
+    const view = viewOf(run);
     return (
         <>
-            {run.status === "succeeded" && field !== null && !grouping && (
-                <MeasureValues session={session} run={run} field={field} />
-            )}
-            {run.status === "succeeded" && grouping && <GroupsValues run={run} />}
+            {view === "measure" && field !== null && <MeasureValues session={session} run={run} field={field} />}
+            {view === "groups" && <GroupsValues run={run} />}
+            {view === "path" && <PathValues session={session} run={run} />}
+            {view === "set" && <SetValues run={run} />}
             <MadeWith run={run} draft={draft} onDraft={onDraft} />
         </>
     );

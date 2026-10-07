@@ -129,6 +129,16 @@ export function count(count: number, noun: string): string {
 }
 
 /**
+ * A route's size ("3 nodes, 2 edges").
+ * @param nodes - how many nodes are on it.
+ * @param edges - how many edges are on it.
+ * @returns the words.
+ */
+export function routeWords(nodes: number, edges: number): string {
+    return `${count(nodes, "node")}, ${count(edges, "edge")}`;
+}
+
+/**
  * A value from the data, as text: numbers formatted, everything else as given.
  * @param value - the value.
  * @returns the text.

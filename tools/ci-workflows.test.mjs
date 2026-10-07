@@ -231,13 +231,13 @@ describe("the pre-push gate matches CI", () => {
             shards.filter((s) => !running.includes(s) && canStart(s, running, new Set(warmed))).map((s) => s.shard);
         // Cold: one warm-up per package (the shortest command of a family), and nothing else.
         assert.deepEqual(startable([], []).sort(), [
-            "graphty-element-browser-2",
+            "graphty-element-browser-1",
             "graphty-element-default",
             "graphty-element-storybook-1",
             "layout",
         ]);
         // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
-        assert.deepEqual(startable([pick("graphty-element-browser-2")], []), ["layout"]);
+        assert.deepEqual(startable([pick("graphty-element-browser-1")], []), ["layout"]);
         // A warmed family's siblings still wait for the package's other families.
         const afterBrowser = startable([], ["graphty-element-browser"]);
         assert.ok(!afterBrowser.includes("graphty-element-browser-3"));

@@ -341,12 +341,27 @@ interface OpenEntry {
     next: unknown;
 }
 
+/** What a key's entry held just before a change, for the checkpoints taken before it. */
+interface JournalRecord {
+    readonly id: string;
+    /** Whether the draft held the key. */
+    readonly had: boolean;
+    /** Its `next` then, when it did. */
+    readonly next: unknown;
+}
+
 /** The mutable side of one open draft. */
 interface OpenDraft {
     readonly entries: Map<string, OpenEntry>;
     readonly log: OpLogEntry[];
     rows: RowPatch | null;
     closed: boolean;
+    /**
+     * Every change to `entries` since the first checkpoint, oldest first; null until one is taken.
+     * A checkpoint is a position in it, so taking one costs nothing however many keys the draft
+     * holds, and a transaction of ten thousand members is not quadratic in its own writes.
+     */
+    journal: JournalRecord[] | null;
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -410,12 +425,25 @@ export function createProjectStore(
         }
     };
 
+    /**
+     * Record what a key's entry holds before it changes, when a checkpoint may need it back.
+     * @param draft - The draft whose entry changes.
+     * @param id - The key, as `slice/key`.
+     */
+    const journal = (draft: OpenDraft, id: string): void => {
+        if (draft.journal !== null) {
+            const entry = draft.entries.get(id);
+            draft.journal.push({ id, had: entry !== undefined, next: entry?.next });
+        }
+    };
+
     const write = (draft: OpenDraft, slice: ValueSlice, key: string, value: unknown): void => {
         if (draft.closed) {
             throw new Error(`A closed draft cannot write ${slice}/${key}.`);
         }
 
         const id = `${slice}/${key}`;
+        journal(draft, id);
         let entry = draft.entries.get(id);
         if (entry === undefined) {
             const holder = owners.get(id);
@@ -425,6 +453,7 @@ export function createProjectStore(
             } else {
                 // Hand-over: the earlier open draft gives up the key and its prior.
                 prior = holder.entries.get(id)?.prior;
+                journal(holder, id);
                 holder.entries.delete(id);
             }
 
@@ -467,7 +496,7 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false };
+            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false, journal: null };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -524,7 +553,9 @@ export function createProjectStore(
                     return patch;
                 },
                 checkpoint() {
-                    const saved = new Map([...draft.entries].map(([id, entry]) => [id, entry.next]));
+                    draft.journal ??= [];
+                    const records = draft.journal;
+                    const mark = records.length;
                     const logged = draft.log.length;
 
                     return () => {
@@ -534,14 +565,30 @@ export function createProjectStore(
                             changed.add(entry.slice);
                         }
 
-                        for (const [id, entry] of draft.entries) {
-                            if (!saved.has(id)) {
+                        // Each key changed since the mark, as it was at the mark: its first record.
+                        const saved = new Map<string, JournalRecord>();
+                        for (let at = mark; at < records.length; at++) {
+                            if (!saved.has(records[at].id)) {
+                                saved.set(records[at].id, records[at]);
+                            }
+                        }
+
+                        for (const [id, record] of saved) {
+                            const entry = draft.entries.get(id);
+                            if (entry === undefined) {
+                                // Handed to another draft since, or already reverted: not ours.
+                                continue;
+                            }
+
+                            if (!record.had) {
+                                journal(draft, id);
                                 put(entry.slice, entry.key, entry.prior);
                                 draft.entries.delete(id);
                                 owners.delete(id);
                                 changed.add(entry.slice);
-                            } else if (saved.get(id) !== entry.next) {
-                                entry.next = saved.get(id);
+                            } else if (record.next !== entry.next) {
+                                journal(draft, id);
+                                entry.next = record.next;
                                 put(entry.slice, entry.key, entry.next);
                                 changed.add(entry.slice);
                             }

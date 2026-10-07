@@ -994,8 +994,9 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # The algorithms benchmark table (a manual dispatch and the release train): a measurement, with no
-    # baseline to compare. A push to master runs no test job, so this one is skipped with it.
+    # The algorithms benchmark table and graphty-element's timing benchmarks (a manual dispatch and
+    # the release train): measurements, gating nothing. A push to master runs no test job, so this
+    # one is skipped with it.
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
     # measurement with no pass/fail role must not hold them.
     performance:
@@ -1035,6 +1036,27 @@ jobs:
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
+
+            # The repaint's frame budget and undo's cost against a load, timed without coverage. A
+            # stopwatch measures whatever else the machine is doing, so these never gate a push;
+            # the mechanisms they time are pinned by counts in the test shards.
+            - name: Run the graphty-element timing benchmarks
+              if: ${{ !cancelled() }}
+              working-directory: graphty-element
+              run: pnpm exec vitest run --project=bench
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Install Playwright system packages
+              uses: ./.github/actions/playwright-system-deps
+
+            - name: Install Playwright browsers
+              run: pnpm exec playwright install chromium
+
+            - name: Run the graphty-element browser timing benchmarks
+              if: ${{ !cancelled() }}
+              working-directory: graphty-element
+              run: pnpm exec vitest run --project=browser-bench
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the

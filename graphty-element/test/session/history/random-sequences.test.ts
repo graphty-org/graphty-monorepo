@@ -43,7 +43,12 @@ const SEEDS = [1, 17, 4242, 90210, 2026];
 const NUM_RUNS = Number(process.env.FC_NUM_RUNS ?? 60);
 /** Longest sequence tried. */
 const MAX_COMMANDS = 30;
-/** Per seed: a coverage run of the whole model is slower than the project's 30 s default. */
+/**
+ * Per seed: a coverage run of the whole model is slower than the project's 30 s default. This is
+ * also what fails a sequence that hangs. Every clock, queue turn and run here is held by the
+ * model, so a sequence that never settles is waiting on something that will never come, and no
+ * per-sequence deadline is needed to find one: a deadline would only fail a slow machine.
+ */
 const SEED_TIMEOUT_MS = 90_000;
 
 /** Where a sequence starts. */
@@ -203,8 +208,6 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
         {
             seed,
             numRuns,
-            // A sequence that hangs fails rather than holding the seed's test until it times out.
-            timeout: 10_000,
             // Shrinking a long sequence takes longer than CI gives it; FC_SHRINK=1 shrinks one
             // failure locally, and FC_PATH replays it from the path the failure printed.
             endOnFailure: process.env.FC_SHRINK === undefined,

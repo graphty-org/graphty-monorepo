@@ -560,12 +560,15 @@ function brokenAnswered(state, n, ask) {
  * heard and then answered githerd about something else without claiming it, or left unanswered until
  * the next is due, or an owner githerd cannot reach, releases the pull request from its ownership
  * until a new push (`state.prReleased[<pr>]` = the head, read by `prInUse`; a head githerd or GitHub
- * made keeps it), and its `pr` job is offered as usual.
+ * made keeps it), and its `pr` job is offered as usual. The question goes out once per head and
+ * reason; once claimed, the pull request is asked the status question each `minutes` instead, like
+ * a held job, and only no answer to that, a gone owner or a disown releases it. While a push of its
+ * branch waits or runs in the push queue (`state.pushTickets`) it is not asked about at all.
  * @param {any} state the daemon state, changed in place
  * @param {{now: Date, minutes: number, owners: () => import("./peers.mjs").PeerSession[]}} opts the
  *   clock, the cadence and every live session in this repository
  * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
- * @returns {Map<string, {n: string, why: string, noTools?: boolean}[]>} the pull requests to ask
+ * @returns {Map<string, {n: string, why: string, noTools?: boolean, claimed?: boolean}[]>} the pull requests to ask
  *   about, by session
  */
 function brokenOwned(state, { now, minutes, owners }, lines) {
@@ -578,7 +581,7 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
         if (rec?.headSha && headIsGitherds(state, rec)) state.prReleased[n] = rec.headSha;
         else delete state.prReleased[n];
     }
-    /** @type {Map<string, {n: string, why: string, noTools?: boolean}[]>} */
+    /** @type {Map<string, {n: string, why: string, noTools?: boolean, claimed?: boolean}[]>} */
     const due = new Map();
     /** @type {import("./peers.mjs").PeerSession[] | null} read once, when a question is due */
     let live = null;
@@ -588,7 +591,11 @@ function brokenOwned(state, { now, minutes, owners }, lines) {
     };
     for (const [n, rec] of Object.entries(state.prs ?? {})) {
         const ask = brokenAskDue(state, n, rec, { now, minutes, live: liveOwners }, lines);
-        if (ask) due.set(ask.session, [...(due.get(ask.session) ?? []), { n, why: ask.why, noTools: ask.noTools }]);
+        if (ask)
+            due.set(ask.session, [
+                ...(due.get(ask.session) ?? []),
+                { n, why: ask.why, noTools: ask.noTools, claimed: ask.claimed },
+            ]);
     }
     return due;
 }
@@ -624,18 +631,20 @@ function brokenOwner(state, n, rec) {
  * @param {{now: Date, minutes: number, live: () => import("./peers.mjs").PeerSession[]}} opts the
  *   clock, the cadence and every live session in this repository
  * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
- * @returns {{session: string, why: string, noTools?: boolean} | null} the session to ask, why, and
- *   whether it has no githerd tools
+ * @returns {{session: string, why: string, noTools?: boolean, claimed?: boolean} | null} the session
+ *   to ask, why, whether it has no githerd tools, and whether it claimed it (the status question)
  */
 function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
     const found = brokenOwner(state, n, rec);
     if (!found) return null;
     const { owner, why } = found;
     const ask = state.brokenAsks[n];
-    // A new failure, a conflict where a check failed, or another owner is a new question, asked at once.
-    const same = ask?.head === rec.headSha && ask.session === owner.session && ask.why === why;
-    // The owner's next answer to githerd that does not claim it releases it at once.
-    const declined = same && ask.heard && !brokenAnswered(state, n, ask) && answeredSince(state, owner.session, ask.at);
+    // Only waiting to push: githerd watches the push queue, so nothing is asked and silence is not held against it.
+    if (pushWaiting(state, n, rec)) {
+        if (ask) ask.heard = false;
+        return null;
+    }
+    const { same, claimed, declined } = episode(state, n, rec, owner, why);
     // A cadence, how often to ask: never a deadline on the work.
     if (!declined && same && now.getTime() - Date.parse(ask.at) < minutes * MINUTE) return null;
     const gone = !live().some((s) => s.sessionId === owner.session);
@@ -649,18 +658,84 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
             at: now.toISOString(),
             heard: false,
             active,
+            claimed,
         };
         return null;
     }
     if (gone || (same && ask.heard && !brokenAnswered(state, n, ask))) {
-        const reason = gone ? "githerd cannot ask its owner" : `no claim in answer to the question of ${ask.at}`;
-        state.prReleased[n] = rec.headSha;
-        delete state.brokenAsks[n];
-        if (state.prOwners?.[n]?.session === owner.session) delete state.prOwners[n];
-        lines.push({ kind: "pr-released", pr: Number(n), head: rec.headSha, session: owner.session, reason });
+        lines.push(releaseBroken(state, n, rec, owner.session, gone ? "githerd cannot ask its owner" : silence(ask)));
         return null;
     }
-    return { session: owner.session, why, ...(owner.noTools ? { noTools: true } : {}) };
+    return {
+        session: owner.session,
+        why,
+        ...(owner.noTools ? { noTools: true } : {}),
+        claimed,
+    };
+}
+
+/**
+ * Where the stuck episode of pull request `n` stands against its last question: the same head,
+ * owner and reason (`same`; anything else is a new question, asked at once), claimed since the
+ * stuck question (then it is asked the status question like a held job), or declined: its owner
+ * answered githerd about something else without claiming it, which releases it at once.
+ * @param {any} state the daemon state
+ * @param {string} n the pull request
+ * @param {any} rec its record
+ * @param {{session: string}} owner its owner
+ * @param {string} why why it is stuck
+ * @returns {{same: boolean, claimed: boolean, declined: boolean}} the episode
+ */
+function episode(state, n, rec, owner, why) {
+    const ask = state.brokenAsks[n];
+    const same = ask?.head === rec.headSha && ask.session === owner.session && ask.why === why;
+    if (!same) return { same, claimed: false, declined: false };
+    const answered = brokenAnswered(state, n, ask);
+    const claimed = Boolean(ask.claimed) || answered;
+    const declined = !claimed && ask.heard && answeredSince(state, owner.session, ask.at);
+    return { same, claimed, declined };
+}
+
+/**
+ * Why a heard question about a stuck pull request released it: no claim in answer to the stuck
+ * question, or no answer to the status question once claimed.
+ * @param {{at: string, claimed?: boolean}} ask the question
+ * @returns {string} the reason
+ */
+const silence = (ask) =>
+    `${ask.claimed ? "no answer to the status question" : "no claim in answer to the question"} of ${ask.at}`;
+
+/**
+ * Releases stuck pull request `n` from its owner at this head: its question and the owner's
+ * record are dropped, and its `pr` job is offered.
+ * @param {any} state the daemon state, changed in place
+ * @param {string} n the pull request
+ * @param {any} rec its record
+ * @param {string} session the owner's session
+ * @param {string} reason why
+ * @returns {{kind: string} & Record<string, unknown>} the ledger line
+ */
+function releaseBroken(state, n, rec, session, reason) {
+    state.prReleased[n] = rec.headSha;
+    delete state.brokenAsks[n];
+    if (state.prOwners?.[n]?.session === session) delete state.prOwners[n];
+    return { kind: "pr-released", pr: Number(n), head: rec.headSha, session, reason };
+}
+
+/**
+ * Whether a push of pull request `n`'s branch waits or runs in the machine's push queue
+ * (`state.pushTickets`, waits.mjs): a ticket naming its branch, or pushing from its worktree.
+ * @param {any} state the daemon state
+ * @param {string} n the pull request
+ * @param {any} rec its record
+ * @returns {boolean} a push of it is queued
+ */
+function pushWaiting(state, n, rec) {
+    const dirs = Object.values(state.prActivity?.[n]?.present ?? {});
+    return (state.pushTickets ?? []).some(
+        (/** @type {{branch: string | null, cwd: string}} */ t) =>
+            (rec.headRef && t.branch === rec.headRef) || dirs.some((d) => `${t.cwd}/`.includes(`/${d}/`)),
+    );
 }
 
 /**
@@ -697,14 +772,32 @@ function activity(state, n, rec, owner, ask) {
 }
 
 /**
- * The question to the owner of a broken pull request. An owner without githerd's tools is told the
- * command lines that answer it from its shell.
- * @param {{n: string, why: string, noTools?: boolean}} pr the pull request, why it is broken, and
+ * The question to the owner of a broken pull request: the status question once it claimed it. An
+ * owner without githerd's tools is told the command lines that answer it from its shell.
+ * @param {{n: string, why: string, noTools?: boolean, claimed?: boolean}} pr the pull request, why it
+ *   is broken, whether its owner has no githerd tools, and whether it claimed it
+ * @param {string} cli the githerd command line
+ * @param {number} minutes how often githerd asks
+ * @returns {string} the message line
+ */
+function brokenText({ n, why, noTools, claimed }, cli, minutes) {
+    if (!claimed) return brokenQuestion({ n, why, noTools }, cli);
+    const answer = noTools ? `by running \`${cli} mine ${n}\` from your shell` : `with githerd_mine pr ${n}`;
+    return (
+        `githerd: status check on #${n} (stuck: ${why}), which this session claimed. Still working on it? ` +
+        `Answer ${answer}; \`${cli} disown ${n}\` releases it. Still unanswered when githerd asks again in ` +
+        `${minutes} minutes, it goes to other sessions.`
+    );
+}
+
+/**
+ * The first question about a stuck pull request, once per head and reason.
+ * @param {{n: string, why: string, noTools?: boolean}} pr the pull request, why it is stuck, and
  *   whether its owner has no githerd tools
  * @param {string} cli the githerd command line
  * @returns {string} the message line
  */
-const brokenText = ({ n, why, noTools }, cli) =>
+const brokenQuestion = ({ n, why, noTools }, cli) =>
     `githerd: #${n} is stuck: ${why}. Are you fixing it? ` +
     (noTools
         ? `This session has no githerd tools, so answer from your shell: run \`${cli} mine ${n}\` to keep it, ` +
@@ -821,7 +914,7 @@ const askedSince = (job) => Date.parse(job.statusAsk?.at ?? job.claim?.at ?? job
  * Sends one session the status question for its due jobs and the broken pull requests it owns (a
  * would-do line in dry-run), and records the question on each.
  * @param {any} state the daemon state, changed in place
- * @param {{session: string, jobs: any[], prs: {n: string, why: string, noTools?: boolean}[],
+ * @param {{session: string, jobs: any[], prs: {n: string, why: string, noTools?: boolean, claimed?: boolean}[],
  *   target: import("./peers.mjs").PeerSession[]}} asked the session, what to ask it about, and its
  *   live entries
  * @param {{now: Date, acting: boolean, transport: import("./peers.mjs").Transport, minutes: number,
@@ -840,12 +933,15 @@ async function askSession(state, { session, jobs, prs, target }, { now, acting, 
     }
     const text = [
         ...(jobs.length ? [statusText(state, jobs, minutes)] : []),
-        ...prs.map((p) => brokenText(p, cli)),
+        ...prs.map((p) => brokenText(p, cli, minutes)),
     ].join("\n");
     const out = acting ? await tellSessions(target, text, transport) : { sent: [], failed: [] };
     const ask = { at: now.toISOString(), heard: out.sent.length > 0 };
     for (const job of jobs) job.statusAsk = { ...ask };
-    for (const p of prs) state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, why: p.why, ...ask };
+    for (const p of prs) {
+        const claimed = p.claimed ? { claimed: true } : {};
+        state.brokenAsks[p.n] = { head: state.prs[p.n].headSha, session, why: p.why, ...claimed, ...ask };
+    }
     lines.push({
         kind: "status-asked",
         jobs: ids,

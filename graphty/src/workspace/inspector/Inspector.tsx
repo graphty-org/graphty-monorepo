@@ -378,7 +378,9 @@ function bodyOf(
         case "several":
             return { style: <SelectionRowStyle />, values: <SeveralValues version={version} /> };
         case "neighborhood":
-            return { only: <NeighborList center={resolved.node} hops={resolved.hops} /> };
+            return {
+                only: <NeighborList center={resolved.node} hops={resolved.hops} direction={resolved.direction} />,
+            };
         case "measure-row":
         case "run-row":
             return run === undefined

@@ -1,14 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import {
-    applyName,
-    chipWords,
-    historyNotice,
-    type Namer,
-    outcomeWords,
-    ruleWords,
-    statusWords,
-} from "../filterWords";
+import { applyName, chipWords, historyNotice, type Namer, outcomeWords, ruleWords, statusWords } from "../filterWords";
 
 const NAMES: Namer = { attribute: (path) => path.replace("data.", ""), node: (id) => String(id) };
 const SHOWING = { visibleNodes: 9, totalNodes: 22, visibleEdges: 14 };
@@ -27,7 +19,15 @@ describe("the Filters words", () => {
         );
         assert.equal(ruleWords({ kind: "member", of: "largest-component" }, NAMES), "in the largest component");
         assert.equal(ruleWords({ kind: "neighborhood", seeds: ["Ava"], depth: 1 }, NAMES), "neighbors of Ava");
-        assert.equal(ruleWords({ kind: "neighborhood", seeds: ["Ava", "Ben"], depth: 1 }, NAMES), "neighbors of 2 nodes");
+        assert.equal(
+            ruleWords({ kind: "neighborhood", seeds: ["Ava", "Ben"], depth: 1 }, NAMES),
+            "neighbors of 2 nodes",
+        );
+        // A neighborhood past one hop says how far it reaches.
+        assert.equal(
+            ruleWords({ kind: "neighborhood", seeds: ["Ava"], depth: 2 }, NAMES),
+            "neighbors of Ava within 2 hops",
+        );
     });
 
     it("gives a step's outcome, and says off in words for a step that is off", () => {
@@ -49,7 +49,10 @@ describe("the Filters words", () => {
             historyNotice("visibility.step-off", "weight is at least 4", true),
             'Undid turning off "weight is at least 4".',
         );
-        assert.equal(historyNotice("visibility.step-add", "weight is at least 4", false), 'Redid adding "weight is at least 4".');
+        assert.equal(
+            historyNotice("visibility.step-add", "weight is at least 4", false),
+            'Redid adding "weight is at least 4".',
+        );
         assert.isNull(historyNotice("visibility.filter", "x", true));
     });
 });

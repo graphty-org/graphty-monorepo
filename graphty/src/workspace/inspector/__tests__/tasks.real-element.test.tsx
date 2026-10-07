@@ -101,7 +101,7 @@ async function pick(session: GraphSession, id: string): Promise<void> {
 const rowButtons = (section: HTMLElement): HTMLElement[] =>
     within(section)
         .getAllByRole("button")
-        .filter((button) => !button.hasAttribute("aria-expanded"));
+        .filter((button) => !button.hasAttribute("aria-expanded") && button.textContent !== "Filter to neighbors");
 
 /**
  * The inspector region.
@@ -217,8 +217,13 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
             });
             await userEvent.keyboard("{Enter}");
-            await inspector().findByRole("region", { name: "n0's 3 connections" });
-            await userEvent.tab();
+            const again = await inspector().findByRole("region", { name: "n0's 3 connections" });
+            // Tab goes past the header (Hops, then Filter to neighbors) to the first name.
+            const first = rowButtons(again)[0];
+            for (let tabs = 0; tabs < 6 && document.activeElement !== first; tabs++) {
+                await userEvent.tab();
+            }
+            assert.equal(document.activeElement, first);
             await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["n6"]);

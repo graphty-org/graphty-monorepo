@@ -272,7 +272,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
     );
 
     it(
-        "switches to 2D with 5, and opens a node's neighborhood from its Degree row, then grows it",
+        "switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it",
         async () => {
             const session = await openKarate();
 
@@ -298,18 +298,40 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
 
-            // Grow by one hop, from the neighborhood's "...", walks one step further and keeps
-            // the neighborhood open.
-            await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: /Grow by one hop/ }));
+            // Hops 2 in the list's header reselects two hops out and relists; the list, the
+            // selection and the status line agree on the count.
+            const hops = await screen.findByRole("radiogroup", { name: "Hops" });
+            await userEvent.click(within(hops).getByRole("radio", { name: "2" }));
             await waitFor(() => {
                 assert.isAbove(session.selection.nodes.length, neighborhood);
                 assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
-            // The list follows the grown selection instead of still naming the first hop's
-            // connections.
             const grown = session.selection.nodes.length - 1;
-            await screen.findByRole("region", { name: `${String(grown)} nodes within 2 hops of ${String(node)}` });
+            const words = `${String(grown)} nodes within 2 hops of ${String(node)}`;
+            await screen.findByRole("region", { name: words });
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    words,
+                );
+            });
+            // Karate is undirected, so there is no way to choose to follow.
+            assert.isNull(screen.queryByRole("radiogroup", { name: "Follow" }));
+            // The neighborhood has one home: no Grow by one hop in its "...".
+            await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
+            await screen.findByRole("menuitem", { name: /Frame selection/ });
+            assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
+            await userEvent.keyboard("{Escape}");
+
+            // Filter to neighbors adds one step keeping the same two hops.
+            await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
+            await waitFor(() => {
+                assert.deepEqual(
+                    session.visibility.steps.map((step) => step.rule),
+                    [{ kind: "neighborhood", seeds: [node], depth: 2 }],
+                );
+                assert.equal(session.visibility.summary.visibleNodes, grown + 1);
+            });
         },
         TIMEOUT_MS,
     );

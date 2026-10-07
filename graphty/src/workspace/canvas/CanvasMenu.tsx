@@ -8,7 +8,7 @@ import { Sections } from "../frame/menus";
 import { useSessionVersion } from "../inspector/hooks";
 import { resolveInspected } from "../inspector/inspected";
 import { MENUS } from "../inspector/kindMenus";
-import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace } from "../state/WorkspaceContext";
 
 /** What a press on empty canvas offers. */
 const EMPTY_CANVAS = ["view.fit", "view.frame-selection", "selection.clear"] as const;
@@ -27,7 +27,6 @@ const KEYBOARD_ECHO_MS = 500;
  */
 export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>): React.JSX.Element {
     const { session, element } = useWorkspace();
-    const inspected = useWorkspaceState((state) => state.inspected);
     // The menu's rows read the selection, which the press changes after the menu opens.
     useSessionVersion(session);
     // The node the menu opened over, or null for empty canvas.
@@ -49,11 +48,8 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
         ids = MENUS[edges.includes(overEdge) ? resolveInspected(null, { nodes, edges }).kind : "edge"] ?? EMPTY_CANVAS;
     } else if (overNode !== null && session !== null) {
         const { nodes, edges } = session.selection;
-        // A neighborhood is the one row kind a node's menu keeps: Grow by one hop acts on it.
         // Until the press's own selection lands, the menu is that one node's.
-        const kind = nodes.includes(overNode)
-            ? resolveInspected(inspected?.kind === "neighborhood" ? inspected : null, { nodes, edges }).kind
-            : "node";
+        const kind = nodes.includes(overNode) ? resolveInspected(null, { nodes, edges }).kind : "node";
         ids = MENUS[kind] ?? EMPTY_CANVAS;
     }
 

@@ -24,7 +24,7 @@ import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { NEW, openStepEditor, stepWords, writeSteps } from "./filterSteps";
+import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import { applyName, chipWords, ENDS_LINE, outcomeWords, statusWords } from "./filterWords";
 
 /**
@@ -291,19 +291,6 @@ function ruleOf(
 }
 
 /**
- * A new step id, unique among the steps.
- * @param steps - the steps.
- * @returns the id.
- */
-function newId(steps: readonly FilterStep[]): string {
-    let n = steps.length + 1;
-    while (steps.some((s) => s.id === `step-${String(n)}`)) {
-        n += 1;
-    }
-    return `step-${String(n)}`;
-}
-
-/**
  * The step editor, drawn in the inspector: Keep, then the attribute, the comparison and the
  * value. Committing adds the step, on, or saves the edited one.
  * @param props - Component props
@@ -466,7 +453,7 @@ export function FilterChip(): React.JSX.Element | null {
         if (session === null) {
             return undefined;
         }
-        let {steps} = session.visibility;
+        let { steps } = session.visibility;
         return session.on("visibility:changed", () => {
             const now = session.visibility.steps;
             if (now !== steps) {

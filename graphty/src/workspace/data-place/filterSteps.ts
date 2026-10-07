@@ -47,6 +47,19 @@ export function openStepEditor(store: WorkspaceStore, id: string): void {
 }
 
 /**
+ * A new step id, unique among the steps.
+ * @param steps - the steps.
+ * @returns the id.
+ */
+export function newId(steps: readonly FilterStep[]): string {
+    let n = steps.length + 1;
+    while (steps.some((s) => s.id === `step-${String(n)}`)) {
+        n += 1;
+    }
+    return `step-${String(n)}`;
+}
+
+/**
  * Replaces the steps: one undoable step of the element's. A refusal is one notice.
  * @param session - the element's session.
  * @param store - the chrome store.

@@ -31,12 +31,21 @@ describe("what the inspector shows", () => {
             kind: "neighborhood",
             node: 7,
             hops: 1,
+            direction: "all",
         });
         // Grown by a hop, the row carries how far out it reaches.
         assert.deepEqual(resolveInspected({ kind: "neighborhood", id: neighborhoodKey(7, 2) }, selection), {
             kind: "neighborhood",
             node: 7,
             hops: 2,
+            direction: "all",
+        });
+        // Following edges one way, the row carries the direction too.
+        assert.deepEqual(resolveInspected({ kind: "neighborhood", id: neighborhoodKey(7, 1, "out") }, selection), {
+            kind: "neighborhood",
+            node: 7,
+            hops: 1,
+            direction: "out",
         });
         assert.deepEqual(resolveInspected({ kind: "attribute", id: "data.age" }, selection), {
             kind: "attribute",
@@ -55,6 +64,7 @@ describe("what the inspector shows", () => {
             kind: "neighborhood",
             node: "1",
             hops: 1,
+            direction: "all",
         });
     });
 

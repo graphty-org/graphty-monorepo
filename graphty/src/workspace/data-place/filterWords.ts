@@ -42,10 +42,13 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
             return `${names.attribute(rule.attribute)} is ${rule.values.join(" or ")}`;
         case "member":
             return rule.of === "largest-component" ? "in the largest component" : "in a set";
-        case "neighborhood":
-            return rule.seeds.length === 1
-                ? `neighbors of ${names.node(rule.seeds[0])}`
-                : `neighbors of ${String(rule.seeds.length)} nodes`;
+        case "neighborhood": {
+            const of =
+                rule.seeds.length === 1
+                    ? `neighbors of ${names.node(rule.seeds[0])}`
+                    : `neighbors of ${String(rule.seeds.length)} nodes`;
+            return rule.depth > 1 ? `${of} within ${String(rule.depth)} hops` : of;
+        }
         default:
             return "a rule";
     }

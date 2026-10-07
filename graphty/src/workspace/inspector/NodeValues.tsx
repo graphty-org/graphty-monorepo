@@ -1,11 +1,25 @@
-import { ControlSection, DataRow, DataRowHeader, PANEL_GRID, UiGlyph } from "@graphty/compact-mantine";
-import type { GraphSession, NodeId, SelectionAttributeStatistics } from "@graphty/graphty-element/session";
-import { Button, Text } from "@mantine/core";
+import {
+    ControlSection,
+    DataRow,
+    DataRowHeader,
+    PANEL_GRID,
+    SegmentedControl,
+    UiGlyph,
+} from "@graphty/compact-mantine";
+import type {
+    GraphSession,
+    NodeId,
+    SelectionAttributeStatistics,
+    SelectionDirection,
+} from "@graphty/graphty-element/session";
+import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
+import { newId, writeSteps } from "../data-place/filterSteps";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
-import { groupKey, nodeKey } from "./inspected";
+import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
 import { count, formatNumber, groupName, valueText } from "./words";
 
@@ -167,31 +181,74 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     );
 }
 
+/** The Follow control's choices, shown only on a directed graph. */
+const FOLLOW: readonly { value: SelectionDirection; label: string }[] = [
+    { value: "out", label: "Out" },
+    { value: "in", label: "In" },
+    { value: "all", label: "All" },
+];
+
 /**
- * A node's neighbors (tier1-design.md task T12): "1's 17 connections", each by name with its
- * tie value, strongest first, read whole from graphty-element's `data.neighbors()`. Each name
- * selects that node; Esc returns to the node at the center.
+ * Selects a center's neighborhood, opens it in the inspector and puts its size on the status
+ * line once: "14 nodes within 2 hops of Ava".
+ * @param session - the element's session.
+ * @param store - the chrome store.
+ * @param center - the node at the center.
+ * @param hops - how many hops out.
+ * @param direction - which way edges are followed.
+ */
+async function showNeighborhood(
+    session: GraphSession,
+    store: WorkspaceStore,
+    center: NodeId,
+    hops: 1 | 2 | 3,
+    direction: SelectionDirection,
+): Promise<void> {
+    await session.selection.apply({ neighborsOf: [center], depth: hops, direction });
+    const around = session.selection.nodes.filter((node) => node !== center).length;
+    // The selection change closes the open row, so it is opened again on the new reach.
+    store.set({
+        inspected: { kind: "neighborhood", id: neighborhoodKey(center, hops, direction) },
+        announcement: `${count(around, "node")} within ${count(hops, "hop")} of ${String(center)}`,
+    });
+}
+
+/**
+ * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "1's 17
+ * connections", each by name with its tie value, strongest first, read whole from
+ * graphty-element's `data.neighbors()`. Each name selects that node; Esc returns to the node at
+ * the center.
  *
- * Grown past one hop, it lists the selected nodes other than the center instead: "17 nodes
- * within 2 hops of 1".
+ * Its header picks how far out (Hops 1 | 2 | 3) and, on a directed graph, which way edges are
+ * followed (Follow: Out | In | All); a change reselects and relists. Past one hop it lists the
+ * selected nodes other than the center: "17 nodes within 2 hops of 1". Filter to neighbors adds
+ * one filter step keeping the same neighborhood.
  *
  * The heading names the center by its id until graphty-element publishes a node's name (#895).
  * @param props - Component props
  * @param props.center - The node at the center
  * @param props.hops - How many hops out the neighborhood reaches
+ * @param props.direction - Which way edges are followed
  * @returns The list
  */
-export function NeighborList({ center, hops = 1 }: Readonly<{ center: NodeId; hops?: number }>): React.JSX.Element | null {
-    const { session } = useWorkspace();
+export function NeighborList({
+    center,
+    hops = 1,
+    direction = "all",
+}: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
+    const { session, store } = useWorkspace();
     const heading = useRef<HTMLElement>(null);
     // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
-    // shortcut on the region, so it is listened for on the region's own element.
+    // shortcut on the region, so it is listened for on the region's own element. A Hops or
+    // Follow change keeps focus on the control that made it.
     useEffect(() => {
         const region = heading.current;
         if (region === null || session === null) {
             return undefined;
         }
-        region.focus();
+        if (!region.contains(document.activeElement)) {
+            region.focus();
+        }
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
                 event.preventDefault();
@@ -203,55 +260,115 @@ export function NeighborList({ center, hops = 1 }: Readonly<{ center: NodeId; ho
         return () => {
             region.removeEventListener("keydown", onKeyDown);
         };
-    }, [center, hops, session]);
+    }, [center, session]);
     if (session === null) {
         return null;
     }
-    if (hops > 1) {
+    const reach = hops === 2 || hops === 3 ? hops : 1;
+    const { directed } = session.status;
+    const follow = directed ? direction : "all";
+
+    let words: string;
+    let rows: React.JSX.Element[];
+    let tie: string | undefined;
+    if (reach > 1) {
         const around = session.selection.nodes.filter((node) => node !== center);
-        const words = `${count(around.length, "node")} within ${String(hops)} hops of ${String(center)}`;
-        return (
-            <section ref={heading} tabIndex={-1} aria-label={words}>
-                <Text size="xs" fw={600} px="md" py={6}>
-                    {words}
-                </Text>
-                {around.map((node) => (
-                    <DataRow
-                        key={nodeKey(node)}
-                        name={String(node)}
-                        onClick={() => {
-                            selectNode(session, node);
-                        }}
-                    />
-                ))}
-            </section>
-        );
+        words = `${count(around.length, "node")} within ${String(reach)} hops of ${String(center)}`;
+        rows = around.map((node) => (
+            <DataRow
+                key={nodeKey(node)}
+                name={String(node)}
+                onClick={() => {
+                    selectNode(session, node);
+                }}
+            />
+        ));
+    } else {
+        let page;
+        try {
+            page = session.data.neighbors(center, { limit: Infinity, direction: follow });
+        } catch {
+            // E_UNKNOWN_ELEMENT: the node left the graph.
+            return null;
+        }
+        tie = page.measuredBy?.attribute;
+        words = `${String(center)}'s ${count(page.total, "connection")}`;
+        rows = page.records.map((neighbor) => (
+            <DataRow
+                key={nodeKey(neighbor.node.id)}
+                name={neighbor.name}
+                value={tie === undefined ? undefined : neighbor.weight}
+                onClick={() => {
+                    selectNode(session, neighbor.node.id);
+                }}
+            />
+        ));
     }
-    let page;
-    try {
-        page = session.data.neighbors(center, { limit: Infinity });
-    } catch {
-        // E_UNKNOWN_ELEMENT: the node left the graph.
-        return null;
-    }
-    const tie = page.measuredBy?.attribute;
+    const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
+    const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
     return (
-        <section ref={heading} tabIndex={-1} aria-label={`${String(center)}'s ${count(page.total, "connection")}`}>
+        <section ref={heading} tabIndex={-1} aria-label={words}>
+            <Stack gap={4} px="md" py={6}>
+                <Group gap={8} wrap="nowrap">
+                    <Text size="xs" id={hopsLabel} w={44}>
+                        Hops
+                    </Text>
+                    <SegmentedControl
+                        aria-labelledby={hopsLabel}
+                        fullWidth
+                        style={{ flex: 1 }}
+                        value={String(reach)}
+                        data={["1", "2", "3"]}
+                        onChange={(picked) => {
+                            void showNeighborhood(session, store, center, Number(picked) as 1 | 2 | 3, follow);
+                        }}
+                    />
+                </Group>
+                {directed && (
+                    <Group gap={8} wrap="nowrap">
+                        <Text size="xs" id={followLabel} w={44}>
+                            Follow
+                        </Text>
+                        <SegmentedControl
+                            aria-labelledby={followLabel}
+                            fullWidth
+                            style={{ flex: 1 }}
+                            value={follow}
+                            data={[...FOLLOW]}
+                            onChange={(picked) => {
+                                const next = FOLLOW.find((choice) => choice.value === picked)?.value ?? "all";
+                                void showNeighborhood(session, store, center, reach, next);
+                            }}
+                        />
+                    </Group>
+                )}
+                {follow === "all" && (
+                    <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        style={{ alignSelf: "flex-start" }}
+                        onClick={() => {
+                            const { steps } = session.visibility;
+                            void writeSteps(session, store, [
+                                ...steps,
+                                {
+                                    id: newId(steps),
+                                    on: true,
+                                    rule: { kind: "neighborhood", seeds: [center], depth: reach },
+                                },
+                            ]);
+                        }}
+                    >
+                        Filter to neighbors
+                    </Button>
+                )}
+            </Stack>
             <Text size="xs" fw={600} px="md" py={6}>
-                {`${String(center)}'s ${count(page.total, "connection")}`}
+                {words}
             </Text>
             {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}
-            {page.records.map((neighbor) => (
-                <DataRow
-                    key={nodeKey(neighbor.node.id)}
-                    name={neighbor.name}
-                    value={tie === undefined ? undefined : neighbor.weight}
-                    onClick={() => {
-                        selectNode(session, neighbor.node.id);
-                    }}
-                />
-            ))}
+            {rows}
         </section>
     );
 }

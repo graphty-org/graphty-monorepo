@@ -7,7 +7,7 @@
  * selection, and a selection change closes any open row (the inspector shows the selected thing).
  */
 
-import type { NodeId, RunId } from "@graphty/graphty-element/session";
+import type { NodeId, RunId, SelectionDirection } from "@graphty/graphty-element/session";
 
 import type { WorkspaceState } from "../state/store";
 
@@ -18,8 +18,8 @@ import type { WorkspaceState } from "../state/store";
  * - `node`: one node selected; no id (read from the selection).
  * - `edge`: one edge selected; no id.
  * - `several`: more than one element selected; no id.
- * - `neighborhood`: the nodes within some hops of a center node; the id is
- *   `neighborhoodKey(center, hops)`.
+ * - `neighborhood`: the nodes within some hops of a center node, following edges one way or
+ *   both; the id is `neighborhoodKey(center, hops, direction)`.
  * - `measure-row` and `run-row`: a run's row; the id is the run id. Either kind opens either
  *   view: the run's result shape decides between the measure and the groups.
  * - `group-row`: one group of a grouping run; the id is `groupKey(runId, group)`.
@@ -54,7 +54,12 @@ export type Resolved =
     | { readonly kind: "node"; readonly node: NodeId }
     | { readonly kind: "edge"; readonly edge: string }
     | { readonly kind: "several" }
-    | { readonly kind: "neighborhood"; readonly node: NodeId; readonly hops: number }
+    | {
+          readonly kind: "neighborhood";
+          readonly node: NodeId;
+          readonly hops: number;
+          readonly direction: SelectionDirection;
+      }
     | { readonly kind: "measure-row" | "run-row"; readonly run: RunId }
     | { readonly kind: "group-row"; readonly run: RunId; readonly group: string | number }
     | { readonly kind: "everything-row" | "selection-row" }
@@ -74,13 +79,14 @@ export function nodeKey(id: NodeId): string {
 
 /**
  * The id a neighborhood carries in `inspected.id`: the center's `nodeKey` for its one-hop
- * neighbors, else the center and the hop count.
+ * neighbors both ways, else the center, the hop count and the direction followed.
  * @param center - the node at the center.
  * @param hops - how many hops out the neighborhood reaches.
+ * @param direction - which way edges are followed.
  * @returns the key.
  */
-export function neighborhoodKey(center: NodeId, hops = 1): string {
-    return hops === 1 ? nodeKey(center) : JSON.stringify([center, hops]);
+export function neighborhoodKey(center: NodeId, hops = 1, direction: SelectionDirection = "all"): string {
+    return hops === 1 && direction === "all" ? nodeKey(center) : JSON.stringify([center, hops, direction]);
 }
 
 /**
@@ -135,8 +141,15 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
             const parsed = parse(inspected.id);
             const node = idOf(Array.isArray(parsed) ? parsed[0] : parsed);
             const hops: unknown = Array.isArray(parsed) ? parsed[1] : 1;
-            if (node !== undefined && typeof hops === "number" && Number.isInteger(hops) && hops >= 1) {
-                return { kind: "neighborhood", node, hops };
+            const direction: unknown = Array.isArray(parsed) ? (parsed[2] ?? "all") : "all";
+            if (
+                node !== undefined &&
+                typeof hops === "number" &&
+                Number.isInteger(hops) &&
+                hops >= 1 &&
+                (direction === "all" || direction === "in" || direction === "out")
+            ) {
+                return { kind: "neighborhood", node, hops, direction };
             }
             break;
         }

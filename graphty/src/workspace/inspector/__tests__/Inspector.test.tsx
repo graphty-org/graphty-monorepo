@@ -125,7 +125,8 @@ describe("the inspector", () => {
         const list = await screen.findByRole("region", { name: "n0's 3 connections" });
         const names = within(list)
             .getAllByRole("button")
-            .map((row) => row.textContent);
+            .map((row) => row.textContent)
+            .filter((name) => name !== "Filter to neighbors");
         // A session with no view holds no records, so no labels and no edge weights: each
         // neighbor is named by its id, in name order, with no tie value.
         assert.deepEqual(names, ["n1", "n5", "n6"]);

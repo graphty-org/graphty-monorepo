@@ -149,7 +149,6 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
         "view.toggle-dimension",
         "quick-actions.open",
         "selection.neighborhood",
-        "selection.grow-neighborhood",
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],

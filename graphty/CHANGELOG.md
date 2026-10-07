@@ -1,3 +1,31 @@
+## 0.8.56 (2026-10-07)
+
+### 🚀 Features
+
+- **graphty:** word history steps from their codes ([#869](https://github.com/graphty-org/graphty-monorepo/issues/869))
+- **graphty-element:** name a legend field's run result by catalog ids ([90d90bb46](https://github.com/graphty-org/graphty-monorepo/commit/90d90bb46))
+- **graphty-element:** neutral legend facts and per-layer style counts ([#867](https://github.com/graphty-org/graphty-monorepo/issues/867), [#790](https://github.com/graphty-org/graphty-monorepo/issues/790))
+
+### 🩹 Fixes
+
+- **graphty:** keep the legend's private helpers unexported ([3675c087b](https://github.com/graphty-org/graphty-monorepo/commit/3675c087b))
+- **graphty:** word the legend from neutral facts ([2b6592403](https://github.com/graphty-org/graphty-monorepo/commit/2b6592403))
+- **graphty:** mark the file summary row's props read-only ([fcbee650d](https://github.com/graphty-org/graphty-monorepo/commit/fcbee650d))
+- **graphty:** draw a one-value file summary as a field, not a compound ([#202](https://github.com/graphty-org/graphty-monorepo/issues/202))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.37
+- Updated compact-mantine to 0.9.9
+- Updated graphty-element to 3.17.0
+- Updated graph-samples to 0.1.23
+- Updated graph-format to 1.3.8
+- Updated graph-io to 0.3.28
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.55 (2026-10-07)
 
 ### 🚀 Features

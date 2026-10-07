@@ -3435,6 +3435,7 @@ export interface StylesApi {
     get(id: LayerId): Layer | undefined;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     legend(): readonly LegendBlock[];
+    legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;

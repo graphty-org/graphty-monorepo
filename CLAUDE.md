@@ -943,6 +943,10 @@ the queue never asks for a new approval. Nobody turns on auto-merge by hand.
   release train and red-master fixes, and never interrupts a batch already being checked.
 - Never turn on GitHub's own auto-merge (`gh pr merge --auto`): it ignores labels, so a held pull
   request with it on would merge anyway.
+- Never push to a pull request while it carries the `queued` label: a push dequeues it and throws
+  away its batch run, and merging master in is never needed there (the queue tests it on top of
+  master). The pre-push gate refuses such a push (`tools/queued-push-guard.mjs`); dequeue it first
+  with an `@mergifyio dequeue` comment, or push deliberately with `ALLOW_PUSH_WHILE_QUEUED=1`.
 
 ### Breaking changes and major releases
 

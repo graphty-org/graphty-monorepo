@@ -53,6 +53,7 @@ const spiralLayoutOptionsSchema = defineOptions({
 
 const SpiralLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(80),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     dim: z.number().default(2),
@@ -69,8 +70,6 @@ export class SpiralLayout extends SnapshotLayoutEngine {
     static type = "spiral";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = spiralLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 80;
     protected readonly dimensions: 2 | 3;
     config: SpiralLayoutConfigType;
 
@@ -120,7 +119,7 @@ export class SpiralLayout extends SnapshotLayoutEngine {
                 resolution: this.config.resolution,
                 equidistant: this.config.equidistant,
             }),
-            SpiralLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

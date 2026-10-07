@@ -2051,7 +2051,7 @@ export class Dispatcher {
     private checkStrict(): void {
         if (this.strict) {
             this.graph.checkStore();
-            verifyRetainedArrays([this.arrangement]);
+            verifyRetainedArrays([], [this.state.arrangement?.coords, ...this.history.arrangementArrays()]);
         }
     }
 

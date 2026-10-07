@@ -21,6 +21,7 @@ import {
     readMalformedBytes,
 } from "../../helpers/corpus.js";
 import { expectSameSnapshot } from "../../helpers/roundtrip.js";
+import { cpuMilliseconds } from "../../helpers/work-meter.js";
 
 type Options = Parameters<typeof dotImporter.import>[2];
 
@@ -552,10 +553,12 @@ describe("dot importer: the grammar", () => {
         // A run of digits, and a run of spaces before a bad character, each took quadratic time
         // (about 10 s apiece at this length) when the point pattern could split a run two ways.
         const n = 200_000;
-        const started = performance.now();
-        const { report } = await load(`digraph { a [pos="${"1".repeat(n)}x"]; b [pos="1,1${" ".repeat(n)}x"] }`);
-        expect(performance.now() - started).toBeLessThan(2000);
-        expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS, DOT_ISSUE.BAD_POS]);
+        const text = `digraph { a [pos="${"1".repeat(n)}x"]; b [pos="1,1${" ".repeat(n)}x"] }`;
+        const cpu = await cpuMilliseconds(async () => {
+            const { report } = await load(text);
+            expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS, DOT_ISSUE.BAD_POS]);
+        });
+        expect(cpu).toBeLessThan(2000);
     });
 
     it("keeps a node pos as written text with positions false", async () => {

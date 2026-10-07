@@ -11,9 +11,8 @@ import { START_SAMPLES } from "../../data/sampleManifest";
 import { FILE_LIST } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
-import { unlessUnsaved } from "../project/actions";
 import { RecentMenu } from "../project/RecentMenu";
-import { openSample } from "../start/open";
+import { sampleCommandId } from "../start/commands";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 
 /**
@@ -99,31 +98,41 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
 }
 
 /**
- * The main menu's "Open sample" submenu: one row per start-screen sample, opened as a new
- * project (asking first over unsaved changes).
+ * One row per start-screen sample, each running its "Open sample: <name>" command (a new project,
+ * asking first over unsaved changes). Inside a menu titled for samples, so a row shows the name.
+ * @returns The rows
+ */
+export function SampleItems(): React.JSX.Element {
+    const workspace = useWorkspace();
+    return (
+        <>
+            {START_SAMPLES.map((sample) => (
+                <Menu.Item
+                    key={sample.id}
+                    rightSection={sample.size}
+                    onClick={() => {
+                        workspace.run(sampleCommandId(sample));
+                    }}
+                >
+                    {sample.name}
+                </Menu.Item>
+            ))}
+        </>
+    );
+}
+
+/**
+ * The main menu's "Open sample" submenu.
  * @returns The submenu
  */
 function SampleMenu(): React.JSX.Element {
-    const workspace = useWorkspace();
     return (
         <Menu.Sub>
             <Menu.Sub.Target>
                 <Menu.Sub.Item>Open sample</Menu.Sub.Item>
             </Menu.Sub.Target>
             <Menu.Sub.Dropdown>
-                {START_SAMPLES.map((sample) => (
-                    <Menu.Item
-                        key={sample.id}
-                        rightSection={sample.size}
-                        onClick={() => {
-                            unlessUnsaved(workspace, () => {
-                                openSample(workspace.store, sample);
-                            });
-                        }}
-                    >
-                        {sample.name}
-                    </Menu.Item>
-                ))}
+                <SampleItems />
             </Menu.Sub.Dropdown>
         </Menu.Sub>
     );

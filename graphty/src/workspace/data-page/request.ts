@@ -5,7 +5,7 @@
  * reads it once when it opens.
  */
 
-import type { WorkspaceStore } from "../state/store";
+import { newProjectId, type WorkspaceStore } from "../state/store";
 
 /** What a door hands the Data page. */
 export interface DataPageRequest {
@@ -33,7 +33,7 @@ const requests = new WeakMap<WorkspaceStore, DataPageRequest>();
 export function openDataPage(store: WorkspaceStore, request: DataPageRequest): void {
     requests.set(store, store.get().project === null ? request : { ...request, intent: "add" });
     store.set((state) => ({
-        project: state.project ?? { name: "Untitled", id: 1 },
+        project: state.project ?? { name: "Untitled", id: newProjectId(state) },
         page: "data-page",
         dialog: null,
     }));

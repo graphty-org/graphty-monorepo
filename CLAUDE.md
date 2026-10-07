@@ -111,6 +111,12 @@ parameters -- and never:
 A fact about the data (what a column measures, what an algorithm returns) is graphty-element's. How
 a reader sees it is the application's.
 
+A catalog `plainName` is catalog data, not presentation: it is the default name of a thing
+graphty-element ships (an algorithm, an option, a format, an attribute), supplied by whoever
+registers it, so an extension supplies its own. An application may show it or replace it by id.
+This does not extend to sentences, which stay `{ code, params }`, and grouping, ordering and
+translation stay the application's.
+
 ### graphty-element offers choices; consumers make them
 
 **graphty-element exposes an option for every behavior a consumer might reasonably want either

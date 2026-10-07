@@ -1,5 +1,4 @@
-import { ControlSection, DataRow, DataRowHeader, HistogramRow, StyleNumberInput } from "@graphty/compact-mantine";
-import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
+import { ControlSection, DataRow, DataRowHeader, HistogramRow } from "@graphty/compact-mantine";
 import {
     type GraphSession,
     RESULT_SHAPE_CONTRACTS,
@@ -7,9 +6,11 @@ import {
     type RunId,
     type ScopeInput,
 } from "@graphty/graphty-element/session";
-import { Button, Checkbox, Group, Select, Text } from "@mantine/core";
+import { Button, Group, Stack, Text } from "@mantine/core";
 import type React from "react";
 
+import { optionWords, wordsFor } from "../analyze/words";
+import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
@@ -100,65 +101,6 @@ export function RunStateBar({
 }
 
 /**
- * One setting of the run, drawn from graphty-element's option descriptor.
- * @param props - Component props
- * @param props.option - The descriptor
- * @param props.value - The value now
- * @param props.onChange - Called with a new value
- * @returns The control, or nothing for a kind of option the Values tab does not edit
- */
-function SettingField({
-    option,
-    value,
-    onChange,
-}: Readonly<{
-    option: OptionDescriptor;
-    value: unknown;
-    onChange: (value: unknown) => void;
-}>): React.JSX.Element | null {
-    switch (option.type) {
-        case "number":
-        case "integer":
-            return (
-                <StyleNumberInput
-                    label={option.plainName}
-                    value={typeof value === "number" ? value : undefined}
-                    defaultValue={typeof option.default === "number" ? option.default : 0}
-                    min={typeof option.min === "number" ? option.min : undefined}
-                    max={typeof option.max === "number" ? option.max : undefined}
-                    step={option.step ?? (option.type === "integer" ? 1 : undefined)}
-                    decimalScale={option.type === "integer" ? 0 : undefined}
-                    onChange={onChange}
-                />
-            );
-        case "enum":
-            return (
-                <Select
-                    size="xs"
-                    label={option.plainName}
-                    value={typeof value === "string" ? value : null}
-                    data={(option.values ?? []).map(({ value: v, label }) => ({ value: v, label: label ?? v }))}
-                    allowDeselect={false}
-                    onChange={onChange}
-                />
-            );
-        case "boolean":
-            return (
-                <Checkbox
-                    size="xs"
-                    label={option.plainName}
-                    checked={value === true}
-                    onChange={(event) => {
-                        onChange(event.currentTarget.checked);
-                    }}
-                />
-            );
-        default:
-            return null;
-    }
-}
-
-/**
  * Made with (tier1-design.md section 2.7, runs only): the algorithm and its settings, editable;
  * a change raises the state bar's Rerun and Revert.
  * @param props - Component props
@@ -179,26 +121,26 @@ function MadeWith({
     const { session } = useWorkspace();
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
-    const options = (descriptor?.options ?? []).filter(
-        (option) => option.internal !== true && option.advanced !== true,
-    );
     const date = runDate(run.startedAt);
 
     return (
         <ControlSection label="Made with" defaultOpened>
-            <DataRow stat name="Analysis" value={descriptor?.plainName ?? run.algorithm} />
+            <DataRow stat name="Analysis" value={descriptor === undefined ? run.algorithm : wordsFor(descriptor).name} />
             {date !== null && <DataRow stat name="Ran" value={date} />}
-            {options.map((option) => (
-                <div key={option.name} style={{ padding: "0 16px" }}>
-                    <SettingField
-                        option={option}
-                        value={settings[option.name] ?? option.default}
-                        onChange={(value) => {
-                            onDraft({ ...draft, [option.name]: value });
+            {session !== null && descriptor !== undefined && (
+                <Stack gap={8} px="md">
+                    <OptionsForm
+                        session={session}
+                        options={descriptor.options}
+                        values={settings}
+                        words={(option) => optionWords(run.algorithm, option)}
+                        canUseSelectedNode
+                        onChange={(name, value) => {
+                            onDraft({ ...draft, [name]: value });
                         }}
                     />
-                </div>
-            ))}
+                </Stack>
+            )}
         </ControlSection>
     );
 }

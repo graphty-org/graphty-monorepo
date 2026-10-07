@@ -5,8 +5,8 @@ import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { OptionField } from "./OptionField";
-import { costLine, groupAlgorithms, type Heading, HEADINGS, isEssential, wordsFor } from "./words";
+import { OptionsForm } from "../options/OptionsForm";
+import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, wordsFor } from "./words";
 
 /** The type icon of the row a run adds, by heading. */
 const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
@@ -93,8 +93,8 @@ interface AnalyzePopoverProps {
 
 /**
  * The Analyze popover (tier1-design.md 5.T7): a Filter analyses box, Recent, then the element's
- * algorithm catalog under the app's headings; picking one shows its short form (the options the
- * element does not mark advanced), the cost line and Run. The filter box is a combobox over the
+ * algorithm catalog under the app's headings; picking one shows its short form (its key options,
+ * the advanced ones behind a closed fold), the cost line and Run. The filter box is a combobox over the
  * list: ArrowDown and ArrowUp move the active entry, Enter opens it, and while there is filter
  * text the first match is active, so Enter on a single match opens it. Esc steps back one level,
  * and a second Esc closes. Running closes the popover; the new row in the tree is the feedback.
@@ -310,7 +310,7 @@ interface EssentialsProps {
 }
 
 /**
- * One algorithm's short form: its options the element does not mark advanced, the cost line and
+ * One algorithm's short form: its options (the advanced ones behind a fold), the cost line and
  * Run, which reads "Update <name> row" when the algorithm already has a row (the element runs it
  * again in place).
  * @param props - Component props
@@ -333,14 +333,10 @@ function Essentials({
     onKeyDown,
 }: Readonly<EssentialsProps>): React.JSX.Element {
     const words = wordsFor(descriptor);
-    const estimate = session.estimate({
-        op: "algo.run",
-        algorithm: descriptor.key,
-        params: paramsFor(session, descriptor, values),
-    });
+    const params = paramsFor(session, descriptor, values);
+    const estimate = session.estimate({ op: "algo.run", algorithm: descriptor.key, params });
     const hasRow = session.runs.list().some((run) => run.algorithm === descriptor.key && run.status !== "removed");
     const runLabel = hasRow ? `Update ${words.name} row` : "Run";
-    const options = descriptor.options.filter(isEssential);
 
     return (
         <form // NOSONAR(S6847): catches Esc bubbling from the form's own controls to step back
@@ -369,17 +365,15 @@ function Essentials({
                         {words.answers}
                     </Text>
                 )}
-                {options.map((option) => (
-                    <OptionField
-                        key={option.name}
-                        algorithm={descriptor.key}
-                        option={option}
-                        value={values[option.name]}
-                        onChange={(value) => {
-                            onValues({ ...values, [option.name]: value });
-                        }}
-                    />
-                ))}
+                <OptionsForm
+                    session={session}
+                    options={descriptor.options}
+                    values={params}
+                    words={(option) => optionWords(descriptor.key, option)}
+                    onChange={(name, value) => {
+                        onValues({ ...values, [name]: value });
+                    }}
+                />
                 <Group justify="space-between" wrap="nowrap">
                     <Text size="xs" c="dimmed">
                         {estimate.available ? costLine(estimate.seconds) : (estimate.reason ?? "")}

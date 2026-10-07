@@ -261,15 +261,28 @@ export function costLine(seconds: number): string {
     return `About ${String(Math.round(seconds / 3600))} hours`;
 }
 
-/** What the app calls one option of the short form, and each of its choices. */
+/** The estimate, in seconds, at or over which the app calls a method "slow". */
+const SLOW_SECONDS = 10;
+
+/**
+ * Whether the element's estimate is slow enough for the app to say so.
+ * @param seconds - the estimate; Infinity when it cannot be bounded.
+ * @returns true at or over SLOW_SECONDS, and when the time cannot be bounded.
+ */
+export function isSlow(seconds: number): boolean {
+    return seconds >= SLOW_SECONDS;
+}
+
+/** What the app calls one option, and each of its choices. */
 interface OptionWords {
     readonly label: string;
     readonly choices?: Readonly<Record<string, string>>;
 }
 
 /**
- * The words for the options the short form draws, by `<algorithm key>.<option name>` (a test
- * holds that every one the element ships has words here).
+ * The app's words for the key options (the ones drawn outside the Advanced fold), by
+ * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
+ * words here).
  */
 const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "pagerank.dampingFactor": { label: "Damping factor" },
@@ -295,8 +308,28 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
 };
 
 /**
- * The words for one option. An option the app has no words for (a third party's algorithm) reads
- * under its name and its choices under their values: the element's facts, not its words.
+ * The words for options that mean the same thing in every algorithm, by option name; an entry
+ * in OPTION_WORDS wins over these.
+ */
+const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
+    maxIterations: "Max iterations",
+    tolerance: "Tolerance",
+    k: "Sample size",
+    randomSeed: "Random seed",
+    seed: "Random seed",
+    weight: "Weight",
+    normalized: "Normalized",
+    source: "Source",
+    target: "Target",
+    targetNode: "Target",
+    sink: "Sink",
+    startNode: "Start",
+};
+
+/**
+ * The words for one option. An option the app has no words for (a third party's algorithm, an
+ * advanced option) reads under the element's plain name for it, and its choices under the
+ * element's labels: never the raw option key.
  * @param algorithm - the algorithm's key.
  * @param option - the element's option descriptor.
  * @returns the label, and the word for a choice by its value.
@@ -307,20 +340,8 @@ export function optionWords(
 ): { label: string; choice: (value: string) => string } {
     const words = OPTION_WORDS[`${algorithm}.${option.name}`];
     return {
-        label: words?.label ?? option.name,
-        choice: (value) => words?.choices?.[value] ?? value,
+        label: words?.label ?? SHARED_OPTION_WORDS[option.name] ?? option.plainName,
+        choice: (value) =>
+            words?.choices?.[value] ?? option.values?.find((choice) => choice.value === value)?.label ?? value,
     };
-}
-
-/** The option types the short form draws a control for; the rest keep their defaults. */
-const DRAWN = new Set<OptionDescriptor["type"]>(["number", "integer", "enum", "boolean"]);
-
-/**
- * Whether the short form draws a control for this option: a value the reader sets, not one
- * read from the selection (node ids) or one marked advanced or internal by the element.
- * @param option - the element's option descriptor.
- * @returns true when it gets a control.
- */
-export function isEssential(option: OptionDescriptor): boolean {
-    return option.advanced !== true && option.internal !== true && DRAWN.has(option.type);
 }

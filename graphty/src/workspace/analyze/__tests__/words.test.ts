@@ -1,7 +1,7 @@
 import { BUILT_IN_ALGORITHMS, RESULT_SHAPES } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
-import { costLine, groupAlgorithms, HEADINGS, isEssential, matches, optionWords, wordsFor } from "../words";
+import { costLine, groupAlgorithms, HEADINGS, isSlow, matches, optionWords, wordsFor } from "../words";
 
 describe("the Analyze popover's words", () => {
     it("puts every result shape the element declares under exactly one heading", () => {
@@ -50,24 +50,34 @@ describe("the Analyze popover's words", () => {
         );
     });
 
-    it("draws a control only for the options the element does not mark advanced or internal", () => {
-        const pagerank = BUILT_IN_ALGORITHMS.find((d) => d.key === "pagerank");
-        assert.deepEqual(
-            pagerank?.options.filter(isEssential).map((o) => o.name),
-            ["dampingFactor"],
-        );
-    });
-
-    it("has its own words for every option and choice the short form draws", () => {
+    it("never shows a raw option key or choice value as a label", () => {
         for (const descriptor of BUILT_IN_ALGORITHMS) {
-            for (const option of descriptor.options.filter(isEssential)) {
+            for (const option of descriptor.options.filter((o) => o.internal !== true)) {
                 const words = optionWords(descriptor.key, option);
-                assert.notEqual(words.label, option.name, `${descriptor.key}.${option.name}`);
+                const where = `${descriptor.key}.${option.name}`;
+                assert.notEqual(words.label, option.name, where);
                 for (const { value } of option.values ?? []) {
-                    assert.notEqual(words.choice(value), value, `${descriptor.key}.${option.name}=${value}`);
+                    assert.notEqual(words.choice(value), value, `${where}=${value}`);
                 }
             }
         }
+    });
+
+    it("reads an option it has no words for under the element's plain name and choice labels", () => {
+        const words = optionWords("plugin-x", {
+            name: "linkage",
+            plainName: "Linkage",
+            type: "enum",
+            values: [{ value: "avg", label: "Average" }],
+        });
+        assert.equal(words.label, "Linkage");
+        assert.equal(words.choice("avg"), "Average");
+    });
+
+    it("calls an estimate slow at ten seconds or more, or when it cannot be bounded", () => {
+        assert.isFalse(isSlow(9.9));
+        assert.isTrue(isSlow(10));
+        assert.isTrue(isSlow(Number.POSITIVE_INFINITY));
     });
 
     it("words the element's estimate as a cost line", () => {

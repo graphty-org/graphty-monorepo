@@ -5,6 +5,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import type React from "react";
 
+import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
@@ -74,7 +75,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 </aside>
                 <main className="ws-main" aria-label="Graph" hidden={!panels}>
                     <div className="ws-canvas">
-                        <ElementHost key={projectId} onReady={onElementReady} />
+                        <CanvasMenu>
+                            <ElementHost key={projectId} onReady={onElementReady} />
+                        </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock">

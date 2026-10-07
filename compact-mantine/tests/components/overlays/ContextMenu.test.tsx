@@ -87,6 +87,78 @@ describe("ContextMenu touch-and-hold", () => {
         expect(target.style.getPropertyValue("user-select")).toBe("");
     });
 
+    it("opens over a child that prevents the pointerdown's default for its own reasons", () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <ContextMenu
+                    target={
+                        <div data-testid="target">
+                            <canvas data-testid="canvas" />
+                        </div>
+                    }
+                >
+                    <Menu.Item>Fit</Menu.Item>
+                </ContextMenu>
+            </MantineProvider>,
+        );
+        const canvas = screen.getByTestId("canvas");
+        // A 3D engine prevents a pointerdown's default so a drag selects no page text.
+        canvas.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+        });
+        touchDown(canvas);
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+        expect(menus()).toHaveLength(1);
+    });
+
+    it("does not open when the target's own handler claims the press", () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <ContextMenu
+                    target={
+                        <div
+                            data-testid="target"
+                            onPointerDown={(event) => {
+                                event.preventDefault();
+                            }}
+                        />
+                    }
+                >
+                    <Menu.Item>Fit</Menu.Item>
+                </ContextMenu>
+            </MantineProvider>,
+        );
+        touchDown(screen.getByTestId("target"));
+        act(() => {
+            vi.advanceTimersByTime(600);
+        });
+        expect(menus()).toHaveLength(0);
+    });
+
+    it("opens on a right-click over a child that prevents the browser's own menu", () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <ContextMenu
+                    target={
+                        <div data-testid="target">
+                            <canvas data-testid="canvas" />
+                        </div>
+                    }
+                >
+                    <Menu.Item>Fit</Menu.Item>
+                </ContextMenu>
+            </MantineProvider>,
+        );
+        const canvas = screen.getByTestId("canvas");
+        canvas.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+        });
+        fireEvent.contextMenu(canvas, { clientX: 100, clientY: 100 });
+        expect(menus()).toHaveLength(1);
+    });
+
     it("does not open when the finger moves more than 8 px first", () => {
         const target = renderMenu();
         touchDown(target);

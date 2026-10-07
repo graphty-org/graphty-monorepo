@@ -148,11 +148,16 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
     useEffect(() => endPress, []);
 
     const handlePointerDown = (event: PointerEvent<HTMLElement>): void => {
+        // Only the target's own handler claims a press by preventing its default. Something
+        // inside the target that prevents it for its own reasons (a 3D canvas stopping text
+        // selection while it drags) has not claimed the hold.
+        const preventedInside = event.defaultPrevented;
         target.props.onPointerDown?.(event);
         endPress();
         swallowClick.current = false;
         swallowContextMenu.current = false;
-        if (event.defaultPrevented || event.pointerType === "mouse" || !event.isPrimary) {
+        const claimed = event.defaultPrevented && !preventedInside;
+        if (claimed || event.pointerType === "mouse" || !event.isPrimary) {
             return;
         }
         const element = event.currentTarget;
@@ -243,8 +248,11 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
             swallowClick.current = true;
             liftPending.current = true;
         }
+        // As with a press, only the target's own handler claims the event: a canvas inside it
+        // that prevents the browser's menu has not.
+        const preventedInside = event.defaultPrevented;
         target.props.onContextMenu?.(event);
-        if (event.defaultPrevented) {
+        if (event.defaultPrevented && !preventedInside) {
             return;
         }
         event.preventDefault();

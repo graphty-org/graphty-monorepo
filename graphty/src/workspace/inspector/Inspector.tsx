@@ -12,27 +12,12 @@ import { StyleTab } from "../style/StyleTab";
 import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
+import { MENUS } from "./kindMenus";
 import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
 import { groupName, KIND_WORDS, runDate } from "./words";
-
-/**
- * The commands each kind's "..." holds (tier1-design.md section 2.7), the same list as its
- * context menu. A command another package has not built is left out, and a kind with none draws
- * no "..." (Selection, Everything, a group row).
- */
-const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
-    graph: ["layout.rerun", "layout.reshuffle"],
-    node: ["selection.neighborhood", "view.frame-selection"],
-    edge: ["view.frame-selection"],
-    several: ["selection.neighborhood", "view.frame-selection"],
-    neighborhood: ["selection.grow-neighborhood", "view.frame-selection"],
-    "measure-row": ["row.move-up", "row.move-down", "row.delete"],
-    "run-row": ["row.move-up", "row.move-down", "row.delete"],
-    "layer-row": ["row.rename", "row.move-up", "row.move-down", "row.delete"],
-};
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };

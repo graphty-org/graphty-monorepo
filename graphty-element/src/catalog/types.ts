@@ -894,8 +894,7 @@ export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "
  * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
  */
 export type AttributeUse =
-    | { readonly kind: "layer"; readonly id: LayerId }
-    | { readonly kind: "run"; readonly id: RunId };
+    { readonly kind: "layer"; readonly id: LayerId } | { readonly kind: "run"; readonly id: RunId };
 
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {

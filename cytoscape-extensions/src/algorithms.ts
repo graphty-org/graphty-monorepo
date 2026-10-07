@@ -527,7 +527,7 @@ function nodesAt(c: Ctx, idx: ArrayLike<number>): NodeCollection {
     return collect(
         c,
         Array.from(idx, (i) => c.cs.nodes[i]),
-    ) as unknown as NodeCollection;
+    );
 }
 
 /**
@@ -540,7 +540,7 @@ function edgesAt(c: Ctx, idx: ArrayLike<number>): EdgeCollection {
     return collect(
         c,
         Array.from(idx, (i) => c.cs.edges[i]),
-    ) as unknown as EdgeCollection;
+    );
 }
 
 /**
@@ -826,7 +826,7 @@ function otherOf(c: Ctx, o: IsomorphismOptions): CytoscapeSnapshot {
         eles = c.cy.$(other);
     } else if (Array.isArray(other)) {
         // Cytoscape takes an array of elements here; its typings list only definitions
-        eles = c.cy.collection(other as unknown as CollectionArgument);
+        eles = c.cy.collection(other);
     }
     if (typeof (eles as Partial<Collection> | null)?.nodes !== "function") {
         throw new TypeError(
@@ -1845,7 +1845,7 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
                 : `${name}: has no GPU implementation and runs only on the CPU; leave out gpu: "require"`,
         );
     }
-    return run(eles, key, options, CPU as unknown as Algos).result;
+    return run(eles, key, options, CPU).result;
 }
 
 /**
@@ -1861,7 +1861,7 @@ async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOp
     const d = await gpuFor(coreOf(eles), options.gpu);
     const rec = d.gpu === null ? null : recording(d.gpu.accelerator);
     warnIfFixable(d, eles.nodes().length);
-    const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null) as unknown as Algos);
+    const { result, snapshot } = run(eles, key, options, accelerated(rec?.accelerator ?? null));
     // a data change during the run (another run writing its field, say) must not release what this run reads
     const unhold = hold(snapshot);
     let value: object;

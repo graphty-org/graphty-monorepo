@@ -157,7 +157,7 @@ function nodeElements(
         if (typeof p === "number" && p !== i && p < ids.length) {
             data.parent = ids[p];
         }
-        const el: ElementDefinition = { group: "nodes", data: data as ElementDefinition["data"] };
+        const el: ElementDefinition = { group: "nodes", data: data };
         const xy = position?.isSet(i) === true ? (position.value(i) as ArrayLike<number>) : undefined;
         if (xy !== undefined && Number.isFinite(xy[0]) && Number.isFinite(xy[1])) {
             el.position = { x: xy[0], y: xy[1] };
@@ -204,7 +204,7 @@ function edgeElements(
         }
         data.source = ids[snapshot.edgeSource(e)];
         data.target = ids[snapshot.edgeTarget(e)];
-        out.push({ group: "edges", data: data as ElementDefinition["data"] });
+        out.push({ group: "edges", data: data });
     }
     return out;
 }

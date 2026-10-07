@@ -257,7 +257,7 @@ export function writeData(elements: NodeCollection | EdgeCollection, values: Arr
  * @returns the node indices, in collection order
  */
 export function indicesOf(cs: CytoscapeSnapshot, sel: NodeSelection): number[] {
-    const picked = typeof sel === "string" ? cs.nodes.filter(sel) : cs.nodes.intersection(sel as Collection);
+    const picked = typeof sel === "string" ? cs.nodes.filter(sel) : cs.nodes.intersection(sel);
     return picked.map((n) => cs.snapshot.ids.requireIndex(n.id()));
 }
 

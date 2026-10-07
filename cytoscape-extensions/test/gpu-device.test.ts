@@ -62,7 +62,7 @@ describe("the Async methods on the GPU", () => {
                 backend: Backend;
             };
             expect(r.backend.ran, r.backend.reason ?? "").toBe("gpu");
-            const got = c.read(r as never, cy);
+            const got = c.read(r, cy);
             if (c.check !== undefined) {
                 c.check(got, cy);
             } else {

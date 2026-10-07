@@ -78,7 +78,7 @@ describe("graphtyGenerate", () => {
     });
 
     it("refuses an unknown generator", async () => {
-        await expect(core().graphtyGenerate("nope" as keyof typeof GENERATORS, {} as never)).rejects.toThrow(
+        await expect(core().graphtyGenerate("nope" as keyof typeof GENERATORS, {})).rejects.toThrow(
             /unknown generator "nope"/,
         );
     });

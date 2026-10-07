@@ -158,7 +158,7 @@ The complete graph K_n. Also takes `seed` and `weights`.
 
 ### `complete-bipartite`
 
-The complete bipartite graph K\_{a,b}. Also takes `seed` and `weights`.
+The complete bipartite graph K_{a,b}. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                                            |
 | ------ | -------- | -------- | -------------------------------------------------- |
@@ -167,7 +167,7 @@ The complete bipartite graph K\_{a,b}. Also takes `seed` and `weights`.
 
 ### `complete-multipartite`
 
-The complete multipartite graph K\_{s0, s1, ...}. Also takes `seed` and `weights`.
+The complete multipartite graph K_{s0, s1, ...}. Also takes `seed` and `weights`.
 
 | Option  | Type                | Default  | Meaning                                                 |
 | ------- | ------------------- | -------- | ------------------------------------------------------- |
@@ -420,7 +420,7 @@ A clique of `cliqueSize` nodes with a path of `pathLength` nodes hanging off it.
 
 ### `mobius-ladder`
 
-The Moebius ladder M\_{2n}. Also takes `seed` and `weights`.
+The Moebius ladder M_{2n}. Also takes `seed` and `weights`.
 
 | Option | Type     | Default  | Meaning                        |
 | ------ | -------- | -------- | ------------------------------ |
@@ -1165,7 +1165,7 @@ explains them.
 | Option             | Type                                    | Default                   | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | ------------------ | --------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `relation`         | `string`                                |                           | The relation written for an edge that has none of its own (no `relation` value): an OBO id such as `is_a` or `part_of`. Reasoners and ROBOT read `is_a` as subclassing.                                                                                                                                                                                                                                                                                                                                                                                     |
-| `ontology`         | `string`                                | the id an OBO import read | The `ontology` id written in the header, such as `go` or `uberon`. It may hold letters, digits and `_ . - /`; any other character makes checkExport() and the save throw E*UNSUPPORTED. The default is the id an OBO import read, else the graph name with every other character replaced by `*`, else no `ontology` line.                                                                                                                                                                                                                                  |
+| `ontology`         | `string`                                | the id an OBO import read | The `ontology` id written in the header, such as `go` or `uberon`. It may hold letters, digits and `_ . - /`; any other character makes checkExport() and the save throw E_UNSUPPORTED. The default is the id an OBO import read, else the graph name with every other character replaced by `_`, else no `ontology` line.                                                                                                                                                                                                                                  |
 | `sanitizeIds`      | `"error" \| "mangle"`                   |                           | What to do with node ids the format cannot hold. "error": the export throws (E_INVALID_ID) and no node is renamed. "mangle": such ids are rewritten and the originals are written to the file too, so an import with `restoreMangledIds` (on by default) reads the original ids back. Pajek is the exception: it always numbers nodes 1 to N and keeps the old ids as labels.                                                                                                                                                                               |
 | `onMixedDirection` | `"directed" \| "error" \| "undirected"` |                           | What a format with one direction per file does with a graph that has both directed and undirected edges: "error" throws (E_DIRECTED), "directed" writes every edge as directed (an undirected edge once, as one directed edge), "undirected" writes the whole graph undirected. A format that keeps each edge's own direction (GraphML, GEXF, CSV, Pajek, XGMML, Cytoscape sessions, and the JGF and graphology JSON dialects) ignores it and writes both kinds; to make such a graph all one direction, read it with the import option `onMixedDirection`. |
 

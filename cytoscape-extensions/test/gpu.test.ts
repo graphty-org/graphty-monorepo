@@ -51,7 +51,7 @@ describe("the CPU path (WebGPU disabled)", () => {
             };
             expect(r.backend).toEqual({ ran: "cpu", reason: "WebGPU was disabled", device: null });
             const want = c.read(method(cy, c.method)(c.options) as never, cy);
-            expectClose(c.read(r as never, cy), want, 0, caseName(c));
+            expectClose(c.read(r, cy), want, 0, caseName(c));
         });
     }
 

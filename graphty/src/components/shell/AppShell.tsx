@@ -4212,14 +4212,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     onSelectNode: (nodeId: string) => {
                         graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                     },
-                    onExportTop: () => undefined,
-                    onExportRanked: () => undefined,
                     onSeeAllRanked: () => {
                         openDrawerOn("nodes");
                     },
-                    onExportSchemaJson: () => undefined,
-                    onFilterToType: () => undefined,
-                    onSelectAllOfType: () => undefined,
                     onOpenCaseNotes: openCaseNotes,
                     onMoreInAnalyze: () => {
                         openPanelAt("analyze");

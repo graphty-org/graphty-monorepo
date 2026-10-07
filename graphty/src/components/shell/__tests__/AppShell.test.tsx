@@ -4122,7 +4122,7 @@ describe("AppShell", () => {
 
             expect(zone?.getAttribute("data-dragging")).not.toBeNull();
             expect(zone?.textContent).toContain(
-                "Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2",
+                "Accepted formats: JSON, CSV, GraphML, GEXF, GML, DOT, Pajek NET, XGMML, CX2, CX, Cytoscape Session, OBO",
             );
             expect(inline?.closest("[role='tooltip']")).toBeNull();
             expect(inline?.closest("[data-info-circle]")).toBeNull();

@@ -191,19 +191,19 @@ export interface GraphSummaryProps {
     /** Opens the Data table drawer on the ranked list. */
     readonly onShowInTable: () => void;
     /** Writes the top 20 as CSV. */
-    readonly onExportTop: () => void;
+    readonly onExportTop?: () => void;
     /** Writes the whole ranked list as CSV. */
-    readonly onExportRanked: () => void;
+    readonly onExportRanked?: () => void;
     /** Opens the Data table drawer on every ranked node. */
     readonly onSeeAllRanked: () => void;
     /** Selects one of the top five. */
     readonly onSelectNode?: (nodeId: string) => void;
     /** Writes the schema as JSON. */
-    readonly onExportSchemaJson: () => void;
+    readonly onExportSchemaJson?: () => void;
     /** Filters the canvas to the schema's types. */
-    readonly onFilterToType: () => void;
+    readonly onFilterToType?: () => void;
     /** Selects every member of the schema's types. */
-    readonly onSelectAllOfType: () => void;
+    readonly onSelectAllOfType?: () => void;
     /** Opens the graph-level annotation. */
     readonly onOpenCaseNotes: () => void;
     /** Opens the Analyze panel, where diameter, average path length and the methods live. */
@@ -452,35 +452,46 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
                                     testId="most-connected-show-in-table"
                                     onClick={onShowInTable}
                                 />
-                                <Menu position="bottom-end" withinPortal>
-                                    <Menu.Target>
-                                        <UnstyledButton
-                                            type="button"
-                                            aria-label={GRAPH_SUMMARY_LABELS.exportMenu}
-                                            data-testid="most-connected-export"
-                                            style={{
-                                                display: "flex",
-                                                alignItems: "center",
-                                                gap: PANEL_GRID.TRIPLE_GAP,
-                                                height: PANEL_GRID.CONTROL_HEIGHT,
-                                                paddingInline: PANEL_GRID.PAD_RIGHT,
-                                                borderRadius: PANEL_GRID.TRIPLE_GAP,
-                                                color: PANEL_INK.CHROME,
-                                                fontSize: "var(--mantine-font-size-sm)",
-                                                fontWeight: 500,
-                                            }}
-                                        >
-                                            {GRAPH_SUMMARY_LABELS.exportMenu}
-                                            <UiGlyph name="chevronDown" size={PANEL_GRID.CHEVRON} />
-                                        </UnstyledButton>
-                                    </Menu.Target>
-                                    <Menu.Dropdown>
-                                        <Menu.Item onClick={onExportTop}>{GRAPH_SUMMARY_LABELS.exportTopCsv}</Menu.Item>
-                                        <Menu.Item onClick={onExportRanked}>
-                                            {GRAPH_SUMMARY_LABELS.exportRankedCsv}
-                                        </Menu.Item>
-                                    </Menu.Dropdown>
-                                </Menu>
+                                {/* An enabled control with no handler does nothing when tapped,
+                                    so each export row, and the menu itself, is drawn only when
+                                    the caller can write it. */}
+                                {onExportTop === undefined && onExportRanked === undefined ? null : (
+                                    <Menu position="bottom-end" withinPortal>
+                                        <Menu.Target>
+                                            <UnstyledButton
+                                                type="button"
+                                                aria-label={GRAPH_SUMMARY_LABELS.exportMenu}
+                                                data-testid="most-connected-export"
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: PANEL_GRID.TRIPLE_GAP,
+                                                    height: PANEL_GRID.CONTROL_HEIGHT,
+                                                    paddingInline: PANEL_GRID.PAD_RIGHT,
+                                                    borderRadius: PANEL_GRID.TRIPLE_GAP,
+                                                    color: PANEL_INK.CHROME,
+                                                    fontSize: "var(--mantine-font-size-sm)",
+                                                    fontWeight: 500,
+                                                }}
+                                            >
+                                                {GRAPH_SUMMARY_LABELS.exportMenu}
+                                                <UiGlyph name="chevronDown" size={PANEL_GRID.CHEVRON} />
+                                            </UnstyledButton>
+                                        </Menu.Target>
+                                        <Menu.Dropdown>
+                                            {onExportTop === undefined ? null : (
+                                                <Menu.Item onClick={onExportTop}>
+                                                    {GRAPH_SUMMARY_LABELS.exportTopCsv}
+                                                </Menu.Item>
+                                            )}
+                                            {onExportRanked === undefined ? null : (
+                                                <Menu.Item onClick={onExportRanked}>
+                                                    {GRAPH_SUMMARY_LABELS.exportRankedCsv}
+                                                </Menu.Item>
+                                            )}
+                                        </Menu.Dropdown>
+                                    </Menu>
+                                )}
                             </Box>
                         ) : (
                             <Text span style={{ fontSize: "var(--mantine-font-size-sm)", color: PANEL_INK.CHROME }}>
@@ -533,11 +544,13 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
                     actions={
                         schemaSection.opened ? (
                             <Box style={{ display: "flex", alignItems: "center", gap: INSPECTOR_CLUSTER_GAP }}>
-                                <VerbButton
-                                    words={GRAPH_SUMMARY_LABELS.exportSchemaJson}
-                                    testId="schema-export-json"
-                                    onClick={onExportSchemaJson}
-                                />
+                                {onExportSchemaJson === undefined ? null : (
+                                    <VerbButton
+                                        words={GRAPH_SUMMARY_LABELS.exportSchemaJson}
+                                        testId="schema-export-json"
+                                        onClick={onExportSchemaJson}
+                                    />
+                                )}
                                 {schemaDetail.length > 0 ? (
                                     <Popout>
                                         <Popout.Trigger>
@@ -608,22 +621,28 @@ export function GraphSummary(props: GraphSummaryProps): React.JSX.Element {
                         />
                     )}
 
-                    <ActionRow
-                        residentActions={
-                            <>
-                                <VerbButton
-                                    words={GRAPH_SUMMARY_LABELS.filterToType}
-                                    testId="schema-filter-to-type"
-                                    onClick={onFilterToType}
-                                />
-                                <VerbButton
-                                    words={GRAPH_SUMMARY_LABELS.selectAllOfType}
-                                    testId="schema-select-all-of-type"
-                                    onClick={onSelectAllOfType}
-                                />
-                            </>
-                        }
-                    />
+                    {onFilterToType === undefined && onSelectAllOfType === undefined ? null : (
+                        <ActionRow
+                            residentActions={
+                                <>
+                                    {onFilterToType === undefined ? null : (
+                                        <VerbButton
+                                            words={GRAPH_SUMMARY_LABELS.filterToType}
+                                            testId="schema-filter-to-type"
+                                            onClick={onFilterToType}
+                                        />
+                                    )}
+                                    {onSelectAllOfType === undefined ? null : (
+                                        <VerbButton
+                                            words={GRAPH_SUMMARY_LABELS.selectAllOfType}
+                                            testId="schema-select-all-of-type"
+                                            onClick={onSelectAllOfType}
+                                        />
+                                    )}
+                                </>
+                            }
+                        />
+                    )}
                 </ControlSection>
             )}
 

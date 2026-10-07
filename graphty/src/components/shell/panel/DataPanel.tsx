@@ -7,6 +7,7 @@ import {
     PANEL_GRID,
     PANEL_INK,
 } from "@graphty/compact-mantine";
+import { FORMAT_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { Box, Button, Group, Modal, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -24,8 +25,9 @@ import { ComingTag, PanelSection } from "./PanelSection";
  * IS the drop target, so the sentence that used to restate it was deleted by
  * Rule 8 and what is left is the list of formats, which is not on any row.
  */
-const ACCEPTED_FORMATS =
-    "Reads JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF and CX2. Drop a file anywhere on this panel.";
+const ACCEPTED_FORMATS = `Reads ${FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.canImport)
+    .map((descriptor) => descriptor.plainName)
+    .join(", ")}. Drop a file anywhere on this panel.`;
 
 /** The Open file section's name in the Empty state (spec 03 section 2.1). */
 const OPEN_FILE_LABEL = "Open file";

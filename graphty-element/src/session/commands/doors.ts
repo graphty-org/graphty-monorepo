@@ -553,6 +553,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     explain: READ,
     agreement: READ,
     counts: READ,
+    legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],

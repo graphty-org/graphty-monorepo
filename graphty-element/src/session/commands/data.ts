@@ -36,7 +36,7 @@ import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher"
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
-import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
+import type { HistoryCode, LoadedSource, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
@@ -143,6 +143,8 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+    /** The names of the tables a draft read, kept with the load in `data.sources()`. */
+    readonly tables?: readonly string[];
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -193,6 +195,8 @@ interface DataDeclareCommand {
 interface DataSetSourceCommand {
     readonly op: "data.setSource";
     readonly source: ImportSource;
+    /** Every load still in the graph, as `data.sources()` reports them; left as they are when absent. */
+    readonly sources?: readonly LoadedSource[];
 }
 
 /** Every data op. */
@@ -248,6 +252,9 @@ export interface DataService {
 
 /** The graph value naming where the graph was last loaded from. */
 export const SOURCE_VALUE = "source";
+
+/** The graph value listing every load still in the graph, oldest first. */
+export const SOURCES_VALUE = "sources";
 
 /**
  * A source as the graph keeps it: without the inline text or the file, which the loaded rows
@@ -651,7 +658,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
         fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
     },
     moves: false,
-    keys: () => [`graph/v:${SOURCE_VALUE}`],
+    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
         const { source } = command;
@@ -673,7 +680,13 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
             });
         }
 
-        service.values({ [SOURCE_VALUE]: describeSource(source) }, ctx.draft);
+        service.values(
+            {
+                [SOURCE_VALUE]: describeSource(source),
+                ...(command.sources === undefined ? {} : { [SOURCES_VALUE]: Object.freeze([...command.sources]) }),
+            },
+            ctx.draft,
+        );
     },
 };
 

@@ -42,6 +42,7 @@ import {
     declarationKey,
     type ImportSource,
     SOURCE_VALUE,
+    SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, readSource } from "./draft";
 import type { Dispatcher } from "./project/Dispatcher";
@@ -79,6 +80,7 @@ import type {
     FindResult,
     GraphStatistics,
     LoadChoices,
+    LoadedSource,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -114,7 +116,7 @@ interface DataWrites {
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** Dispatch `data.setSource`. */
-    setSource(source: DataSourceDescriptor): Promise<unknown>;
+    setSource(source: DataSourceDescriptor, sources?: readonly LoadedSource[]): Promise<unknown>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
     /** Publish a progress change as the session's `progress:changed`. */
@@ -1205,6 +1207,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Every load still in the graph, oldest first, as the `graph` slice keeps them.
+     * @returns the loads, or an empty list when no import loaded the graph
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    sources(): readonly LoadedSource[] {
+        this.requireLive("sources");
+        return (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+    }
+
+    /**
      * Give the loaded source a new name, as one undoable step.
      * @param name - the new name
      * @returns settles once the step is recorded
@@ -1231,7 +1243,12 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        await this.writes.setSource({ ...current, name });
+        // The last load is the one `source()` describes, so it takes the new name too.
+        const sources = this.sources();
+        await this.writes.setSource(
+            { ...current, name },
+            sources.length === 0 ? undefined : [...sources.slice(0, -1), { ...sources[sources.length - 1], name }],
+        );
     }
 
     /**

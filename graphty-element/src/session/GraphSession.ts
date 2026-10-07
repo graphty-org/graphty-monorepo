@@ -2020,7 +2020,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }
             },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
-            setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
+            setSource: (source, sources) =>
+                dispatcher.dispatch({ op: "data.setSource", source, ...(sources === undefined ? {} : { sources }) }),
             declarations: () => dispatcher.state.attributes,
             progress: (change) => {
                 publish(watchers, "progress:changed", change);

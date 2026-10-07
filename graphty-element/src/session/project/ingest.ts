@@ -33,9 +33,11 @@ import {
     describeSource,
     type HeldRows,
     SOURCE_VALUE,
+    SOURCES_VALUE,
 } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
+import type { LoadedSource } from "../types";
 import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -448,14 +450,18 @@ export class Ingest<K extends KnownEdge> {
     async importSource(command: DataImportCommand, writer: GraphWriter, signal?: AbortSignal): Promise<void> {
         const { type, config } = command.source;
         const loads = type !== undefined && config !== undefined;
+        const earlier = command.mode === "merge" ? ((writer.graphValue(SOURCES_VALUE) as readonly LoadedSource[]) ?? []) : [];
         if (loads && command.mode !== "merge") {
             this.apply({ kind: "clear" }, writer);
         }
 
-        writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
+        const described = describeSource(command.source);
+        writer.setGraphValues({ [SOURCE_VALUE]: described });
         if (!loads) {
             return;
         }
+
+        const before = this.heldCounts();
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
         this.duplicateIds = command.duplicateIds ?? "first";
@@ -474,6 +480,13 @@ export class Ingest<K extends KnownEdge> {
                 command.held,
                 command.source.name,
             );
+            const after = this.heldCounts();
+            const loaded: LoadedSource = Object.freeze({
+                ...described,
+                tables: Object.freeze([...(command.tables ?? [])]),
+                added: Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges }),
+            });
+            writer.setGraphValues({ [SOURCES_VALUE]: Object.freeze([...earlier, loaded]) });
         } finally {
             this.leaveOutUnmatched = false;
             this.duplicateIds = "first";

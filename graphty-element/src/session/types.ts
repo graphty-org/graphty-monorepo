@@ -840,6 +840,19 @@ export interface SessionDataApi {
      */
     source(): DataSourceDescriptor | null;
     /**
+     * Every load still in the graph, oldest first: a replacing load starts the list again with
+     * itself, a merging load adds itself to the end. Saved with the project and moved by undo
+     * like the graph. The last entry is what {@link source} describes.
+     *
+     * ```ts
+     * await session.data.import({ type: "csv", config: { data: friends }, name: "friends.csv" });
+     * await session.data.import({ type: "csv", config: { data: messages }, name: "messages.csv" }, { mode: "merge" });
+     * session.data.sources().map((each) => [each.name, each.added.edges]); // [["friends.csv", 41], ["messages.csv", 23]]
+     * ```
+     * @returns the loads, or an empty list when no import loaded the graph
+     */
+    sources(): readonly LoadedSource[];
+    /**
      * Give the source the graph was loaded from a new name, as one undoable step: what
      * {@link source} reports as `name` from then on. The name is saved with the project, and undo
      * restores the old one.
@@ -1221,6 +1234,14 @@ export interface DataSourceDescriptor {
     readonly size?: number;
     /** The source's options, without `data` and `file`: the `url`, and what the source reads besides. */
     readonly config?: Readonly<Record<string, unknown>>;
+}
+
+/** One load still in the graph: where it came from, and what it added. */
+export interface LoadedSource extends DataSourceDescriptor {
+    /** The names of the tables the load read, as the draft named them; empty when it read none by name. */
+    readonly tables: readonly string[];
+    /** How many nodes and edges the load added to the graph. */
+    readonly added: { readonly nodes: number; readonly edges: number };
 }
 
 /** How an import treats the graph already there. */

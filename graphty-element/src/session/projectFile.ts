@@ -32,6 +32,7 @@ import type {
     DataSourceInput,
     GraphSession,
     LoadDraft,
+    LoadedSource,
     ProjectConfigPatch,
     ProjectSlice,
     TransactionScope,
@@ -503,6 +504,7 @@ function write(
     const { layout, visibility, selection } = session;
     // Where the graph was loaded from, and what the reader named it: not the rows, which are above.
     const source = session.data.source();
+    const sources = session.data.sources();
     const leaveOut = new Set<string>(options.leaveOut ?? []);
     const members: Record<string, unknown>[] = [
         {
@@ -520,6 +522,7 @@ function write(
                 links: edges.map(({ id: _id, ...edge }) => edge),
             },
             ...(source === null ? {} : { source }),
+            ...(sources.length === 0 ? {} : { sources }),
         },
         {
             kind: "graphty-session",
@@ -880,9 +883,15 @@ async function clearInto(tx: TransactionScope): Promise<void> {
  * @param tx - The transaction.
  * @param graph - The graph.
  * @param source - The member's `source`: where the graph was loaded from, when the file says.
+ * @param sources - The member's `sources`: every load the graph held, when the file says.
  * @returns The edge ids this session gave the file's edges, by position.
  */
-async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown): Promise<(EdgeId | undefined)[]> {
+async function importInto(
+    tx: TransactionScope,
+    graph: NodeLink,
+    source: unknown,
+    sources: unknown,
+): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges().length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
@@ -896,7 +905,9 @@ async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown
         },
     });
     if (isObject(source)) {
-        await tx.execute({ op: "data.setSource", source });
+        // A list with an entry not shaped like a load is left out whole, as an older file has none.
+        const loads = Array.isArray(sources) && sources.every(isLoadedSource) ? sources : undefined;
+        await tx.execute({ op: "data.setSource", source, ...(loads === undefined ? {} : { sources: loads }) });
     }
 
     return tx.data
@@ -904,6 +915,16 @@ async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown
         .slice(before)
         .map((edge) => edge.id);
 }
+
+/**
+ * Whether a saved value is shaped like one entry of `data.sources()`.
+ * @param value - The saved value.
+ * @returns True when it is.
+ */
+function isLoadedSource(value: unknown): value is LoadedSource {
+    if (!isObject(value) || !Array.isArray(value.tables) || !isObject(value.added)) {
+        return false;
+    }
 
 /** What one open is doing. */
 interface Opening {
@@ -989,14 +1010,14 @@ async function readProject(
     name: string | null,
     canned: CannedOutcomes,
 ): Promise<void> {
-    const source = doc.members.get("graphty-data")?.[0]?.source;
+    const { source, sources } = doc.members.get("graphty-data")?.[0] ?? {};
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
     await clearInto(tx);
     await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
-    const edgeIds = await importInto(tx, graph, source);
+    const edgeIds = await importInto(tx, graph, source, sources);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
 
@@ -1431,7 +1452,7 @@ export function projectOf(
                     async (tx) => {
                         const opening = { tx, problems, restored };
                         if (graph !== undefined) {
-                            await importInto(tx, graph, data?.source);
+                            await importInto(tx, graph, data?.source, data?.sources);
                             restored.add("graph");
                         }
 

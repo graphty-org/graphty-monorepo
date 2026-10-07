@@ -524,6 +524,7 @@ export class Draft implements LoadDraft {
         const command: DataImportCommand = {
             op: "data.import",
             source: read.source,
+            tables: [...new Set(read.tables.map((held) => held.table.name))],
             mode: choices.mode ?? "replace",
             ...(choices.layout === undefined ? {} : { layout: choices.layout }),
             held: plan.held,

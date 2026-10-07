@@ -143,6 +143,18 @@ session.data.source()?.name; // "Les Miserables characters"
 With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.reason` `"no-source"`;
 an empty name rejects with `"empty-name"`.
 
+`source()` describes the last load. When loads are added together with `{ mode: "merge" }`,
+`sources()` lists every load still in the graph, oldest first, with the tables each read and how
+many nodes and edges each added. A replacing load starts the list again; undo, redo and the
+project file keep it with the graph, and `renameSource` renames the last entry:
+
+```typescript
+await session.data.import({ config: { file: friends } }); // friends.csv
+await session.data.import({ config: { file: messages } }, { mode: "merge" }); // messages.csv
+session.data.sources().map(({ name, added }) => [name, added]);
+// [["friends.csv", { nodes: 20, edges: 41 }], ["messages.csv", { nodes: 13, edges: 23 }]]
+```
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and

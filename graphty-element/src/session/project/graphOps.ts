@@ -305,6 +305,12 @@ export interface GraphWriter {
      */
     setGraphValues(values: Readonly<Record<string, unknown>>): void;
     /**
+     * Read one graph-level value as this command's writes have left it.
+     * @param name - The value's name.
+     * @returns The value, or undefined when none is set.
+     */
+    graphValue(name: string): unknown;
+    /**
      * Give the builder the direction a file declared, without overruling the consumer.
      * @param directed - The declared direction.
      * @param statedBy - The text that declared it.
@@ -1199,6 +1205,10 @@ class Writer implements GraphWriter {
             null,
         );
         return true;
+    }
+
+    graphValue(name: string): unknown {
+        return this.graph.slice.values.get(name);
     }
 
     setGraphValues(values: Readonly<Record<string, unknown>>): void {

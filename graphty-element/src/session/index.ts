@@ -57,6 +57,7 @@ export type {
     ImportOptions,
     LoadChoices,
     LoadDraft,
+    LoadedSource,
     LoadMapping,
     LoadMappingRead,
     Neighbor,

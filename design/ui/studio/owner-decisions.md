@@ -4,6 +4,26 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- Every load is kept as a source: `data.sources()`
+
+**What.** `session.data.sources()` returns one entry per load still in the graph, oldest first:
+the `DataSourceDescriptor` fields (`type`, `name`, `size`, `config`) plus `tables` (the names of
+the tables the load read) and `added` (`{ nodes, edges }` it added). A replacing load resets the
+list to itself; a `{ mode: "merge" }` load appends. The list is a graph value, so undo and redo
+move it, and the project file's `graphty-data` member saves it as `sources` beside `source`
+(an older file without it opens with an empty list). `data.source()` is unchanged and still
+describes the last load; `renameSource` also renames the last entry. New exported type
+`LoadedSource`; `data.import` commands carry an optional `tables`, `data.setSource` an optional
+`sources`.
+
+**Why.** Each load overwrote the graph's one source descriptor, so after adding messages.csv to
+friends.csv the app could list only the last file (Sources showed one row, the header named the
+last file). A consumer cannot rebuild the list itself without recounting what each load added.
+
+**Alternatives.** Keep only `source()` and let the app keep its own list (state the app would
+own, lost on undo and on reopen). Make `source()` return an array (breaking). Record the list in
+the load report (`lastImport()` describes only the last load, and is not saved).
+
 ## 2026-10-07 -- A filter on an edge attribute narrows the edges: `nodes: "all" | "ends"`
 
 **What.** A `range` or `categories` rule (in `visibility.set`, a rule set or any rule tree) now

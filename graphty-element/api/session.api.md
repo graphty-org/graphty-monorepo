@@ -1610,6 +1610,15 @@ export type LoadMapping = TableMapping | {
 };
 
 // @public
+export interface LoadedSource extends DataSourceDescriptor {
+    readonly added: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly tables: readonly string[];
+}
+
+// @public
 export interface LoadMappingRead {
     // (undocumented)
     readonly tables: Readonly<Record<string, TableMappingRead>>;
@@ -3055,6 +3064,7 @@ export interface SessionDataApi {
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
+    sources(): readonly LoadedSource[];
     statistics(): GraphStatistics;
     readonly store: SessionGraphStore;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;

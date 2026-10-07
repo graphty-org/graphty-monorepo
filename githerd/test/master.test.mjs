@@ -393,6 +393,22 @@ describe("releaseState", () => {
         });
     });
 
+    it("counts a merged release-train pull request as the release", () => {
+        const lanes = lanesOf({ c2: "green" }, { c2: "green" });
+        const merge = "Merge pull request #1204 from graphty-org/release/train-374\n\nchore(release): publish";
+        const released = [commit("m1", "c3", merge, "2026-10-06T20:24:22Z"), ...commits];
+        expect(releaseState(saved, lanes, CONFIG, released, T0)).toMatchObject({
+            lastRelease: { sha: "m1", at: "2026-10-06T20:24:22Z" },
+            releaseEligibleSince: null,
+        });
+        // Another pull request whose title happens to read as a release is no release.
+        const other = [
+            commit("m2", "c3", "Merge pull request #9 from graphty-org/fix/x\n\nchore(release): publish"),
+            ...commits,
+        ];
+        expect(releaseState(saved, lanes, CONFIG, other, T0).lastRelease).toMatchObject({ sha: "r1" });
+    });
+
     it("stalls when the release train's run since the last release ended without starting the release", () => {
         const lanes = lanesOf({ c2: "green" }, { c2: "green" });
         const at = (/** @type {any} */ l) => releaseState(saved, { ...lanes, ...l }, CONFIG, commits, T0).stalled;

@@ -382,6 +382,20 @@ export function findSuspects(commits, lastGreenSha, redSha) {
 }
 
 /**
+ * Whether a first-parent commit landed a release: the release commit itself, pushed straight to the
+ * branch, or the merge of the release workflow's `release/train-*` pull request, whose title (the
+ * merge commit's body) is the release commit's subject.
+ * @param {string} message the commit message
+ * @param {RegExp} pattern the config's release commit pattern
+ * @returns {boolean} whether it is a release
+ */
+function isRelease(message, pattern) {
+    const [subject, , title = ""] = message.split("\n");
+    if (pattern.test(message)) return true;
+    return /^Merge pull request #\d+ from [^/\s]+\/release\/train-/.test(subject) && pattern.test(title);
+}
+
+/**
  * The release lane's state. Eligible means a commit newer than the last release commit is green on
  * every gating lane, or would be but for a stuck lane run.
  * @param {{lastRelease?: {sha: string, at: string} | null, releaseEligibleSince?: string | null} | undefined} saved
@@ -406,7 +420,7 @@ export function releaseState(saved, lanes, config, commits, now) {
 
     const pattern = new RegExp(config.release.commitPattern);
     const chain = firstParent(commits, commits[0]?.sha);
-    const i = chain.findIndex((c) => pattern.test(c.commit.message));
+    const i = chain.findIndex((c) => isRelease(c.commit.message, pattern));
     const found = chain[i];
     const lastRelease = found
         ? { sha: found.sha, at: found.commit.committer?.date ?? found.commit.author?.date ?? null }

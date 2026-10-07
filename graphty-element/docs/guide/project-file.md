@@ -166,6 +166,11 @@ A file with no name of its own takes the file's name without `.graphty.json`.
 `dirty` follows the undo history: undoing back to the point of the last save makes it false again.
 The selection and your extensions never set it.
 
+The first `data.import` into a new session -- one with no undo history that was never saved or
+opened -- is where the project starts, so a graph read from a sample or a file leaves `dirty`
+false and a page can leave it without asking. The import is still an undoable step: undoing it
+sets `dirty`. Every later import sets it, like any other change.
+
 ## What did not come back
 
 Opening never fails half way through. A part that cannot be restored is left out and listed in

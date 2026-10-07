@@ -386,6 +386,80 @@ describe("the project file", () => {
         session.dispose();
     });
 
+    describe("the first import into a new session", () => {
+        const GML = "graph [\n node [ id 1 ]\n node [ id 2 ]\n edge [ source 1 target 2 ]\n]";
+        const load = (session: Harness["session"]): Promise<void> =>
+            session.data.import({ type: "gml", config: { data: GML } });
+
+        it("is the baseline: the project is not dirty, and undoing it makes it dirty", async () => {
+            const { session } = withDegree().harness;
+            await load(session);
+            assert.strictEqual(session.data.nodes().length, 2);
+            assert.isFalse(session.project.dirty);
+            await session.undo();
+            assert.isTrue(session.project.dirty, "undoing past the baseline");
+            await session.redo();
+            assert.isFalse(session.project.dirty);
+            session.dispose();
+        });
+
+        it("is the baseline inside a transaction that also sets up the load", async () => {
+            const { session } = withDegree().harness;
+            await session.transaction("Load the sample", async (tx) => {
+                await tx.data.import({ type: "gml", config: { data: GML } });
+                await tx.styles.add({
+                    name: "Orange",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": "#ff9900" },
+                });
+            });
+            assert.isFalse(session.project.dirty);
+            await session.styles.add({
+                name: "Later",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.color": "#0099ff" },
+            });
+            assert.isTrue(session.project.dirty, "a change after the load");
+            session.dispose();
+        });
+
+        it("is the only one: a second import makes the project dirty", async () => {
+            const { session } = withDegree().harness;
+            await load(session);
+            await load(session);
+            assert.isTrue(session.project.dirty);
+            session.dispose();
+        });
+
+        it("is not one after a save or an open", async () => {
+            const saved = withDegree().harness.session;
+            await saved.project.save();
+            await load(saved);
+            assert.isTrue(saved.project.dirty, "after a save");
+
+            const source = await busySession();
+            const { text } = await source.session.project.save();
+            const opened = withDegree().harness.session;
+            await opened.project.open(text);
+            await load(opened);
+            assert.isTrue(opened.project.dirty, "after an open");
+            for (const each of [saved, source.session, opened]) {
+                each.dispose();
+            }
+        });
+
+        it("is not one after another change", async () => {
+            const { session } = withDegree().harness;
+            await session.data.addNodes([{ id: "a" }]);
+            await session.undo();
+            await load(session);
+            assert.isTrue(session.project.dirty);
+            session.dispose();
+        });
+    });
+
     it("ignores a save marked after a project was opened over it", async () => {
         const source = await busySession();
         const { text } = await source.session.project.save();

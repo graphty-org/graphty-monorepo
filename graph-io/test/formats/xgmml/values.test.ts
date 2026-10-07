@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parseScalar } from "../../../src/formats/xgmml/values.js";
+import { cpuMilliseconds } from "../../helpers/work-meter.js";
 
 describe("xgmml parseScalar: real", () => {
     it("reads the Java Double spellings Cytoscape writes and rejects the rest", () => {
@@ -23,11 +24,13 @@ describe("xgmml parseScalar: real", () => {
         }
     });
 
-    it("rejects a pathologically long number in linear time", () => {
+    it("rejects a pathologically long number in linear time", async () => {
         // A run of digits before a bad character took quadratic time (about 36 s at this length)
-        // when the pattern could split the run between two digit repetitions.
-        const started = performance.now();
-        expect(parseScalar(`1${"0".repeat(200_000)}x`, "real", false)).toBeNull();
-        expect(performance.now() - started).toBeLessThan(1000);
+        // when the pattern could split the run between two digit repetitions; linear takes about 1 ms.
+        const text = `1${"0".repeat(200_000)}x`;
+        const cpu = await cpuMilliseconds(() => {
+            expect(parseScalar(text, "real", false)).toBeNull();
+        });
+        expect(cpu).toBeLessThan(1000);
     });
 });

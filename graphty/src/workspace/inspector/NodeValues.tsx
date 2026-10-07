@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
-import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
+import { finishedRuns, openNeighborhood, selectNode, takeNodeValuesFocus } from "./reads";
 import { count, formatNumber, groupName, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
@@ -164,21 +164,6 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
             )}
         </>
     );
-}
-
-/**
- * Selects a node's neighborhood and lists it.
- * @param session - the session.
- * @param store - the workspace store.
- * @param id - the node at the center.
- */
-async function openNeighborhood(
-    session: GraphSession,
-    store: ReturnType<typeof useWorkspace>["store"],
-    id: NodeId,
-): Promise<void> {
-    await session.selection.apply({ neighborsOf: [id] });
-    store.set({ inspected: { kind: "neighborhood", id: nodeKey(id) } });
 }
 
 /**

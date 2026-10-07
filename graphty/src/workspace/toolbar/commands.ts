@@ -1,6 +1,7 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { openNeighborhood } from "../inspector/reads";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
@@ -125,10 +126,15 @@ export const registration = defineRegistration({
             group: "Selection",
             keys: ["G"],
             disabled: ({ session }) => noNodeSelected(session),
-            run: async ({ session }) => {
-                if (session !== null) {
-                    await session.selection.apply({ neighborsOf: session.selection.nodes });
+            // One node: its neighbor list by name, as its Degree row opens. Several: their neighbors.
+            run: async ({ session, workspace }) => {
+                if (session === null) {
+                    return;
                 }
+                const { nodes } = session.selection;
+                await (nodes.length === 1
+                    ? openNeighborhood(session, workspace, nodes[0])
+                    : session.selection.apply({ neighborsOf: nodes }));
             },
         },
     ],

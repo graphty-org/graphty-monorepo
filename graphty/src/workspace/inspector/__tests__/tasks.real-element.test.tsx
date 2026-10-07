@@ -178,6 +178,23 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     );
 
     it(
+        "T12 from the Neighborhood command: one node selected opens the same neighbor list by name",
+        async () => {
+            const { session } = await openRings();
+            await pick(session, "n0");
+
+            const bar = await screen.findByRole("toolbar", { name: "Selection" });
+            await userEvent.click(within(bar).getByRole("button", { name: "Neighborhood" }));
+            const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
+            assert.deepEqual(
+                rowButtons(list).map((row) => row.textContent),
+                ["Node 69", "Node 56", "Node 11"],
+            );
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
         "T12 by keyboard only: Degree, the neighbor names, and Esc back to the node",
         async () => {
             const { session } = await openRings();

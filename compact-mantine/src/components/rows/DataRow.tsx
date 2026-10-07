@@ -1,5 +1,5 @@
 import { useUncontrolled } from "@mantine/hooks";
-import React, { useId } from "react";
+import React, { useId, useRef } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { useNumberFormatter } from "../../i18n";
@@ -13,6 +13,9 @@ import {
 } from "../../types/events";
 import { EllipsizedName } from "./EllipsizedName";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
+
+/** What counts as a trailing control of its own, which keeps its clicks out of the row's. */
+const TRAILING_CONTROL = "button, a[href], input, select, textarea, label, [role]:not([role='presentation']), [tabindex]";
 
 /**
  * Props for the DataRow component.
@@ -154,6 +157,7 @@ export function DataRow({
     // ARIA Authoring Practices, Button pattern: name from content, Enter and
     // Space activate it, and the current row of a set is marked aria-current.
     const ariaCurrent = selected ? true : undefined;
+    const button = useRef<HTMLButtonElement>(null);
 
     /**
      * Reports an activation to the consumer, with the source stated separately.
@@ -161,6 +165,23 @@ export function DataRow({
      */
     const handleClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
         onClick?.(event, getActivationMeta(event));
+    };
+
+    /**
+     * A clickable row's trailing glyph is part of the row: a click there that
+     * no control of its own takes (a chevron, not a reset button) activates the
+     * row, as a click on its name would. The keyboard needs nothing, because the
+     * row's button is already the one stop.
+     * @param event - A click anywhere in the trailing slot
+     */
+    const handleTrailingClick = (event: React.MouseEvent<HTMLElement>): void => {
+        // closest() also climbs above the slot, past the row's own group; only a control inside the slot counts.
+        const control = (event.target as Element).closest(TRAILING_CONTROL);
+        if (!interactive || (control !== null && event.currentTarget.contains(control))) {
+            return;
+        }
+        button.current?.focus();
+        onClick(event, getActivationMeta(event));
     };
 
     const body = (
@@ -214,6 +235,7 @@ export function DataRow({
                     type="button"
                     className="cm-data-row-body"
                     data-testid="data-row-button"
+                    ref={button}
                     aria-current={ariaCurrent}
                     onClick={handleClick}
                     onFocus={onFocus}
@@ -235,7 +257,12 @@ export function DataRow({
 
             {/* Drawn only when it holds something. The slot ends at x 232, the
                 end of the row's pill and the grid's trailing column. */}
-            {hasTrailing && <TrailingSlot>{trailing}</TrailingSlot>}
+            {hasTrailing && (
+                // Presentational: the pointer's extra target. The keyboard's stop is the row's button.
+                <div role="presentation" style={{ display: "contents" }} onClick={handleTrailingClick}>
+                    <TrailingSlot>{trailing}</TrailingSlot>
+                </div>
+            )}
         </div>
     );
 }

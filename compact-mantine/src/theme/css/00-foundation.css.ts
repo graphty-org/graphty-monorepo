@@ -12,7 +12,7 @@
  * `compactGlobalCss({ highContrast: true })` works without the attribute (SSR, shadow roots).
  */
 import interLatinWoff2 from "../../fonts/inter-latin-wght-normal.woff2";
-import { cmFont, highContrastDeclarations, tokenDeclarations } from "../tokens";
+import { cmFont, highContrastDeclarations, primaryAccentDeclarations, tokenDeclarations } from "../tokens";
 
 /** The latin subset's range, as @fontsource-variable/inter 5.3.0 declares it. */
 const LATIN_RANGE =
@@ -58,6 +58,12 @@ const css = `
 }
 
 ${highContrastBlock(':root[data-cm-contrast="high"]')}
+
+/* A theme whose primaryColor is not "brand" (global-styles.ts sets the attribute): the accent
+   tokens follow the primary palette. After the AA block, so a custom accent wins there too. */
+:root[data-cm-accent] {
+    ${primaryAccentDeclarations()}
+}
 
 /* Reduced motion: the few things that move (spec 2.8: a checkbox tick, a switch knob, a hover
    color, the help button's ring, the loading fade) change in one frame. Every such transition

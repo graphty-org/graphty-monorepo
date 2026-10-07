@@ -3009,6 +3009,7 @@ export interface SessionHistory {
 
 // @public
 export interface SessionLayout {
+    readonly arrangedDimension: "2d" | "3d";
     readonly dimension: "2d" | "3d";
     readonly engine: string;
     readonly id: LayoutId;

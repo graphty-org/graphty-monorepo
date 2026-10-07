@@ -85,6 +85,7 @@ export {
     ATTRIBUTE_TYPES,
     COST_CLASSES,
     DEPRECATED_ALGORITHMS,
+    DEPRECATED_LAYOUT_IDS,
     isAttributeType,
     isCostClass,
     isOptionBound,

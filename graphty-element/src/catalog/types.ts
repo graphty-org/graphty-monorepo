@@ -190,6 +190,16 @@ export const KNOWN_LAYOUT_IDS = [
 export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 
 /**
+ * The built-in layout names kept only as aliases, and removed at the next major release.
+ *
+ * `force-2d` is the `force` layout drawn by its two-dimensional `arf` engine: asking for it sets
+ * layout `force` with engine `arf`, which is what `session.layout` then reports. It is no longer
+ * in `catalog.layouts()`. The name stays in {@link KNOWN_LAYOUT_IDS}, so no plugin can claim it and
+ * no code that names it stops compiling.
+ */
+export const DEPRECATED_LAYOUT_IDS = ["force-2d"] as const satisfies readonly (typeof KNOWN_LAYOUT_IDS)[number][];
+
+/**
  * The built-in file formats.
  *
  * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues

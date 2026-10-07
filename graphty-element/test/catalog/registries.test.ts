@@ -11,8 +11,10 @@ import {
     UNSERVED_FORMAT_IDS,
 } from "../../src/catalog/formats";
 import {
+    arrangedDimension,
     LAYOUT_CATALOG,
     LAYOUT_DESCRIPTORS,
+    layoutAlias,
     layoutDescriptor,
     layoutEntry,
     layoutIdForEngine,
@@ -20,7 +22,7 @@ import {
 } from "../../src/catalog/layouts";
 import { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "../../src/catalog/palettes";
 import { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "../../src/catalog/scales";
-import { KNOWN_FORMAT_IDS, KNOWN_LAYOUT_IDS, KNOWN_PALETTE_IDS } from "../../src/catalog/types";
+import { DEPRECATED_LAYOUT_IDS, KNOWN_FORMAT_IDS, KNOWN_LAYOUT_IDS, KNOWN_PALETTE_IDS } from "../../src/catalog/types";
 import { BLUE_HIGHLIGHT, GREEN_SUCCESS, ORANGE_WARNING } from "../../src/config/palettes/binary";
 import {
     CARBON_COLORS,
@@ -129,8 +131,12 @@ describe("layout catalogue", () => {
         assert.strictEqual(named.size, registeredEngines.length);
     });
 
-    it("gives every built-in layout name a descriptor or a stated reason, never both", () => {
-        const served = new Set(LAYOUT_DESCRIPTORS.map((descriptor) => String(descriptor.id)));
+    it("gives every built-in layout name a descriptor, a stated reason or an alias, never two", () => {
+        // A deprecated name answers through the layout it is an alias for.
+        const served = new Set([
+            ...LAYOUT_DESCRIPTORS.map((descriptor) => String(descriptor.id)),
+            ...DEPRECATED_LAYOUT_IDS.filter((id) => layoutAlias(id) !== undefined),
+        ]);
         const unserved = new Set<string>(UNSERVED_LAYOUT_IDS.map((entry) => entry.id));
 
         for (const id of KNOWN_LAYOUT_IDS) {
@@ -212,20 +218,52 @@ describe("layout catalogue", () => {
         assert.strictEqual(layoutIdForEngine("d3"), "force");
         assert.strictEqual(layoutIdForEngine("forceatlas2"), "force");
         assert.strictEqual(layoutIdForEngine("kamada-kawai"), "force");
-        assert.strictEqual(layoutIdForEngine("arf"), "force-2d");
+        assert.strictEqual(layoutIdForEngine("arf"), "force");
         assert.strictEqual(layoutIdForEngine("bfs"), "hierarchical");
         assert.strictEqual(layoutIdForEngine("multipartite"), "layers");
         assert.isUndefined(layoutIdForEngine("nothing-like-this"));
     });
 
-    it("runs force on ngraph, and offers five other engines for it", () => {
+    it("runs force on ngraph, and offers six other engines for it", () => {
         const force = layoutEntry("force");
 
         assert.strictEqual(force?.descriptor.engine, "ngraph");
         assert.deepEqual(
             force?.implementations.map((implementation) => implementation.engine),
-            ["ngraph", "d3", "forceatlas2", "spring", "kamada-kawai", "spring-electrical"],
+            ["ngraph", "d3", "forceatlas2", "spring", "kamada-kawai", "spring-electrical", "arf"],
         );
+    });
+
+    it("folds force-2d into force: no catalogue entry, kept as an alias for force drawn by arf", () => {
+        assert.notInclude(
+            LAYOUT_DESCRIPTORS.map((descriptor) => String(descriptor.id)),
+            "force-2d",
+        );
+        assert.deepEqual(layoutAlias("force-2d"), { id: "force", engine: "arf" });
+        assert.isUndefined(layoutAlias("force"));
+        assert.isUndefined(layoutAlias("toString"));
+        assert.include(DEPRECATED_LAYOUT_IDS, "force-2d");
+        assert.include(KNOWN_LAYOUT_IDS, "force-2d", "the name stays reserved until the next major");
+    });
+
+    it("gives d3 a dim option, so it can be drawn flat", () => {
+        const d3 = layoutEntry("force")?.implementations.find((implementation) => implementation.engine === "d3");
+        assert.include(
+            d3?.options.map((option) => option.name),
+            "dim",
+        );
+    });
+
+    it("says how many dimensions a choice places nodes in, which the view alone cannot", () => {
+        const flat = (engine: string, options: Record<string, unknown>, dimension: "2d" | "3d"): string =>
+            arrangedDimension({ engine, options, dimension });
+
+        assert.strictEqual(flat("ngraph", {}, "3d"), "3d");
+        assert.strictEqual(flat("ngraph", { dim: 2 }, "3d"), "2d");
+        assert.strictEqual(flat("ngraph", { dim: 3 }, "2d"), "2d", "the 2D view wins over dim");
+        assert.strictEqual(flat("arf", {}, "3d"), "2d", "a flat-only engine is flat in the 3D view");
+        assert.strictEqual(flat("d3", { dim: 2 }, "3d"), "2d");
+        assert.strictEqual(flat("arf-unknown", {}, "3d"), "3d");
     });
 
     it("carries each engine's own options, emitted from its schema", () => {

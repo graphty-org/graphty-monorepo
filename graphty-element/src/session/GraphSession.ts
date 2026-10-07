@@ -21,6 +21,7 @@ import {
     type GraphAccelerator,
 } from "../acceleration";
 import type { CameraState } from "../camera/types";
+import { arrangedDimension } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
     EdgeId,
@@ -1020,6 +1021,9 @@ function layoutOf(dispatcher: Dispatcher, dispatch: (command: SessionCommand) =>
         },
         get dimension() {
             return choice().dimension;
+        },
+        get arrangedDimension() {
+            return arrangedDimension(choice());
         },
         set: async (
             id: LayoutId,

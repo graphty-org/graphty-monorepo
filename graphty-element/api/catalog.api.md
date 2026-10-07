@@ -259,6 +259,9 @@ export interface DefectWaiver {
 export const DEPRECATED_ALGORITHMS: readonly ["all-paths"];
 
 // @public
+export const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
+
+// @public
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public

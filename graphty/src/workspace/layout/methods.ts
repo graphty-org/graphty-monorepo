@@ -12,7 +12,6 @@ import { type GraphSession, recommendLayout } from "@graphty/graphty-element/ses
  */
 const LAYOUT_NAMES: Readonly<Record<string, string>> = {
     force: "Force",
-    "force-2d": "Force, flat",
     circular: "Circle",
     radial: "Rings around a node",
     grid: "Grid",

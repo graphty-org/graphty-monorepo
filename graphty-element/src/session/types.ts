@@ -1750,8 +1750,15 @@ export interface SessionLayout {
     readonly engine: string;
     /** The options it was chosen with. */
     readonly options: Readonly<Record<string, unknown>>;
-    /** Whether the graph is drawn in two dimensions or three. */
+    /** Whether the graph is drawn in two dimensions or three: the view's dimension. */
     readonly dimension: "2d" | "3d";
+    /**
+     * How many dimensions the current layout actually places nodes in. Always `"2d"` in the 2D
+     * view; in the 3D view `"2d"` for an engine that only draws flat (such as `arf`) or one chosen
+     * with `dim: 2`, and `"3d"` otherwise. Read it, not `options.dim`, to tell a flat layout in the
+     * 3D view: options hold only what was asked for, not the defaults the element fills in.
+     */
+    readonly arrangedDimension: "2d" | "3d";
     /**
      * Choose the layout. One step.
      * @param id - The catalogue id; a registered engine name is read as the id it serves.

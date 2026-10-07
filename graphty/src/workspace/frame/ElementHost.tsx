@@ -18,6 +18,11 @@ const LAYOUT_BEHAVIOR = { labels: { declutter: true } } as const;
 const LAYOUT_ENGINE = "ngraph";
 const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
 
+/**
+ * The workspace's View menu offers VR and AR, so the element draws no XR buttons on the canvas.
+ */
+const XR_CONFIG = { ui: { enabled: false } } as const;
+
 /** Props for ElementHost. */
 interface ElementHostProps {
     /**
@@ -64,6 +69,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             layout={LAYOUT_ENGINE}
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={LAYOUT_BEHAVIOR}
+            xr={XR_CONFIG}
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );

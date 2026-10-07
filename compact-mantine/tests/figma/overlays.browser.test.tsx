@@ -19,6 +19,7 @@ import { commands, page, userEvent } from "vitest/browser";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { ContextMenu } from "../../src/components/overlays/ContextMenu";
 import { MenuCheckItem } from "../../src/components/overlays/MenuCheckItem";
+import { MenuItemDescription } from "../../src/components/overlays/MenuItemDescription";
 import { ModalFooter } from "../../src/components/overlays/ModalFooter";
 import { Toast } from "../../src/components/overlays/Toast";
 import { TooltipShortcut } from "../../src/components/overlays/TooltipShortcut";
@@ -359,6 +360,32 @@ describe("8.1 dark menu keyboard and scroll", () => {
         await userEvent.keyboard("v");
         expect(focused()).toBe("View");
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("a row with a second line is a 44px touch target and neither line is cut off", async () => {
+        await renderFigma(
+            <Menu opened trapFocus={false} closeOnClickOutside={false}>
+                <Menu.Target>
+                    <Button>View</Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Item>Fit</Menu.Item>
+                    <MenuCheckItem radio checked={false} aria-disabled data-disabled>
+                        VR / AR
+                        <MenuItemDescription>This browser has no VR or AR</MenuItemDescription>
+                    </MenuCheckItem>
+                </Menu.Dropdown>
+            </Menu>,
+        );
+        const two = await waitFor(() =>
+            document.querySelector<HTMLElement>(".cm-menu-item:has(.cm-menu-item-description)"),
+        );
+        expect(box(two).height).toBeGreaterThanOrEqual(44);
+        const line = part(two, ".cm-menu-item-description");
+        expect(line.scrollHeight).toBeLessThanOrEqual(line.clientHeight);
+        expect(box(line).bottom).toBeLessThanOrEqual(box(two).bottom);
+        // A one-line row keeps Figma's 24.
+        expect(box(row(document, "Fit")).height).toBe(24);
     });
 
     it("a clamped menu shows 24px chevron rows at the ends it can scroll to; hovering one scrolls", async () => {

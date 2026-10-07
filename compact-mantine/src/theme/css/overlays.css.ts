@@ -99,6 +99,21 @@ const css = `
     text-overflow: ellipsis;
 }
 
+/* A row with a second line (MenuItemDescription): it grows to a 44px touch target (WCAG 2.5.5)
+   and both lines stay whole; the leading and trailing slots stay centered on it. */
+.cm-menu-item:has(.cm-menu-item-description) {
+    height: auto;
+    min-height: 44px;
+    padding-block: 4px;
+}
+.cm-menu-item-description {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--cm-text-menu-secondary);
+    ${cmFont("caption")}
+}
+
 /* Leading slot: a 24 x 24 icon starts 12px from the menu edge with a 4px gap to the label; the
    16 x 16 check column starts at 16 with no gap (labels 32 from the edge). */
 .cm-menu-item-section {

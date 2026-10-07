@@ -220,6 +220,52 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
     );
 
     it(
+        "names the view mode on the View tool and offers 2D, 3D and VR or AR from its menu",
+        async () => {
+            const session = await openKarate();
+            const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+            const view = within(toolbar).getByRole("button", { name: "View" });
+            assert.equal(view.textContent, "3D");
+            // No XR buttons on the canvas: the menu is the one way in.
+            assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
+
+            await userEvent.click(view);
+            const menu = await screen.findByRole("menu", { name: "View" });
+            const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
+            const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
+            assert.equal(threeD.getAttribute("aria-checked"), "true");
+            // Key 5 is shown on the row it switches to, not on the current one.
+            assert.include(twoD.textContent, "5");
+            assert.notInclude(threeD.textContent, "5");
+            // Without a headset (the test browser), VR and AR are drawn, disabled, with a reason.
+            await waitFor(() => {
+                const xr = within(menu)
+                    .getAllByRole("menuitemradio")
+                    .filter((row) => /^(VR|AR)/.test(row.textContent));
+                assert.isAbove(xr.length, 0);
+                for (const row of xr) {
+                    assert.equal(row.getAttribute("aria-disabled"), "true");
+                    assert.notInclude(row.textContent, "Checking");
+                }
+            });
+            assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Front/ }));
+
+            await userEvent.click(twoD);
+            await waitFor(() => {
+                assert.equal(session.layout.dimension, "2d");
+                assert.equal(view.textContent, "2D");
+            });
+            await userEvent.click(view);
+            const flat = await screen.findByRole("menu", { name: "View" });
+            // One row says why the camera views are gone, instead of four disabled ones.
+            assert.isNull(within(flat).queryByRole("menuitem", { name: /^Front/ }));
+            assert.include(within(flat).getByRole("menuitem", { name: /^Camera views/ }).textContent, "Only in 3D");
+            assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "switches to 2D with 5, and opens a node's neighborhood from its Degree row, then grows it",
         async () => {
             const session = await openKarate();

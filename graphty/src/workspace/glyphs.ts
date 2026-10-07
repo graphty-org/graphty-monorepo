@@ -5,7 +5,6 @@
  */
 
 import {
-    Box,
     Calendar,
     CaseSensitive,
     ChartColumn,
@@ -51,7 +50,6 @@ import {
     Shapes,
     Share2,
     Spline,
-    Square,
     SquareDashed,
     TriangleAlert,
     Undo2,
@@ -90,8 +88,6 @@ export const GLYPHS = {
     // Tools and commands.
     analyze: FlaskConical,
     layout: ChartNetwork,
-    view3d: Box,
-    view2d: Square,
     legend: List,
     quickActions: Search,
     filter: ListFilter,

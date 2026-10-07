@@ -1,7 +1,8 @@
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { nodeKey } from "../inspector/inspected";
+import { xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
@@ -12,6 +13,57 @@ import { nothingDrawn } from "./useSessionVersion";
  */
 function noNodeSelected(session: GraphSession | null): string | null {
     return nothingDrawn(session) ?? (session?.selection.nodes.length ? null : "Select a node first");
+}
+
+/**
+ * The immersive session the element is presenting, from its device facts.
+ * @param session - the element's session, or null.
+ * @returns VR, AR, or null.
+ */
+export function immersiveMode(session: GraphSession | null): "vr" | "ar" | null {
+    return session?.capabilities.xr.active ?? null;
+}
+
+/**
+ * The Enter VR and Enter AR commands: disabled with the element's reason in the app's words;
+ * running one asks the element for the session (from 2D it switches to 3D in the same step), and
+ * a refusal becomes a notice.
+ * @param mode - VR or AR.
+ * @returns the command.
+ */
+function enterImmersive(mode: "vr" | "ar"): {
+    id: string;
+    label: string;
+    group: "View";
+    disabled: (ctx: CommandContext) => string | null;
+    run: (ctx: CommandContext) => Promise<void>;
+} {
+    return {
+        id: `view.enter-${mode}`,
+        label: `Enter ${mode.toUpperCase()}`,
+        group: "View",
+        disabled: ({ session }) => {
+            const reason = session?.capabilities.xr.reasons[mode] ?? null;
+            const active = immersiveMode(session);
+            return (
+                nothingDrawn(session) ??
+                (active === null ? null : `Already in ${active.toUpperCase()}`) ??
+                (reason === null ? null : xrReasonWords(reason, mode))
+            );
+        },
+        run: async ({ session, workspace }) => {
+            try {
+                await session?.execute({ op: "view.immersive", mode });
+            } catch (error) {
+                workspace.set({
+                    notice: {
+                        message: xrEntryFailureWords(mode, isGraphtyError(error) ? error.code : undefined),
+                        error: true,
+                    },
+                });
+            }
+        },
+    };
 }
 
 /** The element's standard 3D views the View flyout offers, with their keys (tier1-design.md 2.3). */
@@ -109,6 +161,39 @@ export const registration = defineRegistration({
             disabled: ({ session }) => nothingDrawn(session),
             run: async ({ session }) => {
                 await session?.layout.setDimension(session.layout.dimension === "3d" ? "2d" : "3d");
+            },
+        },
+        {
+            id: "view.mode-2d",
+            label: "Switch to 2D",
+            group: "View",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: async ({ session }) => {
+                await session?.layout.setDimension("2d");
+            },
+        },
+        {
+            id: "view.mode-3d",
+            label: "Switch to 3D",
+            group: "View",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: async ({ session }) => {
+                if (immersiveMode(session) !== null) {
+                    await session?.execute({ op: "view.immersive", mode: null });
+                    return;
+                }
+                await session?.layout.setDimension("3d");
+            },
+        },
+        enterImmersive("vr"),
+        enterImmersive("ar"),
+        {
+            id: "view.exit-xr",
+            label: "Exit VR or AR",
+            group: "View",
+            disabled: ({ session }) => (immersiveMode(session) === null ? "Not in VR or AR" : null),
+            run: async ({ session }) => {
+                await session?.execute({ op: "view.immersive", mode: null });
             },
         },
         {

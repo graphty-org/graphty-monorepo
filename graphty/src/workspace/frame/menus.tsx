@@ -4,7 +4,8 @@
  * line.
  */
 
-import { Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { MenuItemDescription } from "@graphty/compact-mantine";
+import { Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { Fragment } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
@@ -30,7 +31,12 @@ export function CommandMenuItem({
     shortcut,
     reason,
     onRun,
-}: Readonly<{ label: string; shortcut: string | undefined; reason: string | null; onRun: () => void }>): React.JSX.Element {
+}: Readonly<{
+    label: string;
+    shortcut: string | undefined;
+    reason: string | null;
+    onRun: () => void;
+}>): React.JSX.Element {
     return (
         <Menu.Item
             onClick={reason === null ? onRun : undefined}
@@ -40,11 +46,7 @@ export function CommandMenuItem({
             rightSection={shortcut === undefined ? undefined : formatKey(shortcut)}
         >
             {label}
-            {reason === null ? null : (
-                <Text component="span" display="block" size="xs" c="var(--cm-text-menu-secondary)">
-                    {reason}
-                </Text>
-            )}
+            {reason === null ? null : <MenuItemDescription>{reason}</MenuItemDescription>}
         </Menu.Item>
     );
 }

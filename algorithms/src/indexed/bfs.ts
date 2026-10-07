@@ -218,7 +218,8 @@ export function breadthFirstSearch(g: AdjacencyView, startNode: NodeRef, options
 export interface DirectionOptimizedBfsOptions {
     /**
      * Switch from top-down to bottom-up once the frontier's out-arcs exceed the unvisited nodes'
-     * out-arcs divided by `alpha`. Default 15.
+     * in-arcs divided by `alpha`. Default 1: switch once a top-down step would read more arcs than
+     * a bottom-up step can, since a bottom-up step reads at most the unvisited nodes' in-arcs.
      */
     readonly alpha?: number | undefined;
     /** Switch back to top-down once the frontier shrinks below `nodeCount / beta` nodes. Default 18. */
@@ -256,9 +257,8 @@ function twinArc(s: GraphSnapshot, a: number, u: number, v: number): number {
 /**
  * Direction-optimising breadth-first search (Beamer, Asanovic and Patterson, SC'12): a top-down
  * step expands the frontier's out-arcs, a bottom-up step has every unvisited node look for a
- * frontier node among its in-neighbours over `s.reverse()` (fetched only when a bottom-up step
- * runs), and the search switches between the two
- * by frontier size. Both steps give a node the LOWEST-index frontier node that reaches it as its
+ * frontier node among its in-neighbours over `s.reverse()`, and the search switches between the
+ * two by the arcs each would read. Both steps give a node the LOWEST-index frontier node that reaches it as its
  * parent, so the result does not depend on which steps ran: `depth` equals `breadthFirstSearch`'s,
  * and `order` lists the visited nodes level by level, ascending within a level.
  * @param s - The snapshot to traverse
@@ -274,7 +274,10 @@ export function directionOptimizedBfs(
 ): BfsResult {
     const source = checkStart(s, sourceNode);
     const { nodeCount, rowPtr, colIdx } = s;
-    const alpha = options.alpha ?? 15;
+    // Beamer's alpha of 15 assumes a bottom-up step finds a parent within a fifteenth of the
+    // unvisited nodes' arcs; measured on trees, power-law and small-world graphs it reads most of
+    // them until the level that holds nearly every remaining node, so the default compares whole.
+    const alpha = options.alpha ?? 1;
     const beta = options.beta ?? 18;
     let reverse: ReverseView | null = null;
     const parent = new Uint32Array(nodeCount).fill(INVALID_INDEX);
@@ -286,7 +289,9 @@ export function directionOptimizedBfs(
     depth[source] = 0;
     let levelStart = 0;
     let tail = 1;
-    let unexploredArcs = s.arcCount - (rowPtr[source + 1] - rowPtr[source]);
+    // A bottom-up step reads the unvisited nodes' IN-arcs, so those are what it is weighed by.
+    const inDegree = s.inDegree();
+    let unexploredArcs = s.arcCount - inDegree[source];
     let bottomUp = false;
     for (let d = 0; levelStart < tail; d++) {
         const frontierSize = tail - levelStart;
@@ -335,7 +340,7 @@ export function directionOptimizedBfs(
             order.subarray(levelEnd, tail).sort();
         }
         for (let i = levelEnd; i < tail; i++) {
-            unexploredArcs -= rowPtr[order[i] + 1] - rowPtr[order[i]];
+            unexploredArcs -= inDegree[order[i]];
         }
         levelStart = levelEnd;
     }

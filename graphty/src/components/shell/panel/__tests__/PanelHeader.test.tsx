@@ -190,5 +190,4 @@ describe("PanelHeader", () => {
             expect(onSelect).toHaveBeenCalledTimes(1);
         });
     });
-
 });

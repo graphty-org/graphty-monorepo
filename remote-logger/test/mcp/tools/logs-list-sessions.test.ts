@@ -15,12 +15,8 @@ describe("logs_list_sessions tool", () => {
     });
 
     test("lists all sessions with metadata", async () => {
-        storage.addLogs("session-a", [
-            { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test A" },
-        ]);
-        storage.addLogs("session-b", [
-            { time: "2024-01-15T10:00:01.000Z", level: "ERROR", message: "Test B" },
-        ]);
+        storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test A" }]);
+        storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "ERROR", message: "Test B" }]);
 
         const result = await logsListSessionsHandler(storage, {});
 
@@ -64,16 +60,12 @@ describe("logs_list_sessions tool", () => {
     });
 
     test("filters by projectMarker", async () => {
-        storage.addLogs(
-            "session-a",
-            [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" }],
-            { projectMarker: "project-a" },
-        );
-        storage.addLogs(
-            "session-b",
-            [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" }],
-            { projectMarker: "project-b" },
-        );
+        storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" }], {
+            projectMarker: "project-a",
+        });
+        storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" }], {
+            projectMarker: "project-b",
+        });
 
         const result = await logsListSessionsHandler(storage, { projectMarker: "project-a" });
 
@@ -83,12 +75,8 @@ describe("logs_list_sessions tool", () => {
     });
 
     test("filters by hasErrors", async () => {
-        storage.addLogs("session-no-errors", [
-            { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "OK" },
-        ]);
-        storage.addLogs("session-with-errors", [
-            { time: "2024-01-15T10:00:01.000Z", level: "ERROR", message: "Bad" },
-        ]);
+        storage.addLogs("session-no-errors", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "OK" }]);
+        storage.addLogs("session-with-errors", [{ time: "2024-01-15T10:00:01.000Z", level: "ERROR", message: "Bad" }]);
 
         const result = await logsListSessionsHandler(storage, { hasErrors: true });
 
@@ -104,21 +92,15 @@ describe("logs_list_sessions tool", () => {
     });
 
     test("combines filters", async () => {
-        storage.addLogs(
-            "session-a",
-            [{ time: "2024-01-15T10:00:00.000Z", level: "ERROR", message: "A error" }],
-            { projectMarker: "project-a" },
-        );
-        storage.addLogs(
-            "session-b",
-            [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "A info" }],
-            { projectMarker: "project-a" },
-        );
-        storage.addLogs(
-            "session-c",
-            [{ time: "2024-01-15T10:00:02.000Z", level: "ERROR", message: "B error" }],
-            { projectMarker: "project-b" },
-        );
+        storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "ERROR", message: "A error" }], {
+            projectMarker: "project-a",
+        });
+        storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "A info" }], {
+            projectMarker: "project-a",
+        });
+        storage.addLogs("session-c", [{ time: "2024-01-15T10:00:02.000Z", level: "ERROR", message: "B error" }], {
+            projectMarker: "project-b",
+        });
 
         const result = await logsListSessionsHandler(storage, {
             projectMarker: "project-a",

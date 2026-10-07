@@ -304,6 +304,7 @@ This document provides a detailed, step-by-step implementation plan for refactor
     ```
 
 2. Add tests:
+
     ```typescript
     describe("shuffle", () => {
         it("should shuffle array in place", () => {
@@ -685,6 +686,7 @@ This document provides a detailed, step-by-step implementation plan for refactor
 **Actions**:
 
 1. Create `src/utils/graph-converters.ts`:
+
     ```typescript
     export class GraphAdapter {
         constructor(private map: Map<string, Map<string, number>>) {}

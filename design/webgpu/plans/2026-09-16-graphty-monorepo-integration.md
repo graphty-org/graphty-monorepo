@@ -44,79 +44,80 @@
 
 ### 0.1 Where both repositories stand (2026-09-16)
 
-| Fact | Evidence |
-| --- | --- |
-| Source: `graphty-org/webgpu-graph-algorithms`, branch `master` = `origin/master` = `a66c889`, 38 commits, no tags, one author, 21 GPG-signed + 17 unsigned commits, every message ASCII with no trailers. | `git log --format='%h %G? %s'` |
-| The package is `packages/webgpu-graph-algorithms/` (435 tracked files). The design corpus outside it: `design/webgpu-acceleration-plan.md` (449 KB, 4758 lines) and `docs/superpowers/plans/` (5 files, 4.2 MB; p1 and p3 exceed 1 MB). Inside it: `docs/HEADLESS_GPU_REPORT.md`, `docs/decisions/G0-G3.md`, `docs/research/**` (notes, drafts, review, 4 committed `.log` probes). | `git ls-files`; docs inventory |
-| Two files are UNTRACKED in the source: `packages/webgpu-graph-algorithms/docs/decisions/G0.md` (75 `[[fill: ...]]` occurrences) and `G2.md` (22 `{{...}}` occurrences); both are open gate records waiting on the never-provisioned GPU runner; the package `CLAUDE.md` cites them. | `git status --porcelain` |
-| P0-P3 are done (gate G3 GREEN on the dev box 2026-09-16); CI (`ci.yml`, lavapipe + SwiftShader) and Hosts (`hosts.yml`, Metal/WebKit + WARP) are green on `a66c889`; `gpu.yml` has push and schedule commented out because the `gpu-linux-t4` runner does not exist (graphty-org is on the GitHub Free plan; hosted GPU runners need Team). | run 35142649256 (CI), 35142674793 (Hosts); `gh api orgs/graphty-org` plan `free` |
-| Monorepo: `graphty-org/graphty-monorepo`, `origin/master` = `dc08826b` (the night of 2026-09-16/17: `6fc56c1b`, nine repair and feature commits ending at `6b4777df`, then the release commit `dc08826b chore(release): publish [skip ci]`; the owner's local `master` was still at `6b4777df` when execution started, so M1-T1 fast-forwards it first), 1046 commits, 5 root commits, 85 merges (four of them history imports of algorithms / layout / graphty-element / graphty via `git filter-repo --to-subdirectory-filter` + `merge --allow-unrelated-histories`), 818 imported unsigned commits, no branch protection, `.git` 71 MB. | `git rev-list --max-parents=0 HEAD`; `design/monorepo/nx-monorepo-implementation-plan.md:1473-1565` |
-| graph-format 0.1.0 and graph-io 0.1.0 landed 2026-09-16 as ONE squashed commit each (`5000b631`, `0d856404`), the root wiring in `0069386c` (byte-identical to the rehearsed `packages/move/root-touch-points.diff`), the records in `b7ed9b16` (`design/graph-format/STATUS.md`, `CONFORMANCE.md` with a prepended LANDED note). No tag exists for either yet. | `git show --stat` |
-| Monorepo master CI was RED on `6fc56c1b` (run 35136935430: `Test (graph-format)`, `Test (graph-io)`, `Test (remote-logger)`, Chromatic graphty and graphty-element). The owner landed the repair on the evening of 2026-09-16 as four commits (`b3e64b26 fix(workspace): stop a blocked test worker from failing a green run`, `3adc73fc fix(remote-logger): bind test servers to a free port`, `58bbf728`, `71a35012`) and five more by the time execution started (`b1bf8a00`, `efdf50ca`, `914e8cdc`, `169a1edf`, `6b4777df fix(graph-io): admit the format's new minor into the peer range`); the main worktree is clean at `6b4777df`; CI run 35181978899 on `169a1edf` was green and run 35188079599 on `6b4777df` was in progress when execution started. `6b4777df` RESOLVES the D-18 release blocker the owner's way (graph-io's peer becomes `^0.2.0`), CI run 35188079599 on it was green, and Release run 35189211639 then PUBLISHED graph-format@0.2.0, graph-io@0.2.0, compact-mantine@0.8.0, graphty-element@1.10.0, remote-logger@1.3.1 and graphty@0.7.0 (`npm view` confirms 0.2.0 for both format packages; the release commit is `dc08826b`). That run still shows RED: release.yml's explicit `pnpm exec nx release publish` safety-net step re-publishes every project after `nx release` already did and gets `409 Conflict - Cannot publish over previously staged version` for three of them -- an owner workflow item outside this plan; every Release run that publishes something will end red until it is changed, so Task M3-T7 checks npm, not the run's colour. | `git log 6fc56c1b..master`; `git status --short`; `gh run list`; `git show 6b4777df` |
-| Every monorepo CI job is `ubuntu-latest`; no self-hosted runner, no `gpu` label, no `sudo apt-get` step, no `.gitattributes`, `*.log` ignored by `.gitignore`, `benchmarks/out/`, `browser-results.json`, `gpu-report.json` NOT ignored. | `.github/workflows/*.yml`, `.gitignore` |
-| The consumer migration of the graph-format design has not started: no monorepo package imports `@graphty/graph-format` (A1 not begun, F2 = 1.0.0 not cut, `layout/src/simulation/` and `algorithms/src/indexed/` do not exist). `@graphty/layout` is 1.6.2, synchronous, positional-argument, zero-dependency; `@graphty/algorithms` 1.7.2; graphty-element 1.9.4. | `grep -rn graph-format */package.json` |
-| The monorepo's shared root files are byte-identical to the staging copies (`tsconfig.base.json`, `eslint.config.js`, `vitest.shared.config.ts`, `vite.shared.config.ts`, `.prettierrc`, `.prettierignore`, `.npmrc`), the lockfile already resolves `webgpu@0.4.0`, `@webgpu/types@0.1.72`, `vitest@3.2.7`, `@vitest/browser@3.2.7`, `vite@7.3.6`; the package's `project.json` already uses monorepo paths (`cwd: webgpu-graph-algorithms`). | `diff -u`; `pnpm-lock.yaml` |
-| `git filter-repo` rehearsal (scratch clone, 2026-09-16): the four path rules of Task M1-T3 produce 30 commits (8 dropped as empty: the 2025 scaffold, the graph-format/graph-io staging commit, the `.claudehistory` ignore, five CI-only commits), a tree of exactly `design/webgpu/**` and `webgpu-graph-algorithms/**`, 3.10 MiB packed, `git log --follow` reaching the original commits, zero non-ASCII, zero trailers. The monorepo HEAD has no `webgpu-graph-algorithms/` or `design/webgpu/` path, so the unrelated-history merge has no add/add conflict. | scratch clone under the session scratchpad; not committed anywhere |
+| Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Evidence                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Source: `graphty-org/webgpu-graph-algorithms`, branch `master` = `origin/master` = `a66c889`, 38 commits, no tags, one author, 21 GPG-signed + 17 unsigned commits, every message ASCII with no trailers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `git log --format='%h %G? %s'`                                                                      |
+| The package is `packages/webgpu-graph-algorithms/` (435 tracked files). The design corpus outside it: `design/webgpu-acceleration-plan.md` (449 KB, 4758 lines) and `docs/superpowers/plans/` (5 files, 4.2 MB; p1 and p3 exceed 1 MB). Inside it: `docs/HEADLESS_GPU_REPORT.md`, `docs/decisions/G0-G3.md`, `docs/research/**` (notes, drafts, review, 4 committed `.log` probes).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `git ls-files`; docs inventory                                                                      |
+| Two files are UNTRACKED in the source: `packages/webgpu-graph-algorithms/docs/decisions/G0.md` (75 `[[fill: ...]]` occurrences) and `G2.md` (22 `{{...}}` occurrences); both are open gate records waiting on the never-provisioned GPU runner; the package `CLAUDE.md` cites them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `git status --porcelain`                                                                            |
+| P0-P3 are done (gate G3 GREEN on the dev box 2026-09-16); CI (`ci.yml`, lavapipe + SwiftShader) and Hosts (`hosts.yml`, Metal/WebKit + WARP) are green on `a66c889`; `gpu.yml` has push and schedule commented out because the `gpu-linux-t4` runner does not exist (graphty-org is on the GitHub Free plan; hosted GPU runners need Team).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | run 35142649256 (CI), 35142674793 (Hosts); `gh api orgs/graphty-org` plan `free`                    |
+| Monorepo: `graphty-org/graphty-monorepo`, `origin/master` = `dc08826b` (the night of 2026-09-16/17: `6fc56c1b`, nine repair and feature commits ending at `6b4777df`, then the release commit `dc08826b chore(release): publish [skip ci]`; the owner's local `master` was still at `6b4777df` when execution started, so M1-T1 fast-forwards it first), 1046 commits, 5 root commits, 85 merges (four of them history imports of algorithms / layout / graphty-element / graphty via `git filter-repo --to-subdirectory-filter` + `merge --allow-unrelated-histories`), 818 imported unsigned commits, no branch protection, `.git` 71 MB.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | `git rev-list --max-parents=0 HEAD`; `design/monorepo/nx-monorepo-implementation-plan.md:1473-1565` |
+| graph-format 0.1.0 and graph-io 0.1.0 landed 2026-09-16 as ONE squashed commit each (`5000b631`, `0d856404`), the root wiring in `0069386c` (byte-identical to the rehearsed `packages/move/root-touch-points.diff`), the records in `b7ed9b16` (`design/graph-format/STATUS.md`, `CONFORMANCE.md` with a prepended LANDED note). No tag exists for either yet.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | `git show --stat`                                                                                   |
+| Monorepo master CI was RED on `6fc56c1b` (run 35136935430: `Test (graph-format)`, `Test (graph-io)`, `Test (remote-logger)`, Chromatic graphty and graphty-element). The owner landed the repair on the evening of 2026-09-16 as four commits (`b3e64b26 fix(workspace): stop a blocked test worker from failing a green run`, `3adc73fc fix(remote-logger): bind test servers to a free port`, `58bbf728`, `71a35012`) and five more by the time execution started (`b1bf8a00`, `efdf50ca`, `914e8cdc`, `169a1edf`, `6b4777df fix(graph-io): admit the format's new minor into the peer range`); the main worktree is clean at `6b4777df`; CI run 35181978899 on `169a1edf` was green and run 35188079599 on `6b4777df` was in progress when execution started. `6b4777df` RESOLVES the D-18 release blocker the owner's way (graph-io's peer becomes `^0.2.0`), CI run 35188079599 on it was green, and Release run 35189211639 then PUBLISHED graph-format@0.2.0, graph-io@0.2.0, compact-mantine@0.8.0, graphty-element@1.10.0, remote-logger@1.3.1 and graphty@0.7.0 (`npm view` confirms 0.2.0 for both format packages; the release commit is `dc08826b`). That run still shows RED: release.yml's explicit `pnpm exec nx release publish` safety-net step re-publishes every project after `nx release` already did and gets `409 Conflict - Cannot publish over previously staged version` for three of them -- an owner workflow item outside this plan; every Release run that publishes something will end red until it is changed, so Task M3-T7 checks npm, not the run's colour. | `git log 6fc56c1b..master`; `git status --short`; `gh run list`; `git show 6b4777df`                |
+| Every monorepo CI job is `ubuntu-latest`; no self-hosted runner, no `gpu` label, no `sudo apt-get` step, no `.gitattributes`, `*.log` ignored by `.gitignore`, `benchmarks/out/`, `browser-results.json`, `gpu-report.json` NOT ignored.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `.github/workflows/*.yml`, `.gitignore`                                                             |
+| The consumer migration of the graph-format design has not started: no monorepo package imports `@graphty/graph-format` (A1 not begun, F2 = 1.0.0 not cut, `layout/src/simulation/` and `algorithms/src/indexed/` do not exist). `@graphty/layout` is 1.6.2, synchronous, positional-argument, zero-dependency; `@graphty/algorithms` 1.7.2; graphty-element 1.9.4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `grep -rn graph-format */package.json`                                                              |
+| The monorepo's shared root files are byte-identical to the staging copies (`tsconfig.base.json`, `eslint.config.js`, `vitest.shared.config.ts`, `vite.shared.config.ts`, `.prettierrc`, `.prettierignore`, `.npmrc`), the lockfile already resolves `webgpu@0.4.0`, `@webgpu/types@0.1.72`, `vitest@3.2.7`, `@vitest/browser@3.2.7`, `vite@7.3.6`; the package's `project.json` already uses monorepo paths (`cwd: webgpu-graph-algorithms`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `diff -u`; `pnpm-lock.yaml`                                                                         |
+| `git filter-repo` rehearsal (scratch clone, 2026-09-16): the four path rules of Task M1-T3 produce 30 commits (8 dropped as empty: the 2025 scaffold, the graph-format/graph-io staging commit, the `.claudehistory` ignore, five CI-only commits), a tree of exactly `design/webgpu/**` and `webgpu-graph-algorithms/**`, 3.10 MiB packed, `git log --follow` reaching the original commits, zero non-ASCII, zero trailers. The monorepo HEAD has no `webgpu-graph-algorithms/` or `design/webgpu/` path, so the unrelated-history merge has no add/add conflict.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | scratch clone under the session scratchpad; not committed anywhere                                  |
 
 ### 0.2 Decisions (defaults stand unless the owner says otherwise before Phase M1 starts)
 
-| Id | Decision | Default and reason | Alternative |
-| --- | --- | --- | --- |
-| D-1 | History strategy | Carry the history: `git filter-repo` on a fresh clone (four `--path` keeps, four `--path-rename` rules), fetched into a landing branch and merged with `--allow-unrelated-histories --no-ff`. Meets the owner's criterion ("not damaging, no risk to the monorepo"): it is the monorepo's own documented and four-times-used procedure; it changes no existing commit, tag or file; it adds one root and one merge to a history that has 5 and 85; the cost is 3.1 MiB (a plain copy would add 2.9 MiB); `nx release` is unaffected (0.2.0 either way, see D-4); commitlint is not retroactive. Costs stated plainly: filter-repo re-creates every commit, so the 21 signed source commits arrive UNSIGNED (the monorepo already carries 818 unsigned imported commits); the merge and the five wiring commits are signed by the owner. Rollback before the push: `git worktree remove --force .worktrees/land-webgpu-graph-algorithms && git branch -D land/webgpu-graph-algorithms` (owner). After `land` the import is permanent: `git revert -m 1 <merge>` plus reverting the wiring commits removes the tree but keeps the 31 commits in history, so the PR review (Task M3-T6) is the last checkpoint. | Plain move as one `feat(webgpu-graph-algorithms):` commit (the graph-format precedent). Choose it only if the owner rejects a sixth root or the unsigned imported commits; every later task is identical. |
-| D-2 | What travels in the rewrite | `packages/webgpu-graph-algorithms/` -> `webgpu-graph-algorithms/`; `design/webgpu-acceleration-plan.md` -> `design/webgpu/webgpu-acceleration-plan.md`; `docs/superpowers/plans/` -> `design/webgpu/plans/`; the historical root `HEADLESS_GPU_REPORT.md` -> `webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md` (so its creation commit is kept). NOT carried: `.github/` (`ci.yml` collides; all three workflows are ported by hand in Phase M3), `.gitattributes` (a monorepo-wide decision, D-12), `packages/{README,STATUS,CONFORMANCE,MIGRATION_PROMPT}.md`, `packages/move/`, the staging root configs, the root `README.md`/`CLAUDE.md`. | -- |
-| D-3 | Merge commit message | `feat: merge the webgpu-graph-algorithms package history into the monorepo` (unscoped, like the four precedent merges `feat: merge <pkg> history into monorepo`); passes commitlint (type-enum `feat`, no scope so scope-enum does not apply, 73 chars); contributes no files to `nx release` (a merge commit has no `--name-status` entries). The commit that adds the scope `webgpu-graph-algorithms` to `commitlint.config.js` comes AFTER the merge (Task M2-T1), which is why the merge message must not use that scope. | -- |
-| D-4 | First published version | The imported history holds 10 `feat(webgpu-graph-algorithms)` and 4 `fix` commits, so the first `nx release` after landing takes the package from the 0.1.0 on disk to **0.2.0** (identical to what a single `feat` landing commit would do, and to what graph-format/graph-io get: compact-mantine landed at 0.1.0 and its first tag was 0.2.0). The design's "first release 0.1.0" (P10) is therefore 0.2.0; accepted. | Set `version` to `0.0.1` in the package fix-up commit if the owner wants `0.1.0` to be the first published version. |
-| D-5 | graph-format 13.5 rule 5 | The package (0.1.0) depends on `@graphty/graph-format` `workspace:^` (peer `^0.2.0` after Task M1-T5, the minor graph-io states since `6b4777df`; see D-18) exactly as graph-io (0.1.0) already does on master; the rule's stated purpose is that 1.x consumers never pin a 0.x format, and the graph-io landing established that a 0.x package may. Bump the peer to `^1.0.0` in the F2 PR. The 1.x consumers (layout, algorithms, graphty-element) still wait for F2 (Phase M5 entry criterion). | Land the package commits as `chore` (no publish) until F2 -- not needed given the precedent. |
-| D-6 | Workspace protocol | Keep the package's `workspace:^` (design Q-31: publishes a caret range); do not touch graph-io's `workspace:*` in this plan (note it for the F2 PR: an exact pin beside a `^1` peer gives an app two format copies). | -- |
-| D-7 | Design document location | `design/webgpu/webgpu-acceleration-plan.md` (basename kept: 27 files cite it) and `design/webgpu/plans/<same basenames>`, per the design's own owner decision Q-18; package-internal docs stay under `webgpu-graph-algorithms/docs/`. Records move VERBATIM with a LANDED note APPENDED after the Review log explaining the path forms (the graph-format precedent, `design/graph-format/STATUS.md:1-11`, prepended; the WebGPU records are cited by line number, so here the note goes last); only the LIVE documents (package `README.md`, `CLAUDE.md`) get their citations re-pointed. Q-18's "on acceptance" stripping of Review notes into `docs/research/review-log.md` is NOT done (the contract, plans, gate records and verdicts cite the spec by line number). A `design/webgpu/README.md` index is added because GitHub does not render the two >1 MB phase plans. | `design/webgpu-graph-algorithms/` (mirrors `design/graph-format/`) -- rejected because Q-18 is an accepted owner decision. |
-| D-8 | Open gate records G0/G2 | Committed in the SOURCE repository first (Task M0-T1) so the rewrite carries them with their own commit; each gets a two-line "OPEN -- the GPU runner is not provisioned" header note. Phase M4 closes them. | Add them in the monorepo package fix-up commit. |
-| D-9 | What of P10 (W1) lands now | The physical move, the root touch points, the two software shards, `gpu.yml`, `hosts.yml`, the trusted publisher, the first release. NOT now (Phase M5b, gated on L1 and A2): deleting the D27 mirrors; CREATING `test/types/conformance.test-d.ts` (it does not exist today; design 9.8's W1 row says it is "retired" while G10 requires its `expectTypeOf` cross-compile -- the plan follows G10 and `src/types/accelerator.ts`'s own header: the file is created with the real imports and stays); `indexed.*` as a second oracle; the `seedPositions` cross-test; the design 10.3/14.5/14.6/16.2/16.7 amendments (Task M5b-T4). The mirrors, `CpuAlgorithmOptions` and `test/types/accelerator.test-d.ts` survive the move unchanged. The README performance table stays as regenerated from the dev-box baseline (the only baseline until M4); Task M4-T3 regenerates it with the T4 row. | -- |
-| D-10 | CI shard shape | Two shards in `ci.yml`'s matrix: `webgpu-graph-algorithms-node` (lavapipe, `--coverage`, thresholds active, uploads `coverage-webgpu-graph-algorithms-node`) and `webgpu-graph-algorithms-browser` (SwiftShader smoke through `scripts/run-browser-project.js`, no coverage). The node shard calls vitest DIRECTLY (like the algorithms shards) rather than through `nx run <pkg>:coverage`: the nx -> npm -> vitest pipe chain starved the worker RPC for graph-format/graph-io (`6fc56c1b`). A new matrix key `needs-lavapipe` gates two steps (apt install; ICD discovery exporting `VK_DRIVER_FILES` and the three lane variables to `$GITHUB_ENV`). The `find`-based ICD step replaces the design's hard-coded `lvp_icd.x86_64.json` (ubuntu-24.04 ships `lvp_icd.json`). | -- |
-| D-11 | Playwright version | Accept the monorepo's `playwright@1.57.0` (root devDependency `^1.54.1`); the package's flag facts were last re-measured on 1.63.0. The browser shard's first run is the check; `node scripts/probe-browser-flags.mjs` is the diagnostic if it regresses. Bumping the root devDependency is a separate `build(deps)` change. EXECUTION (2026-09-17): the regression R-M4 foresaw happened -- 1.57 ships Chromium 143 and WebKit 26.0; the uniform-layout browser test's invariant failed on all three Chromium lanes and the WebKit leg had no `navigator.gpu`. Resolved test-side (Task M3-T6 execution note): the root bump was measured in a scratch copy and REJECTED -- the Playwright 1.63 client hangs vitest 3.2.7 browser mode for graphty-element (the orchestrator's iframe `onload` never fires, so the `prepare` handshake never posts; the hang follows the client, not Chromium 153 nor the launch flags), which would deadlock nine graphty-element CI shards with no job timeout; and a root-only bump leaves the package's own `playwright ^1.54.1` at 1.57, so hosts.yml (working-directory `webgpu-graph-algorithms`) would install browser builds vitest does not launch. A future bump must move every `playwright` specifier together and re-verify graphty-element's browser, interactions and storybook projects (baseline 111 files / 1355 tests on 1.57). | -- |
-| D-12 | Line endings | Add a root `.gitattributes` (`* text=auto eol=lf`, `-text` for the two CRLF corpora `graph-io/test/corpus/**` and `graphty-element/test/helpers/corpus/**`, `*.gsnp` / `*.png` / `*.zip` binary) in its own commit with a read-only `git ls-files --eol` check proving that no tracked file outside the two corpora is CRLF (so the attribute renormalises nothing). Needed by the Windows host lane (LF checkouts) and by `test/fixtures/rich-v1.gsnp`. | Skip the file and drop the Windows host lane. |
-| D-13 | Pre-push hook | Add `(cd webgpu-graph-algorithms && GRAPHTY_GPU_REQUIRE=any npm run test:run)` after graph-io's line, as design 12.5 prescribes (`test:node` only, "matching CI": `any` makes a missing adapter FAIL up front in `test/setup/global.ts` instead of skipping every GPU test silently). On the dev box this runs on NVIDIA when `LD_LIBRARY_PATH` carries the libEGL tree, else on lavapipe (~5 min); the browser project runs only in CI. | Leave the package out of the hook (no precedent: "no package is skipped"). |
-| D-14 | Dev box libEGL tree | Re-extract it under `graphty-monorepo/tmp/egl/` (gitignored) per `HEADLESS_GPU_REPORT.md` appendix D and re-point the three absolute paths in the package `CLAUDE.md`; recommend adding `libegl1` to the container image so the workaround disappears. | -- |
-| D-15 | GPU runner | GitHub Team plan + hosted `gpu-linux-t4` in runner group `gpu` (design Q-3, decided 2026-09-14). `gpu.yml` lands with push/schedule commented out and is never dispatched before the runner exists (a dispatch would queue a phantom job for 24 h). Phase M4 is the owner's provisioning gate. | machine.dev `runs-on: machine/gpu=t4` (only `runs-on` and the provisioning steps differ). |
-| D-16 | Layout seam scope | Phase M5 implements design 9.3 (the simulation barrel, the CPU steppable FA2 and FR, `createSimulation`, `resolveNodeVector` / `resolveWeights` / `seedPositions`) and the minimal `toLayoutSnapshot`; it does NOT port the other 13 layouts to `indexed.*` (that is graph-format design 14.3's own L1 work and can proceed in parallel). The CPU `ForceAtlas2Simulation` is a PORT (copy) of the GPU package's `test/oracle/forceatlas2.ts` formulas, not a move: the GPU package keeps its independent reference (design 9.8 W1 row: "the independent references stay"; two transcriptions of table 7.2 are the R-1 mitigation). Design 9.3's one-shot `indexed.forceAtlas2(s, options): LayoutResult`, `toPositionMap` and the `LayoutResult` type stay with graph-format 14.3's L1 proper; here the legacy `forceatlas2Layout` calls `ForceAtlas2Simulation` directly and keeps its `rescaleLayout` output (Task M5-T8). | Move the oracle (design P3 row's "moved -- not copied -- if L1 wants it"). |
-| D-17 | Legacy `forceatlas2Layout` | Rewritten over the new simulation in Phase M5's last task (design 9.3: one code path), with the Chromatic re-baseline commit; separable if the owner wants the seam without the behaviour change. | Keep the dense legacy implementation beside the simulation. |
-| D-18 | The graph-format peer range during 0.x | DECIDED BY THE OWNER on 2026-09-16 (`6b4777df`, before Phase M1 started): the minor pin `^0.2.0` -- "a 0.x minor is a breaking change, so graph-io states compatibility with exactly the minor it was built against"; every future format minor stops `nx release` again and asks for the same one-line edit, which the owner accepts as the designed prompt. The GPU package mirrors it: its peer becomes `^0.2.0` in the `package` commit (Task M1-T5); its `dependencies` entry stays `workspace:^`; the build-output test that pins the caret form stays as it is; the F2 PR turns both into `^1.0.0`. The plan's original default (`>=0.1.0 <1.0.0` in both packages, a `peerfix` commit on graph-io) is withdrawn; the landing script has no `peerfix` step. Background, verified by an `nx release --dry-run` in a scratch clone of master: `nx release` keeps a dependent's range only while the new version satisfies it (`preserveMatchingDependencyRanges` defaults to every dependency type) and otherwise ABORTS -- graph-format 0.1.0 -> 0.2.0 did not satisfy `^0.1.0`, so until `6b4777df` master could not release ANY package. | `>=0.1.0 <1.0.0` (the whole 0.x major, no re-statement per minor) -- the plan's original default; rejected by the owner's commit. `release.version.preserveMatchingDependencyRanges: false` in `nx.json` -- rejected: nx would then also narrow the GPU package's optional `^1.0.0` peers on algorithms/layout to the released patch on every release. |
-| D-19 | nx graph edges from the optional peers | `implicitDependencies: ["!algorithms", "!layout"]` in `webgpu-graph-algorithms/project.json` until Phase M5b. Reason (verified in a scratch project graph): nx builds project-graph edges from the OPTIONAL peer ranges `^1.0.0` because they match the workspace versions 1.7.2 / 1.6.2, so without the negation `nx run webgpu-graph-algorithms:build` also builds algorithms and layout (on the paid T4 lane too), `updateDependents: auto` patch-bumps and publishes the package on their every release, and `nx affected` marks it affected by their every change. nx removes an edge whose implicit dependency starts with `!` (`nx/dist/src/project-graph/utils/implicit-project-dependencies.js`). Phase M5b deletes the negation when the real `workspace:^` devDependency on layout arrives (design Q-29 accepts the coupling then). | Accept the coupling from day one. |
-| D-20 | The strict-consumer compile inside `lint` | The package's `lint` script runs `tsc -p tsconfig.strict-consumer.json` against `dist/*.d.ts` shims that only `build:bundle` writes, and the pre-push hook builds with `pnpm -r run build` (tsc only) before `pnpm -r run lint` -- reproduced: `TS2307 Cannot find module '@graphty/webgpu-graph-algorithms'`. Fix in two places: `project.json` `lint` gets `dependsOn: ["build"]` (the nx path; cached), and `tools/prepush.sh` runs `npm run build:bundle` in the package between its Build and Lint steps (the hook path; ~10 s). The compile stays inside `lint` because `test/build-output.test.ts` pins that. | A tsc root entry per subpath (the graph-format pattern) -- rejected: the package's bundle tests reason about the vite output, and three stubs would shadow them locally. |
-| D-21 | knip 5.77.4 findings | The monorepo resolves knip 5.77.4 (root `^5.61.3`), staging had 5.88.1, and 5.77.4 reports two things on the package: `Referenced optional peerDependencies: webgpu` and `Unused exported types: ArenaPlan, PerArrayPlan, WindowedPlan` (`src/memory/upload-plan.ts`). Fix: `ignoreDependencies: ["webgpu"]` in the package's knip workspace entry (it is an optional peer AND an exact devDependency, imported inside `await import("webgpu")` in `src/node/index.ts`), and `@public` JSDoc on the three interfaces (they are members of the exported `UploadPlan` union; declaration emit needs them exported; the monorepo convention is `@public` with a clause, never `ignoreExportsUsedInFile`). | Bump root knip to `^5.88` -- rejected: 5.88 stops reporting exports used only in their own file, which the monorepo relies on. |
+| Id   | Decision                                  | Default and reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Alternative                                                                                                                                                                                                                                                                                                                                            |
+| ---- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D-1  | History strategy                          | Carry the history: `git filter-repo` on a fresh clone (four `--path` keeps, four `--path-rename` rules), fetched into a landing branch and merged with `--allow-unrelated-histories --no-ff`. Meets the owner's criterion ("not damaging, no risk to the monorepo"): it is the monorepo's own documented and four-times-used procedure; it changes no existing commit, tag or file; it adds one root and one merge to a history that has 5 and 85; the cost is 3.1 MiB (a plain copy would add 2.9 MiB); `nx release` is unaffected (0.2.0 either way, see D-4); commitlint is not retroactive. Costs stated plainly: filter-repo re-creates every commit, so the 21 signed source commits arrive UNSIGNED (the monorepo already carries 818 unsigned imported commits); the merge and the five wiring commits are signed by the owner. Rollback before the push: `git worktree remove --force .worktrees/land-webgpu-graph-algorithms && git branch -D land/webgpu-graph-algorithms` (owner). After `land` the import is permanent: `git revert -m 1 <merge>` plus reverting the wiring commits removes the tree but keeps the 31 commits in history, so the PR review (Task M3-T6) is the last checkpoint.                                                                                                                                                                         | Plain move as one `feat(webgpu-graph-algorithms):` commit (the graph-format precedent). Choose it only if the owner rejects a sixth root or the unsigned imported commits; every later task is identical.                                                                                                                                              |
+| D-2  | What travels in the rewrite               | `packages/webgpu-graph-algorithms/` -> `webgpu-graph-algorithms/`; `design/webgpu-acceleration-plan.md` -> `design/webgpu/webgpu-acceleration-plan.md`; `docs/superpowers/plans/` -> `design/webgpu/plans/`; the historical root `HEADLESS_GPU_REPORT.md` -> `webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md` (so its creation commit is kept). NOT carried: `.github/` (`ci.yml` collides; all three workflows are ported by hand in Phase M3), `.gitattributes` (a monorepo-wide decision, D-12), `packages/{README,STATUS,CONFORMANCE,MIGRATION_PROMPT}.md`, `packages/move/`, the staging root configs, the root `README.md`/`CLAUDE.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | --                                                                                                                                                                                                                                                                                                                                                     |
+| D-3  | Merge commit message                      | `feat: merge the webgpu-graph-algorithms package history into the monorepo` (unscoped, like the four precedent merges `feat: merge <pkg> history into monorepo`); passes commitlint (type-enum `feat`, no scope so scope-enum does not apply, 73 chars); contributes no files to `nx release` (a merge commit has no `--name-status` entries). The commit that adds the scope `webgpu-graph-algorithms` to `commitlint.config.js` comes AFTER the merge (Task M2-T1), which is why the merge message must not use that scope.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | --                                                                                                                                                                                                                                                                                                                                                     |
+| D-4  | First published version                   | The imported history holds 10 `feat(webgpu-graph-algorithms)` and 4 `fix` commits, so the first `nx release` after landing takes the package from the 0.1.0 on disk to **0.2.0** (identical to what a single `feat` landing commit would do, and to what graph-format/graph-io get: compact-mantine landed at 0.1.0 and its first tag was 0.2.0). The design's "first release 0.1.0" (P10) is therefore 0.2.0; accepted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Set `version` to `0.0.1` in the package fix-up commit if the owner wants `0.1.0` to be the first published version.                                                                                                                                                                                                                                    |
+| D-5  | graph-format 13.5 rule 5                  | The package (0.1.0) depends on `@graphty/graph-format` `workspace:^` (peer `^0.2.0` after Task M1-T5, the minor graph-io states since `6b4777df`; see D-18) exactly as graph-io (0.1.0) already does on master; the rule's stated purpose is that 1.x consumers never pin a 0.x format, and the graph-io landing established that a 0.x package may. Bump the peer to `^1.0.0` in the F2 PR. The 1.x consumers (layout, algorithms, graphty-element) still wait for F2 (Phase M5 entry criterion).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Land the package commits as `chore` (no publish) until F2 -- not needed given the precedent.                                                                                                                                                                                                                                                           |
+| D-6  | Workspace protocol                        | Keep the package's `workspace:^` (design Q-31: publishes a caret range); do not touch graph-io's `workspace:*` in this plan (note it for the F2 PR: an exact pin beside a `^1` peer gives an app two format copies).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | --                                                                                                                                                                                                                                                                                                                                                     |
+| D-7  | Design document location                  | `design/webgpu/webgpu-acceleration-plan.md` (basename kept: 27 files cite it) and `design/webgpu/plans/<same basenames>`, per the design's own owner decision Q-18; package-internal docs stay under `webgpu-graph-algorithms/docs/`. Records move VERBATIM with a LANDED note APPENDED after the Review log explaining the path forms (the graph-format precedent, `design/graph-format/STATUS.md:1-11`, prepended; the WebGPU records are cited by line number, so here the note goes last); only the LIVE documents (package `README.md`, `CLAUDE.md`) get their citations re-pointed. Q-18's "on acceptance" stripping of Review notes into `docs/research/review-log.md` is NOT done (the contract, plans, gate records and verdicts cite the spec by line number). A `design/webgpu/README.md` index is added because GitHub does not render the two >1 MB phase plans.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | `design/webgpu-graph-algorithms/` (mirrors `design/graph-format/`) -- rejected because Q-18 is an accepted owner decision.                                                                                                                                                                                                                             |
+| D-8  | Open gate records G0/G2                   | Committed in the SOURCE repository first (Task M0-T1) so the rewrite carries them with their own commit; each gets a two-line "OPEN -- the GPU runner is not provisioned" header note. Phase M4 closes them.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Add them in the monorepo package fix-up commit.                                                                                                                                                                                                                                                                                                        |
+| D-9  | What of P10 (W1) lands now                | The physical move, the root touch points, the two software shards, `gpu.yml`, `hosts.yml`, the trusted publisher, the first release. NOT now (Phase M5b, gated on L1 and A2): deleting the D27 mirrors; CREATING `test/types/conformance.test-d.ts` (it does not exist today; design 9.8's W1 row says it is "retired" while G10 requires its `expectTypeOf` cross-compile -- the plan follows G10 and `src/types/accelerator.ts`'s own header: the file is created with the real imports and stays); `indexed.*` as a second oracle; the `seedPositions` cross-test; the design 10.3/14.5/14.6/16.2/16.7 amendments (Task M5b-T4). The mirrors, `CpuAlgorithmOptions` and `test/types/accelerator.test-d.ts` survive the move unchanged. The README performance table stays as regenerated from the dev-box baseline (the only baseline until M4); Task M4-T3 regenerates it with the T4 row.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | --                                                                                                                                                                                                                                                                                                                                                     |
+| D-10 | CI shard shape                            | Two shards in `ci.yml`'s matrix: `webgpu-graph-algorithms-node` (lavapipe, `--coverage`, thresholds active, uploads `coverage-webgpu-graph-algorithms-node`) and `webgpu-graph-algorithms-browser` (SwiftShader smoke through `scripts/run-browser-project.js`, no coverage). The node shard calls vitest DIRECTLY (like the algorithms shards) rather than through `nx run <pkg>:coverage`: the nx -> npm -> vitest pipe chain starved the worker RPC for graph-format/graph-io (`6fc56c1b`). A new matrix key `needs-lavapipe` gates two steps (apt install; ICD discovery exporting `VK_DRIVER_FILES` and the three lane variables to `$GITHUB_ENV`). The `find`-based ICD step replaces the design's hard-coded `lvp_icd.x86_64.json` (ubuntu-24.04 ships `lvp_icd.json`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | --                                                                                                                                                                                                                                                                                                                                                     |
+| D-11 | Playwright version                        | Accept the monorepo's `playwright@1.57.0` (root devDependency `^1.54.1`); the package's flag facts were last re-measured on 1.63.0. The browser shard's first run is the check; `node scripts/probe-browser-flags.mjs` is the diagnostic if it regresses. Bumping the root devDependency is a separate `build(deps)` change. EXECUTION (2026-09-17): the regression R-M4 foresaw happened -- 1.57 ships Chromium 143 and WebKit 26.0; the uniform-layout browser test's invariant failed on all three Chromium lanes and the WebKit leg had no `navigator.gpu`. Resolved test-side (Task M3-T6 execution note): the root bump was measured in a scratch copy and REJECTED -- the Playwright 1.63 client hangs vitest 3.2.7 browser mode for graphty-element (the orchestrator's iframe `onload` never fires, so the `prepare` handshake never posts; the hang follows the client, not Chromium 153 nor the launch flags), which would deadlock nine graphty-element CI shards with no job timeout; and a root-only bump leaves the package's own `playwright ^1.54.1` at 1.57, so hosts.yml (working-directory `webgpu-graph-algorithms`) would install browser builds vitest does not launch. A future bump must move every `playwright` specifier together and re-verify graphty-element's browser, interactions and storybook projects (baseline 111 files / 1355 tests on 1.57). | --                                                                                                                                                                                                                                                                                                                                                     |
+| D-12 | Line endings                              | Add a root `.gitattributes` (`* text=auto eol=lf`, `-text` for the two CRLF corpora `graph-io/test/corpus/**` and `graphty-element/test/helpers/corpus/**`, `*.gsnp` / `*.png` / `*.zip` binary) in its own commit with a read-only `git ls-files --eol` check proving that no tracked file outside the two corpora is CRLF (so the attribute renormalises nothing). Needed by the Windows host lane (LF checkouts) and by `test/fixtures/rich-v1.gsnp`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Skip the file and drop the Windows host lane.                                                                                                                                                                                                                                                                                                          |
+| D-13 | Pre-push hook                             | Add `(cd webgpu-graph-algorithms && GRAPHTY_GPU_REQUIRE=any npm run test:run)` after graph-io's line, as design 12.5 prescribes (`test:node` only, "matching CI": `any` makes a missing adapter FAIL up front in `test/setup/global.ts` instead of skipping every GPU test silently). On the dev box this runs on NVIDIA when `LD_LIBRARY_PATH` carries the libEGL tree, else on lavapipe (~5 min); the browser project runs only in CI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Leave the package out of the hook (no precedent: "no package is skipped").                                                                                                                                                                                                                                                                             |
+| D-14 | Dev box libEGL tree                       | Re-extract it under `graphty-monorepo/tmp/egl/` (gitignored) per `HEADLESS_GPU_REPORT.md` appendix D and re-point the three absolute paths in the package `CLAUDE.md`; recommend adding `libegl1` to the container image so the workaround disappears.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | --                                                                                                                                                                                                                                                                                                                                                     |
+| D-15 | GPU runner                                | GitHub Team plan + hosted `gpu-linux-t4` in runner group `gpu` (design Q-3, decided 2026-09-14). `gpu.yml` lands with push/schedule commented out and is never dispatched before the runner exists (a dispatch would queue a phantom job for 24 h). Phase M4 is the owner's provisioning gate.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | machine.dev `runs-on: machine/gpu=t4` (only `runs-on` and the provisioning steps differ).                                                                                                                                                                                                                                                              |
+| D-16 | Layout seam scope                         | Phase M5 implements design 9.3 (the simulation barrel, the CPU steppable FA2 and FR, `createSimulation`, `resolveNodeVector` / `resolveWeights` / `seedPositions`) and the minimal `toLayoutSnapshot`; it does NOT port the other 13 layouts to `indexed.*` (that is graph-format design 14.3's own L1 work and can proceed in parallel). The CPU `ForceAtlas2Simulation` is a PORT (copy) of the GPU package's `test/oracle/forceatlas2.ts` formulas, not a move: the GPU package keeps its independent reference (design 9.8 W1 row: "the independent references stay"; two transcriptions of table 7.2 are the R-1 mitigation). Design 9.3's one-shot `indexed.forceAtlas2(s, options): LayoutResult`, `toPositionMap` and the `LayoutResult` type stay with graph-format 14.3's L1 proper; here the legacy `forceatlas2Layout` calls `ForceAtlas2Simulation` directly and keeps its `rescaleLayout` output (Task M5-T8).                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Move the oracle (design P3 row's "moved -- not copied -- if L1 wants it").                                                                                                                                                                                                                                                                             |
+| D-17 | Legacy `forceatlas2Layout`                | Rewritten over the new simulation in Phase M5's last task (design 9.3: one code path), with the Chromatic re-baseline commit; separable if the owner wants the seam without the behaviour change.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Keep the dense legacy implementation beside the simulation.                                                                                                                                                                                                                                                                                            |
+| D-18 | The graph-format peer range during 0.x    | DECIDED BY THE OWNER on 2026-09-16 (`6b4777df`, before Phase M1 started): the minor pin `^0.2.0` -- "a 0.x minor is a breaking change, so graph-io states compatibility with exactly the minor it was built against"; every future format minor stops `nx release` again and asks for the same one-line edit, which the owner accepts as the designed prompt. The GPU package mirrors it: its peer becomes `^0.2.0` in the `package` commit (Task M1-T5); its `dependencies` entry stays `workspace:^`; the build-output test that pins the caret form stays as it is; the F2 PR turns both into `^1.0.0`. The plan's original default (`>=0.1.0 <1.0.0` in both packages, a `peerfix` commit on graph-io) is withdrawn; the landing script has no `peerfix` step. Background, verified by an `nx release --dry-run` in a scratch clone of master: `nx release` keeps a dependent's range only while the new version satisfies it (`preserveMatchingDependencyRanges` defaults to every dependency type) and otherwise ABORTS -- graph-format 0.1.0 -> 0.2.0 did not satisfy `^0.1.0`, so until `6b4777df` master could not release ANY package.                                                                                                                                                                                                                                     | `>=0.1.0 <1.0.0` (the whole 0.x major, no re-statement per minor) -- the plan's original default; rejected by the owner's commit. `release.version.preserveMatchingDependencyRanges: false` in `nx.json` -- rejected: nx would then also narrow the GPU package's optional `^1.0.0` peers on algorithms/layout to the released patch on every release. |
+| D-19 | nx graph edges from the optional peers    | `implicitDependencies: ["!algorithms", "!layout"]` in `webgpu-graph-algorithms/project.json` until Phase M5b. Reason (verified in a scratch project graph): nx builds project-graph edges from the OPTIONAL peer ranges `^1.0.0` because they match the workspace versions 1.7.2 / 1.6.2, so without the negation `nx run webgpu-graph-algorithms:build` also builds algorithms and layout (on the paid T4 lane too), `updateDependents: auto` patch-bumps and publishes the package on their every release, and `nx affected` marks it affected by their every change. nx removes an edge whose implicit dependency starts with `!` (`nx/dist/src/project-graph/utils/implicit-project-dependencies.js`). Phase M5b deletes the negation when the real `workspace:^` devDependency on layout arrives (design Q-29 accepts the coupling then).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Accept the coupling from day one.                                                                                                                                                                                                                                                                                                                      |
+| D-20 | The strict-consumer compile inside `lint` | The package's `lint` script runs `tsc -p tsconfig.strict-consumer.json` against `dist/*.d.ts` shims that only `build:bundle` writes, and the pre-push hook builds with `pnpm -r run build` (tsc only) before `pnpm -r run lint` -- reproduced: `TS2307 Cannot find module '@graphty/webgpu-graph-algorithms'`. Fix in two places: `project.json` `lint` gets `dependsOn: ["build"]` (the nx path; cached), and `tools/prepush.sh` runs `npm run build:bundle` in the package between its Build and Lint steps (the hook path; ~10 s). The compile stays inside `lint` because `test/build-output.test.ts` pins that.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | A tsc root entry per subpath (the graph-format pattern) -- rejected: the package's bundle tests reason about the vite output, and three stubs would shadow them locally.                                                                                                                                                                               |
+| D-21 | knip 5.77.4 findings                      | The monorepo resolves knip 5.77.4 (root `^5.61.3`), staging had 5.88.1, and 5.77.4 reports two things on the package: `Referenced optional peerDependencies: webgpu` and `Unused exported types: ArenaPlan, PerArrayPlan, WindowedPlan` (`src/memory/upload-plan.ts`). Fix: `ignoreDependencies: ["webgpu"]` in the package's knip workspace entry (it is an optional peer AND an exact devDependency, imported inside `await import("webgpu")` in `src/node/index.ts`), and `@public` JSDoc on the three interfaces (they are members of the exported `UploadPlan` union; declaration emit needs them exported; the monorepo convention is `@public` with a clause, never `ignoreExportsUsedInFile`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Bump root knip to `^5.88` -- rejected: 5.88 stops reporting exports used only in their own file, which the monorepo relies on.                                                                                                                                                                                                                         |
 
 ### 0.3 Phase map
 
-| Phase | Where | Entry criteria | Deliverable | Gate | Size |
-| --- | --- | --- | --- | --- | --- |
-| M0 Preconditions | source repo + monorepo (owner) | -- | G0/G2 and this plan committed and pushed in the source; the monorepo's pending CI repair landed or consciously deferred; the decisions of 0.2 confirmed | `git status` clean in the source at the tip that will be rewritten; monorepo master CI state known | 0.5 d + owner |
-| M1 Move with history | monorepo, fresh worktree | M0 | the rewritten history merged into `land/webgpu-graph-algorithms`; package path fix-ups; docs LANDED notes and index; `.gitignore` / `.gitattributes` | the tree builds with `pnpm install`; every file of the package present with `git log --follow` history; `git status` clean after the landing script's steps | 1-2 d |
-| M2 Build-system wiring | monorepo worktree | M1 | root touch points (commitlint, knip, coverage preview, prepush, merge-coverage, root `CLAUDE.md` / `README.md`; the workspace entry and the lockfile are already in from M1-T4) | `nx run-many -t lint,build,test --projects=webgpu-graph-algorithms` green locally; `pnpm exec knip` no new findings; `tools/merge-coverage.sh` merges the package; `pnpm install --frozen-lockfile` passes | 1 d |
-| M3 CI/CD port and landing | monorepo worktree, then GitHub | M2 | `ci.yml` shards + artifacts, `release.yml` download, `gpu.yml`, `hosts.yml`; the PR green; the branch on master; trusted publisher; first release `0.2.0`; staging repository archived | `all-checks` green on the PR with both new shards; `coverage.yml` merges the package on master; `release.yml` publishes `@graphty/webgpu-graph-algorithms@0.2.0` with provenance; Hosts green on master | 1-2 d + CI time |
-| M4 GPU runner | GitHub org (owner) + monorepo | M3; Team plan | the `gpu-linux-t4` runner, group, label, spending limit; `gpu.yml` triggers restored; first green GPU run; T4 baseline committed; G0/G2 closed | `test-gpu` green on a labelled PR and on master; `benchmarks/results/gpu-linux-t4.json` committed; nightly guard verified | 0.5 d + owner |
-| M5 Layout seam (L1-sim) | monorepo, `layout/` | F2 (`@graphty/graph-format >= 1.0.0` on master, which by graph-format design 14.6 follows the A1 merge) and Phase M3 | `layout/src/simulation/` per design 9.3; layout depends on graph-format; legacy FA2 over the simulation; Chromatic re-baseline | layout tests green incl. the fake-accelerator dispatch tests and the LCG cross-test; graphty-element tests green unchanged; `chromatic-layout` re-baselined | 5-8 d |
-| M5b GPU package adopts the real layout types (W1b) | monorepo, `webgpu-graph-algorithms/` | M5 | layout mirrors -> `import type`; `conformance.test-d.ts` (layout half); layout's `ForceAtlas2Simulation` as the second FA2 oracle; the seedPositions cross-test; the W1 design amendments (T4) | both CI shards green; the FA2 parity suite passes against BOTH oracles within the 11.4 tolerances; graph-format design 17.8 appended | 1-2 d |
-| M6 Element (E0 + E1) | `graphty-element/` | M5; A2 first commit (Phase M8a) | the graph-format 14.4 `DataManager` refactor (E0, unsized by the design), then design 9.4 items 1-10 and the design 9.5 `@graphty/graphty-element/webgpu` entry point that probes, constructs and attaches | design G6 | own plan |
-| M7 App (W2) | `graphty/` | M6 | the Settings control that writes the element's `acceleration` attribute, the acceleration status chip, and the app's own storage of the reader's choice | design G12 (W2 subset) | own plan |
-| M8 Algorithms (A2 first commit, then P7) | `algorithms/`, GPU package | F2 for A2; M3 for P7 | design 9.2 `indexed/accelerator.ts` + `accelerated()`; then the GPU SpMV/WCC phase P7 inside the monorepo | design G7 | own plans |
+| Phase                                              | Where                                | Entry criteria                                                                                                       | Deliverable                                                                                                                                                                                                | Gate                                                                                                                                                                                                       | Size            |
+| -------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| M0 Preconditions                                   | source repo + monorepo (owner)       | --                                                                                                                   | G0/G2 and this plan committed and pushed in the source; the monorepo's pending CI repair landed or consciously deferred; the decisions of 0.2 confirmed                                                    | `git status` clean in the source at the tip that will be rewritten; monorepo master CI state known                                                                                                         | 0.5 d + owner   |
+| M1 Move with history                               | monorepo, fresh worktree             | M0                                                                                                                   | the rewritten history merged into `land/webgpu-graph-algorithms`; package path fix-ups; docs LANDED notes and index; `.gitignore` / `.gitattributes`                                                       | the tree builds with `pnpm install`; every file of the package present with `git log --follow` history; `git status` clean after the landing script's steps                                                | 1-2 d           |
+| M2 Build-system wiring                             | monorepo worktree                    | M1                                                                                                                   | root touch points (commitlint, knip, coverage preview, prepush, merge-coverage, root `CLAUDE.md` / `README.md`; the workspace entry and the lockfile are already in from M1-T4)                            | `nx run-many -t lint,build,test --projects=webgpu-graph-algorithms` green locally; `pnpm exec knip` no new findings; `tools/merge-coverage.sh` merges the package; `pnpm install --frozen-lockfile` passes | 1 d             |
+| M3 CI/CD port and landing                          | monorepo worktree, then GitHub       | M2                                                                                                                   | `ci.yml` shards + artifacts, `release.yml` download, `gpu.yml`, `hosts.yml`; the PR green; the branch on master; trusted publisher; first release `0.2.0`; staging repository archived                     | `all-checks` green on the PR with both new shards; `coverage.yml` merges the package on master; `release.yml` publishes `@graphty/webgpu-graph-algorithms@0.2.0` with provenance; Hosts green on master    | 1-2 d + CI time |
+| M4 GPU runner                                      | GitHub org (owner) + monorepo        | M3; Team plan                                                                                                        | the `gpu-linux-t4` runner, group, label, spending limit; `gpu.yml` triggers restored; first green GPU run; T4 baseline committed; G0/G2 closed                                                             | `test-gpu` green on a labelled PR and on master; `benchmarks/results/gpu-linux-t4.json` committed; nightly guard verified                                                                                  | 0.5 d + owner   |
+| M5 Layout seam (L1-sim)                            | monorepo, `layout/`                  | F2 (`@graphty/graph-format >= 1.0.0` on master, which by graph-format design 14.6 follows the A1 merge) and Phase M3 | `layout/src/simulation/` per design 9.3; layout depends on graph-format; legacy FA2 over the simulation; Chromatic re-baseline                                                                             | layout tests green incl. the fake-accelerator dispatch tests and the LCG cross-test; graphty-element tests green unchanged; `chromatic-layout` re-baselined                                                | 5-8 d           |
+| M5b GPU package adopts the real layout types (W1b) | monorepo, `webgpu-graph-algorithms/` | M5                                                                                                                   | layout mirrors -> `import type`; `conformance.test-d.ts` (layout half); layout's `ForceAtlas2Simulation` as the second FA2 oracle; the seedPositions cross-test; the W1 design amendments (T4)             | both CI shards green; the FA2 parity suite passes against BOTH oracles within the 11.4 tolerances; graph-format design 17.8 appended                                                                       | 1-2 d           |
+| M6 Element (E0 + E1)                               | `graphty-element/`                   | M5; A2 first commit (Phase M8a)                                                                                      | the graph-format 14.4 `DataManager` refactor (E0, unsized by the design), then design 9.4 items 1-10 and the design 9.5 `@graphty/graphty-element/webgpu` entry point that probes, constructs and attaches | design G6                                                                                                                                                                                                  | own plan        |
+| M7 App (W2)                                        | `graphty/`                           | M6                                                                                                                   | the Settings control that writes the element's `acceleration` attribute, the acceleration status chip, and the app's own storage of the reader's choice                                                    | design G12 (W2 subset)                                                                                                                                                                                     | own plan        |
+| M8 Algorithms (A2 first commit, then P7)           | `algorithms/`, GPU package           | F2 for A2; M3 for P7                                                                                                 | design 9.2 `indexed/accelerator.ts` + `accelerated()`; then the GPU SpMV/WCC phase P7 inside the monorepo                                                                                                  | design G7                                                                                                                                                                                                  | own plans       |
 
 Critical path: M0 -> M1 -> M2 -> M3 (the package is in the monorepo, releasing) ; M4 in parallel with anything after M3 ; M5 waits for F2 (owner-side graph-format work: A1 branch, then the 1.0.0 cut) ; M5b right after M5 ; M6-M8 each get their own writing-plans pass when their entry criteria are met, from the design sections named in section 6.
 
 ### 0.4 Departures from the design (all of them)
 
-| Id | Departure | Reason |
-| --- | --- | --- |
-| DEP-A | The move (P10 / W1) happens after P3 instead of after A2/L1/E1 and P4/P5/P7. | Owner request (this plan). Split into "move now" (M1-M3) and "W1-proper" (M5b) so the design's W1 deliverables that need L1/A2 are not dropped. |
-| DEP-B | `ci.yml`'s node shard runs vitest directly and discovers the lavapipe ICD with `find`; the design's 12.5 diff used `nx run` and a literal `VK_DRIVER_FILES`. The node shard uploads its coverage from its own step (`if-no-files-found: error`) instead of joining the shared step's `if:`. knip runs in `tools/prepush.sh` and Task M2-T8, not in `ci.yml` (design 12.1 lists knip in the default lane; the monorepo has no knip job). | `6fc56c1b` (reporter starvation through the nx pipe chain), the Mesa 25.2 path change (`lvp_icd.json`), the shared step's `if-no-files-found: ignore`, the monorepo's CI shape. |
-| DEP-C | The T4 baseline path is `benchmarks/results/gpu-linux-t4.json` (what `bench-compare.js`, `gpu.yml` and `CLAUDE.md` use), not the design 12.1/12.4 `benchmarks/baselines/`. | The code is the record; the design text is amended in Phase M4. |
-| DEP-D | `hosts.yml` is ported (design 12.5 predates it). | It is green and catches Metal/WebKit/WARP defects the default lane cannot. Filtered by `paths:` so other packages' changes do not spend two ~9-minute macOS/Windows jobs. AMENDED 2026-09-18 (owner): neither `hosts.yml` nor `gpu.yml` is informational any more -- `release.yml` gained a `gate` job that waits for both workflows' runs on the released commit and publishes only when every one succeeded (a Hosts run exists only when its paths changed; the GPU lane runs on every push). They stay outside CI so an offline runner can never stall a pull request. |
-| DEP-E | The CPU `ForceAtlas2Simulation` is a copy of the oracle's formulas, not a move of `test/oracle/forceatlas2.ts`. | D-16. |
-| DEP-F | First release is 0.2.0, not 0.1.0. | D-4; `nx release` mechanics. |
-| DEP-G | The graph-format peer range is the minor pin `^0.2.0` in the GPU package and in graph-io (design 2.5 / 3.1 say `^0.1.0`; graph-format 13.5 rule 3 says `^<major>`), re-stated at every format minor until F2. | D-18 as decided by the owner (`6b4777df`): `nx release` aborts otherwise; `^1.0.0` at F2; the rule-3 amendment is Task M5-T9. DONE 2026-09-18 (F2): both peers are `^1.0.0`; the rule-3 correction was made in place and is recorded as graph-format design 17.7 D-PEER-1X. |
-| DEP-H | The package merges to master and publishes (0.2.0, depending on graph-format `^0.2.0`) while the format is 0.x, which graph-format 13.5 rule 5 forbids by its letter; the design's own W1 sat after F2 (9.8: "peer range `^1.0.0` from F2"). | D-5: a consequence of DEP-A; the package is itself 0.x, and graph-io set the precedent on 2026-09-16. |
-| DEP-I | Design Q-31's `workspace:*` -> `workspace:^` correction to graph-io and to rule 3 ("at W1") is not made here. | D-6: done in the F2 PR, where the peer ranges change anyway; Task M5-T9 records `workspace:^` as the intended protocol in the rule-3 amendment. DONE 2026-09-18 (F2): graph-io's `dependencies` entry is `workspace:^`; the lockfile importer and `graph-io/test/build-output.test.ts` moved with it. |
-| DEP-J | Q-18's post-acceptance move of the Review notes, `(graft: ...)` annotations and the Review log into `docs/research/review-log.md` is not performed. | D-7: the contract, phase plans, gate records and verdicts cite the design by line number; deferred until those records are closed. |
+| Id    | Departure                                                                                                                                                                                                                                                                                                                                                                                                                               | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DEP-A | The move (P10 / W1) happens after P3 instead of after A2/L1/E1 and P4/P5/P7.                                                                                                                                                                                                                                                                                                                                                            | Owner request (this plan). Split into "move now" (M1-M3) and "W1-proper" (M5b) so the design's W1 deliverables that need L1/A2 are not dropped.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| DEP-B | `ci.yml`'s node shard runs vitest directly and discovers the lavapipe ICD with `find`; the design's 12.5 diff used `nx run` and a literal `VK_DRIVER_FILES`. The node shard uploads its coverage from its own step (`if-no-files-found: error`) instead of joining the shared step's `if:`. knip runs in `tools/prepush.sh` and Task M2-T8, not in `ci.yml` (design 12.1 lists knip in the default lane; the monorepo has no knip job). | `6fc56c1b` (reporter starvation through the nx pipe chain), the Mesa 25.2 path change (`lvp_icd.json`), the shared step's `if-no-files-found: ignore`, the monorepo's CI shape.                                                                                                                                                                                                                                                                                                                                                                                            |
+| DEP-C | The T4 baseline path is `benchmarks/results/gpu-linux-t4.json` (what `bench-compare.js`, `gpu.yml` and `CLAUDE.md` use), not the design 12.1/12.4 `benchmarks/baselines/`.                                                                                                                                                                                                                                                              | The code is the record; the design text is amended in Phase M4.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| DEP-D | `hosts.yml` is ported (design 12.5 predates it).                                                                                                                                                                                                                                                                                                                                                                                        | It is green and catches Metal/WebKit/WARP defects the default lane cannot. Filtered by `paths:` so other packages' changes do not spend two ~9-minute macOS/Windows jobs. AMENDED 2026-09-18 (owner): neither `hosts.yml` nor `gpu.yml` is informational any more -- `release.yml` gained a `gate` job that waits for both workflows' runs on the released commit and publishes only when every one succeeded (a Hosts run exists only when its paths changed; the GPU lane runs on every push). They stay outside CI so an offline runner can never stall a pull request. |
+| DEP-E | The CPU `ForceAtlas2Simulation` is a copy of the oracle's formulas, not a move of `test/oracle/forceatlas2.ts`.                                                                                                                                                                                                                                                                                                                         | D-16.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| DEP-F | First release is 0.2.0, not 0.1.0.                                                                                                                                                                                                                                                                                                                                                                                                      | D-4; `nx release` mechanics.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| DEP-G | The graph-format peer range is the minor pin `^0.2.0` in the GPU package and in graph-io (design 2.5 / 3.1 say `^0.1.0`; graph-format 13.5 rule 3 says `^<major>`), re-stated at every format minor until F2.                                                                                                                                                                                                                           | D-18 as decided by the owner (`6b4777df`): `nx release` aborts otherwise; `^1.0.0` at F2; the rule-3 amendment is Task M5-T9. DONE 2026-09-18 (F2): both peers are `^1.0.0`; the rule-3 correction was made in place and is recorded as graph-format design 17.7 D-PEER-1X.                                                                                                                                                                                                                                                                                                |
+| DEP-H | The package merges to master and publishes (0.2.0, depending on graph-format `^0.2.0`) while the format is 0.x, which graph-format 13.5 rule 5 forbids by its letter; the design's own W1 sat after F2 (9.8: "peer range `^1.0.0` from F2").                                                                                                                                                                                            | D-5: a consequence of DEP-A; the package is itself 0.x, and graph-io set the precedent on 2026-09-16.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| DEP-I | Design Q-31's `workspace:*` -> `workspace:^` correction to graph-io and to rule 3 ("at W1") is not made here.                                                                                                                                                                                                                                                                                                                           | D-6: done in the F2 PR, where the peer ranges change anyway; Task M5-T9 records `workspace:^` as the intended protocol in the rule-3 amendment. DONE 2026-09-18 (F2): graph-io's `dependencies` entry is `workspace:^`; the lockfile importer and `graph-io/test/build-output.test.ts` moved with it.                                                                                                                                                                                                                                                                      |
+| DEP-J | Q-18's post-acceptance move of the Review notes, `(graft: ...)` annotations and the Review log into `docs/research/review-log.md` is not performed.                                                                                                                                                                                                                                                                                     | D-7: the contract, phase plans, gate records and verdicts cite the design by line number; deferred until those records are closed.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ---
+
 ## Phase M0: Preconditions
 
 ### Task M0-T1: Commit the open gate records and this plan in the source repository
@@ -124,12 +125,14 @@ Critical path: M0 -> M1 -> M2 -> M3 (the package is in the monorepo, releasing) 
 **Repository:** `/home/apowers/Projects/webgpu-graph-algorithms` (the staging repository).
 
 **Files:**
+
 - Modify: `packages/webgpu-graph-algorithms/docs/decisions/G0.md:1-2` (prepend a status note)
 - Modify: `packages/webgpu-graph-algorithms/docs/decisions/G2.md:1-2` (prepend a status note)
 - Add (already written): `docs/superpowers/plans/2026-09-16-graphty-monorepo-integration.md` (this file)
 - Create: `tmp/ci-round11.sh` (the owner's commit script, using the existing `tmp/ci-push.sh`)
 
 **Interfaces:**
+
 - Consumes: `tmp/ci-push.sh <files...> <<'MSG'` (commits unsigned with `-c commit.gpgsign=false`, pushes `HEAD:master`, refuses trailers and non-ASCII messages).
 - Produces: the source tip `T0` that Task M1-T3 rewrites; `git status --porcelain` empty at `T0` except ignored paths.
 
@@ -139,7 +142,6 @@ Insert as lines 1-2 of `packages/webgpu-graph-algorithms/docs/decisions/G0.md` (
 
 ```markdown
 OPEN RECORD (2026-09-16): the org / runner / image rows below are unfilled because the hosted `gpu-linux-t4` runner was never provisioned (design 12.4 is an owner item). Committed as-is so the record travels with the package into graphty-monorepo; Phase M4 of `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md` fills and closes it there.
-
 ```
 
 - [ ] **Step 2: Prepend the same note to G2.md**
@@ -148,7 +150,6 @@ Insert as lines 1-2 of `packages/webgpu-graph-algorithms/docs/decisions/G2.md` (
 
 ```markdown
 OPEN RECORD (2026-09-16): the `{{...}}` slots below wait on the first run of the hosted `gpu-linux-t4` lane, which was never provisioned. Committed as-is so the record travels with the package into graphty-monorepo; Phase M4 of `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md` fills and closes it there.
-
 ```
 
 - [ ] **Step 3: Check both files stay ASCII**
@@ -278,9 +279,11 @@ Every later task of Phases M1-M3 runs in this worktree; `WT` below means `/home/
 **Repository:** `WT`.
 
 **Files:**
+
 - Create: `tools/land-webgpu-graph-algorithms.sh`
 
 **Interfaces:**
+
 - Produces: `tools/land-webgpu-graph-algorithms.sh {prepare|merge|commit <step>|push|land} [--dry-run] [--skip-gate]`; steps `workspace`, `package`, `docs`, `ignore`, `ci` (committed in that order) with the subjects and path claims below (Tasks M1-T5 through M3-T4 fill the working tree that each step commits).
 - Consumes: the source tip `T0` (M0-T1); the worktree (M1-T1).
 
@@ -787,6 +790,7 @@ Expected: builds graph-format first (`dependsOn ^build`), then `tsc -p tsconfig.
 **Repository:** `WT`.
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/package.json:63-67,80-83` (repository, bugs, homepage) and `:90` (the graph-format peer range)
 - Modify: `webgpu-graph-algorithms/test/build-output.test.ts:114` (line 132 pins the caret FORM and stays: `^0.2.0` satisfies it)
 - Modify: `webgpu-graph-algorithms/project.json` (implicitDependencies, lint dependsOn, uncached test targets)
@@ -802,13 +806,13 @@ Expected: builds graph-format first (`dependsOn ^build`), then `tsc -p tsconfig.
 In `webgpu-graph-algorithms/test/build-output.test.ts` line 114 replace
 
 ```ts
-        expect(packageJson.repository.directory).toBe("packages/webgpu-graph-algorithms");
+expect(packageJson.repository.directory).toBe("packages/webgpu-graph-algorithms");
 ```
 
 with
 
 ```ts
-        expect(packageJson.repository.directory).toBe("webgpu-graph-algorithms");
+expect(packageJson.repository.directory).toBe("webgpu-graph-algorithms");
 ```
 
 Line 132, where the test pins the graph-format peer to a caret range (`expect(packageJson.peerDependencies["@graphty/graph-format"]).toMatch(/^\^\d+\.\d+\.\d+$/);`), stays: the owner's D-18 form `^0.2.0` satisfies it.
@@ -975,6 +979,7 @@ The `package` step of the landing script (Task M2-T9 runs the steps in order aft
 **Repository:** `WT`.
 
 **Files:**
+
 - Modify: `design/webgpu/webgpu-acceleration-plan.md` (append at the end, after the Review log)
 - Modify: `design/webgpu/plans/2026-09-14-webgpu-p0-p3-interfaces.md` (append at the end)
 - Create: `design/webgpu/README.md`
@@ -987,7 +992,6 @@ The `package` step of the landing script (Task M2-T9 runs the steps in order aft
 Append to `design/webgpu/webgpu-acceleration-plan.md` (after its last line; never insert above it -- the contract, the phase plans, the gate records and the review verdicts cite this file by line number):
 
 ```markdown
-
 Landed in graphty-monorepo (2026-09-DD, phase M1 of
 `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md`): this
 document moved from `design/webgpu-acceleration-plan.md` in
@@ -1014,7 +1018,6 @@ Replace `2026-09-DD` with the landing date (the merge commit's date, `git log -1
 Append to `design/webgpu/plans/2026-09-14-webgpu-p0-p3-interfaces.md`:
 
 ```markdown
-
 Landed in graphty-monorepo (2026-09-DD): this contract moved from
 `docs/superpowers/plans/` in the staging repository to `design/webgpu/plans/`;
 the package it specifies is at `webgpu-graph-algorithms/`; `design/webgpu-acceleration-plan.md`
@@ -1032,15 +1035,15 @@ The package is `webgpu-graph-algorithms/` (`@graphty/webgpu-graph-algorithms`). 
 (phases P0-P3) in the staging repository graphty-org/webgpu-graph-algorithms and moved here with its git
 history on 2026-09-DD (phase M1 of the integration plan below).
 
-| Document | What it is | Status |
-| --- | --- | --- |
-| `webgpu-acceleration-plan.md` (449 KB) | The accepted design (owner-approved 2026-09-14, plan of record; later changes are appended to its Review log): runtime model, package architecture, memory, kernels, primitives, force-directed layouts, algorithms, integration with the CPU packages, targets, testing, CI, phases and gates, risks, references | live spec |
-| `plans/2026-09-14-webgpu-p0-p3-interfaces.md` (325 KB) | The interface contract of phases P0-P3: every file, signature, WGSL body and test; the package CLAUDE.md ranks it first | live contract |
-| `plans/2026-09-15-webgpu-p0.md`, `-p1.md` (1.3 MB), `-p2.md`, `-p3.md` (1.2 MB) | The executed phase plans, which embed the files, scripts and gate templates of their time; records, not specs (GitHub does not render the two largest) | records |
-| `plans/2026-09-16-graphty-monorepo-integration.md` | This move, the build / CI / release wiring, the GPU runner, and the layout integration (design section 9.3) | live plan |
-| `../../webgpu-graph-algorithms/docs/decisions/G0.md` .. `G3.md` | The gate records (G1, G3 closed on the dev box; G0, G2 open until the hosted GPU runner exists) | records |
-| `../../webgpu-graph-algorithms/docs/research/` | The seven research notes, the three drafts, the review reports and probes the design was synthesised from | records |
-| `../../webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md` | The verified recipe for the real GPU under headless Chromium and Dawn-node on the dev box | record |
+| Document                                                                        | What it is                                                                                                                                                                                                                                                                                                        | Status        |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `webgpu-acceleration-plan.md` (449 KB)                                          | The accepted design (owner-approved 2026-09-14, plan of record; later changes are appended to its Review log): runtime model, package architecture, memory, kernels, primitives, force-directed layouts, algorithms, integration with the CPU packages, targets, testing, CI, phases and gates, risks, references | live spec     |
+| `plans/2026-09-14-webgpu-p0-p3-interfaces.md` (325 KB)                          | The interface contract of phases P0-P3: every file, signature, WGSL body and test; the package CLAUDE.md ranks it first                                                                                                                                                                                           | live contract |
+| `plans/2026-09-15-webgpu-p0.md`, `-p1.md` (1.3 MB), `-p2.md`, `-p3.md` (1.2 MB) | The executed phase plans, which embed the files, scripts and gate templates of their time; records, not specs (GitHub does not render the two largest)                                                                                                                                                            | records       |
+| `plans/2026-09-16-graphty-monorepo-integration.md`                              | This move, the build / CI / release wiring, the GPU runner, and the layout integration (design section 9.3)                                                                                                                                                                                                       | live plan     |
+| `../../webgpu-graph-algorithms/docs/decisions/G0.md` .. `G3.md`                 | The gate records (G1, G3 closed on the dev box; G0, G2 open until the hosted GPU runner exists)                                                                                                                                                                                                                   | records       |
+| `../../webgpu-graph-algorithms/docs/research/`                                  | The seven research notes, the three drafts, the review reports and probes the design was synthesised from                                                                                                                                                                                                         | records       |
+| `../../webgpu-graph-algorithms/docs/HEADLESS_GPU_REPORT.md`                     | The verified recipe for the real GPU under headless Chromium and Dawn-node on the dev box                                                                                                                                                                                                                         | record        |
 
 Path forms: the design and the contract were written in the staging repository, where the package lived at
 `packages/webgpu-graph-algorithms/` and the plans at `docs/superpowers/plans/`; those forms in the bodies mean
@@ -1078,6 +1081,7 @@ The `docs` step of the landing script (Task M2-T9).
 **Repository:** `WT`.
 
 **Files:**
+
 - Modify: `.gitignore` (after the `*.log` line, and a new block)
 - Create: `.gitattributes`
 
@@ -1128,6 +1132,7 @@ Expected: no output. `git ls-files --eol` reports every tracked file's index lin
 The `ignore` step of the landing script (Task M2-T9).
 
 ---
+
 ## Phase M2: Build-system wiring
 
 All tasks run in `WT` on the landing branch after Phase M1. Commit `0069386c` (`git show 0069386c`) is the precedent for every root file below; read it once before starting.
@@ -1135,6 +1140,7 @@ All tasks run in `WT` on the landing branch after Phase M1. Commit `0069386c` (`
 ### Task M2-T1: Workspace entry and commit scope
 
 **Files:**
+
 - Modify: `pnpm-workspace.yaml:1-9`
 - Modify: `commitlint.config.js:4-25`
 
@@ -1169,6 +1175,7 @@ NEVER run `nx release` without `--dry-run`: without it, nx commits, tags and PUS
 ### Task M2-T3: knip workspace entry
 
 **Files:**
+
 - Modify: `knip.config.ts` (after the `graph-io` workspace entry, before `// Algorithms package`)
 
 - [ ] **Step 1: Add the entry**
@@ -1208,6 +1215,7 @@ Expected: `exit=0` with no findings for the package -- FROM A PATH WITH NO GITIG
 ### Task M2-T4: Root scripts
 
 **Files:**
+
 - Modify: `package.json` (root; the `scripts` block)
 
 - [ ] **Step 1: Coverage preview and the demo server**
@@ -1234,6 +1242,7 @@ Expected: both strings printed.
 ### Task M2-T5: The pre-push hook
 
 **Files:**
+
 - Modify: `tools/prepush.sh` (after the Build step, and after the graph-io fast-test block)
 
 - [ ] **Step 1: The bundle step (D-20)**
@@ -1269,6 +1278,7 @@ Expected: `exit=0` (the node project on whatever adapter Dawn finds: lavapipe on
 ### Task M2-T6: Coverage merge
 
 **Files:**
+
 - Modify: `tools/merge-coverage.sh:29,76-83,221-228`
 
 - [ ] **Step 1: The package list and the two hint lists**
@@ -1283,6 +1293,7 @@ Expected: the package's coverage run passes its 80/80/75/80 thresholds (94/94/98
 ### Task M2-T7: Root CLAUDE.md and README.md
 
 **Files:**
+
 - Create: `tools/apply-root-claude-md-webgpu.py`
 - Modify: `CLAUDE.md` (root, through the script, plus two manual edits)
 - Modify: `README.md` (root, a package section)
@@ -1492,7 +1503,6 @@ WebGPU-accelerated graph algorithms and force-directed layouts over the graph-fo
 [View package](./webgpu-graph-algorithms)
 
 ---
-
 ```
 
 - [ ] **Step 4: Check ASCII of everything this task wrote**
@@ -1543,6 +1553,7 @@ All edits in `WT`; the design's 12.5 diff is re-derived against the file as it r
 ### Task M3-T1: The two software shards in ci.yml
 
 **Files:**
+
 - Modify: `.github/workflows/ci.yml` (build job PR step, build upload, matrix shard list, matrix include, test-job download, two lavapipe steps, a coverage upload step)
 
 - [ ] **Step 1: Build the package on PRs**
@@ -1550,17 +1561,17 @@ All edits in `WT`; the design's 12.5 diff is re-derived against the file as it r
 Replace the step
 
 ```yaml
-            - name: Build graph-format and graph-io (PR)
-              if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io --parallel=2
+- name: Build graph-format and graph-io (PR)
+  if: github.event_name == 'pull_request'
+  run: pnpm exec nx run-many -t build --projects=graph-format,graph-io --parallel=2
 ```
 
 with
 
 ```yaml
-            - name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
-              if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
+- name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
+  if: github.event_name == 'pull_request'
+  run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
 ```
 
 and in the comment block above it change `graph-format and graph-io are not yet in graphty's dependency closure` to `graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure`.
@@ -1570,12 +1581,12 @@ and in the comment block above it change `graph-format and graph-io are not yet 
 After the `Upload graph-io build` step add:
 
 ```yaml
-            - name: Upload webgpu-graph-algorithms build
-              uses: actions/upload-artifact@v4
-              with:
-                  name: build-webgpu-graph-algorithms
-                  path: webgpu-graph-algorithms/dist/
-                  retention-days: 1
+- name: Upload webgpu-graph-algorithms build
+  uses: actions/upload-artifact@v4
+  with:
+      name: build-webgpu-graph-algorithms
+      path: webgpu-graph-algorithms/dist/
+      retention-days: 1
 ```
 
 - [ ] **Step 3: The matrix**
@@ -1583,32 +1594,32 @@ After the `Upload graph-io build` step add:
 In `strategy.matrix.shard` insert after `                    - graph-io`:
 
 ```yaml
-                    - webgpu-graph-algorithms-node
-                    - webgpu-graph-algorithms-browser
+- webgpu-graph-algorithms-node
+- webgpu-graph-algorithms-browser
 ```
 
 In `strategy.matrix.include` insert after the `graph-io` include entry (before `# algorithms - two shards`):
 
 ```yaml
-                    # webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
-                    # project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
-                    # pass, and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
-                    # nx -> npm -> vitest pipe chain starved the worker RPC for graph-format and graph-io (6fc56c1b).
-                    # needs-lavapipe gates the apt install and the ICD lookup that export the lane's environment.
-                    - shard: webgpu-graph-algorithms-node
-                      package: webgpu-graph-algorithms
-                      test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts --passWithNoTests
-                      needs-browser: false
-                      needs-storybook: false
-                      needs-lavapipe: true
-                    # the browser smoke: scripts/run-browser-project.js wraps vitest in `timeout -k 10 600` and passes a
-                    # timeout iff every test passed (browser.close() can hang after GPU work); SwiftShader flags come
-                    # from the package's vitest.config.ts, not from CI
-                    - shard: webgpu-graph-algorithms-browser
-                      package: webgpu-graph-algorithms
-                      test-command: cd webgpu-graph-algorithms && GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
-                      needs-browser: true
-                      needs-storybook: false
+# webgpu-graph-algorithms - two shards (design/webgpu/webgpu-acceleration-plan.md 12.5): the node
+# project on Dawn over Mesa lavapipe with coverage (thresholds active) plus the no-subgroups twins
+# pass, and the Chromium SwiftShader browser smoke. The node shard calls vitest directly: the
+# nx -> npm -> vitest pipe chain starved the worker RPC for graph-format and graph-io (6fc56c1b).
+# needs-lavapipe gates the apt install and the ICD lookup that export the lane's environment.
+- shard: webgpu-graph-algorithms-node
+  package: webgpu-graph-algorithms
+  test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts --passWithNoTests
+  needs-browser: false
+  needs-storybook: false
+  needs-lavapipe: true
+# the browser smoke: scripts/run-browser-project.js wraps vitest in `timeout -k 10 600` and passes a
+# timeout iff every test passed (browser.close() can hang after GPU work); SwiftShader flags come
+# from the package's vitest.config.ts, not from CI
+- shard: webgpu-graph-algorithms-browser
+  package: webgpu-graph-algorithms
+  test-command: cd webgpu-graph-algorithms && GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js
+  needs-browser: true
+  needs-storybook: false
 ```
 
 - [ ] **Step 4: Download the build in every shard**
@@ -1616,11 +1627,11 @@ In `strategy.matrix.include` insert after the `graph-io` include entry (before `
 After the `Download graph-io build` step of the test job add:
 
 ```yaml
-            - name: Download webgpu-graph-algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-webgpu-graph-algorithms
-                  path: webgpu-graph-algorithms/dist/
+- name: Download webgpu-graph-algorithms build
+  uses: actions/download-artifact@v4
+  with:
+      name: build-webgpu-graph-algorithms
+      path: webgpu-graph-algorithms/dist/
 ```
 
 - [ ] **Step 5: The lavapipe steps**
@@ -1628,30 +1639,30 @@ After the `Download graph-io build` step of the test job add:
 Immediately before `- name: Run tests` (that is, after the `Start Storybook server` step, which sits between the Playwright steps and the test step) insert:
 
 ```yaml
-            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
-            - name: Install Mesa lavapipe
-              if: matrix.needs-lavapipe
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+# webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
+- name: Install Mesa lavapipe
+  if: matrix.needs-lavapipe
+  run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
 
-            - name: Locate the lavapipe ICD and export the lane's environment
-              if: matrix.needs-lavapipe
-              run: |
-                  # find, not ls with globs: the ICD's file name moved between Mesa releases (lvp_icd.json on noble,
-                  # lvp_icd.x86_64.json on jammy); an unmatched glob makes ls exit 2 under bash -e
-                  icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
-                  if [ -z "$icd" ]; then
-                      echo "::error::no lavapipe ICD json after installing mesa-vulkan-drivers"
-                      dpkg -L mesa-vulkan-drivers | grep -i 'json\|lvp\|lavapipe' || true
-                      exit 1
-                  fi
-                  echo "lavapipe ICD: $icd"
-                  VK_DRIVER_FILES="$icd" vulkaninfo --summary 2>/dev/null | head -40 || true
-                  {
-                      echo "VK_DRIVER_FILES=$icd"
-                      echo "GRAPHTY_GPU_ADAPTER=llvmpipe"
-                      echo "GRAPHTY_GPU_REQUIRE=any"
-                      echo "XDG_RUNTIME_DIR=/tmp"
-                  } >> "$GITHUB_ENV"
+- name: Locate the lavapipe ICD and export the lane's environment
+  if: matrix.needs-lavapipe
+  run: |
+      # find, not ls with globs: the ICD's file name moved between Mesa releases (lvp_icd.json on noble,
+      # lvp_icd.x86_64.json on jammy); an unmatched glob makes ls exit 2 under bash -e
+      icd=$(find /usr/share/vulkan/icd.d /etc/vulkan/icd.d /usr/lib/x86_64-linux-gnu/vulkan/icd.d -name 'lvp_icd*.json' 2>/dev/null | sort | head -1 || true)
+      if [ -z "$icd" ]; then
+          echo "::error::no lavapipe ICD json after installing mesa-vulkan-drivers"
+          dpkg -L mesa-vulkan-drivers | grep -i 'json\|lvp\|lavapipe' || true
+          exit 1
+      fi
+      echo "lavapipe ICD: $icd"
+      VK_DRIVER_FILES="$icd" vulkaninfo --summary 2>/dev/null | head -40 || true
+      {
+          echo "VK_DRIVER_FILES=$icd"
+          echo "GRAPHTY_GPU_ADAPTER=llvmpipe"
+          echo "GRAPHTY_GPU_REQUIRE=any"
+          echo "XDG_RUNTIME_DIR=/tmp"
+      } >> "$GITHUB_ENV"
 ```
 
 (`matrix.needs-lavapipe` is unset for every other shard, which the `if:` treats as false, so no other shard runs `apt-get`. The environment reaches the `Run tests` step through `$GITHUB_ENV`; `test-command` can therefore stay a single string.)
@@ -1661,15 +1672,15 @@ Immediately before `- name: Run tests` (that is, after the `Start Storybook serv
 After the shared `Upload coverage (graph-format/graph-io/algorithms/layout/graphty/remote-logger/compact-mantine)` step add a dedicated step (the shared one has `if-no-files-found: ignore`; the node shard's coverage must never be silently missing, because Task M2-T6 made it mandatory for `merge-coverage.sh --ci`):
 
 ```yaml
-            - name: Upload coverage (webgpu-graph-algorithms)
-              if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
-              uses: actions/upload-artifact@v4
-              with:
-                  name: coverage-${{ matrix.shard }}
-                  path: webgpu-graph-algorithms/coverage/lcov.info
-                  retention-days: 1
-                  if-no-files-found: error
-                  overwrite: true
+- name: Upload coverage (webgpu-graph-algorithms)
+  if: ${{ !cancelled() && matrix.shard == 'webgpu-graph-algorithms-node' }}
+  uses: actions/upload-artifact@v4
+  with:
+      name: coverage-${{ matrix.shard }}
+      path: webgpu-graph-algorithms/coverage/lcov.info
+      retention-days: 1
+      if-no-files-found: error
+      overwrite: true
 ```
 
 `coverage-webgpu-graph-algorithms-node` matches `tools/merge-coverage.sh`'s `coverage-<pkg>-*` rule for the package `webgpu-graph-algorithms` and cannot match `algorithms` (whose rule needs the prefix `coverage-algorithms-`).
@@ -1682,18 +1693,19 @@ Expected: `ok 20 shards` (the `yaml` package is resolvable from the worktree roo
 ### Task M3-T2: The release download
 
 **Files:**
+
 - Modify: `.github/workflows/release.yml` (after `Download graph-io build`)
 
 - [ ] **Step 1: Add the step**
 
 ```yaml
-            - name: Download webgpu-graph-algorithms build
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-webgpu-graph-algorithms
-                  path: webgpu-graph-algorithms/dist/
-                  run-id: ${{ github.event.workflow_run.id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
+- name: Download webgpu-graph-algorithms build
+  uses: actions/download-artifact@v4
+  with:
+      name: build-webgpu-graph-algorithms
+      path: webgpu-graph-algorithms/dist/
+      run-id: ${{ github.event.workflow_run.id }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 (`release.yml` publishes from the downloaded `dist/` without rebuilding; without this step the tarball's `dist/` would be empty.)
@@ -1706,6 +1718,7 @@ Expected: prettier clean (the file is clean on master), `1`.
 ### Task M3-T3: gpu.yml
 
 **Files:**
+
 - Create: `.github/workflows/gpu.yml`
 
 - [ ] **Step 1: Write the workflow**
@@ -1783,7 +1796,11 @@ jobs:
             - name: Cache Playwright browsers
               id: pw
               uses: actions/cache@v4
-              with: { path: ~/.cache/ms-playwright, key: "playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}" }
+              with:
+                  {
+                      path: ~/.cache/ms-playwright,
+                      key: "playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}",
+                  }
             - if: steps.pw.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium --with-deps # a fresh VM each job
             - name: Browser smoke on NVIDIA
@@ -1792,7 +1809,13 @@ jobs:
             - run: node scripts/bench-compare.js # > 3x the checked-in baseline for THIS runner class (benchmarks/results/gpu-linux-t4.json) fails; no baseline -> every row "new", exit 0
             - uses: actions/upload-artifact@v4
               if: ${{ !cancelled() }}
-              with: { name: "gpu-results-${{ github.run_id }}", path: "webgpu-graph-algorithms/gpu-report.json\nwebgpu-graph-algorithms/benchmarks/out/", retention-days: 90, overwrite: true }
+              with:
+                  {
+                      name: "gpu-results-${{ github.run_id }}",
+                      path: "webgpu-graph-algorithms/gpu-report.json\nwebgpu-graph-algorithms/benchmarks/out/",
+                      retention-days: 90,
+                      overwrite: true,
+                  }
 
     gpu-nightly-report: # the only job with a write permission; runs on a standard runner, never on the paid one
         needs: test-gpu
@@ -1847,6 +1870,7 @@ Expected: clean (prettier may reflow the flow-style mappings; that is fine).
 ### Task M3-T4: hosts.yml
 
 **Files:**
+
 - Create: `.github/workflows/hosts.yml`
 
 - [ ] **Step 1: Write the workflow**
@@ -2047,6 +2071,7 @@ Expected: no queued runs remain; the repository is read-only. The dev box checko
 Update `/home/apowers/.claude/projects/-home-apowers-Projects-webgpu-graph-algorithms/memory/ci-cd-repair-loop.md` and `MEMORY.md`: the package lives in the monorepo; the source repository is archived; the runner is still owner-side (Phase M4).
 
 ---
+
 ## Phase M4: The GPU runner (owner-gated)
 
 Entry: Phase M3 landed. Everything here follows design 12.4 ("Provisioning the hosted GPU runner", `design/webgpu/webgpu-acceleration-plan.md:4031-4062`) and G0's open rows. The org is on the GitHub Free plan today (`gh api orgs/graphty-org --jq .plan.name` prints `free`); hosted GPU runners need Team (design Q-3, decided 2026-09-14: "I don't want to self-host the runner, I'm happy to pay for a hosted runner"). Work in the main worktree on a short-lived branch, committed through `tools/commit-changes.sh` (the owner's usual script).
@@ -2063,6 +2088,7 @@ Execution note (2026-09-18): steps 1-3 and the `gpu` label done by the owner (th
 ### Task M4-T2: Enable the triggers and run the lane once
 
 **Files:**
+
 - Modify: `.github/workflows/gpu.yml:7-14` (the `on:` block: drop the three prose comment lines, un-comment the two trigger lines)
 
 - [ ] **Step 1: Restore the triggers**
@@ -2100,6 +2126,7 @@ Expected: a JSON report with `"ok": false`, `"reason"` naming the vendor mismatc
 ### Task M4-T3: The T4 baseline
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/benchmarks/results/gpu-linux-t4.json`
 
 - [ ] **Step 1: Download the first green run's benchmark session**
@@ -2131,6 +2158,7 @@ Expected: the file parses and has the same top-level shape as `benchmarks/result
 ### Task M4-T5: Close G0 and G2, amend the design's stale rows
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/docs/decisions/G0.md` (every `[[fill: ...]]` slot; replace the OPEN header note with a CLOSED line)
 - Modify: `webgpu-graph-algorithms/docs/decisions/G2.md` (every `{{...}}` slot: the `gpu-run-line`, `gpu-verdict`, `gpu-report-summary` from the first green run's log)
 - Modify: `design/webgpu/webgpu-acceleration-plan.md` (APPEND a Review-log entry; never edit the body)
@@ -2139,7 +2167,6 @@ Expected: the file parses and has the same top-level shape as `benchmarks/result
 - [ ] **Step 2: The Review-log entry** -- append to the design:
 
 ```markdown
-
 GPU lane live in graphty-monorepo (<the first green run's date>, integration plan Phase M4): runner `gpu-linux-t4` (runner group
 `gpu`, Team plan, $50/month limit), the `gpu` label, push + nightly triggers restored. Corrections to the body
 above, recorded here rather than edited in place: the P10 row's "self-hosted runner registered for the monorepo"
@@ -2152,6 +2179,7 @@ jammy path); the design's 12.5 diff is superseded by the shards as landed. Image
 - [ ] **Step 3: Commit (owner)** -- `docs(webgpu-graph-algorithms): close the G0 and G2 gate records with the first T4 run`.
 
 ---
+
 ## Phase M5: The layout seam (design 9.3, "L1-sim")
 
 **Entry criteria (both):** F2 -- `@graphty/graph-format` is `>= 1.0.0` on master (graph-format design 14.6: cut after the A1 branch is green; owner-side work outside this plan) -- and Phase M3 is done. Until F2, this phase may be PREPARED on a branch and must not merge (graph-format design 13.5 rule 5: layout is a 1.x package). Work on branch `feat/layout-simulation` in a worktree (`git worktree add .worktrees/layout-simulation -b feat/layout-simulation master`, owner); every commit through `tools/commit-changes.sh` with scope `layout`; the phase lands as ONE PR whose last commit is the Chromatic re-baseline.
@@ -2181,6 +2209,7 @@ opens a DRAFT PR that must not merge before F2. Phase M5b waits for those commit
 **Repository:** `/home/apowers/Projects/graphty-monorepo/.worktrees/layout-simulation` (`LT` below).
 
 **Files:**
+
 - Modify: `layout/package.json` (dependencies, peerDependencies)
 - Modify: `layout/scripts/build-bundle.js:22-43` (externalise the dependency)
 - Modify: `layout/scripts/bundle-types.js:26-43` (the simulation barrel)
@@ -2191,6 +2220,7 @@ opens a DRAFT PR that must not merge before F2. Phase M5b waits for those commit
 - Modify: `layout/test/package-structure.test.ts` (the new exports)
 
 **Interfaces:**
+
 - Produces: `@graphty/layout` resolves `@graphty/graph-format` (types through `graph-format/dist/graph-format.d.ts` -- layout's `tsconfig.json` keeps `moduleResolution: "node"`, which reads graph-format's top-level `main`/`types`); `dist/layout.js` leaves `@graphty/graph-format` external; `dist/layout.d.ts` re-exports `./src/simulation/index`.
 
 - [ ] **Step 1: Write the failing test**
@@ -2198,18 +2228,29 @@ opens a DRAFT PR that must not merge before F2. Phase M5b waits for those commit
 In `layout/test/package-structure.test.ts`, next to the existing export assertions on `../dist/layout.js`, add:
 
 ```ts
-    it("exports the simulation seam (design 9.3)", async () => {
-        const layout = await import("../dist/layout.js");
-        for (const name of ["createSimulation", "ForceAtlas2Simulation", "FruchtermanReingoldSimulation", "seedPositions", "resolveNodeVector", "resolveWeights", "toLayoutSnapshot"]) {
-            assert.equal(typeof layout[name], "function", `${name} is exported`);
-        }
-    });
+it("exports the simulation seam (design 9.3)", async () => {
+    const layout = await import("../dist/layout.js");
+    for (const name of [
+        "createSimulation",
+        "ForceAtlas2Simulation",
+        "FruchtermanReingoldSimulation",
+        "seedPositions",
+        "resolveNodeVector",
+        "resolveWeights",
+        "toLayoutSnapshot",
+    ]) {
+        assert.equal(typeof layout[name], "function", `${name} is exported`);
+    }
+});
 
-    it("leaves @graphty/graph-format external in the bundle", () => {
-        const bundle = readFileSync(new URL("../dist/layout.js", import.meta.url), "utf8");
-        assert.ok(/from\s+["']@graphty\/graph-format["']/.test(bundle), "the bundle imports @graphty/graph-format instead of inlining it");
-        assert.ok(!/class GraphBuilder\b/.test(bundle), "no graph-format source inlined");
-    });
+it("leaves @graphty/graph-format external in the bundle", () => {
+    const bundle = readFileSync(new URL("../dist/layout.js", import.meta.url), "utf8");
+    assert.ok(
+        /from\s+["']@graphty\/graph-format["']/.test(bundle),
+        "the bundle imports @graphty/graph-format instead of inlining it",
+    );
+    assert.ok(!/class GraphBuilder\b/.test(bundle), "no graph-format source inlined");
+});
 ```
 
 (Change the file's vitest import to `import { assert, describe, expect, it } from "vitest"` -- layout's tests use vitest's `assert`/`expect`, never `node:assert` -- and add `import { readFileSync } from "node:fs";`.)
@@ -2264,7 +2305,12 @@ with `import { readFileSync } from "node:fs";` at the top if absent. Reason: `ex
 await build({
     configFile: false,
     build: {
-        lib: { entry: path.resolve(__dirname, "../src/index.ts"), name: "GraphLayout", formats: ["es"], fileName: () => "layout.js" },
+        lib: {
+            entry: path.resolve(__dirname, "../src/index.ts"),
+            name: "GraphLayout",
+            formats: ["es"],
+            fileName: () => "layout.js",
+        },
         outDir: ghPagesExamplesDir,
         emptyOutDir: false,
         rollupOptions: { external: [], output: { preserveModules: false, inlineDynamicImports: true } },
@@ -2282,7 +2328,7 @@ In `layout/scripts/bundle-types.js` add after the `./src/layouts/index` re-expor
 
 ```js
 // Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
-export * from './src/simulation/index';
+export * from "./src/simulation/index";
 ```
 
 In `layout/typedoc.json` add `"src/simulation/index.ts"` to `entryPoints`.
@@ -2324,6 +2370,7 @@ export type {
 ### Task M5-T2: The types
 
 **Files:**
+
 - Create: `layout/src/simulation/types.ts`
 
 - [ ] **Step 1: Write the file** -- the design's 9.3 declarations, spelled with `?: T | undefined` (exactOptionalPropertyTypes-compatible) exactly as the GPU package's mirrors `webgpu-graph-algorithms/src/types/options.ts:10-57` and `src/types/accelerator.ts:17-38` spell them, so an option object the element parses is accepted by both without a cast:
@@ -2417,6 +2464,7 @@ export type SimulationType = "forceatlas2" | "fruchtermanReingold" | "spring" | 
 ### Task M5-T3: The LCG and seedPositions
 
 **Files:**
+
 - Create: `layout/src/simulation/seed.ts`
 - Create: `layout/test/simulation/seed.test.ts`
 
@@ -2515,6 +2563,7 @@ Run: `cd LT/layout && pnpm exec vitest run test/simulation/seed.test.ts` -- Expe
 ### Task M5-T4: Node vectors and weights
 
 **Files:**
+
 - Create: `layout/src/simulation/inputs.ts`
 - Create: `layout/test/simulation/inputs.test.ts`
 
@@ -2529,7 +2578,9 @@ import { resolveNodeVector, resolveWeights } from "../../src/simulation/inputs";
 
 function triangle(weighted: boolean) {
     const b = new GraphBuilder({ directed: false, weighted: weighted ? true : "auto" });
-    b.addNode("a"); b.addNode("b"); b.addNode("c");
+    b.addNode("a");
+    b.addNode("b");
+    b.addNode("c");
     b.addEdge("a", "b", weighted ? 2 : undefined);
     b.addEdge("b", "c", weighted ? 3 : undefined);
     b.addEdge("c", "a", weighted ? 4 : undefined);
@@ -2546,7 +2597,10 @@ describe("resolveNodeVector", () => {
     it("a Float32Array of length n is returned as given; a wrong length throws", () => {
         const s = triangle(false);
         const given = new Float32Array([1, 2, 3]);
-        assert.equal(resolveNodeVector(given, s, () => 1), given);
+        assert.equal(
+            resolveNodeVector(given, s, () => 1),
+            given,
+        );
         assert.throws(() => resolveNodeVector(new Float32Array(2), s, () => 1), /2 values, expected 3/);
     });
     it("the legacy id-keyed record resolves through the id map; missing ids take the fallback", () => {
@@ -2693,12 +2747,14 @@ Run: `cd LT/layout && pnpm exec vitest run test/simulation/inputs.test.ts` -- Ex
 ### Task M5-T5: The steppable CPU ForceAtlas2
 
 **Files:**
+
 - Create: `layout/src/simulation/forceatlas2.ts`
 - Create: `layout/src/simulation/constants.ts`
 - Create: `layout/test/simulation/forceatlas2.test.ts`
 - Copy: `webgpu-graph-algorithms/test/fixtures/networkx/{karate-base-iter1,karate-base-iter5,gnm200-base-iter1,gnm200-base-iter5}.json` -> `layout/test/simulation/fixtures/networkx/` (four of the 77 committed fixtures, copied verbatim; the karate ones are 34 nodes / 78 edges, the gnm200 ones 200 nodes)
 
 **Interfaces:**
+
 - Produces: `class ForceAtlas2Simulation implements LayoutSimulation { constructor(options?: ForceAtlas2Options & { readonly compat?: "paper" | "networkx" }); load(snapshot, positions): void; step(iterations?): void; readonly settled: boolean; readonly iterationsDone: number; setFixed(mask): void; setPosition(index, x, y, z): void; reheat(): void; dispose(): void; }` with `FA2_DEFAULTS` in `constants.ts`.
 
 - [ ] **Step 1: The defaults**
@@ -2751,11 +2807,22 @@ function grid(w: number, h: number) {
     for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
             const i = y * w + x;
-            if (x + 1 < w) { src.push(i); dst.push(i + 1); }
-            if (y + 1 < h) { src.push(i); dst.push(i + w); }
+            if (x + 1 < w) {
+                src.push(i);
+                dst.push(i + 1);
+            }
+            if (y + 1 < h) {
+                src.push(i);
+                dst.push(i + w);
+            }
         }
     }
-    return fromEdgeArrays({ directed: false, nodeCount: w * h, src: Uint32Array.from(src), dst: Uint32Array.from(dst) });
+    return fromEdgeArrays({
+        directed: false,
+        nodeCount: w * h,
+        src: Uint32Array.from(src),
+        dst: Uint32Array.from(dst),
+    });
 }
 
 function seeded(s: ReturnType<typeof grid>, seed: number, dim: 2 | 3 = 2) {
@@ -2792,7 +2859,9 @@ describe("ForceAtlas2Simulation", () => {
         const simB = new ForceAtlas2Simulation();
         simA.load(s, a);
         simB.load(s, b);
-        for (let k = 0; k < 20; k++) { simA.step(); }
+        for (let k = 0; k < 20; k++) {
+            simA.step();
+        }
         simB.step(20);
         assert.deepEqual(Array.from(a), Array.from(b));
     });
@@ -2805,11 +2874,14 @@ describe("ForceAtlas2Simulation", () => {
         const mask = makeMask(s.nodeCount);
         maskSet(mask, 5, true);
         sim.setFixed(mask);
-        const x = positions[15]; const y = positions[16];
+        const x = positions[15];
+        const y = positions[16];
         sim.step(30);
         assert.equal(positions[15], x);
         assert.equal(positions[16], y);
-        while (!sim.settled) { sim.step(); }
+        while (!sim.settled) {
+            sim.step();
+        }
         maskSet(mask, 5, false);
         sim.setFixed(mask);
         assert.equal(sim.settled, false, "unpinning reheats (design 7.12)");
@@ -2820,7 +2892,9 @@ describe("ForceAtlas2Simulation", () => {
         const positions = seeded(s, 9);
         const sim = new ForceAtlas2Simulation({ maxIter: 20 });
         sim.load(s, positions);
-        while (!sim.settled) { sim.step(); }
+        while (!sim.settled) {
+            sim.step();
+        }
         sim.setPosition(4, 100, -100, 0);
         assert.deepEqual(Array.from(positions.subarray(12, 15)), [100, -100, 0]);
         assert.equal(sim.settled, false);
@@ -2832,7 +2906,9 @@ describe("ForceAtlas2Simulation", () => {
         const sim2 = new ForceAtlas2Simulation({ dim: 2, center: [0, 0, 7] });
         sim2.load(s, p2);
         sim2.step(5);
-        for (let i = 0; i < s.nodeCount; i++) { assert.equal(p2[3 * i + 2], 7); }
+        for (let i = 0; i < s.nodeCount; i++) {
+            assert.equal(p2[3 * i + 2], 7);
+        }
         const p3 = seeded(s, 5, 3);
         const sim3 = new ForceAtlas2Simulation({ dim: 3 });
         sim3.load(s, p3);
@@ -2847,7 +2923,12 @@ describe("ForceAtlas2Simulation", () => {
         //   initialPositions: number[n][dim], positions: number[n][dim] (after max_iter iterations), rescaled: false }
         for (const name of ["karate-base-iter1", "karate-base-iter5", "gnm200-base-iter1", "gnm200-base-iter5"]) {
             const f = JSON.parse(readFileSync(new URL(`./fixtures/networkx/${name}.json`, import.meta.url), "utf8"));
-            const s = fromEdgeArrays({ directed: false, nodeCount: f.graph.nodeCount, src: Uint32Array.from(f.graph.src), dst: Uint32Array.from(f.graph.dst) });
+            const s = fromEdgeArrays({
+                directed: false,
+                nodeCount: f.graph.nodeCount,
+                src: Uint32Array.from(f.graph.src),
+                dst: Uint32Array.from(f.graph.dst),
+            });
             const n = s.nodeCount;
             const dim: 2 | 3 = f.options.dim === 3 ? 3 : 2;
             const positions = new Float32Array(3 * n);
@@ -2857,10 +2938,18 @@ describe("ForceAtlas2Simulation", () => {
                 }
             }
             const sim = new ForceAtlas2Simulation({
-                maxIter: f.options.max_iter, jitterTolerance: f.options.jitter_tolerance, scalingRatio: f.options.scaling_ratio,
-                gravity: f.options.gravity, distributedAction: f.options.distributed_action, strongGravity: f.options.strong_gravity,
-                linlog: f.options.linlog, dissuadeHubs: f.options.dissuade_hubs, weight: f.options.weight === null ? false : true,
-                dim, settleThreshold: 0, compat: "networkx",
+                maxIter: f.options.max_iter,
+                jitterTolerance: f.options.jitter_tolerance,
+                scalingRatio: f.options.scaling_ratio,
+                gravity: f.options.gravity,
+                distributedAction: f.options.distributed_action,
+                strongGravity: f.options.strong_gravity,
+                linlog: f.options.linlog,
+                dissuadeHubs: f.options.dissuade_hubs,
+                weight: f.options.weight === null ? false : true,
+                dim,
+                settleThreshold: 0,
+                compat: "networkx",
             });
             sim.load(s, positions);
             sim.step(f.options.max_iter);
@@ -2871,7 +2960,10 @@ describe("ForceAtlas2Simulation", () => {
             for (let i = 0; i < n; i++) {
                 for (let a = 0; a < dim; a++) {
                     const expected = f.positions[i][a];
-                    assert.ok(Math.abs(positions[3 * i + a] - expected) <= 3e-4 * Math.max(1, Math.abs(expected)), `${name} node ${i} axis ${a}`);
+                    assert.ok(
+                        Math.abs(positions[3 * i + a] - expected) <= 3e-4 * Math.max(1, Math.abs(expected)),
+                        `${name} node ${i} axis ${a}`,
+                    );
                 }
             }
         }
@@ -2880,7 +2972,12 @@ describe("ForceAtlas2Simulation", () => {
     it("rejects a directed snapshot and a wrong array length; dispose() ends stepping", () => {
         const s = grid(2, 2);
         const sim = new ForceAtlas2Simulation();
-        const directed = fromEdgeArrays({ directed: true, nodeCount: 2, src: Uint32Array.from([0]), dst: Uint32Array.from([1]) });
+        const directed = fromEdgeArrays({
+            directed: true,
+            nodeCount: 2,
+            src: Uint32Array.from([0]),
+            dst: Uint32Array.from([1]),
+        });
         assert.throws(() => sim.load(directed, new Float32Array(6)), /undirected/);
         assert.throws(() => sim.load(s, new Float32Array(5)), /positions/);
         sim.load(s, seeded(s, 1));
@@ -2897,12 +2994,12 @@ Adjust the fixture-reading lines to the JSON shape `generate.py` writes (open on
 Create `layout/src/simulation/forceatlas2.ts` as a transcription of `webgpu-graph-algorithms/test/oracle/forceatlas2.ts` with this mapping (the formulas, the K1-K5 stage order, `estimateFactor`, `kickDir` and the settle rule are copied verbatim; what changes is the shell around them):
 
 | Oracle | Simulation | Note |
-| --- | --- | --- |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------- |
 | `constructor(s, positions, options: OracleOptions)` (layout units, resolved inputs) | `constructor(options?)` stores resolved options; `load(snapshot, positions)` validates (`Error("ForceAtlas2Simulation: the snapshot must be undirected (pass toUndirected().snapshot)")` on a directed one; `positions.length === 3 * n`), resolves mass (`resolveNodeVector(options.nodeMass, s, (i) => deg[i] + 1)` with `deg = s.outDegree()`) and weights (`resolveWeights(options.weight, s)`), converts the owner's SCENE array into the internal f64 LAYOUT array `(v - center[a]) / scale` (z forced to 0 in 2D), resets the controller (`speed = speedEfficiency = swing = traction = 1`), the settle window, `iterationsDone = 0`, clears `fixed` when `n` changed, and calls `reheat()` | design 7.18 units, 7.19 load |
 | `precision: "f64" \| "f32"`, `round` | dropped: f64 scratch always; the OUTPUT is written back with `Math.fround` semantics by the Float32Array itself | graph-format design 14.3: f64 scratch, f32 output |
 | `stages`, `trace`, `traceRecords`, `resync`, `peekFold`, `OracleStages` | dropped (test instrumentation of the GPU) | -- |
 | `step(): OracleTraceRecord` (one iteration) | `step(iterations = options.iterationsPerStep): void`: throws `Error("ForceAtlas2Simulation: disposed")` after `dispose()`, `Error("... not loaded")` before `load()`; returns at once when `settled`; runs the oracle's one-iteration body `iterations` times; after the batch writes every FREE node's layout position back to the owner's array as `layout * scale + center[a]` (fixed rows are never written: their scene value is the owner's), `iterationsDone += k`, updates `settled` | design 7.19 step, 7.12 |
-| `settledCount`, `meanDisplacement`, `rmsRadius` | kept; `settled = iterationsDone >= maxIter || settledCount >= settleWindow`, `settledCount` incremented by the K1 fold when `meanDisplacement <= settleThreshold * rmsRadius` | design 7.17 |
+| `settledCount`, `meanDisplacement`, `rmsRadius` | kept; `settled = iterationsDone >= maxIter                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |                                                   | settledCount >= settleWindow`, `settledCount`incremented by the K1 fold when`meanDisplacement <= settleThreshold \* rmsRadius` | design 7.17 |
 | `setFixed(mask \| null)` | `setFixed(mask: NodeMask)`: validates `mask.length >= ceil(n / 32)`; copies; reheats ONLY when a bit went 1 -> 0 | design 7.12 |
 | `setPosition(index, x, y, z)` (layout units) | `setPosition(index, x, y, z)` in SCENE units: writes the owner's array and the internal layout position `(v - center) / scale`, then `reheat()` (settle window and iteration budget only; the speed controller is untouched -- D8) | design 7.12, D8 |
 | `reheat()` | `reheat()`: `iterationsDone = 0`, `settledCount = 0` (and mode-1's swing/traction reset as the oracle has it) | D8 |
@@ -2921,6 +3018,7 @@ Expected: eslint and `tsc --noEmit` clean (layout's `test/` is outside its tscon
 ### Task M5-T6: The steppable Fruchterman-Reingold ("spring")
 
 **Files:**
+
 - Create: `layout/src/simulation/fruchterman-reingold.ts`
 - Create: `layout/test/simulation/fruchterman-reingold.test.ts`
 
@@ -2933,6 +3031,7 @@ Run: `cd LT/layout && pnpm exec vitest run test/simulation/fruchterman-reingold.
 ### Task M5-T7: The dispatcher, the snapshot adapter and the exports
 
 **Files:**
+
 - Create: `layout/src/simulation/create-simulation.ts`
 - Create: `layout/src/simulation/snapshot.ts`
 - Create: `layout/test/simulation/create-simulation.test.ts`
@@ -2947,12 +3046,25 @@ import { describe, it } from "vitest";
 import { createSimulation, ForceAtlas2Simulation, FruchtermanReingoldSimulation } from "../../src/simulation";
 import type { LayoutAccelerator, LayoutSimulation } from "../../src/simulation";
 
-const fakeSim: LayoutSimulation = { load() {}, step() {}, settled: true, setFixed() {}, setPosition() {}, dispose() {} };
+const fakeSim: LayoutSimulation = {
+    load() {},
+    step() {},
+    settled: true,
+    setFixed() {},
+    setPosition() {},
+    dispose() {},
+};
 
 describe("createSimulation", () => {
     it("delegates to the accelerator when it has the method", () => {
         const calls: string[] = [];
-        const acc: LayoutAccelerator = { kind: "fake", forceAtlas2: () => { calls.push("fa2"); return fakeSim; } };
+        const acc: LayoutAccelerator = {
+            kind: "fake",
+            forceAtlas2: () => {
+                calls.push("fa2");
+                return fakeSim;
+            },
+        };
         assert.equal(createSimulation("forceatlas2", {}, acc), fakeSim);
         assert.deepEqual(calls, ["fa2"]);
     });
@@ -2968,7 +3080,12 @@ describe("createSimulation", () => {
         assert.equal(createSimulation("spring", {}, acc), fakeSim);
     });
     it("a throwing accelerator method propagates (no fallback)", () => {
-        const acc: LayoutAccelerator = { kind: "fake", forceAtlas2: () => { throw new Error("E_DEVICE_LOST"); } };
+        const acc: LayoutAccelerator = {
+            kind: "fake",
+            forceAtlas2: () => {
+                throw new Error("E_DEVICE_LOST");
+            },
+        };
         assert.throws(() => createSimulation("forceatlas2", {}, acc), /E_DEVICE_LOST/);
     });
     it("spring-electrical has no CPU simulation in v1", () => {
@@ -3019,7 +3136,9 @@ export function createSimulation(
                 : new FruchtermanReingoldSimulation(options as FruchtermanReingoldOptions | undefined);
         case "spring-electrical":
             if (accelerator?.springElectrical === undefined) {
-                throw new Error('createSimulation: "spring-electrical" has no CPU simulation; inject an accelerator that implements springElectrical');
+                throw new Error(
+                    'createSimulation: "spring-electrical" has no CPU simulation; inject an accelerator that implements springElectrical',
+                );
             }
             return accelerator.springElectrical(options as SpringElectricalOptions | undefined);
         default: {
@@ -3076,7 +3195,10 @@ export function toLayoutSnapshot(G: Graph | Node[] | GraphSnapshot, weightAttr: 
     } else {
         builder.addNodes(G.nodes());
         for (const [source, target] of G.edges()) {
-            const weight = weightAttr !== null && G.getEdgeData !== undefined ? G.getEdgeData(source, target, weightAttr) : undefined;
+            const weight =
+                weightAttr !== null && G.getEdgeData !== undefined
+                    ? G.getEdgeData(source, target, weightAttr)
+                    : undefined;
             builder.addEdge(source, target, weight);
         }
     }
@@ -3096,6 +3218,7 @@ Expected: all green, including M5-T1's two tests. `cd LT && pnpm exec knip --wor
 ### Task M5-T8: The legacy forceatlas2Layout over the simulation (D-17) and the Chromatic re-baseline
 
 **Files:**
+
 - Modify: `layout/src/layouts/force-directed/forceatlas2.ts` (the body becomes a wrapper; the 15 positional parameters and the return type are unchanged)
 - Modify: `layout/test/forceatlas2-layout.test.ts` (only if an assertion fails for a documented reason)
 
@@ -3106,42 +3229,50 @@ Expected: all green, including M5-T1's two tests. `cd LT && pnpm exec knip --wor
 Replace the implementation of `forceatlas2Layout` (keep the signature at lines 26-42) with:
 
 ```ts
-    const s = toLayoutSnapshot(G, weight);
-    const n = s.nodeCount;
-    const dimension: 2 | 3 = dim === 3 ? 3 : 2;
-    const positions = new Float32Array(3 * n).fill(Number.NaN);
-    if (pos !== null) {
-        for (let i = 0; i < n; i++) {
-            const given = pos[s.ids.idOf(i)];
-            if (given !== undefined) {
-                positions[3 * i] = given[0];
-                positions[3 * i + 1] = given[1];
-                positions[3 * i + 2] = dimension === 3 ? (given[2] ?? 0) : 0;
-            }
-        }
-    }
-    seedPositions(s, positions, seed, dimension, 1, null, "fa2");
-    const sim = new ForceAtlas2Simulation({
-        maxIter, jitterTolerance, scalingRatio, gravity, distributedAction, strongGravity,
-        nodeMass, nodeSize,
-        // the legacy attribute NAME was consumed by toLayoutSnapshot (getEdgeData -> the snapshot's arc weights);
-        // the simulation's `weight` is therefore a boolean here, never the attribute name
-        weight: weight !== null,
-        dissuadeHubs: _dissuadeHubs, linlog,
-        dim: dimension, settleThreshold: 0,   // the one-shot function runs every iteration (design 9.3)
-    });
-    sim.load(s, positions);
-    sim.step(maxIter);
-    sim.dispose();
-    const result: PositionMap = {};
+const s = toLayoutSnapshot(G, weight);
+const n = s.nodeCount;
+const dimension: 2 | 3 = dim === 3 ? 3 : 2;
+const positions = new Float32Array(3 * n).fill(Number.NaN);
+if (pos !== null) {
     for (let i = 0; i < n; i++) {
-        const row = [positions[3 * i], positions[3 * i + 1]];
-        if (dimension === 3) {
-            row.push(positions[3 * i + 2]);
+        const given = pos[s.ids.idOf(i)];
+        if (given !== undefined) {
+            positions[3 * i] = given[0];
+            positions[3 * i + 1] = given[1];
+            positions[3 * i + 2] = dimension === 3 ? (given[2] ?? 0) : 0;
         }
-        result[s.ids.idOf(i)] = row;
     }
-    return rescaleLayout(result) as PositionMap;   // rescaleLayout is typed PositionMap | number[][]; the legacy body casts the same way
+}
+seedPositions(s, positions, seed, dimension, 1, null, "fa2");
+const sim = new ForceAtlas2Simulation({
+    maxIter,
+    jitterTolerance,
+    scalingRatio,
+    gravity,
+    distributedAction,
+    strongGravity,
+    nodeMass,
+    nodeSize,
+    // the legacy attribute NAME was consumed by toLayoutSnapshot (getEdgeData -> the snapshot's arc weights);
+    // the simulation's `weight` is therefore a boolean here, never the attribute name
+    weight: weight !== null,
+    dissuadeHubs: _dissuadeHubs,
+    linlog,
+    dim: dimension,
+    settleThreshold: 0, // the one-shot function runs every iteration (design 9.3)
+});
+sim.load(s, positions);
+sim.step(maxIter);
+sim.dispose();
+const result: PositionMap = {};
+for (let i = 0; i < n; i++) {
+    const row = [positions[3 * i], positions[3 * i + 1]];
+    if (dimension === 3) {
+        row.push(positions[3 * i + 2]);
+    }
+    result[s.ids.idOf(i)] = row;
+}
+return rescaleLayout(result) as PositionMap; // rescaleLayout is typed PositionMap | number[][]; the legacy body casts the same way
 ```
 
 Replace the file's import block with `import { ForceAtlas2Simulation, seedPositions, toLayoutSnapshot } from "../../simulation";`, `import type { Graph, Node, PositionMap } from "../../types";` and `import { rescaleLayout } from "../../utils/rescale";` (sorted per `simple-import-sort`), and delete the now-unused module-private helpers of the old body (`getNodeDegree` at the bottom of the file, the `RandomNumberGenerator` import, `_processParams` / `getNodesFromGraph` if present): `@typescript-eslint/no-unused-vars` is an error in the root config. Documented behaviour changes (design 9.3, 7.2, graph-format design 14.3 "Chromatic re-baselining"): the published FA2 laws replace the port's `1/d^2` repulsion; force-based swing / traction; the attraction sums over parallel arcs (the dense matrix collapsed them); `weight` now reaches the layout from the element; mass defaults to `outDegree() + 1` (self-loop once).
@@ -3155,6 +3286,7 @@ Replace the file's import block with `import { ForceAtlas2Simulation, seedPositi
 ### Task M5-T9: Documentation and the design amendments
 
 **Files:**
+
 - Modify: `layout/CLAUDE.md` (a "Simulations" section: the seam, the units, the two classes, the dispatcher, the tests)
 - Modify: `layout/README.md` (a short "Steppable simulations" section with a 10-line example: `toLayoutSnapshot`, `seedPositions`, `createSimulation("forceatlas2")`, `load`, `step` until `settled`)
 - Modify: `design/graph-format/graph-format-design.md` (APPEND to section 17's decision log, never edit 13.5 / 14.3 in place): "17.x (<the re-baseline commit's date, `git log -1 --format=%cs`>): rule 3's peer range during 0.x is the minor pin (`^0.<minor>.0`, re-stated at every format minor: `6b4777df`) and the intended workspace protocol is `workspace:^` (D-18 and Q-31 via the integration plan); 14.3's ForceAtlas2 adopts the WebGPU design's 7.2 reference formulas (DEPARTURE-3) and the GPU keeps its own vec4f device positions (DEPARTURE-7)"
@@ -3171,6 +3303,7 @@ Replace the file's import block with `import { ForceAtlas2Simulation, seedPositi
 ### Task M5b-T1: The devDependency and the graph edge
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/package.json` (devDependencies: `"@graphty/layout": "workspace:^"`)
 - Modify: `webgpu-graph-algorithms/project.json` (`implicitDependencies: ["!algorithms"]` -- the `!layout` negation goes: the edge is real now, D-19)
 - Modify: `webgpu-graph-algorithms/tsconfig.json` (`paths`: `"@graphty/layout": ["../layout/dist/layout.d.ts"]` -- the BUILT declarations, not layout's sources: layout compiles with `noUnusedLocals` / `noUnusedParameters` off and its sources would fail the GPU package's stricter `tsc --noEmit`; D-20's `lint -> build -> ^build` chain builds layout first)
@@ -3184,6 +3317,7 @@ Replace the file's import block with `import { ForceAtlas2Simulation, seedPositi
 ### Task M5b-T2: The mirrors become imports
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/test/types/conformance.test-d.ts` (design 9.8's W1 row says the file is "retired"; G10 and `src/types/accelerator.ts`'s own header require its `expectTypeOf` cross-compile, so it is CREATED here and stays -- D-9)
 - Modify: `webgpu-graph-algorithms/src/types/accelerator.ts:17-38` (delete the two mirrored interfaces; `import type { LayoutAccelerator, LayoutSimulation } from "@graphty/layout"; export type { LayoutAccelerator, LayoutSimulation };`; prune the imports only the deleted mirrors used -- `NodeMask`, `FruchtermanReingoldOptions`, `SpringElectricalOptions` -- `noUnusedLocals` is on)
 - Modify: `webgpu-graph-algorithms/src/types/options.ts:10-57` (delete the five mirrored option interfaces; `import type { CommonLayoutOptions, ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions, SpringElectricalOptions } from "@graphty/layout";` and re-export them; keep `ResolvedForceAtlas2Options`)
@@ -3226,6 +3360,7 @@ Run: `cd GT/webgpu-graph-algorithms && pnpm exec tsc --noEmit -p tsconfig.json` 
 ### Task M5b-T3: The second oracle and the seed cross-test
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/test/layouts/fa2-layout-oracle.test.ts`
 - Create: `webgpu-graph-algorithms/test/layouts/seed-cross.test.ts`
 
@@ -3239,6 +3374,7 @@ Run: `cd GT/webgpu-graph-algorithms && GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_
 ### Task M5b-T4: The W1 design amendments
 
 **Files:**
+
 - Modify: `design/graph-format/graph-format-design.md` (APPEND a section 17.8 table -- 17.6 is the L1-sim entry, 17.7 the 1.0.0 cut, and 17.7 itself reserves 17.8 for these; never edit 10.3 / 14.5 / 14.6 / 16.2 / 16.7 in place)
 - Modify: `design/webgpu/webgpu-acceleration-plan.md` (APPEND a Review-log entry)
 
@@ -3249,42 +3385,43 @@ Design 9.8 (W1 row) and 13 (P10 row) list the "design 10.3 / 14.5 / 14.6 / 16.2 
 - [ ] **Step 3: Commit (owner)** -- `docs(webgpu-graph-algorithms): record the W1 amendments in the graph-format design`.
 
 ---
+
 ## 6. The later phases: scoped, gated, planned when their entry criteria are met
 
 Each phase below is defined by its entry criteria, its deliverable, its gate and the design sections it executes. Each gets its own writing-plans pass (a plan file under `design/webgpu/plans/`) when the criteria are met; the tasks are not decomposed here because they depend on code that does not exist yet (`indexed.*`, the element's `DataManager` refactor) and on decisions the owner takes at those gates. The order is what both designs fix (graph-format 14.6; WebGPU 9.8, 13).
 
 ### Phase M6: graphty-element (E0, then E1) -- design 9.4 and 9.5, graph-format design 14.4
 
-| | |
-| --- | --- |
-| Entry | Phase M5 on master; the first A2 commit (Phase M8a) on master; graph-format `>= 1.0.0`. |
-| E0 (a precondition the WebGPU design names and does not size) | graph-format design 14.4: `DataManager` owns one `GraphBuilder` for the graph's life; an element-owned `positions: Float32Array(3 * capacity)` attached by reference as the `position` column after every freeze; `getSnapshot()`, `dm.undirected(s)`, `snapshot-replaced { previous, next, report }`; `Node.index`; `LayoutManager` calls `engine.load(dm.undirected(getSnapshot()).snapshot, positions)` / `engine.reload(...)`; `toAlgorithmGraph` and `EdgeMap` retired. This is the element's own migration; it is the larger half of the phase. |
-| E1 deliverables (design 9.4 items 1-10) | `Graph.accelerator: GraphAccelerator \| null`, `setAccelerator()`, the `accelerator-changed` event and its `LayoutManager` consumer (late injection engages a running layout; `setAccelerator(null)` moves it to the CPU with positions and pins kept); the `snapshot-replaced` release list; adapters through `accelerated(this.graph.accelerator).x(s)` with ONE result-writing loop for CPU and GPU; the `SimulationLayoutEngine` bridge (`load` / `reload` / `step` once per frame with `.catch` attached once per distinct promise / `pin` / `unpin` / `setNodePosition` / `beginDrag` / `endDrag` / `getNodePositionInto` / `dispose`); `ForceAtlas2LayoutEngine` and `SpringLayoutEngine` re-registered on it under the same type names and zod schemas (`gravity` loosened to nonnegative, `weightPath` live, `scalingFactor` becomes the `scale` option); `behavior.layout.iterationsPerStep`, `maxInFlight` and the `acceleration.minNodes` key on `ConfigValues`; `setRunning(running)` with `reheat()` on resume; `nodeMass` / `nodeSize` records resolved once into role columns (D28); the fake-accelerator stories `Layout/ForceAtlas2 (GPU)` and `Layout/Spring (GPU)` for Chromatic, plus the real-GPU stories under a `gpu` tag in graphty-element's own Storybook, which render a deterministic no-GPU state on Chromatic's software renderer (design 9.4 item 8). Then design 9.5: `@graphty/webgpu-graph-algorithms` becomes an OPTIONAL peer dependency of graphty-element, imported only from the new `@graphty/graphty-element/webgpu` side-effect entry point, which probes, requests a context, calls `createAccelerator` and registers an `AcceleratorFactory` -- `(options?: { exactMaxNodes?: number }) => Promise<GraphAccelerator \| null>` -- that the element calls with the ceiling it must respect; the `acceleration` attribute (`auto` / `off` / `required`), the six-state `capabilities.acceleration` the element publishes, and its `graphty-capabilities-change` mirror on every bound view. The core entry references the GPU package nowhere, so a consumer who skips the optional peer needs no bundler configuration (design 9.1, `design/decisions/2026-09-19-graphty-element-owns-webgpu.md`). |
-| Gate (design G6, element part) | element tests + stories green with a fake accelerator: late injection, mid-run removal with positions and pins preserved, pin survival across a remap (`pin A, remove B < A, freeze, reload -> A still fixed`), an `acceleration.minNodes` above the node count keeps the CPU engine until a reload crosses it, `setRunning(false)` lands only the in-flight batches and `setRunning(true)` reheats a settled simulation; the CPU and GPU stories look statistically the same (design 11.4 distributional metrics); Chromatic re-baseline. |
-| Frame-loop facts to design against | `UpdateManager.updateLayout()` calls `layoutManager.step()` `stepMultiplier` times per Babylon render frame synchronously; `Node.update()` pulls `layoutEngine.getNodePosition(this)` unless `node.dragging`; `NodeBehavior` writes `layoutEngine.setNodePosition` every pointer move and `node.pin()` on drag end when `pinOnDrag`; `LayoutManager.isSettled` and `Graph.update()`'s `graph-settled`. The GPU `step(k)` coalesces above `maxInFlight` (design 7.19), so the per-frame call is naturally throttled. |
-| Size (design) | 8-10 ed for E1 across the three packages, on top of E0, which the design does not size. |
+|                                                               |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry                                                         | Phase M5 on master; the first A2 commit (Phase M8a) on master; graph-format `>= 1.0.0`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| E0 (a precondition the WebGPU design names and does not size) | graph-format design 14.4: `DataManager` owns one `GraphBuilder` for the graph's life; an element-owned `positions: Float32Array(3 * capacity)` attached by reference as the `position` column after every freeze; `getSnapshot()`, `dm.undirected(s)`, `snapshot-replaced { previous, next, report }`; `Node.index`; `LayoutManager` calls `engine.load(dm.undirected(getSnapshot()).snapshot, positions)` / `engine.reload(...)`; `toAlgorithmGraph` and `EdgeMap` retired. This is the element's own migration; it is the larger half of the phase.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| E1 deliverables (design 9.4 items 1-10)                       | `Graph.accelerator: GraphAccelerator \| null`, `setAccelerator()`, the `accelerator-changed` event and its `LayoutManager` consumer (late injection engages a running layout; `setAccelerator(null)` moves it to the CPU with positions and pins kept); the `snapshot-replaced` release list; adapters through `accelerated(this.graph.accelerator).x(s)` with ONE result-writing loop for CPU and GPU; the `SimulationLayoutEngine` bridge (`load` / `reload` / `step` once per frame with `.catch` attached once per distinct promise / `pin` / `unpin` / `setNodePosition` / `beginDrag` / `endDrag` / `getNodePositionInto` / `dispose`); `ForceAtlas2LayoutEngine` and `SpringLayoutEngine` re-registered on it under the same type names and zod schemas (`gravity` loosened to nonnegative, `weightPath` live, `scalingFactor` becomes the `scale` option); `behavior.layout.iterationsPerStep`, `maxInFlight` and the `acceleration.minNodes` key on `ConfigValues`; `setRunning(running)` with `reheat()` on resume; `nodeMass` / `nodeSize` records resolved once into role columns (D28); the fake-accelerator stories `Layout/ForceAtlas2 (GPU)` and `Layout/Spring (GPU)` for Chromatic, plus the real-GPU stories under a `gpu` tag in graphty-element's own Storybook, which render a deterministic no-GPU state on Chromatic's software renderer (design 9.4 item 8). Then design 9.5: `@graphty/webgpu-graph-algorithms` becomes an OPTIONAL peer dependency of graphty-element, imported only from the new `@graphty/graphty-element/webgpu` side-effect entry point, which probes, requests a context, calls `createAccelerator` and registers an `AcceleratorFactory` -- `(options?: { exactMaxNodes?: number }) => Promise<GraphAccelerator \| null>` -- that the element calls with the ceiling it must respect; the `acceleration` attribute (`auto` / `off` / `required`), the six-state `capabilities.acceleration` the element publishes, and its `graphty-capabilities-change` mirror on every bound view. The core entry references the GPU package nowhere, so a consumer who skips the optional peer needs no bundler configuration (design 9.1, `design/decisions/2026-09-19-graphty-element-owns-webgpu.md`). |
+| Gate (design G6, element part)                                | element tests + stories green with a fake accelerator: late injection, mid-run removal with positions and pins preserved, pin survival across a remap (`pin A, remove B < A, freeze, reload -> A still fixed`), an `acceleration.minNodes` above the node count keeps the CPU engine until a reload crosses it, `setRunning(false)` lands only the in-flight batches and `setRunning(true)` reheats a settled simulation; the CPU and GPU stories look statistically the same (design 11.4 distributional metrics); Chromatic re-baseline.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Frame-loop facts to design against                            | `UpdateManager.updateLayout()` calls `layoutManager.step()` `stepMultiplier` times per Babylon render frame synchronously; `Node.update()` pulls `layoutEngine.getNodePosition(this)` unless `node.dragging`; `NodeBehavior` writes `layoutEngine.setNodePosition` every pointer move and `node.pin()` on drag end when `pinOnDrag`; `LayoutManager.isSettled` and `Graph.update()`'s `graph-settled`. The GPU `step(k)` coalesces above `maxInFlight` (design 7.19), so the per-frame call is naturally throttled.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Size (design)                                                 | 8-10 ed for E1 across the three packages, on top of E0, which the design does not size.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Phase M7: the graphty app (W2) -- design 12 (P12)
 
 Ownership here is governed by `design/decisions/2026-09-19-graphty-element-owns-webgpu.md`: graphty-element probes, constructs, attaches and recovers (Phase M6), and the app only writes the attribute and renders what the element publishes.
 
-| | |
-| --- | --- |
-| Entry | Phase M6 on master. |
-| Deliverables | A Settings control that writes the element's `acceleration` attribute (`auto` \| `off` \| `required`); an acceleration status chip fed by `graphty-capabilities-change` that shows nothing definitive while the state is `"probing"` and then renders `"active"`, `"idle"`, `"unavailable"`, `"error"` or `"off"` with the `reason` and `code` the element supplies; the app's own storage key for the reader's choice, written back as the attribute when the app mounts the element, since the element persists nothing on a reader's behalf and `acceleration` is not a `ConfigValues` key; the `metricCost.ts` gate gains a per-metric accelerator constant once the element exposes the flag. The app imports nothing from `@graphty/webgpu-graph-algorithms` and `graphty/package.json` gains no GPU dependency: the optional peer belongs to graphty-element (Phase M6), which is what puts the package into graphty's dependency closure -- at that point the `Build graph-format, graph-io and webgpu-graph-algorithms (PR)` step of `ci.yml` becomes redundant for it. |
-| Gate (design G12, W2 subset) | the app's stories green; on the dev box's real GPU the chip goes from `"probing"` to a settled state and the graph settles, drags and pins, and on a machine with no adapter the chip reads `"unavailable"` with a readable reason (Playwright MCP screenshot + Nanobanana yes/no questions, the owner's visual rule); the `acceleration.minNodes` default measured in graphty-element (design 7.21). |
-| Size (design) | 4-6 ed. |
+|                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Entry                        | Phase M6 on master.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Deliverables                 | A Settings control that writes the element's `acceleration` attribute (`auto` \| `off` \| `required`); an acceleration status chip fed by `graphty-capabilities-change` that shows nothing definitive while the state is `"probing"` and then renders `"active"`, `"idle"`, `"unavailable"`, `"error"` or `"off"` with the `reason` and `code` the element supplies; the app's own storage key for the reader's choice, written back as the attribute when the app mounts the element, since the element persists nothing on a reader's behalf and `acceleration` is not a `ConfigValues` key; the `metricCost.ts` gate gains a per-metric accelerator constant once the element exposes the flag. The app imports nothing from `@graphty/webgpu-graph-algorithms` and `graphty/package.json` gains no GPU dependency: the optional peer belongs to graphty-element (Phase M6), which is what puts the package into graphty's dependency closure -- at that point the `Build graph-format, graph-io and webgpu-graph-algorithms (PR)` step of `ci.yml` becomes redundant for it. |
+| Gate (design G12, W2 subset) | the app's stories green; on the dev box's real GPU the chip goes from `"probing"` to a settled state and the graph settles, drags and pins, and on a machine with no adapter the chip reads `"unavailable"` with a readable reason (Playwright MCP screenshot + Nanobanana yes/no questions, the owner's visual rule); the `acceleration.minNodes` default measured in graphty-element (design 7.21).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Size (design)                | 4-6 ed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ### Phase M8: algorithms -- M8a the first A2 commit (design 9.2), M8b the GPU SpMV family (design P7)
 
-| | |
-| --- | --- |
-| Entry M8a | graph-format `>= 1.0.0` on master and the A1 branch merged (graph-format design 14.6); prepared on a branch after A1, merged after F2. |
-| M8a deliverables | `algorithms/src/indexed/accelerator.ts` exported from the barrel: the `*ResultLike` shapes (scores as `NumericVector`), `AlgorithmAccelerator` (every method optional, `GraphSnapshot` in), `AcceleratedAlgorithms`, `accelerated(acc)` (`acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))`, `pathTo` / `pathEdges` decoration for SSSP), `sources` / `k` on `BetweennessCentralityOptions`; fake-accelerator tests (delegation, CPU path, a throwing method propagates). Additive; it carries only the methods whose `indexed.*` port exists. Then the GPU package's W1b algorithms half: `AlgorithmAccelerator` by `import type`, `CpuAlgorithmOptions` retired, `implicitDependencies` negation removed, the conformance test's reverse compile (design G10 `expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>()`). |
-| Entry M8b | Phase M3 (the package in the monorepo) and the design's P2 gate (met); may run in parallel with M5-M7 (design: "P7 may start after P2"). |
-| M8b deliverables (design P7) | grid-stride dispatch, `packViews`, `spmvPull`, PageRank (+ personalized) with `firstConvergedIteration`, HITS, eigenvector, Katz, Afforest WCC, `renumberPartition` on readback, `reverse()` residency, the `GpuAccelerator` algorithm members, oracles, `pagerank` / `wcc` benchmarks; result parity per design 9.7 (1e-5 relative; labels renumbered first-seen; `precision: "f32"`). |
-| Gate | design G7. |
-| Size (design) | 8-10 ed for P7; the first A2 commit is small. |
+|                              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Entry M8a                    | graph-format `>= 1.0.0` on master and the A1 branch merged (graph-format design 14.6); prepared on a branch after A1, merged after F2.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| M8a deliverables             | `algorithms/src/indexed/accelerator.ts` exported from the barrel: the `*ResultLike` shapes (scores as `NumericVector`), `AlgorithmAccelerator` (every method optional, `GraphSnapshot` in), `AcceleratedAlgorithms`, `accelerated(acc)` (`acc?.x !== undefined ? acc.x(s, ...) : Promise.resolve(indexed.x(s, ...))`, `pathTo` / `pathEdges` decoration for SSSP), `sources` / `k` on `BetweennessCentralityOptions`; fake-accelerator tests (delegation, CPU path, a throwing method propagates). Additive; it carries only the methods whose `indexed.*` port exists. Then the GPU package's W1b algorithms half: `AlgorithmAccelerator` by `import type`, `CpuAlgorithmOptions` retired, `implicitDependencies` negation removed, the conformance test's reverse compile (design G10 `expectTypeOf(createAccelerator(ctx)).toMatchTypeOf<AlgorithmAccelerator & LayoutAccelerator>()`). |
+| Entry M8b                    | Phase M3 (the package in the monorepo) and the design's P2 gate (met); may run in parallel with M5-M7 (design: "P7 may start after P2").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| M8b deliverables (design P7) | grid-stride dispatch, `packViews`, `spmvPull`, PageRank (+ personalized) with `firstConvergedIteration`, HITS, eigenvector, Katz, Afforest WCC, `renumberPartition` on readback, `reverse()` residency, the `GpuAccelerator` algorithm members, oracles, `pagerank` / `wcc` benchmarks; result parity per design 9.7 (1e-5 relative; labels renumbered first-seen; `precision: "f32"`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Gate                         | design G7.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Size (design)                | 8-10 ed for P7; the first A2 commit is small.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ### The GPU package's own next phases inside the monorepo
 
@@ -3297,13 +3434,13 @@ The design's remaining phases run in `webgpu-graph-algorithms/` exactly as P0-P3
 ### 7.1 The owner's command sheet (in order)
 
 | When | Command (paste as an `!` command in this session, or run in a shell) |
-| --- | --- |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | ------------ |
 | M0-T1 | `bash /home/apowers/Projects/webgpu-graph-algorithms/tmp/ci-round11.sh` |
 | M0-T2 | nothing to run: the CI repair, the graph-io peer range (`6b4777df`, peer `^0.2.0`) and the 0.2.0 release (`dc08826b`) are on origin/master; M1-T1 fast-forwards the local master |
 | M1-T1 | `cd /home/apowers/Projects/graphty-monorepo && git fetch origin && git merge --ff-only origin/master && git worktree add .worktrees/land-webgpu-graph-algorithms -b land/webgpu-graph-algorithms master` |
 | M1-T3 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/land-webgpu-graph-algorithms && ./tools/land-webgpu-graph-algorithms.sh prepare` |
 | M1-T4 | `... && ./tools/land-webgpu-graph-algorithms.sh merge` |
-| M2-T9 | `... && for s in workspace package docs ignore; do ./tools/land-webgpu-graph-algorithms.sh commit $s || break; done` |
+| M2-T9 | `... && for s in workspace package docs ignore; do ./tools/land-webgpu-graph-algorithms.sh commit $s                                                                                                                                                                                              |     | break; done` |
 | M3-T5 | `... && ./tools/land-webgpu-graph-algorithms.sh commit ci && ./tools/land-webgpu-graph-algorithms.sh push` then `gh pr create ...` (Task M3-T5 step 2) |
 | M3-T7 | `npx -y -p npm@11 npm trust github @graphty/webgpu-graph-algorithms --repo graphty-org/graphty-monorepo --file release.yml --allow-publish` then `cd /home/apowers/Projects/graphty-monorepo/.worktrees/land-webgpu-graph-algorithms && ./tools/land-webgpu-graph-algorithms.sh land --skip-gate` |
 | M3-T8 | `bash /home/apowers/Projects/webgpu-graph-algorithms/tmp/ci-round12.sh`, cancel the queued GPU run, then `gh repo archive graphty-org/webgpu-graph-algorithms --confirm` |
@@ -3313,35 +3450,35 @@ The agent never runs any of these; it prepares the tree and verifies the results
 
 ### 7.2 Verification matrix
 
-| Check | Where | Command | Green means |
-| --- | --- | --- | --- |
-| The rewrite | M1-T3 | `git -C WT/tmp/land/wga-rewrite rev-list --count HEAD` = 31; `ls-tree` = `design webgpu-graph-algorithms` | the path rules are right |
-| The merge | M1-T4 | `git log --first-parent --oneline -2`; `git rev-list --max-parents=0 HEAD \| wc -l` = 6 | history attached, one merge, one new root |
-| Package tests on lavapipe | M1-T5 (without `--coverage`), M2-T6 and the CI node shard (with) | `GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=... pnpm exec vitest run --project=node --coverage` | 94/94/98/94 coverage, 0 failures |
-| Browser smoke on SwiftShader | CI browser shard | `GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js` | `numTotalTests=39 numFailedTests=0` |
-| Lint incl. strict-consumer | M2-T8 | `pnpm exec nx run webgpu-graph-algorithms:lint` (builds first) | eslint + 2 tsc runs clean |
-| knip | M2-T3 | `pnpm exec knip` | no finding under the package |
-| Release dry run | M2-T2 | `NX_DAEMON=false pnpm exec nx release --dry-run --skip-publish` | `webgpu-graph-algorithms 0.1.0 -> 0.2.0` listed, no range error |
-| Frozen lockfile | M2-T8 | `HUSKY=0 pnpm install --frozen-lockfile` | exit 0 |
-| Pre-push gate | M2-T8 | `./tools/prepush.sh` | exit 0 |
-| PR | M3-T6 | `gh run watch <id> --exit-status` (CI and Hosts), then `gh pr checks` | `All Checks Pass`, both `Hosts` jobs |
-| Publication | M3-T7 | `npm view @graphty/webgpu-graph-algorithms version` | `0.2.0` with provenance |
-| GPU lane | M4-T2 | `gh run watch <id> --exit-status` | `vendor=nvidia` in the report; every step green |
-| Layout seam | M5 | `pnpm exec vitest run test/simulation` in `layout/`; the NetworkX fixture case | the port reproduces NetworkX within 1e-4 |
-| Two oracles | M5b | `test/layouts/fa2-layout-oracle.test.ts` on lavapipe and NVIDIA | GPU within 5e-2 of layout's CPU simulation |
+| Check                        | Where                                                            | Command                                                                                                                   | Green means                                                     |
+| ---------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| The rewrite                  | M1-T3                                                            | `git -C WT/tmp/land/wga-rewrite rev-list --count HEAD` = 31; `ls-tree` = `design webgpu-graph-algorithms`                 | the path rules are right                                        |
+| The merge                    | M1-T4                                                            | `git log --first-parent --oneline -2`; `git rev-list --max-parents=0 HEAD \| wc -l` = 6                                   | history attached, one merge, one new root                       |
+| Package tests on lavapipe    | M1-T5 (without `--coverage`), M2-T6 and the CI node shard (with) | `GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any VK_DRIVER_FILES=... pnpm exec vitest run --project=node --coverage` | 94/94/98/94 coverage, 0 failures                                |
+| Browser smoke on SwiftShader | CI browser shard                                                 | `GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js`                             | `numTotalTests=39 numFailedTests=0`                             |
+| Lint incl. strict-consumer   | M2-T8                                                            | `pnpm exec nx run webgpu-graph-algorithms:lint` (builds first)                                                            | eslint + 2 tsc runs clean                                       |
+| knip                         | M2-T3                                                            | `pnpm exec knip`                                                                                                          | no finding under the package                                    |
+| Release dry run              | M2-T2                                                            | `NX_DAEMON=false pnpm exec nx release --dry-run --skip-publish`                                                           | `webgpu-graph-algorithms 0.1.0 -> 0.2.0` listed, no range error |
+| Frozen lockfile              | M2-T8                                                            | `HUSKY=0 pnpm install --frozen-lockfile`                                                                                  | exit 0                                                          |
+| Pre-push gate                | M2-T8                                                            | `./tools/prepush.sh`                                                                                                      | exit 0                                                          |
+| PR                           | M3-T6                                                            | `gh run watch <id> --exit-status` (CI and Hosts), then `gh pr checks`                                                     | `All Checks Pass`, both `Hosts` jobs                            |
+| Publication                  | M3-T7                                                            | `npm view @graphty/webgpu-graph-algorithms version`                                                                       | `0.2.0` with provenance                                         |
+| GPU lane                     | M4-T2                                                            | `gh run watch <id> --exit-status`                                                                                         | `vendor=nvidia` in the report; every step green                 |
+| Layout seam                  | M5                                                               | `pnpm exec vitest run test/simulation` in `layout/`; the NetworkX fixture case                                            | the port reproduces NetworkX within 1e-4                        |
+| Two oracles                  | M5b                                                              | `test/layouts/fa2-layout-oracle.test.ts` on lavapipe and NVIDIA                                                           | GPU within 5e-2 of layout's CPU simulation                      |
 
 ### 7.3 Risk register for this plan
 
-| Id | Risk | Mitigation |
-| --- | --- | --- |
-| R-M1 | The unrelated-history merge is done after package files exist on the branch, detaching the history. | The landing script's `merge` refuses when `webgpu-graph-algorithms/` or `design/webgpu/` exists or the branch has commits; Task M1-T4 step 2 checks `git log -- webgpu-graph-algorithms/package.json` reaches the imported commits. |
-| R-M2 | Master CI is red for unrelated reasons and the landing PR's signal is muddied; `release.yml` never runs. | M0-T2 asks the owner to land the repair first; under option (b) the gate is "no new red job" and the release waits. |
-| R-M3 | The first `nx release` publishes six packages at once (three first releases) and one trusted publisher is missing -> tags exist, publish fails. | M3-T7 step 1 configures the publisher BEFORE landing; `nx release publish` is idempotent and re-runnable (`release.yml` already runs it explicitly). |
-| R-M4 | Playwright 1.57.0 (monorepo) vs 1.63.0 (staging) changes the bundled Chromium; SwiftShader grants no adapter. | D-11; the browser shard is the check; `scripts/probe-browser-flags.mjs` finds the flag set; a `package`-scoped follow-up. |
-| R-M5 | The node shard passes 10 minutes on lavapipe as later phases add tests. | design 12.6: split with `--shard=1/2` into two matrix entries. |
-| R-M6 | The T4 image differs from the assumptions (`modprobe`, xvfb, libegl1). | M4-T2 records the facts on the first run; G0 follow-up U1 (xvfb) is the known fix. |
-| R-M7 | The `!algorithms` / `!layout` negation hides a real dependency later. | M5b-T1 and M8a remove each negation when the real devDependency arrives; the conformance tests fail to compile if the types are missing. |
-| R-M8 | Layout's `moduleResolution: "node"` cannot see graph-format's `exports` map. | graph-format keeps top-level `main` / `types`; M5-T1 relies on them; if graph-format drops them, add `paths` to layout's tsconfig as graph-io does. |
-| R-M9 | The FA2 port diverges from the oracle in a formula. | M5-T5's NetworkX fixture case (four fixtures, 1e-4) and M5b-T3's GPU-vs-layout parity (5e-2) catch it from two independent sides (design R-1). |
-| R-M10 | The `git ls-files --eol` probe (M1-T7) reveals CRLF files outside the two corpora. | Add `-text` exemptions rather than rewriting; record in the `ignore` commit body. |
-| R-M11 | A `git push` of the branch runs the full pre-push gate (15-25 min) and the remote-logger port flake trips it. | `push --skip-gate` after M2-T8 already ran the gate. |
+| Id    | Risk                                                                                                                                            | Mitigation                                                                                                                                                                                                                          |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-M1  | The unrelated-history merge is done after package files exist on the branch, detaching the history.                                             | The landing script's `merge` refuses when `webgpu-graph-algorithms/` or `design/webgpu/` exists or the branch has commits; Task M1-T4 step 2 checks `git log -- webgpu-graph-algorithms/package.json` reaches the imported commits. |
+| R-M2  | Master CI is red for unrelated reasons and the landing PR's signal is muddied; `release.yml` never runs.                                        | M0-T2 asks the owner to land the repair first; under option (b) the gate is "no new red job" and the release waits.                                                                                                                 |
+| R-M3  | The first `nx release` publishes six packages at once (three first releases) and one trusted publisher is missing -> tags exist, publish fails. | M3-T7 step 1 configures the publisher BEFORE landing; `nx release publish` is idempotent and re-runnable (`release.yml` already runs it explicitly).                                                                                |
+| R-M4  | Playwright 1.57.0 (monorepo) vs 1.63.0 (staging) changes the bundled Chromium; SwiftShader grants no adapter.                                   | D-11; the browser shard is the check; `scripts/probe-browser-flags.mjs` finds the flag set; a `package`-scoped follow-up.                                                                                                           |
+| R-M5  | The node shard passes 10 minutes on lavapipe as later phases add tests.                                                                         | design 12.6: split with `--shard=1/2` into two matrix entries.                                                                                                                                                                      |
+| R-M6  | The T4 image differs from the assumptions (`modprobe`, xvfb, libegl1).                                                                          | M4-T2 records the facts on the first run; G0 follow-up U1 (xvfb) is the known fix.                                                                                                                                                  |
+| R-M7  | The `!algorithms` / `!layout` negation hides a real dependency later.                                                                           | M5b-T1 and M8a remove each negation when the real devDependency arrives; the conformance tests fail to compile if the types are missing.                                                                                            |
+| R-M8  | Layout's `moduleResolution: "node"` cannot see graph-format's `exports` map.                                                                    | graph-format keeps top-level `main` / `types`; M5-T1 relies on them; if graph-format drops them, add `paths` to layout's tsconfig as graph-io does.                                                                                 |
+| R-M9  | The FA2 port diverges from the oracle in a formula.                                                                                             | M5-T5's NetworkX fixture case (four fixtures, 1e-4) and M5b-T3's GPU-vs-layout parity (5e-2) catch it from two independent sides (design R-1).                                                                                      |
+| R-M10 | The `git ls-files --eol` probe (M1-T7) reveals CRLF files outside the two corpora.                                                              | Add `-text` exemptions rather than rewriting; record in the `ignore` commit body.                                                                                                                                                   |
+| R-M11 | A `git push` of the branch runs the full pre-push gate (15-25 min) and the remote-logger port flake trips it.                                   | `push --skip-gate` after M2-T8 already ran the gate.                                                                                                                                                                                |

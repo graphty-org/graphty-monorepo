@@ -64,7 +64,8 @@ export function formatAcceleration(status: AccelerationStatus): AccelerationChip
         const described = status.device ?? status.backend;
 
         return {
-            label: hardware === "" ? `${ACCELERATION_CHIP_PREFIX}: on` : `${ACCELERATION_CHIP_PREFIX}: on (${hardware})`,
+            label:
+                hardware === "" ? `${ACCELERATION_CHIP_PREFIX}: on` : `${ACCELERATION_CHIP_PREFIX}: on (${hardware})`,
             title: described === undefined ? ACTIVE_SENTENCE : `${described}. ${ACTIVE_SENTENCE}`,
             active: true,
         };

@@ -582,7 +582,11 @@ export function chungLuRows(plan: ExpectedDegreePlan, start: number, end: number
  * @param options - for the weights option
  * @returns the graph
  */
-function runPlan(plan: ExpectedDegreePlan, nodeColumns: SampleGraph["nodeColumns"], options: WeightOptions): SampleGraph {
+function runPlan(
+    plan: ExpectedDegreePlan,
+    nodeColumns: SampleGraph["nodeColumns"],
+    options: WeightOptions,
+): SampleGraph {
     const mean = plan.total / 2;
     checkEdgeCount(mean);
     const out = new EdgeBuffer(Math.ceil(mean + 6 * Math.sqrt(mean) + 16));
@@ -792,7 +796,9 @@ export function randomRegularGraph(options: RandomRegularOptions): SampleGraph {
             }
         }
         if (attempt === REGULAR_ATTEMPTS) {
-            throw new RangeError(`randomRegularGraph found no ${d}-regular graph on ${n} nodes in ${REGULAR_ATTEMPTS} attempts`);
+            throw new RangeError(
+                `randomRegularGraph found no ${d}-regular graph on ${n} nodes in ${REGULAR_ATTEMPTS} attempts`,
+            );
         }
         for (let u = 0; u < n; u++) {
             const row = adj.subarray(u * d, u * d + d).sort();

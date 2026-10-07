@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 ## Package Overview
 
 @graphty/remote-logger is a standalone npm package that provides:
+
 - **RemoteLogClient**: Browser client for sending logs to a remote server
 - **Log Server**: HTTP/HTTPS server with terminal output and REST API
 - **ConsoleCaptureUI**: Floating widget for browser console capture
@@ -99,7 +100,7 @@ npm run test:run -- test/integration/client-server.test.ts
 
 ### ConsoleCaptureUI
 
-- Intercepts all console.* methods
+- Intercepts all console.\* methods
 - Creates floating button with menu
 - Supports copy/download/clear/show
 - Exposes `window.__console__` for programmatic access
@@ -108,17 +109,18 @@ npm run test:run -- test/integration/client-server.test.ts
 
 ### Mocking Strategy
 
-| Test Type | Environment | Approach |
-|-----------|-------------|----------|
-| Server tests | Node.js | Real HTTP server |
-| Client tests | Node.js | Mock fetch |
-| UI unit tests | happy-dom | Spy on console |
-| Browser tests | Playwright | Real DOM |
-| Integration | Node.js | Real server + client |
+| Test Type     | Environment | Approach             |
+| ------------- | ----------- | -------------------- |
+| Server tests  | Node.js     | Real HTTP server     |
+| Client tests  | Node.js     | Mock fetch           |
+| UI unit tests | happy-dom   | Spy on console       |
+| Browser tests | Playwright  | Real DOM             |
+| Integration   | Node.js     | Real server + client |
 
 ### Port Ranges
 
 Tests use specific port ranges to avoid conflicts:
+
 - Server tests: 8100-8199
 - Integration tests: 8200-8399
 - Development servers: 9000-9999
@@ -145,6 +147,7 @@ Log levels are strings and don't require code changes. The server displays them 
 ## Integration with Other Packages
 
 This package is used by:
+
 - **graphty-element**: RemoteSink uses RemoteLogClient for remote logging
 - **graphty (React app)**: Storybook integration for console capture
 

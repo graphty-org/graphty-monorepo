@@ -1,9 +1,9 @@
 import crypto from "crypto";
-import { existsSync, mkdirSync,readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 
 import { BenchmarkResult, BenchmarkSession } from "../benchmark-result";
-import { formatSystemInfo,getSystemInfo } from "./system-info";
+import { formatSystemInfo, getSystemInfo } from "./system-info";
 
 const BENCHMARK_DIR = join(process.cwd(), "benchmark-results");
 const RESULTS_FILE = join(BENCHMARK_DIR, "benchmark-results.json");

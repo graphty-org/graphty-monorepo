@@ -34,13 +34,7 @@ export interface ConfigSetCommand {
 
 /** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
 type ConfigGroup =
-    | "data"
-    | "runAlgorithmsOnLoad"
-    | "background"
-    | "selectionStyle"
-    | "layoutBehavior"
-    | "author"
-    | "name";
+    "data" | "runAlgorithmsOnLoad" | "background" | "selectionStyle" | "layoutBehavior" | "author" | "name";
 
 /** One key of the `config` slice. */
 interface ConfigKey {

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { CANVAS_TOOLBAR_DESKTOP, CANVAS_TOOLBAR_NARROW, type CanvasBottomStackState, DATA_DRAWER_DEFAULT_HEIGHT, LEGEND_MAX_HEIGHT, LEGEND_MIN_HEIGHT, OVERLAY_REFLOW_RISE } from "../../constants";
+import {
+    CANVAS_TOOLBAR_DESKTOP,
+    CANVAS_TOOLBAR_NARROW,
+    type CanvasBottomStackState,
+    DATA_DRAWER_DEFAULT_HEIGHT,
+    LEGEND_MAX_HEIGHT,
+    LEGEND_MIN_HEIGHT,
+    OVERLAY_REFLOW_RISE,
+} from "../../constants";
 import {
     canvasBottomStack,
     clampDataDrawerHeight,

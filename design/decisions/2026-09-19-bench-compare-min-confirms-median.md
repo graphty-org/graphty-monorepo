@@ -31,10 +31,10 @@ so a caret-range fix to graphty-element sat unreleased behind a benchmark.
 
 The raw bench table, which the compare step did not print, has the answer:
 
-| | median | min | max |
-| --- | --- | --- | --- |
+|                 | median   | min      | max       |
+| --------------- | -------- | -------- | --------- |
 | the failing run | 1.344 ms | 0.169 ms | 12.990 ms |
-| the baseline | 0.171 ms | 0.143 ms | 1.299 ms |
+| the baseline    | 0.171 ms | 0.143 ms | 1.299 ms  |
 
 The floor did not move. The run's fastest sample is 0.169 ms against a baseline whose median is
 0.171 ms. What moved is the middle of a five-sample series, which is what interference does.

@@ -1758,7 +1758,7 @@ export class LayoutManager implements Manager {
         this.preStepsOwed = false;
 
         if (engine instanceof SimulationLayoutEngine) {
-            for (let remaining = preSteps; remaining > 0 && !engine.isSettled; ) {
+            for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
                 const chunk = Math.min(remaining, MAX_ITERATIONS_PER_STEP_CHUNK);
                 await engine.stepAsync(chunk);
                 if (!live()) {

@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { canonicalChord, DISPATCHER_KEY_BINDINGS, ESCAPE_LADDER, findShellKeyBinding, formatChord, formatChords, keyChipFor, matchesChord, NEVER_BOUND_CHORDS, parseChord, SHELL_KEY_BINDINGS,type ShellKeyBinding } from "../bindings";
+import {
+    canonicalChord,
+    DISPATCHER_KEY_BINDINGS,
+    ESCAPE_LADDER,
+    findShellKeyBinding,
+    formatChord,
+    formatChords,
+    keyChipFor,
+    matchesChord,
+    NEVER_BOUND_CHORDS,
+    parseChord,
+    SHELL_KEY_BINDINGS,
+    type ShellKeyBinding,
+} from "../bindings";
 import { ACTIVITY_ORDER } from "../constants";
 
 function keyEvent(key: string, init: KeyboardEventInit = {}): KeyboardEvent {

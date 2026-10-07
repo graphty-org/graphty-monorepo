@@ -226,4 +226,3 @@ export function getOptionsGrouped(optionsSchema: OptionsSchema): Map<string, Opt
 
     return groups;
 }
-

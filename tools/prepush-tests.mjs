@@ -316,7 +316,7 @@ async function main() {
     // holds back until its package's caches are warm, and a third shard without a browser.
     const next = () => {
         // An index loop: a started shard is spliced out of `waiting` as it goes.
-        for (let i = 0; i < waiting.length; ) {
+        for (let i = 0; i < waiting.length;) {
             const shard = waiting[i];
             const now = [...running.keys()].map((n) => SHARDS.find((s) => s.shard === n));
             const nodeLane = now.filter((s) => !s["needs-browser"]).length;

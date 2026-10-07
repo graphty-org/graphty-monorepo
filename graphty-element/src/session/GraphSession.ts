@@ -1561,7 +1561,11 @@ function fieldWordsOf(
         for (const run of runs.list()) {
             for (const field of run.fields) {
                 if (bindResultPath(field.path, run.id) === path && field.kind === target) {
-                    return { plainName: field.plainName, technicalName: field.technicalName };
+                    return {
+                        plainName: field.plainName,
+                        technicalName: field.technicalName,
+                        result: { algorithm: run.algorithm, field: field.name },
+                    };
                 }
             }
         }
@@ -2496,6 +2500,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        inputRevision: () => inputs.tick.value,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));

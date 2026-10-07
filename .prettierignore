@@ -78,3 +78,12 @@ design/ui/object-first-ux/
 # lines out of its list item and folds the paragraph after a list into the last item, which
 # changes what the steps say.
 design/githerd/
+
+# Prettier's markdown output for these files is not a fixed point: it re-indents fenced code
+# inside lists (or flips escapes) on every pass, so `prettier --check` can never pass on them.
+/design/rendering/edge-styles-implementation-plan.md
+/design/ui/mockups/system/ARTBOARD-CHANGES-1.7.md
+/design/ui/mockups/system/ARTBOARD-CHANGES-1.8.md
+/design/webgpu/webgpu-acceleration-plan.md
+/graphty/docs/decisions/G12.md
+/webgpu-graph-algorithms/docs/research/draft-B.md

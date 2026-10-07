@@ -164,14 +164,21 @@ function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]):
 /** The command emptying the graph. */
 const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
 
+/** The code of the fact each batch the element builds carries, by its label. */
+const BATCH_CODES = {
+    "Replaced the nodes": "data.replace-nodes",
+    "Replaced the edges": "data.replace-edges",
+    "Set the graph data": "data.set",
+} as const;
+
 /**
  * A batch, followed by its members as each is dispatched.
  * @param label - The batch's label.
  * @param steps - Its members.
  * @returns What a door dispatching it dispatches, in order.
  */
-function batchOf(label: string, ...steps: SessionCommand[]): SessionCommand[] {
-    return [{ op: "batch", label, steps }, ...steps];
+function batchOf(label: keyof typeof BATCH_CODES, ...steps: SessionCommand[]): SessionCommand[] {
+    return [{ op: "batch", label, fact: { code: BATCH_CODES[label], params: {} }, steps }, ...steps];
 }
 
 /** What the element's pair adds to an import: the key its two assignments coalesce under. */
@@ -535,6 +542,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     settled: READ,
     explain: READ,
     agreement: READ,
+    counts: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
@@ -570,6 +578,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             session: READ,
             nodeLabelCounts: READ,
+            labelOf: READ,
             setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
@@ -790,6 +799,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rendererStatus: READ,
             eventManager: READ,
             nodeLabelCounts: READ,
+            labelOf: READ,
             onNodeLabelCounts: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {

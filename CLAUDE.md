@@ -111,6 +111,12 @@ parameters -- and never:
 A fact about the data (what a column measures, what an algorithm returns) is graphty-element's. How
 a reader sees it is the application's.
 
+A catalog `plainName` is catalog data, not presentation: it is the default name of a thing
+graphty-element ships (an algorithm, an option, a format, an attribute), supplied by whoever
+registers it, so an extension supplies its own. An application may show it or replace it by id.
+This does not extend to sentences, which stay `{ code, params }`, and grouping, ordering and
+translation stay the application's.
+
 ### graphty-element offers choices; consumers make them
 
 **graphty-element exposes an option for every behavior a consumer might reasonably want either
@@ -176,6 +182,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: json, graphml, gexf, csv, gml, dot, pajek, neo4j, xgmml, cx2, cx, obo, cys) | **graph-io** | "io", "importers" |
 | `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
+| `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -190,6 +197,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators and classic sample datasets as typed arrays for the graph-format snapshot; one subpath per dataset |
+| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.0 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import (private, not yet published) |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -207,6 +215,7 @@ graphty-monorepo/
 |-- graph-io/             # @graphty/graph-io package (depends on graph-format)
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
+|-- cytoscape-extensions/    # @graphty/cytoscape-extensions: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)
 |-- graphty-element/      # @graphty/graphty-element package
@@ -293,6 +302,7 @@ pnpm run coverage:preview:graph-format
 pnpm run coverage:preview:graph-io
 pnpm run coverage:preview:webgpu-graph-algorithms
 pnpm run coverage:preview:graph-samples
+pnpm run coverage:preview:cytoscape-extensions
 ```
 
 Each package also has its own `npm run coverage:preview`.
@@ -404,7 +414,7 @@ to that hostname). Starting the same name again restarts the server instead of a
 servherd_start({ name: "graphty-element-dev", cwd: "<repo>/graphty-element",
   command: "npm run dev", env: { PORT: "{{port}}", HOST: "{{hostname}}" } })
 
-// Storybook (graphty-element, compact-mantine, algorithms, layout)
+// Storybook (graphty-element, compact-mantine, algorithms, layout, cytoscape-extensions)
 servherd_start({ name: "graphty-element-storybook", cwd: "<repo>/graphty-element",
   command: "npm run storybook", env: { PORT: "{{port}}", HOST: "0.0.0.0" } })
 
@@ -445,6 +455,11 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 
 **graph-samples:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+
+**cytoscape-extensions:**
+- Single test project (Node.js, headless Cytoscape); resolves the graphty packages through their dist, so build them first. `test/gpu-device.test.ts` needs a real GPU and follows the `GRAPHTY_GPU_REQUIRE` rule of webgpu-graph-algorithms
+- Storybook demo (`npm run storybook`, `stories/`): the extensions in a real Cytoscape instance. The Demo stories run any layout, algorithm, generator, bundled dataset or file format on a seeded graph-samples network (100 to 50,000 nodes), backend auto, CPU or GPU, with the backend that ran, why, and the time on screen. The Gallery stories run every one of them at once on small seeded graphs, one tile each; `test/demo-catalog.test.ts` fails when the extension registers something `stories/catalog.ts` does not list. The stories import `src/`, so edits show up live (reload the page after an algorithm change: Cytoscape cannot re-register a method)
+- Visual review captures every story (project `cytoscape-extensions`; it waits on each story root's `whenDone()` and fails a story whose console says "graphty demo failed"). Captures hide run times. The capture browser has no WebGPU (visual-review removes `navigator.gpu`), so in CI every story runs the CPU path and shows "this runtime has no WebGPU" as the reason, and the GPU-only spring-electrical tile shows that it did not run and why. The GPU path is covered by the package's GPU tests, not by images
 
 **webgpu-graph-algorithms:**
 - `node` - Node.js on Dawn (`GRAPHTY_GPU_REQUIRE` unset skips without an adapter; CI sets `any` on lavapipe)
@@ -490,7 +505,7 @@ The target flow:
   passes a batch whose images equal the owner-approved images of its pull requests.
 - Master runs no tests: a push to master only builds what graphty.app deploys. A red master build
   freezes the queue and opens a `priority:critical` revert automatically.
-- A release is attempted every 6 hours: the full suite, the T4 GPU lane, Hosts and the security
+- A release is attempted at 00:00, 06:00, 12:00 and 18:00 UTC: the full suite, the T4 GPU lane, Hosts and the security
   audit run on the candidate commit, and only when all pass is a release pull request opened. Plus
   an ad hoc release on demand.
 
@@ -522,7 +537,7 @@ CI, and Mergify queues only ready pull requests.
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. On a push to master only the Build job runs; the summaries pass when it does |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Dispatch: at 00:00, 06:00, 12:00 and 18:00 UTC by an external scheduler (cron-job.org) with `scheduled=true`, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
@@ -558,8 +573,10 @@ package has no guide pages, so its documentation link is the generated API refer
 
 ### Release versioning
 
-Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Every 6 hours
-(00:00, 06:00, 12:00 and 18:00 UTC) `release.yml` takes master's newest commit and runs the full CI
+Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11). At 00:00,
+06:00, 12:00 and 18:00 UTC an external scheduler (cron-job.org) dispatches `release.yml` with
+`scheduled=true`, because GitHub's own scheduler delays or drops this repository's scheduled runs;
+a person can still dispatch it by hand (the ad hoc release, below). Each scheduled attempt takes master's newest commit and runs the full CI
 suite (ci.yml, every shard), the T4 GPU lane, Hosts and the production security audit on it; only
 if all pass does it version that commit and open a
 `chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)
@@ -571,8 +588,8 @@ check or left the merge queue is closed and re-cut from the newest commit; one l
 waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
 changed. A held release restarts itself: after every push to master whose build passes, while a
 "Release held" issue is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
-attempt on that pushed commit at once; with no held issue it does nothing, and the schedule keeps
-skipping while the issue is open. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
+attempt on that pushed commit at once; with no held issue it does nothing, and the scheduled
+attempts keep skipping while the issue is open. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
 publish run's failed jobs publishes what is missing and closes it. A
 red lane holds the whole release: no pull request, nothing published, and one `Release held: <what>
 failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that githerd picks up. Its
@@ -618,8 +635,8 @@ changelog.
 The CI runs 22 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
-full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, layout,
-algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
+layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
 graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
@@ -627,6 +644,7 @@ shard. The shards:
 - `graph-io`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-browser`
 - `graph-samples`
+- `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
 - `graphty`
@@ -815,7 +833,7 @@ Each package has its own CLAUDE.md with package-specific guidance:
 ### Visual review
 
 CI screenshots every story of every package with a Storybook (compact-mantine, graphty-element,
-layout, algorithms and the graphty app); the owner compares them with
+layout, algorithms, the graphty app and cytoscape-extensions); the owner compares them with
 the baseline PNGs in `visual-baselines/` and accepts or rejects them in a page served from this
 machine. The tool is the publishable package `@graphty/visual-review` (`visual-review/`, design in
 `design/visual-testing/design.md`); this repository is one consumer of it, configured by

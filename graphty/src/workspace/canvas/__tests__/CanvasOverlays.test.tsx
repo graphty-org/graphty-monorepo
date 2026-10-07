@@ -113,7 +113,15 @@ const LOAD = { task: "load", phase: "progress", completed: 197, total: null, fra
  * @returns the block.
  */
 function block(over: Partial<LegendBlock>): LegendBlock {
-    return { channel: "node.color", layerId: "layer-1", kind: "categorical", swatches: [], departures: [], ...over };
+    return {
+        channel: "node.color",
+        layerId: "layer-1",
+        kind: "categorical",
+        swatches: [],
+        facts: [],
+        departures: [],
+        ...over,
+    };
 }
 
 describe("the canvas's state cards", () => {

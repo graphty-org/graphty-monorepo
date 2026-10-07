@@ -46,6 +46,7 @@ import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
 import type { RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
+import type { CodedFact } from "../shared";
 import {
     authoredDriving,
     type AutoApplyPolicy,
@@ -56,6 +57,7 @@ import {
 } from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
 import type { Layer } from "../styles/Layer";
+import type { HistoryCode } from "../types";
 import {
     ManagedRun,
     type RunBody,
@@ -813,7 +815,12 @@ class Runs implements SessionRunsApi {
             fields: [],
             engine: this.options.engine,
             caveats: this.defaultCaveats,
-            execute: this.batchExecutor(specs, label, () => run),
+            execute: this.batchExecutor(
+                specs,
+                label,
+                { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
+                () => run,
+            ),
             publishOnCancel: true,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -1814,12 +1821,14 @@ class Runs implements SessionRunsApi {
      * one transaction, so its members and their layers are one step.
      * @param specs - What to run.
      * @param label - What the batch is called.
+     * @param fact - What its step did.
      * @param handle - The batch's own run, once it exists.
      * @returns The executor.
      */
     private batchExecutor(
         specs: readonly RunSpec[],
         label: string,
+        fact: CodedFact<HistoryCode>,
         handle: () => ManagedRun<BatchResult> | null,
     ): RunExecutor<BatchResult> {
         return async (context) => {
@@ -1866,18 +1875,22 @@ class Runs implements SessionRunsApi {
             };
 
             try {
-                await this.dispatcher.transaction(label, async (tx, signal) => {
-                    // Undo cancelling the batch aborts the transaction; the batch stops with it
-                    // and settles with what it had, which the undo has already taken back.
-                    signal.addEventListener(
-                        "abort",
-                        () => {
-                            handle()?.cancel("The batch was undone.");
-                        },
-                        { once: true },
-                    );
-                    await members((command, options) => tx.dispatch(command, options), signal);
-                });
+                await this.dispatcher.transaction(
+                    label,
+                    async (tx, signal) => {
+                        // Undo cancelling the batch aborts the transaction; the batch stops with it
+                        // and settles with what it had, which the undo has already taken back.
+                        signal.addEventListener(
+                            "abort",
+                            () => {
+                                handle()?.cancel("The batch was undone.");
+                            },
+                            { once: true },
+                        );
+                        await members((command, options) => tx.dispatch(command, options), signal);
+                    },
+                    { fact },
+                );
             } catch (error) {
                 if (!(error instanceof Error && error.name === "AbortError")) {
                     throw error;

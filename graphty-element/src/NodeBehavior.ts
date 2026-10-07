@@ -349,7 +349,7 @@ export class NodeDragHandler {
                     );
                     return dropped;
                 },
-                { moves: true },
+                { moves: true, fact: { code: "node.drag", params: { node: this.node.id } } },
             )
             // An aborted drag rejects; the abort has already ended it.
             .catch(() => undefined);

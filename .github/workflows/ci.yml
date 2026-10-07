@@ -81,12 +81,39 @@ jobs:
             affected: ${{ steps.plan.outputs.affected }}
             test-matrix: ${{ steps.plan.outputs.test-matrix }}
             test-count: ${{ steps.plan.outputs.test-count }}
+            advisory-checks: ${{ steps.advisory.outputs.checks }}
             visual-skip: ${{ steps.plan.outputs.visual-skip }}
         steps:
             - uses: actions/checkout@v4
               with:
                   ref: ${{ inputs.ref }}
                   fetch-depth: 0
+
+            # New required checks start as warnings. tools/ci-advisory-checks.json lists each new job or step
+            # with the date it becomes required ("enforce"). The output is the JSON list of "<job>" and
+            # "<job>/<step>" still in their warning period. A listed job carries the job-level
+            #   continue-on-error: ${{ contains(fromJSON(needs.build.outputs.advisory-checks), '<job>') }}
+            # and ends with a step `if: ${{ failure() }}`, `continue-on-error: true` that echoes
+            # "::warning::advisory check <job> failed". A listed step carries an id and
+            #   continue-on-error: ${{ contains(fromJSON(needs.build.outputs.advisory-checks), '<job>/<step>') }}
+            # (steps.advisory.outputs.checks inside this job, after this step), and is followed by a step
+            # `if: ${{ steps.<id>.outcome == 'failure' }}`, `continue-on-error: true` echoing the same warning
+            # for "<job>/<step>". Either job needs build directly. "All Checks Pass" also reports a listed
+            # job's failure as a warning. On a pull request the list comes from the base tip (HEAD^1 of the
+            # merge ref), never the pull request's copy, so a pull request cannot loosen the list that judges
+            # it: a new check must pass on the pull request that adds it, and warns on the ones after it.
+            # Without the file on the base, nothing is advisory. tools/ci-workflows.test.mjs holds the
+            # registry to ci.yml and to the base branch.
+            - name: List advisory checks
+              id: advisory
+              env:
+                  EVENT: ${{ github.event_name }}
+              run: |
+                  base=HEAD
+                  [[ "$EVENT" == "pull_request" ]] && base=HEAD^1
+                  registry=$(git show "$base:tools/ci-advisory-checks.json" 2>/dev/null) || registry='{"advisory":[]}'
+                  checks=$(jq -c --arg today "$(date -u +%F)" '[.advisory[] | select(.enforce > $today) | .job + (if .step then "/" + .step else "" end)]' <<<"$registry")
+                  echo "checks=$checks" | tee -a "$GITHUB_OUTPUT"
 
             - uses: pnpm/action-setup@v4
 
@@ -230,12 +257,16 @@ jobs:
             - name: ESLint root config
               run: pnpm run lint:eslint-root
 
-            - name: Formatting (changed files)
-              if: github.event_name == 'pull_request'
-              run: pnpm run format:check:changed origin/${{ github.base_ref }}
+            - name: Formatting
+              run: pnpm run format:check
 
             - name: Bundle size (graphty-element)
               run: pnpm run check:bundle-size
+
+            # What a browser application downloads for each part of cytoscape-extensions (the main entry and each
+            # part it loads on first use), against cytoscape-extensions/size-budgets.json. Needs the build above.
+            - name: Bundle size (cytoscape-extensions)
+              run: pnpm --filter @graphty/cytoscape-extensions run size
 
             # graphty-element's public API, as built, must match the committed report
             # (graphty-element/api/*.api.md, one per typed entry point in its package.json "exports").
@@ -283,6 +314,9 @@ jobs:
             - name: Build Storybook (layout)
               run: pnpm exec nx run layout:build-storybook
 
+            - name: Build Storybook (cytoscape-extensions)
+              run: pnpm exec nx run cytoscape-extensions:build-storybook
+
             # Build unified documentation on every run, so a pull request that breaks the docs
             # (a dead link included: VitePress fails the build on one) fails here rather than on
             # master. The docs and both gh-pages builds are uploaded on every run because the
@@ -310,6 +344,7 @@ jobs:
                       graph-samples/dist/
                       algorithms/dist/
                       layout/dist/
+                      cytoscape-extensions/dist/
                       graphty/dist/
                       graphty-element/dist/
                       remote-logger/dist/
@@ -419,6 +454,13 @@ jobs:
               with:
                   name: build-storybook-layout
                   path: layout/storybook-static/
+                  retention-days: 1
+
+            - name: Upload Storybook build (cytoscape-extensions)
+              uses: actions/upload-artifact@v4
+              with:
+                  name: build-storybook-cytoscape-extensions
+                  path: cytoscape-extensions/storybook-static/
                   retention-days: 1
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
@@ -926,6 +968,12 @@ jobs:
                   name: build-storybook-layout
                   path: layout/storybook-static/
 
+            - name: Download Storybook build (cytoscape-extensions)
+              uses: actions/download-artifact@v4
+              with:
+                  name: build-storybook-cytoscape-extensions
+                  path: cytoscape-extensions/storybook-static/
+
             - name: Download algorithms gh-pages
               uses: actions/download-artifact@v4
               with:
@@ -1079,6 +1127,8 @@ jobs:
                       artifact: build-storybook-algorithms
                     - project: graphty
                       artifact: build-storybook-app
+                    - project: cytoscape-extensions
+                      artifact: build-storybook-cytoscape-extensions
         steps:
             # A Storybook this pull request cannot affect (the build job's visual-skip) is not captured: the job
             # writes the not-affected marker in place of results.json and uploads it as the capture, so the
@@ -1257,6 +1307,7 @@ jobs:
                   NEEDS: ${{ toJSON(needs) }}
                   BUILD: ${{ needs.build.result }}
                   FULL: ${{ needs.build.outputs.full }}
+                  ADVISORY: ${{ needs.build.outputs.advisory-checks }}
                   LIGHT: ${{ needs.build.outputs.light }}
               run: |
                   if [[ "$BUILD" == "skipped" ]]; then
@@ -1270,8 +1321,11 @@ jobs:
                   # The visual job never decides here, whatever result job-level continue-on-error makes
                   # it report: on a pull request the gate step below judges its results.json, and on
                   # master a capture crash must not hold release, deploy or coverage.
-                  bad=$(jq -r --argjson ok "$ok" \
-                      'to_entries[] | select(.key != "visual") | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
+                  # A job in its warning period (tools/ci-advisory-checks.json, see the build job) only warns.
+                  adv="${ADVISORY:-[]}"
+                  jq -r --argjson adv "$adv" 'to_entries[] | select(.key as $k | $adv | index($k)) | select(.value.result != "success" and .value.result != "skipped") | "::warning::advisory check \(.key): \(.value.result) (required from its enforce date in tools/ci-advisory-checks.json)"' <<<"$NEEDS"
+                  bad=$(jq -r --argjson ok "$ok" --argjson adv "$adv" \
+                      'to_entries[] | select(.key != "visual") | select(.key as $k | ($adv | index($k)) == null) | select(.value.result as $r | (($ok | index($r)) == null and ((.key | startswith("chromatic-")) and $r == "skipped" | not)) or (.key == "build" and $r != "success")) | .key' \
                       <<<"$NEEDS")
                   if [[ -n "$bad" ]]; then
                       echo "::error::jobs that did not pass: $(echo $bad)"

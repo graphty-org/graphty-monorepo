@@ -15,7 +15,7 @@ describe("PageRankAlgorithm", () => {
         await pr.run();
 
         // Check that all nodes have pagerank results
-         
+
         const dm = graph.getDataManager() as any;
         for (const [nodeId] of dm.nodes) {
             const rank = getNodeResult(pr, nodeId, "graphty", "pagerank", "rank");

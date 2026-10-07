@@ -213,14 +213,7 @@ function readGridState(raw: Float32Array | Uint32Array): GridStateFields {
 
 /** The inspect() stages of one grid iteration in model order (G1, G2, G3, G5, G6, G7, K5, the K1 grid block). */
 export type GridStageKey =
-    | "cellKey"
-    | "sortedIdx"
-    | "cellStart"
-    | "pyramid"
-    | "farField"
-    | "nearField"
-    | "positions"
-    | "k1";
+    "cellKey" | "sortedIdx" | "cellStart" | "pyramid" | "farField" | "nearField" | "positions" | "k1";
 /** The stage keys as an iteration list, in model order. */
 export const GRID_STAGE_KEYS: readonly GridStageKey[] = Object.freeze([
     "cellKey",

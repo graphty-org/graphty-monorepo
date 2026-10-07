@@ -9,7 +9,7 @@ import * as http from "http";
 import * as net from "net";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createDualServer, type DualServerResult,findAvailablePort } from "../../src/server/dual-server.js";
+import { createDualServer, type DualServerResult, findAvailablePort } from "../../src/server/dual-server.js";
 
 describe("Port scanning", () => {
     let dualServer: DualServerResult | undefined;
@@ -30,7 +30,9 @@ describe("Port scanning", () => {
         // Close all blocking servers
         for (const server of blockingServers) {
             await new Promise<void>((resolve) => {
-                server.close(() => { resolve(); });
+                server.close(() => {
+                    resolve();
+                });
             });
         }
         blockingServers = [];
@@ -107,8 +109,9 @@ describe("Port scanning", () => {
 
             // Should throw because we can't find an available port
             // within MAX_PORT_SCAN_ATTEMPTS (100)
-            await expect(findAvailablePort(highBase, "127.0.0.1", true))
-                .rejects.toThrow(/Could not find available port/);
+            await expect(findAvailablePort(highBase, "127.0.0.1", true)).rejects.toThrow(
+                /Could not find available port/,
+            );
         });
     });
 
@@ -119,7 +122,7 @@ describe("Port scanning", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
             });
 
             expect(dualServer.httpPort).toBe(basePort + 50);
@@ -135,7 +138,7 @@ describe("Port scanning", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
             });
 
             // Should have found the next available port
@@ -152,7 +155,7 @@ describe("Port scanning", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
             });
 
             // Storage should have the actual port in config
@@ -170,7 +173,7 @@ describe("Port scanning", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
             });
 
             const actualPort = dualServer.httpPort!;
@@ -222,7 +225,7 @@ describe("Port scanning", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: false, // Enable logging
+                quiet: false, // Enable logging
             });
 
             // Should log about port change
@@ -275,10 +278,12 @@ describe("Port scanning", () => {
 
             // Clean up blocker
             await new Promise<void>((resolve) => {
-                blocker.close(() => { resolve(); });
+                blocker.close(() => {
+                    resolve();
+                });
             });
             // Remove from blockingServers array since we closed it manually
-            blockingServers = blockingServers.filter(s => s !== blocker);
+            blockingServers = blockingServers.filter((s) => s !== blocker);
         });
 
         it("should handle multiple consecutive ports being claimed during bind", async () => {
@@ -362,22 +367,26 @@ describe("Port scanning", () => {
             }
 
             // Should throw because we can't find an available port
-            await expect(createDualServer({
-                httpPort: highBase,
-                httpHost: "127.0.0.1",
-                httpEnabled: true,
-                mcpEnabled: false,
-                quiet: true,
-            })).rejects.toThrow(/Could not find available port/);
+            await expect(
+                createDualServer({
+                    httpPort: highBase,
+                    httpHost: "127.0.0.1",
+                    httpEnabled: true,
+                    mcpEnabled: false,
+                    quiet: true,
+                }),
+            ).rejects.toThrow(/Could not find available port/);
 
             // Clean up blockers
             for (const blocker of blockers) {
                 await new Promise<void>((resolve) => {
-                    blocker.close(() => { resolve(); });
+                    blocker.close(() => {
+                        resolve();
+                    });
                 });
             }
             // Remove from blockingServers
-            blockingServers = blockingServers.filter(s => !blockers.includes(s));
+            blockingServers = blockingServers.filter((s) => !blockers.includes(s));
         });
     });
 
@@ -390,14 +399,16 @@ describe("Port scanning", () => {
 
             // With maxPortNumber = testPort + 1, it should fail to find a port
             // because we only allow testPort and testPort+1
-            await expect(createDualServer({
-                httpPort: testPort,
-                httpHost: "127.0.0.1",
-                httpEnabled: true,
-                mcpEnabled: false,
-                quiet: true,
-                maxPortNumber: testPort + 1,
-            })).rejects.toThrow();
+            await expect(
+                createDualServer({
+                    httpPort: testPort,
+                    httpHost: "127.0.0.1",
+                    httpEnabled: true,
+                    mcpEnabled: false,
+                    quiet: true,
+                    maxPortNumber: testPort + 1,
+                }),
+            ).rejects.toThrow();
         });
 
         it("should succeed when maxPortNumber allows finding a port", async () => {

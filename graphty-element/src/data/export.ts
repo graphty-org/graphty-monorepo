@@ -585,6 +585,11 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     // reads neither. CSV's `dialect` defaults to the plain one (see the catalogue entry): the
     // element's CSV reader reads Gephi's capitalised headers back under those names.
     const { variant: _variant, neutraliseFormulas, ...rest } = resolved;
+    // The header row's stated default is the edge and node tables'; an adjacency table has none,
+    // and the writer refuses one, so it is passed only when the caller asked for it.
+    if (rest.table === "adjacency" && options.header === undefined) {
+        delete rest.header;
+    }
     return {
         exporter: neo4j ? neo4jExporter : builtIn,
         options: rest,

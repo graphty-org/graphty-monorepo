@@ -122,6 +122,20 @@ describe("export variants", () => {
         assert.match(gephi, /^Source,Target,Type/);
         session.dispose();
     });
+
+    it("writes the CSV adjacency table with no header row unless one is asked for", async () => {
+        const session = await triangle();
+        const csv = variant("csv", "csv").preset;
+        // The header row's stated default is the edge and node tables'; an adjacency table has none.
+        const text = await exportSession(session, "csv", { ...csv, table: "adjacency" }).text();
+        assert.equal(text.split("\n")[0], "a,b", "the first row is a node and its neighbor, not a header");
+        assert.throws(
+            () => exportSession(session, "csv", { ...csv, table: "adjacency", header: true }),
+            /no header row/,
+            "a header row asked for on an adjacency table is still refused",
+        );
+        session.dispose();
+    });
 });
 
 describe("Graphty JSON, the project file", () => {

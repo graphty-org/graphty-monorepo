@@ -1,3 +1,4 @@
+import { OTHER_GROUP_COLOR } from "../../../src/config/palettes/categorical";
 import { assertGraphLoaded, drawn, holds, renderedElement } from "../../assertions";
 import { algorithmMetaBase, createAlgorithmStory, type Story, storySetup, waitForGraphSettled } from "../helpers";
 
@@ -55,7 +56,7 @@ const cliqueEdges = CLIQUE_SIZES.flatMap((size, clique) =>
 );
 
 /** The colour an overflowing group encoding paints every group past the palette. */
-const OTHER_GREY = "#505050";
+const OTHER_GREY = OTHER_GROUP_COLOR;
 
 /**
  * More communities than the default palette has colours.
@@ -107,7 +108,8 @@ export const LouvainMoreCommunitiesThanColours: Story = {
         const block = session.styles.legend().find((entry) => entry.channel === "node.color");
         const last = block?.swatches[block.swatches.length - 1];
 
-        await holds(last?.label === "other: 3 groups", `the legend's last row reads "${String(last?.label)}"`);
+        const folded = last?.role === "other" && Array.isArray(last.value) ? last.value.length : 0;
+        await holds(folded === 3, `the legend's last row folds ${String(folded)} groups, not 3`);
     },
 };
 

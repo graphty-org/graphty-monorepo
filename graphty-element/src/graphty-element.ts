@@ -967,7 +967,7 @@ export class Graphty extends LitElement {
         const { config } = this.#source();
         // Reported without the inline text or the file: the graph keeps where it came from, not
         // a second copy of what it holds.
-        return config === undefined ? undefined : (describeSource({ config }).config as Record<string, unknown>);
+        return config === undefined ? undefined : describeSource({ config }).config;
     }
     /**
      * Sets the data source configuration. Loads the graph from it, replacing what the graph
@@ -1487,7 +1487,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
-        return this.#layoutPair().options as Record<string, unknown>;
+        return this.#layoutPair().options;
     }
     /**
      * Sets layout-specific configuration: the layout is drawn again with it, as one undoable step.

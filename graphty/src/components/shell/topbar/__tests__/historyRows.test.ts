@@ -1,7 +1,8 @@
-import type { HistoryStep, PendingStep } from "@graphty/graphty-element/session";
+import type { CodedFact, HistoryCode, HistoryStep, PendingStep } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
 import { historyRows, undoVerb } from "../historyRows";
+import { historyTitle } from "../historyWords";
 import { makeStep, PANEL_TITLES } from "./historyFixtures";
 
 const at = (minutes: number): number => new Date(2026, 8, 4, 14, minutes).getTime();
@@ -61,10 +62,41 @@ describe("historyRows", () => {
 
 describe("undoVerb", () => {
     it("names the step an undo would take back, or the work it would cancel", () => {
-        const pending: PendingStep = { id: "p" as PendingStep["id"], label: "Ran pagerank", since: "", runIds: [] };
+        const pending: PendingStep = {
+            id: "p" as PendingStep["id"],
+            label: "Ran pagerank",
+            fact: { code: "algo.run", params: { algorithm: "pagerank" } },
+            since: "",
+            runIds: [],
+        };
 
         expect(undoVerb(null)).toBeUndefined();
         expect(undoVerb({ kind: "undo", step: three[1] })).toBe("Undo Ran degree");
         expect(undoVerb({ kind: "cancel", pending: [pending] })).toBe("Cancel Ran pagerank");
+    });
+});
+
+describe("historyTitle", () => {
+    it("words each step from its code and params, not from the element's label", () => {
+        const cases: readonly [CodedFact<HistoryCode>, string][] = [
+            [{ code: "data.add-nodes", params: { count: 3 } }, "Added 3 nodes"],
+            [{ code: "data.add-edges", params: { count: 1 } }, "Added an edge"],
+            [{ code: "data.edit", params: { target: "node", count: 2 } }, "Edited 2 nodes"],
+            [{ code: "algo.run", params: { algorithm: "degree" } }, "Ran degree"],
+            [{ code: "data.expand", params: { node: "n7" } }, "Expanded n7"],
+            [{ code: "view.save", params: { names: ["Overview"] } }, 'Saved the view "Overview"'],
+            [{ code: "config.set", params: { keys: ["a", "b"] } }, "Changed 2 settings"],
+            [{ code: "positions.release", params: { count: 1 } }, "Released a node"],
+            [{ code: "batch", params: { label: null, steps: 2 } }, "2 changes"],
+            [{ code: "transaction", params: { label: "Tidy up" } }, "Tidy up"],
+        ];
+
+        for (const [fact, title] of cases) {
+            expect(historyTitle(fact)).toBe(title);
+        }
+    });
+
+    it("names a code it does not know generically, since new codes come in minor releases", () => {
+        expect(historyTitle({ code: "something.new" as HistoryCode, params: {} })).toBe("Change");
     });
 });

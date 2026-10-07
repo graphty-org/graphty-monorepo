@@ -24,7 +24,7 @@ import {
 } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import type { Dispatcher } from "./project/Dispatcher";
+import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import type { CodedFact } from "./shared";
@@ -834,6 +834,9 @@ function nodeLinkOf(member: Record<string, unknown>): NodeLink {
     return graph as NodeLink;
 }
 
+/** The transaction opening a document that is not a project into the session. */
+const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
+
 /**
  * Empty the session, through the transaction.
  * @param tx - The transaction.
@@ -992,16 +995,13 @@ async function readProject(
     const state = first("graphty-session");
 
     await clearInto(tx);
-    await attempt(opening, "config", () =>
-        tx.config.set({ ...(isObject(state.config) ? state.config : {}), name } as ProjectConfigPatch),
-    );
+    await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
     const edgeIds = await importInto(tx, graph, source);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
 
     const layout = state.layout as
-        | { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" }
-        | undefined;
+        { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" } | undefined;
     if (layout !== undefined) {
         await attempt(opening, "layout", async () => {
             await tx.layout.set(layout.id, { engine: layout.engine, options: layout.options });
@@ -1028,8 +1028,7 @@ async function readProject(
 
     // Before the runs: a run over the selection reads it. The selection is not project state.
     const view = doc.members.get("graphty-view-state")?.[0]?.selection as
-        | { nodes?: NodeId[]; edges?: number[] }
-        | undefined;
+        { nodes?: NodeId[]; edges?: number[] } | undefined;
     if (view !== undefined) {
         try {
             await tx.selection.apply({
@@ -1199,7 +1198,7 @@ function rowsOf<Key, Id extends NodeId>(
         }
 
         if (id !== undefined && Object.keys(values).length > 0) {
-            out.push({ id, values } as ResultElementValues<Id>);
+            out.push({ id, values });
         }
     });
     return out;
@@ -1339,7 +1338,7 @@ export function projectOf(
             return isDirty();
         },
         rename(name) {
-            return session.config.set({ name } as ProjectConfigPatch);
+            return session.config.set({ name });
         },
         save(options = {}) {
             const { document, leftOut } = write(session, dispatcher, isDerived, options);
@@ -1413,8 +1412,11 @@ export function projectOf(
 
                 const graph = nodeLinkOf(data);
                 const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-                await session.transaction("Open project", (tx) =>
-                    readProject({ tx, problems, restored }, doc, graph, name, canned),
+                const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+                await session.transaction(
+                    "Open project",
+                    (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
+                    opening,
                 );
                 // A project opens with a fresh history: its opened state is the baseline.
                 session.history.clear();
@@ -1424,26 +1426,30 @@ export function projectOf(
                 const data = doc.members.get("graphty-data")?.[0];
                 const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
                 fresh = false;
-                await session.transaction("Open document", async (tx) => {
-                    const opening = { tx, problems, restored };
-                    if (graph !== undefined) {
-                        await importInto(tx, graph, data?.source);
-                        restored.add("graph");
-                    }
-
-                    for (const kind of [
-                        "graphty-session",
-                        "graphty-arrangement",
-                        "graphty-results",
-                        "graphty-view-state",
-                    ] as const) {
-                        if (doc.members.has(kind)) {
-                            problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                await session.transaction(
+                    "Open document",
+                    async (tx) => {
+                        const opening = { tx, problems, restored };
+                        if (graph !== undefined) {
+                            await importInto(tx, graph, data?.source);
+                            restored.add("graph");
                         }
-                    }
 
-                    await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
-                });
+                        for (const kind of [
+                            "graphty-session",
+                            "graphty-arrangement",
+                            "graphty-results",
+                            "graphty-view-state",
+                        ] as const) {
+                            if (doc.members.has(kind)) {
+                                problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                            }
+                        }
+
+                        await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
+                    },
+                    OPEN_DOCUMENT,
+                );
             }
 
             return Object.freeze({

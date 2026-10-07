@@ -32,19 +32,7 @@ import { type GraphImporter } from "./types.js";
  * @category Formats and detection
  */
 export type GraphFormatName =
-    | "gexf"
-    | "graphml"
-    | "gml"
-    | "dot"
-    | "pajek"
-    | "csv"
-    | "json"
-    | "neo4j"
-    | "xgmml"
-    | "cx2"
-    | "cx"
-    | "obo"
-    | "cys";
+    "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j" | "xgmml" | "cx2" | "cx" | "obo" | "cys";
 
 /**
  * A format name: one of the built-in names (with editor autocomplete) or the name of a format you
@@ -345,14 +333,7 @@ export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDiale
 
 /** Where a key was seen while scanning a truncated head. */
 type KeyPath =
-    | ""
-    | "graph"
-    | "options"
-    | "nodes[0]"
-    | "edges[0]"
-    | "links[0]"
-    | "graphs[0].nodes[]"
-    | "graphs[0].edges[]";
+    "" | "graph" | "options" | "nodes[0]" | "edges[0]" | "links[0]" | "graphs[0].nodes[]" | "graphs[0].edges[]";
 
 /**
  * A partial document rebuilt from the keys a truncated head reveals: every key gets a placeholder

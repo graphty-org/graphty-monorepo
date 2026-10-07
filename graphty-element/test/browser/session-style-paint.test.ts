@@ -203,8 +203,7 @@ describe("session style paint", () => {
 
         for (const node of graph.getNodes()) {
             const painted = (node.mesh as InstancedMesh).instancedBuffers.color as
-                | { r: number; g: number; b: number }
-                | undefined;
+                { r: number; g: number; b: number } | undefined;
 
             assert.isDefined(painted, "a node the session painted carries a per-instance colour");
             // #6366F1, the element's own default, as the base layer resolved it.
@@ -240,8 +239,7 @@ describe("session style paint", () => {
         const colours = new Set(
             graph.getNodes().map((node) => {
                 const painted = (node.mesh as InstancedMesh).instancedBuffers.color as
-                    | { r: number; g: number; b: number }
-                    | undefined;
+                    { r: number; g: number; b: number } | undefined;
 
                 return painted === undefined ? "unpainted" : `${painted.r},${painted.g},${painted.b}`;
             }),

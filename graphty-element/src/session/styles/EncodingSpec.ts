@@ -94,7 +94,7 @@ export interface EncodingSpec {
      * colours (8 for the default palette). Ignored for a measurement, which has no groups.
      *
      * - `"other"` -- THE DEFAULT. The 8 largest groups keep the palette's colours in palette order,
-     *   largest first, and every remaining group is painted one grey (#505050), which the legend
+     *   largest first, and every remaining group is painted one grey (#686868), which the legend
      *   lists as its last row, marked `role: "other"`.
      * - `"shape"` -- node encodings only. Colours cycle through the palette and each full cycle
      *   moves to the next node shape: group i is colour i mod 8 and shape floor(i / 8) from

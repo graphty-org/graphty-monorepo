@@ -65,6 +65,7 @@ import type {
     Note,
     NoteInput,
     NoteListOptions,
+    NotePatch,
     NoteTargetInput,
     ProjectSlice,
     RecordPage,
@@ -230,7 +231,12 @@ function fakeRunResult(): RunResult {
             suggestedScale: "linear",
             binning: "per-value",
         }),
-        top: (_field: string, n: number) => ({ entries: ranking.slice(0, n), leftOut: null, reason: null }),
+        top: (_field: string, n: number) => ({
+            entries: ranking.slice(0, n),
+            leftOut: null,
+            reason: null,
+            threshold: n < ranking.length ? ranking[n].value : null,
+        }),
         graph: {},
         band: () => undefined,
     } as unknown as RunResult;
@@ -494,6 +500,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             Object.freeze({
                 id: id as HistoryStep["id"],
                 label,
+                // A transaction's fact is worded as its own label, so the pop-out prints `label`.
+                fact: Object.freeze({ code: "transaction", params: Object.freeze({ label }) }),
                 at: new Date().toISOString(),
                 ops: [op],
                 slices,
@@ -628,6 +636,32 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             return note.id;
         },
+        /* Only `done`, the one field the shell edits; the element stamps the time as this does. */
+        update: (id: string, patch: NotePatch): void => {
+            const at = notes.findIndex((held) => held.id === id);
+            const before = notes[at];
+
+            if (at === -1 || patch.done === undefined || patch.done === (before.done !== undefined)) {
+                return;
+            }
+
+            const { done: _done, ...rest } = before;
+            const after = Object.freeze(patch.done ? { ...rest, done: new Date().toISOString() } : rest) as Note;
+            const put = (note: Note, cause: string): void => {
+                notes[notes.findIndex((held) => held.id === id)] = note;
+                publish("note:changed", { id, change: "updated", fields: ["done"], note, cause });
+            };
+
+            put(after, "command");
+            record("Edited note", "note.update", ["notes"], {
+                undo: () => {
+                    put(before, "undo");
+                },
+                redo: () => {
+                    put(after, "redo");
+                },
+            });
+        },
         remove: (id: string): void => {
             const note = notes.find((held) => held.id === id);
 
@@ -749,7 +783,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 delete (merged as { set?: unknown }).set;
             }
 
-            layers[at] = merged as Layer;
+            layers[at] = merged;
             publish();
             record(`Changed layer ${layers[at].name}`, "style.patch", ["styles"]);
 
@@ -840,6 +874,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 .map((layer): LegendBlock => {
                     const runId = layer.source.by === "run" ? layer.source.runId : undefined;
                     const algorithm = layer.source.by === "run" ? layer.source.algorithm : undefined;
+                    const fieldName = algorithm === "louvain" ? "group" : "value";
                     const words = ENCODING_FIELDS[algorithm ?? ""] ?? {
                         plainName: layer.name,
                         technicalName: layer.name,
@@ -850,12 +885,17 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                         layerId: layer.id,
                         ...(runId === undefined ? {} : { runId }),
                         kind: algorithm === "louvain" ? "categorical" : "sequential",
-                        field: { ...words, path: `results.${runId ?? ""}.value` },
-                        scale: { kind: "linear", label: "linear" },
+                        field: {
+                            ...words,
+                            path: `results.${runId ?? ""}.${fieldName}`,
+                            ...(algorithm === undefined ? {} : { result: { algorithm, field: fieldName } }),
+                        },
+                        scale: { kind: "linear", label: "Even Steps" },
                         swatches: [
                             { label: "low", value: 0, color: "#440154" },
                             { label: "high", value: 1, color: "#FDE725" },
                         ],
+                        facts: [],
                         departures: [],
                     };
                 }),

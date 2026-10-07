@@ -22,12 +22,7 @@ import { type Kernel } from "../kernel/kernel.js";
 import { kernelSpec } from "../kernels.js";
 import { type ResolvedLayoutTuning } from "../types/layout.js";
 import { type Binding } from "../types/memory.js";
-import {
-    type CountingSortPlanner,
-    type HistogramPlanner,
-    prepareCountingSort,
-    prepareHistogram,
-} from "./histogram.js";
+import { type CountingSortPlanner, type HistogramPlanner, prepareCountingSort, prepareHistogram } from "./histogram.js";
 import { prepareRadixSort, radixHistBytes, type RadixSortPlanner } from "./radix-sort.js";
 import { type ReduceScope } from "./reduce.js";
 import { prepareScan, type ScanPlanner } from "./scan.js";

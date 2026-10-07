@@ -119,7 +119,7 @@ export interface SelectorSource {
      * them without a walk over every element. A session answers it for a run's column.
      *
      * Absent, or answering undefined, nothing asks the question another way: the legend then
-     * leaves a layer out as painted over only when a layer above selects everything.
+     * reports a layer as painted over only by a layer that selects everything.
      * @param path - The column path.
      * @param target - Whether the asking layer paints nodes or edges.
      * @returns The indices, or undefined when the column cannot be enumerated.
@@ -472,7 +472,7 @@ function decodeRawString(body: string): string {
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the body is not JSON.
  */
 function decodeJsonLiteral(where: Query, at: number, body: string): unknown {
-    const json = body.replace(/\\`/g, "`");
+    const json = body.replaceAll("\\`", "`");
 
     try {
         return JSON.parse(json) as unknown;

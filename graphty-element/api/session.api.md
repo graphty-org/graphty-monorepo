@@ -216,12 +216,33 @@ export interface Caveats {
 export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
 
 // @public
+export type ChannelAgreement = {
+    readonly channel: Channel;
+    readonly state: "agree";
+    readonly value: unknown;
+    readonly layerId: LayerId;
+    readonly unpainted: number;
+} | {
+    readonly channel: Channel;
+    readonly state: "mixed";
+    readonly breakdown: readonly ChannelShare[];
+    readonly unpainted: number;
+};
+
+// @public
 export interface ChannelExplanation {
     readonly channel: Channel;
     readonly editable: boolean;
     readonly layerId: LayerId;
     readonly mode: "static" | "encoded";
     readonly reason?: string;
+}
+
+// @public
+export interface ChannelShare {
+    readonly count: number;
+    readonly layerId: LayerId;
+    readonly value: unknown;
 }
 
 // @public
@@ -616,8 +637,15 @@ export interface FieldInterpretation {
 }
 
 // @public
+export interface FieldResult {
+    readonly algorithm: AlgorithmKey;
+    readonly field: string;
+}
+
+// @public
 export interface FieldWords {
     readonly plainName: string;
+    readonly result?: FieldResult;
     readonly technicalName: string;
 }
 
@@ -732,6 +760,7 @@ export interface GraphSession {
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     readonly history: SessionHistory;
+    readonly journal: JournalApi;
     readonly layout: SessionLayout;
     readonly notes: NotesApi;
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
@@ -1237,6 +1266,9 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+
+// @public
 export type HistoryOutcome = {
     readonly kind: "undone" | "redone" | "restored";
     readonly steps: readonly HistoryStep[];
@@ -1251,7 +1283,9 @@ export type HistoryOutcome = {
 export interface HistoryStep {
     readonly at: string;
     readonly bytes: number;
+    readonly fact: CodedFact<HistoryCode>;
     readonly id: HistoryStepId;
+    // @deprecated
     readonly label: string;
     readonly ops: readonly SessionCommand["op"][];
     readonly provenance: Readonly<Record<string, string>>;
@@ -1326,6 +1360,30 @@ export type ItemKey = {
     readonly field: string;
     readonly value: string | number | boolean;
 };
+
+// @public
+export interface JournalApi {
+    cap: number;
+    clear(): void;
+    readonly entries: readonly JournalEntry[];
+    get(id: JournalId): JournalEntry | undefined;
+    subscribe(fn: (entry: JournalEntry) => void): () => void;
+}
+
+// @public
+export interface JournalEntry {
+    readonly at: string;
+    readonly coalesceKey?: string;
+    readonly command: SessionCommand;
+    readonly durationMs: number;
+    readonly engine: EngineVersions;
+    readonly id: JournalId;
+    readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
+    readonly runId?: RunId;
+}
+
+// @public
+export type JournalId = string;
 
 // @public
 export interface Layer {
@@ -1419,6 +1477,7 @@ export interface LayoutRecommendationOptions {
 // @public
 export interface LegendBlock {
     readonly channel: Channel;
+    // @deprecated
     readonly departures: readonly string[];
     readonly domain?: {
         readonly min: number;
@@ -1429,10 +1488,12 @@ export interface LegendBlock {
             readonly to: string;
         };
     };
+    readonly facts: readonly LegendFact[];
     readonly field?: {
         readonly plainName: string;
         readonly technicalName: string;
         readonly path: Path;
+        readonly result?: FieldResult;
     };
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
     readonly layerId: LayerId;
@@ -1457,6 +1518,12 @@ export interface LegendBlock {
 }
 
 // @public
+export type LegendFact = CodedFact<LegendFactCode>;
+
+// @public
+export type LegendFactCode = "legend.clamped" | "legend.not-plottable" | "legend.none-plottable" | "legend.no-value-in-domain" | "legend.nothing-measured" | "legend.unreadable" | "legend.lumped" | "legend.not-measured" | "legend.painted-over";
+
+// @public
 export interface LegendReading {
     readonly code: "legend.higher";
     readonly params: {
@@ -1470,7 +1537,12 @@ export interface LegendReading {
 export interface LegendSwatch {
     readonly color?: string;
     readonly count?: number;
+    readonly extent?: {
+        readonly min: number;
+        readonly max: number;
+    };
     readonly hidden?: true;
+    // @deprecated
     readonly label: string;
     readonly paints?: unknown;
     readonly rank?: number;
@@ -1517,6 +1589,14 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadError {
+    readonly code: string;
+    readonly field?: string;
+    readonly line?: number;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+// @public
 export type LoadMapping = TableMapping | {
     readonly tables: Readonly<Record<string, TableMapping>>;
 };
@@ -1533,6 +1613,7 @@ export interface LoadReport extends ImportReport {
         readonly rows: number;
         readonly ids: readonly (string | number)[];
     };
+    readonly errors: readonly LoadError[];
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
@@ -1625,6 +1706,7 @@ export type Normalization = "max" | "min-max" | "none";
 export interface Note {
     readonly author?: string;
     readonly cites?: readonly NoteCite[];
+    readonly done?: string;
     readonly edited?: string;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
@@ -1638,7 +1720,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -1673,6 +1755,7 @@ export interface NoteInput {
 export interface NoteListOptions {
     readonly author?: string;
     readonly cites?: ResultId;
+    readonly done?: boolean;
     readonly missing?: boolean;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
@@ -1689,6 +1772,7 @@ export interface NotePatch {
     readonly cites?: readonly {
         readonly result: ResultId;
     }[];
+    readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
     readonly targets?: readonly NoteTargetInput[];
@@ -1821,7 +1905,9 @@ export type PendingId = string & {
 
 // @public
 export interface PendingStep {
+    readonly fact: CodedFact<HistoryCode>;
     readonly id: PendingId;
+    // @deprecated
     readonly label: string;
     readonly runIds: readonly RunId[];
     readonly since: string;
@@ -2833,6 +2919,18 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
         readonly threshold: number;
     };
 }
+/**
+* Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
+* way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
+* bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
+* banded continuous field a value exactly on the last bar's upper edge comes too.
+*/
+| {
+    readonly range: ResultRef & {
+        readonly min?: number;
+        readonly max?: number;
+    };
+}
 /** The edges whose endpoints are both selected. Names no nodes. */
 | {
     readonly edgesBetween: true;
@@ -2964,6 +3062,9 @@ export interface SessionEventMap {
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
+    };
+    "journal:appended": {
+        readonly entry: JournalEntry;
     };
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;
@@ -3301,6 +3402,11 @@ export interface StoredProject {
 }
 
 // @public
+export interface StyleAgreement {
+    readonly channels: readonly ChannelAgreement[];
+}
+
+// @public
 export interface StyleChange {
     readonly cause: HistoryCause;
     readonly layers: readonly LayerId[];
@@ -3315,6 +3421,15 @@ export interface StyleContribution {
     readonly name: string;
     readonly properties: readonly Channel[];
     readonly values: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export interface StyleCounts {
+    readonly matched: number;
+    readonly noValue: number;
+    readonly outsideScale: number;
+    readonly painted: Readonly<Partial<Record<Channel, number>>>;
+    readonly revision: string;
 }
 
 // @public
@@ -3343,7 +3458,9 @@ export interface StyleProblem {
 // @public
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
+    agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
+    counts(id: LayerId): StyleCounts;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
@@ -3472,6 +3589,7 @@ export interface TopRanking {
         readonly count: number;
     } | null;
     readonly reason: string | null;
+    readonly threshold: number | null;
 }
 
 // @public

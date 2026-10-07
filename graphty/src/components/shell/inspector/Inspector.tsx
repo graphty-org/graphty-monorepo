@@ -56,14 +56,7 @@ interface InspectorContentsProps {
  * @returns the inspector's inner column.
  */
 function InspectorContents(props: InspectorContentsProps): React.JSX.Element {
-    const {
-        kindLabel,
-        identityLabel,
-        showPin,
-        onCopyReading,
-        setFooterNode,
-        children,
-    } = props;
+    const { kindLabel, identityLabel, showPin, onCopyReading, setFooterNode, children } = props;
     const { snapshot, pin, unpin } = useInspectorPin();
 
     return (

@@ -32,9 +32,8 @@ class TestDataSource extends DataSource {
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk> {
         await this.getContent();
         yield* this.chunkData(
-             
             this.testNodes as any,
-             
+
             this.testEdges as any,
         );
     }
@@ -115,7 +114,7 @@ describe("DataSource base class", () => {
         test("uses default chunk size when not specified", () => {
             const source = new TestDataSource({ data: "" });
             // Access protected property for testing
-             
+
             assert.strictEqual((source as any).chunkSize, 1000);
         });
     });

@@ -59,6 +59,7 @@ import { declarationKey } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { createJournal, type JournalApi } from "./journal";
 import { recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
@@ -79,6 +80,7 @@ import {
     type DispatchFunction,
     runQueueScheduler,
     type Scheduler,
+    type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
 import { nodeOfKey, ROWS_MOVED } from "./project/graphOps";
@@ -320,6 +322,8 @@ interface SessionParts {
     readonly sets: SetsApi;
     /** The notes. */
     readonly notes: NotesApi;
+    /** The record of the commands the session ran. */
+    readonly journal: JournalApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -417,6 +421,7 @@ class Session implements ElementSession {
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
     readonly notes: NotesApi;
+    readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -471,6 +476,7 @@ class Session implements ElementSession {
         this.scope = parts.scope;
         this.sets = parts.sets;
         this.notes = parts.notes;
+        this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -592,7 +598,8 @@ class Session implements ElementSession {
         return this.executeThrough(
             command,
             (each, options) => this.dispatcher.dispatch(each, options),
-            (label, body) => this.dispatcher.transaction(label, (scope) => body((each) => scope.dispatch(each))),
+            (label, body, options) =>
+                this.dispatcher.transaction(label, (scope) => body((each) => scope.dispatch(each)), options),
         );
     }
 
@@ -607,7 +614,11 @@ class Session implements ElementSession {
     private executeThrough<C extends SessionCommand>(
         command: C,
         dispatch: DispatchFunction,
-        step: (label: string, body: (dispatch: DispatchFunction) => Promise<void>) => Promise<void>,
+        step: (
+            label: string,
+            body: (dispatch: DispatchFunction) => Promise<void>,
+            options?: DispatchOptions,
+        ) => Promise<void>,
     ): CommandOutcome<C> {
         if (
             command.op === "view.immersive" &&
@@ -617,10 +628,14 @@ class Session implements ElementSession {
             // VR and AR draw in 3D, so from 2D the switch and the entry are one step: undo
             // returns to 2D (and so ends the session), and a refused entry records nothing.
             const { mode } = command;
-            return step(`Switched to 3D for ${mode.toUpperCase()}`, async (each) => {
-                await each({ op: "view.dimension", dimension: "3d" });
-                await each({ op: "view.immersive", mode });
-            }) as CommandOutcome<C>;
+            return step(
+                `Switched to 3D for ${mode.toUpperCase()}`,
+                async (each) => {
+                    await each({ op: "view.dimension", dimension: "3d" });
+                    await each({ op: "view.immersive", mode });
+                },
+                { fact: { code: "view.immersive", params: { mode } } },
+            ) as CommandOutcome<C>;
         }
 
         if (command.op === "set.create") {
@@ -915,10 +930,10 @@ class Session implements ElementSession {
         }
 
         const held = subscribers;
-        held.add(handler as (detail: never) => void);
+        held.add(handler);
 
         return () => {
-            held.delete(handler as (detail: never) => void);
+            held.delete(handler);
         };
     }
 
@@ -1638,7 +1653,11 @@ function fieldWordsOf(
         for (const run of runs.list()) {
             for (const field of run.fields) {
                 if (bindResultPath(field.path, run.id) === path && field.kind === target) {
-                    return { plainName: field.plainName, technicalName: field.technicalName };
+                    return {
+                        plainName: field.plainName,
+                        technicalName: field.technicalName,
+                        result: { algorithm: run.algorithm, field: field.name },
+                    };
                 }
             }
         }
@@ -2424,6 +2443,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
     });
 
+    // The journal, published as `session.journal`: every command that finishes writes one entry,
+    // before its promise resolves, so a run reports its entry by the time it reports done.
+    const journal = createJournal({
+        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        onAppend: (entry) => {
+            publish(watchers, "journal:appended", { entry });
+        },
+    });
+    dispatcher.events.executed = (done) => {
+        const entry = journal.append(done);
+        const run = entry.runId === undefined ? undefined : runs.get(entry.runId);
+        if (run instanceof ManagedRun) {
+            run.journalId = entry.id;
+        }
+    };
+
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
@@ -2557,6 +2592,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        inputRevision: () => inputs.tick.value,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));
@@ -2693,6 +2729,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         scope,
         sets,
         notes,
+        journal,
         selection,
         visibility,
         styles,
@@ -2724,7 +2761,7 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
     const space = edgeSpaceOf(graph);
     for (const key of dirty) {
         if (key.startsWith("n:")) {
-            const row = graph.ids.indexOf(nodeOfKey(key) as string | number);
+            const row = graph.ids.indexOf(nodeOfKey(key));
             if (row !== INVALID_INDEX) {
                 rows.node.push(row);
             }

@@ -154,7 +154,7 @@ describe("the Data output", () => {
         const exportGraph = vi.fn(() =>
             Promise.resolve({ format: "graphty", lossNotes: [], text, bytes: manyLines() }),
         );
-        renderData({ exportGraph } as unknown as Partial<GraphtyElement>);
+        renderData({ exportGraph });
 
         const preview = screen.getByLabelText("Preview of the exported data");
         await waitFor(() => {
@@ -169,7 +169,7 @@ describe("the Data output", () => {
             Promise.resolve({ format: "graphty", lossNotes: [], text: vi.fn(), bytes: manyLines() }),
         );
         const downloadGraph = vi.fn(() => Promise.reject(Object.assign(new Error("boom"), { code: "E_X" })));
-        renderData({ exportGraph, downloadGraph } as unknown as Partial<GraphtyElement>);
+        renderData({ exportGraph, downloadGraph });
 
         await userEvent.click(screen.getByRole("button", { name: "Export" }));
         const alert = await screen.findByRole("alert");
@@ -182,11 +182,14 @@ describe("the Data output", () => {
         const exportGraph = vi.fn(() =>
             Promise.resolve({ format: "csv", lossNotes: [], text: vi.fn(), bytes: manyLines() }),
         );
-        renderData({ exportGraph } as unknown as Partial<GraphtyElement>, {
-            format: "csv",
-            variant: "gephi",
-            values: {},
-        });
+        renderData(
+            { exportGraph },
+            {
+                format: "csv",
+                variant: "gephi",
+                values: {},
+            },
+        );
 
         assert.isNull(screen.queryByLabelText("Column Separator"));
         await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));

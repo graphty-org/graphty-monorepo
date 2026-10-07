@@ -341,12 +341,26 @@ interface OpenEntry {
     next: unknown;
 }
 
+/** One write to an open draft's entries since its first checkpoint: what to put back. */
+interface TrailStep {
+    readonly id: string;
+    readonly entry: OpenEntry;
+    /** True when this write created the entry; otherwise the `next` it replaced. */
+    readonly created: boolean;
+    readonly next: unknown;
+}
+
 /** The mutable side of one open draft. */
 interface OpenDraft {
     readonly entries: Map<string, OpenEntry>;
     readonly log: OpLogEntry[];
     rows: RowPatch | null;
     closed: boolean;
+    /**
+     * Every entry write since the first checkpoint, oldest first; null until one is taken. A
+     * checkpoint is a length of it, so taking one costs nothing however many keys the draft holds.
+     */
+    trail: TrailStep[] | null;
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -431,12 +445,15 @@ export function createProjectStore(
             entry = { slice, key, prior, next: value };
             draft.entries.set(id, entry);
             owners.set(id, draft);
+            draft.trail?.push({ id, entry, created: true, next: undefined });
             if (strict) {
                 const holders = [...openDrafts].filter((open) => open.entries.has(id)).length;
                 if (holders !== 1) {
                     throw strictViolation(`after a hand-over, ${id} is in ${holders} open patches, not one`);
                 }
             }
+        } else {
+            draft.trail?.push({ id, entry, created: false, next: entry.next });
         }
 
         entry.next = value;
@@ -467,7 +484,7 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false };
+            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false, trail: null };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -524,7 +541,9 @@ export function createProjectStore(
                     return patch;
                 },
                 checkpoint() {
-                    const saved = new Map([...draft.entries].map(([id, entry]) => [id, entry.next]));
+                    draft.trail ??= [];
+                    const { trail } = draft;
+                    const marked = trail.length;
                     const logged = draft.log.length;
 
                     return () => {
@@ -534,17 +553,24 @@ export function createProjectStore(
                             changed.add(entry.slice);
                         }
 
-                        for (const [id, entry] of draft.entries) {
-                            if (!saved.has(id)) {
+                        // Newest first, so a key written twice since ends at what it held before.
+                        for (const step of trail.splice(marked).reverse()) {
+                            const { id, entry } = step;
+                            if (draft.entries.get(id) !== entry) {
+                                // Handed to another draft since: theirs now.
+                                continue;
+                            }
+
+                            if (step.created) {
                                 put(entry.slice, entry.key, entry.prior);
                                 draft.entries.delete(id);
                                 owners.delete(id);
-                                changed.add(entry.slice);
-                            } else if (saved.get(id) !== entry.next) {
-                                entry.next = saved.get(id);
+                            } else {
+                                entry.next = step.next;
                                 put(entry.slice, entry.key, entry.next);
-                                changed.add(entry.slice);
                             }
+
+                            changed.add(entry.slice);
                         }
 
                         return [...changed];

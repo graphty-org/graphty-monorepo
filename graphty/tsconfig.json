@@ -38,8 +38,6 @@
             "@graphty/graphty": ["./src/index.ts"]
         }
     },
-    "references": [
-        { "path": "./tsconfig.node.json" }
-    ],
+    "references": [{ "path": "./tsconfig.node.json" }],
     "include": ["src", ".storybook"]
 }

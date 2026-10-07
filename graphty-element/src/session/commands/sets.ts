@@ -77,12 +77,7 @@ interface SetRestoreCommand {
 
 /** Every kept-set op. */
 export type SetCommand =
-    | SetCreateCommand
-    | SetRenameCommand
-    | SetRedefineCommand
-    | SetMembersCommand
-    | SetRemoveCommand
-    | SetRestoreCommand;
+    SetCreateCommand | SetRenameCommand | SetRedefineCommand | SetMembersCommand | SetRemoveCommand | SetRestoreCommand;
 
 /**
  * The session's sets, as the set ops reach them: each call checks one command against the sets
@@ -188,6 +183,7 @@ const setCreate: UndoableDefinition<SetCreateCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => (command.name === undefined ? "Created a set" : `Created the set "${command.name.trim()}"`),
+        fact: (command) => ({ code: "set.create", params: { name: command.name?.trim() ?? null } }),
     },
     execute: (command, ctx) => put(ctx, serviceOf(ctx).create(command)),
 };
@@ -200,6 +196,10 @@ const setRename: UndoableDefinition<SetRenameCommand> = {
     undo: {
         kind: "undoable",
         label: (command, state) => `Renamed the set "${nameOf(state, command.id)}" to "${command.name.trim()}"`,
+        fact: (command, state) => ({
+            code: "set.rename",
+            params: { set: nameOf(state, command.id), name: command.name.trim() },
+        }),
     },
     execute: (command, ctx) => {
         put(ctx, serviceOf(ctx).rename(command));
@@ -212,7 +212,11 @@ const setRedefine: UndoableDefinition<SetRedefineCommand> = {
     lane: { kind: "immediate" },
     byReference: BY_REFERENCE,
     keys: (command) => [`sets/${command.id}`],
-    undo: { kind: "undoable", label: (command, state) => `Changed the set "${nameOf(state, command.id)}"` },
+    undo: {
+        kind: "undoable",
+        label: (command, state) => `Changed the set "${nameOf(state, command.id)}"`,
+        fact: (command, state) => ({ code: "set.redefine", params: { set: nameOf(state, command.id) } }),
+    },
     execute: (command, ctx) => {
         put(ctx, serviceOf(ctx).redefine(command));
     },
@@ -224,7 +228,11 @@ const setMembers: UndoableDefinition<SetMembersCommand> = {
     lane: { kind: "immediate" },
     byReference: BY_REFERENCE,
     keys: (command) => [`sets/${command.id}`],
-    undo: { kind: "undoable", label: (command, state) => `Changed the members of "${nameOf(state, command.id)}"` },
+    undo: {
+        kind: "undoable",
+        label: (command, state) => `Changed the members of "${nameOf(state, command.id)}"`,
+        fact: (command, state) => ({ code: "set.members", params: { set: nameOf(state, command.id) } }),
+    },
     execute: (command, ctx) => {
         put(ctx, serviceOf(ctx).members(command));
     },
@@ -235,7 +243,11 @@ const setRemove: UndoableDefinition<SetRemoveCommand> = {
     moves: false,
     lane: { kind: "immediate" },
     keys: (command) => [`sets/${command.id}`],
-    undo: { kind: "undoable", label: (command, state) => `Removed the set "${nameOf(state, command.id)}"` },
+    undo: {
+        kind: "undoable",
+        label: (command, state) => `Removed the set "${nameOf(state, command.id)}"`,
+        fact: (command, state) => ({ code: "set.remove", params: { set: nameOf(state, command.id) } }),
+    },
     execute: (command, ctx) => {
         ctx.draft.sets.delete(serviceOf(ctx).remove(command));
     },
@@ -246,7 +258,11 @@ const setRestore: UndoableDefinition<SetRestoreCommand> = {
     moves: false,
     lane: { kind: "immediate" },
     keys: (command) => [`sets/${command.id}`],
-    undo: { kind: "undoable", label: (command) => `Restored the set "${command.id}"` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Restored the set "${command.id}"`,
+        fact: (command) => ({ code: "set.restore", params: { set: command.id } }),
+    },
     execute: (command, ctx) => {
         put(ctx, serviceOf(ctx).restore(command));
     },

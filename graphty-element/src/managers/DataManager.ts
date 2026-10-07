@@ -390,8 +390,7 @@ export class DataManager implements Manager {
         const { values } = this.graph.slice;
         const scope = legacyScopeOf(this.dispatcher);
         return (scope === undefined ? values.get(GRAPH_RESULTS) : scope.graph(values)[GRAPH_RESULTS]) as
-            | AdHocData
-            | undefined;
+            AdHocData | undefined;
     }
 
     /**
@@ -736,7 +735,7 @@ export class DataManager implements Manager {
                 if (record === undefined && node !== undefined) {
                     doomed.add(node.id);
                 } else if (record !== undefined && node === undefined) {
-                    this.buildNode(id, record as Record<string, unknown>, this.store.builder.indexOf(id));
+                    this.buildNode(id, record, this.store.builder.indexOf(id));
                     addedNodes++;
                 } else if (record !== undefined && node !== undefined) {
                     adoptNodeRecord(node, record as AdHocData<string | number>);
@@ -769,13 +768,13 @@ export class DataManager implements Manager {
             } else if (edge !== undefined) {
                 adoptEdgeRecord(edge, record as AdHocData);
             } else if (pending !== undefined) {
-                pending.record = record as Record<string, unknown>;
+                pending.record = record;
             } else {
                 const row = this.store.edgeIndexOf(counter);
                 if (row !== INVALID_INDEX) {
                     const [source, target] = this.store.builder.edgeEndpoints(row);
                     this.buildEdge({
-                        record: record as Record<string, unknown>,
+                        record: record,
                         sourceId: this.store.builder.idOf(source),
                         targetId: this.store.builder.idOf(target),
                         edgeIndex: row,
@@ -828,7 +827,7 @@ export class DataManager implements Manager {
                 this.teardownEdge(edge, edge.index);
                 if (record !== undefined && row !== INVALID_INDEX) {
                     const pending: PendingEdge = {
-                        record: record as Record<string, unknown>,
+                        record: record,
                         sourceId: srcId,
                         targetId: dstId,
                         edgeIndex: row,

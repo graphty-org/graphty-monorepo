@@ -8,7 +8,7 @@
  * rules under the two-phase path forced and under the fused path forced (top-down only), the choice counters of
  * rmat14 at the default threshold against the oracle's level sizes, rmat14's per-boundary direction and unvisited
  * words against the host model of Beamer's rule at both cadences, the path from its middle and the hub-clique
- * fixture forced bottom-up (alpha U32_MAX, beta 0) with the clique's `arcsScanned` allowed one extra read per
+ * fixture forced bottom-up (alpha U32_MAX, beta 0) with the clique's `arcsScanned` pinned to one read per
  * claim, the directed path's unvisited words, and the one-workgroup predecessor pass, all bitwise (any mismatch is
  * Infinity) -- fails on the mutant by at least minFactor. The first block is the coverage loop of
  * test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15). Three

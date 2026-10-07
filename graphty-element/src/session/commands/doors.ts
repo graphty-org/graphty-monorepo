@@ -164,14 +164,21 @@ function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]):
 /** The command emptying the graph. */
 const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
 
+/** The code of the fact each batch the element builds carries, by its label. */
+const BATCH_CODES = {
+    "Replaced the nodes": "data.replace-nodes",
+    "Replaced the edges": "data.replace-edges",
+    "Set the graph data": "data.set",
+} as const;
+
 /**
  * A batch, followed by its members as each is dispatched.
  * @param label - The batch's label.
  * @param steps - Its members.
  * @returns What a door dispatching it dispatches, in order.
  */
-function batchOf(label: string, ...steps: SessionCommand[]): SessionCommand[] {
-    return [{ op: "batch", label, steps }, ...steps];
+function batchOf(label: keyof typeof BATCH_CODES, ...steps: SessionCommand[]): SessionCommand[] {
+    return [{ op: "batch", label, fact: { code: BATCH_CODES[label], params: {} }, steps }, ...steps];
 }
 
 /** What the element's pair adds to an import: the key its two assignments coalesce under. */
@@ -403,6 +410,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     scope: READ,
     sets: READ,
     notes: READ,
+    journal: READ,
     selection: READ,
     visibility: READ,
     styles: READ,
@@ -533,6 +541,8 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     proposeEncoding: READ,
     settled: READ,
     explain: READ,
+    agreement: READ,
+    counts: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
@@ -573,6 +583,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
             connectedCallback: LIFECYCLE,
+            attributeChangedCallback: LIFECYCLE,
             firstUpdated: LIFECYCLE,
             asyncFirstUpdated: LIFECYCLE,
             render: LIFECYCLE,
@@ -1758,6 +1769,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+        },
+    },
+    {
+        name: "JournalApi",
+        file: "src/session/journal.ts",
+        half: "session",
+        doors: {
+            entries: READ,
+            get: READ,
+            subscribe: LISTEN,
+            clear: exempt("Forgets the record of what ran; it changes nothing a project saves."),
+            cap: exempt("How many records of what ran are kept; it changes nothing a project saves."),
         },
     },
     {

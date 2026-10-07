@@ -476,6 +476,7 @@ export interface DataLoadingError {
     field?: string;
     line?: number;
     message: string;
+    params?: Readonly<Record<string, unknown>>;
 }
 
 // @public (undocumented)
@@ -1378,14 +1379,14 @@ export class EventManager implements Manager {
     }): void;
     emitDataLoadingErrorSummary(format: string, totalErrors: number, message: string, detailedReport: string, primaryCategory?: string, suggestion?: string, loadId?: number): void;
     emitDataLoadingProgress(format: string, bytesProcessed: number, totalBytes: number | undefined, nodeRecordsLoaded: number, edgeRecordsLoaded: number, chunksProcessed: number, loadId?: number): void;
-    emitEdgeEvent(type: EdgeEvent["type"], eventData: Omit<EdgeEvent, "type">): void;
+    emitEdgeEvent(type: EdgeEvent["type"], eventData: object): void;
     emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void;
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
     emitGraphEvent(type: string, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
-    emitNodeEvent(type: NodeEvent["type"], eventData: Omit<NodeEvent, "type">): void;
+    emitNodeEvent(type: NodeEvent["type"], eventData: object): void;
     emitSelectionChanged(previousNode: SelectionChangedEvent["previousNode"], currentNode: SelectionChangedEvent["currentNode"]): void;
     emitSnapshotDropped(): void;
     emitSnapshotReplaced(graph: Graph | GraphContext, previous: GraphSnapshot | null, next: GraphSnapshot, report: FreezeReport): void;
@@ -3398,6 +3399,7 @@ export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 export interface Note {
     readonly author?: string;
     readonly cites?: readonly NoteCite[];
+    readonly done?: string;
     readonly edited?: string;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
@@ -3411,7 +3413,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -3446,6 +3448,7 @@ export interface NoteInput {
 export interface NoteListOptions {
     readonly author?: string;
     readonly cites?: ResultId;
+    readonly done?: boolean;
     readonly missing?: boolean;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
@@ -3462,6 +3465,7 @@ export interface NotePatch {
     readonly cites?: readonly {
         readonly result: ResultId;
     }[];
+    readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
     readonly targets?: readonly NoteTargetInput[];
@@ -3612,7 +3616,7 @@ export const ORANGE_WARNING: {
 export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b", "#fd8d3c", "#f16913", "#d94801", "#a63603", "#7f2704"];
 
 // @public
-export const OTHER_GROUP_COLOR = "#505050";
+export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
 export type PartialXRConfig = z_2.input<typeof xrConfigSchema>;

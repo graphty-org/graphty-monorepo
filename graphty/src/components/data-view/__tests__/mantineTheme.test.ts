@@ -63,4 +63,3 @@ describe("mantineJsonGridLightTheme", () => {
         expect(mantineJsonGridLightTheme.bgColor).toContain("gray-0");
     });
 });
-

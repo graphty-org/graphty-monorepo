@@ -111,7 +111,7 @@ export class InputManager implements Manager {
     async init(): Promise<void> {
         try {
             // Attach input system to canvas
-            this.inputSystem.attach(this.context.canvas as HTMLElement);
+            this.inputSystem.attach(this.context.canvas);
 
             // Set up event bridges to EventManager
             this.setupEventBridges();
@@ -160,7 +160,7 @@ export class InputManager implements Manager {
             // Clear any active states when disabling
             this.inputSystem.detach();
         } else if (enabled && this.inputSystem instanceof BabylonInputSystem) {
-            this.inputSystem.attach(this.context.canvas as HTMLElement);
+            this.inputSystem.attach(this.context.canvas);
         }
 
         this.context.eventManager.emitGraphEvent("input-enabled-changed", { enabled });
@@ -243,7 +243,7 @@ export class InputManager implements Manager {
         if (!(this.inputSystem instanceof MockDeviceInputSystem)) {
             this.inputSystem.dispose();
             this.inputSystem = new MockDeviceInputSystem();
-            this.inputSystem.attach(this.context.canvas as HTMLElement);
+            this.inputSystem.attach(this.context.canvas);
             this.setupEventBridges();
         }
 
@@ -405,7 +405,7 @@ export class InputManager implements Manager {
                     mockSystem.simulateTouchEnd(event.data.array as number[]);
                     break;
                 case "input:key-down":
-                    mockSystem.simulateKeyDown(event.data.key as string, event.data as Partial<KeyboardInfo>);
+                    mockSystem.simulateKeyDown(event.data.key as string, event.data);
                     break;
                 case "input:key-up":
                     mockSystem.simulateKeyUp(event.data.key as string);

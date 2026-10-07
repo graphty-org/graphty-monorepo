@@ -81,7 +81,7 @@ describe("paintRows", () => {
             name: "Everything",
             userData: { graphtyEverything: true },
         };
-        const rows = paintRows(sessionOf({ layers: [...BASE, mine as Layer], runs: [] }));
+        const rows = paintRows(sessionOf({ layers: [...BASE, mine], runs: [] }));
         assert.deepEqual(
             rows.map((r) => [r.kind, r.name]),
             [

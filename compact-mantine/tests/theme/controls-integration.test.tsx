@@ -189,10 +189,11 @@ describe("Control Components Integration", () => {
         });
 
         it("gives RangeSlider the same scale as Slider", () => {
-            // RangeSlider shares the Slider class names and the Slider scale.
+            // RangeSlider shares the Slider scale and the cm-slider classes; its Mantine static class
+            // is .mantine-RangeSlider-root from Mantine 8.3.18.
             const values = varAcrossSizes(
                 (size) => <RangeSlider size={size} defaultValue={[20, 80]} />,
-                ".mantine-Slider-root",
+                ".cm-slider",
                 "--slider-size",
             );
             expect(values).toEqual(["6px", "8px", "10px", "12px", "16px"]);

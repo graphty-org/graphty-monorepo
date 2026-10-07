@@ -101,8 +101,7 @@ export interface AcceleratorOptions {
     readonly algorithms?:
         | {
               readonly betweenness?:
-                  | { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined }
-                  | undefined;
+                  { readonly k?: number | undefined; readonly sources?: readonly number[] | undefined } | undefined;
           }
         | undefined;
 }

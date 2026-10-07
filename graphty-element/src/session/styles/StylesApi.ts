@@ -14,8 +14,8 @@
  * order: a layer later in the list paints over a layer earlier in it. This is the fact every
  * consumer gets wrong once, so it is stated here, on `list`, on `move` and in the design.
  *
- * READING IS SYNCHRONOUS, WRITING IS A COMMAND. `list`, `get`, `validate`, `legend`, `explain`
- * and `toDocument` answer from what the session already holds and cost nothing. `add`, `update`,
+ * READING IS SYNCHRONOUS, WRITING IS A COMMAND. `list`, `get`, `validate`, `legend`, `explain`,
+ * `agreement` and `toDocument` answer from what the session already holds and cost nothing. `add`, `update`,
  * `remove`, `move`, `removeBySource`, `encode`, `highlight`, `applyTemplate` and
  * `resolveToStatic` each dispatch a command (`style.patch`, `style.encode`, `style.template`),
  * which is one undoable step in the session's history, and each returns a `Run` that can be
@@ -136,10 +136,15 @@ import {
     proposeColumnBinding,
 } from "./EncodingSpec";
 import {
+    type AgreementElements,
     type ExplainSources,
     explainStyle,
     type ExplainTarget,
     resolveToStatic as resolveRule,
+    type StyleAgreement,
+    styleAgreement,
+    type StyleCounts,
+    styleCounts,
     type StyleExplanation,
     type UnboundLayer,
     unboundLayers,
@@ -396,9 +401,7 @@ export interface StylesApi {
      * SYNCHRONOUS, and it measures nothing: every figure in it was worked out when the bindings
      * were prepared. It therefore exists headlessly, in a Node test, and at any export scale.
      * @returns One block per channel a layer paints from the data, BOTTOM FIRST -- the same order
-     *     {@link StylesApi.list} returns. A channel that a layer above paints on every element the
-     *     lower layer reaches has no block, since none of its paint is on screen. Empty when
-     *     nothing is bound to paint.
+     *     {@link StylesApi.list} returns. Empty when nothing is bound to paint.
      */
     legend(): readonly LegendBlock[];
     /**
@@ -433,6 +436,35 @@ export interface StylesApi {
      * @throws A `GraphtyError` with code `E_BAD_COMMAND` when the session holds no such element.
      */
     explain(target: ExplainTarget): StyleExplanation;
+    /**
+     * How several elements look, channel by channel: whether they agree, and on what.
+     *
+     * The several-elements counterpart of {@link StylesApi.explain}, read through the same walk
+     * over the stack, so it says about each element what an explanation of that element says.
+     * Two elements agree on a channel only when they carry the same value AND the same layer
+     * decided it. The answer is counts, never lists of ids, and it costs one pass over the scope.
+     * @param scope - The elements to read: the selection, a kept set, a list of node ids, or any
+     *     other scope the session resolves.
+     * @param channel - One channel to restrict the answer to. Absent, every channel something
+     *     painted is answered.
+     * @returns Per channel, the value and deciding layer they all share or how they split, and how
+     *     many elements nothing painted on it.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel.
+     */
+    agreement(scope: Scope, channel?: Channel): StyleAgreement;
+    /**
+     * How many elements one layer covers, and on how many it decides each channel it writes.
+     *
+     * Read through the same walk over the stack as {@link StylesApi.explain} and
+     * {@link StylesApi.agreement}, so the three never disagree. Counts only, in one pass over the
+     * layer's kind of element. Re-read it when `revision` would change: on `style:changed`, and
+     * after a data or run change.
+     * @param id - The layer.
+     * @returns What it matches, where it wins each channel, and what it could not paint.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+     * @since 3.16.0
+     */
+    counts(id: LayerId): StyleCounts;
     /**
      * Turn a rule into the fixed value it currently produces, so a person can then edit it.
      *
@@ -721,6 +753,11 @@ export interface StylesSources {
      */
     readonly onChange?: (change: StyleChange) => void;
     /**
+     * A number that moves whenever the data or the run results change, which is half of what
+     * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
+     */
+    readonly inputRevision?: () => number;
+    /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * cancelled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
      * ever, and an edit issued afterwards is cancelled before it starts.
@@ -858,6 +895,21 @@ interface ImportedLayer {
     readonly spec: LayerSpec;
     /** The layer it compiled to, carrying the id it will keep. */
     readonly compiled: CompiledLayer;
+}
+
+/**
+ * The dense indices of the ids a scope resolved to, skipping any the session no longer holds.
+ * @param ids - The ids.
+ * @param indexOf - Where an id is resolved.
+ * @yields Each index, in the order the ids came.
+ */
+function* indicesOf<Id>(ids: Iterable<Id>, indexOf: (id: Id) => number | undefined): Generator<number> {
+    for (const id of ids) {
+        const index = indexOf(id);
+        if (index !== undefined) {
+            yield index;
+        }
+    }
 }
 
 /**
@@ -1240,6 +1292,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         readonly byId: ReadonlyMap<LayerId, CompiledLayer>;
     } | null = null;
     let edits = 0;
+    /** How many `style:changed` events this stack has published, for {@link StyleCounts.revision}. */
+    let styleRevision = 0;
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
     /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
@@ -1306,6 +1360,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         nodeIndex: sources.nodeIndex ?? NO_INDEX,
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
+    };
+
+    /**
+     * The elements a scope resolves to, as dense indices.
+     * @param scope - The scope.
+     * @returns Its nodes and edges.
+     */
+    const elementsOf = (scope: Scope): AgreementElements => {
+        const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+
+        return {
+            nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),
+            edges: indicesOf(resolved.edges, (id) => explainSources.edgeIndex(id)),
+        };
     };
 
     /** What a legend is read from. */
@@ -2172,6 +2240,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 each.refuse(failure);
             }
 
+            styleRevision++;
             sources.onChange?.({ ...each.change, painted, cause: "command" });
         }
     });
@@ -2182,6 +2251,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
         if (change.cause !== "command" && change.slices.includes("styles")) {
+            styleRevision++;
             sources.onChange?.({
                 reason: lastPass.reason,
                 layers: lastPass.layers,
@@ -2382,6 +2452,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return explainStyle(target, explainSources);
         },
 
+        agreement(scope: Scope, channel?: Channel): StyleAgreement {
+            return styleAgreement(elementsOf(scope), explainSources, channel);
+        },
+
+        counts(id: LayerId): StyleCounts {
+            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+
+            return styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
+        },
+
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
             for (const [kind, id] of Object.entries(palettes)) {
                 if (kind !== "categorical" && kind !== "sequential" && kind !== "diverging") {
@@ -2465,7 +2545,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             for (const { layer, channels } of stale) {
                 const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
                 for (const { channel, kind } of channels) {
-                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] } as Binding;
+                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
                     defaulted.add(`${layer.id}/${channel}`);
                 }
 

@@ -309,7 +309,7 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         { name: "an animated line", set: { "edge.animationSpeed": 1 }, batches: 1 },
         ...["dot", "star", "box", "dash", "diamond", "sinewave", "zigzag"].map((type) => ({
             name: `a ${type} line`,
-            set: { "edge.style": type } as StaticStyle,
+            set: { "edge.style": type },
             batches: 1,
         })),
         { name: "a dash-dot line", set: { "edge.style": "dash-dot" }, batches: 2 },

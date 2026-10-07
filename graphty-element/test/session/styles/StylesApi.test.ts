@@ -829,7 +829,7 @@ describe("checking a layer before it is committed", () => {
             name: "Marker",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.marker": "star" } as LayerSpec["set"],
+            set: { "node.marker": "star" },
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSUPPORTED"]);
@@ -1233,7 +1233,7 @@ describe("the legend, and why one element looks the way it does", () => {
             });
         }
 
-        it("leaves out the lower block when the layer above selects all of its elements", async () => {
+        it("says the lower block is painted over when the layer above selects all of its elements", async () => {
             const { styles } = measuredStyles();
 
             await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
@@ -1244,16 +1244,13 @@ describe("the legend, and why one element looks the way it does", () => {
                 }),
             );
 
-            const blocks = styles.legend();
+            const [lower, upper] = styles.legend();
 
-            assert.deepEqual(
-                blocks.map((block) => block.runId),
-                [undefined],
-                "only the covering layer's block is left; it has no run",
-            );
+            assert.include(lower?.departures, 'painted over by "Route colour"');
+            assert.notInclude(upper?.departures ?? [], 'painted over by "By betweenness"');
         });
 
-        it("keeps the lower block when the layer above selects only some of them", async () => {
+        it("says nothing when the layer above selects only some of them", async () => {
             const { styles } = measuredStyles();
 
             await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
@@ -1266,7 +1263,7 @@ describe("the legend, and why one element looks the way it does", () => {
 
             const [lower] = styles.legend();
 
-            assert.strictEqual(lower?.runId, "betweenness");
+            assert.notInclude(lower?.departures ?? [], 'painted over by "Group colour"');
         });
     });
 

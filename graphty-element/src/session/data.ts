@@ -1652,6 +1652,7 @@ export function headlessDataService(
         nodesArrived: () => undefined,
         edgesArrived: () => undefined,
         loadProgress: () => undefined,
+        // No events to raise here: a load's errors reach `lastImport().errors` through its report.
         loadErrors: () => undefined,
         loadComplete: () => undefined,
         loadFailed: () => undefined,

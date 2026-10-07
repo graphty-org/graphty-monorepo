@@ -22,12 +22,11 @@
         "check:data-source-migration": "node tools/check-data-source-migration.mjs --self-test && node tools/check-data-source-migration.mjs",
         "check:migration-counts": "node tools/count-migration-state.mjs --self-test",
         "check:release-hold": "node tools/release-hold.test.mjs && node tools/release-hold.mjs check",
-        "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs",
-        "test:ci-workflows": "node tools/ci-workflows.test.mjs && node tools/githerd-watchdog.test.mjs",
+        "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs && node tools/sonar/sonar-baseline.test.mjs",
+        "test:ci-workflows": "node tools/ci-workflows.test.mjs && node tools/githerd-watchdog.test.mjs && node tools/queued-push-guard.test.mjs",
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "format:check:changed": "./tools/check-format-changed.sh",
         "prepush": "NX_DAEMON=false pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
         "prepush:fast": "./tools/prepush.sh",
         "prepare": "husky",
@@ -38,10 +37,11 @@
         "dev:webgpu-graph-algorithms": "cd webgpu-graph-algorithms && pnpm exec vite demo --host --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "storybook:graphty-element": "pnpm --filter @graphty/graphty-element run storybook",
         "storybook:graphty": "pnpm --filter @graphty/graphty run storybook",
-        "docs:api": "npm run docs:api:graphty-element && npm run docs:api:algorithms && npm run docs:api:layout && npm run docs:api:graph-io && node tools/sanitize-api-docs.js",
+        "docs:api": "npm run docs:api:graphty-element && npm run docs:api:algorithms && npm run docs:api:layout && npm run docs:api:cytoscape-extensions && npm run docs:api:graph-io && node tools/sanitize-api-docs.js",
         "docs:api:graphty-element": "cd graphty-element && node scripts/build-api-docs.mjs --out ../docs/graphty-element/api/generated --docsRoot ../docs",
         "docs:api:algorithms": "cd algorithms && typedoc --out ../docs/algorithms/api/generated --docsRoot ../docs",
         "docs:api:layout": "cd layout && typedoc --out ../docs/layout/api/generated --docsRoot ../docs",
+        "docs:api:cytoscape-extensions": "cd cytoscape-extensions && typedoc --out ../docs/cytoscape-extensions/api/generated --docsRoot ../docs",
         "docs:api:graph-io": "cd graph-io && pnpm exec tsx scripts/docs-reference.ts --check && typedoc --out ../docs/graph-io/api/generated --docsRoot ../docs",
         "docs:content": "node tools/copy-docs-content.js",
         "docs:dev": "vitepress dev docs --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
@@ -55,7 +55,8 @@
         "coverage:preview:graph-format": "npx serve graph-format/coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "coverage:preview:graph-io": "npx serve graph-io/coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "coverage:preview:webgpu-graph-algorithms": "npx serve webgpu-graph-algorithms/coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "coverage:preview:graph-samples": "npx serve graph-samples/coverage -p ${PORT:?start it through servherd, which sets PORT}"
+        "coverage:preview:graph-samples": "npx serve graph-samples/coverage -p ${PORT:?start it through servherd, which sets PORT}",
+        "coverage:preview:cytoscape-extensions": "npx serve cytoscape-extensions/coverage -p ${PORT:?start it through servherd, which sets PORT}"
     },
     "engines": {
         "node": ">=22.0.0"

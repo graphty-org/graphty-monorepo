@@ -184,6 +184,23 @@ export interface ToggleRowProps {
     onFocus?: React.FocusEventHandler<HTMLInputElement>;
     /** Called when the control loses focus. */
     onBlur?: React.FocusEventHandler<HTMLInputElement>;
+    /**
+     * Whether the content this toggle shows is on screen, for a toggle that
+     * shows or hides something elsewhere in the panel.
+     *
+     * Set it together with `aria-controls` and a screen reader announces the
+     * toggle as one that opens something, rather than leaving the reader to
+     * notice new controls appearing. Leave both unset on a toggle that only
+     * records a setting.
+     */
+    "aria-expanded"?: boolean;
+    /**
+     * The `id` of the element this toggle shows or hides.
+     *
+     * Set it only while that element is in the document: a reference to an id
+     * that is not on the page is worse than no reference at all.
+     */
+    "aria-controls"?: string;
 }
 
 /**
@@ -222,6 +239,8 @@ export interface ToggleRowProps {
  * @param props.boundDescription - What a screen reader says about a bound row, defaulting to `fieldBound`
  * @param props.onFocus - Called when the control takes focus
  * @param props.onBlur - Called when the control loses focus
+ * @param props."aria-expanded" - Whether the content this toggle shows is on screen
+ * @param props."aria-controls" - The id of the element this toggle shows or hides
  * @returns The toggle row
  * @example
  * ```tsx
@@ -244,6 +263,8 @@ export function ToggleRow({
     boundDescription,
     onFocus,
     onBlur,
+    "aria-expanded": ariaExpanded,
+    "aria-controls": ariaControls,
 }: ToggleRowProps): React.JSX.Element {
     const labels = useLabels();
     // Controlled and uncontrolled, exactly as StyleSelect and ToggleWithContent.
@@ -356,6 +377,8 @@ export function ToggleRow({
                     checked={isChecked}
                     disabled={disabled}
                     aria-describedby={annotation.describedBy}
+                    aria-expanded={ariaExpanded}
+                    aria-controls={ariaControls}
                     onChange={handleInputChange}
                     onFocus={onFocus}
                     onBlur={onBlur}
@@ -370,6 +393,8 @@ export function ToggleRow({
                     checked={isChecked}
                     disabled={disabled}
                     aria-describedby={annotation.describedBy}
+                    aria-expanded={ariaExpanded}
+                    aria-controls={ariaControls}
                     onChange={handleInputChange}
                     onFocus={onFocus}
                     onBlur={onBlur}

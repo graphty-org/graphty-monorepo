@@ -60,14 +60,7 @@ export type ShellStateAxis = "empty" | "loaded" | "loaded-subset" | "loading" | 
  * is a real surface and not an empty state. Spec 03 sections 4 to 6.
  */
 export type SelectionKind =
-    | "algorithm-result"
-    | "cleaning-step"
-    | "edge"
-    | "multiple"
-    | "node"
-    | "none"
-    | "pattern-match"
-    | "style-layer";
+    "algorithm-result" | "cleaning-step" | "edge" | "multiple" | "node" | "none" | "pattern-match" | "style-layer";
 
 /* -------------------------------------------------------------------------- */
 /* Layout state (build spec 01 section 7; build spec 04 section 6)             */
@@ -552,15 +545,7 @@ export interface TopBarProps {
  * Spec 02 section 4.2.
  */
 export type StatusBarSlotId =
-    | "ai"
-    | "counts"
-    | "issues"
-    | "layout"
-    | "running"
-    | "selection"
-    | "viewing"
-    | "xr"
-    | "zoom";
+    "ai" | "counts" | "issues" | "layout" | "running" | "selection" | "viewing" | "xr" | "zoom";
 
 /**
  * Slot 1. Owns node and edge counts and "shown of loaded of total"; neither is

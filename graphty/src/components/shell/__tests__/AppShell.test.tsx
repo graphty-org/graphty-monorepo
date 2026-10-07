@@ -3091,7 +3091,7 @@ describe("AppShell", () => {
                ranking it had summarised itself. */
             expect(within(legend).getByText("Color: Connections")).toBeInTheDocument();
             expect(within(legend).getByText("degree", { exact: false })).toBeInTheDocument();
-            expect(within(legend).getByText("linear")).toBeInTheDocument();
+            expect(within(legend).getByText("Even Steps")).toBeInTheDocument();
 
             /* The run reached all 20 nodes, so there is no departure to draw -- and the
                absence is what makes the line below mean something when it appears. */
@@ -4775,6 +4775,30 @@ describe("AppShell", () => {
             await flushMicrotasks();
 
             expect(screen.getByRole("button", { name: "Delete note: Check the owner" })).toBeInTheDocument();
+        });
+
+        it("marks a note done through the element, folds it under N done, and undo reopens it", async () => {
+            const { container, session } = await loadCat();
+            const nodeId = CAT_SOCIAL_NETWORK.nodes[0].id;
+            let id = "";
+
+            act(() => {
+                id = session.notes.add({ text: "Call the vet", targets: [{ node: nodeId }] });
+            });
+            reportSelection(container, nodeId);
+
+            fireEvent.click(await screen.findByRole("checkbox", { name: "Done: Call the vet" }));
+
+            expect(session.notes.get(id)?.done).toBeDefined();
+            expect(await screen.findByTestId("node-note-input-done")).toHaveTextContent("1 done");
+            expect(screen.queryByRole("checkbox", { name: "Done: Call the vet" })).toBeNull();
+
+            fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await flushMicrotasks();
+
+            expect(session.notes.get(id)?.done).toBeUndefined();
+            expect(screen.getByRole("checkbox", { name: "Done: Call the vet" })).not.toBeChecked();
+            expect(screen.queryByTestId("node-note-input-done")).toBeNull();
         });
 
         it("focuses the node's note input on N", async () => {

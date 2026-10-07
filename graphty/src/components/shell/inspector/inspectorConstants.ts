@@ -98,18 +98,6 @@ export const SWATCH_RADIUS = 2;
 /* The `Coming` tag (design 5.8; build spec 04 sections 4.5 and 8.2)           */
 /* -------------------------------------------------------------------------- */
 
-/*
- * The pill's numbers and its word belong to the whole shell, not to the inspector: the
- * activity panel and the Views menu draw the same tag, so the values live in
- * `shell/ComingTag.tsx` beside the one drawing that uses them. Only the two this
- * region's own callers actually reach through this module are re-exported here -- the
- * height and the radius. The other four (font size, font weight, horizontal padding,
- * and the `COMING_LABEL` word, which was re-exported as `COMING_TAG_LABEL`) had no
- * caller on this path at all, so they are imported from `shell/ComingTag.tsx` directly
- * rather than duplicated onto this surface.
- */
-export { COMING_TAG_HEIGHT, COMING_TAG_RADIUS } from "../ComingTag";
-
 /**
  * The one info-circle sentence a dimmed group of unshipped rows carries, verbatim from
  * design 5.8.

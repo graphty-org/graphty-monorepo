@@ -90,6 +90,7 @@ export type {
     GraphSession,
     GraphStatistics,
     HistoryCause,
+    HistoryCode,
     HistoryOutcome,
     HistoryStep,
     HistoryStepId,
@@ -150,7 +151,7 @@ export { createGraphSession } from "./src/session";
  * `data-loaded` and `data-loading-complete`.
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates
@@ -306,6 +307,12 @@ export type {
 } from "./src/session/notes/types";
 
 // ---------------------------------------------------------------------------------------------
+// The journal: the record of the commands a session ran, as `session.journal`
+// ---------------------------------------------------------------------------------------------
+
+export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal";
+
+// ---------------------------------------------------------------------------------------------
 // The project file: the whole session saved to one file and opened again, as `session.project`
 // ---------------------------------------------------------------------------------------------
 
@@ -428,7 +435,9 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ChannelAgreement,
     ChannelExplanation,
+    ChannelShare,
     ColumnEncodingSpec,
     ElementLayerSpec,
     EncodingOptions,
@@ -438,6 +447,7 @@ export type {
     EncodingSpec,
     EncodingSuggestion,
     ExplainTarget,
+    FieldResult,
     FieldWords,
     HighlightSpec,
     HighlightSuggestion,
@@ -445,13 +455,17 @@ export type {
     LayerPosition,
     LayerProblem,
     LegendBlock,
+    LegendFact,
+    LegendFactCode,
     LegendReading,
     LegendSwatch,
     RepaintReason,
     RepaintReport,
     SessionStylesApi,
+    StyleAgreement,
     StyleChange,
     StyleContribution,
+    StyleCounts,
     StyleExplanation,
     StylesApi,
     StyleSuggestion,

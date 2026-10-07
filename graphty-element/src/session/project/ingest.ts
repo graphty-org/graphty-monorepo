@@ -21,7 +21,7 @@ import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
-import { type ImportReport, type ImportTally, newImportTally, sealImportReport } from "../../data/report";
+import { type ImportReport, type ImportTally, loadErrorOf, newImportTally, sealImportReport } from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
@@ -567,6 +567,7 @@ export class Ingest<K extends KnownEdge> {
     ): boolean {
         if (!isStorableId(id)) {
             tally.rejected++;
+            tally.errors.push({ code: "refused-row", params: { rowsAre: "nodes" } });
             return true;
         }
 
@@ -699,6 +700,7 @@ export class Ingest<K extends KnownEdge> {
                 // It gets no row, no counter and no render object, which is what makes "every Edge
                 // has a store row" an invariant everything downstream can rely on.
                 tally.rejected++;
+                tally.errors.push({ code: "refused-row", params: { rowsAre: "edges" } });
                 continue;
             }
 
@@ -1168,6 +1170,10 @@ export class Ingest<K extends KnownEdge> {
 
                 this.drawMadeEndpoints(writer);
                 const errors = reader.getErrorAggregator();
+                // The source's own problems come first: it read the file before any record was
+                // stored. They reach the report whatever the host does with the event below.
+                tally.errors.unshift(...errors.getErrors().map(loadErrorOf));
+                tally.errorLimit = errors.getErrorLimit();
                 if (errors.getErrorCount() > 0) {
                     this.host.loadErrors(type, errors);
                 }

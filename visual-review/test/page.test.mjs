@@ -521,9 +521,10 @@ describe("review page: the Focus point, on an iPad", () => {
             await page.keyboard.press("o");
             await expect.poll(() => focus().getAttribute("aria-pressed")).toBe("true");
             expect(new URLSearchParams(new URL(page.url()).hash.slice(1)).get("focus")).toBe("on");
-            // The changed area [160, 80, 40, 40] has its middle at (180, 100), in both panes.
-            await expect.poll(() => centeredOn([180, 100])).toBe(true);
-            expect((await panes()).length).toBe(2);
+            // The changed area [160, 80, 40, 40] has its middle at (180, 100), in both panes. The
+            // stage redraws its frames on the zoom, so wait for both to hold a picture again: one
+            // centered pane alone is a frame caught halfway through that redraw.
+            await expect.poll(async () => (await panes()).length === 2 && (await centeredOn([180, 100]))).toBe(true);
             expect(await scrolled()).toBe(true);
             await ready();
             // Whether the next item's new image is already scrolled in the first frame that draws it.
@@ -1361,10 +1362,10 @@ describe("review page: a pull request", () => {
         expect(sheet.slice(0, 6)).toEqual([
             "Finish #123, every project:",
             "Commit 4 accepts to feature.",
-            "Then set the commit status 'Visual review' to pending (3 undecided; not loaded: layout, algorithms, graphty).",
+            "Then set the commit status 'Visual review' to pending (3 undecided; not loaded: layout, algorithms, graphty, cytoscape-extensions).",
             "Accepted without opening: 4.",
             "Still undecided, left for a later round: compact-mantine 2, graphty-element 1.",
-            "Not loaded, so not reviewed: layout, algorithms, graphty.",
+            "Not loaded, so not reviewed: layout, algorithms, graphty, cytoscape-extensions.",
         ]);
         expect(dialogs[1]).toMatch(/Finish commits are (signed with|NOT signed)/);
         expect(dialogs[1]).toContain(`start the server from your own shell:\n${START}`);
@@ -1954,7 +1955,7 @@ describe("review page: moving on", () => {
         await page.getByRole("button", { name: "Next: #124 (7 undecided)" }).click();
         await expect.poll(() => page.locator("#pick-target").inputValue()).toBe("124");
         await expect.poll(position).toMatch(/^1 of 6 /);
-    });
+    }, 30000);
 
     it("jumps to another target and project from the header's pickers", async () => {
         await open((r) => ({ gh: twoPrs(r) }));
@@ -2296,7 +2297,7 @@ describe("review page: Finish", () => {
             "Post 1 reject as a comment on #123.",
             "Then set the commit status 'Visual review' to failure (1 rejected).",
             "Still undecided, left for a later round: compact-mantine 4, graphty-element 1.",
-            "Not loaded, so not reviewed: layout, algorithms, graphty.",
+            "Not loaded, so not reviewed: layout, algorithms, graphty, cytoscape-extensions.",
             "Notes to publish:",
         ]);
         expect(dialogs[0]).toContain("Rejected compact-mantine/slider--sizes.png: too tall");
@@ -2358,7 +2359,7 @@ describe("review page: Finish", () => {
         await expect
             .poll(() => page.locator(".finish-outcome").textContent(), slow)
             .toMatch(
-                /^Finished #123\.Committed \w{10} to feature\.Commit status: pending -- 4 accepted, 0 rejected, 0 excluded, 3 undecided, not loaded: layout, algorithms, graphty\./,
+                /^Finished #123\.Committed \w{10} to feature\.Commit status: pending -- 4 accepted, 0 rejected, 0 excluded, 3 undecided, not loaded: layout, algorithms, graphty, cytoscape-extensions\./,
             );
         expect(await page.locator(".finish-running").count()).toBe(0);
         expect(await box()).toBeNull();

@@ -12,7 +12,13 @@
 
 import type { ScreenshotLegendSection } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/catalog";
-import type { GraphSession, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    LegendBlock,
+    LegendFact,
+    LegendFactCode,
+    LegendSwatch,
+} from "@graphty/graphty-element/session";
 
 import { runName } from "../analyze/words";
 
@@ -45,14 +51,18 @@ const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
 
 /**
  * The blocks the legend shows: not a label's (it would list every name beside the name already
- * drawn), and not a size that does not vary (a key for one size reads as "sizes done" while every
- * dot is the same).
+ * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
+ * dot is the same), and not one a layer above paints over on every element (a key for paint no
+ * reader can see is a false claim).
  * @param blocks - the blocks `styles.legend()` returned.
  * @returns the blocks worth a key, in the same order.
  */
 export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
     return blocks.filter(
-        (block) => !TEXT_CHANNELS.has(block.channel) && !(isSizeBlock(block) && block.kind === "literal"),
+        (block) =>
+            !TEXT_CHANNELS.has(block.channel) &&
+            !(isSizeBlock(block) && block.kind === "literal") &&
+            !block.facts.some((fact) => fact.code === "legend.painted-over"),
     );
 }
 
@@ -78,13 +88,89 @@ export function sectionTitle(block: LegendBlock, rowName: string): string {
 }
 
 /**
+ * A number the way a legend prints it: four significant figures with the trailing zeros taken
+ * off, whole numbers as they are, and very large or very small ones in exponent form.
+ * @param value - the number.
+ * @returns the words.
+ */
+function legendNumber(value: number): string {
+    if (!Number.isFinite(value) || (Number.isInteger(value) && Math.abs(value) < 1e7)) {
+        return String(value);
+    }
+    const magnitude = Math.abs(value);
+    if (magnitude >= 1e7 || (magnitude > 0 && magnitude < 1e-3)) {
+        return value.toExponential(2);
+    }
+    return String(Number(value.toPrecision(4)));
+}
+
+/**
+ * The text of one legend row, worded from the row's facts: "Group 3" for a run's group, "0 - 25"
+ * for a stepped range, "0.3" for a ramp stop, the category itself, the layer's name for a fixed
+ * value, and "other: 4 groups" for the folded bucket.
+ * @param block - the block the row belongs to.
+ * @param swatch - the row.
+ * @param layerName - the name of the layer behind the block, for a fixed-value row.
+ * @returns the text.
+ */
+export function swatchText(block: LegendBlock, swatch: LegendSwatch, layerName?: string): string {
+    const { value } = swatch;
+    if (swatch.role === "other") {
+        const groups = Array.isArray(value) ? value.length : 0;
+        return `other: ${String(groups)} ${groups === 1 ? "group" : "groups"}`;
+    }
+    if (swatch.rank !== undefined) {
+        return `Group ${String(swatch.rank)}`;
+    }
+    if (swatch.extent !== undefined) {
+        const { min, max } = swatch.extent;
+        return min === max ? legendNumber(min) : `${legendNumber(min)} - ${legendNumber(max)}`;
+    }
+    if (block.kind === "literal" || block.kind === "highlight") {
+        return layerName ?? String(value);
+    }
+    if (block.kind !== "categorical" && typeof value === "number") {
+        return legendNumber(value);
+    }
+    return String(value);
+}
+
+/**
  * The name of one row of a list block; the Other row, the one bucket the paint folded the smaller
  * groups into, is "Other".
+ * @param block - the block the row belongs to.
  * @param swatch - the row.
+ * @param layerName - the name of the layer behind the block, for a fixed-value row.
  * @returns its name.
  */
-export function swatchName(swatch: LegendSwatch): string {
-    return swatch.role === "other" ? "Other" : swatch.label;
+export function swatchName(block: LegendBlock, swatch: LegendSwatch, layerName?: string): string {
+    return swatch.role === "other" ? "Other" : swatchText(block, swatch, layerName);
+}
+
+/** The sentence each legend fact is printed as. */
+const FACT_SENTENCES: Readonly<Record<LegendFactCode, (param: (name: string) => string) => string>> = {
+    "legend.clamped": (param) => `clamped at p${param("from")}/p${param("to")}`,
+    "legend.not-plottable": (param) => `${param("count")} not plottable on a ${param("scale")} scale`,
+    "legend.none-plottable": (param) => `no value is plottable on a ${param("scale")} scale`,
+    "legend.no-value-in-domain": (param) => `no value has a place between ${param("min")} and ${param("max")}`,
+    "legend.nothing-measured": () => "nothing measured",
+    "legend.unreadable": (param) => `${param("count")} carry no value the scale can read`,
+    "legend.lumped": (param) => `${param("count")} lumped into "other"`,
+    "legend.not-measured": (param) => `not measured (${param("count")})`,
+    "legend.painted-over": (param) => `painted over by "${param("name")}"`,
+};
+
+/**
+ * One legend fact as the sentence a reader sees, or null for a code this app has no words for
+ * (the element may add codes in a minor release).
+ * @param fact - the fact.
+ * @returns the sentence, or null.
+ */
+export function factSentence(fact: LegendFact): string | null {
+    const sentence = (FACT_SENTENCES as Partial<Record<string, (param: (name: string) => string) => string>>)[
+        fact.code
+    ];
+    return sentence === undefined ? null : sentence((name) => String(fact.params[name]));
 }
 
 /**
@@ -128,13 +214,18 @@ export function imageLegend(
             const title = sectionTitle(block, rowName(block));
             if (block.kind === "sequential" || block.kind === "diverging") {
                 const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
-                const ramp = { min: block.swatches.at(0)?.label ?? "", max: block.swatches.at(-1)?.label ?? "" };
+                const first = block.swatches.at(0);
+                const last = block.swatches.at(-1);
+                const ramp = {
+                    min: first === undefined ? "" : swatchText(block, first),
+                    max: last === undefined ? "" : swatchText(block, last),
+                };
                 return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
             }
             const rows = block.swatches.map((swatch) => {
                 const value = paintWords(swatch) ?? swatch.count?.toLocaleString();
                 return {
-                    label: swatchName(swatch),
+                    label: swatchName(block, swatch, rowName(block)),
                     ...(swatch.color === undefined ? {} : { color: swatch.color }),
                     ...(value === undefined ? {} : { value }),
                 };

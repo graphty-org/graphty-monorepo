@@ -7,19 +7,12 @@ import {
     ProseBlock,
     UiGlyph,
 } from "@graphty/compact-mantine";
-import { Box, Button, Tooltip } from "@mantine/core";
+import { Badge, Box, Button, Tooltip } from "@mantine/core";
 import React, { type RefObject, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { GraphtyHandle } from "../../Graphty";
 import { RunAlgorithmModal } from "../../RunAlgorithmModal";
-import {
-    COMING_TAG_FONT_SIZE,
-    COMING_TAG_FONT_WEIGHT,
-    COMING_TAG_HEIGHT,
-    COMING_TAG_PADDING_X,
-    COMING_TAG_RADIUS,
-} from "../ComingTag";
 import { SWATCH_RADIUS } from "../inspector/inspectorConstants";
 import { PanelOutlineButton, PanelQuietButton } from "./panelButtons";
 import { ComingTag, PanelRows, PanelSection, SectionAddButton } from "./PanelSection";
@@ -445,13 +438,10 @@ interface ResultRowProps {
 }
 
 /**
- * The Running chip: the shared `Coming` pill's geometry, with the run's state in it.
- *
- * It reads the five exported `COMING_TAG_*` numbers rather than restating them, so the
- * shell has ONE compact pill shape (spec 03 section 1.5, VOCAB section 3 "pill
- * (compact)") however many words end up riding in it. Those constants are exported for
- * exactly this reason -- `ComingTag` itself cannot be reused, because its word is fixed
- * at "Coming" and this pill reports a state rather than an unshipped capability.
+ * The Running chip: the same compact-mantine Badge the `Coming` pill is, with the run's
+ * state in it, so the shell has one compact pill however many words ride in it.
+ * `ComingTag` itself cannot be reused, because its word is fixed at "Coming" and this
+ * pill reports a state rather than an unshipped capability.
  *
  * No `role` and no live region, for the reason `ComingTag` gives: the word IS the
  * status, and the row it sits on is announced by its own reading. The chip is drawn
@@ -463,27 +453,9 @@ interface ResultRowProps {
  */
 function RunningChip(): React.JSX.Element {
     return (
-        <Box
-            component="span"
-            data-testid="analyze-result-running"
-            style={{
-                flex: "0 0 auto",
-                display: "inline-flex",
-                alignItems: "center",
-                height: COMING_TAG_HEIGHT,
-                paddingInline: COMING_TAG_PADDING_X,
-                borderRadius: COMING_TAG_RADIUS,
-                background: PANEL_INK.RAISED,
-                color: PANEL_INK.CHROME,
-                fontSize: COMING_TAG_FONT_SIZE,
-                fontWeight: COMING_TAG_FONT_WEIGHT,
-                lineHeight: 1,
-                boxSizing: "border-box",
-                whiteSpace: "nowrap",
-            }}
-        >
+        <Badge component="span" data-testid="analyze-result-running" style={{ flex: "0 0 auto" }}>
             {RUNNING_CHIP_LABEL}
-        </Box>
+        </Badge>
     );
 }
 

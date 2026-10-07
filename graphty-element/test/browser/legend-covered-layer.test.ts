@@ -1,6 +1,6 @@
 /**
- * @file The legend leaves out a block whose channel a layer above paints on every element the
- * block's layer reaches: a key row for colors no node shows is a false claim.
+ * @file The legend says when a block's channel is painted over by a layer above on every element
+ * the block's layer reaches: a key row for colors no node shows is a false claim unless it is marked.
  *
  * Runs the real Degree and then the real Louvain on a real element with each run's own suggested
  * layers, the path a consumer takes.
@@ -51,7 +51,7 @@ describe("a layer painted over on every node it reaches", () => {
         container.remove();
     });
 
-    it("has no color block in the legend after a community run paints every node", async () => {
+    it("marks the degree block painted over after a community run paints every node", async () => {
         const degree = session.runs.start("degree");
         await degree;
         await operationQueueOf(graph).waitForCompletion();
@@ -68,11 +68,18 @@ describe("a layer painted over on every node it reaches", () => {
         await session.styles.settled();
 
         const colors = session.styles.legend().filter((block) => block.channel === "node.color");
+        const covered = colors.find((block) => block.runId === degree.id);
 
-        assert.deepEqual(
-            colors.map((block) => block.runId),
-            [louvain.id],
-            "every node shows its group color, so only the groups are in the key",
+        assert.isDefined(covered, "the covered block is still returned");
+        assert.include(
+            covered?.facts.map((fact) => fact.code),
+            "legend.painted-over",
+            "every node shows its group color, so the degree block carries the painted-over fact",
+        );
+        assert.notInclude(
+            colors.find((block) => block.runId === louvain.id)?.facts.map((fact) => fact.code) ?? [],
+            "legend.painted-over",
+            "the groups are on top and are not painted over",
         );
     });
 });

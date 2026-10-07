@@ -82,7 +82,7 @@ const filed = new Map<
 >();
 
 /** A definition with no options, the default of the verb's generic. */
-type NoOptions = Readonly<Record<never, never>>;
+type NoOptions = { readonly [K in never]: never };
 
 /**
  * Say something a layout's author must hear. The log is off by default, so a warning that went
@@ -509,7 +509,7 @@ export function defineLayout<const O extends OptionsShorthand = NoOptions>(
     const declared = expandOptions(VERB, id, checked.options);
     const random = checked.random === true;
     if (random && !declared.some((option) => option.name === "seed")) {
-        declared.push({ name: "seed", plainName: "Seed", type: "seed" } as OptionDescriptor);
+        declared.push({ name: "seed", plainName: "Seed", type: "seed" });
     }
 
     const maxDimensions = checked.dimensions === 2 ? 2 : 3;

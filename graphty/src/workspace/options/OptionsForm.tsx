@@ -1,6 +1,6 @@
 import { ControlSubGroup, StyleNumberInput } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
-import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Checkbox, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import React, { useState } from "react";
 
@@ -196,7 +196,7 @@ function OptionField({
         case "node-id": {
             const selected = session.selection.nodes.at(0);
             const offer = canUseSelectedNode && selected !== undefined && selected !== value;
-            const id = typeof value === "string" || typeof value === "number" ? (value as NodeId) : undefined;
+            const id = typeof value === "string" || typeof value === "number" ? value : undefined;
             if (id === undefined && !offer) {
                 return null;
             }

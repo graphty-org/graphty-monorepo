@@ -1,3 +1,39 @@
+## 0.6.36 (2026-10-07)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** bind attraction only after the superseded check ([#96](https://github.com/graphty-org/graphty-monorepo/issues/96))
+- **webgpu-graph-algorithms:** window a core first requested narrow ([#92](https://github.com/graphty-org/graphty-monorepo/issues/92))
+- **webgpu-graph-algorithms:** resolve degree's fill pipeline before encoding ([#94](https://github.com/graphty-org/graphty-monorepo/issues/94))
+- **webgpu-graph-algorithms:** refuse a pull over a core of another weights pattern ([#91](https://github.com/graphty-org/graphty-monorepo/issues/91))
+- **webgpu-graph-algorithms:** settle label propagation on ordered paths ([#694](https://github.com/graphty-org/graphty-monorepo/issues/694))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.7
+- Updated algorithms to 3.3.7
+- Updated layout to 2.2.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.6.35 (2026-10-06)
+
+### 🩹 Fixes
+
+- **layout:** run cooling "adaptive" on the CPU Fruchterman-Reingold ([#98](https://github.com/graphty-org/graphty-monorepo/issues/98))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.6
+- Updated algorithms to 3.3.6
+- Updated layout to 2.2.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.6.34 (2026-10-05)
 
 ### 🧱 Updated Dependencies

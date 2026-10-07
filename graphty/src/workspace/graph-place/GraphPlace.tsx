@@ -48,7 +48,7 @@ export function GraphPlace(): React.JSX.Element {
     const version = useSessionVersion(session);
 
     const { rows, name, hasGraph } = useMemo(() => {
-        void version; // NOSONAR(S3735): reads the change count so the memo runs again on each session change
+        const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
         return session === null
             ? { rows: [], name: projectName, hasGraph: false }
             : {

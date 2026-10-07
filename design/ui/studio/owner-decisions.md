@@ -179,35 +179,58 @@ arrows and answers "no".
 **Open points for the owner.** Whether `explain()` and the layer list should name the arrowhead a
 directed graph draws (today they do not list it, since no layer writes it).
 
-## 2026-10-07 -- The legend leaves out a layer painted over on every element it reaches
+## 2026-10-07 -- A covered legend block is left out by the app (no change from master)
 
-**What.** `styles.legend()` in graphty-element no longer returns a block for a channel that a
-higher, enabled layer of the same target paints on every element the lower layer reaches. Before,
-it returned the block and added the English sentence `painted over by "<layer name>"` to its
-`departures`. That sentence is gone. A layer covered on only some of its elements keeps its block,
-as before. No exported name or type changes; this is a change in what the existing call returns.
+**What.** The studio branch had changed `styles.legend()` to stop returning a block whose channel
+a higher, enabled layer paints on every element the block's layer reaches. That change is undone:
+the element returns master's contract again, where such a block is still returned and carries the
+neutral fact `{ code: "legend.painted-over", params: { layerId, name } }` in `facts`. The graphty
+app leaves every block carrying that fact out of its legend card and out of the key drawn into an
+exported image. The published contract is master's, so there is nothing to approve.
 
-Example: run Degree, then Louvain, on a graph where both measure every node. Both runs' suggested
-layers color nodes, and the Louvain layer is on top, so every node shows its group color. The
-legend used to list "Connections" (with the departure) and "Communities"; it now lists only
-"Communities". The exported picture's key follows, since it is drawn from `legend()`.
+**Why.** After Degree and then Louvain, every node shows its group color, and a "Color:
+Connections" key for paint no node shows is a false claim. Master now reports the cover as a coded
+fact, which is the option this entry used to list as the alternative: the element states the fact,
+and each consumer decides what to show. A layer panel that wants to grey a covered layer can read
+the same fact.
 
-**Why.** The key and the exported image kept a "Color: Connections" ramp that no node showed. The
-element already detected the cover, but reported it only as an English sentence; the graphty app
-(correctly) prints none of the element's English, so the reader saw a false key. A legend row for
-paint nobody can see is the false claim the legend exists to prevent, and leaving it out needs no
-new API.
+**Alternatives.** Keep the branch's element change and drop covered blocks inside the element
+(changes what an existing call returns, and hides the fact from a consumer that wants to show it).
 
-**Alternatives considered.**
+## 2026-10-07 -- A history code for moving a run's layers: `algo.move`
 
-- A neutral field on the block, such as `coveredBy: LayerId`, and every consumer filters. New
-  public API, and every consumer has to know to filter or it shows a false key; the one consumer
-  today would always drop the block anyway.
-- Keep the English departure and have the app parse it. Breaks the rule that the element returns
-  neutral facts, and an app that parses element English is a workaround.
-- Build the key in the app from the live stack. Graph logic in the app; every other consumer would
-  repeat it.
+**What.** `HistoryCode` gains one member, `"algo.move"`, with the params `run` (the run's id) and
+`algorithm` (its algorithm, or null when unknown) -- the same params as `algo.remove`. It is the
+fact on the history step the `algo.move` command records (`session.runs.move(id, before)`, which
+moves a run's style layers in the stack). Not breaking: the type documents that new codes may be
+added in a minor release.
 
-**Open points for the owner.** A consumer that wants to list hidden layers (for example, a layer
-panel that greys a covered layer) now reads `styles.list()` and has no cover fact for it. If that is
-needed, a neutral cover fact can be added later without undoing this.
+**Why.** Every history step now carries a coded fact, and the app words each code itself. The
+studio branch's `algo.move` command predates that rule and had no code; without one the step
+could only be worded from a generic code.
+
+**Alternatives.** Record it as `style.move-layer` (that code names one layer, and a run moves
+several); record it as the generic `transaction` (the app could not say what moved).
+
+## 2026-10-07 -- A GraphML or GEXF file that breaks off is refused, not loaded in part
+
+**What.** Master (issue #1218) and the studio branch settled the same defect two opposite ways. On
+master, a recognisable GraphML or GEXF file that breaks off -- a stray end tag, a tag or quote left
+open, garbage after the last tag, a file cut off mid-tag -- keeps every node and edge read before
+the break, and `LoadReport.errors` gets a `"parse-error"` entry with the line. On the studio branch
+the load is refused with `E_PARSE_FAILED`, with the line in `details.line`, and nothing is added.
+The merged branch keeps the refusal. `LoadReport.errors` stays as master built it for everything
+else (a CSV row a reader skipped, a refused row); a broken GraphML or GEXF file just never reaches
+it. The data sources and load preview guides and the `LoadReport` documentation say so. No type
+changes; a change in what an existing call does compared with master.
+
+**Why.** A graph built from part of a file looks like a whole one. In the study, a reader handed
+a GraphML file cut at 55% saw 5 nodes and 0 edges and no sign of trouble; with the refusal, the
+broken-file task passed in every round. Master's report entry only helps a consumer that knows to
+read `lastImport().errors` after a load that appeared to succeed, and the graphty app does not read
+it today. GML, DOT and Pajek already refuse a file that cannot be read whole, so the refusal also
+makes every graph format behave the same way.
+
+**Alternatives.** Keep master's partial load and have the app read `lastImport().errors` and warn
+(every other consumer still gets a partial graph by default). Add a load option such as
+`partial: "keep" | "refuse"` (new public API; the default still has to be chosen).

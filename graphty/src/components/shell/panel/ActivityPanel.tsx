@@ -65,15 +65,7 @@ function activityGlyph(activity: ActivityId): React.ReactNode {
  * @returns the activity panel column.
  */
 export function ActivityPanel(props: ActivityPanelProps): React.JSX.Element {
-    const {
-        activity,
-        width,
-        presentation,
-        title,
-        overflowItems,
-        onWidthChange,
-        children,
-    } = props;
+    const { activity, width, presentation, title, overflowItems, onWidthChange, children } = props;
 
     const { setSectionsOpen } = useShell();
     const registry = useRef<string[]>([]);

@@ -103,15 +103,15 @@ type AnyExporter = GraphExporter<Record<string, unknown> & CommonExportOptions>;
 
 /** The graph-io exporter behind each built-in format. */
 const BUILT_IN_WRITERS: Readonly<Record<string, AnyExporter>> = {
-    json: jsonExporter as AnyExporter,
-    csv: csvExporter as AnyExporter,
-    graphml: graphmlExporter as AnyExporter,
-    gexf: gexfExporter as AnyExporter,
-    gml: gmlExporter as AnyExporter,
-    dot: dotExporter as AnyExporter,
-    pajek: pajekExporter as AnyExporter,
-    xgmml: xgmmlExporter as AnyExporter,
-    cx2: cx2Exporter as AnyExporter,
+    json: jsonExporter,
+    csv: csvExporter,
+    graphml: graphmlExporter,
+    gexf: gexfExporter,
+    gml: gmlExporter,
+    dot: dotExporter,
+    pajek: pajekExporter,
+    xgmml: xgmmlExporter,
+    cx2: cx2Exporter,
 };
 
 /**
@@ -586,7 +586,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     // element's CSV reader reads Gephi's capitalised headers back under those names.
     const { variant: _variant, neutraliseFormulas, ...rest } = resolved;
     return {
-        exporter: neo4j ? (neo4jExporter as AnyExporter) : builtIn,
+        exporter: neo4j ? neo4jExporter : builtIn,
         options: rest,
         build: { neutraliseFormulas: neutraliseFormulas !== false, notes: notes === true },
     };

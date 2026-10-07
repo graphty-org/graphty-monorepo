@@ -1,7 +1,16 @@
 import type { LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { imageLegend, keyBlocks, overflowLine, paintWords, sectionTitle, swatchName } from "../legendWords";
+import {
+    factSentence,
+    imageLegend,
+    keyBlocks,
+    overflowLine,
+    paintWords,
+    sectionTitle,
+    swatchName,
+    swatchText,
+} from "../legendWords";
 
 /**
  * A legend block with only what these tests read.
@@ -14,9 +23,10 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         layerId: "layer-1",
         kind: "sequential",
         swatches: [],
+        facts: [],
         departures: [],
         ...over,
-    } as LegendBlock;
+    };
 }
 
 const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ label: "x", value: 0, ...over });
@@ -33,8 +43,32 @@ describe("the legend card's words", () => {
     });
 
     it("names the Other row Other, without counting what it holds", () => {
-        assert.equal(swatchName(swatch({ label: "3" })), "3");
-        assert.equal(swatchName(swatch({ role: "other", value: [7, 8, 9] })), "Other");
+        const categories = block({ kind: "categorical" });
+        assert.equal(swatchName(categories, swatch({ value: 3 })), "3");
+        assert.equal(swatchName(categories, swatch({ role: "other", value: [7, 8, 9] })), "Other");
+    });
+
+    it("words each kind of row from its facts, as the element's English label did", () => {
+        const categories = block({ kind: "categorical" });
+        assert.equal(swatchText(categories, swatch({ value: 0, rank: 2 })), "Group 2");
+        assert.equal(swatchText(categories, swatch({ value: ["a", "b"], role: "other" })), "other: 2 groups");
+        assert.equal(swatchText(categories, swatch({ value: ["a"], role: "other" })), "other: 1 group");
+        assert.equal(swatchText(categories, swatch({ value: "engineering" })), "engineering");
+        assert.equal(swatchText(block({}), swatch({ value: 0.30000000000000004 })), "0.3");
+        assert.equal(swatchText(block({}), swatch({ value: 12345678 })), "1.23e+7");
+        assert.equal(swatchText(block({}), swatch({ value: 0, extent: { min: 0, max: 25.5 } })), "0 - 25.5");
+        assert.equal(swatchText(block({}), swatch({ value: 4, extent: { min: 4, max: 4 } })), "4");
+        assert.equal(swatchText(block({ kind: "literal" }), swatch({ value: "#ff9900" }), "Selected"), "Selected");
+    });
+
+    it("words each legend fact, and leaves out a code it does not know", () => {
+        assert.equal(factSentence({ code: "legend.not-measured", params: { count: 12 } }), "not measured (12)");
+        assert.equal(factSentence({ code: "legend.clamped", params: { from: 2, to: 98 } }), "clamped at p2/p98");
+        assert.equal(
+            factSentence({ code: "legend.painted-over", params: { layerId: "l1", name: "Washout" } }),
+            'painted over by "Washout"',
+        );
+        assert.isNull(factSentence({ code: "legend.something-new" as "legend.lumped", params: {} }));
     });
 
     it("words a shape or line pattern, gives a size as its number, and leaves a color row alone", () => {
@@ -52,22 +86,22 @@ describe("the legend card's words", () => {
         const blocks = [
             block({
                 layerId: "below",
-                swatches: [swatch({ label: "0.01", color: "#ffffff" }), swatch({ label: "0.09", color: "#000080" })],
+                swatches: [swatch({ value: 0.01, color: "#ffffff" }), swatch({ value: 0.09, color: "#000080" })],
             }),
             block({
                 layerId: "size",
                 channel: "node.size",
-                swatches: [swatch({ label: "1" }), swatch({ label: "36" })],
+                swatches: [swatch({ value: 1 }), swatch({ value: 36 })],
             }),
             block({
                 layerId: "above",
                 kind: "categorical",
                 swatches: [
-                    swatch({ label: "1", color: "#4e79a7", count: 1200 }),
+                    swatch({ value: 1, color: "#4e79a7", count: 1200 }),
                     swatch({ label: "x", role: "other", color: "#cccccc", count: 4 }),
                 ],
                 overflow: { hidden: 28 },
-            } as Partial<LegendBlock>),
+            }),
         ];
         const names: Record<string, string> = { below: "PageRank", size: "Degree", above: "Louvain" };
         assert.deepEqual(
@@ -100,6 +134,19 @@ describe("the legend card's words", () => {
         assert.deepEqual(
             imageLegend(blocks, (b) => b.layerId).map((section) => section.title),
             ["Size: sized", "Color: color"],
+        );
+    });
+
+    it("keys no block a layer above paints over on every element", () => {
+        const covered = block({
+            layerId: "degree",
+            facts: [{ code: "legend.painted-over", params: { layerId: "louvain", name: "Communities" } }],
+        });
+        const top = block({ layerId: "louvain", kind: "categorical" });
+        assert.deepEqual(keyBlocks([covered, top]), [top]);
+        assert.deepEqual(
+            imageLegend([covered, top], (b) => b.layerId).map((section) => section.title),
+            ["Color: louvain"],
         );
     });
 });

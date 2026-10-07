@@ -48,12 +48,7 @@ describe("ActivityPanel", () => {
 
         it("draws a 36px header carrying the activity name", () => {
             renderInShell(
-                <ActivityPanel
-                    activity="data"
-                    width={ACTIVITY_PANEL_WIDTH_DEFAULT}
-                    presentation="docked"
-                    title="Data"
-                >
+                <ActivityPanel activity="data" width={ACTIVITY_PANEL_WIDTH_DEFAULT} presentation="docked" title="Data">
                     <div />
                 </ActivityPanel>,
             );
@@ -167,10 +162,7 @@ describe("ActivityPanel", () => {
             const collapseAll = await screen.findByRole("menuitem", { name: COLLAPSE_ALL_SECTIONS });
             fireEvent.click(collapseAll);
 
-            expect(await screen.findByRole("button", { name: "Expand One" })).toHaveAttribute(
-                "aria-expanded",
-                "false",
-            );
+            expect(await screen.findByRole("button", { name: "Expand One" })).toHaveAttribute("aria-expanded", "false");
         });
     });
 
@@ -304,12 +296,7 @@ describe("ActivityPanel", () => {
     describe("presentation", () => {
         it("records which presentation it is drawing", () => {
             renderInShell(
-                <ActivityPanel
-                    activity="ai"
-                    width={ACTIVITY_PANEL_WIDTH_DEFAULT}
-                    presentation="overlay"
-                    title="AI"
-                >
+                <ActivityPanel activity="ai" width={ACTIVITY_PANEL_WIDTH_DEFAULT} presentation="overlay" title="AI">
                     <div />
                 </ActivityPanel>,
             );

@@ -21,7 +21,6 @@ import { DEFINITIONS } from "../../../src/session/commands/index";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { SessionCommand } from "../../../src/session/planning";
 import { stateDigest } from "../../../src/session/project/digest";
-import type { ElementSession } from "../../../src/session/types";
 import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
 import { pendingPhase } from "./pending-ops";
@@ -124,7 +123,7 @@ describe("the vocabulary", () => {
             "view.immersive": { op: "view.immersive", mode: "vr" },
         };
         const session = await fixtureSession();
-        const dispatcher = dispatcherOf(session as ElementSession);
+        const dispatcher = dispatcherOf(session);
         const carried: unknown[] = [];
         dispatcher.services.camera = {
             move: (command) => {
@@ -172,7 +171,7 @@ describe("the vocabulary", () => {
 
     it("config.set names only ProjectConfig keys, and each exempt layout-behaviour key leaves the digest unchanged", async () => {
         const session = await fixtureSession();
-        const dispatcher = dispatcherOf(session as ElementSession);
+        const dispatcher = dispatcherOf(session);
         // The layout-behaviour settings that are preferences of the view, not project settings
         // (design/undo/undo-design.md section 3.2), under the names config.set would give them,
         // and a key that names nothing at all.
@@ -233,7 +232,7 @@ describe("the vocabulary", () => {
 
     it("view.immersive from 3D, and layout.transport, leave the state digest unchanged", async () => {
         const session = await fixtureSession();
-        const dispatcher = dispatcherOf(session as ElementSession);
+        const dispatcher = dispatcherOf(session);
         dispatcher.services.layout = {
             apply: () => Promise.resolve(),
             transport: () => undefined,
@@ -258,7 +257,7 @@ describe("the vocabulary", () => {
 
     it("view.immersive from 2D switches to 3D as one step, and its undo returns to 2D", async () => {
         const session = await fixtureSession();
-        const dispatcher = dispatcherOf(session as ElementSession);
+        const dispatcher = dispatcherOf(session);
         const entered: ("vr" | "ar" | null)[] = [];
         dispatcher.services.layout = {
             apply: () => Promise.resolve(),
@@ -277,6 +276,7 @@ describe("the vocabulary", () => {
         assert.deepEqual(entered, ["vr"]);
         assert.strictEqual(session.history.steps.length, steps + 1);
         assert.strictEqual(session.history.steps.at(-1)?.label, "Switched to 3D for VR");
+        assert.deepEqual(session.history.steps.at(-1)?.fact, { code: "view.immersive", params: { mode: "vr" } });
 
         await session.undo();
         assert.strictEqual(session.layout.dimension, "2d");

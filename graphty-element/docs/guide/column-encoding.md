@@ -154,8 +154,11 @@ for a size or a width, the range the values are drawn across ("1 to 3"). Both ar
 block, as facts you word yourself:
 
 ```typescript
+// Your own names for the columns you color by, keyed by the field's path.
+const names: Record<string, string> = { "data.influence": "Influence" };
+
 for (const block of session.styles.legend()) {
-    const name = block.field?.plainName ?? "";
+    const name = names[block.field?.path ?? ""] ?? block.field?.path ?? "";
     if (block.reading) {
         const { direction } = block.reading.params; // "darker" | "lighter" | "larger" | "smaller"
         console.log(`${direction} means more ${name}`);
@@ -175,3 +178,43 @@ for (const block of session.styles.legend()) {
   print it as a number, not in pixels. It is absent when the binding has a `map` or an `other` value, whose values
   are drawn instead of the range. It is the binding's range, so read it rather than the
   smallest and largest swatch, which are only samples.
+
+## Words are yours: the legend's facts
+
+A legend block carries no sentences. Name things from these fields:
+
+- the field by `block.field.path`: for a data column, the `path` of its entry in
+  `session.data.attributes()`; for a run's result, `block.field.result` also gives
+  `{ algorithm, field }`, the algorithm's key in `BUILT_IN_ALGORITHMS` and the field's `name` in
+  that entry's `fields`, where the catalog's `plainName` is,
+- the scale by `block.scale.kind` (its id: `"linear"`, `"log"`, `"sqrt"`, ...),
+- each row by its `value`; a row of a stepped numeric scale also has `extent: { min, max }`, a
+  run's group has its `rank`, and the folded bucket has `role: "other"` and `count`,
+- what the picture does not show on its own by `block.facts`, one `{ code, params }` each.
+
+```typescript
+for (const block of session.styles.legend()) {
+    for (const fact of block.facts) {
+        if (fact.code === "legend.not-measured") console.log(`${String(fact.params.count)} not measured`);
+        if (fact.code === "legend.clamped")
+            console.log(`cut at p${String(fact.params.from)}-p${String(fact.params.to)}`);
+        if (fact.code === "legend.painted-over") console.log(`hidden under ${String(fact.params.name)}`);
+    }
+}
+```
+
+| `code`                      | `params`            | What it means                                                           |
+| --------------------------- | ------------------- | ----------------------------------------------------------------------- |
+| `legend.clamped`            | `{ from, to }`      | The extent was cut at these two percentiles                             |
+| `legend.not-plottable`      | `{ count, scale }`  | `count` values have no place on the scale and are not painted           |
+| `legend.none-plottable`     | `{ scale }`         | No value has a place on the scale                                       |
+| `legend.no-value-in-domain` | `{ min, max }`      | The binding's own domain has no place on its scale                      |
+| `legend.nothing-measured`   | `{}`                | The column held no value                                                |
+| `legend.unreadable`         | `{ count }`         | `count` values the scale cannot read, such as text under a number scale |
+| `legend.lumped`             | `{ count }`         | `count` elements are in the "other" row                                 |
+| `legend.not-measured`       | `{ count }`         | `count` elements the run measured nothing for                           |
+| `legend.painted-over`       | `{ layerId, name }` | A layer above paints this channel over every element this one reaches   |
+
+Treat a code you do not know as something to leave out: codes may be added in a minor release.
+The older English fields -- a row's `label`, the field's `plainName`, the scale's `label` and the
+block's `departures` -- still work and are deprecated; they are removed in the next major.

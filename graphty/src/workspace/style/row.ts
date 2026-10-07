@@ -118,7 +118,7 @@ function without<T>(
     const rest = Object.fromEntries(
         Object.entries(record ?? {}).filter(([channel]) => !keys.includes(channel as Channel)),
     );
-    return Object.keys(rest).length === 0 ? undefined : (rest as Partial<Record<Channel, T>>);
+    return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
 /** The layer a row's first edit adds when the row has no layer the reader may edit. */

@@ -38,6 +38,13 @@ let installed = false;
 /** Until when (performance.now()) a focus-opened tooltip counts as a warm hand-off. */
 let warmUntil = 0;
 /**
+ * When focus last moved (performance.now()). The warm check compares this, not the tooltip's
+ * mount time: the key that moves focus is what hands off, and a slow render between the focus
+ * and the mount must not turn a warm hand-off cold.
+ */
+let focusedAt = 0;
+
+/**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
  * @param except - the tooltip to ignore
  * @returns true when one is visible
@@ -89,7 +96,7 @@ function mustHold(tooltip: HTMLElement): boolean {
     if (!trigger || trigger !== document.activeElement || trigger.matches(":hover")) {
         return false;
     }
-    return performance.now() >= warmUntil && !anotherTooltipVisible(tooltip);
+    return focusedAt >= warmUntil && !anotherTooltipVisible(tooltip);
 }
 
 /**
@@ -222,6 +229,13 @@ export function installOverlayBehavior(): void {
     const capture = { capture: true, passive: true } as const;
     document.addEventListener("pointerdown", dismissTooltips, capture);
     document.addEventListener("wheel", dismissTooltips, capture);
+    document.addEventListener(
+        "focusin",
+        () => {
+            focusedAt = performance.now();
+        },
+        capture,
+    );
     document.addEventListener(
         "keydown",
         (event) => {

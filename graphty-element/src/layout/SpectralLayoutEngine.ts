@@ -36,6 +36,7 @@ const spectralLayoutOptionsSchema = defineOptions({
 
 const SpectralLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(100),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     dim: z.number().default(2),
@@ -50,8 +51,6 @@ export class SpectralLayout extends SnapshotLayoutEngine {
     static type = "spectral";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = spectralLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: SpectralLayoutConfigType;
 
@@ -99,7 +98,7 @@ export class SpectralLayout extends SnapshotLayoutEngine {
                 center: this.config.center ?? undefined,
                 dim: layoutDim(this.config.dim),
             }),
-            SpectralLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

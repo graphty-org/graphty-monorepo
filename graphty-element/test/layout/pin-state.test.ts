@@ -175,6 +175,27 @@ describe("a pin outlives the engine that was told about it", () => {
         assert.deepStrictEqual(harness.coordsOf(pinned), { ...held, z: 0 });
     });
 
+    it("puts an unpinned node on the plane in 2D under a layout that echoes stored positions", async () => {
+        // `fixed` writes every placed row back unchanged, Z included, whatever dimension it is
+        // built for, so the switch itself has to flatten what the engine published -- the rule a
+        // pinned node already gets, for every node. Issue #1341.
+        harness = createHarness();
+        const lifted = harness.add("a");
+        harness.add("b");
+
+        const fixed = { id: "fixed", engine: "fixed", options: {}, dimension: "3d" } as const;
+        await layoutManagerInternals.apply(harness.layoutManager, fixed, { restoring: false });
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.setNodePosition(engine, lifted, { x: 1, y: 2, z: 5 });
+        assert.deepStrictEqual(harness.coordsOf(lifted), { x: 1, y: 2, z: 5 }, "placed off the plane in 3D");
+
+        await layoutManagerInternals.apply(harness.layoutManager, { ...fixed, dimension: "2d" }, { restoring: false });
+
+        assert.isFalse(lifted.isPinned());
+        assert.deepStrictEqual(harness.coordsOf(lifted), { x: 1, y: 2, z: 0 }, "X and Y kept, Z on the plane");
+    });
+
     it("keeps the pin when the layout slice names a new layout", async () => {
         harness = createHarness();
         const pinned = harness.add("a");

@@ -169,10 +169,16 @@ event as the detail:
 
 ```javascript
 element.addEventListener("selection-changed", (e) => {
-    const { node, previousNode } = e.detail;
-    console.log("Selection:", node?.id, "Previous:", previousNode?.id);
+    const { currentNodeId, previousNodeId } = e.detail;
+    console.log("Selection:", currentNodeId, "Previous:", previousNodeId);
 });
 ```
+
+In TypeScript these are typed by the element's own `addEventListener` and `removeEventListener`,
+not on the global `HTMLElementEventMap`, because the names carry no prefix. On a variable typed as
+the element (`document.querySelector("graphty-element")` gives you one), `e.detail` is typed with
+no cast; `GraphtyForwardedEventMap` lists the names and their events. A listener added on the
+document, or on an element typed only as `HTMLElement`, gets a plain `Event`.
 
 ### Three more the element mirrors on its own account
 

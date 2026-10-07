@@ -252,6 +252,7 @@ export type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphtyForwardedEventMap,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,

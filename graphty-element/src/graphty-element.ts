@@ -14,7 +14,13 @@ import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInp
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
-import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
+import {
+    type GraphtyForwardedEventMap,
+    isDomForwardableEvent,
+    NODE_EVENT_DOM_NAMES,
+    type NodeEventDetail,
+    nodeEventDetail,
+} from "./events";
 import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
@@ -592,6 +598,103 @@ export class Graphty extends LitElement {
      */
     render(): Element {
         return this.#element;
+    }
+
+    /**
+     * Listen for an event. The unprefixed graph events the element forwards (`style-changed`,
+     * `data-loaded`, `error` and the rest of {@link GraphtyForwardedEventMap}) reach the listener
+     * as a `CustomEvent` with a typed `detail`; the `graphty-*` events are typed through
+     * `HTMLElementEventMap`, and every other name behaves as on any element.
+     * @param type - The event name.
+     * @param listener - What to call.
+     * @param options - As for any element.
+     */
+    override addEventListener<K extends keyof GraphtyForwardedEventMap>(
+        type: K,
+        listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * An event of `HTMLElementEventMap`, typed as on any element, `graphty-*` events included.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * Any other event name, as on any element.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * Hands every overload to the element's own `EventTarget`.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+    ): void {
+        super.addEventListener(type, listener, options);
+    }
+
+    /**
+     * Stop listening for an event, typed the same way as {@link Graphty.addEventListener}.
+     * @param type - The event name.
+     * @param listener - The listener that was added.
+     * @param options - As for any element.
+     */
+    override removeEventListener<K extends keyof GraphtyForwardedEventMap>(
+        type: K,
+        listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * An event of `HTMLElementEventMap`, typed as on any element, `graphty-*` events included.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * Any other event name, as on any element.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * Hands every overload to the element's own `EventTarget`.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | EventListenerOptions,
+    ): void {
+        super.removeEventListener(type, listener, options);
     }
 
     /**
@@ -4212,8 +4315,20 @@ declare global {
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
     }
 
-    // It bubbles and is composed, so a listener on the document is typed the same way.
+    // Every one bubbles and is composed, so a listener on the document is typed the same way.
     interface DocumentEventMap {
+        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
+        "graphty-progress-change": CustomEvent<ProgressChange>;
+        "graphty-selection-change": CustomEvent<SelectionDelta>;
+        "graphty-visibility-change": CustomEvent<VisibilityChange>;
+        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
+        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-project-status": CustomEvent<ProjectStatus>;
+        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
+        "graphty-node-click": CustomEvent<NodeEventDetail>;
+        "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
     }
 }

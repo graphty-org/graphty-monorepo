@@ -3095,7 +3095,7 @@ describe("AppShell", () => {
                ranking it had summarised itself. */
             expect(within(legend).getByText("Color: Connections")).toBeInTheDocument();
             expect(within(legend).getByText("degree", { exact: false })).toBeInTheDocument();
-            expect(within(legend).getByText("linear")).toBeInTheDocument();
+            expect(within(legend).getByText("Even Steps")).toBeInTheDocument();
 
             /* The run reached all 20 nodes, so there is no departure to draw -- and the
                absence is what makes the line below mean something when it appears. */

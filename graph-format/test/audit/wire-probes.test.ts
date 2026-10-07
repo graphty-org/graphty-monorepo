@@ -619,7 +619,7 @@ describe("wire probes: open defects", () => {
         const s = idsSnapshot([0, 1, 2]);
         const deepText = `${"[".repeat(100000)}${"]".repeat(100000)}`;
         const deep = JSON.parse(`{"x":${deepText}}`) as Record<string, unknown>;
-        // the container path parses the manifest with a reviver, whose own recursion is caught and mapped
+        // the container path refuses this nesting in its manifest decode (MAX_JSON_DEPTH)
         const parts = splitContainer(s.toBytes());
         expect(parts.manifestText.split('"extra":{}').length).toBe(2);
         const container = buildContainer(

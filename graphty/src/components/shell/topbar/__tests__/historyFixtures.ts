@@ -36,6 +36,8 @@ export function makeStep(
     return Object.freeze({
         id: id as HistoryStepId,
         label,
+        // A transaction's fact is worded as its own label, so a board prints exactly `label`.
+        fact: Object.freeze({ code: "transaction", params: Object.freeze({ label }) }),
         at: new Date(at).toISOString(),
         ops: [],
         slices,

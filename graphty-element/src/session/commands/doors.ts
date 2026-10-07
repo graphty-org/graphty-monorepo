@@ -132,6 +132,16 @@ function addNodes(...records: Readonly<Record<string, unknown>>[]): SessionComma
 }
 
 /**
+ * The step a node replacement adds its records with: read by the id path the replacement was given.
+ * @param idPath - Where a record's id is.
+ * @param records - The records.
+ * @returns The command.
+ */
+function addNodesBy(idPath: string, ...records: Readonly<Record<string, unknown>>[]): SessionCommand {
+    return { op: "data.apply", mutation: { kind: "add-nodes", records, idPath } };
+}
+
+/**
  * The command adding edge records.
  * @param records - The records.
  * @returns The command.
@@ -164,14 +174,21 @@ function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]):
 /** The command emptying the graph. */
 const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
 
+/** The code of the fact each batch the element builds carries, by its label. */
+const BATCH_CODES = {
+    "Replaced the nodes": "data.replace-nodes",
+    "Replaced the edges": "data.replace-edges",
+    "Set the graph data": "data.set",
+} as const;
+
 /**
  * A batch, followed by its members as each is dispatched.
  * @param label - The batch's label.
  * @param steps - Its members.
  * @returns What a door dispatching it dispatches, in order.
  */
-function batchOf(label: string, ...steps: SessionCommand[]): SessionCommand[] {
-    return [{ op: "batch", label, steps }, ...steps];
+function batchOf(label: keyof typeof BATCH_CODES, ...steps: SessionCommand[]): SessionCommand[] {
+    return [{ op: "batch", label, fact: { code: BATCH_CODES[label], params: {} }, steps }, ...steps];
 }
 
 /** What the element's pair adds to an import: the key its two assignments coalesce under. */
@@ -535,6 +552,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     settled: READ,
     explain: READ,
     agreement: READ,
+    counts: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
@@ -582,7 +600,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Called while the element holds n1, n2 and n3: the ones not named again go.
             nodeData: assigns(
                 [{ id: "x1" }],
-                batchOf("Replaced the nodes", removes("remove-nodes", ["n1", "n2", "n3"]), addNodes({ id: "x1" })),
+                batchOf(
+                    "Replaced the nodes",
+                    removes("remove-nodes", ["n1", "n2", "n3"]),
+                    addNodesBy("id", { id: "x1" }),
+                ),
             ),
             // The row above took every edge with the nodes, so there is nothing to remove.
             edgeData: assigns(
@@ -834,7 +856,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
                 batchOf(
                     "Replaced the nodes",
-                    addNodes(
+                    addNodesBy(
+                        "id",
                         { id: "n1" },
                         { id: "n2" },
                         { id: "n3" },
@@ -1173,7 +1196,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
                 batchOf(
                     "Replaced the nodes",
-                    addNodes(
+                    addNodesBy(
+                        "id",
                         { id: "n1" },
                         { id: "n2" },
                         { id: "n3" },

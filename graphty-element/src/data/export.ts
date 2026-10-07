@@ -27,17 +27,28 @@
 import { type ColumnDecl, GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import {
     type CommonExportOptions,
+    type CSV_LOSS,
     csvExporter,
+    type CX2_LOSS,
     cx2Exporter,
+    type DOT_LOSS,
     dotExporter,
+    type GEXF_LOSS,
     gexfExporter,
+    type GML_LOSS,
     gmlExporter,
     type GraphExporter,
+    type GRAPHML_LOSS,
     graphmlExporter,
+    type JSON_LOSS,
     jsonExporter,
+    type LOSS,
     type LossNote,
+    type NEO4J_LOSS,
     neo4jExporter,
+    type PAJEK_LOSS,
     pajekExporter,
+    type XGMML_LOSS,
     xgmmlExporter,
 } from "@graphty/graph-io";
 
@@ -53,18 +64,80 @@ import {
 import { GraphtyError } from "../errors";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
+import type { CodedFact } from "../session/shared";
 import type { GraphSession } from "../session/types";
 
 /** Options of one export: the writer's own, and graph-io's common ones. */
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
+
+/** The codes of one of graph-io's loss tables. */
+type CodesOf<Table> = Extract<Table[keyof Table], string>;
+
+/**
+ * What a built-in writer could not carry, as the `code` of an {@link ExportLoss}: the codes of
+ * graph-io's loss tables for the formats graphty-element writes (`LOSS`, shared by every format,
+ * and `CSV_LOSS`, `CX2_LOSS`, `DOT_LOSS`, `GEXF_LOSS`, `GML_LOSS`, `GRAPHML_LOSS`, `JSON_LOSS`,
+ * `NEO4J_LOSS`, `PAJEK_LOSS`, `XGMML_LOSS`, each documenting its codes), and graphty-element's
+ * own:
+ *
+ * - `W_GRAPHTY_COLUMN_DROPPED`: a loaded column under the reserved `graphty.` root is left out.
+ * - `W_GRAPHTY_NOTES`: the session holds notes, which no format holds as notes; `count` notes.
+ * - `W_GRAPHTY_TRUNCATED`: `graphty.notes.text` cells cut to 64 KB; `count` cells.
+ * - `W_GRAPHTY_CSV_NEUTRALIZED`: CSV cells a spreadsheet would run as a formula, prefixed with an
+ *   apostrophe; `count` cells.
+ * - `W_WEIGHT_NOT_NUMERIC`: edge weights that are not numbers, not written; `count` edges.
+ * - `W_RESULT_FIELD_DROPPED`: an algorithm result field no column could hold.
+ *
+ * A code starting `E_` means the writer refuses this graph under these options: `text()` and
+ * `bytes` reject. `W_` means the file is written but that part does not read back the same.
+ */
+export type ExportLossCode =
+    | CodesOf<typeof LOSS>
+    | CodesOf<typeof CSV_LOSS>
+    | CodesOf<typeof CX2_LOSS>
+    | CodesOf<typeof DOT_LOSS>
+    | CodesOf<typeof GEXF_LOSS>
+    | CodesOf<typeof GML_LOSS>
+    | CodesOf<typeof GRAPHML_LOSS>
+    | CodesOf<typeof JSON_LOSS>
+    | CodesOf<typeof NEO4J_LOSS>
+    | CodesOf<typeof PAJEK_LOSS>
+    | CodesOf<typeof XGMML_LOSS>
+    | "W_GRAPHTY_COLUMN_DROPPED"
+    | "W_GRAPHTY_NOTES"
+    | "W_GRAPHTY_TRUNCATED"
+    | "W_GRAPHTY_CSV_NEUTRALIZED"
+    | "W_WEIGHT_NOT_NUMERIC"
+    | "W_RESULT_FIELD_DROPPED";
+
+/**
+ * One kind of thing an export could not carry, as a code and its values, for the application to
+ * word. Every code has the same params:
+ *
+ * - `columns`: the columns it is about, by name (empty when it is about none, such as the
+ *   graph's self-loops); every graph attribute a format has no place for, for instance.
+ * - `count`: how many nodes, edges, values or columns are affected, or null when not counted.
+ *
+ * `code` is an {@link ExportLossCode} for a built-in writer; a writer registered with
+ * `registerFormatWriter` reports its own codes.
+ */
+export type ExportLoss = CodedFact<ExportLossCode | (string & {})>; // NOSONAR(S4335): the open-union idiom; keeps the known codes in autocomplete while accepting a registered writer's
 
 /** What `exportGraph` returns. */
 export interface ExportResult {
     /** The format written. */
     readonly format: FormatId;
     /**
+     * Everything the export could not carry, one fact per kind of omission, about the table or
+     * file actually written (a CSV node table names no edge or graph loss). Empty only when the
+     * export is exact.
+     */
+    readonly losses: readonly ExportLoss[];
+    /**
      * Everything the format could not carry, one note per kind of omission, from the exporter's
      * `check()`. Empty only when the export is exact.
+     * @deprecated Its `message` is English written by the element. Word {@link ExportResult.losses}
+     * instead; removed in the next major release.
      */
     readonly lossNotes: readonly LossNote[];
     /**
@@ -204,6 +277,8 @@ interface ExportBuildOptions {
     readonly neutraliseFormulas?: boolean;
     /** Write the note columns. The `notes` option every writer takes; off by default. */
     readonly notes?: boolean;
+    /** The writer writes the node table alone (a CSV node table): report no edge or graph loss. */
+    readonly nodesOnly?: boolean;
 }
 
 /**
@@ -326,6 +401,9 @@ export function buildExportSnapshot(
         builder.addNodeRecord(cell(record.id), attributesOf(record, nodeSkip, cell, dropped));
     }
 
+    // An edge's reserved columns are counted only when the edges are written.
+    const edgeDropped = options.nodesOnly === true ? new Map<string, number>() : dropped;
+
     // The weight is the one the element stores and runs on -- read through edgeWeightPath, then
     // the legacy `value` key, and folded under a repeatedEdges policy -- not the record's literal
     // `weight`. Every exporter writes the weight role under its format's own weight name; the
@@ -334,7 +412,7 @@ export function buildExportSnapshot(
     const { weights, edgeToArc } = current;
     let unweighable = 0;
     edges.forEach((record, row) => {
-        const attributes = attributesOf(record, edgeSkip, cell, dropped);
+        const attributes = attributesOf(record, edgeSkip, cell, edgeDropped);
         const stored = weights === null ? undefined : weights[edgeToArc[row]];
         const weighted =
             stored !== undefined &&
@@ -354,7 +432,7 @@ export function buildExportSnapshot(
         );
     });
 
-    if (unweighable > 0) {
+    if (unweighable > 0 && options.nodesOnly !== true) {
         notes.push({
             code: "W_WEIGHT_NOT_NUMERIC",
             message: `${String(unweighable)} edge(s) carry a weight that is not a number, and it is not written`,
@@ -424,7 +502,7 @@ export function buildExportSnapshot(
         });
     }
 
-    writeResults(session, builder, notes, cell);
+    writeResults(session, builder, options.nodesOnly === true ? [] : notes, cell);
     const held = session.notes.counts().notes;
     if (held > 0) {
         if (options.notes === true) {
@@ -570,7 +648,11 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     return {
         exporter: neo4j ? neo4jExporter : builtIn,
         options: rest,
-        build: { neutraliseFormulas: neutraliseFormulas !== false, notes: notes === true },
+        build: {
+            neutraliseFormulas: neutraliseFormulas !== false,
+            notes: notes === true,
+            nodesOnly: !neo4j && rest.table === "nodes",
+        },
     };
 }
 
@@ -641,6 +723,19 @@ export function exportSession(
 }
 
 /**
+ * A loss note as a fact: its code, the columns it names and its count.
+ * @param note - The note.
+ * @returns The fact, frozen.
+ */
+function lossOf(note: LossNote): ExportLoss {
+    const columns = note.columns ?? (note.column === null ? [] : [note.column]);
+    return Object.freeze({
+        code: note.code,
+        params: Object.freeze({ columns: Object.freeze([...columns]), count: note.count }),
+    });
+}
+
+/**
  * Check a snapshot with a chosen writer and hand back the result.
  * @param writer - The writer.
  * @param snapshot - What to write.
@@ -662,9 +757,11 @@ function writeWith(
         throw writerFailure(error, format);
     }
 
+    const lossNotes = Object.freeze([...notes, ...checked]);
     return {
         format,
-        lossNotes: Object.freeze([...notes, ...checked]),
+        losses: Object.freeze(lossNotes.map(lossOf)),
+        lossNotes,
         async text(): Promise<string> {
             try {
                 return await writer.exporter.exportToString(snapshot, writer.options);

@@ -35,7 +35,8 @@ import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
-import type { NodeRecordInput, RowUpdate } from "../types";
+import type { CodedFact } from "../shared";
+import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
@@ -306,7 +307,13 @@ export function replaceEdgesCommand(
             ...(options.repeated === undefined ? {} : { repeated: options.repeated }),
         },
     });
-    return { op: "batch", label: "Replaced the edges", steps, ...(setup ? { setup } : {}) };
+    return {
+        op: "batch",
+        label: "Replaced the edges",
+        fact: { code: "data.replace-edges", params: {} },
+        steps,
+        ...(setup ? { setup } : {}),
+    };
 }
 
 /**
@@ -331,8 +338,14 @@ export function replaceNodesCommand(
         steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: gone } });
     }
 
-    steps.push({ op: "data.apply", mutation: { kind: "add-nodes", records } });
-    return { op: "batch", label: "Replaced the nodes", steps, ...(setup ? { setup } : {}) };
+    steps.push({ op: "data.apply", mutation: { kind: "add-nodes", records, idPath } });
+    return {
+        op: "batch",
+        label: "Replaced the nodes",
+        fact: { code: "data.replace-nodes", params: {} },
+        steps,
+        ...(setup ? { setup } : {}),
+    };
 }
 
 /** Above this many rows a command holds the whole `graph` slice instead of each id. */
@@ -390,9 +403,35 @@ function labelOf(mutation: DataMutation): string {
     }
 }
 
+/**
+ * The step's fact.
+ * @param mutation - The mutation.
+ * @returns `data.add-nodes` with its count, and the like.
+ */
+function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
+    if (mutation.kind === "clear") {
+        return { code: "data.clear", params: {} };
+    }
+
+    const count = sizeOf(mutation);
+    switch (mutation.kind) {
+        case "add-nodes":
+        case "add-edges":
+        case "remove-nodes":
+        case "remove-edges":
+            return { code: `data.${mutation.kind}`, params: { count } };
+        default:
+            return { code: "data.edit", params: { target: mutation.target, count } };
+    }
+}
+
 const dataApply: UndoableDefinition<DataApplyCommand> = {
     op: "data.apply",
-    undo: { kind: "undoable", label: (command) => labelOf(command.mutation) },
+    undo: {
+        kind: "undoable",
+        label: (command) => labelOf(command.mutation),
+        fact: (command) => factOf(command.mutation),
+    },
     moves: false,
     // A clear begins a new dataset, whose step keeps the arrangement it replaced.
     movesWhen: (command) => command.mutation.kind === "clear",
@@ -464,6 +503,20 @@ function serviceOf(service: DataService | undefined): DataService {
  * @returns "Loaded flights.csv" and the like.
  */
 function importLabel(command: DataImportCommand): string {
+    const { name, type } = importFact(command).params;
+    if (name !== null) {
+        return `Loaded ${String(name)}`;
+    }
+
+    return type === null ? "Set the data source" : `Loaded ${String(type)}`;
+}
+
+/**
+ * The fact of an import's step: the name `data.source()` reports and the data source.
+ * @param command - The import.
+ * @returns `data.import` with `name` and `type`, each null when unknown.
+ */
+function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     const { type, config, name } = command.source;
     const file = config?.file as { name?: unknown } | undefined;
     const url = typeof config?.url === "string" && !config.url.startsWith("data:") ? config.url : undefined;
@@ -471,16 +524,12 @@ function importLabel(command: DataImportCommand): string {
     const named = [name, config?.filename, file?.name, url?.split(/[?#]/)[0]?.split("/").pop()].find(
         (each): each is string => typeof each === "string" && each !== "",
     );
-    if (named !== undefined) {
-        return `Loaded ${named}`;
-    }
-
-    return type === undefined ? "Set the data source" : `Loaded ${type}`;
+    return { code: "data.import", params: { name: named ?? null, type: type ?? null } };
 }
 
 const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
-    undo: { kind: "undoable", label: importLabel },
+    undo: { kind: "undoable", label: importLabel, fact: importFact },
     // A chunked writer: a layout can move the lane between its chunks, so it takes the
     // arrangement it began from, and a replacing one begins a new dataset.
     moves: true,
@@ -523,7 +572,11 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
 
 const dataExpand: UndoableDefinition<DataExpandCommand> = {
     op: "data.expand",
-    undo: { kind: "undoable", label: (command) => `Expanded ${String(command.seed)}` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Expanded ${String(command.seed)}`,
+        fact: (command) => ({ code: "data.expand", params: { node: command.seed } }),
+    },
     // A slot-holding writer (design section 6.4).
     moves: true,
     draws: true,
@@ -551,7 +604,14 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
 
 const dataDeclare: UndoableDefinition<DataDeclareCommand> = {
     op: "data.declare",
-    undo: { kind: "undoable", label: (command) => `Declare ${command.column.name}` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Declare ${command.column.name}`,
+        fact: (command) => ({
+            code: "data.declare",
+            params: { kind: command.column.kind, column: command.column.name },
+        }),
+    },
     // A declaration repaints nothing: a layer keeps the binding it was created with.
     moves: false,
     keys: (command) => [`attributes/${declarationKey(command.column)}`],
@@ -585,7 +645,11 @@ const dataDeclare: UndoableDefinition<DataDeclareCommand> = {
 
 const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
     op: "data.setSource",
-    undo: { kind: "undoable", label: (command) => `Name the source ${command.source.name ?? ""}` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Name the source ${command.source.name ?? ""}`,
+        fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
+    },
     moves: false,
     keys: () => [`graph/v:${SOURCE_VALUE}`],
     lane: { kind: "immediate" },

@@ -450,10 +450,38 @@ element.layout = "ngraph";
 element.session.styles.list(); // every layer, bottom first
 element.session.styles.legend(); // what a reader needs to interpret the picture
 element.session.styles.explain({ node: "alice" }); // why this node looks like this
+element.session.styles.counts(layerId); // how many elements one layer covers and wins
 ```
+
+See [Counting What a Layer Paints](./layer-counts) for `counts()`.
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.
+
+Each entry of `channels` says whether a control may write that channel on the layer that won it
+(`editable`). When it may not, `fact` says why, as a code and its values for your application to
+word:
+
+| `fact.code`       | Why the channel cannot be edited there                                   | `fact.params`                        |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------------ |
+| `layer.locked`    | The layer belongs to the element; add a layer above it instead           | `layerId`, `name`                    |
+| `channel.encoded` | The layer works the channel out from the data; `resolveToStatic()` first | `layerId`, `name`, `channel`, `path` |
+
+```typescript
+const { channels } = element.session.styles.explain({ node: "alice" });
+
+for (const entry of channels) {
+    if (entry.fact?.code === "channel.encoded") {
+        showHint(`${entry.fact.params.name} works this out from ${entry.fact.params.path}`);
+    }
+}
+```
+
+`styles.applyTemplate()` reports the layers it could not bind in `unbound`, each with a `fact`:
+`layer.unanswered` (`layerId`, `name`, `paths`: what the layer reads that nothing in this session
+answers) or `layer.detached` (`layerId`, `name`, `error`: the error code its set scope was refused
+with). New codes may be added in a minor release: word an unknown one generically. The English
+`reason` on both is deprecated and goes in the next major release.
 
 ### Several elements at once
 

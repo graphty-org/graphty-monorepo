@@ -36,6 +36,7 @@
 
 import type { Channel, ChannelValue, EdgeId, Encoding, LayerId, LayerSpec, NodeId, Path } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { CodedFact } from "../shared";
 import { CHANNELS, type ChannelValues, isChannel } from "./channels";
 import { type PreparedBinding, requireChannel } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
@@ -72,9 +73,34 @@ export interface ChannelExplanation {
     readonly mode: "static" | "encoded";
     /** Whether a consumer may offer a control that writes this channel on that layer. */
     readonly editable: boolean;
-    /** Why not, when it is not. A sentence, written for the person who would have edited it. */
+    /**
+     * Why not, when it is not. A sentence, written for the person who would have edited it.
+     * @deprecated English written by the element. Word {@link ChannelExplanation.fact} instead;
+     * removed in the next major release.
+     */
     readonly reason?: string;
+    /**
+     * Why not, when it is not, as a code and its values for the application to word. Present
+     * exactly when `editable` is false.
+     * @since 3.17.0
+     */
+    readonly fact?: CodedFact<ChannelRefusalCode>;
 }
+
+/**
+ * Why a channel cannot be edited on the layer that won it, as the `code` of its
+ * {@link ChannelExplanation.fact}. The application words it; graphty-element writes no sentence
+ * for it. Each code's `params`:
+ *
+ * | Code | Params |
+ * | --- | --- |
+ * | `layer.locked` | `layerId`, `name`: the layer, which belongs to the element and refuses every edit; add a layer above it instead |
+ * | `channel.encoded` | `layerId`, `name`: the layer; `channel`; `path`: the path the layer works the channel out from. Resolve the rule to a fixed value (`styles.resolveToStatic`) first |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.17.0
+ */
+export type ChannelRefusalCode = "layer.locked" | "channel.encoded";
 
 /** Everything there is to say about why one element looks the way it does. */
 export interface StyleExplanation {
@@ -142,6 +168,40 @@ export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
 }
 
+/**
+ * How many elements one layer covers, and on how many it decides each channel it writes.
+ *
+ * Counts only, never ids, so it stays small at any graph size.
+ * @since 3.16.0
+ */
+export interface StyleCounts {
+    /**
+     * How many elements the layer's selector selects, whether or not the layer is shown. A hidden
+     * layer still matches its elements; it decides none of them.
+     */
+    readonly matched: number;
+    /**
+     * For each channel the layer writes, on how many of the matched elements it is the layer the
+     * picture shows: the topmost layer that painted that channel there, worked out by the same walk
+     * as `explain` and `agreement`. Every channel the layer writes has a key, 0 when a layer above
+     * paints over all of it or the layer is hidden.
+     */
+    readonly painted: Readonly<Partial<Record<Channel, number>>>;
+    /** How many matched elements carry no value (absent or null) for a field the layer reads. */
+    readonly noValue: number;
+    /**
+     * How many matched elements carry a value the layer's scale has no place for, such as a zero
+     * or a negative number under a logarithmic scale, or a number outside an explicit domain the
+     * scale does not clamp.
+     */
+    readonly outsideScale: number;
+    /**
+     * Changes whenever these counts may have changed: on every `style:changed`, and on every change
+     * to the data or the run results the layers read. Equal revisions mean equal counts.
+     */
+    readonly revision: string;
+}
+
 /** The elements an agreement is read over, as dense indices. */
 export interface AgreementElements {
     /** The nodes. */
@@ -154,11 +214,34 @@ export interface AgreementElements {
 export interface UnboundLayer {
     /** The layer. */
     readonly layerId: LayerId;
-    /** Why it paints nothing, in a sentence. */
+    /**
+     * Why it paints nothing, in a sentence.
+     * @deprecated English written by the element. Word {@link UnboundLayer.fact} instead; removed
+     * in the next major release.
+     */
     readonly reason: string;
+    /**
+     * Why it paints nothing, as a code and its values for the application to word.
+     * @since 3.17.0
+     */
+    readonly fact: CodedFact<UnboundLayerCode>;
     /** The paths it reads that nothing in this session answers. */
     readonly needs: readonly Path[];
 }
+
+/**
+ * Why a layer paints nothing, as the `code` of its {@link UnboundLayer.fact}. The application
+ * words it; graphty-element writes no sentence for it. Each code's `params`:
+ *
+ * | Code | Params |
+ * | --- | --- |
+ * | `layer.detached` | `layerId`, `name`: the layer, whose `{match:"member"}` scope cannot be resolved (a set this project does not hold, a cycle); `error`: the `GraphtyErrorCode` the scope was refused with |
+ * | `layer.unanswered` | `layerId`, `name`: the layer; `paths`: the paths it reads, none of which this session answers (the same list as `needs`) |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.17.0
+ */
+export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 /** What converting a rule to a fixed value comes to. */
 export interface StaticResolution {
@@ -400,23 +483,33 @@ function paintOne(
  * send a person down a road that also ends in `E_PROTECTED`.
  * @param winner - The layer that won the channel and how.
  * @param channel - The channel.
- * @returns The sentence, or undefined when a control may be offered.
+ * @returns The sentence and its fact, or undefined when a control may be offered.
  */
-function refusal(winner: Winner, channel: Channel): string | undefined {
+function refusal(
+    winner: Winner,
+    channel: Channel,
+): { reason: string; fact: CodedFact<ChannelRefusalCode> } | undefined {
     const { layer, mode, path } = winner;
 
     if (layer.locked) {
-        return (
-            `"${layer.name}" belongs to the element, so it cannot be edited. ` +
-            "Add a layer of your own above it instead."
-        );
+        return {
+            reason:
+                `"${layer.name}" belongs to the element, so it cannot be edited. ` +
+                "Add a layer of your own above it instead.",
+            fact: { code: "layer.locked", params: { layerId: layer.id, name: layer.name } },
+        };
     }
 
     if (mode === "encoded") {
-        return (
-            `"${layer.name}" works ${channel} out from "${String(path)}", so a fixed value written here ` +
-            "would be replaced the next time the layer paints. Resolve the rule to a fixed value first."
-        );
+        return {
+            reason:
+                `"${layer.name}" works ${channel} out from "${String(path)}", so a fixed value written here ` +
+                "would be replaced the next time the layer paints. Resolve the rule to a fixed value first.",
+            fact: {
+                code: "channel.encoded",
+                params: { layerId: layer.id, name: layer.name, channel, path: String(path) },
+            },
+        };
     }
 
     return undefined;
@@ -483,13 +576,13 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
             continue;
         }
 
-        const reason = refusal(winner, channel);
+        const refused = refusal(winner, channel);
         channels.push({
             channel,
             layerId: winner.layer.id,
             mode: winner.mode,
-            editable: reason === undefined,
-            ...(reason === undefined ? {} : { reason }),
+            editable: refused === undefined,
+            ...refused,
         });
     }
 
@@ -600,6 +693,124 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
 }
 
 /**
+ * Every channel a layer writes, each counted at 0.
+ * @param layer - The layer.
+ * @returns A tally with one key per channel the layer sets or encodes.
+ */
+function zeroPerChannel(layer: Layer): Partial<Record<Channel, number>> {
+    const painted: Partial<Record<Channel, number>> = {};
+    for (const channel of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
+        if (isChannel(channel)) {
+            painted[channel] = 0;
+        }
+    }
+
+    return painted;
+}
+
+/**
+ * What one element carries for the fields a layer reads.
+ * @param own - The layer's prepared bindings.
+ * @param columns - What the session can read about elements of the layer's kind.
+ * @param index - The element.
+ * @returns Whether it lacks a value for some field, and whether some value has no place on its scale.
+ */
+function readValues(
+    own: readonly PreparedBinding[],
+    columns: ElementColumns,
+    index: number,
+): { readonly missing: boolean; readonly outside: boolean } {
+    let missing = false;
+    let outside = false;
+    for (const prepared of own) {
+        if (prepared.path === null) {
+            continue;
+        }
+
+        const value = columns.value(index, prepared.path);
+        if (value === undefined || value === null) {
+            missing = true;
+        } else if (prepared.paintIgnoringHidden(value) === undefined) {
+            outside = true;
+        }
+    }
+
+    return { missing, outside };
+}
+
+/**
+ * Count the channels one layer wins on one element, through the same walk `explain` takes.
+ * @param stack - The stack with its bindings.
+ * @param at - Where the element sits.
+ * @param columns - What the session can read about elements of its kind.
+ * @param layerId - The layer.
+ * @param painted - The tally to add to.
+ */
+function countWins(
+    stack: readonly StackEntry[],
+    at: Located,
+    columns: ElementColumns,
+    layerId: LayerId,
+    painted: Partial<Record<Channel, number>>,
+): void {
+    const winners = new Map<Channel, LayerId>();
+    paintOne(stack, at, columns, (winner, prepared) => {
+        winners.set(prepared.channel, winner.id);
+    });
+    for (const [channel, winner] of winners) {
+        if (winner === layerId) {
+            painted[channel] = (painted[channel] ?? 0) + 1;
+        }
+    }
+}
+
+/**
+ * Count what one layer covers and where it wins.
+ *
+ * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
+ * walk {@link explainStyle} takes, so "this layer decides the colour of 77 nodes" agrees with an
+ * explanation of each of those 77.
+ * @param layerId - The layer.
+ * @param elements - Every node and edge in the session, as dense indices.
+ * @param sources - The stack, the prepared encodings and the element columns.
+ * @param revision - What the caller says the counts are a reading of.
+ * @returns The counts.
+ * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+ */
+export function styleCounts(
+    layerId: LayerId,
+    elements: AgreementElements,
+    sources: ExplainSources,
+    revision: string,
+): StyleCounts {
+    const { layer, selector } = requireLayer(layerId, sources);
+    const own = sources.encoding(layerId);
+    const painted = zeroPerChannel(layer);
+    const stack = prepareStack(sources);
+    const columns = columnsFor(sources.elements, layer.target);
+    let matched = 0;
+    let noValue = 0;
+    let outsideScale = 0;
+
+    for (const index of layer.target === "node" ? elements.nodes : elements.edges) {
+        if (selector.test !== null && !selector.test(index)) {
+            continue;
+        }
+
+        matched++;
+        const { missing, outside } = readValues(own, columns, index);
+        noValue += missing ? 1 : 0;
+        outsideScale += outside ? 1 : 0;
+
+        if (layer.enabled) {
+            countWins(stack, { target: layer.target, index }, columns, layerId, painted);
+        }
+    }
+
+    return { matched, painted: Object.freeze(painted), noValue, outsideScale, revision };
+}
+
+/**
  * The layers that paint nothing because this session answers none of what they read.
  *
  * NOT A FAILURE, and that is why it is reported rather than thrown: a layer naming a run that has
@@ -625,7 +836,11 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
         if (detached !== undefined) {
             unbound.push({
                 layerId: layer.id,
-                reason: `"${layer.name}" names a scope that cannot be resolved, so it is detached and paints nothing. ${detached}`,
+                reason: `"${layer.name}" names a scope that cannot be resolved, so it is detached and paints nothing. ${detached.message}`,
+                fact: {
+                    code: "layer.detached",
+                    params: { layerId: layer.id, name: layer.name, error: detached.code },
+                },
                 needs: NO_NEEDS,
             });
             continue;
@@ -655,6 +870,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
                 reason:
                     `"${layer.name}" reads ${needs.map((path) => `"${path}"`).join(", ")}, ` +
                     "which nothing in this session answers, so it paints nothing.",
+                fact: { code: "layer.unanswered", params: { layerId: layer.id, name: layer.name, paths: needs } },
                 needs: Object.freeze(needs),
             });
         }
@@ -727,10 +943,10 @@ function read(path: Path, target: ExplainTarget, sources: ExplainSources): unkno
  * Find one layer in the stack.
  * @param layerId - The layer.
  * @param sources - Where the stack is read.
- * @returns The layer.
+ * @returns The layer with its compiled selector.
  * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
  */
-function requireLayer(layerId: LayerId, sources: ExplainSources): Layer {
+function requireLayer(layerId: LayerId, sources: ExplainSources): CompiledLayer {
     const stack = sources.stack();
     const found = stack.find((entry) => entry.layer.id === layerId);
 
@@ -744,7 +960,7 @@ function requireLayer(layerId: LayerId, sources: ExplainSources): Layer {
         });
     }
 
-    return found.layer;
+    return found;
 }
 
 /**
@@ -771,7 +987,7 @@ export function resolveToStatic(
     sources: ExplainSources,
     at?: ExplainTarget,
 ): StaticResolution {
-    const layer = requireLayer(layerId, sources);
+    const { layer } = requireLayer(layerId, sources);
 
     if (layer.locked) {
         throw new GraphtyError({

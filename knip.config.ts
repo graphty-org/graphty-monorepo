@@ -24,6 +24,9 @@ const config: KnipConfig = {
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
+                // The release scheduler Worker (deployed by wrangler, not imported) and its tests
+                "tools/release-scheduler/src/worker.js",
+                "tools/release-scheduler/test/*.test.mjs",
             ],
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignoreDependencies: [
@@ -60,6 +63,30 @@ const config: KnipConfig = {
         "graph-io": {
             entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+        },
+
+        // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
+        "cytoscape-extensions": {
+            // the root, and the Node build the "#gpu-platform" dynamic import loads (knip 5.88 follows the
+            // package's `imports` field to the browser build, but not to the Node one)
+            entry: [
+                "src/index.ts!",
+                "src/io.ts!",
+                "src/samples.ts!",
+                "src/gpu-platform-node.ts!",
+                // the script-tag build's entry (vite.bundle.config.ts)
+                "bundle.ts!",
+                "test/**/*.test.ts",
+                // compiled by test/consumer-types.test.ts as a consumer would compile it
+                "test/consumer/consumer.ts",
+            ],
+            project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
+            // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
+            // loads it at run time, and declaring it here is what lets a package manager hand it through (only
+            // --production calls it unused; the normal run sees the GPU package's own use). `cytoscape`
+            // is a required peer that src imports for types only (the consumer hands its own cytoscape to
+            // `cytoscape.use()`), and --production drops type imports, so that run alone would call it unused
+            ignoreDependencies: production ? ["webgpu", "cytoscape"] : [],
         },
 
         // graph-samples package: the root, generators and every dataset subpath are entries

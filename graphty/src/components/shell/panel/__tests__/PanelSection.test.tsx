@@ -151,10 +151,10 @@ describe("PanelSection", () => {
             expect(screen.getByTestId("coming-tag")).toHaveTextContent(COMING_LABEL);
         });
 
-        it("is a 16 tall pill", () => {
+        it("is the shared Badge", () => {
             render(<ComingTag />);
 
-            expect(screen.getByTestId("coming-tag")).toHaveStyle({ height: "16px", borderRadius: "8px" });
+            expect(screen.getByTestId("coming-tag")).toHaveClass("mantine-Badge-root");
         });
     });
 

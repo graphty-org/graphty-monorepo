@@ -166,13 +166,13 @@ Node class file. The absolute targets live in `benchmarks/results/targets.json`:
 recorded per row and fails a run on a gating class (`gpu-linux-t4`) that misses a target not listed as that class's
 known miss, and `pnpm run bench:readme` regenerates the README tables from it (issue #277).
 
-The paired benchmark on the GPU lane (`gpu.yml`, pull requests that change `src/`) runs only the groups the change can
-move. `scripts/bench-groups.js` maps each group to the `src/` files its benchmark reaches through imports, transitively,
+The T4 no longer runs on pull requests (since 2026-10-06 it runs only in the release train, without a paired run, and
+in `gpu-weekly-paired.yml`, which pairs every group), so `scripts/bench-groups.js` now serves a local
+`pnpm run bench:ab`: it selects only the groups a change can move. It maps each group to the `src/` files its benchmark reaches through imports, transitively,
 from the group's bench file and `benchmarks/run.ts` (type-only imports count; the kernel registry `src/kernels.ts` is
 followed by kernel id: a file naming `"bfs-fused"` reaches that kernel's WGSL module, not all of them), and selects the
 groups that reach a changed file. A changed file in its `AFFECTS_EVERY_GROUP` list (device setup, the WGSL prelude,
-`src/constants.ts`, and the files no benchmark loads) or one the scan cannot place selects every group; that full run
-gets 75 minutes, a subset the original 40. `test/bench-groups.test.ts` fails when a file under `src/` is in no group's
+`src/constants.ts`, and the files no benchmark loads) or one the scan cannot place selects every group. `test/bench-groups.test.ts` fails when a file under `src/` is in no group's
 set and not in the list, so a new file must be reached by a benchmark or listed. The scan works per file: two groups
 defined in one bench file share a set. Every group is compared once a week by `gpu-weekly-paired.yml`, master's tip
 against the latest `webgpu-graph-algorithms@<version>` tag; a regression fails that run and files or rewrites one issue.

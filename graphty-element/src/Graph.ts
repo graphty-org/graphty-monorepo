@@ -48,6 +48,45 @@ const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
  * reads as a change on a graph of any size.
  */
 const ZOOM_STEP_FACTOR = 1.25;
+
+/** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
+const EDGE_PICK_TOLERANCE_PX = 6;
+
+/**
+ * The world points an edge's line is drawn through: its curve's points, or its two ends.
+ * @param edge - The edge.
+ * @returns The points, in order along the line.
+ */
+function edgeWorldPoints(edge: Edge): Vector3[] {
+    const curve = edge.drawnCurve;
+    if (curve !== null && !(edge.mesh instanceof PatternedLineMesh)) {
+        // A curve's points are in its batch's space, which an XR gesture moves with graph-root.
+        const world = edge.mesh.getWorldMatrix();
+        return curve.map((point) => Vector3.TransformCoordinates(point, world));
+    }
+
+    return [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()];
+}
+
+/**
+ * The distance from a point to a segment, in the segment's pixels.
+ * @param x - The point's x.
+ * @param y - The point's y.
+ * @param a - One end.
+ * @param a.x - Its x.
+ * @param a.y - Its y.
+ * @param b - The other end.
+ * @param b.x - Its x.
+ * @param b.y - Its y.
+ * @returns The distance.
+ */
+function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length2 = dx * dx + dy * dy;
+    const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2));
+    return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
+}
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
@@ -60,7 +99,7 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, EdgeId, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -81,6 +120,7 @@ import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
+import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -747,6 +787,17 @@ export class Graph implements GraphContext {
                 for (const node of this.dataManager.nodes.values()) {
                     node.refreshSelectionOverlay();
                 }
+            }
+
+            // A selected edge's mark is worked out from both: redraw it.
+            if (changed("selectionStyle") || changed("background")) {
+                for (const edge of this.dataManager.edges.values()) {
+                    if (edge.isSelected()) {
+                        edge.updateStyle();
+                    }
+                }
+
+                this.updateManager.forceEdgeWalk();
             }
         });
 
@@ -3503,10 +3554,23 @@ export class Graph implements GraphContext {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    // This was a click - check if we hit anything
-                    // If we didn't hit a node, deselect
-                    if (pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY) === undefined) {
+                    // A click on a node is the node's own handler's. On an edge it selects the
+                    // edge (Shift adds it); on empty canvas it clears the selection.
+                    const x = this.scene.pointerX;
+                    const y = this.scene.pointerY;
+                    if (pickNodeId(this.scene, x, y) !== undefined) {
+                        return;
+                    }
+
+                    const edgeId = this.pickEdgeId(x, y);
+                    if (edgeId !== undefined) {
+                        const add = (pointerInfo.event as { shiftKey?: boolean }).shiftKey === true;
+                        this.session.selection.applyNow({ edges: [edgeId] }, add ? "add" : "replace", "user");
+                    } else {
                         this.selectionManager.deselect();
+                        if (this.session.selection.edges.length > 0) {
+                            this.session.selection.clear();
+                        }
                     }
                 }
             }
@@ -4255,15 +4319,70 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The node under a point on the element, as a click there would see it.
+     * The node or edge under a point on the element, as a click there would see it. A node wins
+     * over an edge drawn beneath it; an edge is found within a few pixels of its line.
      * @param point - The point, in CSS pixels from the element's top-left corner.
      * @param point.x - X coordinate
      * @param point.y - Y coordinate
-     * @returns `{ kind: "node", id }`, or `null` when no node is there.
+     * @returns `{ kind: "node", id }`, `{ kind: "edge", id }`, or `null` when nothing is there.
      */
     elementAt(point: { x: number; y: number }): ElementAtResult | null {
         const id = pickNodeId(this.scene, point.x, point.y);
-        return id === undefined ? null : { kind: "node", id };
+        if (id !== undefined) {
+            return { kind: "node", id };
+        }
+
+        const edgeId = this.pickEdgeId(point.x, point.y);
+        return edgeId === undefined ? null : { kind: "edge", id: edgeId };
+    }
+
+    /**
+     * The drawn edge nearest a point, within {@link EDGE_PICK_TOLERANCE_PX} of its line.
+     *
+     * MEASURED ON SCREEN, not ray cast: every line is a thin instance of a shared, unpickable
+     * batch, and a line a pixel or two wide is too thin to hit with a pointer anyway.
+     * @param x - X in CSS pixels from the canvas's left edge.
+     * @param y - Y in CSS pixels from the canvas's top edge.
+     * @returns The edge's id, or `undefined` when no drawn edge is that close.
+     */
+    private pickEdgeId(x: number, y: number): EdgeId | undefined {
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return undefined;
+        }
+
+        // worldToScreen answers in render pixels; Babylon's own picking divides CSS pixels by the
+        // hardware scaling level the same way.
+        const scaling = this.scene.getEngine().getHardwareScalingLevel();
+        const px = x / scaling;
+        const py = y / scaling;
+        let best = EDGE_PICK_TOLERANCE_PX / scaling;
+        let found: EdgeId | undefined;
+        const view = this.scene.getViewMatrix().m;
+        const inFront = (p: Vector3): boolean =>
+            p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] >= camera.minZ;
+
+        // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
+        for (const edge of this.dataManager.edges.values()) {
+            if (edge.isDisposed() || !edge.isRenderVisible()) {
+                continue;
+            }
+
+            const points = edgeWorldPoints(edge);
+            for (let i = 1; i < points.length; i++) {
+                if (!inFront(points[i - 1]) || !inFront(points[i])) {
+                    continue;
+                }
+
+                const distance = distanceToSegment(px, py, this.worldToScreen(points[i - 1]), this.worldToScreen(points[i]));
+                if (distance <= best) {
+                    best = distance;
+                    found = edge.id;
+                }
+            }
+        }
+
+        return found;
     }
 
     /**

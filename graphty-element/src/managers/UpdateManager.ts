@@ -489,7 +489,10 @@ export class UpdateManager implements Manager {
                 revealed = true;
             }
 
-            edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index));
+            // Selecting redraws the edge marked, from a different batch: placed by the walk too.
+            if (edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index))) {
+                revealed = true;
+            }
         }
 
         // A REVEALED EDGE IS PLACED BY ITS NEXT UPDATE, not by being shown: hiding collapsed

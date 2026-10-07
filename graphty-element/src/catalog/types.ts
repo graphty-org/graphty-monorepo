@@ -51,10 +51,8 @@ export type NodeId = string | number;
 export type EdgeId = string;
 
 /**
- * What `element.elementAt(point)` finds under a point: a node or an edge, by id.
- *
- * Only nodes are found today. The edge case is declared so code that switches on `kind` already
- * handles it, and edges can be returned later without a breaking change.
+ * What `element.elementAt(point)` finds under a point: a node or an edge, by id. A node wins
+ * over an edge drawn beneath it; an edge is found within a few pixels of its line.
  */
 export type ElementAtResult =
     | { readonly kind: "node"; readonly id: NodeId }

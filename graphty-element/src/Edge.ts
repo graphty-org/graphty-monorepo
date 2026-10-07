@@ -4,7 +4,8 @@ import * as jmespath from "jmespath";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
-import type { AdHocData, EdgeStyleConfig, RichTextStyleType } from "./config";
+import { type AdHocData, DEFAULT_SELECTION_STYLE, type EdgeStyleConfig, type RichTextStyleType } from "./config";
+import { colorToHex } from "./config/common";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
@@ -17,6 +18,8 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
+import { luminance } from "./session/styles/legend";
+import { hexToRgb, rgbToHex } from "./utils/styleHelpers/color/interpolation";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -141,6 +144,56 @@ let writeRecord: (edge: Edge, record: AdHocData) => void;
  */
 export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
     writeRecord(edge, record);
+}
+
+/** The contrast a selected edge's mark keeps against the canvas and its own unselected line (WCAG 1.4.11). */
+const SELECTION_MARK_CONTRAST = 3;
+
+/**
+ * The WCAG contrast ratio of two colours.
+ * @param a - One colour, as hex.
+ * @param b - The other.
+ * @returns The ratio, 1 to 21; 21 when either is not a colour, so nothing is adjusted for it.
+ */
+function contrast(a: string, b: string): number {
+    const x = hexToRgb(colorToHex(a)?.toLowerCase());
+    const y = hexToRgb(colorToHex(b)?.toLowerCase());
+    if (x === null || y === null) {
+        return 21;
+    }
+
+    const [hi, lo] = [luminance(x), luminance(y)].sort((m, n) => n - m);
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * The colour a selected edge is drawn in: the configured selection colour, darkened (on a light
+ * canvas) or lightened (on a dark one) until it stands at 3:1 from the canvas and, where that is
+ * reachable, from the line it replaces.
+ * @param selection - The configured selection colour, as hex.
+ * @param canvas - The canvas colour, or undefined when the background is not a plain colour.
+ * @param line - The edge's unselected line colour.
+ * @returns The mark's colour, as hex.
+ */
+function selectionMarkColor(selection: string, canvas: string | undefined, line: string): string {
+    const rgb = hexToRgb(selection.toLowerCase());
+    if (canvas === undefined || rgb === null) {
+        return selection;
+    }
+
+    const pole = luminance(hexToRgb(colorToHex(canvas)?.toLowerCase()) ?? rgb) > 0.5 ? 0 : 255;
+    let firstOnCanvas: string | undefined;
+    for (let t = 0; t <= 1; t += 0.05) {
+        const mixed = rgbToHex(rgb.r + (pole - rgb.r) * t, rgb.g + (pole - rgb.g) * t, rgb.b + (pole - rgb.b) * t);
+        if (contrast(mixed, canvas) >= SELECTION_MARK_CONTRAST) {
+            firstOnCanvas ??= mixed;
+            if (contrast(mixed, line) >= SELECTION_MARK_CONTRAST) {
+                return mixed;
+            }
+        }
+    }
+
+    return firstOnCanvas ?? selection;
 }
 
 /**
@@ -344,8 +397,7 @@ export class Edge {
     /**
      * Whether this edge is in the session's selection.
      *
-     * Tracked here so the renderer owns the answer; see {@link Edge.setSelected} for what is and
-     * is not drawn from it today.
+     * Tracked here so the renderer owns the answer; see {@link Edge.setSelected}.
      */
     private selected = false;
 
@@ -724,7 +776,7 @@ export class Edge {
         const paint = this.currentPaint();
 
         this.sessionPaint = paint;
-        this.paintFrom(paint.meshKey, paint.style);
+        this.paintMarked(paint);
     }
 
     /**
@@ -751,7 +803,37 @@ export class Edge {
         }
 
         this.sessionPaint = paint;
-        this.paintFrom(paint.meshKey, paint.style);
+        this.paintMarked(paint);
+    }
+
+    /**
+     * Draw a paint, marked as selected when this edge is.
+     *
+     * THE MARK IS A SECOND APPEARANCE, not a mesh edit: a selected edge is drawn from the batch
+     * of its style with the line recoloured and doubled in width, keyed apart from the unselected
+     * one, the way any restyle moves an edge between batches. Like a node's halo it is drawn from
+     * the selection mask, never from a layer (see `GraphSelectionStyle`).
+     * @param paint - The paint the style stack resolved.
+     */
+    private paintMarked(paint: EdgePaint): void {
+        if (!this.selected) {
+            this.paintFrom(paint.meshKey, paint.style);
+            return;
+        }
+
+        const { graph } = this.context.getStyles().config;
+        const canvas = graph.background.backgroundType === "color" ? graph.background.color : undefined;
+        const line = paint.style.line?.color ?? "#FFFFFF";
+        const color = selectionMarkColor((graph.selection ?? DEFAULT_SELECTION_STYLE).color, canvas, line);
+        const width = (paint.style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2;
+        const style: EdgeStyleConfig = {
+            ...paint.style,
+            line: { ...paint.style.line, color, width },
+            ...(paint.style.arrowHead && { arrowHead: { ...paint.style.arrowHead, color } }),
+            ...(paint.style.arrowTail && { arrowTail: { ...paint.style.arrowTail, color } }),
+        };
+
+        this.paintFrom(`${paint.meshKey}|selected|${color}|${String(width)}`, style);
     }
 
     /**
@@ -1121,14 +1203,7 @@ export class Edge {
     }
 
     /**
-     * Say whether this edge is selected.
-     *
-     * The state is recorded and nothing is drawn from it yet. An edge line in 3D is an instance of
-     * ONE batch per edge style (`EdgeMesh.lineBatch` interns it under `edge-style-<id>`), so a
-     * per-edge colour or alpha is not available without giving the selected edge a mesh of its
-     * own; see the report accompanying this change for what that needs. Recording it here rather
-     * than dropping it is what lets the renderer draw it the moment that lands, and what keeps the
-     * element -- rather than a style layer -- the owner of the answer.
+     * Say whether this edge is selected, and draw it marked or plain to match (see `paintMarked`).
      * @param selected - What the selection mask says about this edge.
      * @returns True when this changed the state.
      */
@@ -1138,6 +1213,7 @@ export class Edge {
         }
 
         this.selected = selected;
+        this.updateStyle();
 
         return true;
     }

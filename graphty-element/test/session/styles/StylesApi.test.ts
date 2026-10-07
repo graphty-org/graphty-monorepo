@@ -1287,6 +1287,47 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.isString(colour?.reason);
     });
 
+    it("says why a rule cannot be edited as a code and its values", async () => {
+        const { styles } = makeStyles();
+        const layer = await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+
+        const colour = styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color");
+
+        assert.deepStrictEqual(colour?.fact, {
+            code: "channel.encoded",
+            params: {
+                layerId: layer.id,
+                name: "By betweenness",
+                channel: "node.color",
+                path: "results.betweenness.value",
+            },
+        });
+    });
+
+    it("says why the element's own layer cannot be edited as a code and its values", () => {
+        const { styles } = makeStyles();
+        const base = styles.list()[0];
+
+        const colour = styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color");
+
+        assert.isFalse(colour?.editable);
+        assert.deepStrictEqual(colour?.fact, {
+            code: "layer.locked",
+            params: { layerId: base?.id ?? "", name: "Default" },
+        });
+    });
+
+    it("gives an editable channel no fact", async () => {
+        const { styles } = makeStyles();
+        await styles.add(layerSpec("Mine", { set: { "node.color": "#00ff00" } }));
+
+        const colour = styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color");
+
+        assert.isTrue(colour?.editable);
+        assert.isUndefined(colour?.fact);
+        assert.isUndefined(colour?.reason);
+    });
+
     it("lists the layers that contributed, bottom first", async () => {
         const { styles } = makeStyles();
         await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
@@ -1417,6 +1458,10 @@ describe("a style document, out and back in", () => {
             [["results.pagerank.score"]],
         );
         assert.include(unbound[0]?.reason ?? "", "results.pagerank.score");
+        assert.deepStrictEqual(unbound[0]?.fact, {
+            code: "layer.unanswered",
+            params: { layerId: unbound[0]?.layerId ?? "", name: "Waiting", paths: ["results.pagerank.score"] },
+        });
         assert.isFalse(waiting?.enabled);
         assert.isTrue(styles.get(applied[0] ?? "")?.enabled);
     });

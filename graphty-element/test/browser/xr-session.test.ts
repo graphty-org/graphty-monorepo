@@ -8,9 +8,9 @@
  * run both kinds of session and render XR frames.
  *
  * Nothing may touch the network: every test fails on a request to another host. The hand tracking
- * test enters VR with emulated hands and checks that both are tracked and drawn. The emulated
- * controllers stay disconnected, because Babylon draws a controller with a model it downloads from
- * controllers.babylonjs.com.
+ * test enters VR with emulated hands and checks that both are tracked and drawn. The VR and AR
+ * tests run with both emulated controllers connected, which once made Babylon download a
+ * controller model from controllers.babylonjs.com.
  */
 import "../../src/graphty-element";
 
@@ -84,11 +84,6 @@ beforeEach(() => {
     foreignRequests = [];
     restoreNetwork = blockForeignRequests();
     iwer = installIWER();
-    // A connected controller makes Babylon fetch its model from controllers.babylonjs.com, and CI
-    // must not need the network. Sessions start and render without input sources.
-    for (const controller of Object.values(iwer.device.controllers)) {
-        controller.connected = false;
-    }
 });
 
 afterEach(() => {
@@ -165,6 +160,17 @@ describe.each([
 
             await vi.waitFor(() => {
                 assert.isAtLeast(record.frames, MIN_XR_FRAMES, "the session is not rendering XR frames");
+            }, WAIT);
+
+            // Both emulated controllers are connected and get a motion controller, the point at
+            // which Babylon would fetch a controller model if the element let it.
+            await vi.waitFor(() => {
+                const controllers = graph.getXRSessionManager()?.getXRHelper()?.input.controllers ?? [];
+
+                assert.lengthOf(controllers, 2, "the emulated controllers are not tracked");
+                for (const controller of controllers) {
+                    assert.exists(controller.motionController, "a controller has no motion controller");
+                }
             }, WAIT);
 
             const xrCamera = graph.getXRSessionManager()?.getXRCamera();

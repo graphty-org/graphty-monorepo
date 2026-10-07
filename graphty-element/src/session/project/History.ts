@@ -842,6 +842,40 @@ export class History<P> {
     }
 
     /**
+     * Strict: the typed arrays of every capture and row patch the history keeps, which each
+     * dispatch checks. Bounded by the history's limits, however many captures were ever taken.
+     * @yields Each array; the owned baseline among them was never retained, and is skipped.
+     */
+    *arrangementArrays(): Generator<ArrayBufferView> {
+        const captures = [
+            this.baseline?.capture,
+            ...this.groups.flatMap((group) => [group.before, group.provisional]),
+            ...this.entries.flatMap((step) => [step.before, step.after]),
+        ];
+        const patches = this.entries.flatMap((step) => [step.afterRows, this.options.rows?.(step.patch)]);
+        for (const op of this.arrangementOps) {
+            if ("capture" in op) {
+                captures.push(op.capture);
+            } else {
+                patches.push(op.patch);
+            }
+        }
+
+        for (const capture of captures) {
+            if (capture) {
+                yield capture.coords;
+            }
+        }
+
+        for (const patch of patches) {
+            if (patch) {
+                yield patch.rows;
+                yield patch.values;
+            }
+        }
+    }
+
+    /**
      * The row patch of a step, if it has one that counts: an after-capture already holds it.
      * @param step - The step.
      * @returns The patch, or null.

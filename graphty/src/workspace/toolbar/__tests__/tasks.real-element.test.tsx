@@ -302,6 +302,10 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 assert.isAbove(session.selection.nodes.length, neighborhood);
                 assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
+            // The list follows the grown selection instead of still naming the first hop's
+            // connections.
+            const grown = session.selection.nodes.length - 1;
+            await screen.findByRole("region", { name: `${String(grown)} nodes within 2 hops of ${String(node)}` });
         },
         TIMEOUT_MS,
     );

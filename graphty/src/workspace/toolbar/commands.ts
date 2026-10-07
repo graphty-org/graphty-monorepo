@@ -1,7 +1,7 @@
 import { type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { nodeKey } from "../inspector/inspected";
+import { neighborhoodKey, resolveInspected } from "../inspector/inspected";
 import { xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
@@ -220,7 +220,7 @@ export const registration = defineRegistration({
                 // One node's neighborhood opens in the inspector as a neighborhood, as the
                 // inspector's own connections link does.
                 if (centers.length === 1) {
-                    workspace.set({ inspected: { kind: "neighborhood", id: nodeKey(centers[0]) } });
+                    workspace.set({ inspected: { kind: "neighborhood", id: neighborhoodKey(centers[0]) } });
                 }
             },
         },
@@ -232,14 +232,14 @@ export const registration = defineRegistration({
                 noNodeSelected(session) ??
                 (workspace.get().inspected?.kind === "neighborhood" ? null : "Open a neighborhood first"),
             run: async ({ session, workspace }) => {
-                const { inspected } = workspace.get();
-                if (session === null || inspected?.kind !== "neighborhood") {
+                const shown = resolveInspected(workspace.get().inspected, null);
+                if (session === null || shown.kind !== "neighborhood") {
                     return;
                 }
                 await session.selection.apply({ neighborsOf: session.selection.nodes });
-                // The selection change closes the open row; the grown selection is still the
-                // same center's neighborhood.
-                workspace.set({ inspected });
+                // The selection change closes the open row; the grown selection is the same
+                // center's neighborhood, one hop further out.
+                workspace.set({ inspected: { kind: "neighborhood", id: neighborhoodKey(shown.node, shown.hops + 1) } });
             },
         },
     ],

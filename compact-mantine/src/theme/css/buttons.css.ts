@@ -173,15 +173,17 @@ const css = `
 .cm-action-icon[aria-pressed="true"]${DISABLED} { background: var(--cm-bg-selected); }
 .cm-action-icon[data-loading] { cursor: progress; }
 /* A finger needs more than the 24px sm box: under a coarse pointer an invisible ::after grows its
-   hit target to 32 x 32 without moving anything (::before is the edged variants' focus ring). */
+   hit target to 32 x 32 without moving anything (::before is the edged variants' focus ring).
+   32 keeps neighbors 4px apart from stealing each other's taps; an icon with room around it sets
+   --cm-ai-touch-target (44px is the touch guideline) for a bigger one. */
 @media (pointer: coarse) {
     .cm-action-icon[data-size="sm"]::after {
         content: "";
         position: absolute;
         top: 50%;
         left: 50%;
-        width: 32px;
-        height: 32px;
+        width: var(--cm-ai-touch-target, 32px);
+        height: var(--cm-ai-touch-target, 32px);
         transform: translate(-50%, -50%);
     }
 }

@@ -193,6 +193,8 @@ export function Inspector(): React.JSX.Element {
                                         variant="subtle"
                                         size="sm"
                                         ml="auto"
+                                        // Alone at the row's end, so a finger gets the full 44px.
+                                        style={{ "--cm-ai-touch-target": "44px" }}
                                         aria-label={`${KIND_WORDS[kindId]} actions`}
                                     >
                                         <GLYPHS.more size={14} />
@@ -353,7 +355,7 @@ function bodyOf(
         case "several":
             return { style: <SelectionRowStyle />, values: <SeveralValues version={version} /> };
         case "neighborhood":
-            return { only: <NeighborList center={resolved.node} /> };
+            return { only: <NeighborList center={resolved.node} hops={resolved.hops} /> };
         case "measure-row":
         case "run-row":
             return run === undefined

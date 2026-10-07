@@ -36,7 +36,7 @@ on:
                 required: true
     workflow_dispatch:
         inputs:
-            # which machine serves the T4 job. The default is a machine.dev on-demand T4 (the Machine Provisioner app
+            # which machine serves the T4 job. The default is a machine.dev spot T4 (on-demand before 2026-10-04) (the Machine Provisioner app
             # is installed on the org; the "Driver up" step below measured Ubuntu 22.04.5, glibc 2.35, libegl1 1.4.0-1
             # present and no /usr/share/vulkan/icd.d, on run 35922927676, 2026-09-23 -- and that 22.04 is what blocks
             # the `webgpu` 0.6.x bump on this lane: 0.5.0 moved its Linux build to 24.04 and its binary needs
@@ -45,13 +45,13 @@ on:
             # $0.018/min, spot $0.0045/min): on 2026-09-18 the GitHub-hosted gpu-linux-t4 runner of design 12.4 (runner
             # group `gpu`, $0.052/min) never dequeued a job -- one dispatch was refused on billing, the next sat queued
             # for 17 minutes with no runner -- while machine.dev provisioned in about a minute at a third of the price.
-            # The hosted label stays a dispatch option. The release train takes the default.
+            # The hosted label and on-demand stay dispatch options. The release train takes the default (spot).
             # GRAPHTY_RUNNER_CLASS stays gpu-linux-t4 either way: the class names the hardware, and
             # benchmarks/results/gpu-linux-t4.json is the T4 baseline whichever provider ran it.
             runner:
                 description: "runs-on label for the T4 job"
                 type: choice
-                default: machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
+                default: machine/gpu=t4/cpu=4/ram=16/tenancy=spot
                 options:
                     - gpu-linux-t4
                     - machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand
@@ -65,7 +65,11 @@ concurrency:
 jobs:
     test-gpu:
         name: Test (NVIDIA T4)
-        runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand' }} # a dispatch may pick the hosted gpu-linux-t4 (see the input); the release train: machine.dev on-demand
+        # Spot by default (owner decision, 2026-10-04): $0.0045/min against $0.018/min on-demand, about 74% less. A
+        # reclaimed spot runner fails the job with a lost-runner message; gpu-rerun-on-runner-loss.yml re-runs the
+        # run that holds this job once (the Release run when the train called it, the GPU run on a dispatch), so a
+        # reclaim costs one retry, not a held release. On-demand stays a dispatch option.
+        runs-on: ${{ inputs.runner || 'machine/gpu=t4/cpu=4/ram=16/tenancy=spot' }} # a dispatch may pick on-demand or the hosted gpu-linux-t4 (see the input); the release train: machine.dev spot
         # The whole job runs in a container because the HOST cannot be moved off Ubuntu 22.04 and `webgpu` 0.6.x
         # needs glibc 2.38. machine.dev has no image or operating-system selector: their label grammar is closed
         # (machine, then cpu= or gpu=, then architecture / cpu / ram / tenancy / regions / disk_size / disk_iops /

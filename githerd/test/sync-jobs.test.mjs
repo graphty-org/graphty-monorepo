@@ -324,6 +324,36 @@ describe("syncJobs: pull requests", () => {
         expect(live.jobs["pr-1203"]).toBeUndefined();
     });
 
+    it("gives a stale master-guard issue a critical verify-and-close job past a queued lower one; a live one is the incident's", () => {
+        const state = base();
+        state.trust.bots = ["github-actions[bot]"];
+        state.master.lanes = {
+            ci: { workflowName: "CI", verdict: "green" },
+            gpu: { workflowName: "GPU", verdict: "red" },
+        };
+        issue(state, 1229, ["bug", "priority:medium", "effort:low"]);
+        sync(state);
+        expect(state.jobs["issue-1229"].state).toBe("queued");
+        const guard = { author: "github-actions[bot]" };
+        issue(state, 1124, ["bug", "priority:critical", "effort:low"], {
+            ...guard,
+            text: "Red master: CI failed on 7edecd1\n",
+        });
+        issue(state, 1227, ["bug", "priority:critical", "effort:medium"], {
+            ...guard,
+            text: "GPU lane red on master\n",
+        });
+        sync(state);
+        expect(state.jobs["issue-1124"]).toMatchObject({
+            priority: "critical",
+            reason: "stale CI red-master issue: the lane is green again; verify its failure is gone and close it",
+        });
+        expect(state.jobs["issue-1227"]).toBeUndefined();
+        state.master.lanes.gpu.verdict = "green";
+        sync(state);
+        expect(state.jobs["issue-1227"]?.reason).toMatch(/^stale GPU red-master issue/);
+    });
+
     it("never makes a job from the release train's pull request, failing or conflicting", () => {
         const state = base();
         const train = { author: "github-actions", headRef: "release/train-1", title: "chore(release): publish" };

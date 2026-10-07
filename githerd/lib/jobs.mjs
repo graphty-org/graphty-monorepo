@@ -68,6 +68,7 @@ import {
 } from "./queue.mjs";
 import { promotionsDue, utcDay } from "./advisory.mjs";
 import { touches } from "./prs.mjs";
+import { CRITICAL, guardIssue } from "./master-fix.mjs";
 import { sharedJobSpecs } from "./shared.mjs";
 
 /** Issues in one triage job (design 8.1). */
@@ -605,12 +606,13 @@ function issueJobs(state, config, now, add, cancel) {
     const queued = Object.values(state.jobs).some(
         (j) => j.kind === "issue" && j.state === "queued" && j.facts?.scope !== "promote",
     );
-    if (queued) return;
     const priorities = config.labels?.priorities ?? [];
     const candidates = issueCandidates(state, config, now, deferred);
     const top = candidates[0];
-    if (!top) return;
+    // One queued issue job at a time, but a critical one never waits behind a lower one.
+    if (!top || (queued && priorities[top.priority] !== CRITICAL)) return;
     const issue = state.issues.byNumber[top.number];
+    const guard = guardIssue(state, String(issue.text ?? "").split("\n")[0]);
     const label = priorities[top.priority];
     const priority = label ? label.replace(/^[^:]*:/, "") : null;
     const ranking = { bug: top.bug, type: top.type, effort: top.effort };
@@ -624,9 +626,7 @@ function issueJobs(state, config, now, add, cancel) {
         kind: "issue",
         target: `#${top.number}`,
         priority,
-        reason: references.length
-            ? `referenced by ${references.join(", ")} on master`
-            : `front of the issue queue: ${issueRule(priority, ranking)}${also}`,
+        reason: issueReason(guard, references, `front of the issue queue: ${issueRule(priority, ranking)}${also}`),
         facts: {
             ...(references.length ? { references } : {}),
             ...(batch.length ? { batch: [top.number, ...batch], package: issuePackage(issue) } : {}),
@@ -639,6 +639,20 @@ function issueJobs(state, config, now, add, cancel) {
             ...(top.order === null ? {} : { order: top.order }),
         },
     });
+}
+
+/**
+ * Why an issue job is made: a stale master-guard issue to verify and close, references on master
+ * to verify, or its place at the front of the queue.
+ * @param {{lane: string} | null} guard the master-guard issue's lane, null for another issue
+ * @param {string[]} references the commits and pull requests on master naming it
+ * @param {string} front the front-of-the-queue reason
+ * @returns {string} the reason
+ */
+function issueReason(guard, references, front) {
+    if (guard)
+        return `stale ${guard.lane} red-master issue: the lane is green again; verify its failure is gone and close it`;
+    return references.length ? `referenced by ${references.join(", ")} on master` : front;
 }
 
 /**
@@ -662,7 +676,9 @@ function issueCandidates(state, config, now, deferred) {
         .filter((r) => {
             const old = state.jobs[`issue-${r.number}`];
             const free = (!old || old.facts?.withdrawn) && !deferred[r.number] && !bundled.has(r.number);
-            return free && r.offered;
+            // A master-guard issue whose lane is red now is the open incident's, not an issue job.
+            const title = String(state.issues.byNumber[r.number]?.text ?? "").split("\n")[0];
+            return free && r.offered && !guardIssue(state, title)?.live;
         });
     // An open order comes before the ranked list (design 5.4); the sort is stable otherwise.
     candidates.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity));

@@ -21,6 +21,23 @@ import { byOwner, TERMINAL } from "./board.mjs";
 export const CRITICAL = "priority:critical";
 /** The titles of the issues master-guard opens for a red master lane. */
 const GUARD_TITLE = /^(Red master: CI failed on [0-9a-f]{7,40}|.+ lane red on master)$/;
+/**
+ * The master lane a master-guard issue stands for ("Red master: CI failed on <sha>" is CI's,
+ * "<lane> lane red on master" that lane's), and whether that lane is red now: a live issue is the
+ * open incident's to work, a stale one (the lane green again) a job verifies and closes.
+ * @param {any} state the daemon state
+ * @param {string} title the issue's title
+ * @returns {{lane: string, live: boolean} | null} null for an issue that is not master-guard's
+ */
+export function guardIssue(state, title) {
+    if (!GUARD_TITLE.test(title)) return null;
+    const lane = title.startsWith("Red master: ") ? "CI" : title.replace(/ lane red on master$/, "");
+    const rec = Object.entries(state.master?.lanes ?? {}).find(
+        ([n, l]) => String(/** @type {any} */ (l).workflowName ?? n).toLowerCase() === lane.toLowerCase(),
+    )?.[1];
+    return { lane, live: /** @type {any} */ (rec)?.verdict === "red" };
+}
+
 /** The titles of master-guard's revert pull requests (tools/master-guard.mjs `revertTitle`). */
 const REVERT_TITLE = /^revert: .*master CI red\b/;
 

@@ -175,7 +175,14 @@ export function CommandPalette(props: CommandPaletteProps): React.JSX.Element {
                 }}
             >
                 {visible.length === 0 ? (
-                    <Box style={{ height: PANEL_GRID.DATA_PITCH, display: "flex", alignItems: "center", color: PANEL_INK.CHROME }}>
+                    <Box
+                        style={{
+                            height: PANEL_GRID.DATA_PITCH,
+                            display: "flex",
+                            alignItems: "center",
+                            color: PANEL_INK.CHROME,
+                        }}
+                    >
                         {COMMAND_PALETTE_EMPTY}
                     </Box>
                 ) : (

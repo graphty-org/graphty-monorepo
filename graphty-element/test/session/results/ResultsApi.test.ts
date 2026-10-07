@@ -131,7 +131,7 @@ describe("finding a result", () => {
 
 describe("what an expression editor completes from", () => {
     it("publishes one root per finished run, with the fields it carries", () => {
-        const {roots} = createResultsApi(REGISTRY);
+        const { roots } = createResultsApi(REGISTRY);
 
         assert.deepStrictEqual(
             roots.map((root) => root.runId),
@@ -148,11 +148,7 @@ describe("what an expression editor completes from", () => {
 
 describe("did you mean", () => {
     it("ranks the nearest names first", () => {
-        assert.deepStrictEqual(nearestNames("valu", ["value", "rank", "percentile"]), [
-            "value",
-            "rank",
-            "percentile",
-        ]);
+        assert.deepStrictEqual(nearestNames("valu", ["value", "rank", "percentile"]), ["value", "rank", "percentile"]);
         assert.deepStrictEqual(nearestNames("PageRank", ["pagerank", "degree"], 1), ["pagerank"]);
     });
 
@@ -162,14 +158,14 @@ describe("did you mean", () => {
     });
 
     it("suggests published paths for a results path that resolved to nothing", () => {
-        const {roots} = createResultsApi(REGISTRY);
+        const { roots } = createResultsApi(REGISTRY);
         const suggested = suggestResultPaths("results.degre.value", roots, 1);
 
         assert.deepStrictEqual(suggested, ["results.degree.value"]);
     });
 
     it("suggests nothing for a path that is not a results path", () => {
-        const {roots} = createResultsApi(REGISTRY);
+        const { roots } = createResultsApi(REGISTRY);
 
         assert.deepStrictEqual(suggestResultPaths("node.degree", roots), []);
     });

@@ -292,12 +292,7 @@ export interface ChannelValues {
  * to the table by {@link COLOR_CHANNELS} and asserted in the tests, so the two cannot drift.
  */
 export type ColorChannel =
-    | "node.color"
-    | "node.outline"
-    | "node.glow"
-    | "edge.color"
-    | "edge.arrowHeadColor"
-    | "edge.arrowTailColor";
+    "node.color" | "node.outline" | "node.glow" | "edge.color" | "edge.arrowHeadColor" | "edge.arrowTailColor";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];

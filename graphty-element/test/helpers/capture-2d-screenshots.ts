@@ -16,8 +16,6 @@
  *   --zoom-levels    Capture at multiple zoom levels to demonstrate world-space scaling
  */
 
- 
-
 import { resolve } from "path";
 import { chromium } from "playwright";
 

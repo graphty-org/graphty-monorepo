@@ -107,6 +107,10 @@ playwright-report/
 # Vitest 4 copies each failing browser test's screenshot into .vitest-attachments/ beside the
 # config, as the attachment its reporters link to. Failure diagnostics, never committed.
 **/.vitest-attachments/
+# Vitest's blob reporter writes .vitest-reports/ beside the config when the CI shards (or the
+# pre-push gate, which runs them) merge their results. Test output, never committed; ignoring
+# it here also keeps a leftover run out of `prettier --check .`.
+**/.vitest-reports/
 
 # Playwright visual test artifacts
 **/playwright/visual/screenshots-diff/

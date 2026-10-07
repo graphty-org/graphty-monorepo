@@ -12,12 +12,7 @@
 import { type TestContext } from "vitest";
 
 import { type GpuContext } from "../../src/context.js";
-import {
-    attractionBounds,
-    attractionOracle,
-    attractionReport,
-    attractionStage,
-} from "../helpers/attraction-check.js";
+import { attractionBounds, attractionOracle, attractionReport, attractionStage } from "../helpers/attraction-check.js";
 import {
     BASE_OPTIONS,
     captureAllStages,

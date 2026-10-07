@@ -24,10 +24,7 @@ import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
-import { createMockGraph, getEdgeResult as _getEdgeResult, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
-
-// Re-export for future use
-void _getEdgeResult;
+import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 /**
  * Test data: a simple graph for pathfinding tests
@@ -65,15 +62,7 @@ const diamondGraphData = {
  * Test data: a larger graph for community detection
  */
 const communityGraphData = {
-    nodes: [
-        { id: "A1" },
-        { id: "A2" },
-        { id: "A3" },
-        { id: "B1" },
-        { id: "B2" },
-        { id: "B3" },
-        { id: "bridge" },
-    ],
+    nodes: [{ id: "A1" }, { id: "A2" }, { id: "A3" }, { id: "B1" }, { id: "B2" }, { id: "B3" }, { id: "bridge" }],
     edges: [
         // Community A (tightly connected)
         { srcId: "A1", dstId: "A2", weight: 1 },
@@ -303,11 +292,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
                 for (const nodeId of dm1.nodes.keys()) {
                     const c = getNodeResult(louvain1, nodeId, "graphty", "louvain", "communityId");
-                    if (c !== undefined) {communities1.add(c);}
+                    if (c !== undefined) {
+                        communities1.add(c);
+                    }
                 }
                 for (const nodeId of dm2.nodes.keys()) {
                     const c = getNodeResult(louvain2, nodeId, "graphty", "louvain", "communityId");
-                    if (c !== undefined) {communities2.add(c);}
+                    if (c !== undefined) {
+                        communities2.add(c);
+                    }
                 }
 
                 // Higher resolution should produce same or more communities
@@ -393,7 +386,9 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 for (const nodeId of nodeIds) {
                     const communityId1 = getNodeResult(lp1, nodeId, "graphty", "label-propagation", "communityId");
                     const communityId2 = getNodeResult(lp2, nodeId, "graphty", "label-propagation", "communityId");
-                    if (communityId1 !== communityId2) {sameResults = false;}
+                    if (communityId1 !== communityId2) {
+                        sameResults = false;
+                    }
                 }
 
                 assert.isTrue(sameResults, "Same randomSeed should produce same results");
@@ -420,11 +415,15 @@ describe("Algorithm Options Pass-Through Tests", () => {
 
                 for (const nodeId of dm1.nodes.keys()) {
                     const c = getNodeResult(gn1, nodeId, "graphty", "girvan-newman", "communityId");
-                    if (c !== undefined) {communities1.add(c);}
+                    if (c !== undefined) {
+                        communities1.add(c);
+                    }
                 }
                 for (const nodeId of dm2.nodes.keys()) {
                     const c = getNodeResult(gn2, nodeId, "graphty", "girvan-newman", "communityId");
-                    if (c !== undefined) {communities2.add(c);}
+                    if (c !== undefined) {
+                        communities2.add(c);
+                    }
                 }
 
                 assert.isAtMost(communities1.size, 2, "Should have at most 2 communities");
@@ -566,10 +565,14 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 let visited2 = 0;
 
                 for (const nodeId of dm1.nodes.keys()) {
-                    if (getNodeResult(bfs1, nodeId, "graphty", "bfs", "level") !== undefined) {visited1++;}
+                    if (getNodeResult(bfs1, nodeId, "graphty", "bfs", "level") !== undefined) {
+                        visited1++;
+                    }
                 }
                 for (const nodeId of dm2.nodes.keys()) {
-                    if (getNodeResult(bfs2, nodeId, "graphty", "bfs", "level") !== undefined) {visited2++;}
+                    if (getNodeResult(bfs2, nodeId, "graphty", "bfs", "level") !== undefined) {
+                        visited2++;
+                    }
                 }
 
                 assert.isAtMost(visited1, visited2, "Early termination should visit fewer or equal nodes");
@@ -613,10 +616,14 @@ describe("Algorithm Options Pass-Through Tests", () => {
                 let visited2 = 0;
 
                 for (const nodeId of dm1.nodes.keys()) {
-                    if (getNodeResult(dfs1, nodeId, "graphty", "dfs", "visited") === true) {visited1++;}
+                    if (getNodeResult(dfs1, nodeId, "graphty", "dfs", "visited") === true) {
+                        visited1++;
+                    }
                 }
                 for (const nodeId of dm2.nodes.keys()) {
-                    if (getNodeResult(dfs2, nodeId, "graphty", "dfs", "visited") === true) {visited2++;}
+                    if (getNodeResult(dfs2, nodeId, "graphty", "dfs", "visited") === true) {
+                        visited2++;
+                    }
                 }
 
                 assert.strictEqual(visited1, 5, "Recursive DFS should visit all 5 nodes");

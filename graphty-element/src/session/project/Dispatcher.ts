@@ -1255,7 +1255,7 @@ export class Dispatcher {
         try {
             outcome = act();
         } catch (error) {
-            return Promise.reject(error as Error);
+            return Promise.reject(error);
         }
 
         return this.lane.settled().then(() => {
@@ -1331,7 +1331,7 @@ export class Dispatcher {
             const direction = target < position ? "undo" : "redo";
             const passing = target < position ? steps.slice(target, position).reverse() : steps.slice(position, target);
             for (const step of passing) {
-                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan; ) {
+                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan;) {
                     cancelled.push(...this.cancelAll(plan.cancel, direction));
                     plan = this.plan(direction, step);
                 }

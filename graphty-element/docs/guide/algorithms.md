@@ -329,6 +329,36 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
 
 With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
 
+### Options for this graph
+
+`session.catalog.algorithms()` and `session.catalog.layouts()` describe every option as plain data,
+but some of what a form needs depends on the graph: which node a "start node" picker should offer,
+or how high a slider bounded by the node count should go. `session.catalog.optionsFor(key, scope)`
+answers that for one algorithm or layout over a scope:
+
+```typescript
+const options = await element.session.catalog.optionsFor("bfs", { set: team });
+
+for (const option of options) {
+    if (option.type === "node-id") {
+        console.log(option.values); // [{ value: "a", label: "a" }, ...]: the nodes in the scope
+    }
+}
+```
+
+- **Node options list real nodes.** A `node-id` or `node-set` option comes back with `values`: one
+  choice per node in the scope, in graph order. Its `value` and `label` are the node id as a
+  string, so a numeric id `7` is listed as `"7"`.
+- **Bounds that depend on the data are measured.** An option whose `min` or `max` is a reference
+  such as `{ from: "graph.nodeCount" }` comes back with the number measured over the scope. The
+  references are listed in `OPTION_BOUND_SOURCES`: `graph.nodeCount`, `graph.edgeCount`,
+  `graph.maxDegree`, `graph.maxCore` and `graph.componentCount`. A reference it does not know is
+  left as written.
+- **Everything else is the static descriptor's**, unchanged.
+- `key` is an algorithm key or a layout id. With no `scope`, it measures the default run scope
+  (`"visible"` unless the session was created with another). A key nothing registers is refused
+  with `E_UNKNOWN_ALGORITHM`.
+
 **A run's id names its result, in words.** A run you do not name with `as:` is named after its
 algorithm -- `results.degree.value`, `results.pagerank.value`, `results.shortest_path.onPath` --
 and an algorithm whose settings change what its result means adds the setting once it leaves its

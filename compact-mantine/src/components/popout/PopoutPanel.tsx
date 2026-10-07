@@ -82,11 +82,10 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     } = props;
 
     const { isOpen, close, triggerRef, id, parentId, region, exclusive = true } = usePopoutContext();
-    // Including zIndexVersion in destructuring ensures re-render when z-index stack changes
-    const { getZIndex, portalContainer, register, unregister, bringToFront, zIndexVersion, closeDescendants } =
+    // The context value is rebuilt whenever zIndexVersion changes, so this panel re-renders with
+    // the z-index stack without reading it.
+    const { getZIndex, portalContainer, register, unregister, bringToFront, closeDescendants } =
         usePopoutManagerContext();
-    // Reference zIndexVersion to prevent "unused variable" warning while still subscribing to changes
-    void zIndexVersion;
     // Get anchor context if available (from PopoutAnchor wrapper)
     const anchorContext = usePopoutAnchorContext();
     const direction = useDirection();

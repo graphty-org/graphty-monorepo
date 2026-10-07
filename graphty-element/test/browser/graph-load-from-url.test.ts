@@ -1,6 +1,7 @@
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
+import { Graph } from "../../src/Graph.js";
 
 describe("Graph.loadFromUrl", () => {
     beforeEach(() => {
@@ -19,7 +20,6 @@ describe("Graph.loadFromUrl", () => {
         // Mock fetch to return GraphML content
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(xml, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -37,7 +37,6 @@ describe("Graph.loadFromUrl", () => {
         // Mock fetch to return GraphML content
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(xml, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -57,7 +56,6 @@ describe("Graph.loadFromUrl", () => {
 
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(json, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -73,7 +71,6 @@ describe("Graph.loadFromUrl", () => {
 
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(csv, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -88,7 +85,6 @@ describe("Graph.loadFromUrl", () => {
 
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(unknownContent, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -117,7 +113,6 @@ describe("Graph.loadFromUrl", () => {
             new Response("Not Found", { status: 404, statusText: "Not Found" }),
         );
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -140,7 +135,6 @@ describe("Graph.loadFromUrl", () => {
 
         const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(xml, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -157,7 +151,6 @@ describe("Graph.loadFromUrl", () => {
 
         const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(xml, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 
@@ -177,7 +170,6 @@ describe("Graph.loadFromUrl", () => {
 
         vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(json, { status: 200 }));
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
 

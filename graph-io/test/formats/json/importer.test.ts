@@ -115,7 +115,7 @@ const EXPECTED: Record<string, { dialect: string; directed: boolean }> = {
 describe("corpus", () => {
     for (const entry of corpusFiles("json")) {
         it(`imports ${entry.path} with the manifest's counts`, async () => {
-            const { s, report } = await load(readCorpusText("json", entry.path), entry.options as Options);
+            const { s, report } = await load(readCorpusText("json", entry.path), entry.options);
             expect(s.nodeCount).toBe(entry.expectedNodes);
             expect(s.edgeCount).toBe(entry.expectedEdges);
             expect(report.counts.nodes).toBe(entry.expectedNodes);

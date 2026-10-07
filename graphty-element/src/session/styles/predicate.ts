@@ -472,7 +472,7 @@ function decodeRawString(body: string): string {
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the body is not JSON.
  */
 function decodeJsonLiteral(where: Query, at: number, body: string): unknown {
-    const json = body.replace(/\\`/g, "`");
+    const json = body.replaceAll("\\`", "`");
 
     try {
         return JSON.parse(json) as unknown;

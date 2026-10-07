@@ -103,7 +103,9 @@ function is never cached. `writeData` changes data, so run every function before
 
 Options such as `dist` on `graphty-kamada-kawai` hold one value per node or node pair, in the order
 of `toSnapshot(cy.elements().not(":parent"))`. This example treats karate club members more than 3
-hops apart as exactly 3 apart, which pulls the two factions together:
+hops apart as exactly 3 apart, which pulls the two factions together. Take the snapshot from the
+elements, not `cy.nodes()`: without edges no two nodes have a finite distance, and the layout throws
+a `RangeError`:
 
 ```js
 import cytoscape from "cytoscape";

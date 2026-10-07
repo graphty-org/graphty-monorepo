@@ -5,60 +5,48 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-07 (round 3 closed; studio "done" by the stop rule; final report written).
+Last updated: 2026-10-07 (tier 2 design decided: `next-steps/tier2-design.md`).
 
 ## Top of mind
 
-- 2026-10-07: The tier 1 studio is DONE by the stop rule "round 3 finished", not by passing. After
-  the skeptic check round 3 holds bars 1-6 and 9; bar 7 fails only on missing data (the
-  keyboard-only whole first session was void, r3-s10), bar 8 fails on one color (`#8c8c8c` on
-  `#2c2c2c`, 4.15:1, compact-mantine dark ramp). No fourth simulated round: both are a fix plus one
-  session. Report: `report.md` (the Write of `report.md` was refused by the harness for a
-  subagent on 2026-10-07; content returned to the orchestrator instead -- check it exists).
-- 2026-10-07: Next is real people, not simulation: graphty.app with opt-in usage data, 5-8 real
-  analysts on the core path, one real screen-reader user. What remains (finding Size and labels,
-  3D size misreading, real speech, whether ease gains are real) is beyond one model's personas.
-- 2026-10-07: Fix first, in the owning package: focus falls to the page after a sample opens by
-  keyboard, after "No thanks" on the usage card, after Escape from shortcuts (app; regression from
-  the canvas no longer autofocusing); then the gray-text contrast (compact-mantine).
-- 2026-10-07: Element issues to file (high priority, no app workaround): English refusals in
-  `session/planning.ts` and graph-io CSV export warnings (return codes); export quality (names
-  rendered at target size, real 4x, "Whole graph" camera turns the drawing, selection ring drawn
-  into the file); key placement so the key never covers a node (new API, owner); trace the 3D size
-  misreading with one 2D/orthographic export of the running club before choosing a fix.
-- 2026-10-07: The studio branch no longer merges cleanly with master (Graph.ts, LayoutManager.ts,
-  legend.ts, session API report, layouts guide, LegendCard, ColorPickerPanel). Master's #1364 adds
-  neutral legend facts including `legend.painted-over`: my recommendation is to withdraw the
-  studio's "legend() drops covered blocks" element change and have the app drop blocks carrying
-  that fact (no change to an existing method). Owner decides.
-- 2026-10-07: PR order to master: #1267 (elementAt, open) alone; the 54-commit interface branch
-  `fix/ipad-review-2026-10-06` (local only, not studio work) by its owner; element fixes without
-  API change; one PR per public-API door after the owner's yes; compact-mantine fixes; app fixes
-  grouped by path; studio docs and tool last. Every visual package needs owner-approved screenshots.
-- 2026-10-07: Owner one-way doors listed in `owner-decisions.md`: screenshot legend (#133),
-  undirected without arrowheads + `DataManager.directed`, export group rank, legend covered layer,
-  `optionsFor` partition values, canvas `aria-label`, 2D zoom unit doc. Seed default is back to
-  null (master agrees; #1271 landed tests and docs only).
-- 2026-10-07: Verified round 3 credits: "Show all labels" (names task 7 of 8 S, 1.5x path; round
-  2 0 of 8 S, 3.5x); menu-to-dialog focus (export by keyboard and screen reader); announcements.
-  Partly: Size "+" opens its list (chain fixed, finding Size unchanged 16 of 17); group layouts
-  work when found (2 of 5). Not exercised: legend covered layer, 2D Fit, row glyph.
-- 2026-10-07: Ease 4.50 -> 4.98 -> 5.28 and wrong turns 1 -> 0 are a pattern, not proof (one
-  model's ratings; the tool changed between rounds). Never report them as "above target".
-- 2026-10-07: Severity 4 needs a wrong conclusion a reader would act on, judged from what the
-  participant could perceive. Round 3's "false done" (Whole graph angle) and 3D-size sev 4 were
-  both checklist-literal readings the skeptics overturned.
-- 2026-10-07: Never prime graders with the outcome to look for (round 3 named Ava and Farah in the
-  grader brief). Name risks to the scorer only.
+- 2026-10-07: TIER 2 DESIGN DECIDED: `next-steps/tier2-design.md`. In: filters (element-owned
+  steps), Path popover, Notes place, Sources listing every load, weight meaning at load + every run
+  on the loaded weight (REQUIRED, owner rule), neighborhood hops/Follow in the list header,
+  Replace with file + stale by content, edge picking + selected-edge mark, Find rule errors.
+- 2026-10-07: Tier 2 WAITS (with reasons in the doc): several node types / Links to (no task needs
+  it; biggest format door -- owner design first), node weight (no reader), Select where dialog
+  (Find "=" is the one home), multi-query path rows, Add as steps, selection bar, OR/NOT.
+- 2026-10-07: Tier 2 element doors (record + hold + needs-decision): filter steps `{id,on,rule}`
+  with per-step plan counts; edge-attribute leaf keeps ends (option, current default); weight
+  meaning in the load mapping + loaded-weight fact + catalog reads-meaning + uniform `weight`
+  option (PageRank default changes); `E_BAD_SELECTOR` details.reason; `data.sources()`; StaleNote
+  reason + content revision. Owner questions: similarity->distance conversion; bare numbers.
+- 2026-10-07: Distance readers given a similarity/unset weight count hops and say so with a code;
+  never read strength as distance. Similarity readers read unset as similarity (glossary 11).
+- 2026-10-07: Words: glossary wins over refined B. "Follow: Out | In | All" (path: Out | All, directed
+  only); weight "Higher means: Closer | Farther | Capacity" (no "strength"/"Stronger" on screen);
+  never "route". Filter chip only while a step is on.
+- 2026-10-07: Owner: fix round 3's problems and add tier 2 features, then he starts the tier 2
+  study himself. NO touch/tablet profile, NO keyboard-only study (do not plan one).
+- 2026-10-07: The path-row crash needs NO element API: `RESULT_SHAPE_CONTRACTS` already gives
+  path fields (`onPath`, `order`, `hops`, `cost`) and `layer: "highlight"`. App reads the shape.
+- 2026-10-07: Round 3 units: `next-steps/round3-units.md` (focus, contrast, refusal codes, export
+  words, screenshot chain, 3D size trace, Force cloud, Sources row, re-measure).
+- 2026-10-07: The tier 1 studio is DONE by the stop rule "round 3 finished", not by passing.
+  Report: `report.md`. Real people later (graphty.app opt-in usage data, 5-8 analysts, one real
+  screen-reader user).
+- 2026-10-07: Owner one-way doors still open in `owner-decisions.md` (screenshot legend, undirected
+  arrowheads, export group rank, legend covered layer -> recommend master's `legend.painted-over`,
+  `optionsFor`, canvas `aria-label`, 2D zoom doc) plus the round 3 and tier 2 doors.
+- 2026-10-07: Severity 4 needs a wrong conclusion a reader would act on, from what the participant
+  could perceive. Never prime graders with the outcome to look for.
 - Gates (frozen 2026-10-06): each task >= 80%, each dataset half >= 75%; first-time >= 80%; 0
   confirmed sev-4, silent commits, count/drawing mismatches, false "done"; keyboard and screen
   reader; automated a11y; app words at rest <= 50.
-- Build defects confirm at one scripted participant; behavior and opinion need two. Simulated
-  passes weak, failures strong. A tool mode gets a pilot against a known-good widget first.
-- Before a new element API, grow an existing method. Remove before adding; words at rest never
-  rise. Graph logic in the element, shared controls in compact-mantine, words in the app.
+- Before a new element API, grow an existing method (`CodedFact`, `CameraViewInput.current`,
+  `WeightMeaning`, `ElementAtResult` already exist). Remove before adding; words at rest never rise.
 - Open owner items: usage-data card wording, tooltip delay (500 vs 1000 ms), whether a run's
-  suggested style lands above a reader's color-everything layer, whether to start real users.
+  suggested style lands above a reader's color-everything layer.
 
 ## Priorities and values
 
@@ -155,6 +143,25 @@ Last updated: 2026-10-07 (round 3 closed; studio "done" by the stop rule; final 
 - 2026-10-07 -- Round 3 problems are not fixed on the studio branch (me): the round was the last,
   and each needs a trace or an owner decision first. They lead the next-steps list.
 
+- 2026-10-07 -- Round 3 fixes as units (me, `next-steps/round3-units.md`). Selection in export:
+  element option, app leaves it out by default, no dialog choice (one session does not justify a
+  control). Whole graph angle: an option on `fitToGraph`, not a change to its numbers (its file
+  promises no saved picture moves). Key: view insets every fit honors, and a capture reserves its
+  own drawn key's box. 3D size: trace first (world sizes, 2D vs two 3D angles); camera push-back,
+  hiding sizes in 3D, or an app warning are rejected as symptom fixes. Sources row: a childless
+  source opens the one table it produced. Reason: each fix in its owning package, one door each.
+
+- 2026-10-07 -- Tier 2 design (me, `next-steps/tier2-design.md`), from five designers' proposals and
+  a code read. Filter steps are ELEMENT state (an unticked step must survive in the project file;
+  app-held steps would be app-owned graph state). No step reorder: steps AND together, so order
+  changes nothing. Standard undo for steps, not "undo unticks" (one undo rule; the sev-4 claim was
+  not verified). Neighborhood controls in the list header, not a popover in front (keeps the 8/8
+  route). Several node types deferred: T4 is one node + one edge table, already loadable. Select
+  where dialog deferred: Find "=" is the one home. Replace offered only on a single-source,
+  single-table graph (per-source replace needs row provenance; known ceiling). No auto rerun,
+  no "Rerun all". Weight words from glossary 11 (similarity/distance/capacity/unknown); the
+  element keeps its published `"strength"` spelling and grows `"capacity"`.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-02 -- Eight simulated rounds on mocks and a clickable skeleton. Places were right;
@@ -191,12 +198,21 @@ Last updated: 2026-10-07 (round 3 closed; studio "done" by the stop rule; final 
 - 2026-10-07 (report) -- The harness refused a subagent's Write of `report.md` as a "report file".
   The orchestrator must write it, or the director's task must say the file is a deliverable input.
 
+- 2026-10-07 (units) -- Worked: reading the code before writing units found two things already
+  half-built (`LossNote` codes; `CameraViewInput.current`), which turned one would-be element API
+  into an app-only unit and narrowed another to an option.
+
+- 2026-10-07 (tier 2 design) -- Worked again: reading the element before deciding. Found the
+  path-crash fix needs no API (shape contract), `ElementAtResult` already types edges, notes are
+  already in the project file, selector refusals already carry a code, and `WeightMeaning` exists
+  -- five would-be doors became zero or a field. Also found T4 needs no multi-type load.
+
 ## Thinking
 
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
-  notes, more than one table (old T4), weight at load used by every run, rerun on new data;
-  returning-user personas; the same frozen bars, pilot-per-build, skeptic check; a runner check
-  that keyboard-only personas never click.
+  notes, two tables (old T4), weight at load used by every run, rerun on new data (needs a
+  `friends-v2.csv` with the same nodes and changed weights); returning-user personas; the same
+  frozen bars, pilot-per-build, skeptic check. No keyboard-only persona (owner, 2026-10-07).
 - **Real-user study design:** recruit 5-8 analysts plus one screen-reader user; tasks from tier 1
   core four; measure what simulation could not: whether Size and labels are found, whether 3D
   sizes mislead, ease calibration against our simulated numbers.

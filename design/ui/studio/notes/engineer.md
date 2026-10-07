@@ -42,9 +42,13 @@ acceptance test. "The studio worktree" is
    on the screen's insets; a reader's own camera is refit when the card resizes (autoFrame on).
 6. (2026-10-07) Exports at 2x/4x are now drawn at that size, not stretched (6783ba895). A
    new pixel-sized mesh must read `engine.getRenderWidth()` inside the render and honor
-   `CustomLineRenderer.setPixelScale`, or it shrinks in a 4x export. Still deferred: name behind a dot counted as shown, Force re-apply cloud (untraced -- trace before round 3 launches and
-   file an element issue with the cause, do not hold the round), refusal parity for "New from
-   data...".
+   `CustomLineRenderer.setPixelScale`, or it shrinks in a 4x export. Still deferred: name behind
+   a dot counted as shown, refusal parity for "New from data...".
+6a. (2026-10-07) Force re-apply cloud TRACED and fixed at its cause (b6011c01d): the catalog
+   published ngraph v1 defaults (spring 30, gravity -1.2...) the engine never ran (ngraph ran
+   10, 0.8, -12, 0.9, 0.5). Form now reads 10 and -12. Spring 20 (2x) settles in groups; 80
+   (8x) is still a cloud -- that is ngraph's physics (fixed repulsion), not a stuck engine.
+   Bounding the app's Spring length field is an app choice, open.
 7. (2026-10-07) Small open defects from the re-pilots (not on a measured path, safe after round
    3): Columns by group ignores group order (6,1,5,3,4,2); Circle draws a sphere in 3D; group
    named three ways ("Louvain", "Group N", "Communities" in Group by); Overview direction row
@@ -130,6 +134,20 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-07) **Force publishes the defaults ngraph runs (b6011c01d, element, no API change).**
+  Trace: the re-applied engine DID step (instrumented `NGraphEngine.step`); it settled at ~190
+  steps as a cloud because `springLength: 80` was 8x ngraph's real 10, not 2.7x the shown 30.
+  `resolveLayoutOptions` fills defaults only for classes with a `static descriptor`; ngraph has
+  none, so the zod defaults were documentation only (since 4fb076175). Fix: schema defaults =
+  ngraph's own (same as Spring Electrical's), constructor starts from `getDefaults(schema)`.
+  No default drawing changes. Rejected: honoring the old declared values (moves every force
+  baseline, jitters to the 1000-step cap, breaks parity with the GPU twin); scaling repulsion
+  with spring length (changes what ngraph's options mean: owner door); a stricter settle rule
+  (moves default drawings, and L=80 converges to ratio 0.56 anyway). Proof:
+  `test/browser/force-reapplied-settles.test.ts` (2x the published default; 0.72 old, passes
+  new); app `tmp/r3fix-force-reapply-cloud/run20/` groups, `run80/` still a cloud.
+  Ratio check scripts: `tmp/r3fix-force-reapply-cloud/exp*.mjs` (ngraph in Node, no browser).
 
 - (2026-10-07) **A size bound to data compares at any depth (element option, owner door).**
   Cause (traced): perspective divides world size by depth; style and world sizes were right.
@@ -281,41 +299,21 @@ acceptance test. "The studio worktree" is
 - **(2026-10-06) Open: the live Selection row is blank after the neighbor route**
   (`tmp/check-r1-summary-cleanup/06-08.png`); renders in a headless test. Suspect `useAsyncValue`
   reset on every session version bump; not traced.
-- **(2026-10-07) Waiting on another agent's build: wait on its PID, never `pgrep -f "<cmd>"`** --
-  the other agents' own wait loops contain the same string, so the loop never ends. Stage
-  shared files with `tmp/r3fix-key-view-insets/stage_blob.py <file> <regex>` (HEAD + only the
-  -U0 hunks matching; `git apply --cached --unidiff-zero` of a subset fails on line offsets).
+- (2026-10-06 to 10-07) **Shared worktree and testing lessons (condensed).** Wait on another
+  agent's build by PID, never `pgrep -f "<cmd>"` (their wait loops match). Stage shared files
+  as HEAD + only my hunks (`tmp/r3fix-key-view-insets/stage_blob.py <file> <regex>`); never copy
+  files over others' edits. Prove "fails without" against HEAD only for a file nobody else has
+  edited (`git diff HEAD` first), else a scratch test against a HEAD build. Nx may restore a
+  partial element dist (no `.d.ts`): `npm run build` in graphty-element. Copy a good app build to
+  the session folder and use `REAL_DIST`. Vitest browser runs go through `with-browser.sh`. The
+  Bash safety check refuses `rm -rf $VAR/...`. Probe focus with `--type` before blaming a dead
+  key; real-element popover tests need `page.viewport(1366, 768)` and must wait for
+  `aria-disabled` to clear; "0 labels" was motion keeping the view unsettled. Never call an
+  unexplained failure a flake; two `--prove` runs clobber `tmp/prove/`.
 
 - 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
   `aria-activedescendant`, first match active): worked; `tmp/check-r0-analyze-keyboard-pick/`.
   The `AnalyzeFiltered` story's baseline changed (owner review).
-- (2026-10-07) **Shared worktree: stage by building the index, never by copying files.** Another
-  agent had uncommitted edits in the same files (ScreenshotCapture.ts, types.ts, choices.ts, the
-  API report). Worked: a script that takes `git show HEAD:<path>`, applies only my edits, and
-  writes it with `git hash-object -w` + `git update-index --cacheinfo`
-  (`tmp/r3fix-export-no-selection/stage.py`). Did not do well: proving "fails without" by copying
-  HEAD over a SHARED file -- it briefly wipes the other agent's edits; prove with a scratch copy
-  of the test against a HEAD build instead. The app's `vite build` can exceed Node's 4 GB heap:
-  `NODE_OPTIONS=--max-old-space-size=8192 npx vite build` in graphty (env knob, not a code change);
-  another agent's half-done TS edit can also fail `nx run graphty:build` -- copy a good build to
-  your session folder and use `REAL_DIST`.
-- (2026-10-07) **`nx run graphty:build` can die of heap (4 GB) and leave `graphty/dist`
-  half-empty, which breaks the shared :9366 server: rebuild at once with
-  `NODE_OPTIONS=--max-old-space-size=8192`.** (2026-10-07 again on this run.)
-- (2026-10-07) **Nx can restore a partial element dist.** `nx run graphty-element:build` said
-  "from cache" yet `dist/` had no `.d.ts`, so `npm run api:report` failed; `npm run build` in
-  graphty-element fixed it. Vitest browser runs go through `with-browser.sh` too. The Bash safety
-  check refuses `rm -rf $VAR/...`: use a fresh session folder instead.
-- (2026-10-06) **Testing lessons.** Prove a test fails on old code by copying `git show
-  HEAD:<path>` over the file and back (no stash or checkout); run a new app test against the old
-  build too. Probe focus with a `--type` step before blaming the app for a dead key. Hover a name
-  span (`"Edges per node#2"`), not its stat group. Real-element popover tests need
-  `page.viewport(1366, 768)` and must wait for `aria-disabled` to clear. "0 labels" was the camera
-  spin keeping the view unsettled: look for motion first. Check `git diff HEAD` per file right
-  before staging. Never call an unexplained failure a flake. Two agents' `--prove` runs clobber
-  each other's `tmp/prove/` and a rebuild empties `dist`: check `pgrep -af "real.mjs --prove"`
-  and rerun before trusting a FAIL.
-
 - (2026-10-06) **Layout and load checks (folded from Top of mind).** Check a layout against a
   reference before a study offers it (Spectral was wrong until matched against numpy). A load the
   counts say worked can still draw nothing (store and render half fed separately in `ingest.ts`):

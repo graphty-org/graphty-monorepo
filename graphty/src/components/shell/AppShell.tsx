@@ -150,7 +150,7 @@ import { EgoNetworkControl } from "./canvas/EgoNetworkControl";
 import type { InsightCard } from "./canvas/InsightsStrip";
 import type { LegendChannel } from "./canvas/Legend";
 import { legendAvailable } from "./canvas/legendAvailability";
-import { legendChannels as canvasLegendChannels } from "./canvas/legendChannels";
+import { legendChannels as canvasLegendChannels, legendNamesOf } from "./canvas/legendChannels";
 import { type WelcomeSample, WelcomeSampleList } from "./canvas/WelcomeSampleList";
 import { CommandPalette, type CommandPaletteItem } from "./CommandPalette";
 import {
@@ -2043,7 +2043,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             }
         });
         const unwatchStyle = session.on("style:changed", () => {
-            setColourChannel(canvasLegendChannels(session.styles.legend()));
+            setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
         });
         const unwatchRuns = session.on("run:changed", ({ run, phase }) => {
             if (phase === "restored") {
@@ -2853,7 +2853,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                               .filter((layer) => layer.source.by === "run" && layer.source.runId === runId).length,
                       }),
             });
-            setColourChannel(canvasLegendChannels(session.styles.legend()));
+            setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
             openPanelAt("analyze");
 
             /* Spec 5643-5648 and 7300: the card is retired once the reader has been taken
@@ -3182,7 +3182,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                    took the legend off the screen while the colours it named were still on
                    it, which is exactly the obligation floor item 5 states. */
                 if (block !== undefined) {
-                    setColourChannel(canvasLegendChannels(session.styles.legend()));
+                    setColourChannel(canvasLegendChannels(session.styles.legend(), legendNamesOf(session)));
                 }
 
                 openPanelAt("analyze");

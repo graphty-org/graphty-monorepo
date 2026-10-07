@@ -16,7 +16,7 @@
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import type { Dispatcher } from "./project/Dispatcher";
+import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import type { CodedFact } from "./shared";
@@ -823,6 +823,9 @@ function nodeLinkOf(member: Record<string, unknown>): NodeLink {
     return graph as NodeLink;
 }
 
+/** The transaction opening a document that is not a project into the session. */
+const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
+
 /**
  * Empty the session, through the transaction.
  * @param tx - The transaction.
@@ -1380,8 +1383,11 @@ export function projectOf(
 
                 const graph = nodeLinkOf(data);
                 const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-                await session.transaction("Open project", (tx) =>
-                    readProject({ tx, problems, restored }, doc, graph, name, canned),
+                const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+                await session.transaction(
+                    "Open project",
+                    (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
+                    opening,
                 );
                 // A project opens with a fresh history: its opened state is the baseline.
                 session.history.clear();
@@ -1389,26 +1395,30 @@ export function projectOf(
             } else {
                 const data = doc.members.get("graphty-data")?.[0];
                 const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
-                await session.transaction("Open document", async (tx) => {
-                    const opening = { tx, problems, restored };
-                    if (graph !== undefined) {
-                        await importInto(tx, graph, data?.source);
-                        restored.add("graph");
-                    }
-
-                    for (const kind of [
-                        "graphty-session",
-                        "graphty-arrangement",
-                        "graphty-results",
-                        "graphty-view-state",
-                    ] as const) {
-                        if (doc.members.has(kind)) {
-                            problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                await session.transaction(
+                    "Open document",
+                    async (tx) => {
+                        const opening = { tx, problems, restored };
+                        if (graph !== undefined) {
+                            await importInto(tx, graph, data?.source);
+                            restored.add("graph");
                         }
-                    }
 
-                    await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
-                });
+                        for (const kind of [
+                            "graphty-session",
+                            "graphty-arrangement",
+                            "graphty-results",
+                            "graphty-view-state",
+                        ] as const) {
+                            if (doc.members.has(kind)) {
+                                problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                            }
+                        }
+
+                        await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
+                    },
+                    OPEN_DOCUMENT,
+                );
             }
 
             return Object.freeze({

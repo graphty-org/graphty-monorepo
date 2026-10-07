@@ -573,7 +573,7 @@ const session = graph.getSession();
 await session.undo();
 await session.redo();
 session.canUndo; // whether undo() would do anything
-session.history.steps; // [{ label: "Added 3 nodes", ... }, ...]
+session.history.steps; // [{ fact: { code: "data.add-nodes", params: { count: 3 } }, ... }, ...]
 
 // Several changes as one step, through the tx the callback receives
 await session.transaction("Recolor", async (tx) => {
@@ -585,8 +585,9 @@ await session.transaction("Recolor", async (tx) => {
 await session.execute({ op: "visibility.context", show: false });
 ```
 
-See [Undo and History](./undo) for what is and is not undoable, transactions, work still
-running, events and the memory budget.
+Each step's `fact` is a code and its values, for your application to word; `step.label`, an
+English sentence, is deprecated. See [Undo and History](./undo) for the codes, what is and is not
+undoable, transactions, work still running, events and the memory budget.
 
 ## Event Handling
 

@@ -5,6 +5,7 @@ import React, { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, 
 import { PANEL_GRID } from "../../constants/panel";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
+import { shieldDragSelection } from "../chrome/dragSelectionShield";
 import { ContextMenu } from "../overlays/ContextMenu";
 import { joinPress } from "../pressGesture";
 import { EllipsizedName } from "../rows/EllipsizedName";
@@ -615,6 +616,7 @@ export function Tree({
         const row = event.currentTarget;
         const { pointerId } = event;
         let frame = 0;
+        let unshield: (() => void) | undefined;
         const state = {
             id,
             pointerId,
@@ -628,6 +630,7 @@ export function Tree({
                 document.removeEventListener("pointercancel", cancel, true);
                 document.removeEventListener("keydown", key, true);
                 cancelAnimationFrame(frame);
+                unshield?.();
                 if (drag.current === state) {
                     drag.current = null;
                 }
@@ -653,6 +656,7 @@ export function Tree({
         };
         const begin = (x: number, y: number): void => {
             state.started = true;
+            unshield = shieldDragSelection();
             state.x = x;
             state.y = y;
             try {

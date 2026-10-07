@@ -249,6 +249,22 @@ const css = `
     width: 120px;
     transform: translateX(-50%);
 }
+/* A finger needs a wider strip than the 8px a mouse gets: 24px under a coarse pointer, still
+   drawing nothing, and the focus pill keeps its 4px. */
+@media (pointer: coarse) {
+    .cm-resize-handle[data-edge="end"],
+    .cm-resize-handle[data-edge="start"] { width: 24px; }
+    .cm-resize-handle[data-edge="end"] { inset-inline-end: -12px; }
+    .cm-resize-handle[data-edge="start"] { inset-inline-start: -12px; }
+    .cm-resize-handle[data-edge="top"],
+    .cm-resize-handle[data-edge="bottom"] { height: 24px; }
+    .cm-resize-handle[data-edge="top"] { top: -12px; }
+    .cm-resize-handle[data-edge="bottom"] { bottom: -12px; }
+    .cm-resize-handle[data-edge="end"]:focus-visible::before,
+    .cm-resize-handle[data-edge="start"]:focus-visible::before { left: 10px; right: 10px; }
+    .cm-resize-handle[data-edge="top"]:focus-visible::before,
+    .cm-resize-handle[data-edge="bottom"]:focus-visible::before { top: 10px; bottom: 10px; }
+}
 
 /* States-story hooks (spec 16): a story cannot hold a real :hover or :focus-visible, so a
    wrapper with data-cm-force draws the state on its subtree. Nothing in a component sets it. */

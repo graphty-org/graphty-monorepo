@@ -13,17 +13,21 @@ import { createWorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { CanvasMenu } from "../CanvasMenu";
 
+/** What is under the pointer: a node, an edge, or nothing. */
+type Hit = NodeId | { readonly edge: string } | null;
+
 /**
- * A session whose selection `apply({ nodes })` replaces, and an element whose `elementAt` answers
- * `hit` wherever it is asked.
- * @param hit - the node under the pointer, or null for empty canvas.
+ * A session whose selection `apply({ nodes, edges })` replaces, and an element whose `elementAt`
+ * answers `hit` wherever it is asked.
+ * @param hit - the node or edge under the pointer, or null for empty canvas.
  * @returns the session, the element and the apply spy.
  */
-function standIn(hit: NodeId | null): { session: GraphSession; element: GraphtyElement; apply: ReturnType<typeof vi.fn> } {
+function standIn(hit: Hit): { session: GraphSession; element: GraphtyElement; apply: ReturnType<typeof vi.fn> } {
     const listeners = new Map<string, Set<() => void>>();
     const selection = { nodes: [] as NodeId[], edges: [] as string[], apply: vi.fn() };
-    selection.apply.mockImplementation(({ nodes }: { nodes: NodeId[] }) => {
+    selection.apply.mockImplementation(({ nodes = [], edges = [] }: { nodes?: NodeId[]; edges?: string[] }) => {
         selection.nodes = nodes;
+        selection.edges = edges;
         listeners.get("selection:changed")?.forEach((listener) => {
             listener();
         });
@@ -41,17 +45,22 @@ function standIn(hit: NodeId | null): { session: GraphSession; element: GraphtyE
         layout: { dimension: "3d" },
     } as unknown as GraphSession;
     const element = {
-        elementAt: () => (hit === null ? null : { kind: "node", id: hit }),
+        elementAt: () => {
+            if (hit === null) {
+                return null;
+            }
+            return typeof hit === "object" ? { kind: "edge", id: hit.edge } : { kind: "node", id: hit };
+        },
     } as unknown as GraphtyElement;
     return { session, element, apply: selection.apply };
 }
 
 /**
  * Renders the menu over a stand-in canvas and right-clicks it.
- * @param hit - the node under the pointer, or null.
+ * @param hit - the node or edge under the pointer, or null.
  * @returns the apply spy.
  */
-async function rightClick(hit: NodeId | null): Promise<ReturnType<typeof vi.fn>> {
+async function rightClick(hit: Hit): Promise<ReturnType<typeof vi.fn>> {
     const { session, element, apply } = standIn(hit);
     const value = makeWorkspaceValue(createWorkspaceStore({}), createRegistry(REGISTRATIONS), session, element);
     render(
@@ -84,6 +93,15 @@ describe("the canvas context menu", () => {
         const labels = rows();
         assert.isTrue(labels.some((label) => label.startsWith("Neighborhood")));
         assert.isTrue(labels.some((label) => label.startsWith("Frame selection")));
+        assert.isFalse(labels.some((label) => label.startsWith("Fit")));
+    });
+
+    it("selects exactly the edge under the pointer and lists that edge's commands", async () => {
+        const apply = await rightClick({ edge: "e1" });
+        assert.deepEqual(apply.mock.calls, [[{ edges: ["e1"] }]]);
+        const labels = rows();
+        assert.isTrue(labels.some((label) => label.startsWith("Select endpoints")));
+        assert.isFalse(labels.some((label) => label.startsWith("Neighborhood")));
         assert.isFalse(labels.some((label) => label.startsWith("Fit")));
     });
 

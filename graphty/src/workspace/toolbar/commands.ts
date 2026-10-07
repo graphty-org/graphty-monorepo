@@ -225,6 +225,23 @@ export const registration = defineRegistration({
             },
         },
         {
+            id: "selection.endpoints",
+            label: "Select endpoints",
+            group: "Selection",
+            disabled: ({ session }) =>
+                nothingDrawn(session) ?? (session?.selection.edges.length ? null : "Select an edge first"),
+            run: async ({ session }) => {
+                if (session === null) {
+                    return;
+                }
+                const ends = session.selection.edges.flatMap((id) => {
+                    const edge = session.data.edge(id);
+                    return edge === undefined ? [] : [edge.source, edge.target];
+                });
+                await session.selection.apply({ nodes: [...new Set(ends)] });
+            },
+        },
+        {
             id: "selection.grow-neighborhood",
             label: "Grow by one hop",
             group: "Selection",

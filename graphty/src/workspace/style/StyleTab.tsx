@@ -6,6 +6,7 @@ import { ActionIcon, Group, Indicator, Menu, Stack, Text, Tooltip, VisuallyHidde
 import React, { useEffect, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { edgeName } from "../inspector/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSection } from "./LabelSection";
 import {
@@ -131,7 +132,7 @@ function selectionName(session: GraphSession): string {
     }
     const edge = edges.length === 1 && nodes.length === 0 ? session.data.edge(edges[0]) : undefined;
     if (edge !== undefined) {
-        return `${String(edge.source)} to ${String(edge.target)}`;
+        return edgeName(session, edge);
     }
     const count = (n: number, word: string): string[] => (n === 0 ? [] : [`${String(n)} ${word}${n === 1 ? "" : "s"}`]);
     return [...count(nodes.length, "node"), ...count(edges.length, "edge")].join(", ");

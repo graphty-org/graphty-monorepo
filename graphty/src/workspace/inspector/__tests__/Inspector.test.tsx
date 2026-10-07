@@ -263,6 +263,31 @@ describe("the inspector", () => {
         assert.isNotNull(screen.getByRole("group", { name: "Edges among them" }));
     });
 
+    it("names a selected edge by its ends, and Select endpoints selects those two nodes", async () => {
+        const { session: on } = await renderInspector();
+        const bridge = on.data.edges().find((edge) => edge.source === "n0" && edge.target === "n6");
+        assert.isDefined(bridge);
+        await act(async () => {
+            await on.config.set({ data: { directed: false } });
+            await on.selection.apply({ edges: [bridge?.id ?? ""] });
+        });
+        assert.isNotNull(await screen.findByText("n0 -- n6"));
+
+        await userEvent.click(screen.getByRole("button", { name: "Edge actions" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /Select endpoints/ }));
+        await waitFor(() => {
+            assert.sameMembers([...on.selection.nodes], ["n0", "n6"]);
+        });
+        assert.lengthOf(on.selection.edges, 0);
+
+        // On a directed graph the name points from source to target.
+        await act(async () => {
+            await on.config.set({ data: { directed: true } });
+            await on.selection.apply({ edges: [bridge?.id ?? ""] });
+        });
+        assert.isNotNull(await screen.findByText("n0 -> n6"));
+    });
+
     it("gives no two reachable controls the same accessible name", async () => {
         const { session: on } = await renderInspector();
         for (const select of [

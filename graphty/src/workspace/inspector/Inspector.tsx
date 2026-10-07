@@ -20,7 +20,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { groupName, KIND_WORDS, runDate } from "./words";
+import { edgeName, groupName, KIND_WORDS, runDate } from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -265,7 +265,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
         case "edge": {
             const edge = session.data.edge(resolved.edge);
             return {
-                name: edge === undefined ? resolved.edge : `${String(edge.source)} to ${String(edge.target)}`,
+                name: edge === undefined ? resolved.edge : edgeName(session, edge),
                 swatch: swatchOf(session, { edge: resolved.edge }),
             };
         }

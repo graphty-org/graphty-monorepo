@@ -5,6 +5,8 @@
 
 import type {
     Channel,
+    EdgeRecord,
+    GraphSession,
     GraphStatistics,
     GraphtyErrorCode,
     Measurement,
@@ -116,6 +118,16 @@ export function directionWords(statistics: GraphStatistics): string {
         return `${word}, set in the project`;
     }
     return word;
+}
+
+/**
+ * An edge by its two ends: "Ava -> Kofi" on a directed graph, "Ava -- Kofi" otherwise.
+ * @param session - the session, which says whether the graph is directed.
+ * @param edge - the edge's record.
+ * @returns the words.
+ */
+export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
+    return `${String(edge.source)} ${session.status.directed ? "->" : "--"} ${String(edge.target)}`;
 }
 
 /**

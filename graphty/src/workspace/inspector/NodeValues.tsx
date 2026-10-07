@@ -258,7 +258,8 @@ export function NeighborList({ center, hops = 1 }: Readonly<{ center: NodeId; ho
 
 /**
  * One edge's Values tab: its two ends, each a link that selects that node, and the file's
- * attributes. An edge is reached from the Edges table (tier1-design.md task T12).
+ * attributes, then what each run measured on it. An edge is reached from the Edges table
+ * (tier1-design.md task T12) or by a click on it on the canvas.
  * @param props - Component props
  * @param props.id - The edge
  * @returns The tab
@@ -269,6 +270,11 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
     if (session === null || edge === undefined) {
         return null;
     }
+    // What each finished run measured on this edge (edge betweenness and the like).
+    const results = finishedRuns(session).flatMap((run) => {
+        const value = run.result.edge(id)?.[run.field];
+        return typeof value === "number" ? [{ run, value }] : [];
+    });
     return (
         <ControlSection label="Summary" defaultOpened>
             <DataRow
@@ -286,6 +292,10 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
                 }}
             />
             <AttributeRows rows={fileAttributes(session, "edge", edge)} />
+            {results.length > 0 && <DataRowHeader label="Results" />}
+            {results.map(({ run, value }) => (
+                <DataRow key={run.id} stat name={run.label} value={formatNumber(value)} />
+            ))}
         </ControlSection>
     );
 }

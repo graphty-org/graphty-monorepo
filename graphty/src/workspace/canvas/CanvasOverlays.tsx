@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 import { wordsFor } from "../analyze/words";
 import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
+import { count } from "../inspector/words";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { keyBlocks } from "./legendWords";
@@ -56,6 +57,16 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
         read();
         const offs = [
             ...REDRAW_EVENTS.map((event) => session.on(event, read)),
+            session.on("selection:changed", () => {
+                const { nodes, edges } = session.selection;
+                const parts = [
+                    ...(nodes.length > 0 ? [count(nodes.length, "node")] : []),
+                    ...(edges.length > 0 ? [count(edges.length, "edge")] : []),
+                ];
+                if (parts.length > 0) {
+                    store.set({ announcement: `${parts.join(", ")} selected` });
+                }
+            }),
             session.on("progress:changed", (change) => {
                 if (change.task === "load") {
                     load = change.phase === "end" ? null : change;

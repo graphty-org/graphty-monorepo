@@ -18,7 +18,7 @@ const KEYBOARD_ECHO_MS = 500;
 
 /**
  * The canvas's context menu: a right-click, a touch-and-hold or Shift+F10 on the graph. Over a
- * node it first selects that node (unless it is already selected), then lists the same commands
+ * node or an edge it first selects it (unless it is already selected), then lists the same commands
  * as the inspector's "..." for what is now selected; over empty canvas it lists Fit, Frame
  * selection and Clear selection. From the keyboard it lists the commands for the selection.
  * @param props - Component props
@@ -32,6 +32,8 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
     useSessionVersion(session);
     // The node the menu opened over, or null for empty canvas.
     const [overNode, setOverNode] = useState<NodeId | null>(null);
+    // The edge the menu opened over, when it opened over an edge.
+    const [overEdge, setOverEdge] = useState<string | null>(null);
     const keyAt = useRef(-Infinity);
 
     const select = (node: NodeId): void => {
@@ -41,7 +43,11 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
     };
 
     let ids: readonly string[] = EMPTY_CANVAS;
-    if (overNode !== null && session !== null) {
+    if (overEdge !== null && session !== null) {
+        // Until the press's own selection lands, the menu is that one edge's.
+        const { nodes, edges } = session.selection;
+        ids = MENUS[edges.includes(overEdge) ? resolveInspected(null, { nodes, edges }).kind : "edge"] ?? EMPTY_CANVAS;
+    } else if (overNode !== null && session !== null) {
         const { nodes, edges } = session.selection;
         // A neighborhood is the one row kind a node's menu keeps: Grow by one hop acts on it.
         // Until the press's own selection lands, the menu is that one node's.
@@ -59,7 +65,9 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
                     onKeyDown={(event) => {
                         if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
                             keyAt.current = performance.now();
-                            setOverNode(session?.selection.nodes[0] ?? null);
+                            const node = session?.selection.nodes[0] ?? null;
+                            setOverNode(node);
+                            setOverEdge(node === null ? (session?.selection.edges[0] ?? null) : null);
                         }
                     }}
                     onContextMenu={(event) => {
@@ -70,9 +78,14 @@ export function CanvasMenu({ children }: Readonly<{ children: React.ReactNode }>
                         const rect = event.currentTarget.getBoundingClientRect();
                         const hit = element?.elementAt({ x: event.clientX - rect.left, y: event.clientY - rect.top });
                         const node = hit?.kind === "node" ? hit.id : null;
+                        const edge = hit?.kind === "edge" ? hit.id : null;
                         setOverNode(node);
+                        setOverEdge(edge);
                         if (node !== null) {
                             select(node);
+                        }
+                        if (edge !== null && session !== null && !session.selection.edges.includes(edge)) {
+                            void session.selection.apply({ edges: [edge] });
                         }
                     }}
                 >

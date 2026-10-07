@@ -60,6 +60,7 @@ function standIn(facts: StandInFacts = {}): {
             painting: () => facts.painting,
         },
         data: { statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }) },
+        selection: { nodes: [], edges: [] },
     } as unknown as GraphSession;
     const emit = (event: string, payload: unknown): void => {
         listeners.get(event)?.forEach((listener) => {
@@ -255,6 +256,28 @@ describe("the status line", () => {
             emit("run:changed", { run: { ...run, status: "failed" }, phase: "end", cause: "command", generation: 2 });
         });
         assert.equal(store.get().announcement, "PageRank failed");
+    });
+
+    it("announces what a selection holds, and nothing when it empties", () => {
+        const { session, emit } = standIn();
+        const store = renderOver(session);
+        const { selection } = session as unknown as { selection: { nodes: string[]; edges: string[] } };
+        selection.edges = ["e1"];
+        act(() => {
+            emit("selection:changed", {});
+        });
+        assert.equal(store.get().announcement, "1 edge selected");
+        selection.nodes = ["a", "b"];
+        act(() => {
+            emit("selection:changed", {});
+        });
+        assert.equal(store.get().announcement, "2 nodes, 1 edge selected");
+        selection.nodes = [];
+        selection.edges = [];
+        act(() => {
+            emit("selection:changed", {});
+        });
+        assert.equal(store.get().announcement, "2 nodes, 1 edge selected");
     });
 });
 

@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- A 2D camera's `zoom` is documented as relative to a half-width of 5 units
+
+**What.** `CameraState.zoom` (2D) now has a doc comment: zoom 1 shows 5 world units either side
+of `pan` across, zoom 2 shows half that, so a half-width of `h` units is `5 / h`. That is how
+`setCameraState`, `getCameraState`, `setCameraZoom` and `zoomStep` have always read it. The
+built-in `fitToGraph` view now answers in that unit too; it used to answer in pixels per world
+unit, with the aspect ratio inverted, so in 2D Fit, Frame selection and `zoomToNodes` zoomed into
+a single edge on any graph more than a few units across. The custom-cameras guide's 2D example
+used the same wrong unit and is corrected. No exported name or type changes.
+
+**Why.** The camera and the view disagreed about what the number meant, and nothing said which
+was right. A third party writing a 2D camera view needs to know the unit.
+
+**Alternatives.** Redefine `zoom` as pixels per world unit (changes what every saved camera
+state and every `setCameraZoom` call means; a breaking change). Pass the half-width at zoom 1 to
+a view in `CameraViewInput` (a new field for a number that never changes). Let a 2D view answer
+with `orthoLeft`/`orthoRight` instead of a zoom (two ways to say one thing).
+
 ## 2026-10-07 -- The element's `aria-label` names its canvas
 
 **What.** `<graphty-element>` now watches its own standard `aria-label` attribute and copies it onto

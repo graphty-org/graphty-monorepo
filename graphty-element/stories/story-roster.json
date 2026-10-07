@@ -33,6 +33,8 @@
         "Algorithms/Spanning Tree::Prim",
         "Algorithms/Traversal::BFS",
         "Algorithms/Traversal::DFS",
+        "Camera Controls::FitThreeD",
+        "Camera Controls::FitTwoD",
         "Camera Controls::ThreeD",
         "Camera Controls::TwoD",
         "Data::Basic",

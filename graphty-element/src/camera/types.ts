@@ -72,6 +72,10 @@ export interface CameraState {
     fov?: number;
 
     // 2D Camera Properties
+    /**
+     * How far in a 2D camera is: 1 shows 5 world units either side of `pan` across, 2 shows half
+     * that. To show a half-width of `h` units, ask for `5 / h`.
+     */
     zoom?: number;
     pan?: { x: number; y: number };
     rotation?: number;

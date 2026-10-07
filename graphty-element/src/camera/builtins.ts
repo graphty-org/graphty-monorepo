@@ -14,9 +14,10 @@
  * times the longest side: every one of those is what the element computed before, so no picture
  * moves. They disagree with each other -- the orbit controller's own framing pads 5 percent and
  * the 2D controller's pads 10 percent -- and this file does not average them, because averaging
- * them would change what a saved screenshot looks like. A plugin picks its own. The one
- * exception is the isometric `beta`: it was 0.615, the elevation above the horizon, in a field
- * measured down from the pole, and no picture depended on it because nothing applied it.
+ * them would change what a saved screenshot looks like. A plugin picks its own. Two exceptions:
+ * the isometric `beta` was 0.615, the elevation above the horizon, in a field measured down from
+ * the pole, and no picture depended on it because nothing applied it; and the 2D `fitToGraph`
+ * zoom was pixels per unit with the aspect upside down, which framed a single edge.
  *
  * THESE ARE NOT REGISTERED. A built-in id is reserved and `registerCameraView` refuses one, so
  * the table below is looked up first and the registry second, which is what keeps a registration
@@ -35,6 +36,14 @@ const DEFAULT_FOV = 0.8;
 
 /** How much room a flat framing leaves around the box: 5 percent. */
 const FLAT_PADDING = 1.05;
+
+/**
+ * How many world units the 2D camera shows either side of its centre, across, at a zoom of 1.
+ *
+ * An orthographic `zoom` is relative to this: zoom 2 shows half as much, so it reads half-width
+ * over this many units, and a view that wants a half-width of `h` asks for `5 / h`.
+ */
+export const FLAT_HALF_WIDTH_AT_ZOOM_ONE = 5;
 
 /** How much room a perspective framing leaves around the box: 10 percent. */
 const PERSPECTIVE_PADDING = 1.1;
@@ -72,14 +81,16 @@ function fitToGraph(input: CameraViewInput): CameraState {
     const { center } = bounds;
 
     if (input.mode === "2d") {
-        // The flat framing is a ratio of pixels to world units, so it needs the render width and
-        // not only the aspect: the box is widened to whichever of its two sides fills the frame
-        // first, and the zoom is however many pixels that leaves per unit.
-        const extent = Math.max(bounds.size.x, bounds.size.y / input.aspect);
+        // The width that shows the whole box: its own width, or the width a frame of this aspect
+        // (width over height) needs to show its height, whichever is more. The zoom is the
+        // half-width at zoom 1 over half of that. NOT pixels per unit: the camera never reads a
+        // zoom that way, and on a graph tens of units wide that number put a single edge across
+        // the whole screen.
+        const extent = Math.max(bounds.size.x, bounds.size.y * input.aspect);
 
         return {
             type: "orthographic",
-            zoom: input.viewport.width / (extent * FLAT_PADDING),
+            zoom: FLAT_HALF_WIDTH_AT_ZOOM_ONE / ((extent * FLAT_PADDING) / 2),
             pan: { x: center.x, y: center.y },
         };
     }

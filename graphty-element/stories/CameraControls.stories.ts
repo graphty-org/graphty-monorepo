@@ -40,9 +40,11 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
     // does not move at all -- so reading only the position would report the 2D presets as inert
     // when they are working.
     const where = (): string => {
-        const camera = scene.graph.scene.activeCamera as
-            | { position: { x: number; y: number; z: number }; orthoLeft?: number | null; orthoTop?: number | null }
-            | null;
+        const camera = scene.graph.scene.activeCamera as {
+            position: { x: number; y: number; z: number };
+            orthoLeft?: number | null;
+            orthoTop?: number | null;
+        } | null;
 
         return [camera?.position.x, camera?.position.y, camera?.position.z, camera?.orthoLeft, camera?.orthoTop]
             .map((value) => (typeof value === "number" ? value.toFixed(3) : "-"))
@@ -423,5 +425,98 @@ export const TwoD: Story = {
     `,
     play: async ({ canvasElement }) => {
         await flies(canvasElement, "2D", "2d");
+    },
+};
+
+/**
+ * Zoom right in on one node, then Fit, and check every node is drawn inside the canvas.
+ *
+ * Fit is the action a reader who has lost the graph presses, so the picture after it must be the
+ * whole graph. In 2D it once filled the screen with a single edge.
+ * @param canvasElement - Where the story was rendered.
+ * @param story - How to name it in a failure message.
+ * @param mode - The view mode this variant is drawn in.
+ */
+const fits = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d"): Promise<void> => {
+    await waitForGraphSettled(canvasElement);
+
+    const scene = await drawn(canvasElement, `Camera Controls ${story}`);
+
+    await assertGraphLoaded(scene, { nodes: 6, edges: 6 });
+    await assertViewMode(scene, mode);
+
+    const element = canvasElement.querySelector("graphty-element");
+    if (!(element instanceof Graphty)) {
+        return;
+    }
+
+    const [first] = element.graph.getNodes();
+    await element.graph.zoomToNodes(first.id);
+    await element.graph.zoomStep("in");
+    await element.graph.zoomStep("in");
+    await element.applyCameraView("fitToGraph");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const { width, height } = element.graph.canvas.getBoundingClientRect();
+    for (const node of element.graph.getNodes()) {
+        const at = element.nodeScreenPosition(node.id);
+        await holds(
+            at !== undefined && at.visible && at.x >= 0 && at.x <= width && at.y >= 0 && at.y <= height,
+            `Camera Controls ${story}: after Fit, node ${String(node.id)} is not drawn inside the canvas`,
+        );
+    }
+};
+
+/**
+ * Fit in 3D: the whole graph in frame after the camera was zoomed in on one node.
+ */
+export const FitThreeD: Story = {
+    name: "Fit 3D",
+    args: {
+        layoutConfig: { seed: 42 },
+    },
+    render: (args) => html`
+        <graphty-element
+            style="width: 100%; height: 100vh; display: block;"
+            .nodeData=${args.nodeData}
+            .edgeData=${args.edgeData}
+            .layoutConfig=${args.layoutConfig}
+            ${ref((el) => {
+                if (el instanceof Graphty) {
+                    setLayoutPreSteps(el, 2000);
+                }
+            })}
+        ></graphty-element>
+    `,
+    play: async ({ canvasElement }) => {
+        await fits(canvasElement, "Fit 3D", "3d");
+    },
+};
+
+/**
+ * Fit in 2D: the whole graph in frame after the camera was zoomed in on one node.
+ */
+export const FitTwoD: Story = {
+    name: "Fit 2D",
+    args: {
+        layoutConfig: { seed: 42 },
+    },
+    render: (args) => html`
+        <graphty-element
+            style="width: 100%; height: 100vh; display: block;"
+            .nodeData=${args.nodeData}
+            .edgeData=${args.edgeData}
+            .layoutConfig=${args.layoutConfig}
+            ${ref((el) => {
+                if (el instanceof Graphty) {
+                    el.viewMode = "2d";
+                    el.background = { backgroundType: "color", color: "#f0f0f0" };
+                    setLayoutPreSteps(el, 2000);
+                }
+            })}
+        ></graphty-element>
+    `,
+    play: async ({ canvasElement }) => {
+        await fits(canvasElement, "Fit 2D", "2d");
     },
 };

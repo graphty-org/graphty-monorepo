@@ -105,7 +105,8 @@ registerCameraView({
         const { center, maxDimension } = input.bounds;
 
         if (input.mode === "2d") {
-            return { type: "orthographic", zoom: 100 / maxDimension, pan: { x: center.x, y: center.y } };
+            // zoom 1 shows 5 units either side of the centre; 10 / maxDimension shows the whole box
+            return { type: "orthographic", zoom: 10 / maxDimension, pan: { x: center.x, y: center.y } };
         }
 
         return {

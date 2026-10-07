@@ -14,6 +14,7 @@ import {
     WebGPUEngine,
 } from "@babylonjs/core";
 
+import { FLAT_HALF_WIDTH_AT_ZOOM_ONE } from "../camera/builtins";
 import { CameraManager } from "../cameras/CameraManager";
 import { OrbitCameraController } from "../cameras/OrbitCameraController";
 import { OrbitInputController } from "../cameras/OrbitInputController";
@@ -568,7 +569,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1.0,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });
@@ -588,7 +589,7 @@ export class RenderManager implements Manager {
             touchPanScale: 1.0,
             touchPinchMin: 0.1,
             touchPinchMax: 100,
-            initialOrthoSize: 5,
+            initialOrthoSize: FLAT_HALF_WIDTH_AT_ZOOM_ONE,
             rotationEnabled: true,
             inertiaEnabled: true,
         });

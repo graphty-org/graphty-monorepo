@@ -253,7 +253,7 @@ export function grsbm(s: GraphSnapshot, options: GrsbmOptions = {}): GrsbmResult
         // Every other cluster's term is unchanged, so the whole partition moves by the two halves'
         // terms minus the cluster's own.
         const improvement = best - modularity([members]);
-        if (!(improvement > 0)) {
+        if (improvement <= 0) {
             continue;
         }
         partition += improvement;

@@ -67,19 +67,21 @@ describe("group-by-key-row (GPU, design 8.6)", () => {
         });
     }
 
-    it("ties go to the lowest key in both tiers; an empty row is INVALID_INDEX with score 0", async (t) => {
+    it("ties go to the row's own key, else the lowest, in both tiers; an empty row is INVALID_INDEX with score 0", async (t) => {
         const ctx = await context(t);
-        // row 0: keys 9, 4, 9, 4, 7 -> 9 and 4 tie at 2 -> 4; row 1: empty; row 2: 40 arcs, keys 5 and 2 alternating -> 2
+        // row 0 (own key 9): keys 9, 4, 9, 4, 7 -> 9 and 4 tie at 2 -> 9; row 1: empty; row 2 (own key 9): 40 arcs, keys
+        // 5 and 2 alternating -> 2; row 3 (own key 4): keys 9, 4, 9, 4 -> 4
         const keyIn = [9, 4, 9, 4, 7, 5, 2];
         const colIdx = [0, 1, 2, 3, 4];
         for (let i = 0; i < 40; i++) {
             colIdx.push(5 + (i % 2));
         }
-        const rowPtr = [0, 5, 5, 45, 45, 45, 45, 45];
+        colIdx.push(0, 1, 2, 3);
+        const rowPtr = [0, 5, 5, 45, 49, 49, 49, 49];
         for (const threadMax of [0, GROUP_ROW_THREAD_LIMIT]) {
             const run = await runGroupBy(ctx, rowPtr, colIdx, null, keyIn, threadMax);
-            expect(Array.from(run.bestKey.subarray(0, 3))).toEqual([4, 0xffffffff, 2]);
-            expect(Array.from(run.bestScore.subarray(0, 3))).toEqual([2, 0, 20]);
+            expect(Array.from(run.bestKey.subarray(0, 4))).toEqual([9, 0xffffffff, 2, 4]);
+            expect(Array.from(run.bestScore.subarray(0, 4))).toEqual([2, 0, 20, 2]);
         }
     });
 

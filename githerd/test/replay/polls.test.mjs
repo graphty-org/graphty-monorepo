@@ -16,10 +16,17 @@ const MINUTE = 60_000;
  * A client over the replay, in dry-run, with the given persisted records.
  * @param {ReturnType<typeof createReplay>} replay the replay
  * @param {{rate?: object, etags?: object}} [saved] persisted rate and ETag records
- * @returns {{gh: ReturnType<typeof createGitHub>, fake: ReturnType<typeof createFakeGh>}} the client and its fake gh
+ * @returns {{gh: ReturnType<typeof createGitHub>, fake: ReturnType<typeof createFakeGh>, statuses: number[]}} the
+ *   client, its fake gh, and the status of each answer it was given, in order
  */
 function client(replay, saved = {}) {
-    const fake = createFakeGh((call) => httpOutput(replay.response(call)));
+    /** @type {number[]} */
+    const statuses = [];
+    const fake = createFakeGh((call) => {
+        const res = replay.response(call);
+        statuses.push(res.status);
+        return httpOutput(res);
+    });
     const gh = createGitHub({
         repo: REPO,
         fetch: fake.fetch,
@@ -29,7 +36,7 @@ function client(replay, saved = {}) {
         now: replay.now,
         ...saved,
     });
-    return { gh, fake };
+    return { gh, fake, statuses };
 }
 
 /**
@@ -108,7 +115,7 @@ describe("an idle day", () => {
         for (const path of [MASTER, PR_RUNS, PULLS]) await before.gh.get(path, { purpose: "essential" });
         const saved = JSON.parse(JSON.stringify({ rate: before.gh.rate, etags: before.gh.etags }));
 
-        const { gh, fake } = client(replay, saved);
+        const { gh, fake, statuses } = client(replay, saved);
         for (let at = Date.parse("2026-09-12T00:00:00Z"); at < Date.parse("2026-09-13T00:00:00Z"); at += MINUTE) {
             replay.setTime(at);
             for (const path of [MASTER, PR_RUNS, PULLS]) await gh.get(path, { purpose: "essential" });
@@ -117,8 +124,9 @@ describe("an idle day", () => {
         }
         expect(fake.calls).toHaveLength(4 * 1440);
         expect(fake.calls.every((c) => c.args.includes("-H"))).toBe(true);
-        const statuses = new Set(fake.calls.map((c) => replay.response(c).status));
-        expect([...statuses]).toEqual([304]);
+        // The statuses as answered, each at its own minute: answering every call again would rebuild
+        // all 5,760 answers at the last minute's clock, doubling the test's work and checking the wrong time.
+        expect([...new Set(statuses)]).toEqual([304]);
         expect(gh.rate.counters.core.used).toBe(saved.rate.counters.core.used);
     });
 });

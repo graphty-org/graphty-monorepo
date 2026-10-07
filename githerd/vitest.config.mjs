@@ -4,6 +4,8 @@ export default defineConfig({
     test: {
         environment: "node",
         include: ["test/**/*.test.mjs"],
+        // No test runs git with the developer's own config, including a GIT_CONFIG_COUNT signing override.
+        setupFiles: ["test/isolate-git.setup.mjs"],
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],

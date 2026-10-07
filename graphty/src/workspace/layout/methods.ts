@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
+import { layoutRefusalWords } from "./refusalWords";
 
 /**
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
@@ -148,7 +149,7 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
 
 /**
  * Why a layout cannot run now with the values it would open with, or null: it needs a node and
- * none is selected, it needs a grouping and the graph has none, or the element's estimate says no.
+ * none is selected, or the element's estimate says no (a missing grouping among its reasons).
  * @param session - the element's session.
  * @param descriptor - the layout.
  * @param values - the values it would run with.
@@ -163,14 +164,8 @@ export function unavailable(
     if (node !== undefined && (values[node] === undefined || values[node] === null)) {
         return "Select a node first";
     }
-    const partition = keyOption(descriptor, "partition")?.name;
-    if (partition !== undefined && values[partition] === undefined) {
-        return "Needs a node attribute to group by";
-    }
     const estimate = session.estimate({ op: "layout.set", id: descriptor.id, options: values });
-    // ponytail: the element's reason is English prose; it becomes a code the app words once the
-    // element reports one (the same gap as Analyze's).
-    return estimate.available ? null : (estimate.reason ?? "Cannot run on this graph");
+    return estimate.available ? null : layoutRefusalWords(session, estimate);
 }
 
 /** One row of the Layout list. */

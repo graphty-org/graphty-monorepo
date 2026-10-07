@@ -2703,6 +2703,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         snapshot,
         nodeValues: (path) =>
             sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
+        runOf: (path) => results.roots.find((root) => root.fields.some((field) => field.path === path))?.runId,
     };
 
     const session = new Session({

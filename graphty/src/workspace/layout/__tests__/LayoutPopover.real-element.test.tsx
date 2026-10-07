@@ -77,6 +77,7 @@ describe("the Layout popover", () => {
             let popover = await screen.findByRole("dialog", { name: "Layout" });
             const before = within(popover).getByRole("option", { name: /^Rings by group/ });
             assert.strictEqual(before.getAttribute("aria-disabled"), "true", "no column groups K5 yet");
+            assert.include(before.textContent, "run Louvain in Analyze first", "names what to run, in app words");
             await userEvent.keyboard("{Escape}");
 
             const run = await session.runs.start("louvain", {}, { style: false });
@@ -86,6 +87,10 @@ describe("the Layout popover", () => {
                 const rings = within(popover).getByRole("option", { name: /^Rings by group/ });
                 assert.notStrictEqual(rings.getAttribute("aria-disabled"), "true", rings.textContent);
             });
+            // K5 is one group: Two columns names the grouping by the run's name, not its field path.
+            const columns = within(popover).getByRole("option", { name: /^Two columns/ });
+            assert.include(columns.textContent, "Needs exactly two groups; Louvain has 1");
+            assert.notInclude(columns.textContent, "results.");
             await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
             await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
             await waitFor(() => {
@@ -117,6 +122,10 @@ describe("the Layout popover", () => {
             assert.include(rings.textContent, "Select a node first");
             const planar = within(popover).getByRole("option", { name: /^No crossings/ });
             assert.strictEqual(planar.getAttribute("aria-disabled"), "true", "K5 cannot be drawn without crossings");
+            assert.include(planar.textContent, "cannot be drawn without crossings");
+            for (const elementWords of ["G is not planar", '"planar"', "results.", "dim:", "`"]) {
+                assert.notInclude(planar.textContent, elementWords);
+            }
 
             // Grid: nothing runs until Apply.
             await userEvent.click(within(popover).getByRole("option", { name: /^Grid/ }));

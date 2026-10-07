@@ -345,7 +345,9 @@ export interface CostEstimate {
     readonly cancellable: boolean;
     readonly confidence: CostConfidence;
     readonly costClass: CostClass;
+    // @deprecated
     readonly reason?: string;
+    readonly refusal?: CodedFact<EstimateRefusalCode>;
     readonly seconds: number;
 }
 
@@ -590,6 +592,9 @@ export interface EngineVersions {
     readonly layout: string;
     readonly plugins?: Readonly<Record<string, string>>;
 }
+
+// @public
+export type EstimateRefusalCode = "algorithm.unknown" | "algorithm.needs-directed" | "algorithm.needs-undirected" | "algorithm.needs-weighted" | "algorithm.needs-connected" | "algorithm.needs-accelerator" | "estimate.not-costed" | "estimate.scope-unresolved" | "layout.unknown" | "layout.needs-accelerator" | "layout.not-planar" | "layout.needs-node" | "layout.node-missing" | "layout.needs-grouping" | "layout.grouping-absent" | "layout.needs-two-groups";
 
 // @public
 export type ExplainTarget = {

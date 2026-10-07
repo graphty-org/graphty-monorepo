@@ -257,3 +257,38 @@ picture). A broader option such as `overlays: false` that also hides context poi
 for that yet). Name it `hideSelection` or `selection` (`selection: false` reads as "no selection",
 not "not drawn"). Have the app deselect and reselect around the export (a workaround that fires
 events and loses a multi-node selection).
+
+## 2026-10-07 -- Why something cannot run, as a code: `CostEstimate.refusal`
+
+**What.** `CostEstimate` (what `session.estimate()` returns, and the `cost` of a plan) gains
+`refusal?: CodedFact<EstimateRefusalCode>`, present exactly when `available` is false: a code and
+its values, with no words. `EstimateRefusalCode` is a new exported type in `./session`, a union of
+16 codes: `layout.not-planar`, `layout.needs-node`, `layout.node-missing`,
+`layout.needs-grouping`, `layout.grouping-absent`, `layout.needs-two-groups`, `layout.unknown`,
+`layout.needs-accelerator`, `algorithm.unknown`, `algorithm.needs-directed`,
+`algorithm.needs-undirected`, `algorithm.needs-weighted`, `algorithm.needs-connected`,
+`algorithm.needs-accelerator`, `estimate.not-costed` and `estimate.scope-unresolved`. Each
+code's values are documented on the type: the layout id, the option name, the node, the grouping
+attribute, the run that made that attribute (its run id, or null for a data column), the number
+of groups or pieces, the engine. `reason` keeps its English sentence unchanged and is marked
+`@deprecated` (removed at the next major). The graphty app now words every layout refusal itself
+(`graphty/src/workspace/layout/refusalWords.ts`), naming a run's grouping by the run's name and
+the community algorithm by the app's name for it.
+
+**Why.** Refused layouts reached the screen in the element's English: 'the layout "planar" cannot
+draw this graph without crossings: G is not planar.', and a raw field path such as
+`results.louvain.group` for Two columns after a community run. The element must return neutral
+facts and the app must write the words; the app cannot reword a sentence without parsing it.
+
+**Alternatives.** A code on layout estimates only, named `LayoutRefusalCode` (but `CostEstimate`
+is shared with algorithm runs, whose refusals are English too, and one field with two meanings is
+harder to document). The `GraphtyErrorCode` already on a plan's `blocked` (too coarse: every
+layout refusal is `E_OPTION_RANGE`). Codes without a namespace prefix (the legend facts use
+`legend.*`, so this follows them). Removing `reason` now (a breaking change; it waits for the next
+major).
+
+**Known limits.** `MetricAvailability.reason` (from `catalog.metrics()`) still passes the English
+sentence on; it has no coded refusal yet. The app's Analyze popover still shows algorithm
+refusals in the element's words: the codes exist now, the app's words for them do not. The
+inspector's Method select disables a layout that cannot run but does not say why (the Layout
+popover does).

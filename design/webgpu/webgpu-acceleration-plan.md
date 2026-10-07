@@ -2651,7 +2651,10 @@ Direction-optimizing variant (Beamer SC12 via cuGraph `bfs_impl.cuh` lines
 an option), switch to bottom-up (over `reverse()`; the forward arrays when
 undirected) when the frontier's degree sum exceeds the unvisited degree
 estimate `/ alpha` and is growing, back when `next * 24 < unvisited` and
-shrinking; bottom-up iterates the non-zero-degree unvisited list with a bitset
+shrinking (amended by issue #1358: the unvisited estimate is the IN-degree sum,
+the arcs a bottom-up step reads, floored at the unvisited count, and alpha is
+the constant 2, because `m / n` switched a directed tree and a small-world graph
+to bottom-up a level early); bottom-up iterates the non-zero-degree unvisited list with a bitset
 frontier (`atomicOr`, bulk non-atomic path when the frontier is >= 40% of n,
 cuGraph `bfs_impl.cuh` lines 729-765). Every per-level choice -- fused versus
 two-phase, top-down versus bottom-up -- is made ON THE DEVICE by the level's

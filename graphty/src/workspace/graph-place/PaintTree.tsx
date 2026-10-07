@@ -8,7 +8,7 @@ import { matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { moveRow, setRowHidden } from "./actions";
 import { ROW_COMMANDS } from "./commands";
-import { findRow, isMovable, layerAbove, type PaintRow } from "./rows";
+import { findRow, hasEye, isMovable, layerAbove, type PaintRow } from "./rows";
 
 /** A group run with more groups than this opens collapsed (tier1-design.md section 2.5). */
 const OPEN_UP_TO = 12;
@@ -125,7 +125,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
 
     const toItem = (row: PaintRow): TreeNodeData => {
         const eye =
-            row.layerIds.length > 0 && session !== null ? (
+            hasEye(row) && session !== null ? (
                 <ToggleIconButton
                     key="eye"
                     variant="swap"
@@ -184,7 +184,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         if (row === undefined || session === null) {
             return;
         }
-        if (event.key === " " && row.layerIds.length > 0) {
+        if (event.key === " " && hasEye(row)) {
             event.preventDefault();
             void setRowHidden(session, row, !row.hidden);
             return;

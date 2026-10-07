@@ -6,12 +6,17 @@ import type { PaintRow } from "./rows";
 
 /**
  * Shows or hides a row's paint as one undoable step: every layer the row owns is switched on or
- * off together. Nothing is removed from the layout and nothing is recomputed.
+ * off together, and a group row's one value of its run's layer through `styles.setValueHidden`.
+ * Nothing is removed from the layout and nothing is recomputed.
  * @param session - the element's session.
  * @param row - the row.
  * @param hide - true to hide.
  */
 export async function setRowHidden(session: GraphSession, row: PaintRow, hide: boolean): Promise<void> {
+    if (row.value !== undefined) {
+        await session.styles.setValueHidden(row.value.layerId, row.value.channel, row.value.value, hide);
+        return;
+    }
     await session.transaction(`${hide ? "Hide" : "Show"} ${row.name}`, async (tx) => {
         for (const id of row.layerIds) {
             await tx.styles.update(id, { enabled: !hide });

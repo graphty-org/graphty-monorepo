@@ -199,6 +199,42 @@ describe("paintRows", () => {
         );
     });
 
+    it("gives a group row an eye on its run's color binding, read from the stack while the legend lags", () => {
+        const color = {
+            ...layer("lv-color", runSource("louvain")),
+            target: "node",
+            encode: { "node.color": { by: "results.louvain.group", scale: "ordinal", hidden: [1] } },
+        } as unknown as Layer;
+        const session = sessionOf({
+            layers: [...BASE, color],
+            // No legend block: the element has not prepared the repainted binding yet.
+            runs: [
+                {
+                    id: "louvain",
+                    label: "Louvain",
+                    status: "succeeded",
+                    shape: "community",
+                    record: {
+                        summary: {
+                            groups: [
+                                { group: 0, size: 4 },
+                                { group: "1", size: 3 },
+                            ],
+                        },
+                    },
+                },
+            ],
+        });
+        const groups = findRow(paintRows(session), "louvain")?.children ?? [];
+        assert.deepEqual(
+            groups.map((g) => [g.value, g.hidden]),
+            [
+                [{ layerId: "lv-color", channel: "node.color", value: 0 }, false],
+                [{ layerId: "lv-color", channel: "node.color", value: "1" }, true],
+            ],
+        );
+    });
+
     it("marks a failed run with the element's message and a partial one as partial", () => {
         const rows = paintRows(
             sessionOf({

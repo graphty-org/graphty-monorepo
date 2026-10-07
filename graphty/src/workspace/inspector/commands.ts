@@ -17,9 +17,9 @@ export const registration = defineRegistration({
         // kinds show their values alone, with no tabs.
         { kind: "several", tabs: [] },
         { kind: "neighborhood", tabs: [] },
-        { kind: "measure-row", tabs: ["style", "values"], defaultTab: "values" },
-        { kind: "run-row", tabs: ["style", "values"], defaultTab: "values" },
-        { kind: "group-row", tabs: [] },
+        { kind: "measure-row", tabs: ["style", "values"], defaultTab: "style" },
+        { kind: "run-row", tabs: ["style", "values"], defaultTab: "style" },
+        { kind: "group-row", tabs: ["style", "values"], defaultTab: "style" },
         { kind: "everything-row", tabs: ["style", "values"], defaultTab: "style" },
         { kind: "selection-row", tabs: [] },
         { kind: "attribute", tabs: [] },

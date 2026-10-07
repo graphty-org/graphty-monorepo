@@ -260,3 +260,90 @@ export function sourceName(session: GraphSession, binding: DataBinding): string 
     }
     return null;
 }
+
+/** The legend block of a run that paints a color. */
+export type ColorBlock = ReturnType<GraphSession["styles"]["legend"]>[number];
+
+/**
+ * The legend block through which a run paints its color, or undefined when it paints none (or
+ * the element has not prepared it yet).
+ * @param session - the element's session.
+ * @param runId - the run.
+ * @returns the block.
+ */
+export function colorBlockOf(session: GraphSession, runId: string): ColorBlock | undefined {
+    return session.styles.legend().find((block) => block.runId === runId && block.palette !== undefined);
+}
+
+/** Where a run binds its color: the layer, the channel and the binding, read from the style stack. */
+export interface RunColor {
+    readonly layerId: LayerId;
+    readonly channel: Channel;
+    readonly binding: DataBinding;
+}
+
+/**
+ * The color binding of a run's layers, or undefined when the run binds no color.
+ * @param session - the element's session.
+ * @param runId - the run.
+ * @returns the binding and where it sits.
+ */
+export function runColorOf(session: GraphSession, runId: string): RunColor | undefined {
+    const owned = session.runs.bindings(runId);
+    for (const layer of session.styles.list()) {
+        if (!owned.includes(layer.id)) {
+            continue;
+        }
+        const channel: Channel = `${layer.target}.color`;
+        const binding = layer.encode?.[channel];
+        if (binding !== undefined && "by" in binding) {
+            return { layerId: layer.id, channel, binding };
+        }
+    }
+    return undefined;
+}
+
+/**
+ * Whether a run's color binding leaves a group unpainted (`styles.setValueHidden`). Compared as
+ * the legend spells a value, so the group `0` and the text `"0"` are the same.
+ * @param color - the run's color binding.
+ * @param group - the group.
+ * @returns true when hidden.
+ */
+export function groupHidden(color: RunColor, group: string | number): boolean {
+    return (color.binding.hidden ?? []).some((value) => String(value) === String(group));
+}
+
+/**
+ * Paints one group of a run in its own color: one `styles.update` of the run's color binding with
+ * that group's entry in `map` set, so the other groups keep the palette. The palette the element
+ * reports is written into the binding, so naming one group's color does not drop the rest.
+ * @param session - the element's session.
+ * @param color - the run's color binding.
+ * @param palette - the palette the element paints it with, from the run's legend block.
+ * @param group - the group, as the run's summary spells it.
+ * @param value - the color.
+ */
+export async function writeGroupColor(
+    session: GraphSession,
+    color: RunColor,
+    palette: ColorBlock["palette"],
+    group: string | number,
+    value: string,
+): Promise<void> {
+    const layer = session.styles.get(color.layerId);
+    if (layer === undefined) {
+        return;
+    }
+    const { binding } = color;
+    await session.styles.update(layer.id, {
+        encode: {
+            ...layer.encode,
+            [color.channel]: {
+                ...binding,
+                palette: binding.palette ?? palette?.name,
+                map: { ...binding.map, [String(group)]: value },
+            },
+        },
+    });
+}

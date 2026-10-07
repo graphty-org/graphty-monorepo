@@ -8,7 +8,7 @@ import { Sections } from "../frame/menus";
 import { LayoutGroup } from "../layout/LayoutGroup";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { StyleTab } from "../style/StyleTab";
+import { GroupStyle, SelectionStyle, StyleTab } from "../style/StyleTab";
 import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
@@ -340,11 +340,14 @@ function bodyOf(
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }
-                : // A group is not a style layer, so it has nothing for the Style tab to edit.
-                  { only: <GroupValues run={run} group={resolved.group} version={version} /> };
+                : {
+                      style: <GroupStyle run={run.id} group={resolved.group} />,
+                      values: <GroupValues run={run} group={resolved.group} version={version} />,
+                  };
         case "everything-row":
             return { style: <StyleTab />, values: <EverythingValues /> };
         case "selection-row":
+            return { only: <SelectionStyle /> };
         case "layer-row":
             return { only: <StyleTab /> };
         default:

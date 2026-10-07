@@ -264,7 +264,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.isNull(inspector().queryByText("Groups"));
 
             act(() => {
-                store.set({ inspected: { kind: "measure-row", id } });
+                store.set({ inspected: { kind: "measure-row", id }, tabs: { "measure-row": "values" } });
             });
             const top = await inspector().findByRole("group", { name: "Top 10" });
             assert.isAtMost(rowButtons(top).length, 10);
@@ -344,6 +344,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
             const sizes = inspector().getByRole("group", { name: "Sizes" });
             await userEvent.click(rowButtons(sizes)[0]);
+            // A group row opens on Style; its size is on Values.
+            await userEvent.click(await inspector().findByRole("tab", { name: "Values" }));
             const members = await inspector().findByRole("button", { name: /^Size/ });
             await userEvent.click(members);
             await waitFor(() => {
@@ -399,7 +401,10 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 throw new Error("Louvain found no groups");
             }
             act(() => {
-                store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, group.group]) } });
+                store.set({
+                    inspected: { kind: "group-row", id: JSON.stringify([id, group.group]) },
+                    tabs: { "group-row": "values" },
+                });
             });
             const members = await inspector().findByRole("group", { name: "Members" });
             const names = rowButtons(members).map((row) => row.textContent);
@@ -414,7 +419,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
 
             // The run row and a neighborhood: no two reachable controls share a name.
             act(() => {
-                store.set({ inspected: { kind: "run-row", id } });
+                store.set({ inspected: { kind: "run-row", id }, tabs: { "run-row": "values" } });
             });
             await inspector().findByRole("group", { name: "Sizes" });
             assert.deepEqual(controlNames(), [...new Set(controlNames())]);
@@ -425,4 +430,93 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         },
         TIMEOUT_MS * 2,
     );
+
+    it(
+        "every fixed row has a Style: the Selection's highlight, a group's color and eye, a run opening on Style",
+        async () => {
+            const { session, store } = await openRings();
+            const id = await runToEnd(session, "louvain");
+
+            // The Selection row: Highlight > Color writes the element's selectionStyle.
+            act(() => {
+                store.set({ inspected: { kind: "selection-row", id: "selection" } });
+            });
+            const highlight = await inspector().findByRole("group", { name: "Highlight" });
+            const hex = within(highlight).getByRole("textbox", { name: /Color/ });
+            await userEvent.clear(hex);
+            await userEvent.type(hex, "FF0000{Enter}");
+            await waitFor(() => {
+                assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FF0000");
+            });
+
+            // A group row opens on Style; its Fill paints that group only.
+            const groups = session.runs.get(id)?.result?.summary().groups ?? [];
+            assert.isAtLeast(groups.length, 2, "Louvain split the two rings");
+            const [first, second] = groups;
+            const louvain = session.runs.get(id);
+            const field = louvain === undefined ? "" : (RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField ?? "");
+            const memberOf = (group: string | number): string => {
+                const node = session.data.nodes().find((n) => louvain?.result?.node(n.id)?.[field] === group);
+                if (node === undefined) {
+                    throw new Error(`no node in group ${String(group)}`);
+                }
+                return String(node.id);
+            };
+            const inFirst = memberOf(first.group);
+            const inSecond = memberOf(second.group);
+            const colorOf = (node: string): string | undefined =>
+                session.styles.explain({ node }).merged["node.color"]?.hex.slice(0, 7).toLowerCase();
+            const citesRun = (node: string): boolean => {
+                const painter = session.styles.explain({ node }).channels.find((c) => c.channel === "node.color");
+                return painter !== undefined && session.runs.bindings(id).includes(painter.layerId);
+            };
+            assert.isTrue(citesRun(inFirst) && citesRun(inSecond), "the run paints both groups");
+            const otherBefore = colorOf(inSecond);
+            act(() => {
+                store.set({ inspected: { kind: "group-row", id: JSON.stringify([id, first.group]) } });
+            });
+            const fill = await inspector().findByRole("group", { name: "Fill" });
+            const fillHex = within(fill).getByRole("textbox", { name: /Color/ });
+            await userEvent.clear(fillHex);
+            await userEvent.type(fillHex, "123456{Enter}");
+            await act(async () => {
+                await session.styles.settled();
+            });
+            await waitFor(() => {
+                assert.equal(colorOf(inFirst), "#123456");
+            });
+            assert.equal(colorOf(inSecond), otherBefore, "another group keeps its color");
+
+            // The group's eye hides that group's paint and no other.
+            await userEvent.click(
+                await screen.findByRole("button", { name: `Hide ${groupNameOf(first.rank, first.group)}` }),
+            );
+            await act(async () => {
+                await session.styles.settled();
+            });
+            await waitFor(() => {
+                assert.isFalse(citesRun(inFirst));
+            });
+            assert.isTrue(citesRun(inSecond));
+
+            // The run's row opens on Style the first time.
+            act(() => {
+                store.set({ inspected: { kind: "run-row", id } });
+            });
+            await waitFor(() => {
+                assert.equal(inspector().getByRole("tab", { selected: true }).textContent, "Style");
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
 });
+
+/**
+ * A group row's name as the paint tree draws it.
+ * @param rank - the group's rank, if any.
+ * @param group - the group.
+ * @returns the name.
+ */
+function groupNameOf(rank: number | undefined, group: string | number): string {
+    return rank === undefined ? String(group) : `Group ${String(rank)}`;
+}

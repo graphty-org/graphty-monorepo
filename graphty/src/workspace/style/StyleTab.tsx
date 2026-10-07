@@ -1,6 +1,6 @@
-import { SegmentedControl } from "@graphty/compact-mantine";
+import { CompactColorInput, SegmentedControl, StyleNumberInput } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/graphty-element/catalog";
-import type { LayerId } from "@graphty/graphty-element/schema";
+import { DEFAULT_SELECTION_STYLE, type LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Indicator, Menu, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
 import React, { useState } from "react";
@@ -8,7 +8,17 @@ import React, { useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSection } from "./LabelSection";
-import { everythingRow, lineOf, rowLayers, startingValue, type Target, writeLine } from "./row";
+import {
+    colorBlockOf,
+    everythingRow,
+    lineOf,
+    rowLayers,
+    runColorOf,
+    startingValue,
+    type Target,
+    writeGroupColor,
+    writeLine,
+} from "./row";
 import { SetLine } from "./SetLine";
 import { useStyleVersion } from "./useStyleVersion";
 import { channelWord, isLineChannel, SECTIONS, type StyleSection } from "./words";
@@ -260,6 +270,123 @@ function Section({
                     documentColors={colors}
                 />
             ))}
+        </Stack>
+    );
+}
+
+/**
+ * A section's header, as the Style tab's sections draw it.
+ * @param props - Component props
+ * @param props.title - the section's name
+ * @returns The header
+ */
+function SectionTitle({ title }: Readonly<{ title: string }>): React.JSX.Element {
+    return (
+        <Group gap={4} h={24} wrap="nowrap">
+            <Text size="xs" fw={600} pl={4}>
+                {title}
+            </Text>
+        </Group>
+    );
+}
+
+/**
+ * The Selection row's Style: the highlight a selected node is drawn with, which is the element's
+ * `selectionStyle` setting rather than a style layer. Each settled change is one undoable step.
+ * @returns The section, or nothing before the element has come up
+ */
+export function SelectionStyle(): React.JSX.Element | null {
+    const { session, element, store } = useWorkspace();
+    useStyleVersion(session, element);
+    if (session === null) {
+        return null;
+    }
+    const current = session.config.selectionStyle;
+    const write = (patch: Partial<typeof current>): void => {
+        // `selectionStyle` is replaced whole, so the halves not changed are written back as they are.
+        session.config.set({ selectionStyle: { ...current, ...patch } }).catch(() => {
+            store.set({ notice: { message: "The highlight could not be changed", error: true } });
+        });
+    };
+    return (
+        <Stack gap={8} p={8} data-testid="selection-style" role="group" aria-label="Highlight">
+            <SectionTitle title="Highlight" />
+            <CompactColorInput
+                label="Color"
+                color={current.color.slice(0, 7).toUpperCase()}
+                defaultColor={DEFAULT_SELECTION_STYLE.color.slice(0, 7).toUpperCase()}
+                opacity={Math.round(current.opacity * 100)}
+                defaultOpacity={Math.round(DEFAULT_SELECTION_STYLE.opacity * 100)}
+                onChangeEnd={(color, opacity) => {
+                    write({
+                        color: color ?? DEFAULT_SELECTION_STYLE.color,
+                        opacity: (opacity ?? DEFAULT_SELECTION_STYLE.opacity * 100) / 100,
+                    });
+                }}
+            />
+            <StyleNumberInput
+                label="Size"
+                value={current.scale}
+                defaultValue={DEFAULT_SELECTION_STYLE.scale}
+                min={0.1}
+                step={0.05}
+                decimalScale={2}
+                onChange={(scale) => {
+                    write({ scale: scale ?? DEFAULT_SELECTION_STYLE.scale });
+                }}
+            />
+        </Stack>
+    );
+}
+
+/**
+ * A group row's Style: the color its run paints the group, written into the run's color binding
+ * as that group's own entry. A run that paints no color has nothing here to edit.
+ * @param props - Component props
+ * @param props.run - the run
+ * @param props.group - the group, as the run's summary spells it
+ * @returns The section, or nothing before the element has come up
+ */
+export function GroupStyle({
+    run,
+    group,
+}: Readonly<{ run: string; group: string | number }>): React.JSX.Element | null {
+    const { session, element, store } = useWorkspace();
+    useStyleVersion(session, element);
+    if (session === null) {
+        return null;
+    }
+    const bound = runColorOf(session, run);
+    if (bound === undefined) {
+        return (
+            <Text size="xs" c="dimmed" p="md">
+                This run paints no color
+            </Text>
+        );
+    }
+    const block = colorBlockOf(session, run);
+    const mapped = bound.binding.map?.[String(group)];
+    const painted = (
+        typeof mapped === "string" ? mapped : block?.swatches.find((swatch) => swatch.value === group)?.color
+    )
+        ?.slice(0, 7)
+        .toUpperCase();
+    return (
+        <Stack gap={8} p={8} data-testid="group-style" role="group" aria-label="Fill">
+            <SectionTitle title="Fill" />
+            <CompactColorInput
+                label="Color"
+                color={painted}
+                defaultColor={painted ?? "#000000"}
+                showOpacity={false}
+                onChangeEnd={(color) => {
+                    if (color !== undefined) {
+                        writeGroupColor(session, bound, block?.palette, group, color).catch(() => {
+                            store.set({ notice: { message: "The group's color could not be changed", error: true } });
+                        });
+                    }
+                }}
+            />
         </Stack>
     );
 }

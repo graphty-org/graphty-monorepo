@@ -221,7 +221,7 @@ export function generateElements<N extends GeneratorName>(name: N, options: Gene
     }
     // a misspelled option (seeed, position) would otherwise run with the default and give a plausible graph
     const known = GENERATOR_OPTION_NAMES[name] ?? [];
-    for (const [k, v] of Object.entries((options) ?? {})) {
+    for (const [k, v] of Object.entries(options ?? {})) {
         if (v !== undefined && !known.includes(k)) {
             throw new RangeError(
                 `generator ${JSON.stringify(name)}: unknown option ${k}; the options are ${known.join(", ")}`,

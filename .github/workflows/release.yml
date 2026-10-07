@@ -254,7 +254,9 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  sparse-checkout: tools/release-held.sh
+                  sparse-checkout: |
+                      tools/release-held.sh
+                      tools/gpu-runner-lost.sh
                   sparse-checkout-cone-mode: false
 
             - name: Open or update the held-release issue
@@ -273,6 +275,14 @@ jobs:
                       # and the next attempt retries.
                       echo "::error::release attempt on ${SHA} did not finish: a lane was cancelled (CI ${CI_RESULT}, T4 ${T4_RESULT}, Hosts ${HOSTS_RESULT}, audit ${AUDIT_RESULT}); the next attempt retries"
                       exit 1
+                  fi
+                  # The first attempt failed only because a spot runner was taken away (every failed job says its
+                  # runner was lost): gpu-rerun-on-runner-loss.yml re-runs this run's failed jobs once when it
+                  # ends, with the same test (tools/gpu-runner-lost.sh), so there is nothing to hold yet. A second
+                  # loss, or any real failure beside the loss, opens the issue below.
+                  if [ "$GITHUB_RUN_ATTEMPT" = 1 ] && tools/gpu-runner-lost.sh "$GITHUB_RUN_ID" 1; then
+                      echo "::warning::release attempt on ${SHA} lost its T4 runner (a spot reclaim); its failed jobs are re-run once, no issue opened"
+                      exit 0
                   fi
                   what=$(printf '%s, ' "${what[@]}"); what=${what%, }
                   title="Release held: ${what} failed on ${SHA:0:7}"

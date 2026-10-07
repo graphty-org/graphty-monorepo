@@ -886,13 +886,29 @@ describe("gpu.yml", () => {
         assert.match(on, /^ {4}workflow_call:\n {8}inputs:\n {12}ref:/m);
         assert.match(on, /^ {4}workflow_dispatch:/m);
         assert.match(gpu, /cancel-in-progress: false/);
-        assert.doesNotMatch(job(gpu, "test-gpu"), /tenancy=spot/);
         // the T4 tests the commit the train selected, not the train's own checkout
         assert.match(
             job(gpu, "test-gpu"),
             /- uses: actions\/checkout@v4\n {14}with: \{ ref: "\$\{\{ inputs.ref \}\}" \}/,
         );
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
+    });
+
+    it("runs on a spot T4 by default, the release train included, with on-demand and hosted as dispatch options", () => {
+        // owner decision, 2026-10-04; a workflow_call declares no runner input, so the train takes the default
+        assert.match(
+            job(gpu, "test-gpu"),
+            /runs-on: \$\{\{ inputs\.runner \|\| 'machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot' \}\}/,
+        );
+        assert.match(gpu, /default: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/);
+        for (const option of ["gpu-linux-t4", "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand"]) {
+            assert.ok(gpu.includes(`- ${option}\n`), option);
+        }
+        assert.doesNotMatch(triggers(gpu).split("workflow_dispatch:")[0], /runner:/);
+        assert.match(
+            job(workflow("gpu-weekly-paired.yml"), "paired"),
+            /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/,
+        );
     });
 
     it("leaves no pull request or master push able to start a paid T4 anywhere", () => {
@@ -910,6 +926,75 @@ describe("gpu.yml", () => {
             }
             assert.doesNotMatch(triggers(text), /^ {4}(pull_request|pull_request_target|push|merge_group)\b/m, file);
         }
+    });
+});
+
+describe("the re-run of a T4 run whose spot runner was lost", () => {
+    const rerun = workflow("gpu-rerun-on-runner-loss.yml");
+    const held = job(workflow("release.yml"), "held");
+
+    it("watches every run that holds a T4 job: a GPU dispatch, the release train's Release run, the weekly benchmark", () => {
+        // a workflow_call's jobs belong to the CALLER's run, so the train's T4 is seen only through "Release"
+        assert.match(rerun, /workflows: \["GPU", "Release", "GPU weekly paired benchmark"\]\n\s+types: \[completed\]/);
+        assert.match(workflow("release.yml"), /^name: Release\n/);
+        assert.match(workflow("gpu.yml"), /^name: GPU\n/m);
+        assert.match(workflow("gpu-weekly-paired.yml"), /^name: GPU weekly paired benchmark\n/m);
+    });
+
+    it("re-runs only a failed first attempt, only its failed jobs, and only when tools/gpu-runner-lost.sh says so", () => {
+        assert.match(
+            rerun,
+            /if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1\n/,
+        );
+        assert.match(rerun, /if tools\/gpu-runner-lost.sh "\$RUN" 1; then\n[^\n]*\n\s+gh run rerun "\$RUN" --failed /);
+        assert.equal(rerun.match(/gh run rerun/g).length, 1);
+    });
+
+    it("opens no Release held issue for a first attempt the re-run will repeat, using the same test", () => {
+        assert.match(held, /tools\/gpu-runner-lost.sh\n/);
+        const skip = held.indexOf(
+            `if [ "$GITHUB_RUN_ATTEMPT" = 1 ] && tools/gpu-runner-lost.sh "$GITHUB_RUN_ID" 1; then`,
+        );
+        assert.ok(skip > 0, "the held job asks the same question");
+        assert.match(held.slice(skip), /^[^\n]*\n\s+echo "::warning::[^\n]*\n\s+exit 0\n/);
+        assert.ok(skip < held.indexOf("tools/release-held.sh open"), "before the issue is opened");
+        // the train still requires a green T4: the re-run attempt must pass it
+        assert.match(job(workflow("release.yml"), "train"), /needs.t4.result == 'success'/);
+    });
+
+    describe("tools/gpu-runner-lost.sh, against a stub gh", () => {
+        const LOST = "The runner has received a shutdown signal. This can happen when the runner service is stopped";
+        const lost = (failed, annotations) => {
+            const bin = mkdtempSync(join(tmpdir(), "runner-lost-"));
+            const lines = Object.entries(annotations)
+                .map(([id, msg]) => `*/check-runs/${id}/annotations) echo "${msg}";;`)
+                .join("\n");
+            writeFileSync(
+                join(bin, "gh"),
+                `#!/bin/bash\ncase "$2" in\n*/runs/7/attempts/1/jobs*) printf '%s\\n' ${failed.join(" ")};;\n${lines}\n*) exit 3;;\nesac\n`,
+                { mode: 0o755 },
+            );
+            const r = spawnSync("bash", [new URL("./gpu-runner-lost.sh", import.meta.url).pathname, "7", "1"], {
+                encoding: "utf8",
+                env: { ...process.env, GITHUB_REPOSITORY: "o/r", PATH: `${bin}:${process.env.PATH}` },
+            });
+            rmSync(bin, { recursive: true, force: true });
+            return r.status;
+        };
+
+        it("says lost when every failed job lost its runner", () => {
+            assert.equal(lost(["11"], { 11: LOST }), 0);
+            assert.equal(
+                lost(["11", "12"], { 11: LOST, 12: "The self-hosted runner lost communication with the server." }),
+                0,
+            );
+        });
+
+        it("says not lost for a real failure, alone or beside a lost runner, and for no failed job", () => {
+            assert.equal(lost(["11"], { 11: "Process completed with exit code 1." }), 1);
+            assert.equal(lost(["11", "12"], { 11: LOST, 12: "Process completed with exit code 1." }), 1);
+            assert.equal(lost([], {}), 1);
+        });
     });
 });
 

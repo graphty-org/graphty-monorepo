@@ -5,16 +5,16 @@ Before: 3,329 lines. After: 4,406 lines. Status unchanged: "Draft for owner revi
 
 ## Counts
 
-| | |
-| --- | --- |
-| Reviewer findings across the six lenses | 123 |
-| Confirmed by the verifiers | 94 |
-| Downgraded / narrowed (applied in the narrowed form) | 27 |
-| Refuted (not applied): PERF-14, MAINT-12 | 2 |
-| Verifier-added findings (MISSED-* / M-*) | 28 |
-| Surviving findings handed to the fixer | 149 |
-| Applied | 149 |
-| Rejected by the fixer | 0 |
+|                                                      |     |
+| ---------------------------------------------------- | --- |
+| Reviewer findings across the six lenses              | 123 |
+| Confirmed by the verifiers                           | 94  |
+| Downgraded / narrowed (applied in the narrowed form) | 27  |
+| Refuted (not applied): PERF-14, MAINT-12             | 2   |
+| Verifier-added findings (MISSED-_ / M-_)             | 28  |
+| Surviving findings handed to the fixer               | 149 |
+| Applied                                              | 149 |
+| Rejected by the fixer                                | 0   |
 
 The document's new "Review log" section (after section 15) carries the same
 counts and a table mapping every applied finding id to the sections changed.
@@ -104,7 +104,7 @@ R-25 (busy dev GPU vs the 3x benchmark rule).
 - Lane budgets: 15 min default / 20 min GPU in T-12, G2 and 12.6; the 1M
   200-iteration exact-vs-grid run moved to the nightly benchmark job.
 - Names: `createAccelerator(ctx, options?)` and `calibrateLayout(ctx,
-  options?)` replace `ctx.accelerator()` / `ctx.calibrate()` in 2.2, 3.2,
+options?)` replace `ctx.accelerator()` / `ctx.calibrate()` in 2.2, 3.2,
   3.3, 7.8, 9.5, 9.6, 9.8, P10, P12, R-2, Q-6, Q-21; `test/oracle/<name>.ts`
   replaces `test/helpers/oracle.ts`; scripts are `.js`; `bench` is a tsx
   harness, not a vitest project (11.1, 12.3, 3.1); one results directory.

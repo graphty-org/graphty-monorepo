@@ -2,13 +2,9 @@
  * Tests for the logs_clear MCP tool.
  */
 
-import { beforeEach,describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-    logsClearHandler,
-    logsClearInputSchema,
-    logsClearTool,
-} from "../../../src/mcp/tools/logs-clear.js";
+import { logsClearHandler, logsClearInputSchema, logsClearTool } from "../../../src/mcp/tools/logs-clear.js";
 import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_clear tool", () => {
@@ -17,15 +13,15 @@ describe("logs_clear tool", () => {
     beforeEach(() => {
         storage = new LogStorage();
         // Add some test data
-        storage.addLogs("session-1", [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Log 1" },
-        ], { projectMarker: "project-a" });
-        storage.addLogs("session-2", [
-            { time: "2024-01-15T10:01:00Z", level: "INFO", message: "Log 2" },
-        ], { projectMarker: "project-b" });
-        storage.addLogs("session-3", [
-            { time: "2024-01-15T10:02:00Z", level: "INFO", message: "Log 3" },
-        ], { projectMarker: "project-a" });
+        storage.addLogs("session-1", [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Log 1" }], {
+            projectMarker: "project-a",
+        });
+        storage.addLogs("session-2", [{ time: "2024-01-15T10:01:00Z", level: "INFO", message: "Log 2" }], {
+            projectMarker: "project-b",
+        });
+        storage.addLogs("session-3", [{ time: "2024-01-15T10:02:00Z", level: "INFO", message: "Log 3" }], {
+            projectMarker: "project-a",
+        });
     });
 
     it("requires confirm: true", async () => {
@@ -95,8 +91,8 @@ describe("logs_clear tool", () => {
         // Other sessions should remain
         const remaining = storage.getSessions();
         expect(remaining).toHaveLength(2);
-        expect(remaining.some(s => s.sessionId === "session-1")).toBe(true);
-        expect(remaining.some(s => s.sessionId === "session-3")).toBe(true);
+        expect(remaining.some((s) => s.sessionId === "session-1")).toBe(true);
+        expect(remaining.some((s) => s.sessionId === "session-3")).toBe(true);
     });
 
     it("returns count of cleared logs", async () => {

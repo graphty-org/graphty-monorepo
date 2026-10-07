@@ -22,7 +22,6 @@ describe("Standardized error messages", () => {
         for (const source of sources) {
             let errorThrown = false;
             try {
-                 
                 for await (const _chunk of source.getData()) {
                     // Should not get here
                 }
@@ -43,7 +42,6 @@ describe("Standardized error messages", () => {
         let errorThrown = false;
 
         try {
-             
             for await (const _chunk of source.getData()) {
                 // Should not get here
             }
@@ -66,11 +64,10 @@ describe("Standardized error messages", () => {
         const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
         vi.stubGlobal("fetch", fetchMock);
 
-        const source = new GraphMLDataSource({url: "http://graphty.invalid/graph.graphml"});
+        const source = new GraphMLDataSource({ url: "http://graphty.invalid/graph.graphml" });
         let errorThrown = false;
 
         try {
-             
             for await (const _chunk of source.getData()) {
                 // Should not get here
             }

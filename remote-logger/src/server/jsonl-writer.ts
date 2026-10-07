@@ -127,9 +127,11 @@ export class JsonlWriter {
 
         for (const state of this.markerStates.values()) {
             // Wait for pending writes and flush buffer
-            flushPromises.push(state.writeLock.then(() => {
-                this.flushBuffer(state);
-            }));
+            flushPromises.push(
+                state.writeLock.then(() => {
+                    this.flushBuffer(state);
+                }),
+            );
         }
 
         await Promise.all(flushPromises);

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { logsGetRecentHandler } from "../../../src/mcp/tools/logs-get-recent.js";
-import { type LogEntry,LogStorage } from "../../../src/server/log-storage.js";
+import { type LogEntry, LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_get_recent tool", () => {
     let storage: LogStorage;
@@ -56,16 +56,12 @@ describe("logs_get_recent tool", () => {
     });
 
     test("filters by projectMarker", async () => {
-        storage.addLogs(
-            "session-a",
-            [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Project A" }],
-            { projectMarker: "project-a" },
-        );
-        storage.addLogs(
-            "session-b",
-            [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Project B" }],
-            { projectMarker: "project-b" },
-        );
+        storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Project A" }], {
+            projectMarker: "project-a",
+        });
+        storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Project B" }], {
+            projectMarker: "project-b",
+        });
 
         const result = await logsGetRecentHandler(storage, { projectMarker: "project-a" });
 
@@ -74,16 +70,12 @@ describe("logs_get_recent tool", () => {
     });
 
     test("filters by workingDirectory (derives marker from path)", async () => {
-        storage.addLogs(
-            "session-a",
-            [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Remote logging" }],
-            { projectMarker: "remote-logging" },
-        );
-        storage.addLogs(
-            "session-b",
-            [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Other project" }],
-            { projectMarker: "other" },
-        );
+        storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Remote logging" }], {
+            projectMarker: "remote-logging",
+        });
+        storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Other project" }], {
+            projectMarker: "other",
+        });
 
         const result = await logsGetRecentHandler(storage, {
             workingDirectory: "/home/user/.worktrees/remote-logging",

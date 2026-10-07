@@ -91,11 +91,13 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
         expect((SABOTAGE["bfs-unvisited-flags"] ?? []).map((m) => m.name)).toEqual([
             "everyone-listed",
             "in-degree-test-inverted",
-            "in-degree-summed",
+            "vertices-counted-not-in-degrees",
         ]);
         expect((SABOTAGE["bfs-next-degree"] ?? []).map((m) => m.name)).toEqual([
             "sum-dropped",
             "entries-counted-not-degrees",
+            "in-sum-dropped",
+            "out-degree-subtracted",
             "path-gate-inverted",
         ]);
         const selector = MEASURED[MEASURED.length - 1];

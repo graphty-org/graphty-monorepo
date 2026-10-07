@@ -15,7 +15,7 @@ import { keyChipFor } from "../bindings";
 import { LEGEND_EMPTY_REASON } from "../canvas/legendAvailability";
 import { MORE_LABEL, MoreGlyph } from "./PanelHeader";
 import { COMING_GROUP_SENTENCE, ComingTag, PanelSection, SectionAddButton } from "./PanelSection";
-import { type LayerItem, StyleLayerList } from "./StyleLayerList";
+import { type LayerItem, type LayerRowFacts, StyleLayerList } from "./StyleLayerList";
 
 /** The Arrangement section's plain name (StylePanel.dc.html:470). */
 const ARRANGEMENT_LABEL = "Arrangement";
@@ -107,6 +107,12 @@ export interface StylePanelProps {
     readonly onLayerSelect: (layerId: string) => void;
     /** Adds a layer. */
     readonly onAddLayer: () => void;
+    /** Shows (true) or hides (false) a layer. */
+    readonly onLayerEnabledChange?: (layerId: string, enabled: boolean) => void;
+    /** Deletes a layer. */
+    readonly onLayerDelete?: (layerId: string) => void;
+    /** Each layer's match count and paint chip colour, by id, as graphty-element reports them. */
+    readonly layerFacts?: ReadonlyMap<string, LayerRowFacts>;
     /** The layout quick picks. */
     readonly layoutPicks?: readonly LayoutQuickPick[];
     /** The layout in force. */
@@ -165,6 +171,9 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
         onLayersChange,
         onLayerSelect,
         onAddLayer,
+        onLayerEnabledChange,
+        onLayerDelete,
+        layerFacts,
         layoutPicks = DEFAULT_LAYOUT_PICKS,
         layout,
         onApplyLayout,
@@ -227,6 +236,9 @@ export function StylePanel(props: StylePanelProps): React.JSX.Element {
                         selectedLayerId={selectedLayerId}
                         onLayersChange={onLayersChange}
                         onLayerSelect={onLayerSelect}
+                        onLayerEnabledChange={onLayerEnabledChange}
+                        onLayerDelete={onLayerDelete}
+                        facts={layerFacts}
                     />
                 </PanelSection>
             </Box>

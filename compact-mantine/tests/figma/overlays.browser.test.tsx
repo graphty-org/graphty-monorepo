@@ -131,22 +131,6 @@ function jumpClock(ms: number): void {
 }
 
 /**
- * Resolve once `el`'s box has been the same for three animation frames in a row: floating-ui
- * places a tooltip at 0, 0 first and places it again whenever its size or its trigger's changes.
- * @param el - the floating element
- */
-async function settled(el: Element): Promise<void> {
-    const key = (): string => JSON.stringify(box(el));
-    let last = key();
-    for (let same = 0; same < 2;) {
-        await new Promise((r) => requestAnimationFrame(r));
-        const now = key();
-        same = now === last ? same + 1 : 0;
-        last = now;
-    }
-}
-
-/**
  * Resolve when the tooltip showing `text` mounts, after overlayBehavior.ts has decided whether to
  * hold it. Its document listener must be added before this one so it runs first: the theme only
  * installs it when the first tooltip opens, which in a test run on its own can come after this
@@ -538,13 +522,17 @@ describe.skipIf(!available)("8.3 tooltip", () => {
                 { scheme },
             );
             const trigger = getByRole("button");
-            // wait until floating-ui has placed it (it mounts at 0, 0 first)
+            // wait until floating-ui has placed it (it mounts at 0, 0 first) and has stopped
+            // moving it: run on its own, the first placement sat 1.27px left of center (left
+            // 37.30) and floating-ui re-centered it (38.56) a frame later, same width
             const bubble = await waitFor(() => {
                 const el = document.querySelector<HTMLElement>(".mantine-Tooltip-tooltip");
                 return el && box(el).top > 0 ? el : null;
             });
-            // ...and until it stops moving: a busy machine can place it again after that.
-            await settled(bubble);
+            for (let last = ""; JSON.stringify(box(bubble)) !== last;) {
+                last = JSON.stringify(box(bubble));
+                await frames();
+            }
             const figma = await figmaElement(TIP, { index: 63 });
             expectMeasured(
                 bubble,
@@ -731,6 +719,19 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(isVisible(two)).toBe(false);
         vi.advanceTimersByTime(1);
         await waitFor(() => isVisible(two));
+    });
+
+    it("a tooltip stays hidden until overlayBehavior has decided whether to hold it", async () => {
+        // The decision runs on the tooltip's mount animation. Its 1 ms can end a frame before
+        // animationstart is dispatched, so a tooltip must not depend on the animation to stay
+        // hidden: one whose mount was never seen (here, no animation at all) is not shown.
+        await renderFigma(
+            <div className="cm-tooltip" style={{ animation: "none" }}>
+                unseen
+            </div>,
+        );
+        await new Promise((r) => setTimeout(r, 50));
+        expect(computed(document.querySelector(".cm-tooltip") as HTMLElement).visibility).toBe("hidden");
     });
 
     it("Tab from a visible tooltip's trigger hands off at once (warm), as the pointer does", async () => {

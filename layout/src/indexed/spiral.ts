@@ -1,7 +1,7 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
-import { type LayoutResult, rescaleInPlace } from "../positions";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
 
 /** Options of the index-based spiral layout. */
 export interface SpiralLayoutOptions extends CommonLayoutOptions {

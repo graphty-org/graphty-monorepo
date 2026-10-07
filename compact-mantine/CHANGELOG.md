@@ -1,3 +1,13 @@
+## 0.9.9 (2026-10-07)
+
+### 🩹 Fixes
+
+- **compact-mantine:** keep the Tab tooltip hand-off warm when rendering is slow ([192dbaa74](https://github.com/graphty-org/graphty-monorepo/commit/192dbaa74))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.9.8 (2026-10-07)
 
 ### 🩹 Fixes

@@ -1,5 +1,5 @@
-import { ForceAtlas2Simulation } from "./forceatlas2";
-import { FruchtermanReingoldSimulation } from "./fruchterman-reingold";
+import { ForceAtlas2Simulation } from "./forceatlas2.js";
+import { FruchtermanReingoldSimulation } from "./fruchterman-reingold.js";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -7,7 +7,7 @@ import type {
     LayoutSimulation,
     SimulationType,
     SpringElectricalOptions,
-} from "./types";
+} from "./types.js";
 
 /**
  * The layout-side dispatcher (design 9.3): the accelerator's method when it has one, else the CPU simulation;

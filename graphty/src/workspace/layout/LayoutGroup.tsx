@@ -1,10 +1,10 @@
 import { StyleNumberInput } from "@graphty/compact-mantine";
 import { Select, Stack } from "@mantine/core";
-import type React from "react";
+import { type JSX, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
-import { LAYOUT_SEED, methodChoices, takesSeed } from "./methods";
+import { LAYOUT_SEED, methodChoices, methodName, takesSeed } from "./methods";
 
 /**
  * The graph's Layout group (tier1-design.md 2.7 and 5.T11): Method, from the element's layout
@@ -13,9 +13,12 @@ import { LAYOUT_SEED, methodChoices, takesSeed } from "./methods";
  * Shown by the Layout popover and the graph's inspector.
  * @returns The group, or nothing before the element has come up
  */
-export function LayoutGroup(): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+export function LayoutGroup(): JSX.Element | null {
+    const { session } = useWorkspace();
     useSessionVersion(session);
+    // The method the element last refused, and the layout that was drawing when it did: the line
+    // under Method stays until the layout changes.
+    const [refused, setRefused] = useState<{ method: string; drawing: string } | null>(null);
     if (session === null) {
         return null;
     }
@@ -24,10 +27,17 @@ export function LayoutGroup(): React.JSX.Element | null {
         .layouts()
         .find((d) => d.id === id)
         ?.options.find((o) => o.name === "seed");
-    // The element refuses a layout it cannot build and changes nothing; the reader is told so.
-    const fail = (): void => {
-        store.set({ notice: { message: "The layout could not be changed" } });
-    };
+    // The element refuses a layout it cannot build and changes nothing; the reader is told so,
+    // under Method, naming the method they picked.
+    const refuse =
+        (method: string) =>
+        (): void => {
+            setRefused({ method, drawing: id });
+        };
+    const error =
+        refused !== null && refused.drawing === id
+            ? `${methodName(session, refused.method)} could not lay out this graph, so the drawing is unchanged`
+            : undefined;
 
     return (
         <Stack gap={8} aria-label="Layout" role="group">
@@ -36,6 +46,7 @@ export function LayoutGroup(): React.JSX.Element | null {
                 value={id}
                 data={methodChoices(session)}
                 allowDeselect={false}
+                error={error}
                 // The list stays inside the Layout popover, so picking from it is not a click
                 // outside that closes the popover first (Mantine's rule for a Select in a Popover).
                 comboboxProps={{ withinPortal: false }}
@@ -44,7 +55,7 @@ export function LayoutGroup(): React.JSX.Element | null {
                         // The app's seed goes with every layout that takes one, so a method drawn
                         // twice draws the same way.
                         const seeded = takesSeed(session, value) ? { options: { seed: LAYOUT_SEED } } : undefined;
-                        session.layout.set(value, seeded).catch(fail);
+                        session.layout.set(value, seeded).catch(refuse(value));
                     }
                 }}
             />
@@ -58,7 +69,7 @@ export function LayoutGroup(): React.JSX.Element | null {
                     step={1}
                     decimalScale={0}
                     onChange={(seed) => {
-                        session.layout.set(id, { engine, options: { ...options, seed } }).catch(fail);
+                        session.layout.set(id, { engine, options: { ...options, seed } }).catch(refuse(id));
                     }}
                 />
             )}

@@ -55,6 +55,17 @@ function layoutName(descriptor: LayoutDescriptor): string {
 }
 
 /**
+ * A layout's name, by catalog id.
+ * @param session - the element's session.
+ * @param id - the layout's catalog id.
+ * @returns the name the app shows, or the id when the catalog has no such layout.
+ */
+export function methodName(session: GraphSession, id: string): string {
+    const descriptor = session.catalog.layouts().find((layout) => layout.id === id);
+    return descriptor === undefined ? id : layoutName(descriptor);
+}
+
+/**
  * Whether the Method list offers a layout: one that needs nothing picked first (a start node, a
  * grouping), since tier 1 has no control to pick those.
  * @param descriptor - the layout.

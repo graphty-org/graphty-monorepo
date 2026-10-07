@@ -45,6 +45,13 @@ openInput.addEventListener("change", () => {
   [save report](#saving-without-a-download), whose `leftOut` lists a run still computing, which
   the file does not hold. It rejects only as `project.save()` does, with `E_BAD_COMMAND` for an
   `extensions` name or value it cannot store.
+- **`element.downloadGraph(format, options)`** hands the reader a copy instead of saving: it
+  writes the graph as `exportGraph(format, options)` does and downloads it as
+  `<project name><the format's first extension>`, such as `Pioneers.graphml`. Pass
+  `downloadGraph("graphty")` for a copy of the project file. It never changes `dirty` -- a copy
+  is not a save -- which is the one difference from `downloadProject`, which always does. It
+  takes `{ fileName }` too, and resolves to the export, whose `lossNotes` list what the format
+  could not hold.
 - **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
   takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a
   fresh undo history. It also opens any data file, so one "Open..." button serves both (see

@@ -678,6 +678,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             downloadProject: exempt(
                 "Hands the saved project to the reader as a file; it changes nothing a project saves.",
             ),
+            downloadGraph: exempt(
+                "Hands an export to the reader as a file; it changes nothing a project saves.",
+            ),
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -1779,6 +1782,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             engine: READ,
             options: READ,
             dimension: READ,
+            arrangedDimension: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
         },

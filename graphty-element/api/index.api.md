@@ -1926,6 +1926,9 @@ export class Graphty extends LitElement {
     set directed(value: boolean | "auto" | undefined);
     disableAiControl(): void;
     disconnectedCallback(): void;
+    downloadGraph(format: FormatId, options?: ExportGraphOptions & {
+        readonly fileName?: string;
+    }): Promise<ExportResult>;
     downloadProject(options?: Omit<ProjectSaveOptions, "markSaved"> & {
         readonly fileName?: string;
     }): Promise<ProjectSaveReport>;

@@ -46,6 +46,7 @@ import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { downloadBlob } from "./utils/download";
 
 /**
  * How often a run's progress may reach a DOM listener, in milliseconds.
@@ -183,13 +184,51 @@ export class Graphty extends LitElement {
         // The download is the write, and the caller never sees a SavedProject to mark, so this
         // save always clears `dirty`.
         const { text, report } = await this.session.project.save({ ...options, markSaved: true });
-        const url = URL.createObjectURL(new Blob([text], { type: PROJECT_FILE.mediaType }));
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = options.fileName ?? projectFileName(this.session.project.name);
-        link.click();
-        URL.revokeObjectURL(url);
+        downloadBlob(
+            new Blob([text], { type: PROJECT_FILE.mediaType }),
+            options.fileName ?? projectFileName(this.session.project.name),
+        );
         return report;
+    }
+
+    /**
+     * Write the graph in a file format (`exportGraph`) and hand it to the reader as a download
+     * named `<project name><the format's first extension>`, such as `Pioneers.graphml`; an unnamed
+     * project downloads as `project.graphml`. `"graphty"` downloads the project file
+     * (`<project name>.graphty.json`) without marking the project saved: it is a copy, and
+     * `project.dirty` is left as it was. To save, use `downloadProject`. The file is assembled from
+     * the export's UTF-8 chunks, never as one string.
+     * @param format - The format id, as `session.catalog.formats()` lists it.
+     * @param options - The writer's options, as `exportGraph` takes them, and the file's name.
+     * @returns The export, whose `lossNotes` list everything the format could not hold.
+     * @throws A `GraphtyError` (as a rejection), as `exportGraph` rejects.
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * const { lossNotes } = await element.downloadGraph("graphml");
+     * for (const note of lossNotes) console.warn(note.message);
+     * ```
+     */
+    async downloadGraph(
+        format: FormatId,
+        options: ExportGraphOptions & { readonly fileName?: string } = {},
+    ): Promise<ExportResult> {
+        const { fileName, ...exportOptions } = options;
+        const result = await this.exportGraph(format, exportOptions);
+        const chunks: BlobPart[] = [];
+        for await (const chunk of result.bytes) {
+            chunks.push(chunk.slice());
+        }
+        const { name } = this.session.project;
+        const descriptor = this.session.catalog.formats().find((entry) => entry.id === format);
+        downloadBlob(
+            new Blob(chunks, { type: descriptor?.mimeTypes[0] ?? "application/octet-stream" }),
+            fileName ??
+                (format === "graphty"
+                    ? projectFileName(name)
+                    : `${name?.trim() ? name : "project"}${descriptor?.extensions[0] ?? ""}`),
+        );
+        return result;
     }
 
     /**

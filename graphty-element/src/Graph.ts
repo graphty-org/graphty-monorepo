@@ -152,6 +152,7 @@ import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./sess
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
+import { downloadBlob } from "./utils/download";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
 import { XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
@@ -4593,12 +4594,7 @@ export class Graph implements GraphContext {
                 }
             }
 
-            const url = URL.createObjectURL(result.blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
+            downloadBlob(result.blob, filename);
         }
     }
 

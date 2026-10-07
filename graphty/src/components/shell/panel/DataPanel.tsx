@@ -4,14 +4,14 @@ import {
     CompoundRow,
     type CompoundSegment,
     DataRow,
+    ModalFooter,
     PANEL_GRID,
     PANEL_INK,
 } from "@graphty/compact-mantine";
 import { FORMAT_DESCRIPTORS } from "@graphty/graphty-element/catalog";
-import { Box, Button, Group, Modal, Switch, Text } from "@mantine/core";
+import { Box, Button, Modal, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
-import { standardModalStyles } from "../../../utils/modal-styles";
 import { type InputMethod, LoadDataModal, type LoadDataRequest } from "../../LoadDataModal";
 import { keyChipFor } from "../bindings";
 import type { ShellStateAxis } from "../types";
@@ -554,13 +554,12 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                 onClose={cancelDrop}
                 title="Replace the current graph?"
                 centered
-                styles={standardModalStyles}
             >
                 <Text size="sm">
                     Replace the current graph with {pendingDrop?.name}? If the file cannot be read, the current graph
                     stays.
                 </Text>
-                <Group justify="flex-end" mt="md">
+                <ModalFooter>
                     <Button variant="subtle" color="gray" onClick={cancelDrop}>
                         Cancel
                     </Button>
@@ -575,7 +574,7 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                     >
                         Replace
                     </Button>
-                </Group>
+                </ModalFooter>
             </Modal>
         </>
     );

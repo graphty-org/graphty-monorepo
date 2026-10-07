@@ -1,4 +1,5 @@
-import { Alert, Button, FileInput, Group, Modal, Stack, Textarea, TextInput } from "@mantine/core";
+import { ModalFooter } from "@graphty/compact-mantine";
+import { Alert, Button, FileInput, Modal, Stack, Textarea, TextInput } from "@mantine/core";
 import { AlertTriangle, CheckCircle, Paperclip, Send } from "lucide-react";
 import { useState } from "react";
 
@@ -154,7 +155,7 @@ export function FeedbackModal({ opened, onClose }: FeedbackModalProps): React.JS
                         onChange={setFiles}
                         clearable
                     />
-                    <Group justify="flex-end">
+                    <ModalFooter>
                         <Button variant="subtle" onClick={handleClose} type="button">
                             Cancel
                         </Button>
@@ -166,7 +167,7 @@ export function FeedbackModal({ opened, onClose }: FeedbackModalProps): React.JS
                         >
                             Send Feedback
                         </Button>
-                    </Group>
+                    </ModalFooter>
                 </Stack>
             </form>
         </Modal>

@@ -81,6 +81,7 @@
 import {
     type DataTableColumn,
     type DataTableSort,
+    ModalFooter,
     PANEL_INK,
     PopoutManager,
     PopoutRegion,
@@ -106,7 +107,7 @@ import {
     type TransactionScope,
     type XrCapability,
 } from "@graphty/graphty-element/session";
-import { Box, Button, Group, Modal, Text } from "@mantine/core";
+import { Box, Button, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getLayoutMetadata, LAYOUT_METADATA } from "../../data/layoutMetadata";
@@ -5299,7 +5300,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         <Text size="sm" data-testid="metric-confirm-sentence">
                             {metricConfirm.estimate.confirmSentence}
                         </Text>
-                        <Group justify="flex-end" mt="md">
+                        <ModalFooter>
                             <Button
                                 variant="default"
                                 onClick={() => {
@@ -5318,7 +5319,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                             >
                                 {metricConfirm.estimate.runLabel}
                             </Button>
-                        </Group>
+                        </ModalFooter>
                     </Modal>
                 )}
 

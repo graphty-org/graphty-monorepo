@@ -332,6 +332,7 @@ The `tools/` directory contains build scripts:
 | `sonar-gate.mjs` | The pre-push "SonarQube (changed lines)" step: scans the files a push changes into the scratch project `graphty-monorepo-local` and fails on a new issue or security hotspot on a changed line. See "SonarQube" below |
 | `sonar-baseline.mjs` | `--setup` (owner, admin token, once) configures the server and pins its id; `--watch` (under servherd) keeps project `graphty-monorepo` a current analysis of origin/master and posts the weekly burn-down numbers. `tools/sonar/api.mjs` is the only code that handles the token |
 | `worktree-prune.sh` | Lists worktrees whose branch is merged or deleted upstream, with size, uncommitted files and live processes, and removes each on confirmation. `--dry-run` removes nothing |
+| `release-scheduler/` | A Cloudflare Worker that dispatches `release.yml` at 00:00, 06:00, 12:00 and 18:00 UTC as a GitHub App, and opens an issue when it cannot. Setup and operation: its `README.md` |
 
 ### Secret Scan and Secret Files
 
@@ -556,7 +557,7 @@ package has no guide pages, so its documentation link is the generated API refer
 ### Release versioning
 
 Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Every 6 hours
-(00:00, 06:00, 12:00 and 18:00 UTC) `release.yml` takes master's newest commit and runs the full CI
+(00:00, 06:00, 12:00 and 18:00 UTC; a Cloudflare Worker dispatches it, see `tools/release-scheduler/README.md`) `release.yml` takes master's newest commit and runs the full CI
 suite (ci.yml, every shard), the T4 GPU lane, Hosts and the production security audit on it; only
 if all pass does it version that commit and open a
 `chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)

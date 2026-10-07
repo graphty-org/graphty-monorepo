@@ -549,6 +549,11 @@ releasable or with the previous release still pending does nothing. With master 
 train is also where a fault that slipped past the queue is caught, so a shorter interval finds it
 sooner.
 
+**Scheduler:** GitHub's own cron creates this repository's scheduled runs hours late or not at all,
+so release.yml has no cron. A Cloudflare Worker authenticated as a GitHub App dispatches it with
+`scheduled: true` at each slot and opens an issue when it cannot (owner decision, 2026-10-07; setup
+and operation in `tools/release-scheduler/README.md`).
+
 **Not now:**
 
 - A `next` or canary dist-tag per merge (Nx, Next.js, React).

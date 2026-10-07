@@ -287,12 +287,13 @@ export function QuickActions({
             </div>
             {header ? <div className="cm-qa-header">{header}</div> : null}
             {/* Above the listbox, not in it: a listbox may hold only options and groups. */}
-            {sections.length === 0 ? (
-                <div className="cm-qa-empty" role="status">
-                    {labels.noResults}
-                </div>
-            ) : null}
-            <div className="cm-qa-list" id={listId} role="listbox" aria-label={name}>
+            {sections.length === 0 ? <output className="cm-qa-empty">{labels.noResults}</output> : null}
+            <div // NOSONAR(S6819): the popup of an ARIA combobox with grouped rows; a native select cannot be one
+                className="cm-qa-list"
+                id={listId}
+                role="listbox"
+                aria-label={name}
+            >
                 {sections.map(([section, list]) => (
                     <div className="cm-qa-group" role="group" aria-label={section || undefined} key={section}>
                         {section ? (

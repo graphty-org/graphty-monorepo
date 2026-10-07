@@ -748,6 +748,7 @@ const css = `
 }
 /* Drawn above the (empty) list rather than inside it, so it adds the list's own 4px 8px inset. */
 .cm-qa-empty {
+    display: block;
     padding: 12px 24px 0;
     ${cmFont("body")}
     color: var(--cm-text-secondary);

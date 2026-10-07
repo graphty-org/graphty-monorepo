@@ -882,8 +882,11 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                         layerId: layer.id,
                         ...(runId === undefined ? {} : { runId }),
                         kind: algorithm === "louvain" ? "categorical" : "sequential",
-                        field: { ...words, path: `results.${runId ?? ""}.value` },
-                        scale: { kind: "linear", label: "linear" },
+                        field: {
+                            ...words,
+                            path: `results.${runId ?? ""}.${algorithm === "louvain" ? "group" : "value"}`,
+                        },
+                        scale: { kind: "linear", label: "Even Steps" },
                         swatches: [
                             { label: "low", value: 0, color: "#440154" },
                             { label: "high", value: 1, color: "#FDE725" },

@@ -104,17 +104,19 @@ export function setBeneath(session: GraphSession, ids: readonly LayerId[], chann
 }
 
 /**
- * Copies a record without one key, or answers undefined when nothing is left (which clears the
+ * Copies a record without some keys, or answers undefined when nothing is left (which clears the
  * key on `styles.update`).
  * @param record - the record, or undefined.
- * @param key - the key to drop.
+ * @param keys - the keys to drop.
  * @returns the rest, or undefined.
  */
 function without<T>(
     record: Partial<Record<Channel, T>> | undefined,
-    key: Channel,
+    ...keys: Channel[]
 ): Partial<Record<Channel, T>> | undefined {
-    const rest = Object.fromEntries(Object.entries(record ?? {}).filter(([channel]) => channel !== key));
+    const rest = Object.fromEntries(
+        Object.entries(record ?? {}).filter(([channel]) => !keys.includes(channel as Channel)),
+    );
     return Object.keys(rest).length === 0 ? undefined : (rest as Partial<Record<Channel, T>>);
 }
 
@@ -233,15 +235,15 @@ export async function writeLine(
 }
 
 /**
- * Removes one line from the layer that sets it. The reader's Everything layer is removed when
- * nothing is left on it. One undoable step of the element's.
+ * Removes a line (or every part of a compound line) from the layer that sets it. The reader's
+ * Everything layer is removed when nothing is left on it. One undoable step of the element's.
  * @param session - the element's session.
  * @param layer - the layer that sets the line.
- * @param channel - the channel.
+ * @param channels - the channel, or each part's channel.
  */
-export async function removeLine(session: GraphSession, layer: Layer, channel: Channel): Promise<void> {
-    const set = without(layer.set, channel);
-    const encode = without(layer.encode, channel);
+export async function removeLine(session: GraphSession, layer: Layer, ...channels: Channel[]): Promise<void> {
+    const set = without(layer.set, ...channels);
+    const encode = without(layer.encode, ...channels);
     if (set === undefined && encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
         await session.styles.remove(layer.id);
         return;

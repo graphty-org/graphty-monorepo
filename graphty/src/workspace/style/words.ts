@@ -137,6 +137,95 @@ export function channelWord(channel: Channel): string {
     return CHANNEL_WORDS[channel];
 }
 
+/** One part of a compound line: a channel the line covers, as its popover names it. */
+export interface CompoundPart {
+    readonly channel: Channel;
+    /** Its name inside the popover, where the line's name is already said. */
+    readonly word: string;
+    /** Whether the line shows it at rest. */
+    readonly atRest?: true;
+    /** Whether it sits behind the popover's "More" disclosure. */
+    readonly more?: true;
+    /** Whether the popover shows the element's caveat for it as help text. */
+    readonly caveat?: true;
+}
+
+/**
+ * One line of the Style tab that covers several of the element's channels: one effect, its
+ * settings in a popover. Grouping channels is presentation, so it is the app's, not the element's.
+ */
+export interface CompoundLine {
+    /** The line's name, in the "+" menu, on the line and as the popover's title. */
+    readonly name: string;
+    /** Its parts, key options first. */
+    readonly parts: readonly CompoundPart[];
+    /** The one part adding the line writes: the one that needs a value to draw. */
+    readonly adds: Channel;
+    /**
+     * Another channel whose default the added part starts from, when its own default draws
+     * nothing (a tail is added drawn as a head is).
+     */
+    readonly startsFrom?: Channel;
+}
+
+/**
+ * The arrow at one end of an edge, as one line.
+ * @param end - which end.
+ * @returns the line.
+ */
+function arrowLine(end: "Head" | "Tail"): CompoundLine {
+    const part = (suffix: "" | "Size" | "Color" | "Opacity" | "Text"): Channel => `edge.arrow${end}${suffix}`;
+    return {
+        name: `${end} arrow`,
+        parts: [
+            { channel: part(""), word: "Shape", atRest: true },
+            { channel: part("Size"), word: "Size" },
+            { channel: part("Color"), word: "Color", more: true },
+            { channel: part("Opacity"), word: "Opacity", more: true },
+            { channel: part("Text"), word: "Text", more: true },
+        ],
+        adds: part(""),
+        ...(end === "Tail" ? { startsFrom: "edge.arrowHead" as const } : {}),
+    };
+}
+
+/** The compound lines. A channel in none of them is a line of its own. */
+const COMPOUND_LINES: readonly CompoundLine[] = [
+    {
+        name: "Glow",
+        parts: [
+            { channel: "node.glow", word: "Color", atRest: true },
+            { channel: "node.glowStrength", word: "Strength", atRest: true },
+        ],
+        // The element draws its built-in glow color when no color is set.
+        adds: "node.glowStrength",
+    },
+    arrowLine("Head"),
+    arrowLine("Tail"),
+    {
+        name: "Pattern",
+        parts: [
+            { channel: "edge.style", word: "Pattern", atRest: true },
+            { channel: "edge.patternCount", word: "Count", caveat: true },
+        ],
+        adds: "edge.style",
+    },
+];
+
+/** Each compound line, by every channel it covers. */
+const COMPOUND_BY_CHANNEL: ReadonlyMap<Channel, CompoundLine> = new Map(
+    COMPOUND_LINES.flatMap((line) => line.parts.map((p) => [p.channel, line] as const)),
+);
+
+/**
+ * The compound line a channel is part of.
+ * @param channel - the element's channel id.
+ * @returns the line, or undefined when the channel is a line of its own.
+ */
+export function compoundOf(channel: Channel): CompoundLine | undefined {
+    return COMPOUND_BY_CHANNEL.get(channel);
+}
+
 /** A palette's name, by the id the element publishes. Typed over the element's known ids. */
 const PALETTE_WORDS: Readonly<Record<(typeof KNOWN_PALETTE_IDS)[number], string>> = {
     viridis: "Purple to yellow",

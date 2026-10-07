@@ -22,9 +22,16 @@ import {
     writeGroupColor,
     writeLine,
 } from "./row";
-import { SetLine } from "./SetLine";
+import { CompoundSetLine, SetLine } from "./SetLine";
 import { useStyleVersion } from "./useStyleVersion";
-import { channelWord, isLineChannel, SECTIONS, type StyleSection } from "./words";
+import {
+    channelWord,
+    type CompoundLine,
+    compoundOf,
+    isLineChannel,
+    SECTIONS,
+    type StyleSection,
+} from "./words";
 
 /** Props for StyleTab. */
 interface StyleTabProps {
@@ -255,6 +262,18 @@ function RowStyle({
     );
 }
 
+/** One line a section can list: a channel of its own, or a compound line covering several. */
+interface Entry {
+    /** The line's name. */
+    readonly name: string;
+    /** The channels it covers. */
+    readonly descriptors: readonly ChannelDescriptor[];
+    /** The channel adding it writes. */
+    readonly adds: ChannelDescriptor;
+    /** The compound line, when it is one. */
+    readonly compound?: CompoundLine;
+}
+
 /**
  * One fixed section: its header with "+", and a line for each property the row sets. "+" adds the
  * one property left, or opens a menu of the unset ones; one the element cannot draw is listed
@@ -288,25 +307,36 @@ function Section({
         return null;
     }
     const channels = channelsFor(target).filter((d) => section.holds(d) && isLineChannel(d));
-    const set = channels.flatMap((d) => {
-        const line = lineOf(layers, d.channel);
-        return line === undefined ? [] : [{ descriptor: d, line }];
-    });
-    const unset = channels.filter((d) => lineOf(layers, d.channel) === undefined);
-    const add = (descriptor: ChannelDescriptor): void => {
-        writeLine(session, row, target, descriptor.channel, { value: startingValue(descriptor) }, fresh).catch(() => {
-            store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be added` } });
+    // One entry per line: a channel of its own, or a compound line in place of its parts.
+    const entries: Entry[] = [];
+    for (const d of channels) {
+        const compound = compoundOf(d.channel);
+        if (compound === undefined) {
+            entries.push({ name: channelWord(d.channel), descriptors: [d], adds: d });
+        } else if (!entries.some((e) => e.compound === compound)) {
+            const parts = channels.filter((c) => compoundOf(c.channel) === compound);
+            const adds = parts.find((c) => c.channel === compound.adds) ?? d;
+            entries.push({ name: compound.name, descriptors: parts, adds, compound });
+        }
+    }
+    const isSet = (e: Entry): boolean => e.descriptors.some((d) => lineOf(layers, d.channel) !== undefined);
+    const set = entries.filter(isSet);
+    const unset = entries.filter((e) => !isSet(e));
+    const add = (entry: Entry): void => {
+        const from = channels.find((d) => d.channel === entry.compound?.startsFrom) ?? entry.adds;
+        writeLine(session, row, target, entry.adds.channel, { value: startingValue(from) }, fresh).catch(() => {
+            store.set({ notice: { message: `${entry.name} could not be added` } });
         });
     };
     const addLabel = `Add to ${section.title}`;
     let plus: React.JSX.Element | null = null;
-    if (unset.length === 1 && unset[0].renderable) {
+    if (unset.length === 1 && unset[0].adds.renderable) {
         plus = (
-            <Tooltip label={`Add ${channelWord(unset[0].channel)}`}>
+            <Tooltip label={`Add ${unset[0].name}`}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"
-                    aria-label={`Add ${channelWord(unset[0].channel)}`}
+                    aria-label={`Add ${unset[0].name}`}
                     onClick={() => {
                         add(unset[0]);
                     }}
@@ -326,16 +356,16 @@ function Section({
                     </Tooltip>
                 </Menu.Target>
                 <Menu.Dropdown>
-                    {unset.map((d) => (
+                    {unset.map((e) => (
                         <Menu.Item
-                            key={d.channel}
-                            disabled={!d.renderable}
+                            key={e.adds.channel}
+                            disabled={!e.adds.renderable}
                             onClick={() => {
-                                add(d);
+                                add(e);
                             }}
                         >
-                            <div>{channelWord(d.channel)}</div>
-                            {d.renderable ? null : (
+                            <div>{e.name}</div>
+                            {e.adds.renderable ? null : (
                                 <Text size="xs" c="dimmed">
                                     Not drawn yet
                                 </Text>
@@ -355,15 +385,30 @@ function Section({
                 </Text>
                 {plus}
             </Group>
-            {set.map(({ descriptor, line }) => (
-                <SetLine
-                    key={descriptor.channel}
-                    descriptor={descriptor}
-                    line={line}
-                    row={row}
-                    documentColors={colors}
-                />
-            ))}
+            {set.map((e) => {
+                const line = lineOf(layers, e.adds.channel);
+                if (e.compound !== undefined) {
+                    return (
+                        <CompoundSetLine
+                            key={e.adds.channel}
+                            compound={e.compound}
+                            descriptors={e.descriptors}
+                            layers={layers}
+                            row={row}
+                            documentColors={colors}
+                        />
+                    );
+                }
+                return line === undefined ? null : (
+                    <SetLine
+                        key={e.adds.channel}
+                        descriptor={e.adds}
+                        line={line}
+                        row={row}
+                        documentColors={colors}
+                    />
+                );
+            })}
         </Stack>
     );
 }

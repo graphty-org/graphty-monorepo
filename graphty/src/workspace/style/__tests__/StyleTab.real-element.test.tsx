@@ -358,6 +358,81 @@ describe("the Style tab on the real element", () => {
         },
         TIMEOUT_MS * 2,
     );
+
+    it(
+        "Glow is one line: added as its strength alone, edited in a titled popover, removed in one undo step",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            const effects = within(tab).getByRole("group", { name: "Effects" });
+            await userEvent.click(within(effects).getByRole("button", { name: "Add to Effects" }));
+            const items = (await screen.findAllByRole("menuitem")).map((i) => i.textContent);
+            assert.include(items, "Glow");
+            assert.notInclude(items, "Glow strength");
+            await userEvent.click(screen.getByRole("menuitem", { name: "Glow" }));
+            await waitFor(() => {
+                const set = readerLayers(session)[0]?.set;
+                assert.equal(set?.["node.glowStrength"], 1);
+                assert.isUndefined(set?.["node.glow"], "the element draws its own glow color");
+            });
+
+            await userEvent.click(within(styleTab()).getByRole("button", { name: /^Glow: / }));
+            const popover = await screen.findByRole("dialog", { name: "Glow" });
+            assert.isNotNull(within(popover).getByRole("group", { name: "Color" }));
+            assert.isNotNull(within(popover).getByRole("combobox", { name: "Glow strength" }));
+            await userEvent.click(within(popover).getByRole("button", { name: /close/i }));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Glow" }));
+            });
+
+            await session.styles.update(readerLayers(session)[0].id, {
+                set: { ...readerLayers(session)[0].set, "node.glow": "#FF0000" },
+            });
+            const steps = session.history.steps.length;
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Remove Glow" }));
+            await waitFor(() => {
+                assert.lengthOf(readerLayers(session), 0, "both parts went, and the emptied layer with them");
+            });
+            assert.equal(session.history.steps.length, steps + 1, "one step for both parts");
+            await session.undo();
+            await waitFor(() => {
+                const set = readerLayers(session)[0]?.set;
+                assert.equal(set?.["node.glow"], "#FF0000");
+                assert.equal(set?.["node.glowStrength"], 1);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "lists an edge's arrows as Head arrow and Tail arrow, and Pattern's count with the element's caveat",
+        async () => {
+            await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(within(tab).getByRole("radio", { name: "Edges" }));
+            const arrows = within(styleTab()).getByRole("group", { name: "Arrows" });
+            const plus = within(arrows).queryByRole("button", { name: "Add to Arrows" });
+            if (plus === null) {
+                // A directed graph's base layer already draws the head: Tail arrow is the one left.
+                assert.isNotNull(within(arrows).getByRole("button", { name: "Add Tail arrow" }));
+            } else {
+                await userEvent.click(plus);
+                const items = (await screen.findAllByRole("menuitem")).map((i) => i.textContent);
+                assert.deepEqual(items, ["Head arrow", "Tail arrow"]);
+                await userEvent.keyboard("{Escape}");
+            }
+
+            // The element's base layer draws the pattern, so Pattern is a line already.
+            const line = within(styleTab()).getByRole("group", { name: "Line" });
+            await userEvent.click(within(line).getByRole("button", { name: /^Pattern: / }));
+            const popover = await screen.findByRole("dialog", { name: "Pattern" });
+            const caveat = channelsFor("edge").find((d) => d.channel === "edge.patternCount")?.caveat ?? "";
+            assert.isNotEmpty(caveat);
+            assert.isNotNull(within(popover).getByText(caveat));
+            assert.isNotNull(within(popover).getByRole("combobox", { name: "Pattern count" }));
+        },
+        TIMEOUT_MS * 2,
+    );
 });
 
 describe("labels from an attribute (task T10) on the real element", () => {

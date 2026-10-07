@@ -8,6 +8,8 @@
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SessionCommand } from "../planning";
 import type { CommandDefinition, UndoableDefinition } from "../project/Dispatcher";
+import type { CodedFact } from "../shared";
+import type { HistoryCode } from "../types";
 import { ALGO_DEFINITIONS } from "./algo";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
@@ -24,8 +26,13 @@ export interface BatchCommand {
     readonly op: "batch";
     /** The commands, dispatched in order; each takes its own lane. */
     readonly steps: readonly SessionCommand[];
-    /** What the step is called; the first member's name by default. */
+    /** What the step is called; its fact's `label` param. */
     readonly label?: string;
+    /**
+     * What the step did, for a history list to word: `{ code: "batch", params: { label, steps } }`
+     * by default (`label` null when the batch has none).
+     */
+    readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
 }
@@ -40,18 +47,35 @@ function batchLabel(count: number): string {
 }
 
 /**
+ * What a batch did.
+ * @param command - The batch.
+ * @returns Its own fact, or `batch` with its label and size.
+ */
+function batchFact(command: BatchCommand): CodedFact<HistoryCode> {
+    return command.fact ?? { code: "batch", params: { label: command.label ?? null, steps: command.steps.length } };
+}
+
+/**
  * `batch`: its members run as one transaction, so they are one step and roll back together. The
  * dispatcher runs it through `members`; `execute` is never reached.
  */
 const batch: UndoableDefinition<BatchCommand> = {
     op: "batch",
-    undo: { kind: "undoable", label: (command) => command.label ?? batchLabel(command.steps.length) },
+    undo: {
+        kind: "undoable",
+        label: (command) => command.label ?? batchLabel(command.steps.length),
+        fact: batchFact,
+    },
     moves: false,
     keys: () => [],
     lane: { kind: "immediate" },
     // Its members' own arguments, kept as their definitions keep them.
     byReference: ["records", "config", "nodes", "edges", "held", "measure"],
-    members: (command) => ({ label: command.label ?? batchLabel(command.steps.length), steps: command.steps }),
+    members: (command) => ({
+        label: command.label ?? batchLabel(command.steps.length),
+        fact: batchFact(command),
+        steps: command.steps,
+    }),
     execute: () => {
         throw new GraphtyError({
             code: "E_INTERNAL",

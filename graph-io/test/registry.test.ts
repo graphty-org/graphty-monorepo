@@ -228,6 +228,21 @@ describe("importGraph (design 8.4)", () => {
         await expect(importGraph(EDGES, { format: "nope" })).rejects.toMatchObject({ code: "E_UNSUPPORTED" });
     });
 
+    it("does not detect text holding C0 control characters as CSV (issue #964)", async () => {
+        for (const text of ["\u0000\u0001 }{ <<<", "a,b\n\u0002,c\n", "source,target\na\u001bb,c\n"]) {
+            await expect(importGraph(text, { format: "auto" })).rejects.toMatchObject({
+                name: "ImportError",
+                code: "E_IMPORT",
+            });
+        }
+        // tabs, CRLF, a UTF-8 BOM and a DOS end-of-file marker are text, so such CSVs are still detected
+        for (const text of ["﻿source,target\r\na,b\r\n", "source\ttarget\na\tb\n", "source,target\na,b\n\u001a"]) {
+            const result = await importGraph(text, { format: "auto" });
+            expect(result.format).toBe("csv");
+            expect(result.snapshot.edgeCount).toBe(1);
+        }
+    });
+
     it("seeds the builder from the common options and passes format options through", async () => {
         const parallel = "source,target,weight\na,b,1\na,b,2\na,a,5\n";
         const kept = await importGraph(parallel, { format: "csv" });

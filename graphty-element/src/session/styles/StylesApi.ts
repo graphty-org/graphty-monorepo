@@ -136,12 +136,15 @@ import {
     proposeColumnBinding,
 } from "./EncodingSpec";
 import {
+    type AgreementElements,
     type ExplainSources,
     explainStyle,
     type ExplainTarget,
     resolveToStatic as resolveRule,
     type StyleAgreement,
     styleAgreement,
+    type StyleCounts,
+    styleCounts,
     type StyleExplanation,
     type UnboundLayer,
     unboundLayers,
@@ -450,6 +453,19 @@ export interface StylesApi {
      */
     agreement(scope: Scope, channel?: Channel): StyleAgreement;
     /**
+     * How many elements one layer covers, and on how many it decides each channel it writes.
+     *
+     * Read through the same walk over the stack as {@link StylesApi.explain} and
+     * {@link StylesApi.agreement}, so the three never disagree. Counts only, in one pass over the
+     * layer's kind of element. Re-read it when `revision` would change: on `style:changed`, and
+     * after a data or run change.
+     * @param id - The layer.
+     * @returns What it matches, where it wins each channel, and what it could not paint.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+     * @since 3.16.0
+     */
+    counts(id: LayerId): StyleCounts;
+    /**
      * Turn a rule into the fixed value it currently produces, so a person can then edit it.
      *
      * THE PAIRED VERB OF {@link StylesApi.explain}, which reports a channel worked out from the
@@ -736,6 +752,11 @@ export interface StylesSources {
      * @param change - What changed, and how much was painted.
      */
     readonly onChange?: (change: StyleChange) => void;
+    /**
+     * A number that moves whenever the data or the run results change, which is half of what
+     * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
+     */
+    readonly inputRevision?: () => number;
     /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * cancelled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
@@ -1271,6 +1292,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         readonly byId: ReadonlyMap<LayerId, CompiledLayer>;
     } | null = null;
     let edits = 0;
+    /** How many `style:changed` events this stack has published, for {@link StyleCounts.revision}. */
+    let styleRevision = 0;
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
     /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
@@ -1337,6 +1360,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         nodeIndex: sources.nodeIndex ?? NO_INDEX,
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
+    };
+
+    /**
+     * The elements a scope resolves to, as dense indices.
+     * @param scope - The scope.
+     * @returns Its nodes and edges.
+     */
+    const elementsOf = (scope: Scope): AgreementElements => {
+        const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+
+        return {
+            nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),
+            edges: indicesOf(resolved.edges, (id) => explainSources.edgeIndex(id)),
+        };
     };
 
     /** What a legend is read from. */
@@ -2203,6 +2240,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 each.refuse(failure);
             }
 
+            styleRevision++;
             sources.onChange?.({ ...each.change, painted, cause: "command" });
         }
     });
@@ -2213,6 +2251,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
         if (change.cause !== "command" && change.slices.includes("styles")) {
+            styleRevision++;
             sources.onChange?.({
                 reason: lastPass.reason,
                 layers: lastPass.layers,
@@ -2414,16 +2453,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         agreement(scope: Scope, channel?: Channel): StyleAgreement {
-            const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+            return styleAgreement(elementsOf(scope), explainSources, channel);
+        },
 
-            return styleAgreement(
-                {
-                    nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),
-                    edges: indicesOf(resolved.edges, (id) => explainSources.edgeIndex(id)),
-                },
-                explainSources,
-                channel,
-            );
+        counts(id: LayerId): StyleCounts {
+            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+
+            return styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {

@@ -15,6 +15,7 @@ function loadTypedocSidebar(path: string): Array<{ text: string; link: string }>
 const graphtyTypedoc = loadTypedocSidebar("./docs/graphty-element/api/generated/typedoc-sidebar.json");
 const algorithmsTypedoc = loadTypedocSidebar("./docs/algorithms/api/generated/typedoc-sidebar.json");
 const layoutTypedoc = loadTypedocSidebar("./docs/layout/api/generated/typedoc-sidebar.json");
+const cytoscapeTypedoc = loadTypedocSidebar("./docs/cytoscape-extensions/api/generated/typedoc-sidebar.json");
 const graphIoTypedoc = loadTypedocSidebar("./docs/graph-io/api/generated/typedoc-sidebar.json");
 
 // One sidebar entry per graph-io format page, titled by the page's own heading, so a format added to graph-io
@@ -68,6 +69,7 @@ export default defineConfig({
                     { text: "graphty-element", link: "/graphty-element/" },
                     { text: "algorithms", link: "/algorithms/" },
                     { text: "layout", link: "/layout/api/generated/" },
+                    { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                     { text: "graph-io", link: "/graph-io/" },
                     { text: "visual-review", link: "/visual-review/" },
                 ],
@@ -82,6 +84,7 @@ export default defineConfig({
                         { text: "graphty-element", link: "/graphty-element/" },
                         { text: "algorithms", link: "/algorithms/" },
                         { text: "layout", link: "/layout/api/generated/" },
+                        { text: "cytoscape-extensions", link: "/cytoscape-extensions/" },
                         { text: "graph-io", link: "/graph-io/" },
                         { text: "visual-review", link: "/visual-review/" },
                     ],
@@ -92,6 +95,10 @@ export default defineConfig({
                         { text: "graphty-element Storybook", link: "https://graphty.app/storybook/graphty-element/" },
                         { text: "algorithms Storybook", link: "https://graphty.app/storybook/algorithms/" },
                         { text: "layout Storybook", link: "https://graphty.app/storybook/layout/" },
+                        {
+                            text: "cytoscape-extensions demo",
+                            link: "https://graphty.app/storybook/cytoscape-extensions/",
+                        },
                         { text: "GitHub", link: "https://github.com/graphty-org/graphty-monorepo" },
                     ],
                 },
@@ -234,6 +241,61 @@ export default defineConfig({
                 {
                     text: "API",
                     items: [{ text: "Overview", link: "/layout/api/generated/" }, ...layoutTypedoc],
+                },
+            ],
+            "/cytoscape-extensions/": [
+                {
+                    text: "Guide",
+                    items: [
+                        { text: "Overview", link: "/cytoscape-extensions/" },
+                        { text: "Getting Started", link: "/cytoscape-extensions/guide/getting-started" },
+                        { text: "Installation", link: "/cytoscape-extensions/guide/installation" },
+                        { text: "Layouts", link: "/cytoscape-extensions/guide/layouts" },
+                        { text: "Algorithms", link: "/cytoscape-extensions/guide/algorithms" },
+                        { text: "WebGPU", link: "/cytoscape-extensions/guide/webgpu" },
+                        { text: "Graphs In and Out", link: "/cytoscape-extensions/guide/graphs-in-and-out" },
+                        { text: "Calling graphty functions directly", link: "/cytoscape-extensions/guide/snapshot" },
+                        { text: "Limits", link: "/cytoscape-extensions/guide/limits" },
+                        {
+                            text: "Migrating from Cytoscape",
+                            link: "/cytoscape-extensions/guide/migrating-from-cytoscape",
+                        },
+                        { text: "Troubleshooting", link: "/cytoscape-extensions/guide/troubleshooting" },
+                    ],
+                },
+                {
+                    text: "Recipes",
+                    items: [
+                        {
+                            text: "Color Nodes by PageRank",
+                            link: "/cytoscape-extensions/guide/recipes/color-by-pagerank",
+                        },
+                        { text: "Size Nodes by Degree", link: "/cytoscape-extensions/guide/recipes/size-by-degree" },
+                        { text: "Find Communities", link: "/cytoscape-extensions/guide/recipes/find-communities" },
+                        {
+                            text: "Highlight a Shortest Path",
+                            link: "/cytoscape-extensions/guide/recipes/highlight-shortest-path",
+                        },
+                        { text: "Load a GraphML File", link: "/cytoscape-extensions/guide/recipes/load-graphml-file" },
+                        {
+                            text: "Animate a Force Layout",
+                            link: "/cytoscape-extensions/guide/recipes/animate-force-layout",
+                        },
+                    ],
+                },
+                {
+                    text: "Reference",
+                    items: [
+                        { text: "Layouts", link: "/cytoscape-extensions/reference/layouts" },
+                        { text: "Algorithms", link: "/cytoscape-extensions/reference/algorithms" },
+                        { text: "Generators, Datasets and Formats", link: "/cytoscape-extensions/reference/graphs" },
+                        { text: "Demo", link: "https://graphty.app/storybook/cytoscape-extensions/" },
+                    ],
+                },
+                {
+                    text: "Generated TypeDoc",
+                    collapsed: true,
+                    items: cytoscapeTypedoc,
                 },
             ],
         },

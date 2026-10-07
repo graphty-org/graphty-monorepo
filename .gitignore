@@ -138,6 +138,7 @@ docs/layout/
 docs/graph-io/
 docs/public/
 docs/visual-review/
+docs/cytoscape-extensions/
 
 # Layout package specific
 layout/examples/layout.js
@@ -182,3 +183,7 @@ gpu-report.json
 # The Figma editor UI study (screenshots, HTML and measured styles, about 1.2 GB): kept
 # locally as design reference, never committed.
 design/ui/figma/
+
+# The release scheduler Worker's local secrets (tools/release-scheduler/README.md)
+tools/release-scheduler/.dev.vars
+tools/release-scheduler/*.pem

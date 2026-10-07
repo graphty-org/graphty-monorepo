@@ -197,8 +197,10 @@ changes every capture with text, which is one re-baseline.
   passkey check needs (see [Approving with a passkey](#approving-with-a-passkey)). Make it a
   required check. In a Mergify merge-queue run, pass `--queue-event "$GITHUB_EVENT_PATH"` instead
   of `--pr`: the gate reads the batch's pull requests from the queue's draft pull request and
-  accepts a review record for any of them. Every capture must still equal a baseline, so a batch
-  passes only on images already approved on its pull requests.
+  accepts a review record for any of them. It compares baseline changes with the commit the batch
+  sits on (its `checking_base_sha`), so a batch stacked on another is not charged with that
+  batch's changes. Every capture must still equal a baseline, so a batch passes only on images
+  already approved on its pull requests.
 
 The review page finds captures by the workflow's file name (the config's `workflow`), the jobs by
 their names, `visual (<project>)`, and the artifacts by `visual-<project>-<attempt>`. If you would
@@ -277,6 +279,19 @@ pull request follow, as before. The number ready is in the tab's title ("(3) Vis
 on its icon, and, on a home-screen web app where the browser allows it, on the app icon. The page
 asks the server again every few seconds while it is shown, and at once when you come back to it.
 `GET /api/inbox` (with the token) answers the same list as JSON.
+
+Pull requests that change the same baseline files are **coupled**: once the first merges, the
+others conflict and need another review. The inbox shows them first, as one group, oldest first
+(not a merge order: the merge queue decides that), with how many baselines they share and how many
+images the group holds once an image shown identically on several of them is counted once. **Review together** opens the
+first; while you review it, each accept, reject, exclude or undo (and Accept all) is also taken on
+every other pull request of the group whose image and baseline are the same, so the next one opens
+on only what is its own. An image a member already decided otherwise is never changed; the status
+line names it. A decision taken this way on another pull request counts there as not opened, as
+an Accept all does, so its Finish still says which images you looked at on it. When every member touches the same top-level directory and none is breaking (`!`
+in its title), the group also shows "fold #B into #A" as a suggestion for whoever maintains those
+branches; the page never folds anything. The groups are in `GET /api/inbox` as `groups`, and every
+group decision is logged to `<workDir>/state/groups.jsonl`.
 
 To keep it on an iPad's home screen, open the page with its token and use **Add to Home Screen**:
 the page has a web app manifest and opens full screen. The page also remembers the token in that
@@ -937,6 +952,15 @@ PNGs move: a settings file (`<old id>.json`) is not renamed; rename it in the sa
   `unchanged` or `excluded` items, including after "Re-run failed jobs" (the
   highest attempt's artifact counts); a missing, unfinished or invalid capture blocks it too. A
   rejected item stays blocking until a code change makes it match the baseline.
+- One exception: a project whose artifact holds, instead of `results.json`, the file
+  `skipped.json` with exactly `{"skipped": "not affected", "project": "<project>"}` passes without
+  a capture. A workflow that captures only the Storybooks a pull request can affect writes it for
+  the others. The gate accepts it only on a pull request's own run (never with `--queue-event`),
+  only for a project with baselines on the base branch, and only when the pull request changes
+  none of that project's baselines; anywhere else it counts as a missing capture. Which projects
+  are left out is decided by the pull request's own workflow, so the guarantee comes from the
+  merge queue, which captures every project before anything merges. The review page shows such a
+  project as "no capture".
 - A story with no baseline always blocks. `new` and `no baseline yet` only tell the reviewer
   whether the pull request changed it, measured against the default branch's newest complete
   capture, which may be a few merges older than the pull request's base.

@@ -16,6 +16,10 @@
 # retried in halves (bisection) until the culprit is found; nothing is retried as-is. The visual gate
 # accepts a batch: it passes only when every capture equals an image the owner approved on one of the
 # batch's pull requests (visual-review/trusted/gate.mjs, --queue-event).
+# Mergify merges each pull request of a passed batch with its own merge commit (merge_method: merge).
+# Never merge-batch: it marks the batch's draft ready for review, which starts a second CI run on the
+# same commit, and the ruleset then waits on that run's unfinished "All Checks Pass" until Mergify
+# dequeues the batch (4 of 10 batches on 2026-10-06).
 merge_queue:
     max_parallel_checks: 2
 
@@ -37,6 +41,14 @@ priority_rules:
       priority: high
       allow_checks_interruption: false
 
+    # A pull request labeled "queue:next" goes ahead of ordinary ones (priority low by default) but behind
+    # the release train and red-master fixes, and never interrupts a batch being checked.
+    - name: next in line
+      conditions:
+          - label=queue:next
+      priority: medium
+      allow_checks_interruption: false
+
 queue_rules:
     # The release pull request that release.yml opens (the "release train" priority rule puts it first).
     # Listed before "default", so it takes this rule: checked alone, never batched with other pull
@@ -47,7 +59,7 @@ queue_rules:
       batch_size: 1
       max_checks_retries: 0
       update_method: merge
-      merge_method: merge
+      merge_method: merge # never merge-batch: a batch commit's message names only pull request numbers
       queue_conditions:
           - head~=^release/train-
           - author=github-actions[bot]
@@ -70,13 +82,6 @@ queue_rules:
       queue_conditions:
           - label!=hold
           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
-          # The T4 GPU lane (gpu.yml, design/ci/ci-cd-plan.md section 4): "T4 GPU gate" passes once the T4
-          # passed for a pull request that affects webgpu-graph-algorithms, and at once for one that does not.
-          # A pull request whose every file sits outside the GPU package's dependencies (the directories below;
-          # tools/ci-workflows.test.mjs checks the list against the package graph) does not wait for the gate.
-          - or:
-                - check-success=T4 GPU gate
-                - "-files~=^(?!(graphty-element|graphty|graph-io|remote-logger|compact-mantine|visual-review|visual-baselines|visual-fonts|design|docs)/)"
       # The batch merges only when the full suite passed on the combined tree.
       merge_conditions:
           - check-success=Queue Checks Pass

@@ -119,7 +119,7 @@ function parseHex(text: string): Rgba | null {
     const pair = (index: number): number => {
         const slice = short ? digits[index].repeat(2) : digits.slice(index * 2, index * 2 + 2);
 
-        return parseInt(slice, 16);
+        return Number.parseInt(slice, 16);
     };
     const hasAlpha = digits.length === 4 || digits.length === 8;
 

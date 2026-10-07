@@ -79,7 +79,6 @@ import { type AlgorithmOnLoad, DataConfig } from "./config/DataConfig";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
 import { sampleOf } from "./data/source-bytes";
-import { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import { EventCallbackType, EventOfType, EventType } from "./events";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
@@ -185,7 +184,7 @@ function isAbort(error: unknown): boolean {
 }
 
 /** The three layout-behaviour settings a project file saves. The others are the view's. */
-const PROJECT_LAYOUT_KEYS: readonly string[] = ["preSteps", "stepMultiplier", "minDelta"];
+const PROJECT_LAYOUT_KEYS: ReadonlySet<string> = new Set(["preSteps", "stepMultiplier", "minDelta"]);
 
 /**
  * The settings of this view that a project file does not save (design/undo/undo-design.md section
@@ -273,6 +272,24 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
 }
 
 /**
+ * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
+ * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
+ */
+export interface NodeScreenPosition {
+    /** The node's centre, pixels from the element's left edge. */
+    x: number;
+    /** The node's centre, pixels from the element's top edge. */
+    y: number;
+    /**
+     * True when the node is drawn and its centre is on screen: inside the element, in front of
+     * the camera and not hidden by a filter. Another node drawn in front of it does not count.
+     */
+    visible: boolean;
+    /** The node's radius on screen in pixels: its largest half-extent, projected. 0 behind the camera. */
+    radius: number;
+}
+
+/**
  * Main orchestrator class for graph visualization and interaction.
  * Integrates Babylon.js scene management, coordinates nodes, edges, layouts, and styling.
  */
@@ -307,7 +324,12 @@ export class Graph implements GraphContext {
     #autoFrame = true;
     skybox?: string;
     xrHelper: WebXRDefaultExperience | null = null;
-    needRays = true;
+    /**
+     * Has no effect: the element never reads it.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     */
+    needRays = false;
     // graph engine - delegate to LayoutManager
     pinOnDrag?: boolean;
     // graph
@@ -643,7 +665,7 @@ export class Graph implements GraphContext {
                 this.updateManager.redrawArrangement(wrote);
             },
             pin: (id, pinned) => {
-                const node = this.getNode(id as string | number);
+                const node = this.getNode(id);
                 const engine = this.layoutManager.layoutEngine;
                 if (node === undefined || engine === undefined) {
                     return;
@@ -878,7 +900,6 @@ export class Graph implements GraphContext {
             this.scene,
             this.statsManager,
             contextConfig,
-            this.needRays,
         );
 
         // Set GraphContext on managers
@@ -1321,7 +1342,6 @@ export class Graph implements GraphContext {
             this.scene,
             this.statsManager,
             this.graphContext.getConfig(),
-            this.needRays,
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
@@ -1585,8 +1605,7 @@ export class Graph implements GraphContext {
      */
     setSelectionStyle(selection: GraphSelectionStyleInput): void {
         const current = dispatcherOf(this.session).state.config.get("selectionStyle") as
-            | GraphSelectionStyleInput
-            | undefined;
+            GraphSelectionStyleInput | undefined;
         const merged = { ...current, ...selection };
 
         GraphSelectionStyleOpts.parse(merged);
@@ -1613,7 +1632,7 @@ export class Graph implements GraphContext {
      */
     setLayoutBehavior(behavior: GraphBehaviorConfig): void {
         const layout: Readonly<Record<string, unknown>> = behavior.layout ?? {};
-        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.includes(key)));
+        const project = Object.fromEntries(Object.entries(layout).filter(([key]) => PROJECT_LAYOUT_KEYS.has(key)));
         // `layout.type` names the layout, whose one home is the `layout` slice.
         const { type } = layout;
         const current = this.viewSettings.behavior;
@@ -1623,7 +1642,7 @@ export class Graph implements GraphContext {
             layout: {
                 ...current.layout,
                 ...Object.fromEntries(
-                    Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.includes(key) && key !== "type"),
+                    Object.entries(layout).filter(([key]) => !PROJECT_LAYOUT_KEYS.has(key) && key !== "type"),
                 ),
             },
             node: { ...current.node, ...behavior.node },
@@ -1703,7 +1722,7 @@ export class Graph implements GraphContext {
             ),
         );
 
-        return Object.keys(set).length > 0 ? (set as GraphBehaviorConfig) : undefined;
+        return Object.keys(set).length > 0 ? set : undefined;
     }
 
     /**
@@ -3766,20 +3785,25 @@ export class Graph implements GraphContext {
         // Note: Edge meshes from Simple2DLineRenderer are NOT tracked by MeshCache,
         // so we must explicitly dispose them before calling updateStyle()
         for (const edge of this.dataManager.edges.values()) {
-            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer)
-            if (edge.mesh instanceof PatternedLineMesh) {
+            // Dispose edge mesh if not already disposed (handles non-cached meshes like Simple2DLineRenderer).
+            // A batched line is not disposed here: `meshCache.clear()` above disposed the
+            // batch it belongs to, and `edge.mesh` then points at that disposed mesh, which
+            // is what tells `updateStyle()` below to build the line again.
+            if (edge.drawnLine !== null) {
+                // the batch this edge was drawn from is already gone
+            } else if (edge.mesh instanceof PatternedLineMesh) {
                 edge.mesh.dispose();
             } else if (!edge.mesh.isDisposed()) {
                 edge.mesh.dispose();
             }
 
             // Dispose arrow meshes too
-            if (edge.arrowMesh && !edge.arrowMesh.isDisposed()) {
-                edge.arrowMesh.dispose();
+            if (edge.arrowCap && !edge.arrowCap.isDisposed()) {
+                edge.arrowCap.dispose();
             }
 
-            if (edge.arrowTailMesh && !edge.arrowTailMesh.isDisposed()) {
-                edge.arrowTailMesh.dispose();
+            if (edge.arrowTailCap && !edge.arrowTailCap.isDisposed()) {
+                edge.arrowTailCap.dispose();
             }
 
             edge.updateStyle();
@@ -3805,8 +3829,8 @@ export class Graph implements GraphContext {
             this.updateManager.redrawArrangement();
         }
 
-        // Now update edges to connect to the updated node positions
-        Edge.updateRays(this);
+        // Now update edges to connect to the updated node positions. Each one aims its own
+        // ray when it needs it, so there is nothing to prime here.
         for (const edge of this.dataManager.edges.values()) {
             edge.update();
         }
@@ -3876,14 +3900,6 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Check if ray updates are needed for edge arrows.
-     * @returns True if rays need updating
-     */
-    needsRayUpdate(): boolean {
-        return this.needRays;
-    }
-
-    /**
      * Get the current graph context configuration.
      * @returns The graph context configuration
      */
@@ -3893,6 +3909,16 @@ export class Graph implements GraphContext {
             enableDetailedProfiling: this.enableDetailedProfiling,
             xr: this.graphContext.getConfig().xr,
         };
+    }
+
+    /**
+     * Always false.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     * @returns false
+     */
+    needsRayUpdate(): boolean {
+        return false;
     }
 
     /**
@@ -4045,6 +4071,53 @@ export class Graph implements GraphContext {
         const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight();
 
         return { x: screenX, y: screenY };
+    }
+
+    /**
+     * Where a node is drawn on screen, in the same pixels {@link worldToScreen} returns.
+     * @param nodeId - The node's id.
+     * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
+     *     an id the graph does not hold.
+     */
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
+        const node = this.getNode(nodeId);
+        const camera = this.scene.activeCamera;
+        if (!node || !camera) {
+            return undefined;
+        }
+
+        // The world centre, not `mesh.position`: an XR gesture moves and scales graph-root.
+        const { mesh } = node;
+        mesh.computeWorldMatrix(true);
+        const centre = mesh.getAbsolutePosition();
+        const { x, y } = this.worldToScreen(centre);
+
+        // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
+        const view = this.scene.getViewMatrix().m;
+        const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+        const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
+
+        const engine = this.scene.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const onScreen = x >= 0 && x <= width && y >= 0 && y <= height;
+
+        // The node's largest half-extent in the world, projected: the projection's y scale over
+        // the clip w (the depth in perspective, 1 in orthographic), in pixels.
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        const scale = mesh.absoluteScaling;
+        const worldRadius =
+            Math.max(extent.x, extent.y, extent.z) * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
+        const projection = this.scene.getProjectionMatrix().m;
+        const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
+        const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
+
+        return {
+            x,
+            y,
+            visible: node.getRenderState() === "visible" && inDepth && onScreen,
+            radius,
+        };
     }
 
     /**
@@ -4229,10 +4302,24 @@ export class Graph implements GraphContext {
         await this.#suggestionsStacked;
         await this.operationQueue.waitForCompletion();
 
-        if (this.updateManager.frameIsStable) {
-            return;
+        if (!this.updateManager.frameIsStable) {
+            await this.untilFrameStableEvent(track);
         }
 
+        // The picture is final, but the label counts it drew are announced a few frames later
+        // (`graphty-label-change`); a page that shows them is not final until they are.
+        const declutter: unknown = this.scene.metadata?.labelDeclutter;
+        if (declutter instanceof LabelDeclutter) {
+            await declutter.whenPublished();
+        }
+    }
+
+    /**
+     * Wait for the `graph-frame-stable` event.
+     * @param track - Told the listener id, so the caller can remove it if it stops waiting.
+     * @returns Promise that resolves on the event, or at once when the frame became stable first.
+     */
+    private async untilFrameStableEvent(track: (id: symbol) => void): Promise<void> {
         await new Promise<void>((resolve) => {
             const id = this.eventManager.addListener("graph-frame-stable", () => {
                 this.eventManager.removeListener(id);
@@ -4259,6 +4346,10 @@ export class Graph implements GraphContext {
 
         if (queue.pending > 0 || queue.size > 0) {
             return `${String(queue.pending + queue.size)} queued operations have not finished`;
+        }
+
+        if (this.updateManager.frameIsStable) {
+            return "the node label counts have not been announced";
         }
 
         return this.updateManager.whyFrameIsNotStable();
@@ -5798,7 +5889,7 @@ export class Graph implements GraphContext {
         name: string,
         options?: import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
-        return this.setCameraState({ preset: name } as { preset: string }, options);
+        return this.setCameraState({ preset: name }, options);
     }
 
     /**

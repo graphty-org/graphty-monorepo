@@ -102,7 +102,7 @@ export interface JsonShapeMeta {
  */
 export function jsonShapeOf(snapshot: GraphSnapshot): JsonShapeMeta | null {
     const shape = snapshot.meta.extra[META_KEY];
-    return isJsonObject(shape) ? (shape as JsonShapeMeta) : null;
+    return isJsonObject(shape) ? shape : null;
 }
 
 /**

@@ -433,7 +433,12 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRa
     }
 
     if (taken === ranking.length || taken === n) {
-        return Object.freeze({ entries: ranking.slice(0, taken), leftOut: null, reason: null });
+        return Object.freeze({
+            entries: ranking.slice(0, taken),
+            leftOut: null,
+            reason: null,
+            threshold: taken < ranking.length ? ranking[taken].value : null,
+        });
     }
 
     const { value } = ranking[taken];
@@ -451,6 +456,7 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRa
         entries: ranking.slice(0, taken),
         leftOut: Object.freeze({ value, count }),
         reason,
+        threshold: value,
     });
 }
 

@@ -295,6 +295,14 @@ interface DispatcherEvents {
     /** Every command dispatched, as it arrives, before it runs; the doors test spies here. */
     dispatched?: (command: CommandLike) => void;
     /**
+     * A command dispatched on its own, or as a member of a transaction or a batch, finished
+     * executing: called synchronously, before its promise resolves; a transaction's members
+     * are called, in order, when the transaction records, and never when it rolls back. Not
+     * called for a command that failed or was cancelled, for one a running command dispatched
+     * inline, or for an exempt one. The journal appends here.
+     */
+    executed?: (done: ExecutedCommand) => void;
+    /**
      * After an undo, a redo or a restore that touched node or edge ids: the session selects them
      * (design section 8). Not called when the steps touched none, or {@link TouchedIds.skip}.
      */
@@ -303,6 +311,17 @@ interface DispatcherEvents {
         readonly cap: () => number;
         select(ids: TouchedIds): void;
     };
+}
+
+/** A command that finished executing, as {@link DispatcherEvents.executed} hears it. */
+export interface ExecutedCommand {
+    readonly command: CommandLike;
+    /** What its `execute` returned. */
+    readonly value: unknown;
+    /** Its undo coalescing key, or null. */
+    readonly coalesceKey: string | null;
+    /** How long it executed, in milliseconds of the dispatcher's clock. */
+    readonly durationMs: number;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -508,6 +527,8 @@ interface Job {
     revert: (() => readonly Slice[]) | null;
     /** What the queue handed its slot. */
     slotContext: SlotContext;
+    /** When it started executing, on the dispatcher's clock. */
+    startedAt: number;
     readonly promise: Promise<unknown>;
     resolve(value: unknown): void;
     reject(error: unknown): void;
@@ -544,6 +565,8 @@ interface Group {
     readonly compound: boolean;
     /** Work to start once it is recorded, by key; see `UndoableContext.after`. */
     readonly onSeal: Map<string, (dispatch: DispatchFunction) => void>;
+    /** A transaction's finished members, published to the journal when it records. */
+    readonly executed: ExecutedCommand[];
     /** Its before-arrangement, once a member that needs one has started; see `History.open`. */
     arrangement: OpenArrangement | null;
     /** The graph epoch when it took its before-arrangement. */
@@ -734,6 +757,8 @@ export class Dispatcher {
     /** Node coordinates at rest: captures, the `arrangement` and `pins` hooks, rest points. */
     readonly arrangement: Arrangement;
     private readonly store: ProjectStore;
+    /** The clock of the coalescing window, and of how long a command executed. */
+    private readonly clock: () => number;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly scheduler: Scheduler;
     private readonly strict = strictStateEnabled();
@@ -805,6 +830,7 @@ export class Dispatcher {
             session: true,
         });
         this.events = { ...options.events };
+        this.clock = options.now ?? Date.now;
         this.scheduler = options.scheduler ?? NO_SCHEDULER;
         this.baselineOpen = options.baselineWindow === true;
         this.history = new History<Patch>({
@@ -1229,7 +1255,7 @@ export class Dispatcher {
         try {
             outcome = act();
         } catch (error) {
-            return Promise.reject(error as Error);
+            return Promise.reject(error);
         }
 
         return this.lane.settled().then(() => {
@@ -1305,7 +1331,7 @@ export class Dispatcher {
             const direction = target < position ? "undo" : "redo";
             const passing = target < position ? steps.slice(target, position).reverse() : steps.slice(position, target);
             for (const step of passing) {
-                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan; ) {
+                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan;) {
                     cancelled.push(...this.cancelAll(plan.cancel, direction));
                     plan = this.plan(direction, step);
                 }
@@ -1788,6 +1814,7 @@ export class Dispatcher {
         const { command, definition } = job;
         const { group } = job;
         job.status = "running";
+        job.startedAt = this.clock();
         job.blockedBy = null;
         this.acquire(group, opLogKeys(job.keys));
         if (group.arrangement === null && this.takesBefore(job)) {
@@ -1882,6 +1909,22 @@ export class Dispatcher {
             this.baselineOpen = false;
         }
 
+        if (!job.inline) {
+            const done: ExecutedCommand = {
+                command: job.command,
+                value,
+                coalesceKey: job.definition.undo.coalesce?.(job.command) ?? null,
+                durationMs: this.clock() - job.startedAt,
+            };
+            // A transaction member is published when the transaction records, and never when it
+            // rolls back: what it did is undone then, so it did not happen.
+            if (group.tx === null) {
+                this.events.executed?.(done);
+            } else {
+                group.executed.push(done);
+            }
+        }
+
         job.resolve(value);
     }
 
@@ -1963,6 +2006,9 @@ export class Dispatcher {
         const runs = [...group.jobs];
         group.jobs.clear();
         const stepId = this.seal(group);
+        for (const done of group.executed.splice(0)) {
+            this.events.executed?.(done);
+        }
         for (const job of runs) {
             const deferred = this.group(
                 job.definition.undo.label(job.command, this.store.state),
@@ -2205,6 +2251,7 @@ export class Dispatcher {
             group.tx.status = "aborted";
         }
 
+        group.executed.length = 0;
         for (const job of [...group.jobs]) {
             this.stop(job, group.tx === null ? reason : cancelledError(job.command.op, why));
         }
@@ -2507,6 +2554,7 @@ export class Dispatcher {
             setup,
             compound,
             onSeal: new Map(),
+            executed: [],
             arrangement: null,
             epoch: 0,
         };
@@ -2553,6 +2601,7 @@ export class Dispatcher {
             slot: null,
             blockedBy: null,
             revert: null,
+            startedAt: 0,
             slotContext: {},
             promise,
             // The caller hears last, after the pass and the events it publishes.

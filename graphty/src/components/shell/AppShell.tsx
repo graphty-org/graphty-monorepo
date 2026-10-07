@@ -93,8 +93,10 @@ import {
     type AccelerationStatus,
     type Channel,
     type DataSourceInput,
+    DEFAULT_LIMITS,
     type GraphSession,
     type GraphStatistics,
+    type HistogramBin,
     isGraphtyError,
     type Layer,
     type LayerSpec,
@@ -125,12 +127,14 @@ import {
 } from "./analysis/graphShape";
 import { metricCost, type MetricCostEstimate, metricCosts, readMetricAvailability } from "./analysis/metricCost";
 import {
+    formatMetricValue,
     metricDistribution,
     NODE_METRIC_DEFINITIONS,
     NODE_METRIC_IDS,
     type NodeMetricId,
     runNodeMetric,
 } from "./analysis/nodeMetrics";
+import { downloadText, filterAbove, groupsCsv, selectAbove, selectBins, selectTop } from "./analysis/resultMembers";
 import {
     COMMUNITY_METHOD_NAME,
     type DegreeResults,
@@ -189,6 +193,8 @@ import {
     writePersistedInsightsMemory,
 } from "./insights/insightsMemory";
 import {
+    hasTimeRole,
+    importIssueTypeCount,
     insightCandidates,
     type InsightCapability,
     type InsightsGraphShape,
@@ -204,7 +210,7 @@ import {
     MOST_CONNECTED_TOP_N,
 } from "./inspector/inspectorConstants";
 import type { NeighborRow } from "./inspector/NodeInspector";
-import type { ResultBodyRow } from "./inspector/ResultInspector";
+import type { ResultBodyRow, ResultInspectorProps } from "./inspector/ResultInspector";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
 import { ActivityPanel } from "./panel/ActivityPanel";
 import { AiPanel } from "./panel/AiPanel";
@@ -1322,6 +1328,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         readonly layerRunId?: RunId;
         /** How many layers name that run, which is the count Remove result states. */
         readonly layerCount?: number;
+        /**
+         * Which member verbs the result offers: a metric's top N, threshold and brush, or a
+         * grouping's export. With `metric`, the element's bars the brush selects from and
+         * where the threshold field opens.
+         */
+        readonly members?:
+            | { readonly kind: "groups" }
+            | {
+                  readonly kind: "metric";
+                  readonly bins: readonly HistogramBin[];
+                  readonly threshold: number;
+                  readonly thresholdNote?: string;
+              };
     } | null>(null);
 
     /*
@@ -2078,6 +2097,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* The ego network on the canvas is the element's own `neighborhood` visibility filter, read
        back from the element so an undo or a project load moves the depth control with it. */
     const [egoFilter, setEgoFilter] = useState<Extract<RuleTree, { kind: "neighborhood" }> | null>(null);
+    /* A result card's Filter above threshold, read back the same way, so its chip and Clear
+       follow an undo too. */
+    const [thresholdFilter, setThresholdFilter] = useState<Extract<RuleTree, { kind: "threshold" }> | null>(null);
     useEffect(() => {
         if (session === null) {
             return undefined;
@@ -2086,6 +2108,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         const readEgoFilter = (): void => {
             const { filter } = session.visibility;
             setEgoFilter(filter?.kind === "neighborhood" ? filter : null);
+            setThresholdFilter(filter?.kind === "threshold" ? filter : null);
         };
         readEgoFilter();
 
@@ -2632,9 +2655,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * It went with the narrow layout itself. Below `NARROW_BREAKPOINT` the shell now
      * draws a "screen too small" state instead of laying out, so there is no canvas to
      * tap and no overlay for a tap to dismiss; at or above it both sidebars are docked
-     * columns that nothing but the reader's own control may hide. `CanvasRegion` still
-     * accepts an `onCanvasTap`, and the shell deliberately passes none: an unused hook is
-     * cheaper to leave than a behaviour nobody can predict.
+     * columns that nothing but the reader's own control may hide. `CanvasRegion`'s
+     * `onCanvasTap` hook, which nothing passed any more, was removed with it.
      */
 
     /* ---------------------------------------------------------------------- */
@@ -2692,14 +2714,15 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        case notes). Read from `session.notes` and read again on every `note:changed` -- a write,
        an undo, a redo or an opened project. The shell keeps no note store of its own. */
     const [selectedNodeNotes, setSelectedNodeNotes] = useState<readonly Note[]>([]);
-    const [caseNoteCount, setCaseNoteCount] = useState(0);
+    const [caseNotes, setCaseNotes] = useState<readonly Note[]>([]);
+    const caseNoteCount = caseNotes.length;
     useEffect(() => {
         if (session === null) {
             return undefined;
         }
 
         const read = (): void => {
-            setCaseNoteCount(session.notes.list({ target: { graph: true } }).length);
+            setCaseNotes(session.notes.list({ target: { graph: true } }));
             setSelectedNodeNotes(
                 selectedNode === null ? [] : session.notes.list({ target: { node: selectedNode.id } }),
             );
@@ -2711,10 +2734,12 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [selectedNode, session]);
 
     /* The case notes -- graphty-element's notes about the whole graph -- are listed in the
-       Explore panel's Notes section, so this opens Explore with that section expanded. */
+       Explore panel's Notes section, so this opens Explore with that section expanded and its
+       note input focused. */
     const openCaseNotes = useCallback(() => {
         openPanelAt("explore");
         setSectionOpen("explore.notes", true);
+        focusWhenMounted('[data-testid="explore-note-input"]');
     }, [openPanelAt, setSectionOpen]);
 
     /* ---------------------------------------------------------------------- */
@@ -2811,6 +2836,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 }),
                 body: communityResultBody(statistics),
                 runId,
+                members: { kind: "groups" },
                 /* The applied half, all four fields together or none of them: the layer's own
                    name, a colour some node really carries, the TAG the two layer verbs act on,
                    and how many layers that tag holds, which is the count Remove result names
@@ -3086,6 +3112,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     tiedAtMinimum: ranking.tiedAtMinimum,
                 };
 
+                /* The element's top at the render ceiling, when it left nodes out. */
+                const cutToDraw = ranking.drawable?.threshold === null ? undefined : ranking.drawable;
+
                 setActiveResult({
                     id: metric,
                     title: definition.plainName,
@@ -3103,6 +3132,22 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                     body,
                     ...(runId === undefined ? {} : { runId }),
                     distribution: metricDistribution(ranking),
+                    /* Spec 2376: the threshold opens at the lowest value whose matches are
+                       still drawable, which is the element's own cut of the top that fits
+                       the render ceiling; with everything drawable it opens at the lowest
+                       value measured. */
+                    members: {
+                        kind: "metric",
+                        bins: ranking.distribution.bins,
+                        threshold: ranking.drawable?.threshold ?? ranking.minValue,
+                        ...(cutToDraw === undefined
+                            ? {}
+                            : {
+                                  thresholdNote: `Starting where the result is drawable: ${formatCount(
+                                      cutToDraw.entries.length,
+                                  )} of ${formatCount(ranking.rankedCount)} nodes.`,
+                              }),
+                    },
                     /* Applied: the card names the layer that holds the channel, the
                        colour the TOP node of this run actually carries, the tag the two
                        layer verbs act on and the one layer it holds. Suppressed: NONE of
@@ -3395,6 +3440,23 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         next.focus();
     }, []);
 
+    /* N, and the Explore Notes section's plus: the inspector's note input for the selected
+       node; with nothing selected, the case notes. */
+    const addNote = useCallback(() => {
+        if (selectedNode === null) {
+            openCaseNotes();
+
+            return;
+        }
+
+        if (sidebarsHidden) {
+            toggleSidebars();
+        }
+
+        setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
+        focusWhenMounted('[data-testid="node-note-input"]');
+    }, [openCaseNotes, selectedNode, setSectionOpen, sidebarsHidden, toggleSidebars]);
+
     /* ---------------------------------------------------------------------- */
     /* The one dispatcher                                                      */
     /* ---------------------------------------------------------------------- */
@@ -3435,22 +3497,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 openPanelAt("explore");
                 focusWhenMounted('[data-testid="explore-search-input"]');
             },
-            /* N: the inspector's note input for the selected node; with nothing selected, the
-               case notes. */
-            addNote: () => {
-                if (selectedNode === null) {
-                    openCaseNotes();
-
-                    return;
-                }
-
-                if (sidebarsHidden) {
-                    toggleSidebars();
-                }
-
-                setSectionOpen(INSPECTOR_SECTION_IDS.nodeNotes, true);
-                focusWhenMounted('[data-testid="node-note-input"]');
-            },
+            addNote,
             egoNetwork: showEgoNetwork,
             keyboardShortcuts: () => {
                 openFullPanelOverlay("shortcuts");
@@ -3658,6 +3705,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         onScopeChange={setExploreScope}
                         searchError={exploreError}
                         visibleScopeLabel={`${nodeCount.toLocaleString()} nodes`}
+                        hasSelection={selectedNode !== null}
+                        onAddNote={addNote}
+                        caseNotes={caseNotes}
+                        onAddCaseNote={(text) => {
+                            session?.notes.add({ text, targets: [{ graph: true }] });
+                        }}
+                        // One undoable step in the element's history, so Undo brings the note back.
+                        onDeleteCaseNote={(noteId) => {
+                            session?.notes.remove(noteId);
+                        }}
+                        onSetCaseNoteDone={(noteId, done) => {
+                            session?.notes.update(noteId, { done });
+                        }}
                         timeSliderOn={canvasLayout.timeSlider}
                         onTimeSliderChange={(on) => {
                             setCanvasLayout((current) => ({ ...current, timeSlider: on }));
@@ -3791,6 +3851,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     }, [
         activeActivity,
         activeResult,
+        addNote,
         captureImage,
         imageFormat,
         openFullPanelOverlay,
@@ -3801,6 +3862,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         canvasLayout.drawerOpen,
         canvasLayout.legend,
         canvasLayout.timeSlider,
+        caseNotes,
         legendIsAvailable,
         openResult,
         exploreError,
@@ -3821,6 +3883,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         runNodeMetricCard,
         runningSuggestedCardId,
         selectedLayerId,
+        selectedNode,
+        session,
         setDrawerOpen,
         stateAxis,
         suggestedRunCosts.labels,
@@ -4027,6 +4091,67 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         }
     }, []);
 
+    /**
+     * The result card's member verbs, each one call to the element with its own target or
+     * filter. A refusal is the element's to explain, so it is logged in its own words.
+     * @param runId - the result's run; a result that names none offers no member verbs.
+     * @param members - which verbs the result offers, and what the metric ones read.
+     * @returns the props to spread onto the result surface.
+     */
+    const memberProps = useCallback(
+        (
+            runId: RunId | undefined,
+            members: NonNullable<typeof activeResult>["members"],
+        ): Pick<ResultInspectorProps, "members" | "onSelectBins" | "onExportGroups"> => {
+            if (runId === undefined || members === undefined) {
+                return {};
+            }
+
+            const act = (label: string, work: (session: GraphSession) => Promise<unknown>): void => {
+                const session = graphtyRef.current?.session ?? null;
+
+                if (session !== null) {
+                    work(session).then(undefined, (error: unknown) => {
+                        console.error(`[shell] the element refused to ${label}:`, error);
+                    });
+                }
+            };
+
+            if (members.kind === "groups") {
+                return {
+                    onExportGroups: () => {
+                        act("export the groups", (session) => {
+                            downloadText(groupsCsv(session, runId), "groups.csv", "text/csv");
+
+                            return Promise.resolve();
+                        });
+                    },
+                };
+            }
+
+            return {
+                members: {
+                    topLimit: DEFAULT_LIMITS.selectionCap,
+                    threshold: members.threshold,
+                    ...(members.thresholdNote === undefined ? {} : { thresholdNote: members.thresholdNote }),
+                    onSelectTop: (n) => {
+                        act("select the top", (session) => selectTop(session, runId, n));
+                    },
+                    onSelectAbove: (threshold) => {
+                        act("select above the threshold", (session) => selectAbove(session, runId, threshold));
+                    },
+                    onFilterAbove: (threshold) => {
+                        act("filter above the threshold", (session) => filterAbove(session, runId, threshold));
+                    },
+                },
+                onSelectBins: (first, last) => {
+                    act("select the brushed bars", (session) => selectBins(session, runId, members.bins, first, last));
+                },
+            };
+        },
+        [],
+    );
+
     const inspectorSelection = useMemo<InspectorSelection>(() => {
         if (selectionStatistics !== null) {
             const { nodes, edges } = selectionStatistics;
@@ -4124,6 +4249,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                       ...(current.distribution === undefined
                                           ? {}
                                           : { distribution: current.distribution }),
+                                      ...(current.runId === undefined ? {} : { runId: current.runId }),
+                                      ...(current.members === undefined ? {} : { members: current.members }),
                                   },
                         );
                         // The colours went with the layers, so the channel naming them goes too.
@@ -4139,6 +4266,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         setActiveResult(null);
                         setColourChannel([]);
                     },
+                    ...memberProps(activeResult.runId, activeResult.members),
                 },
             };
         }
@@ -4243,6 +4371,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 onDeleteNote: (noteId: string) => {
                     session?.notes.remove(noteId);
                 },
+                // Done is graphty-element's own note field: one undoable step, like any edit.
+                onSetNoteDone: (noteId: string, done: boolean) => {
+                    session?.notes.update(noteId, { done });
+                },
                 onSelectNeighbor: (nodeId: string) => {
                     graphSelectNode(graphtyRef.current?.element ?? null, nodeId);
                 },
@@ -4279,6 +4411,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         graphReading,
         graphStatistics,
         layers,
+        memberProps,
         mostConnected,
         neighborsOf,
         nodeCount,
@@ -4723,10 +4856,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      * which is also the card set Main.dc.html:702 draws minus the degree card that has no
      * reading yet.
      *
-     * Two inputs are honestly zero rather than plausibly filled: `hasTimeRole` is false
-     * because no column-role model exists, and `validationIssueTypeCount` is 0 because
-     * `DataManager` hardcodes its warning count to 0 and nothing computes a validation
-     * pass. Rule 1 and rule 6 are therefore implemented and never fire.
+     * The time role and the issue kinds are read off the element's columns and its last
+     * load report. Their cards (rule 1 and rule 6) are still filtered out by
+     * `isSliceAvailable` until the shell draws a validation report and a time slider.
      */
     const insightCards = useMemo<readonly InsightCard[]>(() => {
         if (!dataLoaded) {
@@ -4737,8 +4869,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             nodeCount: graphStatistics.nodeCount,
             edgeCount: graphStatistics.edgeCount,
             directedness: graphStatistics.directedness,
-            hasTimeRole: false,
-            validationIssueTypeCount: 0,
+            hasTimeRole: hasTimeRole(graphRecords?.data.attributes() ?? []),
+            validationIssueTypeCount: importIssueTypeCount(graphRecords?.data.lastImport() ?? null),
             searchExample: degreeResults?.byDegreeDescending[0]?.id,
             /* Whether a run is possible on this graph and what it would cost, for every
                algorithm the element ships. It replaces a three-entry record this file
@@ -4806,6 +4938,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         dataLoaded,
         degreeResults,
         elementMetrics,
+        graphRecords,
         graphStatistics.directedness,
         graphStatistics.edgeCount,
         graphStatistics.nodeCount,
@@ -4940,6 +5073,35 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                       },
                   }
                 : undefined,
+        ...(thresholdFilter === null
+            ? {}
+            : {
+                  filterStatus: {
+                      chips: [
+                          {
+                              id: "threshold",
+                              label: `${
+                                  activeResult?.runId !== undefined &&
+                                  session?.results.path(activeResult.runId) === thresholdFilter.path
+                                      ? activeResult.title
+                                      : "Result"
+                              } above ${formatMetricValue(thresholdFilter.above ?? 0, false)}`,
+                          },
+                      ],
+                      controls: (
+                          <Button
+                              variant="subtle"
+                              color="gray"
+                              size="compact-xs"
+                              onClick={() => {
+                                  setEgoNetwork(null);
+                              }}
+                          >
+                              Clear
+                          </Button>
+                      ),
+                  },
+              }),
         ...(egoFilter === null
             ? {}
             : {

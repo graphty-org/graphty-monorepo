@@ -1,3 +1,114 @@
+## 0.8.55 (2026-10-07)
+
+### 🚀 Features
+
+- **graphty-element:** report where a broken graph file broke ([#1218](https://github.com/graphty-org/graphty-monorepo/issues/1218))
+- **graphty:** bring back the node inspector's Done box ([#705](https://github.com/graphty-org/graphty-monorepo/issues/705))
+- **graphty-element:** give notes an optional done state ([#705](https://github.com/graphty-org/graphty-monorepo/issues/705))
+- **graphty:** member actions on result cards ([#178](https://github.com/graphty-org/graphty-monorepo/issues/178))
+- **graphty:** list and write case notes in Explore ([#707](https://github.com/graphty-org/graphty-monorepo/issues/707))
+- **graphty:** words for the five algorithms the element added ([638fc4e10](https://github.com/graphty-org/graphty-monorepo/commit/638fc4e10))
+- **graphty:** the style tab's set lines, + menus, pickers and label line ([3d984c051](https://github.com/graphty-org/graphty-monorepo/commit/3d984c051))
+- **graphty:** the style tab's sections, row model and From data list ([31bb1c163](https://github.com/graphty-org/graphty-monorepo/commit/31bb1c163))
+- **graphty:** recent projects on the start screen and in the main menu ([414a0dad0](https://github.com/graphty-org/graphty-monorepo/commit/414a0dad0))
+- **graphty:** save, save as and close a tier 1 project through the element's project file ([687996254](https://github.com/graphty-org/graphty-monorepo/commit/687996254))
+- **graphty:** build the tier 1 table dock ([#904](https://github.com/graphty-org/graphty-monorepo/issues/904))
+- **graphty:** the Graph place's title line, find box and footer line ([ecd1ec29f](https://github.com/graphty-org/graphty-monorepo/commit/ecd1ec29f))
+- **graphty:** the Graph place's paint tree, read from the element's runs, styles and legend ([#906](https://github.com/graphty-org/graphty-monorepo/issues/906), [#907](https://github.com/graphty-org/graphty-monorepo/issues/907))
+- **graphty:** the canvas state cards and the hidden-run notice ([3b9a32c98](https://github.com/graphty-org/graphty-monorepo/commit/3b9a32c98))
+- **graphty:** the canvas legend card, laid out from the element's legend blocks ([6a86bf34e](https://github.com/graphty-org/graphty-monorepo/commit/6a86bf34e))
+- **graphty:** the Data place with Sources, Attributes and their menus ([#894](https://github.com/graphty-org/graphty-monorepo/issues/894), [#893](https://github.com/graphty-org/graphty-monorepo/issues/893))
+- **graphty:** the Data place's words for sources and attributes ([ff024d9cb](https://github.com/graphty-org/graphty-monorepo/commit/ff024d9cb))
+- **graphty:** the canvas toolbar, View flyout, Quick actions and selection bar ([002467353](https://github.com/graphty-org/graphty-monorepo/commit/002467353))
+- **graphty:** the Analyze popover ([8e99b3892](https://github.com/graphty-org/graphty-monorepo/commit/8e99b3892))
+- **graphty:** the Layout group and its commands ([ce41de924](https://github.com/graphty-org/graphty-monorepo/commit/ce41de924))
+- **graphty:** the tier 1 start screen and its four samples ([03f97890c](https://github.com/graphty-org/graphty-monorepo/commit/03f97890c))
+- **graphty:** settings with general, privacy, and accessibility and input sections ([5139dadd3](https://github.com/graphty-org/graphty-monorepo/commit/5139dadd3))
+- **graphty:** send usage data only after the reader says Share ([c41a7ec86](https://github.com/graphty-org/graphty-monorepo/commit/c41a7ec86))
+- **graphty:** write the Les Miserables and Florentine families samples as GML ([4ad9a6f37](https://github.com/graphty-org/graphty-monorepo/commit/4ad9a6f37))
+
+### 🩹 Fixes
+
+- **graphty:** drop the group-row color workaround ([#1098](https://github.com/graphty-org/graphty-monorepo/issues/1098), [#1099](https://github.com/graphty-org/graphty-monorepo/issues/1099))
+- **graphty:** name the insights strip as a toolbar ([#714](https://github.com/graphty-org/graphty-monorepo/issues/714))
+- **graphty:** draw the Coming tag as the shared Badge ([#509](https://github.com/graphty-org/graphty-monorepo/issues/509))
+- **webgpu-graph-algorithms:** settle label propagation on ordered paths ([#694](https://github.com/graphty-org/graphty-monorepo/issues/694))
+- **graphty:** make vi.mock of graphty-element take effect in browser tests ([#493](https://github.com/graphty-org/graphty-monorepo/issues/493))
+- **graphty:** make the welcome sample rows accessible ([#508](https://github.com/graphty-org/graphty-monorepo/issues/508))
+- **graphty:** the empty canvas card opens Add data, not Open project ([31c3d4dba](https://github.com/graphty-org/graphty-monorepo/commit/31c3d4dba))
+- **graphty:** open a reader's layer row in the inspector's Style tab ([96547749c](https://github.com/graphty-org/graphty-monorepo/commit/96547749c))
+- **graphty:** open an attribute by its path, as the inspector reads it ([3ae9556ff](https://github.com/graphty-org/graphty-monorepo/commit/3ae9556ff))
+- **graphty:** leave the attribute inspected kind to the Inspector ([67f8fa66e](https://github.com/graphty-org/graphty-monorepo/commit/67f8fa66e))
+- **graphty:** the Style tab opens a run's row by its run id, as the paint tree writes it ([741fda98d](https://github.com/graphty-org/graphty-monorepo/commit/741fda98d))
+- **graphty:** name the paint tree's groups from the element's rank ([5d51524ab](https://github.com/graphty-org/graphty-monorepo/commit/5d51524ab))
+- **graphty:** name the table's groups from the element's rank ([e718f9ddc](https://github.com/graphty-org/graphty-monorepo/commit/e718f9ddc))
+- **graphty:** catch the Analyze short form's Esc on the form, marked NOSONAR ([abfa4f1cf](https://github.com/graphty-org/graphty-monorepo/commit/abfa4f1cf))
+- **graphty:** catch the Data place context menu on a plain container, marked NOSONAR ([c87b55175](https://github.com/graphty-org/graphty-monorepo/commit/c87b55175))
+- **graphty:** clear the SonarQube findings on the tier 1 table ([c1090e034](https://github.com/graphty-org/graphty-monorepo/commit/c1090e034))
+- **graphty:** clear the SonarQube findings on the tier 1 Data place ([271cbbcf1](https://github.com/graphty-org/graphty-monorepo/commit/271cbbcf1))
+- **graphty:** clear the SonarQube findings on the tier 1 Graph place ([47e261bcc](https://github.com/graphty-org/graphty-monorepo/commit/47e261bcc))
+- **graphty:** clear the SonarQube findings on the tier 1 project ([017b9bf0f](https://github.com/graphty-org/graphty-monorepo/commit/017b9bf0f))
+- **graphty:** clear the SonarQube findings on the tier 1 Style tab ([12fee2403](https://github.com/graphty-org/graphty-monorepo/commit/12fee2403))
+- **graphty:** clear the SonarQube findings on the tier 1 start screen ([6dcb22e4f](https://github.com/graphty-org/graphty-monorepo/commit/6dcb22e4f))
+- **graphty:** clear the SonarQube findings on the tier 1 canvas ([61cf76a34](https://github.com/graphty-org/graphty-monorepo/commit/61cf76a34))
+- **graphty:** clear the SonarQube findings on the tier 1 toolbar and Analyze popover ([b6834f821](https://github.com/graphty-org/graphty-monorepo/commit/b6834f821))
+- **graphty:** the style tab words its own lines and defers to the element ([#915](https://github.com/graphty-org/graphty-monorepo/issues/915))
+- **graphty:** answer the table dock review ([5c0c1784f](https://github.com/graphty-org/graphty-monorepo/commit/5c0c1784f))
+- **graphty:** read the Graph place's row kinds, counts and swatches from the element ([d92cbcb91](https://github.com/graphty-org/graphty-monorepo/commit/d92cbcb91))
+- **graphty:** keep project names, unsaved changes and failures with the element ([#918](https://github.com/graphty-org/graphty-monorepo/issues/918), [#919](https://github.com/graphty-org/graphty-monorepo/issues/919), [#920](https://github.com/graphty-org/graphty-monorepo/issues/920))
+- **graphty:** canvas shows only what the element publishes ([#912](https://github.com/graphty-org/graphty-monorepo/issues/912), [#867](https://github.com/graphty-org/graphty-monorepo/issues/867))
+- **graphty:** the data place's names, notices and run results ([10077ba50](https://github.com/graphty-org/graphty-monorepo/commit/10077ba50))
+- **graphty:** toolbar focus, disabled tools and the app's own option words ([33c3919ea](https://github.com/graphty-org/graphty-monorepo/commit/33c3919ea))
+- **graphty:** single-key shortcuts ignore menus and lists that are not showing ([4e07ebf42](https://github.com/graphty-org/graphty-monorepo/commit/4e07ebf42))
+- **graphty:** give the start screen a main landmark and a level 1 heading ([1c0f6f45d](https://github.com/graphty-org/graphty-monorepo/commit/1c0f6f45d))
+- **graphty:** keep one session replay when usage data is turned off and on again ([b9c0fba15](https://github.com/graphty-org/graphty-monorepo/commit/b9c0fba15))
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([8863d118a](https://github.com/graphty-org/graphty-monorepo/commit/8863d118a))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.36
+- Updated compact-mantine to 0.9.8
+- Updated graphty-element to 3.16.0
+- Updated graph-samples to 0.1.22
+- Updated graph-format to 1.3.7
+- Updated graph-io to 0.3.27
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.54 (2026-10-06)
+
+### 🚀 Features
+
+- **graphty:** selection statistics in the multi-selection inspector ([#322](https://github.com/graphty-org/graphty-monorepo/issues/322))
+- **graphty:** ego network action with hop depth ([#314](https://github.com/graphty-org/graphty-monorepo/issues/314))
+- **graphty-element:** publish generated JSX types at ./jsx ([de176c23d](https://github.com/graphty-org/graphty-monorepo/commit/de176c23d))
+- **graphty:** the inspector, with every tier 1 kind's Values tab and Why this look ([#895](https://github.com/graphty-org/graphty-monorepo/issues/895), [#896](https://github.com/graphty-org/graphty-monorepo/issues/896), [#897](https://github.com/graphty-org/graphty-monorepo/issues/897), [#898](https://github.com/graphty-org/graphty-monorepo/issues/898), [#899](https://github.com/graphty-org/graphty-monorepo/issues/899), [#900](https://github.com/graphty-org/graphty-monorepo/issues/900), [#903](https://github.com/graphty-org/graphty-monorepo/issues/903), [#810](https://github.com/graphty-org/graphty-monorepo/issues/810), [#791](https://github.com/graphty-org/graphty-monorepo/issues/791))
+
+### 🩹 Fixes
+
+- **graphty:** read the Insights time and data-issue inputs from the element ([#323](https://github.com/graphty-org/graphty-monorepo/issues/323))
+- **graphty:** link the Newman network data credits over https ([#713](https://github.com/graphty-org/graphty-monorepo/issues/713))
+- **graphty-element:** pin, unpin and edge paging accept either spelling of an integer id ([#1065](https://github.com/graphty-org/graphty-monorepo/issues/1065), [#542](https://github.com/graphty-org/graphty-monorepo/issues/542))
+- **graphty:** draw the Compare button disabled until Compare is built ([#826](https://github.com/graphty-org/graphty-monorepo/issues/826), [#186](https://github.com/graphty-org/graphty-monorepo/issues/186))
+- **graphty:** type the no-element-mutation test from the element's .d.ts files ([fe66271b2](https://github.com/graphty-org/graphty-monorepo/commit/fe66271b2))
+- **graphty:** read the inspector's first and last group with at() ([02def33af](https://github.com/graphty-org/graphty-monorepo/commit/02def33af))
+- **graphty:** name the inspector's groups from the element's rank ([e87b847ef](https://github.com/graphty-org/graphty-monorepo/commit/e87b847ef))
+- **graphty:** clear the SonarQube findings on the tier 1 inspector ([89aaf9417](https://github.com/graphty-org/graphty-monorepo/commit/89aaf9417))
+- **graphty:** stop exporting the inspector's FinishedRun type ([e3219f711](https://github.com/graphty-org/graphty-monorepo/commit/e3219f711))
+- **graphty:** inspector review fixes: exact counts, element facts, kind words ([#931](https://github.com/graphty-org/graphty-monorepo/issues/931), [#893](https://github.com/graphty-org/graphty-monorepo/issues/893), [#932](https://github.com/graphty-org/graphty-monorepo/issues/932))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.35
+- Updated compact-mantine to 0.9.7
+- Updated graphty-element to 3.15.0
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.53 (2026-10-05)
 
 ### 🧱 Updated Dependencies

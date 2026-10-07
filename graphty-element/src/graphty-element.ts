@@ -15,7 +15,7 @@ import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } f
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
 import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, type NodeEventDetail, nodeEventDetail } from "./events";
-import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
 import type { NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
@@ -418,7 +418,7 @@ export class Graphty extends LitElement {
                         "so the value was lost. This happens when a framework renders the tag before " +
                         "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
                         'customElements.whenDefined("graphty-element"). See ' +
-                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                        "https://graphty.app/docs/graphty-element/guide/frameworks/react#load-the-element-before-react-renders-it",
                 );
             }
         }
@@ -893,7 +893,7 @@ export class Graphty extends LitElement {
         const { config } = this.#source();
         // Reported without the inline text or the file: the graph keeps where it came from, not
         // a second copy of what it holds.
-        return config === undefined ? undefined : (describeSource({ config }).config as Record<string, unknown>);
+        return config === undefined ? undefined : describeSource({ config }).config;
     }
     /**
      * Sets the data source configuration. Loads the graph from it, replacing what the graph
@@ -1412,7 +1412,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
-        return this.#layoutPair().options as Record<string, unknown>;
+        return this.#layoutPair().options;
     }
     /**
      * Sets layout-specific configuration: the layout is drawn again with it, as one undoable step.
@@ -3162,8 +3162,9 @@ export class Graphty extends LitElement {
      * Wait until the picture is final.
      *
      * Resolves once every queued operation has run, the layout has converged, the camera has
-     * finished framing what it arrived at, and a frame has been drawn showing that. This is what
-     * a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
+     * finished framing what it arrived at, a frame has been drawn showing that, and that frame's
+     * {@link Graphty.nodeLabelCounts} have been announced (`graphty-label-change`, when they
+     * changed), so a page that shows the counts shows the final ones. This is what a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
      * event fires one update pass earlier, before the final framing has even been requested, so
      * a picture taken on that event is a picture of a camera still in motion.
      *
@@ -3477,6 +3478,30 @@ export class Graphty extends LitElement {
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
         return this.#graph.worldToScreen(worldPos);
+    }
+
+    /**
+     * Where a node is drawn on screen, and whether it can be seen there.
+     *
+     * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
+     * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
+     * false when the centre is outside the element, behind the camera, or the node is hidden by
+     * a filter. `radius` is how big the node is drawn, in pixels. Read it again after the camera
+     * or the layout moves; it is not a live value.
+     * @param nodeId - The node's id.
+     * @returns The position, or undefined for an id the graph does not hold.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * const at = element.nodeScreenPosition("Valjean");
+     * if (at?.visible) {
+     *     marker.style.left = `${at.x - at.radius}px`;
+     *     marker.style.top = `${at.y - at.radius}px`;
+     * }
+     * ```
+     */
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
+        return this.#graph.nodeScreenPosition(nodeId);
     }
 
     /**

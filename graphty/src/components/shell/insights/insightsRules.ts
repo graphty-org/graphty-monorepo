@@ -44,8 +44,8 @@
  * pair.
  */
 
-import type { AlgorithmKey, MetricAvailability } from "@graphty/graphty-element/catalog";
-import { DEFAULT_LIMITS, type GraphStatistics } from "@graphty/graphty-element/session";
+import type { AlgorithmKey, AttributeDescriptor, MetricAvailability } from "@graphty/graphty-element/catalog";
+import { DEFAULT_LIMITS, type GraphStatistics, type LoadReport } from "@graphty/graphty-element/session";
 
 /**
  * The capabilities the 7.3 rule table can offer. Also the card ids.
@@ -89,9 +89,12 @@ export interface InsightsGraphShape {
     readonly edgeCount: number;
     /** Which way the edges run, as the element reports it. */
     readonly directedness: Directedness;
-    /** Whether a time role has been assigned. False until a column-role model exists. */
+    /** Whether a time role has been assigned; see {@link hasTimeRole}. */
     readonly hasTimeRole: boolean;
-    /** How many KINDS of validation issue were found. 0 means rule 1 does not fire. */
+    /**
+     * How many KINDS of validation issue were found; see {@link importIssueTypeCount}. 0
+     * means rule 1 does not fire.
+     */
     readonly validationIssueTypeCount: number;
     /** The highest-degree node's label, for the Search card's example. */
     readonly searchExample?: string;
@@ -190,12 +193,7 @@ const ABOVE_THRESHOLD_DETERMINISTIC_SET: readonly InsightCapability[] = [
  * @param body - the one-sentence body.
  * @returns the card spec.
  */
-function buildCard(
-    capability: InsightCapability,
-    title: string,
-    technicalName: string,
-    body: string,
-): InsightCardSpec {
+function buildCard(capability: InsightCapability, title: string, technicalName: string, body: string): InsightCardSpec {
     return {
         id: capability,
         capability,
@@ -204,6 +202,36 @@ function buildCard(
         body,
         actionLabel: INSIGHT_ACTION_LABEL,
     };
+}
+
+/**
+ * Whether any column plays the time role, as graphty-element reports its columns: a role
+ * the data configuration or the load assigned (`roles` holds `"time"`), or a measurement
+ * someone declared as `"time"`. The element never guesses a time column from its values.
+ * @param attributes - the element's columns, `session.data.attributes()`.
+ * @returns whether rule 6 can fire.
+ */
+export function hasTimeRole(attributes: readonly AttributeDescriptor[]): boolean {
+    return attributes.some((column) => column.roles?.includes("time") === true || column.measurement === "time");
+}
+
+/**
+ * How many kinds of data issue the last load reported, for rule 1's "Check N data issues".
+ *
+ * Each kind is one warning the design's validation section names (records that became
+ * nothing, edges to unknown nodes, repeated ids, repeated edges), counted once when the
+ * element's report has any of it. Nothing is computed here: the counts are the report's.
+ * @param report - the element's last load, `session.data.lastImport()`.
+ * @returns how many kinds have a non-zero count.
+ */
+export function importIssueTypeCount(report: LoadReport | null): number {
+    if (report === null) {
+        return 0;
+    }
+
+    return [report.counts.rejected, report.unmatched.rows, report.duplicates.rows, report.repeated.seen].filter(
+        (count) => count > 0,
+    ).length;
 }
 
 /**

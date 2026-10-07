@@ -63,6 +63,8 @@ interface MaxFlowOptions extends Record<string, unknown> {
 export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
     static namespace = "graphty";
     static type = "max-flow";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "capacity" as const;
     /** Flows within the run's scope: the node and edge lists come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -146,7 +148,11 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         // network is graphEdges[k], so the answer needs no map back.
         const { graph } = input;
         const { src, dst } = graph.edgeList();
-        const capacityColumn = graph.edges.typed(CAPACITY_COLUMN, "f64");
+        // A capacity weight the run reads (loaded with that meaning, or named by the `weight`
+        // option) sets the capacities; without one, each record's own `capacity`, else 1.
+        const { weight } = this.weightReading();
+        const weights = weight === null ? null : graph.weights;
+        const capacityColumn = weights === null ? graph.edges.typed(CAPACITY_COLUMN, "f64") : null;
         const networkSrc = new Uint32Array(graphEdges.length);
         const networkDst = new Uint32Array(graphEdges.length);
         const n = graph.nodeCount;
@@ -158,7 +164,10 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
             networkSrc[k] = src[row];
             networkDst[k] = dst[row];
             const pair = networkSrc[k] * n + networkDst[k];
-            const capacity = capacityColumn === null ? 1 : capacityColumn.data[row];
+            const capacity =
+                weights === null
+                    ? (capacityColumn?.data[row] ?? 1)
+                    : weights[graph.edgeToArc[row]];
             pairCapacity.set(pair, (pairCapacity.get(pair) ?? 0) + capacity);
             if (!firstOfPair.has(pair)) {
                 firstOfPair.set(pair, k);
@@ -238,7 +247,8 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
             caveats: declaredCaveats({
                 method: "ford-fulkerson",
                 direction: "directed",
-                weight: { attribute: "capacity", meaning: "strength" },
+                ...this.weightCaveats(),
+                ...(weight === null ? { weight: { attribute: "capacity", meaning: "capacity" } } : {}),
                 precision,
                 notes: [
                     `Flow from ${String(source)} to ${String(sink)}.`,

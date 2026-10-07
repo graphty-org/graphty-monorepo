@@ -214,6 +214,7 @@ export type {
     StartOptions,
     SuggestionOutcome,
     WeightMeaning,
+    WeightSkip,
 } from "./src/session/runs";
 export {
     isRunId,

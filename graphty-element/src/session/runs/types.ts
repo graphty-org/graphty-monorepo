@@ -33,6 +33,7 @@ import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { JournalId } from "../journal";
 import type { ResultSummary, RunResult } from "../results/types";
+import type { CodedFact } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
 
 // ---------------------------------------------------------------------------------------------
@@ -199,6 +200,13 @@ export interface WeightMeaning {
 }
 
 /**
+ * Why a run left a weight unread. `code` is `"weight.meaning-mismatch"`; `params.attribute` is the
+ * column, `params.meaning` what the weight means (null when nobody said), and `params.reads` the
+ * meaning the algorithm reads.
+ */
+export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
+
+/**
  * What qualifies a run's numbers.
  *
  * Caveats travel with the result rather than sitting in a graph-level bag of facts, because two
@@ -229,8 +237,18 @@ export interface Caveats {
     readonly windowScope?: boolean;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
-    /** What the edge weight was taken to mean, or null when the run ignored weights. */
+    /**
+     * The edge weight the run read -- the column and the meaning it was read as -- or null when it
+     * read none. A run reads the weight the graph was loaded with unless its `weight` option says
+     * otherwise.
+     */
     readonly weight?: WeightMeaning | null;
+    /**
+     * Present when a weight was there and the run left it unread, because its meaning is not the
+     * one the algorithm reads (a strength handed to a shortest path, which reads a distance): the
+     * run then counts edges. See {@link WeightSkip}.
+     */
+    readonly weightSkipped?: WeightSkip;
     /** The arithmetic that produced these numbers. */
     readonly precision: Precision;
     /** Which method computed them, such as "dijkstra" or "brandes-sampled". */

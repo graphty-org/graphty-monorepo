@@ -61,6 +61,8 @@ interface MarkovClusteringOptions extends Record<string, unknown> {
 export class MarkovClusteringAlgorithm extends DeclaredAlgorithm<MarkovClusteringOptions> {
     static readonly namespace = "graphty";
     static readonly type = "markov-clustering";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -136,7 +138,7 @@ export class MarkovClusteringAlgorithm extends DeclaredAlgorithm<MarkovClusterin
             caveats: declaredCaveats({
                 method: "markov-clustering",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 converged: value.converged,
                 iterations: value.iterations,
                 notes: ["Markov clustering does not score its own partition, so it reports no modularity."],

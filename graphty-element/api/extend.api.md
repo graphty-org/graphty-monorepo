@@ -146,6 +146,12 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     // (undocumented)
     static type: string;
     get type(): string;
+    // @internal
+    protected weightCaveats(): Pick<Caveats, "weight" | "weightSkipped">;
+    // @internal
+    static weightMeaning: WeightReads | null;
+    // @internal
+    protected weightReading(): WeightReading;
     static zodOptionsSchema?: OptionsSchema_2;
 }
 export { Algorithm_2 as Algorithm }
@@ -201,6 +207,7 @@ export interface AlgorithmDescriptor {
     shape: ResultShape;
     // (undocumented)
     technicalName: string;
+    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 // @public
@@ -369,6 +376,7 @@ export interface Caveats {
     readonly sampleSize?: number;
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
+    readonly weightSkipped?: WeightSkip;
     readonly windowScope?: boolean;
 }
 
@@ -1978,6 +1986,9 @@ export interface WeightMeaning {
     readonly attribute: string;
     readonly meaning: "distance" | "strength";
 }
+
+// @public
+export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 // @public
 export interface WholeGraphScoreDefinition<O extends OptionsShorthand> extends AlgorithmDefinitionBase<O> {

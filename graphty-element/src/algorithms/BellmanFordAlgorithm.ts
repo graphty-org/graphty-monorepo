@@ -53,6 +53,8 @@ interface BellmanFordOptions extends Record<string, unknown> {
 export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> {
     static namespace = "graphty";
     static type = "bellman-ford";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -180,7 +182,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
             caveats: declaredCaveats({
                 method: "bellman-ford",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 precision,
                 notes,
             }),

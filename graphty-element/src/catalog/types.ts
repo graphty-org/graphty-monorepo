@@ -765,6 +765,17 @@ export interface AlgorithmDescriptor {
      * unknown value as `"none"`.
      */
     scopeInput?: "none" | "subgraph";
+    /**
+     * The meaning of edge weight a run of this algorithm reads: `"strength"` (larger is closer),
+     * `"distance"` (larger is farther) or `"capacity"` (larger carries more), or null when it has
+     * no weighted form. An algorithm that reads one takes the `weight` option: absent, the weight
+     * the graph was loaded with; null, none; a column's name, or `{ attribute, meaning }`, that
+     * column. A weight of another meaning is left unread and the run counts edges, saying so in
+     * `caveats.weightSkipped`; a strength reader also reads a weight whose meaning nobody stated.
+     *
+     * OPEN UNION: meanings may be added in a minor release. Absent on a plugin's descriptor.
+     */
+    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 /** One layout the element can place a graph with. */

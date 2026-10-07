@@ -303,7 +303,7 @@ export type {
 export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
-export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
+export type { Caveats, Progress, WeightMeaning, WeightSkip } from "./src/session/runs/types";
 
 /*
  * WHAT A RUN COMPUTES OVER. `context.input(orientation)` hands `compute` the graph as graph-format

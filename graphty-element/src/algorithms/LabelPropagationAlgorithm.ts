@@ -71,6 +71,8 @@ interface LabelPropagationOptions extends Record<string, unknown> {
 export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagationOptions> {
     static namespace = "graphty";
     static type = "label-propagation";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -146,7 +148,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
             caveats: declaredCaveats({
                 method: synchronous ? "label-propagation-synchronous" : "label-propagation",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 converged,
                 iterations,
                 ...(synchronous ? {} : { seed: randomSeed }),

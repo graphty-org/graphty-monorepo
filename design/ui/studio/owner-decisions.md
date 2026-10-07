@@ -4,6 +4,48 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- Every run reads the loaded weight: `descriptor.weightMeaning` and one `weight` option
+
+**What.** Every algorithm with a weighted form now reads the weight the graph was loaded with, unless
+its run says otherwise. The catalog states, per algorithm, which meaning of weight it reads: new
+field `AlgorithmDescriptor.weightMeaning`, `"strength"` (PageRank, Louvain, Leiden, label
+propagation, Girvan-Newman, Markov and spectral clustering, min cut), `"distance"` (shortest path,
+A*, all-pairs distance, Kruskal, Prim), `"capacity"` (max flow), or `null` (degree and every other
+algorithm with no weighted form). Each algorithm that reads one takes one uniform `weight` option
+(it appears in `descriptor.options`, type `attribute`, on edges): absent means the loaded weight,
+`null` means unweighted, a column name or `{ attribute, meaning }` overrides it for that run.
+A strength reader reads a strength or a weight nobody gave a meaning; a distance reader reads only
+a distance; a capacity reader only a capacity. A weight of another meaning is left unread -- the run
+counts edges -- and the run says so in a new caveat `caveats.weightSkipped`, a coded fact (new
+exported type `WeightSkip`): `{ code: "weight.meaning-mismatch", params: { attribute, meaning,
+reads } }`, where `meaning` is null when nobody said. `caveats.weight` now names the column the run
+actually read (it was a hardcoded `"weight"` on thirteen algorithms, and `"capacity"` read as a
+strength on max flow), or null. Breaking for PageRank: its default changes from unweighted to the
+loaded weight, and its old `weight` option (a string, default null) becomes the uniform one, moved
+to the end of its options. `WeightMeaning.meaning` gains `"capacity"` (recorded with the weight
+meaning at load). On messages.csv (weight column `emails`, no meaning): PageRank and Louvain read
+`emails` as a strength with no option; shortest path counts hops and reports
+`weight.meaning-mismatch` naming `emails`; told `{ attribute: "emails", meaning: "distance" }`,
+or loaded with that meaning, it reads it (p01 to p12 costs 6, not 1 hop).
+
+**Why.** The owner's rule: every run uses the weight chosen at load. Before, community and path runs
+read the loaded weights silently, PageRank ignored them unless told, and the same column was a
+strength to Louvain and a distance to Dijkstra -- a graph fact the app would otherwise have to
+decide per algorithm. Reading a similarity as a distance gives a wrong path, not a worse one, so the
+element refuses that reading and says so instead of guessing.
+
+**Alternatives.** Keep per-algorithm weight options: every consumer must learn which algorithm
+takes which name. Convert a strength into a distance automatically: see the question below.
+Refuse the run instead of counting hops: a reader asking "shortest path" on an email graph gets
+nothing, where hops are a true answer the caveat qualifies. A plugin's descriptor states no
+`weightMeaning` yet (its own `weights` declaration still applies); extending `defineAlgorithm` is
+left for when a plugin needs the uniform option.
+
+**Owner question.** A distance reader given a strength (emails, friendship strength) counts hops
+today. Should it convert instead -- `1/w`, `1 - w` (for a weight in 0..1), or `-log w` (for a
+probability) -- and if so, which, chosen by whom? This build counts hops and says so, because
+any conversion silently picks one of three different answers.
+
 ## 2026-10-07 -- Filter steps: `visibility.steps` and `visibility.setSteps()`
 
 **What.** The visibility filter can be an ordered list of steps `{ id, on, rule }` (new exported

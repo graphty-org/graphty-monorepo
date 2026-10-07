@@ -253,15 +253,15 @@ describe("metric results", () => {
             }
         });
 
-        it("pagerank names the weight attribute it read", async () => {
-            const graph = await createMockGraph({ dataPath: "./data4.json" });
-            const algorithm = new PageRankAlgorithm(graph, { weight: "weight" });
-            await algorithm.run();
+        it("pagerank names the weight attribute it read: the loaded one, unless told none", async () => {
+            const graph = await createMockGraph({ dataPath: "./data4.json", loadedWeight: "value" });
+            const loaded = new PageRankAlgorithm(graph);
+            await loaded.run();
+            const none = new PageRankAlgorithm(graph, { weight: null });
+            await none.run();
 
-            assert.deepStrictEqual(algorithm.result?.summary().caveats.weight, {
-                attribute: "weight",
-                meaning: "strength",
-            });
+            assert.deepStrictEqual(loaded.result?.summary().caveats.weight, { attribute: "value", meaning: "strength" });
+            assert.isNull(none.result?.summary().caveats.weight);
         });
     });
 

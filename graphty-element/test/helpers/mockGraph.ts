@@ -58,6 +58,12 @@ export interface MockGraphOpts {
      * refuses one has to be tested against.
      */
     directed?: boolean;
+    /**
+     * The edge column the mock reports it was loaded with (`dataManager.lastImport`), which a run
+     * reads as its weight when given no `weight` option. Absent: the mock was loaded with no weight.
+     * Its store's weights come from "weight" (or the legacy "value") either way.
+     */
+    loadedWeight?: string;
 }
 
 /**
@@ -249,6 +255,9 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
                 },
                 set graphResults(val: GraphResults | undefined) {
                     graphResults = val;
+                },
+                get lastImport() {
+                    return opts.loadedWeight === undefined ? null : { weights: { attribute: opts.loadedWeight } };
                 },
             };
         },

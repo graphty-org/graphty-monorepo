@@ -60,6 +60,7 @@ export type {
     StartOptions,
     SuggestionOutcome,
     WeightMeaning,
+    WeightSkip,
 } from "./types";
 export {
     isRunId,

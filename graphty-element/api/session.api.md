@@ -212,6 +212,7 @@ export interface Caveats {
     readonly sampleSize?: number;
     readonly seed?: number | null;
     readonly weight?: WeightMeaning | null;
+    readonly weightSkipped?: WeightSkip;
     readonly windowScope?: boolean;
 }
 
@@ -3690,6 +3691,9 @@ export interface WeightMeaning {
     readonly attribute: string;
     readonly meaning: "distance" | "strength";
 }
+
+// @public
+export type WeightSkip = CodedFact<"weight.meaning-mismatch">;
 
 // @public
 export interface WorkerCapability {

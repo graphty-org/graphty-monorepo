@@ -72,6 +72,8 @@ interface LeidenOptions extends Record<string, unknown> {
 export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
     static namespace = "graphty";
     static type = "leiden";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -167,7 +169,7 @@ export class LeidenAlgorithm extends DeclaredAlgorithm<LeidenOptions> {
             caveats: declaredCaveats({
                 method: "leiden",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 iterations: result.iterations,
                 notes: [`Resolution ${String(resolution)}.`],

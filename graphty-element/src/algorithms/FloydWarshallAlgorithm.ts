@@ -20,6 +20,8 @@ import {
 export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
     static namespace = "graphty";
     static type = "floyd-warshall";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "distance" as const;
     /** Measures every pair of the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
     /** A distance: of a group of parallel edges, the cheapest is the one a shortest path takes. */
@@ -119,7 +121,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
             caveats: declaredCaveats({
                 method: "floyd-warshall",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 precision,
                 notes,
             }),

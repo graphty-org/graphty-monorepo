@@ -68,6 +68,8 @@ interface DijkstraOptions extends Record<string, unknown> {
 export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
     static namespace = "graphty";
     static type = "dijkstra";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
     /** A route takes the cheapest of a group of parallel edges, not their sum. */
@@ -201,7 +203,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
             caveats: declaredCaveats({
                 method: "dijkstra",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "distance" },
+                ...this.weightCaveats(),
                 precision,
                 notes:
                     path.length === 0

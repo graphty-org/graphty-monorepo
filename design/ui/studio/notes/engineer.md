@@ -15,16 +15,68 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) Re-measured for tier 2 on build b40f264a9 (`next-steps/verify/results.md`):
-   every unit's tests, bars dark + light (axe 0/13 both, 41 words at rest), `--prove` and the
-   app checks pass, except Force at spring length 80, still an even cloud (ngraph physics, not a
-   frozen engine; bounding the field is an open app choice). Round 3 repro scripts count Tabs
-   from the page body, so their leftover "page itself" lines are Tab overruns, not focus loss:
-   re-count Tabs before reusing them. A regression on a fixed path is mine to trace first.
-1a. (2026-10-07) A committed file can differ from what was built: 2538731dc committed
-   `camera/builtins.ts` mid-edit (did not compile) while every build used the working copy
-   (fixed ebb2cfcba). Before trusting a build stamp, `git status` for modified source; a stamp
-   says nothing about uncommitted files.
+0000. (2026-10-07) **Filter steps (8966b0888, element, owner door, hold + needs-decision).**
+   `visibility.steps` / `setSteps([{ id, on, rule }])`, AND of the on steps and the single
+   filter (`combinedRule`, memoized by identity, in `visibility/steps.ts`); slice key
+   `visibility/steps` (default empty, so digests of old states changed). Fact by diffing the list:
+   `visibility.step-add|edit|on|off|remove {id}` or `visibility.steps`. No coalescing: a slider
+   drag on a step needs a transaction. `plan({ op: "visibility.steps", steps })` -> effect
+   `{ kind: "steps", start, steps: [{ id, nodes, edges }] }`. friends.csv: 20/41 -> degree>=4
+   19/38 -> Ava's 1-hop 7/10 (same on :9366, `tmp/t2feat-el-filter-steps/steps-probe.mjs`). App
+   has no filter UI yet; history words added in `historyWords.ts`. Session-internal
+   `visibility.rule` is what sets, runs' "visible" hash and captures read now, not `filter`.
+000. (2026-10-07) **Every load is kept: `session.data.sources()` (f141b1283, element, owner door,
+   hold + needs-decision).** One `LoadedSource` per load still in the graph (descriptor + `tables`
+   names + `added: { nodes, edges }`); graph value `sources` written by `Ingest.importSource`
+   (merge appends, replace resets), saved as `graphty-data.sources`, renamed with the last entry.
+   Proof: `test/session/data-sources.test.ts`; on :9366 friends.csv then Add data... messages.csv
+   (unmatched "Add") gives 20/41 + 13/23, undo one, redo two (`tmp/t2feat-el-sources/sources.mjs`).
+   App side of audit defect (g) still open: Sources list and header read `source()` only.
+00. (2026-10-07) **Every run reads the loaded weight (element, owner door, hold + needs-decision).**
+   `Algorithm.weightMeaning` (static; strength/distance/capacity/null) -> catalog
+   `descriptor.weightMeaning` + a uniform `weight` option on every weighted algorithm (absent =
+   loaded, null = none, column or `{ attribute, meaning }`). Resolver: `algorithms/input/weight.ts`;
+   base `input()` injects it, `weightCaveats()` states it; mismatch -> counts hops +
+   `caveats.weightSkipped` `weight.meaning-mismatch {attribute, meaning, reads}`. Loaded weight =
+   `dataManager.lastImport.weights.attribute` + `knownFields.edgeWeightMeaning`. App follow-ups:
+   Analyze/Made with "Weight" select shows "None" for absent (now means the LOADED weight); no app
+   screen shows caveats (weight read or skipped) yet. Mock graphs: `createMockGraph({ loadedWeight })`.
+0. (2026-10-07) **Tier 2 audit on build b40f264a9 (`tmp/t2-audit/`, sessions s1-s4, probes in
+   `probe/`).** Works end to end: shortest path via Analyze (2 nodes selected), Neighborhood +
+   "Grow by one hop", Find value rows ("Select where team is X"), adding rows via the Data page
+   (counts right; runs need "Update <run> row" by hand). App has NO UI for filters, filter chip,
+   Path popover/P, notes, Replace with file, Select where dialog, node weight, weight meaning.
+   Element HAS filters (`visibility.set`), notes (`notes.*`), depth 1-3 + direction, `{ where }`.
+   Defects found: (a) clicking a Shortest path run row CRASHES the app (`RunValues` calls
+   `histogram("onPath")`, boolean); (b) Find "=weight > 3" throws uncaught (needs backticks),
+   nothing shown; (c) edge-attribute filter 0/0 FIXED (559f5dcb2, see item 1);
+   (d) selected edges get no canvas mark and edges are not pickable; (e) FIXED, see 00; (f) Edit source...
+   opens an empty "Add to" page and a re-chosen file is ADDED (41 -> 74 edges), never replaced;
+   (g) Sources lists only the last added file (element side FIXED, see 000); header "Graph <last file>"; (h) `run.stale` is
+   set by the element (ranOn/nowVisible counts) but the app never reads it; a same-size
+   replacement would not be flagged at all; (i) the element caps a load at one node table plus
+   one edge table (`draft.ts` "at most one table of"), the app at two files.
+1. (2026-10-07) **Weight meaning at load DONE (element, owner door, hold + needs-decision).**
+   `TableMapping.weightMeaning` (strength|distance|capacity|null) -> config
+   `data.knownFields.edgeWeightMeaning` (saved, undoable); `session.data.loadedWeight()` =
+   `{ attribute, meaning }` or null; `WeightMeaning.meaning` takes `capacity`. A replace load
+   through a draft or a plain `import` resets a stale meaning to null. NOT done: runs reading it
+   (another task), app UI to choose it (the app passes no meaning today: friends.csv reports
+   `{ attribute: "weight", meaning: null }`).
+2. (2026-10-07) **Tier 2 build plan (my proposal; sources: tier 1 design section 7, refined B
+   sections 2.3, 7, 8, 10.1, 11.3, 18.9).** Element first, in this order, because each unblocks
+   app work: (1) DONE 559f5dcb2 (owner door, hold + needs-decision): `range`/`categories` speak
+   each half that carries the path; `nodes: "all"|"ends"` (friends weight>=4: 20/12 or 19/12);
+   the app's filter UI should offer both, default "all"; (2) every run
+   defaults to the loaded weight and a weight carries a meaning (strength|distance|capacity) --
+   owner door; (3) a run result says each field's type so the inspector never histograms a
+   boolean (fixes the path-row crash in `RunValues.tsx` MeasureValues, app side: branch on it);
+   (4) query errors as `{ code, params }` (Find "=weight > 3"); (5) edge picking + edge
+   selection style; (6) `run.stale` also on a data fingerprint, not counts only. Several node
+   types / Links to / One edge per Pair is the largest element item -- last. Undecided by the
+   design: OR/NOT between steps (keep "all"), Path popover's run grouping key, where Replace
+   puts runs (I proposed: stale state bar, never auto-rerun). Re-measure verify results
+   (`next-steps/verify/results.md`) before trusting old numbers; `git status` before a build stamp.
 2. (2026-10-07) Focus after close FIXED (element + app + compact-mantine). Targets: a graph opens
    (sample, file, recent, New project, Data page Load) -> the drawing; start screen comes back,
    usage card answered, file refused, last Recent row removed -> "Open project or file...";
@@ -40,33 +92,19 @@ acceptance test. "The studio worktree" is
    `MetricAvailability.reason`, layout descriptions (`catalog/layouts.ts`, "with `dim: 2`",
    "centre"), `run.label`, partition choice labels (`root.label`).
    Fix = codes from the element, words in the app; never an app rename or string match.
-4. (2026-10-07) 3D size misreading FIXED (owner door, hold + needs-decision): element
-   `layoutBehavior.node.depthIndependentSize` (off by default) scales each node mesh by its view
-   depth over the orbit pivot's in `UpdateManager.sizeNodesForDepth`; the app turns it on while a
-   `node.size` legend block reads a field (`ElementHost.useSizeBound`). Trace rerun: 0 of 190
-   pairs inverted at both angles, Farah 54 px vs Ava 51 px. Anything that sets a node mesh's
-   `scaling` now fights this pass; `Node.roundRadius` is cached per mesh AND scale.
-5. (2026-10-07) Key covering nodes FIXED (fa260f20d, owner door, hold + needs-decision): element
-   `viewInsets` (CSS px per side), honored by every fit; the app's LegendCard reports its box.
-   Open: the toolbar is reserved only while the card takes the top; "Current view" exports rely
-   on the screen's insets; a reader's own camera is refit when the card resizes (autoFrame on).
-6. (2026-10-07) Exports at 2x/4x are now drawn at that size, not stretched (6783ba895). A
-   new pixel-sized mesh must read `engine.getRenderWidth()` inside the render and honor
-   `CustomLineRenderer.setPixelScale`, or it shrinks in a 4x export. Still deferred: name behind
-   a dot counted as shown, refusal parity for "New from data...".
-6a. (2026-10-07) Force re-apply cloud TRACED and fixed at its cause (b6011c01d): the catalog
-   published ngraph v1 defaults (spring 30, gravity -1.2...) the engine never ran (ngraph ran
-   10, 0.8, -12, 0.9, 0.5). Form now reads 10 and -12. Spring 20 (2x) settles in groups; 80
-   (8x) is still a cloud -- that is ngraph's physics (fixed repulsion), not a stuck engine.
-   Bounding the app's Spring length field is an app choice, open.
-7. (2026-10-07) Small open defects from the re-pilots (not on a measured path, safe after round
-   3): Columns by group ignores group order (6,1,5,3,4,2); Circle draws a sphere in 3D; group
-   named three ways ("Louvain", "Group N", "Communities" in Group by); Overview direction row
-   shows raw "from the file: directed 0" and overflows; truncated "Node t..." labels; Id/id;
-   Florentine histogram of 15 equal bars; Everything's Style shows base Size 1/blue after sizing.
-8. (2026-10-07) Study tool: `ambiguous` on a label plus its input (Show all labels, Format,
-   Table) is a tool defect, not a participant wrong turn. Fix in `tool/real.mjs` (treat a label
-   and the control it labels as one match) before round 3 grading, or graders over-count.
+   (2026-10-07) Selector refusals FIXED in the element (3d89d43c3, owner door, hold +
+   needs-decision; owner asked whether bare numbers should be accepted): every `E_BAD_SELECTOR`
+   has `details.reason` (17 expression codes, 10 shape codes; member scope details moved to
+   `details.scope`). App side still OPEN: Find "=weight > 3" throws uncaught and shows nothing --
+   catch it and word it by `details.reason` + `position`.
+4. (2026-10-07) FIXED, owner doors on hold + needs-decision: 3D size misreading
+   (`layoutBehavior.node.depthIndependentSize`; anything setting a node mesh's `scaling` fights
+   `UpdateManager.sizeNodesForDepth`); key covering nodes (`viewInsets`, fa260f20d; a reader's
+   camera is refit when the card resizes); 2x/4x exports drawn at size (6783ba895: a pixel-sized
+   mesh reads `engine.getRenderWidth()` in the render and honors `setPixelScale`).
+8. (2026-10-07) Small open defects: Columns by group ignores group order; Circle draws a sphere
+   in 3D; group named three ways; truncated labels; Id/id. Study tool: `ambiguous` on a label
+   plus its input is a tool defect, not a wrong turn. No `--shift-click-at`: select two unlabeled nodes with Find `=id == 'A' || id == 'B'`.
 9. (2026-10-06) Graph logic goes in graphty-element, never the app; an app comment explaining why
    the element could not be used is an element bug report. Element returns neutral facts; app owns
    words. Style only through layers. Public element API or behavior change = owner door:
@@ -81,7 +119,10 @@ acceptance test. "The studio worktree" is
    (`tool/bars.mjs <out> --scheme light`). New `c="dimmed"` text sits on panel/field/menu, never
    on default-hover. Trust a scripted repro or a cause in code over a participant count.
 13. (2026-10-06) Iterate locally: element build, then `pnpm exec nx run graphty:build`, re-run
-   with `tool/real.mjs`. Others rebuild `graphty/dist` often: copy the build and use
+   with `tool/real.mjs` (no eval step: read the element with a Playwright script on :9366;
+   "Add data..." via Control+k; its unmatched choice defaults to "Leave out"). Concurrent
+   `nx run graphty:build` runs delete each other's `graph-io/dist` and `graphty/dist`: wait for
+   their PID, then `npm run build` inside the package. Others rebuild `graphty/dist` often: copy the build and use
    `REAL_DIST=<copy>`; check `pgrep -af "real.mjs --prove"` before trusting a FAIL. Never push.
    (2026-10-07) The app's vite build now runs out of Node's default 4 GB heap ("rendering
    chunks", core dumps in `graphty/`): build with `NODE_OPTIONS=--max-old-space-size=12288`.
@@ -90,12 +131,10 @@ acceptance test. "The studio worktree" is
    never add `returnFocus={false}` again. The canvas has no autofocus; the app hands focus to the
    drawing with `element.focus()` (host `delegatesFocus`). A control that removes itself must
    name where focus goes (`frame/focus.ts focusIsLost()` before handing it on); never leave it.
-15. (2026-10-07) The element FREEZES Babylon's active-mesh list on a still frame
+   Also: the element FREEZES Babylon's active-mesh list on a still frame
    (`UpdateManager.settleActiveMeshFreeze`). A mesh enabled or disabled outside an update pass is
    ignored until something unfreezes it: call `getUpdateManager().meshesShownOrHidden()`. Suspect
-   this first when "I hid it and it is still drawn" (or the reverse). Also untraced (2026-10-06):
-   live Selection row blank after the neighbor route; reopened run row has no count; Effects
-   Outline black blobs; header "Untitled" after New from data.
+   this first when "I hid it and it is still drawn" (or the reverse).
 
 ## Priorities and values
 
@@ -145,12 +184,41 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-07) **Filter steps as one list verb, counts only in `plan` (8966b0888, owner door).**
+  `setSteps(list)` rather than add/edit/toggle/remove verbs (a form holds the whole list; the fact
+  names the one step changed). Per-step counts in `plan` only, so no consumer pays a pass per step
+  on every change. Steps live beside `filter`, not folded into it, so an unticked rule survives
+  undo and the project file. Rejected: live counts on `summary`; OR/NOT between steps (unasked).
+- (2026-10-07) **Edge-attribute filter (element, owner door).** Cause: `rangeTest`/`categoriesTest`
+  read `nodeValue` only, so `data.weight` hid every node and every edge followed its ends. Fix in
+  `compileAttribute` (filter.ts): a half speaks when its elements carry the path (session answers
+  via new optional `FilterValueSource.halvesOf`, from `data.attributes()` kinds; without it, an
+  early-exit scan). Tests stay LAZY per element: `sets.containing` asserts one read per question
+  (eager bitmaps broke it). Option `nodes: "ends"` builds an end bitmap once (not element-local:
+  `offers.elementLocal` false, dependency adds topology). A path neither half carries still holds
+  no node and is reported unresolved. Rejected: a new leaf kind; a required `on:` field; default
+  "ends". Proof: `VisibilityApi.test.ts` "a filter on an edge attribute",
+  `visibility-on-session.test.ts`; served probe `tmp/t2feat-el-edge-filter/probe.mjs` + 3 PNGs.
+
+- (2026-10-07) **Weight meaning kept in config, not in the load report or a `{ column, meaning }`
+  weight role.** Config is already saved by the project file and moved by undo (test proves both);
+  the role form would change every reader of `weight` as a string. The fact's attribute comes from
+  `lastImport().weights.attribute` (null = no weight), the meaning from config. A weight named
+  without a meaning writes null, so an old meaning never describes a new column. Edge case left:
+  a replace route other than `data.import` and `Draft.load` (element `dataSource` attribute?)
+  keeps the old meaning (`ponytail:` note in `data.ts`).
+
+- (2026-10-07) **Runs read the loaded weight (element, owner door; see Top of mind 00).** One
+  resolver for every weighted algorithm rather than per-class options; distance readers count hops
+  on a strength instead of converting (owner question recorded: 1/w, 1-w, -log w). Max flow reads
+  a capacity weight when one resolves, else each record's `capacity`. Proof:
+  `test/browser/runs-loaded-weight.test.ts`; served-app probe
+  `tmp/t2feat-el-runs-loaded-weight/probe/caveats.mjs` (PageRank from Analyze on friends.csv:
+  `caveats.weight = { weight, strength }`).
 - (2026-10-07) **Export Data warnings worded by the app (eef118341, no door).** `export/lossWords.ts`:
   one sentence per loss code from `code`, `column`, `count`, never `message`; unknown codes get a
   generic sentence. This branch reads `lossNotes`; after merging master switch `DataOutput` to
   `result.losses` (`{ code, params: { columns[], count } }`, 8a2450863).
-- (2026-10-07) **CSV adjacency export fixed (2143deaae).** The catalog's `header` default true
-  made every adjacency CSV export fail; `writerFor` drops an unasked `header` for adjacency.
 - (2026-10-07) **Focus after a control goes (element + app + compact-mantine; owner door).**
   Element: `delegatesFocus`, `render()` returns `nothing` (Lit moved the container and dropped a
   focus given at mount). App: new project's drawing focused when its element comes up; per-control
@@ -159,83 +227,18 @@ acceptance test. "The studio worktree" is
   Proof: `FocusAfterClose.real-element.test.tsx`, `element-canvas-a11y.test.ts`, Tree test.
   Open: the WebGPU canvas swap still drops a focused canvas (unmeasured; the app runs WebGL).
 
-- (2026-10-07) **Force publishes the defaults ngraph runs (b6011c01d, element, no API change).**
-  ngraph has no `static descriptor`, so its zod defaults (spring 30...) were documentation only;
-  the engine ran ngraph's own (10, 0.8, -12...). Schema defaults now = ngraph's; constructor uses
-  `getDefaults(schema)`. Rejected: honoring old values, scaling repulsion (owner door), stricter
-  settle. Proof: `test/browser/force-reapplied-settles.test.ts`, `tmp/r3fix-force-reapply-cloud/`.
-
-- (2026-10-07) **A size bound to data compares at any depth (element option, owner door).**
-  `node.depthIndependentSize` (optional, not `.default(false)`: a default makes the parsed field
-  required). `UpdateManager.sizeNodesForDepth()` scales meshes by depth over pivot depth (orbit +
-  perspective only), invalidates edge caches; `pictureIsFinished()` false until applied. Proof:
-  `test/browser/camera/depth-independent-size.test.ts`, T9 test in `StyleTab.real-element.test.tsx`,
-  `tmp/r3fix-fix-3d-size/`. Rejected: on by default, element deciding, app warning.
-
-- (2026-10-07) **A capture of another size is drawn at that size (6783ba895, element only).**
-  Babylon's `CreateScreenshotAsync` stretched the canvas; a same-shape other size now uses
-  `CreateScreenshotUsingRenderTargetAsync`. Line width is in pixels, so
-  `CustomLineRenderer.setPixelScale(scene, k)` during the capture. Labels (48 px/line) did not
-  need re-rendering. Proof: `test/browser/screenshot/screenshot-sharp-names.test.ts`,
-  `tmp/r3fix-export-sharp-names-4x/run/`.
-
-- (2026-10-07) **"Whole graph" export keeps the on-screen angle (6f1cf692b, owner door).**
-  `fitToGraph` `keepAngle` (default false) keeps direction and roll, fits every padded corner of
-  the bounds box; `ScreenshotOptions.camera` takes `{ preset, params }`; app `cameraOf()` asks for
-  it. Rejected: a new view id, a new default, app camera math. Proof:
-  `test/cameras/fit-to-graph-keep-angle.test.ts`, `tmp/r3fix-export-whole-graph-angle/`. Ceiling:
-  boxing, not nodes, leaves ~20% margin; tighter needs node positions in `CameraViewInput`.
-
-- (2026-10-07) **Layout refusals as codes (481c6715a, owner door).** `refused(reason, code,
-  params)` in `cost/estimate.ts` builds sentence and code together; union `EstimateRefusalCode`;
-  a grouping refusal names its run (`PlanningContext.runOf`) so the app uses `runName()`. App
-  deleted its partition pre-check. Proof: `test/session/estimate-refusal-codes.test.ts`,
-  `LayoutPopover.real-element.test.tsx`, `tmp/r3fix-layout-refusal-codes/`. Gap: the inspector's
-  Method select disables a refused layout with no reason shown.
-
-- (2026-10-07) **Export leaves the selection ring out (4c087d8bc, owner door).**
-  `ScreenshotOptions.showSelection` (default true); false hides halo meshes and calls
-  `meshesShownOrHidden()`. Proof: `test/browser/screenshot/screenshot-selection.test.ts`.
-
-- (2026-10-07) **The key never covers a node: view insets (fa260f20d, owner door).** Element
-  `viewInsets` (`setViewInsets`/`getViewInsets`, `CameraViewInput.insets`, device px);
-  `camera/insets.ts freeArea()`; 2D and `fitToGraph` size into the free area, orbit uses a lens
-  shift so the graph still turns about its center. A framed capture insets by the key it draws
-  (`legendBox()`), not the screen's. App `LegendCard` `useReservedMargin`. Proof:
-  `test/browser/camera/view-insets.test.ts`, `tmp/r3fix-key-view-insets/`.
-
-- (2026-10-07) **Show all labels (b7590f8de, app only).** Checkbox by the label count; store
-  `allLabelsShown` (not saved) -> `layoutBehavior.labels.declutter` on the tag.
-
-- (2026-10-07) **A DataRow's trailing glyph clicks the row (compact-mantine)** unless the click is
-  on a control in the slot. Tests in `DataRow.test.tsx`.
-- (2026-10-07) **Menu-to-dialog focus (b7db5da7d, compact-mantine).** Mantine's
-  `useFocusReturn` refocused the menu button 10 ms after close. The Menu theme now remembers the
-  opener and returns focus only when focus is inside the dropdown or on body (`overlayBehavior.ts`).
-  Finding the button by `aria-labelledby` failed (Tooltip drops the id). Gate:
-  `MenuFocusReturn.browser.test.tsx`; proof `tmp/check-r2-menu-dialog-focus/run/`. Open: Export
-  dialog Copy fails headless and drops focus to body.
-
-- (2026-10-07) Size "+" opens its list (18 of 18 round-2 sizers named the fixed "1"): node Size
-  writes the fixed 1, then opens its own bind list with "Fixed size" first. Rejected a separate
-  picker (second bind route) and component state (lost on remount). Re-record T9's answer key.
-
-- (2026-10-07) Load and run announced on one status line (store `announcement`, toolbar polite
-  region); `StateCard` lost `role="status"`. Gaps: no line at load start; repeated text is not
-  re-announced.
-
-- (2026-10-07) Canvas name, focus ring, no autofocus (element, owner door): `aria-label` copied
-  to the shadow canvas, ring inset (`outline-offset: -2px`). Proof: `element-canvas-a11y.test.ts`.
-  Grouping columns come from `catalog.optionsFor` partition `values` (async; a hook in the app).
+- (2026-10-07) **Condensed element fixes (proofs under `tmp/r3fix-*`).** Force publishes ngraph's
+  real defaults (b6011c01d; schema = engine). `node.depthIndependentSize` (optional, not
+  `.default(false)`; `UpdateManager.sizeNodesForDepth`). Other-size capture drawn at that size
+  (6783ba895; render-target screenshot + `CustomLineRenderer.setPixelScale`). `fitToGraph`
+  `keepAngle` (6f1cf692b; ~20% margin ceiling). Layout refusals as codes (481c6715a;
+  `refused(reason, code, params)`; gap: Method select shows no reason). `viewInsets`
+  (fa260f20d; `camera/insets.ts freeArea()`, lens shift for orbit). All owner doors.
 
 - (2026-10-07) A covered legend block is dropped, not flagged (`styles.legend()` omits it; the
   English `painted over by` departure deleted). Rejected a `coveredBy` field and the app parsing
   the sentence. Lesson: when the element "already detects" something, check whether it says so
   only in words -- that is the neutrality defect and often the whole bug.
-
-- (2026-10-06) Focus after a Style pick moves to the new line's first control (e82708488). Study
-  runner: idle sessions close after 15 minutes, `--end` after every attempt. Focus rings for
-  plain controls are compact-mantine's (28bcb71a0); app code never draws its own.
 
 - 2026-10-06 -- "No crossings" refusal: the element already refused; the app now shows the
   Method select's `error` line (`LayoutRefusal.real-element.test.tsx`). Lesson: test the element first.
@@ -250,14 +253,40 @@ acceptance test. "The studio worktree" is
 - 2026-10-06 -- Studies run on a local production build of the studio worktree, not on graphty.app
   and not after the release. Owner (this run's brief).
 
-- 2026-10-06 -- Smaller fixes proven in `tmp/check-r0-*`: truncated GraphML/GEXF refused whole;
-  camera keys ignore chords; failed open returns to start; exports carry the legend.
-
-- (2026-10-07) **Gray helper text contrast (3680c6698, compact-mantine).** Dark dimmed text
-  #a3a3a3, light gray-6 #6e6e6e, light `--cm-text-secondary` #0000008c; export preview moved off
-  default-hover. Test `tests/theme/text-contrast.test.ts`. Left: placeholders (40%) under 4.5.
-
 ## Tried: worked / did not work
+
+- **(2026-10-07) Committing beside agents who are mid-commit: worked.** Wait until
+  `git diff --cached` is empty, then stage HEAD + only my edits by replaying my old->new
+  replacements on `git show HEAD:<file>` (`tmp/t2feat-el-sources/stage.py`): safer than hunk
+  regexes when another agent's line sits inside my hunk (an import list).
+
+- **(2026-10-07) Committing in a worktree where 5+ agents edit the same files: worked.** A
+  scripted stage (`tmp/t2feat-el-weight-meaning/stage.py`): HEAD content + my edits by anchored
+  replacement, `git hash-object -w` + `git update-index --cacheinfo`, including the API reports
+  (only my lines; `npm run api:report` writes everyone's changes). A hunk-level variant:
+  `git diff -U0`, keep my hunks, `git apply --cached --unidiff-zero` (2026-10-07, edge filter).
+  In a probe, Ctrl+O no longer opens the chooser on the start screen: click "Open project or
+  file...". Builds by others clean `dist/` mid-test ("Cannot find package
+  @graphty/graph-io/dot"): wait, never debug it. A `pgrep -f "nx.js run"` wait never ends here.
+
+- **(2026-10-07) A run's caveats in a test: return a plain object.** A `Run` is thenable, so an
+  async helper that `return run` hands back the RunResult (no `caveats`). Return
+  `{ caveats: run.caveats, result: run.result }`. Run status when done is `"succeeded"`.
+  Mock graphs have no session: anything an algorithm reads must tolerate that (`?.`), or
+  the mock grows an option (`loadedWeight`).
+- **(2026-10-07) Checking an element fact in the served app: worked.** real.mjs has no eval step
+  and prints only an uncaught error's first line, so for "details.X is present" write a small
+  Playwright probe (`tmp/t2feat-el-selector-reason/probe.mjs`: open https://dev.ato.ms:9366/?next,
+  upload friends.csv, `el.select({ where })` in `page.evaluate`, print `e.details`) and run it under
+  `with-browser.sh`; use real.mjs beside it for what a person sees. To commit one entry of a file
+  others have dirty (owner-decisions.md), stage a blob of HEAD + my entry via `git hash-object -w`
+  and `git update-index --cacheinfo`.
+- **(2026-10-07) Auditing a tier against the build: worked.** grep the app's registered command
+  ids first (`grep -rhn -A1 'id: "' --include=commands.ts`): a capability with no command has no
+  door. Then one element probe (`tmp/t2-audit/probe/weights.mjs`: `el.session`, run each
+  algorithm, read `run.caveats.weight`; try `visibility.set` per rule kind; `notes.add`) and
+  real.mjs sessions for the doors that exist. Query syntax is JMESPath: numbers in backticks.
+  Rerunning one algorithm replaces its run id: compare with `runs.start(k, p, { as })`.
 
 - **(2026-10-07) compact-mantine figma tree test failing only in a mixed run: traced, fixed
   (b40f264a9).** Not hover (pointer parked), not focus: the `touchDrag` command left CDP touch
@@ -265,20 +294,10 @@ acceptance test. "The studio worktree" is
   Debugged with one temporary `console.log` of `:hover`, `:focus-within` and computed opacity.
   Lesson: an order-dependent browser test means leaked page state (emulation, media, pointer).
 
-- **(2026-10-07) Sources row of a single-table file opens its table: FIXED (71be6d4fb).**
-  `DataPlace.openSource` now finds the clicked row (top level or child) and opens the table dock
-  on its `kind` unless it is a `file` row; before, only the ids `source:nodes`/`source:edges`
-  opened, so an edge list's lone row (id `source`, kind `edges`) did nothing. Test: the
-  real-element test opens the file with `session.project.open(file)` then `draft.load()` -- the
-  app's route. `data.import({ config: { file } })` or `{ type: "csv", config: { data } }` gives
-  `nodeRecords > 0` and so a two-table row: use the open route to reproduce a single-table
-  source. Checked on the app: click and keyboard-only Enter (dock closed first) both open Edges,
-  41 edges (`tmp/r3fix-sources-row-opens-table/`). `real.mjs --read` reads only the focused
-  region, so the dock shows in the PNG, not in the read text.
+- **(2026-10-07) Sources row of a single-table file opens its table (71be6d4fb).** Reproduce a
+  single-table source with `session.project.open(file)` then `draft.load()`, not
+  `data.import(...)` (that gives two tables). `real.mjs --read` reads only the focused region.
 
-- **(2026-10-07) Probing every export's loss codes with a throwaway real-element test: worked.**
-  Import the four samples with `?raw`, run Louvain, loop `formatRows(session.catalog.formats())`
-  through `element.exportGraph`, print the notes: ~33 codes in practice, plus the adjacency bug.
 - **(2026-10-07) Per-node depth scaling on instanced node meshes: worked.** Setting
   `mesh.scaling` on the instance is enough; edges only follow if their position cache is
   invalidated (their dirty check reads positions, not sizes). Edge ends and arrowheads looked
@@ -305,9 +324,16 @@ acceptance test. "The studio worktree" is
   key; real-element popover tests need `page.viewport(1366, 768)` and must wait for
   `aria-disabled` to clear; "0 labels" was motion keeping the view unsettled. Never call an
   unexplained failure a flake; two `--prove` runs clobber `tmp/prove/`.
+  (2026-10-07) **The shared INDEX is a race too.** Other agents stage and commit in this worktree
+  continuously: `git diff --cached` before staging; wait for their staged set to land when it
+  overlaps my files (their blob lacks my hunk and would revert it). Even then, files they stage
+  between my staging and my `git commit` go into MY commit (8966b0888 swept in weight-meaning
+  files). Fix next time: commit with a private index (`GIT_INDEX_FILE=<tmp>`, `git read-tree
+  HEAD`, stage there, commit). stage_blob.py can keep foreign hunks when the file moves under it:
+  for a shared file, build the blob as `git show HEAD:<f>` + my string replacements instead.
+  The app reads the element from SOURCE (`graphty/vite.aliases.ts`), so any app build after an
+  element source edit has it; no element build needed for a :9366 check.
 
-- (2026-10-06) Worked: screen-reader mode in `real.mjs` (CDP AX tree, live-region observer);
-  Analyze keyboard pick as the ARIA combobox pattern (`tmp/check-r0-analyze-keyboard-pick/`).
 - (2026-10-06) **Layout and load checks (folded from Top of mind).** Check a layout against a
   reference before a study offers it (Spectral was wrong until matched against numpy). A load the
   counts say worked can still draw nothing (store and render half fed separately in `ingest.ts`):
@@ -315,13 +341,9 @@ acceptance test. "The studio worktree" is
 
 ## Thinking
 
-- **(2026-10-07) The files a decision lists are a start, not the set.** The run-name decision
-  listed ten files; Why this look printed the run's layer name too. Grep every route of the value
-  (`run.label`, the name of a run-owned layer) before calling it done.
-
-- **(2026-10-06) Untraced, small.** Header still "Untitled" after "New from data..." Load
-  (`tmp/check-r0-new-from-data-empty-canvas/04.png`). `notReadSentence` words only
-  `E_PARSE_FAILED`; another open refusal shows element English: map it there from `refusalFor`.
+- (2026-10-06 to 10-07) Grep every route of a value before calling a change done (see Top of
+  mind 11). Untraced: header "Untitled" after New from data; `notReadSentence` words only
+  `E_PARSE_FAILED`, other open refusals show element English.
 
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only
@@ -334,6 +356,4 @@ acceptance test. "The studio worktree" is
 - App comments that cite element issues (2026-10-06): `export/ImageOutput.tsx` #133;
   `inspector/Inspector.tsx`, `NodeValues.tsx`, `RunValues.tsx` #895; `canvas/LegendCard.tsx`,
   `legendWords.ts` #912; `inspector/GraphValues.tsx` #903/#900; `graphty/src/data/sampleManifest.ts` #796.
-- Transcript `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl` (2026-10-03 to 10-06);
-  owner memory notes (do not blame timing; cap workflow browsers; the image model only transcribes;
-  visual capture is the whole canvas).
+- Owner memory notes (do not blame timing; cap workflow browsers; the image model only transcribes).

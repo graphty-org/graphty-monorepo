@@ -61,6 +61,8 @@ interface GirvanNewmanOptions extends Record<string, unknown> {
 export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions> {
     static namespace = "graphty";
     static type = "girvan-newman";
+    /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
+    static weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
     static scopeInput: ScopeInputDeclaration = "subgraph";
 
@@ -176,7 +178,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
             caveats: declaredCaveats({
                 method: "girvan-newman",
                 direction: "undirected",
-                weight: { attribute: "weight", meaning: "strength" },
+                ...this.weightCaveats(),
                 precision,
                 notes:
                     levels.length === 1

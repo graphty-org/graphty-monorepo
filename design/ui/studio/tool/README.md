@@ -32,7 +32,7 @@ Every command prints what a participant would notice, then the path of the new s
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json` (the commit and build under study, the
   start), `session.log` (the session process's own log), `setup.log`, and `downloads/`.
-- A session nobody steps for 45 minutes closes itself, so a forgotten one cannot hold a browser.
+- A session nobody steps for 15 minutes closes itself, so a forgotten one cannot hold a browser.
 
 ## Steps
 

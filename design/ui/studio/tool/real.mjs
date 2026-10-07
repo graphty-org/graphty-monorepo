@@ -67,9 +67,10 @@ const gate = join(here, "with-browser.sh");
 // The tier 1 workspace is reached with ?next until the Switch-over makes it the default (graphty/src/App.tsx)
 const TIER1 = "/?next";
 const VIEWPORT = { width: 1440, height: 900 };
-// A session nobody steps for this long is closed, so a forgotten one cannot hold a browser slot forever
-// ponytail: fixed idle limit; make it a flag if a real session ever needs longer between steps
-const IDLE_MS = 45 * 60 * 1000;
+// A session nobody steps for this long is closed, so one whose agent was stopped before --end frees
+// its browser slot soon (two stopped agents held slots for 45 minutes in round 1, 2026-10-06).
+// REAL_IDLE_SECONDS overrides it (the --prove check uses a few seconds).
+const IDLE_MS = (Number(process.env.REAL_IDLE_SECONDS) || 15 * 60) * 1000;
 
 // a fixed folder, not TMPDIR, so every agent finds the same session from the same session dir
 const sockOf = (dir) =>
@@ -333,7 +334,7 @@ async function serve(dir, sr) {
     const touch = () => {
         clearTimeout(idle);
         idle = setTimeout(() => {
-            console.log(`no step for ${IDLE_MS / 60000} minutes; closing the session`);
+            console.log(`no step for ${IDLE_MS / 1000} seconds; closing the session`);
             close();
         }, IDLE_MS);
     };
@@ -343,7 +344,8 @@ async function serve(dir, sr) {
             buf += d;
             if (!buf.includes("\n")) return;
             const req = JSON.parse(buf.slice(0, buf.indexOf("\n")));
-            touch();
+            // idle time counts from the end of the last request, never during a long one
+            clearTimeout(idle);
             // one request at a time, in the order they came
             queue = queue.then(async () => {
                 let r;
@@ -359,6 +361,7 @@ async function serve(dir, sr) {
                 }
                 c.end(JSON.stringify(r) + "\n");
                 if (r.end) setTimeout(close, 50);
+                else touch();
             });
         });
     });
@@ -1244,7 +1247,23 @@ async function prove() {
         );
     }
     node(["--end", D]);
-    return finish(bad, [A, B, C, D]);
+    // a session left without --end (its agent was stopped) closes itself and frees its slot
+    const E = join(base, "session-e");
+    r = spawnSync(process.execPath, [self, "--start", E, "empty"], {
+        encoding: "utf8",
+        env: { ...process.env, REAL_IDLE_SECONDS: "3" },
+    });
+    let gone = false;
+    for (let i = 0; r.status === 0 && !gone && i < 60; i++) {
+        await new Promise((ok) => setTimeout(ok, 500));
+        gone = !existsSync(sockOf(E));
+    }
+    check(
+        "a session nobody steps or ends closes itself",
+        gone && /closing the session/.test(readFileSync(join(E, "session.log"), "utf8")),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    return finish(bad, [A, B, C, D, E]);
 }
 function finish(bad, dirs) {
     for (const d of dirs)

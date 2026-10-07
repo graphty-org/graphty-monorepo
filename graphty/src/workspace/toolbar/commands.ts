@@ -1,6 +1,7 @@
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
+import { nodeKey } from "../inspector/inspected";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
@@ -125,9 +126,16 @@ export const registration = defineRegistration({
             group: "Selection",
             keys: ["G"],
             disabled: ({ session }) => noNodeSelected(session),
-            run: async ({ session }) => {
-                if (session !== null) {
-                    await session.selection.apply({ neighborsOf: session.selection.nodes });
+            run: async ({ session, workspace }) => {
+                if (session === null) {
+                    return;
+                }
+                const centers = session.selection.nodes;
+                await session.selection.apply({ neighborsOf: centers });
+                // One node's neighborhood opens in the inspector as a neighborhood, as the
+                // inspector's own connections link does.
+                if (centers.length === 1) {
+                    workspace.set({ inspected: { kind: "neighborhood", id: nodeKey(centers[0]) } });
                 }
             },
         },

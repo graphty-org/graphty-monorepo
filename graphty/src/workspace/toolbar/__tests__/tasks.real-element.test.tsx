@@ -237,6 +237,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await userEvent.click(within(bar).getByRole("button", { name: "Neighborhood" }));
             await waitFor(() => {
                 assert.isAbove(session.selection.nodes.length, 1);
+                // The inspector shows the node's neighborhood, not a plain selection.
+                assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
         },
         TIMEOUT_MS,

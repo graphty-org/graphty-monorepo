@@ -331,7 +331,7 @@ export function replaceNodesCommand(
         steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: gone } });
     }
 
-    steps.push({ op: "data.apply", mutation: { kind: "add-nodes", records } });
+    steps.push({ op: "data.apply", mutation: { kind: "add-nodes", records, idPath } });
     return { op: "batch", label: "Replaced the nodes", steps, ...(setup ? { setup } : {}) };
 }
 

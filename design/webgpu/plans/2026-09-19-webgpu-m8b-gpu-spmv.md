@@ -38,37 +38,37 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 
 ### 0.1 Where the repository stands (2026-09-19)
 
-| Fact | Evidence |
-| --- | --- |
-| Master is `07fba28b test(webgpu-graph-algorithms): let the minimum confirm the median in bench:compare`, ONE commit ahead of `origin/master` (`cde458a2`) and unpushed; the only thing in the working tree is the four untracked M6 / M7 / M8a / M8b plan files this document belongs to. | `git log --oneline -3`; `git status --porcelain` (four `??` lines, all `design/webgpu/plans/2026-09-19-webgpu-m*.md`) |
-| `@graphty/webgpu-graph-algorithms` is 0.2.1 and `@graphty/graph-format` is 1.0.0. | `node -e "console.log(require('./webgpu-graph-algorithms/package.json').version, require('./graph-format/package.json').version)"` -> `0.2.1 1.0.0` |
-| `src/algorithms/` holds ONE file, `degree.ts`. There is no other algorithm to copy from. | `ls webgpu-graph-algorithms/src/algorithms/` -> `degree.ts` |
-| `src/primitives/` holds TWO files, `reduce.ts` and `segmented-reduce.ts`. There is no `compact`, `scan`, `histogram` or `dedupe`. | `ls webgpu-graph-algorithms/src/primitives/` |
-| `src/wgsl/` holds ten bodies, none of which uses an atomic. | `ls webgpu-graph-algorithms/src/wgsl/`; `grep -rn 'atomic<\|atomicLoad\|atomicStore\|atomicCompareExchangeWeak' webgpu-graph-algorithms/src/wgsl/` (no match; a plain `grep -rn atomic` DOES match the prose of `fa2-attraction.wgsl.ts:3`) |
-| `planGridStride` and `planIndirect` are throwing stubs with their final signatures. | `webgpu-graph-algorithms/src/kernel/dispatch.ts:135-140`, `:148-153` |
-| `residency.view()` rejects `reverse`, `coo`, `edgeList` and `mate` by name, and rejects `packViews: true`. `outDegree`, `inDegree`, `degreeOrder` and `reverseDegreeOrder` work. | `webgpu-graph-algorithms/src/memory/residency.ts:404-411`, `:364-369`, `:374-403` |
-| `segmentedReduce` hard-throws for any non-null `tiers`. | `webgpu-graph-algorithms/src/primitives/segmented-reduce.ts:258-262` |
-| The VALUE snippet vocabulary is `row, arc, nbr, weight, v` plus a 31-word WGSL allowlist, enforced textually before compose. | `webgpu-graph-algorithms/src/primitives/segmented-reduce.ts:40`, `:48-80`, `:120-142` |
-| `createAccelerator` returns exactly `kind, ctx, options, forceAtlas2, release, dispose`. There are ZERO algorithm members. | `webgpu-graph-algorithms/src/accelerator.ts:87-117` |
-| `pageRank` and `connectedComponents` are listed as NEVER exported by the barrel test. | `webgpu-graph-algorithms/test/index.test.ts:86-87` |
-| `renumberPartition` exists in graph-format and is referenced NOWHERE in the GPU package. | `graph-format/src/snapshot/derived.ts:1155`; `grep -rn renumberPartition webgpu-graph-algorithms/` (no match) |
-| `E_PARTITION` is a graph-format code and is NOT in `PASSTHROUGH_FORMAT_CODES`. | `graph-format/src/errors.ts:75`; `webgpu-graph-algorithms/src/errors.ts:39-44` |
-| `test/limits/` contains only `README.md`: the `node-limits` project the GPU workflow runs has ZERO tests today. | `ls webgpu-graph-algorithms/test/limits/` -> `README.md` |
-| `benchmarks/run.ts` registers exactly three groups: `upload`, `roundtrip`, `layout-exact`. | `webgpu-graph-algorithms/benchmarks/run.ts:29-33` |
-| The checked-in baselines are `gpu-linux-t4.json`, `nvidia-lovelace-driver580.json` and `noise-floor.json`. | `ls webgpu-graph-algorithms/benchmarks/results/` |
-| `tools/commit-changes.sh` carries a STALE `VALID_SCOPES` that omits `graph-format`, `graph-io` and `webgpu-graph-algorithms`, so it refuses a commit commitlint accepts. | `tools/commit-changes.sh:468-469` vs `commitlint.config.js:4-27` |
-| The CI no-subgroups twin pass covers only `test/primitives test/layouts`. | `.github/workflows/ci.yml:315` |
-| The `node` project's include glob names its directories literally. | `webgpu-graph-algorithms/vitest.config.ts:196-199` |
-| `webgpu-graph-algorithms/docs/decisions/` holds G0, G1, G2, G3. There is no G7. | `ls webgpu-graph-algorithms/docs/decisions/` |
+| Fact                                                                                                                                                                                                                                                                                      | Evidence                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Master is `07fba28b test(webgpu-graph-algorithms): let the minimum confirm the median in bench:compare`, ONE commit ahead of `origin/master` (`cde458a2`) and unpushed; the only thing in the working tree is the four untracked M6 / M7 / M8a / M8b plan files this document belongs to. | `git log --oneline -3`; `git status --porcelain` (four `??` lines, all `design/webgpu/plans/2026-09-19-webgpu-m*.md`)                                                                                                                       |
+| `@graphty/webgpu-graph-algorithms` is 0.2.1 and `@graphty/graph-format` is 1.0.0.                                                                                                                                                                                                         | `node -e "console.log(require('./webgpu-graph-algorithms/package.json').version, require('./graph-format/package.json').version)"` -> `0.2.1 1.0.0`                                                                                         |
+| `src/algorithms/` holds ONE file, `degree.ts`. There is no other algorithm to copy from.                                                                                                                                                                                                  | `ls webgpu-graph-algorithms/src/algorithms/` -> `degree.ts`                                                                                                                                                                                 |
+| `src/primitives/` holds TWO files, `reduce.ts` and `segmented-reduce.ts`. There is no `compact`, `scan`, `histogram` or `dedupe`.                                                                                                                                                         | `ls webgpu-graph-algorithms/src/primitives/`                                                                                                                                                                                                |
+| `src/wgsl/` holds ten bodies, none of which uses an atomic.                                                                                                                                                                                                                               | `ls webgpu-graph-algorithms/src/wgsl/`; `grep -rn 'atomic<\|atomicLoad\|atomicStore\|atomicCompareExchangeWeak' webgpu-graph-algorithms/src/wgsl/` (no match; a plain `grep -rn atomic` DOES match the prose of `fa2-attraction.wgsl.ts:3`) |
+| `planGridStride` and `planIndirect` are throwing stubs with their final signatures.                                                                                                                                                                                                       | `webgpu-graph-algorithms/src/kernel/dispatch.ts:135-140`, `:148-153`                                                                                                                                                                        |
+| `residency.view()` rejects `reverse`, `coo`, `edgeList` and `mate` by name, and rejects `packViews: true`. `outDegree`, `inDegree`, `degreeOrder` and `reverseDegreeOrder` work.                                                                                                          | `webgpu-graph-algorithms/src/memory/residency.ts:404-411`, `:364-369`, `:374-403`                                                                                                                                                           |
+| `segmentedReduce` hard-throws for any non-null `tiers`.                                                                                                                                                                                                                                   | `webgpu-graph-algorithms/src/primitives/segmented-reduce.ts:258-262`                                                                                                                                                                        |
+| The VALUE snippet vocabulary is `row, arc, nbr, weight, v` plus a 31-word WGSL allowlist, enforced textually before compose.                                                                                                                                                              | `webgpu-graph-algorithms/src/primitives/segmented-reduce.ts:40`, `:48-80`, `:120-142`                                                                                                                                                       |
+| `createAccelerator` returns exactly `kind, ctx, options, forceAtlas2, release, dispose`. There are ZERO algorithm members.                                                                                                                                                                | `webgpu-graph-algorithms/src/accelerator.ts:87-117`                                                                                                                                                                                         |
+| `pageRank` and `connectedComponents` are listed as NEVER exported by the barrel test.                                                                                                                                                                                                     | `webgpu-graph-algorithms/test/index.test.ts:86-87`                                                                                                                                                                                          |
+| `renumberPartition` exists in graph-format and is referenced NOWHERE in the GPU package.                                                                                                                                                                                                  | `graph-format/src/snapshot/derived.ts:1155`; `grep -rn renumberPartition webgpu-graph-algorithms/` (no match)                                                                                                                               |
+| `E_PARTITION` is a graph-format code and is NOT in `PASSTHROUGH_FORMAT_CODES`.                                                                                                                                                                                                            | `graph-format/src/errors.ts:75`; `webgpu-graph-algorithms/src/errors.ts:39-44`                                                                                                                                                              |
+| `test/limits/` contains only `README.md`: the `node-limits` project the GPU workflow runs has ZERO tests today.                                                                                                                                                                           | `ls webgpu-graph-algorithms/test/limits/` -> `README.md`                                                                                                                                                                                    |
+| `benchmarks/run.ts` registers exactly three groups: `upload`, `roundtrip`, `layout-exact`.                                                                                                                                                                                                | `webgpu-graph-algorithms/benchmarks/run.ts:29-33`                                                                                                                                                                                           |
+| The checked-in baselines are `gpu-linux-t4.json`, `nvidia-lovelace-driver580.json` and `noise-floor.json`.                                                                                                                                                                                | `ls webgpu-graph-algorithms/benchmarks/results/`                                                                                                                                                                                            |
+| `tools/commit-changes.sh` carries a STALE `VALID_SCOPES` that omits `graph-format`, `graph-io` and `webgpu-graph-algorithms`, so it refuses a commit commitlint accepts.                                                                                                                  | `tools/commit-changes.sh:468-469` vs `commitlint.config.js:4-27`                                                                                                                                                                            |
+| The CI no-subgroups twin pass covers only `test/primitives test/layouts`.                                                                                                                                                                                                                 | `.github/workflows/ci.yml:315`                                                                                                                                                                                                              |
+| The `node` project's include glob names its directories literally.                                                                                                                                                                                                                        | `webgpu-graph-algorithms/vitest.config.ts:196-199`                                                                                                                                                                                          |
+| `webgpu-graph-algorithms/docs/decisions/` holds G0, G1, G2, G3. There is no G7.                                                                                                                                                                                                           | `ls webgpu-graph-algorithms/docs/decisions/`                                                                                                                                                                                                |
 
 ### 0.2 Entry criteria -- M8b is the ONE phase whose criteria are MET today
 
-| Criterion | Status | Evidence |
-| --- | --- | --- |
-| Phase M3: the package is in the monorepo and releasing | **MET** | `webgpu-graph-algorithms/package.json` version `0.2.1`; the package is a workspace project with its own `project.json`; PR #11 merged |
-| The design's P2 gate | **MET** | `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3269` states it verbatim: "Phase M3 (the package in the monorepo) and the design's P2 gate (met)"; the record is `webgpu-graph-algorithms/docs/decisions/G2.md` |
-| The design's phase order admits P7 after P2 | **MET** | `design/webgpu/webgpu-acceleration-plan.md:4223-4224`: `P0 -> P1 -> P2 -> P3 ... \-> P7 (SpMV + WCC)`; the P7 Size cell at `:4214` reads "may start after P2 in parallel with P3-P5" |
-| `graph-format >= 1.0.0` on master (for `renumberPartition` and the views) | **MET** | `graph-format/package.json` version `1.0.0`; commit `f6520f85 feat(graph-format)!: freeze the invariants and cut 1.0.0` |
+| Criterion                                                                 | Status  | Evidence                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase M3: the package is in the monorepo and releasing                    | **MET** | `webgpu-graph-algorithms/package.json` version `0.2.1`; the package is a workspace project with its own `project.json`; PR #11 merged                                                                                           |
+| The design's P2 gate                                                      | **MET** | `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3269` states it verbatim: "Phase M3 (the package in the monorepo) and the design's P2 gate (met)"; the record is `webgpu-graph-algorithms/docs/decisions/G2.md` |
+| The design's phase order admits P7 after P2                               | **MET** | `design/webgpu/webgpu-acceleration-plan.md:4223-4224`: `P0 -> P1 -> P2 -> P3 ... \-> P7 (SpMV + WCC)`; the P7 Size cell at `:4214` reads "may start after P2 in parallel with P3-P5"                                            |
+| `graph-format >= 1.0.0` on master (for `renumberPartition` and the views) | **MET** | `graph-format/package.json` version `1.0.0`; commit `f6520f85 feat(graph-format)!: freeze the invariants and cut 1.0.0`                                                                                                         |
 
 For contrast, and so no reader schedules the wrong thing: Phase M5 is **NOT MET** (the layout simulation seam is on branch `feat/layout-simulation`, draft PR #12, `git log --oneline master..feat/layout-simulation` has five commits), Phase M5b is **NOT MET** (branch `feat/webgpu-layout-types`, no PR), and A1 -- M8a's precondition -- **does not exist in any branch** (`algorithms/src/` has no `indexed/` directory). M8b depends on none of them.
 
@@ -83,65 +83,65 @@ M8b is the ONLY phase whose entry criteria are met today. It can be scheduled no
 
 ### 0.4 Plan decisions (the index; each block is stated in full in the task that owns it)
 
-| Id | Decision | Task |
-| --- | --- | --- |
-| PD-1 | `spmvPull` is its own registry entry, NOT a `segmentedReduce` VALUE snippet | M8b-T3 |
-| PD-2 | Tier 0 only: `spmvPull` ships the thread-per-row tier; the in-degree tiers stay a P4 deliverable | M8b-T3 |
-| PD-3 | The seven P7 kernel ids, their binding counts and the four closed unions they widen | M8b-T3 |
-| PD-4 | The WCC `changed` flag lives inside the `comp` array, so the link kernel binds three buffers, matching design 8.10 | M8b-T3 |
-| PD-5 | Atomics enter the package with `array<atomic<u32>>`, `atomicLoad` / `atomicStore` / `atomicCompareExchangeWeak` and a bounded link loop | M8b-T3 |
-| PD-6 | `wcc-sample` is `SABOTAGE_EXEMPT`; the other six P7 kernels carry three mutations each, landed with the tests they cite | M8b-T10 |
-| PD-7 | PageRank ping-pongs TWO buffers through two cached bind groups, never one buffer with two ranges | M8b-T5 |
-| PD-8 | `outWeightSum` is per-call `Lease` scratch, not a residency entry | M8b-T5 |
-| PD-9 | `firstConvergedIteration` is recorded one iteration late and reported as `P.iteration - 1` | M8b-T5 |
-| PD-10 | HITS / eigenvector / Katz normalise on the DEVICE through a `reduce` into `partials[0].norm`; they stay batchable | M8b-T6 |
-| PD-11 | `E_PARTITION` is NOT added to `PASSTHROUGH_FORMAT_CODES`; an `INVALID_INDEX` label is `E_VALIDATION` | M8b-T7 |
-| PD-12 | The giant-component mode is computed on the host over the 1,024-word sample readback | M8b-T7 |
-| PD-13 | `packViews` pays off only on DIRECTED snapshots; on an undirected one `view(s, "reverse")` is the forward buffers with zero upload | M8b-T2 |
-| PD-14 | The accelerator members land in ONE task, after all three algorithm tasks are green; never a throwing stub | M8b-T8 |
-| PD-15 | Every new test file goes in a directory the `node` include glob already names | M8b-T4 |
-| PD-16 | The barrel export and the `NEVER_EXPORTED` edit are ONE commit | M8b-T8 |
-| PD-17 | The `pagerank` / `wcc` baselines are captured with `minMs` on BOTH runner classes before the benchmark commit lands | M8b-T9 |
-| PD-18 | The CI no-subgroups twin pass is extended to `test/algorithms` | M8b-T10 |
-| PD-19 | M8b may land before M8a; `AlgorithmAccelerator` is a structural mirror on master and M8a's `import type` swap is source-compatible | M8b-T8 |
+| Id    | Decision                                                                                                                                | Task    |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| PD-1  | `spmvPull` is its own registry entry, NOT a `segmentedReduce` VALUE snippet                                                             | M8b-T3  |
+| PD-2  | Tier 0 only: `spmvPull` ships the thread-per-row tier; the in-degree tiers stay a P4 deliverable                                        | M8b-T3  |
+| PD-3  | The seven P7 kernel ids, their binding counts and the four closed unions they widen                                                     | M8b-T3  |
+| PD-4  | The WCC `changed` flag lives inside the `comp` array, so the link kernel binds three buffers, matching design 8.10                      | M8b-T3  |
+| PD-5  | Atomics enter the package with `array<atomic<u32>>`, `atomicLoad` / `atomicStore` / `atomicCompareExchangeWeak` and a bounded link loop | M8b-T3  |
+| PD-6  | `wcc-sample` is `SABOTAGE_EXEMPT`; the other six P7 kernels carry three mutations each, landed with the tests they cite                 | M8b-T10 |
+| PD-7  | PageRank ping-pongs TWO buffers through two cached bind groups, never one buffer with two ranges                                        | M8b-T5  |
+| PD-8  | `outWeightSum` is per-call `Lease` scratch, not a residency entry                                                                       | M8b-T5  |
+| PD-9  | `firstConvergedIteration` is recorded one iteration late and reported as `P.iteration - 1`                                              | M8b-T5  |
+| PD-10 | HITS / eigenvector / Katz normalise on the DEVICE through a `reduce` into `partials[0].norm`; they stay batchable                       | M8b-T6  |
+| PD-11 | `E_PARTITION` is NOT added to `PASSTHROUGH_FORMAT_CODES`; an `INVALID_INDEX` label is `E_VALIDATION`                                    | M8b-T7  |
+| PD-12 | The giant-component mode is computed on the host over the 1,024-word sample readback                                                    | M8b-T7  |
+| PD-13 | `packViews` pays off only on DIRECTED snapshots; on an undirected one `view(s, "reverse")` is the forward buffers with zero upload      | M8b-T2  |
+| PD-14 | The accelerator members land in ONE task, after all three algorithm tasks are green; never a throwing stub                              | M8b-T8  |
+| PD-15 | Every new test file goes in a directory the `node` include glob already names                                                           | M8b-T4  |
+| PD-16 | The barrel export and the `NEVER_EXPORTED` edit are ONE commit                                                                          | M8b-T8  |
+| PD-17 | The `pagerank` / `wcc` baselines are captured with `minMs` on BOTH runner classes before the benchmark commit lands                     | M8b-T9  |
+| PD-18 | The CI no-subgroups twin pass is extended to `test/algorithms`                                                                          | M8b-T10 |
+| PD-19 | M8b may land before M8a; `AlgorithmAccelerator` is a structural mirror on master and M8a's `import type` swap is source-compatible      | M8b-T8  |
 
 ### 0.5 Departures from the design (all of them)
 
-| Id | Departure | Reason |
-| --- | --- | --- |
-| DEP-M8B-A | Design 6 row 9 (`:1576`) calls `spmvPull` "`segmentedReduce` specialised"; M8b gives it its own registry entry and WGSL body. | The VALUE snippet vocabulary admits only `row, arc, nbr, weight, v` (`src/primitives/segmented-reduce.ts:40`, allowlist `:48-80`, enforced textually `:120-142`), so a snippet can never read `xNorm[nbr]`. The design's own 8.10 table (`:2839`) already gives `spmvPull` an eight-binding descriptor row of its own, which a snippet variant of `segmented-reduce` (five storage bindings, `test/kernel/bind-group-budget.test.ts:22`) cannot have. The two design statements are in tension; the 8.10 table wins because G7 tests it. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-spmv-pull-is-its-own-kernel.md`. |
-| DEP-M8B-B | Design 8.8 row 1 (`:2789`) says `spmvPull` is "tiered by in-degree"; M8b ships the thread-per-row tier only. | `prepareSegmentedReduce` throws `E_UNSUPPORTED { feature: "segmentedReduce.tiers" }` for any non-null `tiers` (`src/primitives/segmented-reduce.ts:258-262`), and design 6 row 3 (`:1570`) assigns the two upper tiers to P4, gated at G4. Rule (b) of design 13 ("a phase adds only the primitives its slice needs") forbids M8b absorbing P4's tier work. The `perm` slot is still bound (design 8.2: "the slot exists whether or not the permutation is the identity"), `USE_PERM` is false, and `reverseDegreeOrder` residency already works (`src/memory/residency.ts:394-400`) so P4 has nothing left to build on the host side. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-spmv-tier-zero-only.md`. |
-| DEP-M8B-C | Design 13 row P7 (`:4214`) lists "the two-dispatch atomic dedupe" among the Afforest deliverables; M8b does not build it. | Design 8.3 (`:2611-2625`), which is the normative description of the algorithm, describes Afforest with CAS link, pointer-jumping compress, a histogram sample and an each-edge-once link round, and does NOT use `dedupe`. Afforest's link is idempotent, so nothing needs deduplicating. `compact` / `dedupe` are design 6 row 4 and are assigned to P4 / P7 / P8; M8b builds the P7 slice, which is the WCC of 8.3. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-afforest-needs-no-dedupe.md`. |
-| DEP-M8B-D | Design 8.2 (`:2608-2609`) says "The `outWeightSum` buffer is registered against the snapshot in the residency so a second PageRank call on the same snapshot reuses it"; M8b keeps it as per-call scratch. | `GraphResidency.array(key, label, owner)` keys on a CPU typed array object (`src/memory/residency.ts:483`, the `residents` WeakMap at `:244`), and a device-computed out-weight sum has no such key. Registering it would mean a new residency API, which is not a P7 deliverable. The cost is one `segmentedReduce` pass per call, O(A) once against O(A) per iteration. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-outweightsum-is-call-scratch.md`. |
-| DEP-M8B-E | Design 8.10's Afforest row (`:2841`) names four buffers (`edgeSrc, edgeDst, comp (atomic), changed`) and counts three. M8b binds three: `edgeSrc`, `edgeDst`, `comp`, with the changed flag as the word at `comp[P.flagIndex]`. | G7 tests the COUNT ("every 8.10 kernel matches its count (descriptor test)"), and the same paragraph's rule is "counters and flags share one small `u32` block". The `comp` array is the kernel's only atomic buffer, so the flag shares it. Three bindings, exactly the design's number, with no separate flag buffer to bind or reset. |
-| DEP-M8B-F | The design does not fix where the giant-component mode is computed; M8b computes it on the host over the 1,024-word sample. | Design 8.3 says "a 1,024-entry histogram readback to find the giant component". A device histogram over component ids needs either 1,024 hash buckets (which yield a bucket, not a component id) or n bins (which is the whole label array). GAP's `SampleFrequentElement` also counts on the host. The readback is 4 KB once per call. |
-| DEP-M8B-G | Design 8.10 (`:2833`) states "Ping-pong pairs are one buffer with two bind groups"; M8b's PageRank and power-iteration ping-pong is TWO buffers with two cached bind groups. | Nothing forbids the one-buffer form and it gains next to nothing. `Kernel.bind`'s aliasing check runs per kernel and rejects a pair of slots on one buffer only when one is `storage` and the other is not (`src/kernel/kernel.ts:170-205`): `pr-scale` binds the two halves through `rankIn` and `rankPrev`, both `storage-ro`, which the check skips, and `spmv-pull` binds one half through `rankOut` alone (its input is `xNorm`, `src/kernels.ts:460-470`), so no pair exists to reject; WebGPU's usage scope is per dispatch, so the two accesses never meet. Two 256-aligned halves of one buffer are therefore bindable, and are rejected because they save little: `bind()` caches by `bufferId:offset:size` (`src/kernel/kernel.ts:207-209`), so two buffers alternate through two cached bind groups exactly as two halves would; the pool's class rounding (`BufferPool.sizeClass`, `src/memory/buffer-pool.ts:73-89`: powers of two from 4 KiB to 64 MiB, then 16 MiB steps) makes the one-buffer form never larger and, for `512 < n <= 8,388,608`, the same size, with two buffers costing 4 KiB more below that band and 16-48 MiB more in some bands above it (the record has the bands); pool `E_TOO_LARGE` is per buffer against `maxBufferSize` (`src/memory/buffer-pool.ts:99-108`), so two buffers of `4n` fit every graph one buffer of `2 * align(4n)` fits and twice the nodes besides; and the scope's one `dispose()` releases every scratch buffer, so the second lease is no extra bookkeeping. The one-buffer form would cost a computed midpoint offset in the algorithm driver, where every scratch binding of `src/algorithms/` is a whole buffer at offset 0 (the package's sub-range bindings are the residency's arena segments and packed views, `src/memory/residency.ts:588,791`, and the force driver's `state` / `trace` split, `src/layouts/force-simulation.ts:1697-1698`). Stated in full as PD-7 (Task M8b-T5) and recorded by Task M8b-T11 as `design/decisions/2026-09-19-pagerank-ping-pong-is-two-buffers.md`. |
+| Id        | Departure                                                                                                                                                                                                                       | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DEP-M8B-A | Design 6 row 9 (`:1576`) calls `spmvPull` "`segmentedReduce` specialised"; M8b gives it its own registry entry and WGSL body.                                                                                                   | The VALUE snippet vocabulary admits only `row, arc, nbr, weight, v` (`src/primitives/segmented-reduce.ts:40`, allowlist `:48-80`, enforced textually `:120-142`), so a snippet can never read `xNorm[nbr]`. The design's own 8.10 table (`:2839`) already gives `spmvPull` an eight-binding descriptor row of its own, which a snippet variant of `segmented-reduce` (five storage bindings, `test/kernel/bind-group-budget.test.ts:22`) cannot have. The two design statements are in tension; the 8.10 table wins because G7 tests it. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-spmv-pull-is-its-own-kernel.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| DEP-M8B-B | Design 8.8 row 1 (`:2789`) says `spmvPull` is "tiered by in-degree"; M8b ships the thread-per-row tier only.                                                                                                                    | `prepareSegmentedReduce` throws `E_UNSUPPORTED { feature: "segmentedReduce.tiers" }` for any non-null `tiers` (`src/primitives/segmented-reduce.ts:258-262`), and design 6 row 3 (`:1570`) assigns the two upper tiers to P4, gated at G4. Rule (b) of design 13 ("a phase adds only the primitives its slice needs") forbids M8b absorbing P4's tier work. The `perm` slot is still bound (design 8.2: "the slot exists whether or not the permutation is the identity"), `USE_PERM` is false, and `reverseDegreeOrder` residency already works (`src/memory/residency.ts:394-400`) so P4 has nothing left to build on the host side. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-spmv-tier-zero-only.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| DEP-M8B-C | Design 13 row P7 (`:4214`) lists "the two-dispatch atomic dedupe" among the Afforest deliverables; M8b does not build it.                                                                                                       | Design 8.3 (`:2611-2625`), which is the normative description of the algorithm, describes Afforest with CAS link, pointer-jumping compress, a histogram sample and an each-edge-once link round, and does NOT use `dedupe`. Afforest's link is idempotent, so nothing needs deduplicating. `compact` / `dedupe` are design 6 row 4 and are assigned to P4 / P7 / P8; M8b builds the P7 slice, which is the WCC of 8.3. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-afforest-needs-no-dedupe.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| DEP-M8B-D | Design 8.2 (`:2608-2609`) says "The `outWeightSum` buffer is registered against the snapshot in the residency so a second PageRank call on the same snapshot reuses it"; M8b keeps it as per-call scratch.                      | `GraphResidency.array(key, label, owner)` keys on a CPU typed array object (`src/memory/residency.ts:483`, the `residents` WeakMap at `:244`), and a device-computed out-weight sum has no such key. Registering it would mean a new residency API, which is not a P7 deliverable. The cost is one `segmentedReduce` pass per call, O(A) once against O(A) per iteration. Recorded by Task M8b-T11 as `design/decisions/2026-09-19-outweightsum-is-call-scratch.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| DEP-M8B-E | Design 8.10's Afforest row (`:2841`) names four buffers (`edgeSrc, edgeDst, comp (atomic), changed`) and counts three. M8b binds three: `edgeSrc`, `edgeDst`, `comp`, with the changed flag as the word at `comp[P.flagIndex]`. | G7 tests the COUNT ("every 8.10 kernel matches its count (descriptor test)"), and the same paragraph's rule is "counters and flags share one small `u32` block". The `comp` array is the kernel's only atomic buffer, so the flag shares it. Three bindings, exactly the design's number, with no separate flag buffer to bind or reset.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| DEP-M8B-F | The design does not fix where the giant-component mode is computed; M8b computes it on the host over the 1,024-word sample.                                                                                                     | Design 8.3 says "a 1,024-entry histogram readback to find the giant component". A device histogram over component ids needs either 1,024 hash buckets (which yield a bucket, not a component id) or n bins (which is the whole label array). GAP's `SampleFrequentElement` also counts on the host. The readback is 4 KB once per call.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| DEP-M8B-G | Design 8.10 (`:2833`) states "Ping-pong pairs are one buffer with two bind groups"; M8b's PageRank and power-iteration ping-pong is TWO buffers with two cached bind groups.                                                    | Nothing forbids the one-buffer form and it gains next to nothing. `Kernel.bind`'s aliasing check runs per kernel and rejects a pair of slots on one buffer only when one is `storage` and the other is not (`src/kernel/kernel.ts:170-205`): `pr-scale` binds the two halves through `rankIn` and `rankPrev`, both `storage-ro`, which the check skips, and `spmv-pull` binds one half through `rankOut` alone (its input is `xNorm`, `src/kernels.ts:460-470`), so no pair exists to reject; WebGPU's usage scope is per dispatch, so the two accesses never meet. Two 256-aligned halves of one buffer are therefore bindable, and are rejected because they save little: `bind()` caches by `bufferId:offset:size` (`src/kernel/kernel.ts:207-209`), so two buffers alternate through two cached bind groups exactly as two halves would; the pool's class rounding (`BufferPool.sizeClass`, `src/memory/buffer-pool.ts:73-89`: powers of two from 4 KiB to 64 MiB, then 16 MiB steps) makes the one-buffer form never larger and, for `512 < n <= 8,388,608`, the same size, with two buffers costing 4 KiB more below that band and 16-48 MiB more in some bands above it (the record has the bands); pool `E_TOO_LARGE` is per buffer against `maxBufferSize` (`src/memory/buffer-pool.ts:99-108`), so two buffers of `4n` fit every graph one buffer of `2 * align(4n)` fits and twice the nodes besides; and the scope's one `dispose()` releases every scratch buffer, so the second lease is no extra bookkeeping. The one-buffer form would cost a computed midpoint offset in the algorithm driver, where every scratch binding of `src/algorithms/` is a whole buffer at offset 0 (the package's sub-range bindings are the residency's arena segments and packed views, `src/memory/residency.ts:588,791`, and the force driver's `state` / `trace` split, `src/layouts/force-simulation.ts:1697-1698`). Stated in full as PD-7 (Task M8b-T5) and recorded by Task M8b-T11 as `design/decisions/2026-09-19-pagerank-ping-pong-is-two-buffers.md`. |
 
 ### 0.6 Phase map
 
-| Phase | Where | Entry criteria | Deliverable | Gate | Size |
-| --- | --- | --- | --- | --- | --- |
+| Phase                                 | Where                      | Entry criteria                                              | Deliverable                                                                                                                                                                                                                                                                                                   | Gate      | Size                                                                                     |
+| ------------------------------------- | -------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------- |
 | M8b GPU SpMV family + WCC (design P7) | `webgpu-graph-algorithms/` | Phase M3 and the design's P2 gate -- both MET (section 0.2) | grid-stride dispatch, `packViews`, `spmvPull`, PageRank (+ personalized) with `firstConvergedIteration`, HITS, eigenvector, Katz, Afforest WCC, `renumberPartition` on readback, `reverse()` residency, the `GpuAccelerator` algorithm members, oracles, `pagerank` / `wcc` benchmarks; parity per design 9.7 | design G7 | design 13 row P7 says 8-10 ed; this plan's twelve tasks sum to 15.5 ed (the table below) |
 
 Critical path: M8b-T1 and M8b-T2 in parallel -> M8b-T3 -> M8b-T4 -> M8b-T5 -> M8b-T6 and M8b-T7 in parallel -> M8b-T8 -> M8b-T9 and M8b-T10 in parallel -> M8b-T12 ; M8b-T11 any time after M8b-T3.
 
 **Per-task estimate, and the size this plan actually is.** The design's P7 cell says "8-10 ed", and design 13 rule (e) (`:4198-4199`) defines ed as "engineer-days (ed) for one engineer familiar with the code base; the WGSL phases carry the most uncertainty". The cell is not restated here unexamined: the twelve tasks below add up to more than it, and the owner should know that before scheduling, not after.
 
-| Task | What it is | ed |
-| --- | --- | --- |
-| M8b-T1 | the scope fix, one planner rule, one types file | 0.5 |
-| M8b-T2 | two residency builders, `packViews`, eight test cases | 1.5 |
-| M8b-T3 | seven WGSL bodies (the package's first atomics), four blocks, four closed unions, 37 compile cases | 2.5 |
-| M8b-T4 | `core-shape.ts`, `coreOfView`, `prepareSpmvPull`, the f64 oracle and the differential suite with the twin | 1.5 |
-| M8b-T5 | PageRank + personalized: the driver, the NetworkX-semantics f64 oracle, ten test cases | 2.0 |
-| M8b-T6 | the power-iteration driver, three entry points, three oracles, nine test cases | 2.0 |
-| M8b-T7 | Afforest: the host loop, the union-find oracle, eleven test cases | 1.5 |
-| M8b-T8 | seven accelerator members, the barrel, three test files | 0.5 |
-| M8b-T9 | two benchmark files, two baselines re-captured (one of them through a PR, a label and an artifact download) | 1.0 |
-| M8b-T10 | eighteen mutations, two check-set helpers, two sabotage suites, the browser smoke, the first node-limits test, the CI twin | 1.5 |
-| M8b-T11 | five decision records and three index edits | 0.5 |
-| M8b-T12 | the full green check on two adapters plus the browser, and the G7 record | 0.5 |
-| | **total** | **15.5** |
+| Task    | What it is                                                                                                                 | ed       |
+| ------- | -------------------------------------------------------------------------------------------------------------------------- | -------- |
+| M8b-T1  | the scope fix, one planner rule, one types file                                                                            | 0.5      |
+| M8b-T2  | two residency builders, `packViews`, eight test cases                                                                      | 1.5      |
+| M8b-T3  | seven WGSL bodies (the package's first atomics), four blocks, four closed unions, 37 compile cases                         | 2.5      |
+| M8b-T4  | `core-shape.ts`, `coreOfView`, `prepareSpmvPull`, the f64 oracle and the differential suite with the twin                  | 1.5      |
+| M8b-T5  | PageRank + personalized: the driver, the NetworkX-semantics f64 oracle, ten test cases                                     | 2.0      |
+| M8b-T6  | the power-iteration driver, three entry points, three oracles, nine test cases                                             | 2.0      |
+| M8b-T7  | Afforest: the host loop, the union-find oracle, eleven test cases                                                          | 1.5      |
+| M8b-T8  | seven accelerator members, the barrel, three test files                                                                    | 0.5      |
+| M8b-T9  | two benchmark files, two baselines re-captured (one of them through a PR, a label and an artifact download)                | 1.0      |
+| M8b-T10 | eighteen mutations, two check-set helpers, two sabotage suites, the browser smoke, the first node-limits test, the CI twin | 1.5      |
+| M8b-T11 | five decision records and three index edits                                                                                | 0.5      |
+| M8b-T12 | the full green check on two adapters plus the browser, and the G7 record                                                   | 0.5      |
+|         | **total**                                                                                                                  | **15.5** |
 
 15.5 ed against the design's 8-10. The gap is not padding: the design's cell was written before this plan enumerated seven WGSL bodies, six public algorithms plus a shared driver, four f64 oracles, roughly fifty new test cases across five suites, eighteen sabotage mutations with two new check-set helpers, the package's first `node-limits` test, and two benchmark groups re-baselined on two runner classes. Nine of the twelve tasks are sequential (the critical path above), and every one of them ends in a green check on BOTH adapters, which design 13 rule (a) requires and which alone is 20-60 minutes of wall time per task once the compile matrix grows by 37 cases (M8b-T3 Step 6). The owner's call, in the PR: accept 15.5 and let the design cell stand as the estimate it was, or split the phase (M8b-T1..T5 as one PR closing nothing, M8b-T6..T12 as the PR that closes G7). Nothing in the plan depends on which; the tasks and their order are the same either way.
 
@@ -181,6 +181,7 @@ then `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph
 **Spec:** design 5.2 lines 1395-1425 (the grid-stride rule and the `(16,776,960, 16,777,216]` boundary the planner test pins); design 3.3 lines 815-828 (`GpuScoresResult`, `GpuPageRankResult`, `GpuHitsResult`, `GpuLabelResult`); design 3.3 lines 792-797 (the six public signatures).
 
 **Files:**
+
 - Modify: `tools/commit-changes.sh:468-469` (add the three missing scopes to `VALID_SCOPES`)
 - Modify: `webgpu-graph-algorithms/src/kernel/dispatch.ts:135-140` (replace the `planGridStride` throw with the rule)
 - Create: `webgpu-graph-algorithms/src/types/algorithms.ts` (the `Gpu*Result` types and the GPU-side option records, spelled member for member against M8a's CPU seam types)
@@ -188,6 +189,7 @@ then `cd $WT && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run graph
 - NOT touched: `src/index.ts` and `test/index.test.ts` (Task M8b-T8 owns the barrel), `src/kernels.ts` (Task M8b-T3)
 
 **Interfaces:**
+
 - Consumes: `PlanCaps` (`src/types/context.ts`), `MAX_WORKGROUPS_PER_DIM` (`src/constants.ts:11`), `CAPS_SPEC_DEFAULT` (`test/helpers/caps-tables.ts:50`) and `fakeCaps(base, overrides, flags?)` (`test/helpers/caps-tables.ts:137-141`), both already imported by `test/kernel/dispatch.test.ts:17`.
 - Produces: `planGridStride(items: number, wg: number, caps: PlanCaps, maxGroups?: number): DispatchPlan` with `stride` non-null; `GpuScoresResult`, `GpuPageRankResult`, `GpuHitsResult`, `GpuLabelResult`, `PageRankOptions`, `HitsOptions`, `EigenvectorOptions`, `KatzOptions`, `ComponentsOptions` from `src/types/algorithms.js`.
 
@@ -391,11 +393,13 @@ Expected: build, eslint and both `tsc` runs clean; knip reports the nine exports
 **Spec:** design 4.3 lines 1180-1190 (views upload `perArray`, never in the arena; the undirected `reverse()` identity; `packViews` concatenates the reverse arrays of a DIRECTED snapshot); design 13 row P7 line 4214 ("`reverse()` residency (identity when undirected; `fwdArc` never touched)").
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/src/memory/residency.ts:357-423` (the `view()` switch; the `reverse` / `edgeList` cases and the `packViews` path), `:132-144` (the `ResidencyRecord` gains a `views` map)
 - Modify: `webgpu-graph-algorithms/test/memory/residency.test.ts` (the new view cases)
 - NOT touched: `src/memory/upload-plan.ts` (windowed planning is P4), `src/kernels.ts` (Task M8b-T3)
 
 **Interfaces:**
+
 - Consumes: `GraphSnapshot.reverse(): ReverseView` (`graph-format/src/types/snapshot.ts:568`), `ReverseView extends AdjacencyView { readonly fwdArc: U32 }` (`:279-282`), `GraphSnapshot.edgeList(): EdgeListView` (`:578`), `EdgeListView { src, dst, arc, weights }` (`:300-311`), `GraphResidency.core(s, need?)` (`src/memory/residency.ts:292`).
 - Produces: `residency.view(s, "reverse")` -> `ViewBinding { view: "reverse", bindings: { rowPtr, colIdx, weights? }, scalars: { arcCount, directed } }`; `residency.view(s, "edgeList")` -> `{ bindings: { src, dst, weights? }, scalars: { edgeCount } }`; `residency.view(s, "reverse", { packViews: true })` -> the same binding names over ONE buffer at 256-aligned offsets.
 
@@ -546,25 +550,26 @@ The file already imports `GraphSnapshot` (`:24`), `snapshotOf` (`:36`), `withCon
 
 Run: `cd $PKG && eval $GPU_NV pnpm exec vitest run --project=node test/memory/residency.test.ts`
 Expected: FAIL, seven of the eight new cases, with the two messages `view()` throws today:
+
 - the three cases that pass `{ packViews: true }` ("packViews packs ...", "the packed and the unpacked ...", "packViews on an UNDIRECTED snapshot ...", and the "release(s) destroys the packed buffer too" case) fail with `E_UNSUPPORTED: packViews is not supported before the P7 view uploads`, thrown at `src/memory/residency.ts:364-369` BEFORE the switch;
 - the other three -- the two `"reverse"` cases and the `"edgeList"` case -- fail with `E_UNSUPPORTED: the reverse view is not uploaded before P7` / `the edgeList view is not uploaded before P7`, thrown by the shared `case` arm at `src/memory/residency.ts:404-411`.
-The `coo` / `mate` case is the eighth and already PASSES (the same arm, message matched by `/not uploaded/`); it must keep passing after the edit, which is why Step 3 narrows that message rather than deleting the arm.
+  The `coo` / `mate` case is the eighth and already PASSES (the same arm, message matched by `/not uploaded/`); it must keep passing after the edit, which is why Step 3 narrows that message rather than deleting the arm.
 
 - [ ] **Step 2: Add the per-record view memo**
 
 In `$PKG/src/memory/residency.ts` add a field to `ResidencyRecord` (`:132-144`):
 
 ```ts
-    /** Memo of the P7 views by `name` or `name + ":packed"`, so a second view() call uploads nothing (spec 4.3). */
-    views: Map<string, ViewBinding>;
-    /**
-     * One fresh marker object per PACKED view, keyed the same way as `views`. It is the `key` argument of
-     * upload(): a packed view must never be keyed on one of the snapshot's own arrays, because upload()
-     * memoises on the key object and does NOT compare byte lengths (`:624-638`), and `s.reverse()` is cached
-     * (graph-format `graph-snapshot.ts:600-601`) so the packed and the unpacked builder see the same
-     * `rev.rowPtr` object.
-     */
-    packKeys: Map<string, object>;
+/** Memo of the P7 views by `name` or `name + ":packed"`, so a second view() call uploads nothing (spec 4.3). */
+views: Map<string, ViewBinding>;
+/**
+ * One fresh marker object per PACKED view, keyed the same way as `views`. It is the `key` argument of
+ * upload(): a packed view must never be keyed on one of the snapshot's own arrays, because upload()
+ * memoises on the key object and does NOT compare byte lengths (`:624-638`), and `s.reverse()` is cached
+ * (graph-format `graph-snapshot.ts:600-601`) so the packed and the unpacked builder see the same
+ * `rev.rowPtr` object.
+ */
+packKeys: Map<string, object>;
 ```
 
 and initialise both to `new Map()` wherever a record is constructed (`ensureRecord`). `forget(record)` must clear both along with `entries`.
@@ -574,26 +579,26 @@ and initialise both to `new Map()` wherever a record is constructed (`ensureReco
 Replace the `packViews` rejection at `:364-369` and the `reverse` / `coo` / `edgeList` / `mate` rejection at `:404-411` so that:
 
 ```ts
-        const packed = options?.packViews === true;
-        if (name === "reverse" || name === "edgeList") {
-            this.assertNotReleased(s);
-            this.assertNonEmpty(s);
-            const memoKey = packed ? `${name}:packed` : name;
-            const record = this.ensureRecord(s);
-            const memo = record.views.get(memoKey);
-            if (memo !== undefined) {
-                return memo;
-            }
-            const built = name === "reverse" ? this.buildReverse(s, record, packed) : this.buildEdgeList(s, record, packed);
-            record.views.set(memoKey, built);
-            return built;
-        }
-        if (packed) {
-            throw new WebGpuGraphError("E_UNSUPPORTED", "packViews applies to the reverse and edgeList views only", {
-                option: "packViews",
-                hint: `the ${name} view uploads one array`,
-            });
-        }
+const packed = options?.packViews === true;
+if (name === "reverse" || name === "edgeList") {
+    this.assertNotReleased(s);
+    this.assertNonEmpty(s);
+    const memoKey = packed ? `${name}:packed` : name;
+    const record = this.ensureRecord(s);
+    const memo = record.views.get(memoKey);
+    if (memo !== undefined) {
+        return memo;
+    }
+    const built = name === "reverse" ? this.buildReverse(s, record, packed) : this.buildEdgeList(s, record, packed);
+    record.views.set(memoKey, built);
+    return built;
+}
+if (packed) {
+    throw new WebGpuGraphError("E_UNSUPPORTED", "packViews applies to the reverse and edgeList views only", {
+        option: "packViews",
+        hint: `the ${name} view uploads one array`,
+    });
+}
 ```
 
 and keep `coo` / `mate` in the rejecting branch with the message narrowed to `the ${name} view is not uploaded before P11`.
@@ -776,6 +781,7 @@ Expected: build, eslint, both `tsc` runs and the whole `test/memory` suite green
 **Spec:** design 6 row 9 line 1576 (`spmvPull`); design 8.2 lines 2572-2606 (the three PageRank dispatches and the `partials` header); design 8.3 lines 2611-2625 (Afforest); design 8.10 lines 2830-2841 (the binding counts G7 tests); design 5.3 (uniform layout rules); `webgpu-graph-algorithms/CLAUDE.md:161-196` (the WGSL conventions).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/src/wgsl/spmv-pull.wgsl.ts`, `pr-scale.wgsl.ts`, `pr-finalize.wgsl.ts`, `wcc-link-sample.wgsl.ts`, `wcc-link-edges.wgsl.ts`, `wcc-compress.wgsl.ts`, `wcc-sample.wgsl.ts`
 - Modify: `webgpu-graph-algorithms/src/kernels.ts:30-40` (`KernelId`), `:55` (`KernelEntry.phase`), `:60-170` (the FOUR new blocks: `SPMV_PARAMS`, `PR_PARAMS`, `PR_PARTIAL`, `WCC_PARAMS`), `:200-390` (the seven entries), `:392-403` (`REGISTRY`)
 - Modify: `webgpu-graph-algorithms/test/kernel/registry.test.ts:50` (the local `phase` union) and `:67-231` (seven `TABLE` rows)
@@ -784,6 +790,7 @@ Expected: build, eslint, both `tsc` runs and the whole `test/memory` suite green
 - NOT touched: `test/helpers/sabotage.ts` and `test/sabotage/**` (Task M8b-T10 owns them: `test/sabotage/coverage.test.ts:91-99` requires every mutation's `test` to name an EXISTING file, and the P7 test files do not exist until T4-T7), `src/primitives/**` (Task M8b-T4), `src/algorithms/**` (Tasks M8b-T4..T7)
 
 **Interfaces:**
+
 - Consumes: `BindingDecl` / `OverrideDecl` / `WgslModuleSpec` (`src/kernel/wgsl.ts:29-52`), `UniformBlock.define` (`src/kernel/struct-block.ts:177`), `GRAPH_SLOTS` (`src/kernels.ts:194-199`), the prelude helpers `linear_id`, `group_id`, `lowbias32`, `wg_reduce_vec4` and the constants `WG`, `U32_MAX` (`src/kernel/prelude.ts:59-61`, `:90-127`, `:207`).
 - Produces: the `KernelId` members `"spmv-pull" | "pr-scale" | "pr-finalize" | "wcc-link-sample" | "wcc-link-edges" | "wcc-compress" | "wcc-sample"`; the exported blocks `SPMV_PARAMS`, `PR_PARAMS`, `PR_PARTIAL`, `WCC_PARAMS`; `KernelEntry.phase` widened to `"P1" | "P2" | "P3" | "P7"`.
 
@@ -792,16 +799,18 @@ Expected: build, eslint, both `tsc` runs and the whole `test/memory` suite green
 **PLAN DECISION PD-2 (tier 0 only).** `prepareSegmentedReduce` throws `E_UNSUPPORTED { feature: "segmentedReduce.tiers" }` for any non-null `tiers` (`src/primitives/segmented-reduce.ts:258-262`), and design 6 row 3 (`:1570`) assigns the subgroup-per-row and workgroup-per-row tiers to P4, gated at G4. `spmvPull` therefore ships ONE tier: thread-per-row with a grid-stride outer loop. The `perm` slot is still declared and still bound (design 8.2: "the slot exists whether or not the permutation is the identity, 3.5"), `USE_PERM` is false, and `residency.view(s, "reverseDegreeOrder")` already uploads the in-degree permutation and its `segmentOffsets` (`src/memory/residency.ts:394-400`), so P4 adds a `TIER` override and two dispatch ranges and nothing else. The REJECTED alternative was implementing the tiers here: it is P4's deliverable, design 13 rule (b) forbids a phase absorbing a later phase's primitives, and a hub row of 10k in-arcs on one thread is a performance problem, not a correctness one -- T-8 is measured with the tier-0 kernel and either meets the target or is recorded as missed under the design 10.4 rule (`:3397-3402`: "a target that is missed does not close its phase; the owner either re-fixes the target ... or the phase continues"). Recorded as DEP-M8B-B.
 
 **PLAN DECISION PD-3 (four closed unions -- five files -- not a registry append).** Adding a P7 kernel is a TYPE change, not an append:
+
 1. `src/kernels.ts:30-40` `KernelId` is a closed union of ten ids.
 2. `src/kernels.ts:55` `KernelEntry.phase` is `"P1" | "P2" | "P3"`.
 3. `test/kernel/registry.test.ts:50` declares its OWN `phase: "P1" | "P2" | "P3"` and `:67` types `TABLE` as `Readonly<Record<KernelId, ExpectedEntry>>` -- a total record, so a new `KernelId` member is a compile error until its row exists.
 4. `test/helpers/override-matrix.ts:68` `EXPECTED_CASES_BY_PHASE` is `Readonly<Record<"P1" | "P2" | "P3", number>>`, read by `test/kernel/wgsl-compile.test.ts:42-46` as `EXPECTED_CASES_BY_PHASE[phase]` for every phase present in `KERNELS`.
 5. `test/helpers/sabotage.ts:338` `SABOTAGE_PHASES` is `readonly ("P1" | "P2" | "P3")[]` (Task M8b-T10 widens it, with the rows).
-All five must change together or the package does not compile. `test/kernel/bind-group-budget.test.ts:19-30` is typed `Record<string, number | undefined>` and so does NOT break the build -- but its `STORAGE_COUNTS` is what G7's descriptor clause is tested through, so the seven rows are part of this task.
+   All five must change together or the package does not compile. `test/kernel/bind-group-budget.test.ts:19-30` is typed `Record<string, number | undefined>` and so does NOT break the build -- but its `STORAGE_COUNTS` is what G7's descriptor clause is tested through, so the seven rows are part of this task.
 
 **PLAN DECISION PD-4 (the WCC changed flag lives inside `comp`).** Design 8.10's Afforest row (`:2841`) names four buffers and counts THREE, and the paragraph above it (`:2833-2835`) fixes the rule: "counters and flags share one small `u32` block". `comp` is `array<atomic<u32>>` of `n + 1` words; the word at `P.flagIndex` (= `n`) is the changed flag. Three storage bindings, exactly the design's number, no separate flag buffer to bind, and no second atomic array. Resetting the flag between batches is `device.queue.writeBuffer(comp, 4 * n, ZERO)` on the host, which needs 4-byte alignment only. The REJECTED alternative was a separate 4-byte `changed` buffer: it is a fourth binding, it contradicts the count G7 tests, and its 256-aligned binding offset would waste a whole pool class for one word.
 
 **PLAN DECISION PD-5 (atomics enter the package here).** No WGSL body in `src/wgsl/` uses an atomic today (`grep -rn 'atomic<\|atomicLoad\|atomicStore\|atomicCompareExchangeWeak' src/wgsl/` returns nothing; a bare `grep -rn atomic src/wgsl/` is NOT the command to run -- it matches the prose of `src/wgsl/fa2-attraction.wgsl.ts:3`, "no atomics"). The three WCC bodies introduce `array<atomic<u32>>` with `atomicLoad`, `atomicStore` and `atomicCompareExchangeWeak`. The rules they follow, each with its reason:
+
 - The whole array is atomic. WGSL forbids mixing atomic and plain access to one element, which design 8.3 (`:2617-2618`) states explicitly; a plain read of `comp[v]` beside an atomic write is a shader-creation error on Tint, not a race at runtime.
 - `atomicCompareExchangeWeak` may fail SPURIOUSLY. Every call is inside a retry loop, as GAP's `Link` is; a spurious failure costs one more iteration and never a wrong answer.
 - Every atomic loop is BOUNDED by `P.maxSteps` (a uniform). An unbounded `loop` in WGSL is legal and GAP's terminates, but a device that hangs is a TDR, not a test failure. On exhaustion the link kernel sets the changed flag, so the host runs another round and the result is still correct; the host's own round cap (Task M8b-T7) turns a pathological input into `E_VALIDATION`, never into a CPU fallback.
@@ -1151,15 +1160,15 @@ In `$PKG/src/kernels.ts`:
 3. Import the seven bodies beside the existing `src/wgsl/*` imports.
 4. Add the seven entries, each in the shape of `DEGREE` / `SEGMENTED_REDUCE`, with these exact fields:
 
-| id | entryPoint | bindings (after GRAPH_SLOTS where noted) | overrideDecls | uniforms | needs | storage count |
-| --- | --- | --- | --- | --- | --- | --- |
-| `spmv-pull` | `spmv_pull` | GRAPH_SLOTS + `(1,0,"xNorm","storage-ro","array<f32>")`, `(1,1,"rankOut","storage","array<f32>")`, `(1,2,"personalization","storage-ro","array<f32>")`, `(1,3,"partials","storage-ro","array<PrPartial>")`, `(2,0,"P","uniform","SpmvParams")` | `HAS_PERSONALIZATION` bool false, `USE_DANGLING` bool false | `[SPMV_PARAMS, PR_PARTIAL]` | `[]` | 8 |
-| `pr-scale` | `pr_scale` | `(1,0,"rankIn","storage-ro","array<f32>")`, `(1,1,"rankPrev","storage-ro","array<f32>")`, `(1,2,"outWeightSum","storage-ro","array<f32>")`, `(1,3,"xNorm","storage","array<f32>")`, `(1,4,"partials","storage","array<PrPartial>")`, `(2,0,"P","uniform","PrParams")` | `NORM_MODE` u32 0 | `[PR_PARAMS, PR_PARTIAL]` | `["subgroups"]` | 5 |
-| `pr-finalize` | `pr_finalize` | `(1,0,"partials","storage","array<PrPartial>")`, `(2,0,"P","uniform","PrParams")` | `NORM_MODE` u32 0 | `[PR_PARAMS, PR_PARTIAL]` | `["subgroups"]` | 1 |
-| `wcc-link-sample` | `wcc_link_sample` | GRAPH_SLOTS + `(1,0,"comp","storage","array<atomic<u32>>")`, `(2,0,"P","uniform","WccParams")` | none | `[WCC_PARAMS]` | `[]` | 5 |
-| `wcc-link-edges` | `wcc_link_edges` | `(1,0,"edgeSrc","storage-ro","array<u32>")`, `(1,1,"edgeDst","storage-ro","array<u32>")`, `(1,2,"comp","storage","array<atomic<u32>>")`, `(2,0,"P","uniform","WccParams")` | none | `[WCC_PARAMS]` | `[]` | 3 |
-| `wcc-compress` | `wcc_compress` | `(1,0,"comp","storage","array<atomic<u32>>")`, `(2,0,"P","uniform","WccParams")` | none | `[WCC_PARAMS]` | `[]` | 1 |
-| `wcc-sample` | `wcc_sample` | `(1,0,"comp","storage","array<atomic<u32>>")`, `(1,1,"hist","storage","array<u32>")`, `(2,0,"P","uniform","WccParams")` | none | `[WCC_PARAMS]` | `[]` | 2 |
+| id                | entryPoint        | bindings (after GRAPH_SLOTS where noted)                                                                                                                                                                                                                              | overrideDecls                                               | uniforms                    | needs           | storage count |
+| ----------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | --------------------------- | --------------- | ------------- |
+| `spmv-pull`       | `spmv_pull`       | GRAPH_SLOTS + `(1,0,"xNorm","storage-ro","array<f32>")`, `(1,1,"rankOut","storage","array<f32>")`, `(1,2,"personalization","storage-ro","array<f32>")`, `(1,3,"partials","storage-ro","array<PrPartial>")`, `(2,0,"P","uniform","SpmvParams")`                        | `HAS_PERSONALIZATION` bool false, `USE_DANGLING` bool false | `[SPMV_PARAMS, PR_PARTIAL]` | `[]`            | 8             |
+| `pr-scale`        | `pr_scale`        | `(1,0,"rankIn","storage-ro","array<f32>")`, `(1,1,"rankPrev","storage-ro","array<f32>")`, `(1,2,"outWeightSum","storage-ro","array<f32>")`, `(1,3,"xNorm","storage","array<f32>")`, `(1,4,"partials","storage","array<PrPartial>")`, `(2,0,"P","uniform","PrParams")` | `NORM_MODE` u32 0                                           | `[PR_PARAMS, PR_PARTIAL]`   | `["subgroups"]` | 5             |
+| `pr-finalize`     | `pr_finalize`     | `(1,0,"partials","storage","array<PrPartial>")`, `(2,0,"P","uniform","PrParams")`                                                                                                                                                                                     | `NORM_MODE` u32 0                                           | `[PR_PARAMS, PR_PARTIAL]`   | `["subgroups"]` | 1             |
+| `wcc-link-sample` | `wcc_link_sample` | GRAPH_SLOTS + `(1,0,"comp","storage","array<atomic<u32>>")`, `(2,0,"P","uniform","WccParams")`                                                                                                                                                                        | none                                                        | `[WCC_PARAMS]`              | `[]`            | 5             |
+| `wcc-link-edges`  | `wcc_link_edges`  | `(1,0,"edgeSrc","storage-ro","array<u32>")`, `(1,1,"edgeDst","storage-ro","array<u32>")`, `(1,2,"comp","storage","array<atomic<u32>>")`, `(2,0,"P","uniform","WccParams")`                                                                                            | none                                                        | `[WCC_PARAMS]`              | `[]`            | 3             |
+| `wcc-compress`    | `wcc_compress`    | `(1,0,"comp","storage","array<atomic<u32>>")`, `(2,0,"P","uniform","WccParams")`                                                                                                                                                                                      | none                                                        | `[WCC_PARAMS]`              | `[]`            | 1             |
+| `wcc-sample`      | `wcc_sample`      | `(1,0,"comp","storage","array<atomic<u32>>")`, `(1,1,"hist","storage","array<u32>")`, `(2,0,"P","uniform","WccParams")`                                                                                                                                               | none                                                        | `[WCC_PARAMS]`              | `[]`            | 2             |
 
 Every entry carries `snippetSlots: []` and `phase: "P7"`. The first three counts are exactly design 8.10's rows (`:2839-2840`): `spmvPull` at 8, `pr-scale` / `pr-finalize` at 5 / 1, Afforest link / compress at 3 / 1 and the histogram sample at 2. `wcc-link-sample` is not in the 8.10 table (it walks the CSR rather than the edge list) and takes the four graph slots every row-walking kernel declares (design 3.5), which is 5.
 
@@ -1167,9 +1176,10 @@ Every entry carries `snippetSlots: []` and `phase: "P7"`. The first three counts
 
 Run: `cd $PKG && pnpm exec tsc --noEmit -p tsconfig.json`
 Expected: FAIL with exactly two errors, and NOT at the sites a first reading suggests:
+
 1. `Property 'spmv-pull' is missing in type ...` at `test/kernel/registry.test.ts:67`, the total `const TABLE: Readonly<Record<KernelId, ExpectedEntry>>`, naming all seven new ids.
 2. An index error on `EXPECTED_CASES_BY_PHASE[phase]` at its CONSUMER, `test/kernel/wgsl-compile.test.ts:46` (`expected += EXPECTED_CASES_BY_PHASE[phase];`), because `phase` now ranges over `"P1" | "P2" | "P3" | "P7"` while the record is keyed `"P1" | "P2" | "P3"`. `test/helpers/override-matrix.ts:68` is the DECLARATION and reports nothing by itself.
-There is NO error at `test/kernel/registry.test.ts:347`: that line is `expect(entry.phase).toBe(expected.phase);`, a runtime expectation whose `expected.phase` is assignable to the widened `entry.phase` either way. The `phase: "P7"` assignability errors appear only once Step 6 item 2 adds the seven `TABLE` rows while `:50` still declares the narrow union -- which is why Step 6 changes `:50` first. That is PD-3 showing itself; Step 6 fixes all of it.
+   There is NO error at `test/kernel/registry.test.ts:347`: that line is `expect(entry.phase).toBe(expected.phase);`, a runtime expectation whose `expected.phase` is assignable to the widened `entry.phase` either way. The `phase: "P7"` assignability errors appear only once Step 6 item 2 adds the seven `TABLE` rows while `:50` still declares the narrow union -- which is why Step 6 changes `:50` first. That is PD-3 showing itself; Step 6 fixes all of it.
 
 - [ ] **Step 6: The four test-side type edits**
 
@@ -1197,6 +1207,7 @@ Expected: green on both adapters. The compile matrix is the long pole; `test/set
 **Spec:** design 6 row 9 line 1576; design 8.2 lines 2589-2600 (the eight bindings and what each carries); design 11.5 / 11.9 (the twin and the noise-floor row).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/src/primitives/core-shape.ts` (`rowCountOf`, `arcCountOf`, `assertNotWindowed`, `coreOfView` -- the shared shape helpers, see Step 1)
 - Create: `webgpu-graph-algorithms/src/primitives/spmv.ts` (`prepareSpmvPull`), `webgpu-graph-algorithms/src/algorithms/scope.ts` (the `ReduceScope` over a context plus a `Lease` and a `UniformRing`)
 - Create: `webgpu-graph-algorithms/test/oracle/spmv.ts` (the f64 reference), `webgpu-graph-algorithms/test/helpers/spmv.ts` (the run helper), `webgpu-graph-algorithms/test/primitives/spmv.test.ts`
@@ -1204,6 +1215,7 @@ Expected: green on both adapters. The compile matrix is the long pole; `test/set
 - NOT touched: `src/kernels.ts` (Task M8b-T3 owns it), `src/memory/residency.ts` (Task M8b-T2 owns it)
 
 **Interfaces:**
+
 - Consumes: `ReduceScope` (`src/primitives/reduce.ts:34-44`), `CoreBinding` (`src/memory/residency.ts:46-56`), `ViewBinding` (`src/memory/residency.ts:63-68`), `Binding` (`src/types/memory.ts:18-23`), `kernelSpec` / `graphBindings` / `graphOverrides` / `SPMV_PARAMS` / `PR_PARTIAL` (`src/kernels.ts:437`, `:481-494`, `:504-511`), `planGridStride` (Task M8b-T1), `Lease` (`src/memory/lease.ts:14`), `UniformRing` (`src/kernel/uniform-ring.ts:18`).
 - Produces:
 
@@ -1215,8 +1227,17 @@ export function assertNotWindowed(core: CoreBinding, primitive: string): void;
 export function coreOfView(v: ViewBinding, arcCount: number): CoreBinding;
 
 // src/primitives/spmv.ts
-export interface SpmvResources { readonly xNorm: Binding; readonly rankOut: Binding; readonly personalization: Binding | null; readonly partials: Binding; }
-export interface SpmvCoefficients { readonly alpha: number; readonly beta: number; readonly uniformP: number; }
+export interface SpmvResources {
+    readonly xNorm: Binding;
+    readonly rankOut: Binding;
+    readonly personalization: Binding | null;
+    readonly partials: Binding;
+}
+export interface SpmvCoefficients {
+    readonly alpha: number;
+    readonly beta: number;
+    readonly uniformP: number;
+}
 export interface SpmvPullOptions {
     readonly personalization: boolean;
     readonly dangling: boolean;
@@ -1224,11 +1245,26 @@ export interface SpmvPullOptions {
     readonly weights?: Binding | null | undefined;
     readonly tiers: DegreeTiers | null;
 }
-export interface SpmvPullPlanner { record(pass: GPUComputePassEncoder, rev: CoreBinding, resources: SpmvResources, coefficients: SpmvCoefficients): void; readonly lastDispatches: number; }
-export async function prepareSpmvPull(scope: ReduceScope, rev: CoreBinding, options: SpmvPullOptions): Promise<SpmvPullPlanner>;
+export interface SpmvPullPlanner {
+    record(
+        pass: GPUComputePassEncoder,
+        rev: CoreBinding,
+        resources: SpmvResources,
+        coefficients: SpmvCoefficients,
+    ): void;
+    readonly lastDispatches: number;
+}
+export async function prepareSpmvPull(
+    scope: ReduceScope,
+    rev: CoreBinding,
+    options: SpmvPullOptions,
+): Promise<SpmvPullPlanner>;
 
 // src/algorithms/scope.ts
-export interface AlgorithmScope extends ReduceScope { flush(): void; dispose(): void; }
+export interface AlgorithmScope extends ReduceScope {
+    flush(): void;
+    dispose(): void;
+}
 export function algorithmScope(ctx: GpuContext, label: string, slots: number): AlgorithmScope;
 ```
 
@@ -1261,11 +1297,15 @@ import { type Binding } from "../types/memory.js";
 export function rowCountOf(core: CoreBinding, primitive: string): number {
     const bytes = core.rowPtr.size;
     if (bytes < 4 || bytes % 4 !== 0) {
-        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${primitive}: a rowPtr binding of ${bytes} bytes is not 4(n + 1)`, {
-            argument: "core.rowPtr",
-            value: bytes,
-            expected: "a positive multiple of 4",
-        });
+        throw new WebGpuGraphError(
+            "E_INVALID_ARGUMENT",
+            `${primitive}: a rowPtr binding of ${bytes} bytes is not 4(n + 1)`,
+            {
+                argument: "core.rowPtr",
+                value: bytes,
+                expected: "a positive multiple of 4",
+            },
+        );
     }
     return bytes / 4 - 1;
 }
@@ -1356,8 +1396,13 @@ export function algorithmScope(ctx: GpuContext, label: string, slots: number): A
             ring.write(slot, block, values);
             return { binding: ring.binding(block), offset: ring.offsetOf(slot) };
         },
-        flush: () => { ring.flush(); },
-        dispose(): void { ring.destroy(); lease.release(); },
+        flush: () => {
+            ring.flush();
+        },
+        dispose(): void {
+            ring.destroy();
+            lease.release();
+        },
     };
 }
 ```
@@ -1396,6 +1441,7 @@ export function spmvPullOracle(
 Create `$PKG/test/primitives/spmv.test.ts` with the differential shape of `test/primitives/segmented-reduce.test.ts:155-198`, covering: every named fixture of `FIXTURE_NAMES` (`test/helpers/graphs.ts:397-411`) run twice and compared BITWISE, then against `spmvPullOracle` within `relTolerance(s, "sum")`; `n = 0`; a directed weighted snapshot; a weighted snapshot with zero-weight arcs (`fixture("parallel")`); the personalization leg (one-hot and uniform); the dangling leg (`USE_DANGLING` with a non-zero `partials[0].danglingMass`); the row-count ladder `0, 1, 255, 256, 257, 4097, 65537` (the grid-stride cap makes 65537 rows run on 4096 workgroups, which is the case `plan1d` never produces); and the in-process no-subgroups twin through `withContext` (`test/helpers/device.ts:83`) asserting the two results are BITWISE identical, which is G7's "SpMV twin identical in-process". Add the cross-adapter noise row exactly as `test/primitives/segmented-reduce.test.ts:466-510` does, with `writeNoiseFixture("spmv-pull", "random1k", ...)` and `noiseFloorFor("spmv-pull.cross")`.
 
 Two further cases pin the two seams this task introduces, and they are the reason T5 and T6 compile at all:
+
 1. the view adapter round-trips: on the directed weighted snapshot, `const v = ctx.residency.view(s, "reverse"); const rev = coreOfView(v, v.scalars.arcCount[0]);` then `prepareSpmvPull(scope, rev, { personalization: false, dangling: false, weights: undefined, tiers: null })` and one `record()` complete without throwing, and `rev.rowPtr` / `rev.colIdx` / `rev.weights` are the view's three bindings by identity, `rev.plan` is `"perArray"`, `rev.windows` is `null` and `rev.hasWeights` is `true`. Repeat on `fixture("karate")` (undirected), where `rev.weights` is `null` and `hasWeights` is `false`;
 2. `weights: null` on a WEIGHTED core runs the unweighted algorithm: on `fixture("parallel")`, the result of `prepareSpmvPull(scope, core, { ..., weights: null })` equals `spmvPullOracle` run with every weight replaced by 1, and DIFFERS from the default (`weights` omitted) run. Without this case the `weight: false` option of T5 and T6 is declared, defaulted and dead.
 
@@ -1411,7 +1457,7 @@ kernelSpec("spmv-pull", {
     ...graphOverrides(rev, null, options.weights),
     HAS_PERSONALIZATION: options.personalization,
     USE_DANGLING: options.dangling,
-})
+});
 ```
 
 The third argument of `graphOverrides` is what makes `weight: false` mean anything: `graphOverrides(core, perm)` with two arguments derives `HAS_WEIGHTS` from `core.weights !== null` alone (`src/kernels.ts:509-510`), so a caller that wants the UNWEIGHTED algorithm on a weighted snapshot must pass `weights: null` and get `HAS_WEIGHTS: false`. Both `graphOverrides` and `graphBindings` already take the argument (`src/kernels.ts:484`, `:507`): `undefined` takes the core's weights, `null` binds the colIdx dummy and sets `HAS_WEIGHTS` false. The planner stores `options.weights` so `record()` binds the same way it compiled -- a mismatch between the two is the one way to get a pipeline whose `HAS_WEIGHTS` disagrees with its bindings.
@@ -1463,11 +1509,13 @@ Expected: whole node suite green.
 **Spec:** design 8.2 lines 2572-2606 (the whole algorithm); design 9.7 line 3266 (the parity row); design 10.4 line 3413 (T-8); design 3.3 lines 792-793 (the signatures).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/src/algorithms/pagerank.ts`
 - Create: `webgpu-graph-algorithms/test/oracle/pagerank.ts`, `webgpu-graph-algorithms/test/algorithms/pagerank.test.ts`
 - NOT touched: `src/accelerator.ts` and `src/index.ts` (Task M8b-T8 owns them -- PD-14)
 
 **Interfaces:**
+
 - Consumes: `prepareSpmvPull` / `algorithmScope` (Task M8b-T4), `prepareSegmentedReduce` (`src/primitives/segmented-reduce.ts:253`), `CommandBatch` (`src/kernel/batch.ts:100`), `residency.view(s, "reverse")` (Task M8b-T2), `GpuPageRankResult` / `PageRankOptions` (Task M8b-T1).
 - Produces: `export async function pageRank(ctx: GpuContext, s: GraphSnapshot, options?: PageRankOptions & GpuRunOptions): Promise<GpuPageRankResult>` and `export async function personalizedPageRank(ctx: GpuContext, s: GraphSnapshot, personalization: F32, options?: PageRankOptions & GpuRunOptions): Promise<GpuPageRankResult>`, both exactly as design 3.3 lines 792-793 declare them.
 
@@ -1484,6 +1532,7 @@ Create `$PKG/test/oracle/pagerank.ts`: `pageRankOracle(s, { alpha, tolerance, ma
 - [ ] **Step 2: Write the failing parity test**
 
 Create `$PKG/test/algorithms/pagerank.test.ts` covering, each as its own `it`:
+
 1. every fixture of `FIXTURE_NAMES` at `gpuScale()`, PINNED to `maxIterations: 8`: `pageRank(ctx, s, { maxIterations: 8 })` matches `pageRankOracleTo(s, opts, 8)` -- the oracle's iterate after exactly 8 iterations -- within `1e-5` RELATIVE per node (design 9.7), with `expectAllClose` and `maxRelError` from `test/helpers/matchers.ts`. The pin is load-bearing and NOT a convenience: `result.iterations` is `header.firstConverged` (Step 3 item 8), the first iteration whose delta fell below the tolerance, NOT the number of iterations the device ran; Step 5 runs batches of k = 8 and Step 6 tests convergence only BETWEEN batches, so an unpinned run returns the iterate after up to 7 iterations MORE than `result.iterations`. Comparing that against `pageRankOracleTo(s, opts, result.iterations)` is not the "after equal iterations" comparison design 9.7 asks for: it passes because the residual is already below tolerance, for a reason unrelated to the kernel being right, and it goes flaky on any fixture that converges slowly. With `maxIterations: 8` the batch boundary and the run length coincide (Step 5's clamp makes the batch exactly 8), so the two sides run the same number of iterations by construction;
 2. `converged` identical to the oracle's and `iterations` within +-1 on every fixture;
 3. the top-k rank order (k = 10) identical on `karate`, `random1k` and `hub10k`;
@@ -1510,25 +1559,18 @@ const view = ctx.residency.view(s, "reverse");
 const rev = coreOfView(view, view.scalars.arcCount[0]);
 ```
 
-On an undirected snapshot `view` is the core buffers themselves with no upload (PD-13), so `rev` is a `CoreBinding` over exactly the same three bindings `core` holds.
-3. `outWeightSum`: one `prepareSegmentedReduce(scope, weightedCore, { op: "sum", valueSnippet: "v = weight;", tiers: null })` pass over the FORWARD core into a `Lease` buffer. On an unweighted snapshot `HAS_WEIGHTS` is false, `weight` is 1.0 and the sum is the out-degree, which is what the design's normaliser reduces to.
+On an undirected snapshot `view` is the core buffers themselves with no upload (PD-13), so `rev` is a `CoreBinding` over exactly the same three bindings `core` holds. 3. `outWeightSum`: one `prepareSegmentedReduce(scope, weightedCore, { op: "sum", valueSnippet: "v = weight;", tiers: null })` pass over the FORWARD core into a `Lease` buffer. On an unweighted snapshot `HAS_WEIGHTS` is false, `weight` is 1.0 and the sum is the out-degree, which is what the design's normaliser reduces to.
 
-   `weightedCore` is what makes `weight: false` real on BOTH sides of the algorithm. The resolved `weight` option decides one binding, used twice:
+`weightedCore` is what makes `weight: false` real on BOTH sides of the algorithm. The resolved `weight` option decides one binding, used twice:
 
-   ```ts
-   const useWeights = options?.weight !== false;
-   const weights: Binding | null | undefined = useWeights ? undefined : null;
-   const weightedCore = useWeights ? core : { ...core, weights: null, hasWeights: false };
-   const weightedRev = useWeights ? rev : { ...rev, weights: null, hasWeights: false };
-   ```
+```ts
+const useWeights = options?.weight !== false;
+const weights: Binding | null | undefined = useWeights ? undefined : null;
+const weightedCore = useWeights ? core : { ...core, weights: null, hasWeights: false };
+const weightedRev = useWeights ? rev : { ...rev, weights: null, hasWeights: false };
+```
 
-   `weightedCore` goes to `prepareSegmentedReduce` (whose `graphOverrides(core, null)` at `src/primitives/segmented-reduce.ts:266` reads `core.weights` and has no third argument to give it), and `weights` goes to `prepareSpmvPull(scope, weightedRev, { ..., weights })` (T4 Step 4). Pass BOTH or neither: a normaliser that sums weights while the pull folds 1.0 is silently wrong, not a type error.
-4. Buffers from the `Lease`: `rankA`, `rankB`, `xNorm` (4n each), `partials` (`PR_PARTIAL.byteLength * (1 + groups)` where `groups = groupsOf(plan1d(n, ctx.workgroupSize, ctx.caps))`). `rankA` is filled with `1/n` by `queue.writeBuffer`; `rankB` is zero-filled; the partials header is written with `firstConverged = U32_MAX`, `iteration = 0`.
-5. The loop: batches of `k = min(8, maxIterations - iterationsRun)` iterations -- the batch is CLAMPED to what is left, so a run never exceeds `maxIterations` and `maxIterations: 8` runs exactly one batch of exactly 8 (which is what T5 Step 2 case 1 and T6 Step 2 rely on). Each iteration records, into ONE `CommandBatch` pass: `pr-scale` (`NORM_MODE 0`, `plan1d(n)`), `pr-finalize` (`NORM_MODE 0`, one workgroup, `trackConvergence: 1`, `convergeThreshold: tolerance * n`), `spmv-pull` (`USE_DANGLING: true`, `HAS_PERSONALIZATION` per call). After the k iterations, ONE `batch.readback(partialsBuffer, 0, PR_PARTIAL.byteLength)` for the header, then `batch.submit()` and `await handle.readback`. That is the single `mapAsync` of the batch (G7).
-6. Between batches: `ctx.assertReady()`, the abort check, `options.onProgress?.(done, maxIterations)`, and the stop test -- `header.firstConverged !== U32_MAX` or `iterationsRun >= maxIterations`.
-7. Readback of the final iterate: the batch ends on an even/odd boundary the loop tracks, so the result buffer is known; `await ctx.readback.read(resultBuffer, 4 * n, dest ?? undefined)`.
-8. Return `{ scores, iterations: converged ? header.firstConverged : iterationsRun, converged, danglingMass: header.danglingMass, precision: "f32" }`.
-9. `finally`: `scope.dispose()` (one `Lease.release()`, idempotent).
+`weightedCore` goes to `prepareSegmentedReduce` (whose `graphOverrides(core, null)` at `src/primitives/segmented-reduce.ts:266` reads `core.weights` and has no third argument to give it), and `weights` goes to `prepareSpmvPull(scope, weightedRev, { ..., weights })` (T4 Step 4). Pass BOTH or neither: a normaliser that sums weights while the pull folds 1.0 is silently wrong, not a type error. 4. Buffers from the `Lease`: `rankA`, `rankB`, `xNorm` (4n each), `partials` (`PR_PARTIAL.byteLength * (1 + groups)` where `groups = groupsOf(plan1d(n, ctx.workgroupSize, ctx.caps))`). `rankA` is filled with `1/n` by `queue.writeBuffer`; `rankB` is zero-filled; the partials header is written with `firstConverged = U32_MAX`, `iteration = 0`. 5. The loop: batches of `k = min(8, maxIterations - iterationsRun)` iterations -- the batch is CLAMPED to what is left, so a run never exceeds `maxIterations` and `maxIterations: 8` runs exactly one batch of exactly 8 (which is what T5 Step 2 case 1 and T6 Step 2 rely on). Each iteration records, into ONE `CommandBatch` pass: `pr-scale` (`NORM_MODE 0`, `plan1d(n)`), `pr-finalize` (`NORM_MODE 0`, one workgroup, `trackConvergence: 1`, `convergeThreshold: tolerance * n`), `spmv-pull` (`USE_DANGLING: true`, `HAS_PERSONALIZATION` per call). After the k iterations, ONE `batch.readback(partialsBuffer, 0, PR_PARTIAL.byteLength)` for the header, then `batch.submit()` and `await handle.readback`. That is the single `mapAsync` of the batch (G7). 6. Between batches: `ctx.assertReady()`, the abort check, `options.onProgress?.(done, maxIterations)`, and the stop test -- `header.firstConverged !== U32_MAX` or `iterationsRun >= maxIterations`. 7. Readback of the final iterate: the batch ends on an even/odd boundary the loop tracks, so the result buffer is known; `await ctx.readback.read(resultBuffer, 4 * n, dest ?? undefined)`. 8. Return `{ scores, iterations: converged ? header.firstConverged : iterationsRun, converged, danglingMass: header.danglingMass, precision: "f32" }`. 9. `finally`: `scope.dispose()` (one `Lease.release()`, idempotent).
 
 `personalizedPageRank(ctx, s, personalization, options)` validates `personalization.length === n` and that its entries are finite and non-negative (`E_INVALID_ARGUMENT { argument: "personalization" }`), normalises it to sum 1 on the host, uploads it through `ctx.residency.array(personalization, "pagerank/personalization")` and calls the same driver with `HAS_PERSONALIZATION: true` and `uniformP` unused.
 
@@ -1551,11 +1593,13 @@ Expected: green on both; coverage still above 80 / 80 / 75 / 80.
 **Spec:** design 8.2 lines 2603-2605 ("HITS alternates two pulls (forward and reverse) with sum normalisation; eigenvector adds an L2 normalise and converges on `delta < n * eps`; Katz is `alpha * SpMV + beta`"); design 8.8 row 2 line 2790; design 9.7 line 3267.
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/src/algorithms/power-iteration.ts` (the shared driver), `webgpu-graph-algorithms/src/algorithms/spectral.ts` (`hits`, `eigenvectorCentrality`, `katzCentrality`)
 - Create: `webgpu-graph-algorithms/test/oracle/spectral.ts`, `webgpu-graph-algorithms/test/algorithms/spectral.test.ts`
 - NOT touched: `src/algorithms/pagerank.ts` (Task M8b-T5 owns it), `src/kernels.ts`
 
 **Interfaces:**
+
 - Consumes: `prepareSpmvPull` / `coreOfView` (Task M8b-T4), `algorithmScope` (Task M8b-T4), `CommandBatch` (`src/kernel/batch.ts:100`), `kernelSpec` / `PR_PARAMS` / `PR_PARTIAL` / `SPMV_PARAMS` (Task M8b-T3), the `NORM_MODE` override of `pr-scale` / `pr-finalize`. NOT `prepareReduce`: see PD-10.
 - Produces: `hits(ctx, s, options?): Promise<GpuHitsResult>`, `eigenvectorCentrality(ctx, s, options?): Promise<GpuScoresResult>`, `katzCentrality(ctx, s, options?): Promise<GpuScoresResult>` -- design 3.3 lines 794-796 verbatim.
 
@@ -1578,6 +1622,7 @@ Create `$PKG/test/oracle/spectral.ts` with `hitsOracle`, `eigenvectorOracle` and
 - [ ] **Step 2: Write the failing tests**
 
 Create `$PKG/test/algorithms/spectral.test.ts`, each numbered item its own `it`:
+
 1. for each of the three, every fixture of `FIXTURE_NAMES` at `gpuScale()` PINNED to `maxIterations: 8`, within `1e-5` relative against the oracle run for exactly 8 iterations -- the same pin, for the same reason, as Task M8b-T5 Step 2 case 1: `iterations` is the device-recorded `firstConverged`, not the run length, so only a pinned run compares equal iterate to equal iterate;
 2. `converged` identical and `iterations` within +-1 on an unpinned run;
 3. top-10 order identical on `karate` and `random1k`;
@@ -1632,12 +1677,12 @@ export async function runPowerIteration(
 
 The buffers it takes from `algorithmScope(ctx, config.label, 4 * 8 + 8)` -- four parameter blocks per iteration times k = 8, plus a margin (T4 Step 2's `slots` rule):
 
-| Buffer | Bytes | Initial contents | Role |
-| --- | --- | --- | --- |
-| `rankA` | `4n` | `1 / n` everywhere (`queue.writeBuffer`) | the ping-pong pair; `rankIn` on even iterations |
-| `rankB` | `4n` | zero | the ping-pong pair; `rankOut` on even iterations. TWO buffers, never two ranges of one -- PD-7 and DEP-M8B-G |
-| `xNorm` | `4n` | zero | the pre-scaled vector the pull folds (design 6 row 9: the pull binds no normaliser) |
-| `partials` | `PR_PARTIAL.byteLength * (1 + groups)` | header `firstConverged = U32_MAX`, `iteration = 0`; the rest zero | element 0 is the header, `1 + g` is workgroup g's partial |
+| Buffer     | Bytes                                  | Initial contents                                                  | Role                                                                                                         |
+| ---------- | -------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `rankA`    | `4n`                                   | `1 / n` everywhere (`queue.writeBuffer`)                          | the ping-pong pair; `rankIn` on even iterations                                                              |
+| `rankB`    | `4n`                                   | zero                                                              | the ping-pong pair; `rankOut` on even iterations. TWO buffers, never two ranges of one -- PD-7 and DEP-M8B-G |
+| `xNorm`    | `4n`                                   | zero                                                              | the pre-scaled vector the pull folds (design 6 row 9: the pull binds no normaliser)                          |
+| `partials` | `PR_PARTIAL.byteLength * (1 + groups)` | header `firstConverged = U32_MAX`, `iteration = 0`; the rest zero | element 0 is the header, `1 + g` is workgroup g's partial                                                    |
 
 with `groups = groupsOf(plan1d(n, ctx.workgroupSize, ctx.caps))`. There is NO third `rankPrev` buffer and no copy: PD-9's ping-pong supplies it for free. At iteration i the output buffer still holds x(i-2) -- it was the input two iterations ago -- and `pr-scale` runs before `spmv-pull` in the same pass, so `rankPrev` IS `outBuf`, read before the pull overwrites it. (A copy could not be used anyway: `CommandBatch.copy` is only legal after `endPass()`, `src/kernel/batch.ts:163-169`.)
 
@@ -1675,19 +1720,26 @@ while (iterationsRun < config.maxIterations) {
         const inBuf = even ? rankA : rankB;
         const outBuf = even ? rankB : rankA;
         // outBuf still holds x(i - 2) until the pull below overwrites it: that is rankPrev (PD-9).
-        recordScale(pass, scaleNorm, inBuf, outBuf, iteration);      // NORM_MODE 1 | 2 | 4
-        recordFinalize(pass, finalize, iteration);                   // folds norm + delta, records firstConverged
+        recordScale(pass, scaleNorm, inBuf, outBuf, iteration); // NORM_MODE 1 | 2 | 4
+        recordFinalize(pass, finalize, iteration); // folds norm + delta, records firstConverged
         if (config.normMode !== 4) {
             recordScale(pass, scaleApply, inBuf, outBuf, iteration); // NORM_MODE 3: xNorm[u] = rankIn[u] / norm
         }
-        pull.record(pass, config.adjacency, { xNorm, rankOut: outBuf, personalization: null, partials }, {
-            alpha: config.alpha, beta: config.beta, uniformP: config.uniformP,
-        });
+        pull.record(
+            pass,
+            config.adjacency,
+            { xNorm, rankOut: outBuf, personalization: null, partials },
+            {
+                alpha: config.alpha,
+                beta: config.beta,
+                uniformP: config.uniformP,
+            },
+        );
     }
     batch.endPass();
     const request = batch.readback(partials, 0, PR_PARTIAL.byteLength);
     const handle = batch.submit();
-    const bytes = await handle.readback;   // the ONE mapAsync of the batch (G7 item 5, Step 2 case 8)
+    const bytes = await handle.readback; // the ONE mapAsync of the batch (G7 item 5, Step 2 case 8)
     header = PR_PARTIAL.read(new DataView(bytes), request.offset) as unknown as PrHeader;
     iterationsRun += k;
     ctx.assertReady();
@@ -1695,7 +1747,9 @@ while (iterationsRun < config.maxIterations) {
         throw new WebGpuGraphError("E_ABORTED", `${config.label}: the signal was aborted between batches`, {});
     }
     config.onProgress?.(iterationsRun, config.maxIterations);
-    if (header.firstConverged !== U32_MAX) { break; }
+    if (header.firstConverged !== U32_MAX) {
+        break;
+    }
 }
 return {
     scores: new Float32Array(await ctx.readback.read(iterationsRun % 2 === 0 ? rankA : rankB, 4 * n)),
@@ -1714,6 +1768,7 @@ The final iterate is the buffer the last `spmv-pull` wrote: after `iterationsRun
 `src/algorithms/pagerank.ts` is NOT refactored onto this driver in this task (it is Task M8b-T5's file, and a shared driver that two tasks edit would break the one-owner rule); the duplication is the batch loop above and is removed by the owner in a later cleanup if wanted -- record that in the commit body rather than silently leaving it.
 
 `src/algorithms/spectral.ts`, each entry point resolving its options, validating `dest` / `signal` / `n === 0` as `degree.ts:90-105` does, and computing `weights` from its `weight` option exactly as Task M8b-T5 Step 3 item 3 does. Each obtains the forward core itself with the `E_TOO_LARGE { path: "windowed" }` re-throw of `degree.ts:65-79` -- `coreOf` there is module-PRIVATE (`src/algorithms/degree.ts` exports only `degree`, `:90`), so `spectral.ts` writes the same six lines with `algorithm: "hits"` / `"eigenvectorCentrality"` / `"katzCentrality"` rather than importing it. The entry points:
+
 - `eigenvectorCentrality(ctx, s, options?)`: ONE `runPowerIteration` over the FORWARD core with `normMode: 2` (L2), `alpha: 1, beta: 0, uniformP: 0`, defaults `maxIterations` 100 and `tolerance` 1e-6. Returns `{ scores, iterations, converged, precision: "f32" }`.
 - `katzCentrality(ctx, s, options?)`: ONE run over `coreOfView(ctx.residency.view(s, "reverse"), arcCount)` with `normMode: 4` (identity), `alpha` the attenuation (default 0.1), `beta` the constant (default 1), `uniformP: 1`, then L2-normalises the readback on the host (the oracle does the same, once, at the end).
 - `hits(ctx, s, options?)`: TWO runs per CALL, not per iteration -- one over `coreOfView(view(s, "reverse"), arcCount)` giving the authorities and one over the forward core giving the hubs, both with `normMode: 1` (sum) and `alpha: 1, beta: 0, uniformP: 0`. `iterations` and `converged` of the result are the maximum and the conjunction of the two runs. Two runs means two batches means two `mapAsync` calls, which is the 2 Step 2 case 8 expects.
@@ -1732,11 +1787,13 @@ Expected: PASS on both adapters.
 **Spec:** design 8.3 lines 2611-2625 (the algorithm, verbatim); design 9.7 line 3268 (partition equality, IDENTICAL labels after first-seen renumbering); design 10.4 line 3414 (T-9); design 3.3 line 797 (`connectedComponents`, WCC semantics on directed input, `renumber: true` by default).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/src/algorithms/components.ts`
 - Create: `webgpu-graph-algorithms/test/oracle/components.ts`, `webgpu-graph-algorithms/test/algorithms/components.test.ts`
 - NOT touched: `src/errors.ts` (PD-11 leaves `PASSTHROUGH_FORMAT_CODES` alone), `src/primitives/**` (DEP-M8B-C builds no new primitive)
 
 **Interfaces:**
+
 - Consumes: `residency.view(s, "edgeList")` (Task M8b-T2), the four WCC kernels and `WCC_PARAMS` (Task M8b-T3), `kernelSpec("fill", ...)` / `FILL_PARAMS` (`src/kernels.ts:81`), `renumberPartition(labels, out?)` (`graph-format/src/snapshot/derived.ts:1155`, exported at `graph-format/src/index.ts:25`).
 - Produces: `export async function connectedComponents(ctx: GpuContext, s: GraphSnapshot, options?: ComponentsOptions & GpuRunOptions): Promise<GpuLabelResult>`.
 
@@ -1751,6 +1808,7 @@ Create `$PKG/test/oracle/components.ts`: `componentsOracle(s)` -- weighted-union
 - [ ] **Step 2: Write the failing test**
 
 Create `$PKG/test/algorithms/components.test.ts` covering G7's WCC clause item by item:
+
 1. every fixture of `FIXTURE_NAMES` at `gpuScale()`: labels IDENTICAL to `componentsOracle(s).labels` (not merely partition-equal -- both renumber first-seen);
 2. directed input treated weakly: the directed and undirected forms of one edge set give identical labels;
 3. singletons: `fixture("isolated")`, whose 1% isolated nodes each get their own block;
@@ -1774,7 +1832,8 @@ Create `$PKG/src/algorithms/components.ts`. The host loop is design 8.3 step for
 2. `comp` = `lease.storage(4 * (n + 1), "wcc/comp")`. That is the right acquisition and no extra usage argument is needed: `Lease.storage(byteLength, label)` is `pool.acquire(byteLength, STORAGE | COPY_SRC | COPY_DST, label)` (`src/memory/lease.ts:33-35`), and all three bits are required here -- STORAGE for the four kernels, COPY_DST for the `fill` dispatch and the two `queue.writeBuffer` flag resets, COPY_SRC for `batch.readback(comp, 4 * n, 4)` in item 5 and `ctx.readback.read(comp, 4 * n)` in item 6 (`Readback.read` rejects a buffer without COPY_SRC at `src/memory/readback.ts:143`). `fill` mode 1 value 0 over `count = n` writes `comp[v] = v`; `queue.writeBuffer(comp, 4 * n, new Uint32Array([0]))` clears the changed flag (PD-4). `flagIndex = n`, `maxSteps = 1024`. The `hist` buffer of item 4 is `lease.storage(4 * 1024, "wcc/hist")`, which carries COPY_SRC for the same reason.
 3. Batch 1: `wcc-link-sample` with `r = 0`, then `r = 1` (design 8.3: "2 sampled link rounds over the r-th neighbour"), then `wcc-compress`. Submitted with no readback.
 
-   `wcc-link-sample` takes the four GRAPH_SLOTS from `graphBindings(core, null)` -- the FORWARD core of item 1 -- never the reverse view. On a directed snapshot that means the sampled rounds see each vertex's OUT-arcs only, which is deliberate and is the same choice GAP makes: the sampled rounds are a heuristic whose only job is to grow the giant component cheaply, and item 5's each-edge-once round over `edgeList()` -- which yields every logical edge once in declared orientation regardless of direction -- is what makes the final partition the WEAK one design 3.3 line 797 specifies. Using the reverse view here would change which edges the two rounds see and nothing else; using `edgeList()` here is impossible, because the sampler needs the r-th neighbour of a ROW, which only the CSR has.
+    `wcc-link-sample` takes the four GRAPH_SLOTS from `graphBindings(core, null)` -- the FORWARD core of item 1 -- never the reverse view. On a directed snapshot that means the sampled rounds see each vertex's OUT-arcs only, which is deliberate and is the same choice GAP makes: the sampled rounds are a heuristic whose only job is to grow the giant component cheaply, and item 5's each-edge-once round over `edgeList()` -- which yields every logical edge once in declared orientation regardless of direction -- is what makes the final partition the WEAK one design 3.3 line 797 specifies. Using the reverse view here would change which edges the two rounds see and nothing else; using `edgeList()` here is impossible, because the sampler needs the r-th neighbour of a ROW, which only the CSR has.
+
 4. Batch 2: `wcc-sample` with `items = min(1024, n)` and `r` the call's seed, plus `batch.readback(hist, 0, 4 * items)`. The host takes the mode -> `giant`.
 5. Rounds: batches of FOUR (`wcc-link-edges` with `P.giant` + `wcc-compress`) x 4, then one `batch.readback(comp, 4 * n, 4)` for the changed flag. Stop when the flag reads 0; `queue.writeBuffer` it back to 0 between batches. A round cap of `MAX_WCC_ROUNDS = 64` raises `E_VALIDATION { label: "connectedComponents", message: "the changed flag never settled in 64 rounds" }` -- a hard error, never a CPU fallback.
 6. One final `wcc-compress`, then `await ctx.readback.read(comp, 4 * n, raw)`.
@@ -1797,6 +1856,7 @@ Expected: PASS on both. If case 10 is flaky, a compress dispatch is missing befo
 **Spec:** design 3.3 lines 784-828 (the public surface); design 9.2 lines 2924-2947 (`AlgorithmAccelerator`, every member optional); design 9.7 (the `*ResultLike` shapes the members must satisfy).
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/src/accelerator.ts:87-117` (six new members on the returned literal)
 - Modify: `webgpu-graph-algorithms/src/types/accelerator.ts:229-236` (`GpuAccelerator` declares them non-optional)
 - Modify: `webgpu-graph-algorithms/src/index.ts:39-41` (the value exports), `:47-69` (the type exports)
@@ -1804,6 +1864,7 @@ Expected: PASS on both. If case 10 is flaky, a compress dispatch is missing befo
 - NOT touched: every `src/algorithms/*.ts` (their owning tasks), `src/types/algorithms.ts` (Task M8b-T1)
 
 **Interfaces:**
+
 - Consumes: `pageRank` / `personalizedPageRank` (T5), `hits` / `eigenvectorCentrality` / `katzCentrality` (T6), `connectedComponents` (T7).
 - Produces: `GpuAccelerator` gains `pageRank`, `personalizedPageRank`, `hits`, `eigenvectorCentrality`, `katzCentrality`, `connectedComponents` and `weaklyConnectedComponents`; the barrel exports the six functions and the four `Gpu*Result` types plus the five option types.
 
@@ -1886,6 +1947,7 @@ Expected: all green; knip now sees `src/types/algorithms.ts`'s exports reached t
 **Spec:** design 10.4 lines 3413-3414 (T-8, T-9); design 11.7 (benchmark inputs); `design/decisions/2026-09-19-bench-compare-min-confirms-median.md` (the two-of-two rule).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/benchmarks/pagerank.bench.ts`, `webgpu-graph-algorithms/benchmarks/wcc.bench.ts`
 - Modify: `webgpu-graph-algorithms/benchmarks/run.ts:29-33` (the `GROUPS` record)
 - Modify: `webgpu-graph-algorithms/benchmarks/results/nvidia-lovelace-driver580.json`, `webgpu-graph-algorithms/benchmarks/results/gpu-linux-t4.json` (one appended session each)
@@ -1893,10 +1955,12 @@ Expected: all green; knip now sees `src/types/algorithms.ts`'s exports reached t
 - NOT touched: `scripts/bench-compare.js` (its rule is unchanged), `benchmarks/harness.ts`
 
 **Interfaces:**
+
 - Consumes: `bench` / `BenchResult` / `appendSession` / `gpuSessionInfo` (`benchmarks/harness.ts:138`, `:324`, `:296`), `TIERS` / `randomEdges` / `snapshotOf` (`benchmarks/datasets.ts:223`, `:35`, `:235`), `pageRank` / `connectedComponents` (Tasks M8b-T5, M8b-T7).
 - Produces: the benchmark groups `pagerank` and `wcc`, and one session per runner class carrying EVERY group.
 
 **PLAN DECISION PD-17 (the baselines must carry `minMs`, and adding a group invalidates the existing last session).** `scripts/bench-compare.js` reads ONLY the last session of `benchmarks/results/<class>.json` and matches rows by `group/name` (`:177-198`). Two consequences the plan must handle, not discover:
+
 1. A row whose baseline lacks `minMs` on either side FALLS BACK to the median alone, silently. `benchmarks/harness.ts:34` has recorded `minMs` since P1, so a session captured by `pnpm run bench` today carries it -- but only if the session is captured with the CURRENT harness, which is why the baselines are re-captured rather than hand-edited.
 2. Appending a session that carries only the two new groups would leave `upload`, `roundtrip` and `layout-exact` unmatched in every later comparison, printing "new (no baseline)" for rows that have baselines. `tmp/g3/append-session.mjs` (quoted verbatim in `webgpu-graph-algorithms/docs/decisions/G3.md` appendix A, section "tmp/g3/append-session.mjs") already REFUSES a session that lacks one of its required groups, and its `REQUIRED_GROUPS` list must gain `pagerank` and `wcc` before it is used here. The full five-group run is therefore captured on BOTH classes: the dev box (`nvidia-lovelace-driver580`, the owner's RTX 4070 SUPER) and the GPU lane (`gpu-linux-t4`, the machine.dev T4 that `gpu.yml` sets `GRAPHTY_RUNNER_CLASS=gpu-linux-t4` for).
 
@@ -1956,6 +2020,7 @@ Expected: the Performance rows printed, now including `pagerank` and `wcc`. Past
 **Spec:** design 11.9 item 1 (sabotage); design 11.6 item 4 line 3636 ("one PageRank, one BFS and one CC on karate vs the oracle" -- the BFS third is P8's and is not in scope); design 11.1 (`node-limits`); design 13 rule (f).
 
 **Files:**
+
 - Modify: `webgpu-graph-algorithms/test/helpers/sabotage.ts:37-341` (eighteen mutations, `SABOTAGE_PHASES`, `SABOTAGE_EXEMPT`)
 - Modify: `webgpu-graph-algorithms/test/sabotage/coverage.test.ts:27-30` (the exempt-set assertion)
 - Create: `webgpu-graph-algorithms/test/sabotage/spmv.test.ts`, `webgpu-graph-algorithms/test/sabotage/wcc.test.ts`
@@ -1971,26 +2036,26 @@ Expected: the Performance rows printed, now including `pagerank` and `wcc`. Past
 
 Add to `SABOTAGE` in `$PKG/test/helpers/sabotage.ts` three rows for each of the six non-exempt P7 kernels, with `minFactor: 10` throughout and these `find` / `replace` pairs (each `find` occurs EXACTLY once in its body, which `test/sabotage/coverage.test.ts:71-88` enforces):
 
-| kernel | name | find | replace | test |
-| --- | --- | --- | --- | --- |
-| `spmv-pull` | `alpha-beta-swapped` | `(P.beta * pv) + (P.alpha * (acc + (dangling * pv)))` | `(P.alpha * pv) + (P.beta * (acc + (dangling * pv)))` | `test/algorithms/pagerank.test.ts` |
-| `spmv-pull` | `row-end-off-by-one` | `let a1 = min(rowPtr[v + 1u], P.arcEnd);` | `let a1 = min(rowPtr[v], P.arcEnd);` | `test/primitives/spmv.test.ts` |
-| `spmv-pull` | `dangling-dropped` | `(dangling * pv)` | `(0.0 * pv)` | `test/algorithms/pagerank.test.ts` |
-| `pr-scale` | `dangling-not-accumulated` | `if (divisor <= 0.0) { dangling = x; xNorm[u] = 0.0; }` | `if (divisor <= 0.0) { dangling = 0.0; xNorm[u] = 0.0; }` | `test/algorithms/pagerank.test.ts` |
-| `pr-scale` | `delta-ignores-previous` | `delta = abs(x - prev);` | `delta = abs(x);` | `test/algorithms/pagerank.test.ts` |
-| `pr-scale` | `partial-slot-off-by-one` | `let slot = 1u + group_id(wid);` | `let slot = group_id(wid);` | `test/algorithms/pagerank.test.ts` |
-| `pr-finalize` | `converged-recorded-at-one` | `P.iteration >= 2u` | `P.iteration >= 0u` | `test/algorithms/pagerank.test.ts` |
-| `pr-finalize` | `dangling-takes-the-delta` | `partials[0].danglingMass = folded.x;` | `partials[0].danglingMass = folded.y;` | `test/algorithms/pagerank.test.ts` |
-| `pr-finalize` | `l2-sqrt-dropped` | `norm = sqrt(max(0.0, folded.z));` | `norm = max(0.0, folded.z);` | `test/algorithms/spectral.test.ts` |
-| `wcc-link-sample` | `degree-guard-inclusive` | `if (a0 + P.r < a1) {` | `if (a0 + P.r <= a1) {` | `test/algorithms/components.test.ts` |
-| `wcc-link-sample` | `high-low-swapped` | `let hi = max(p1, p2);` | `let hi = min(p1, p2);` | `test/algorithms/components.test.ts` |
-| `wcc-link-sample` | `changed-flag-never-set` | `if (swapped.exchanged) { atomicStore(&comp[P.flagIndex], 1u); break; }` | `if (swapped.exchanged) { break; }` | `test/algorithms/components.test.ts` |
-| `wcc-link-edges` | `giant-guard-widened` | `if (atomicLoad(&comp[u]) == P.giant && atomicLoad(&comp[v]) == P.giant) { continue; }` | `if (atomicLoad(&comp[u]) == P.giant \|\| atomicLoad(&comp[v]) == P.giant) { continue; }` | `test/algorithms/components.test.ts` |
-| `wcc-link-edges` | `self-edge-skip-widened` | `if (u == v) { continue; }` | `if (u <= v) { continue; }` | `test/algorithms/components.test.ts` |
-| `wcc-link-edges` | `low-high-swapped` | `let lo = min(p1, p2);` | `let lo = max(p1, p2);` | `test/algorithms/components.test.ts` |
-| `wcc-compress` | `root-not-stored` | `atomicStore(&comp[v], root);` | `atomicStore(&comp[v], v);` | `test/algorithms/components.test.ts` |
-| `wcc-compress` | `fixed-point-inverted` | `if (parent == root) { break; }` | `if (parent != root) { break; }` | `test/algorithms/components.test.ts` |
-| `wcc-compress` | `starts-at-self` | `var root = atomicLoad(&comp[v]);` | `var root = v;` | `test/algorithms/components.test.ts` |
+| kernel            | name                        | find                                                                                    | replace                                                                                   | test                                 |
+| ----------------- | --------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------ |
+| `spmv-pull`       | `alpha-beta-swapped`        | `(P.beta * pv) + (P.alpha * (acc + (dangling * pv)))`                                   | `(P.alpha * pv) + (P.beta * (acc + (dangling * pv)))`                                     | `test/algorithms/pagerank.test.ts`   |
+| `spmv-pull`       | `row-end-off-by-one`        | `let a1 = min(rowPtr[v + 1u], P.arcEnd);`                                               | `let a1 = min(rowPtr[v], P.arcEnd);`                                                      | `test/primitives/spmv.test.ts`       |
+| `spmv-pull`       | `dangling-dropped`          | `(dangling * pv)`                                                                       | `(0.0 * pv)`                                                                              | `test/algorithms/pagerank.test.ts`   |
+| `pr-scale`        | `dangling-not-accumulated`  | `if (divisor <= 0.0) { dangling = x; xNorm[u] = 0.0; }`                                 | `if (divisor <= 0.0) { dangling = 0.0; xNorm[u] = 0.0; }`                                 | `test/algorithms/pagerank.test.ts`   |
+| `pr-scale`        | `delta-ignores-previous`    | `delta = abs(x - prev);`                                                                | `delta = abs(x);`                                                                         | `test/algorithms/pagerank.test.ts`   |
+| `pr-scale`        | `partial-slot-off-by-one`   | `let slot = 1u + group_id(wid);`                                                        | `let slot = group_id(wid);`                                                               | `test/algorithms/pagerank.test.ts`   |
+| `pr-finalize`     | `converged-recorded-at-one` | `P.iteration >= 2u`                                                                     | `P.iteration >= 0u`                                                                       | `test/algorithms/pagerank.test.ts`   |
+| `pr-finalize`     | `dangling-takes-the-delta`  | `partials[0].danglingMass = folded.x;`                                                  | `partials[0].danglingMass = folded.y;`                                                    | `test/algorithms/pagerank.test.ts`   |
+| `pr-finalize`     | `l2-sqrt-dropped`           | `norm = sqrt(max(0.0, folded.z));`                                                      | `norm = max(0.0, folded.z);`                                                              | `test/algorithms/spectral.test.ts`   |
+| `wcc-link-sample` | `degree-guard-inclusive`    | `if (a0 + P.r < a1) {`                                                                  | `if (a0 + P.r <= a1) {`                                                                   | `test/algorithms/components.test.ts` |
+| `wcc-link-sample` | `high-low-swapped`          | `let hi = max(p1, p2);`                                                                 | `let hi = min(p1, p2);`                                                                   | `test/algorithms/components.test.ts` |
+| `wcc-link-sample` | `changed-flag-never-set`    | `if (swapped.exchanged) { atomicStore(&comp[P.flagIndex], 1u); break; }`                | `if (swapped.exchanged) { break; }`                                                       | `test/algorithms/components.test.ts` |
+| `wcc-link-edges`  | `giant-guard-widened`       | `if (atomicLoad(&comp[u]) == P.giant && atomicLoad(&comp[v]) == P.giant) { continue; }` | `if (atomicLoad(&comp[u]) == P.giant \|\| atomicLoad(&comp[v]) == P.giant) { continue; }` | `test/algorithms/components.test.ts` |
+| `wcc-link-edges`  | `self-edge-skip-widened`    | `if (u == v) { continue; }`                                                             | `if (u <= v) { continue; }`                                                               | `test/algorithms/components.test.ts` |
+| `wcc-link-edges`  | `low-high-swapped`          | `let lo = min(p1, p2);`                                                                 | `let lo = max(p1, p2);`                                                                   | `test/algorithms/components.test.ts` |
+| `wcc-compress`    | `root-not-stored`           | `atomicStore(&comp[v], root);`                                                          | `atomicStore(&comp[v], v);`                                                               | `test/algorithms/components.test.ts` |
+| `wcc-compress`    | `fixed-point-inverted`      | `if (parent == root) { break; }`                                                        | `if (parent != root) { break; }`                                                          | `test/algorithms/components.test.ts` |
+| `wcc-compress`    | `starts-at-self`            | `var root = atomicLoad(&comp[v]);`                                                      | `var root = v;`                                                                           | `test/algorithms/components.test.ts` |
 
 Then widen `SABOTAGE_PHASES` (`:338`) to `["P1", "P2", "P3", "P7"]`, add `"wcc-sample"` to `SABOTAGE_EXEMPT` (`:341`) with the reason in its JSDoc, and update the literal at `test/sabotage/coverage.test.ts:28` to `["fa2-to-scene", "fill", "wcc-sample"]`.
 
@@ -2017,8 +2082,8 @@ export interface SpmvCheck {
  * @returns the checks
  */
 export function spmvChecks(): readonly SpmvCheck[] {
-    const random1k = weightedRandom(1000, 5000, 7);            // test/helpers/segmented-reduce.ts:244-256
-    const holes = weightedRandom(200, 600, 5, 300);            // 300 rows, the last 100 with no arcs at all
+    const random1k = weightedRandom(1000, 5000, 7); // test/helpers/segmented-reduce.ts:244-256
+    const holes = weightedRandom(200, 600, 5, 300); // 300 rows, the last 100 with no arcs at all
     const uniform = (n: number): Float64Array => Float64Array.from({ length: n }, (_, i) => 1 / (1 + (i % 7)));
     return [
         {
@@ -2167,13 +2232,13 @@ Expected: one file, one or two tests, green within the project's 600 s test time
 In `.github/workflows/ci.yml:315` change the `webgpu-graph-algorithms-node` shard's `test-command` from
 
 ```yaml
-      test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts --passWithNoTests
+test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts --passWithNoTests
 ```
 
 to
 
 ```yaml
-      test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms --passWithNoTests
+test-command: cd webgpu-graph-algorithms && pnpm exec vitest run --project=node --coverage && GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms --passWithNoTests
 ```
 
 and extend the comment above it to say why: `pr-scale` and `pr-finalize` declare `needs: ["subgroups"]` and their tests live in `test/algorithms`, so without the third path the twin never exercises the PageRank reduction on a device without the feature.
@@ -2192,6 +2257,7 @@ Expected: green. If a PageRank case differs from the subgroup run beyond `1e-5`,
 **Spec:** `design/decisions/README.md` (one decision per file, `YYYY-MM-DD-<slug>.md`, never edited after it lands, carries the argument that was REJECTED, plus a row in the index table).
 
 **Files:**
+
 - Create: `design/decisions/2026-09-19-spmv-pull-is-its-own-kernel.md`, `design/decisions/2026-09-19-spmv-tier-zero-only.md`, `design/decisions/2026-09-19-afforest-needs-no-dedupe.md`, `design/decisions/2026-09-19-outweightsum-is-call-scratch.md`, `design/decisions/2026-09-19-pagerank-ping-pong-is-two-buffers.md` (FIVE records: DEP-M8B-A, -B, -C, -D and -G)
 - Modify: `design/decisions/README.md` (five index rows), `design/README.md:14,21` (the two file counts), `design/webgpu/README.md` (a row for this plan)
 - NOT touched: `design/webgpu/webgpu-acceleration-plan.md` -- the Review-log practice was RETIRED on 2026-09-19 (`design/decisions/README.md`: "two branches append at once ... every merge needed a hand-resolved concatenation. One file per decision has no shared end to collide over")
@@ -2218,6 +2284,7 @@ Expected: `8` (the README plus seven records: the two that exist today and the f
 **Spec:** design 13 row P7 line 4214 (the G7 checklist, quoted in full below); design 13 rule (a) (green on the default lane AND the GPU lane).
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/docs/decisions/G7.md`
 - Modify: `webgpu-graph-algorithms/CLAUDE.md` (the kernel list and the "what exists" section gain the seven P7 kernels and the six algorithms)
 - NOT touched: `docs/decisions/G0.md` .. `G3.md` (closed records)
@@ -2244,7 +2311,7 @@ Expected: as commented; coverage at or above 80 / 80 / 75 / 80 and the non-ASCII
 
 Create `$PKG/docs/decisions/G7.md` with this content; every `<...>` cell is a number or a string copied from the named command's output, and the owner signs the last section:
 
-````markdown
+```markdown
 # G7 -- the SpMV family and WCC gate (spec 13 row P7)
 
 Recorded by: <owner name>, 2026-09-DD. Commits: the fifteen of the M8b PR (<short hashes once committed>).
@@ -2254,46 +2321,46 @@ Every command ran from `webgpu-graph-algorithms/`.
 ## 1. Adapters exercised
 
 | Adapter | Runtime | adapter class | runner class | subgroups | how it was run |
-| --- | --- | --- | --- | --- | --- |
+| ------- | ------- | ------------- | ------------ | --------- | -------------- |
 
 ## 2. The G7 checklist (spec 13 row P7), each item mapped to its evidence
 
-| # | Item | Evidence | Result | Status |
-| --- | --- | --- | --- | --- |
-| 1 | 9.7 parity on all fixtures: <= 1e-5 relative, top-k, `iterations` +-1, `converged` identical | `test/algorithms/pagerank.test.ts`, `spectral.test.ts` | <max rel error> | pass / fail |
-| 2 | weighted with zero-weight arcs and dangling nodes; directed and undirected | the `parallel` and directed cases of the same files | <numbers> | pass / fail |
-| 3 | personalization one-hot and uniform | `pagerank.test.ts` cases 6 | <numbers> | pass / fail |
-| 4 | the pull kernel binds exactly the 8 of 8.2; every 8.10 kernel matches its count | `test/kernel/bind-group-budget.test.ts` | 8 / 5 / 1 / 3 / 1 / 2 | pass / fail |
-| 5 | no host readback inside a batch of 8 iterations (`mapAsync` count) | `pagerank.test.ts` case 10 and `spectral.test.ts` case 8, `test/helpers/leak-counter.ts` | pageRank <count>, eigenvector <count>, katz <count>, hits <count> | pass / fail |
-| 6 | SpMV twin identical in-process | `test/primitives/spmv.test.ts` twin case | bitwise | pass / fail |
-| 7 | WCC partition equality after renumbering, incl. directed treated weakly, singletons, giant + dust, `arcCount === 0` | `test/algorithms/components.test.ts` | <cases> | pass / fail |
-| 8 | browser smoke (4) green | `test/browser/algorithms.test.ts` on SwiftShader and NVIDIA | <runs> | pass / fail |
-| 9 | sabotage: every P7 kernel's mutations break their check by >= 10x | `test/sabotage/spmv.test.ts`, `wcc.test.ts` | <worst factors> | pass / fail |
+| #   | Item                                                                                                                | Evidence                                                                                 | Result                                                            | Status      |
+| --- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------- |
+| 1   | 9.7 parity on all fixtures: <= 1e-5 relative, top-k, `iterations` +-1, `converged` identical                        | `test/algorithms/pagerank.test.ts`, `spectral.test.ts`                                   | <max rel error>                                                   | pass / fail |
+| 2   | weighted with zero-weight arcs and dangling nodes; directed and undirected                                          | the `parallel` and directed cases of the same files                                      | <numbers>                                                         | pass / fail |
+| 3   | personalization one-hot and uniform                                                                                 | `pagerank.test.ts` cases 6                                                               | <numbers>                                                         | pass / fail |
+| 4   | the pull kernel binds exactly the 8 of 8.2; every 8.10 kernel matches its count                                     | `test/kernel/bind-group-budget.test.ts`                                                  | 8 / 5 / 1 / 3 / 1 / 2                                             | pass / fail |
+| 5   | no host readback inside a batch of 8 iterations (`mapAsync` count)                                                  | `pagerank.test.ts` case 10 and `spectral.test.ts` case 8, `test/helpers/leak-counter.ts` | pageRank <count>, eigenvector <count>, katz <count>, hits <count> | pass / fail |
+| 6   | SpMV twin identical in-process                                                                                      | `test/primitives/spmv.test.ts` twin case                                                 | bitwise                                                           | pass / fail |
+| 7   | WCC partition equality after renumbering, incl. directed treated weakly, singletons, giant + dust, `arcCount === 0` | `test/algorithms/components.test.ts`                                                     | <cases>                                                           | pass / fail |
+| 8   | browser smoke (4) green                                                                                             | `test/browser/algorithms.test.ts` on SwiftShader and NVIDIA                              | <runs>                                                            | pass / fail |
+| 9   | sabotage: every P7 kernel's mutations break their check by >= 10x                                                   | `test/sabotage/spmv.test.ts`, `wcc.test.ts`                                              | <worst factors>                                                   | pass / fail |
 
 ## 3. T-8 / T-9 (spec 10.4; `benchmarks/results/<class>.json`, session <date>)
 
-| Id | Benchmark (group / name) | Target | Measured median of 5 (ms) | min / max (ms) | Rate | Pass |
-| --- | --- | --- | --- | --- | --- | --- |
-| T-8 | pagerank / 100 iterations at 100k/1M | <= 150 ms | <median> | <min> / <max> | <rate> | yes / no |
-| T-8 | pagerank / 100 iterations at 1M/10M | <= 1.5 s | <median> | <min> / <max> | <rate> | yes / no |
-| T-9 | wcc / at 1M/10M | <= 100 ms | <median> | <min> / <max> | <rate> | yes / no |
+| Id  | Benchmark (group / name)             | Target    | Measured median of 5 (ms) | min / max (ms) | Rate   | Pass     |
+| --- | ------------------------------------ | --------- | ------------------------- | -------------- | ------ | -------- |
+| T-8 | pagerank / 100 iterations at 100k/1M | <= 150 ms | <median>                  | <min> / <max>  | <rate> | yes / no |
+| T-8 | pagerank / 100 iterations at 1M/10M  | <= 1.5 s  | <median>                  | <min> / <max>  | <rate> | yes / no |
+| T-9 | wcc / at 1M/10M                      | <= 100 ms | <median>                  | <min> / <max>  | <rate> | yes / no |
 
 ## 4. Cross-adapter results (spec 11.5, 11.9; `benchmarks/results/noise-floor.json`)
 
-| Row id | kernel / fixture | comparison | a | b | maxRelError | maxAbsError | samples |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| Row id | kernel / fixture | comparison | a   | b   | maxRelError | maxAbsError | samples |
+| ------ | ---------------- | ---------- | --- | --- | ----------- | ----------- | ------- |
 
 ## 5. Coverage (spec 11.8; the default-lane run of Step 1)
 
 | lines | functions | branches | statements | threshold | wall time |
-| --- | --- | --- | --- | --- | --- |
+| ----- | --------- | -------- | ---------- | --------- | --------- |
 
 ## 6. Baselines committed
 
 ## 7. Findings, owner decisions, re-fixed targets
 
 Signed off: <owner>, 2026-09-DD.
-````
+```
 
 A missed T-8 or T-9 row does NOT close the gate by itself: design 10.4 (`:3397-3402`) requires the owner either to re-fix the target in a recorded decision in the PR or to let the phase continue; section 7 of the record is where that decision is written, and the "Pass" column says `no` honestly either way.
 
@@ -2309,54 +2376,54 @@ Add the seven P7 kernel ids and the six algorithm entry points to the package's 
 
 ### 7.1 The owner's command sheet (in order)
 
-| When | Command (paste as an `!` command in this session, or run in a shell) |
-| --- | --- |
-| Phase step 0 | `git fetch origin && git merge --ff-only origin/master && git worktree add .worktrees/webgpu-spmv-wcc -b feat/webgpu-spmv-wcc master` |
-| M8b-T1 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/webgpu-spmv-wcc && ./tools/commit-changes.sh --dry-run` then the two commits of Step 6 (`fix(tools)` FIRST) |
-| M8b-T2 .. M8b-T8 | one `tools/commit-changes.sh` run per task, with the subject the task's Commit step names |
-| M8b-T9 step 2 | `... && LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_GPU_REQUIRE=hardware XDG_RUNTIME_DIR=/tmp pnpm run bench` then `node tmp/m8b/append-session.mjs benchmarks/out/nvidia-lovelace-driver580.json benchmarks/results/nvidia-lovelace-driver580.json` |
-| M8b-T9 step 3 | push the branch, open the PR, `gh pr edit <n> --add-label gpu`, then `gh run download <run id> -n gpu-results-node -D .../tmp/m8b/t4` and the same append script into `benchmarks/results/gpu-linux-t4.json` |
-| M8b-T10 | the two commits of Step 6 (the second is type `ci` with NO scope) |
-| M8b-T11 | `tools/commit-changes.sh` with a type `docs` subject and NO scope |
-| M8b-T12 | fill and sign `webgpu-graph-algorithms/docs/decisions/G7.md`, then the final commit and the PR merge once `ci.yml`, `hosts.yml` and `gpu.yml` are green |
+| When             | Command (paste as an `!` command in this session, or run in a shell)                                                                                                                                                                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Phase step 0     | `git fetch origin && git merge --ff-only origin/master && git worktree add .worktrees/webgpu-spmv-wcc -b feat/webgpu-spmv-wcc master`                                                                                                                                                                          |
+| M8b-T1           | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/webgpu-spmv-wcc && ./tools/commit-changes.sh --dry-run` then the two commits of Step 6 (`fix(tools)` FIRST)                                                                                                                                             |
+| M8b-T2 .. M8b-T8 | one `tools/commit-changes.sh` run per task, with the subject the task's Commit step names                                                                                                                                                                                                                      |
+| M8b-T9 step 2    | `... && LD_LIBRARY_PATH=/home/apowers/Projects/graphty-monorepo/tmp/egl/root/usr/lib/x86_64-linux-gnu GRAPHTY_GPU_REQUIRE=hardware XDG_RUNTIME_DIR=/tmp pnpm run bench` then `node tmp/m8b/append-session.mjs benchmarks/out/nvidia-lovelace-driver580.json benchmarks/results/nvidia-lovelace-driver580.json` |
+| M8b-T9 step 3    | push the branch, open the PR, `gh pr edit <n> --add-label gpu`, then `gh run download <run id> -n gpu-results-node -D .../tmp/m8b/t4` and the same append script into `benchmarks/results/gpu-linux-t4.json`                                                                                                   |
+| M8b-T10          | the two commits of Step 6 (the second is type `ci` with NO scope)                                                                                                                                                                                                                                              |
+| M8b-T11          | `tools/commit-changes.sh` with a type `docs` subject and NO scope                                                                                                                                                                                                                                              |
+| M8b-T12          | fill and sign `webgpu-graph-algorithms/docs/decisions/G7.md`, then the final commit and the PR merge once `ci.yml`, `hosts.yml` and `gpu.yml` are green                                                                                                                                                        |
 
 The agent never runs any of these; it prepares the tree and verifies the results. In particular the agent never runs `git worktree`, `git stash`, `git checkout` or `git reset`: in a subagent they block on a prompt nobody answers.
 
 ### 7.2 Verification matrix
 
-| Check | Where | Command | Green means |
-| --- | --- | --- | --- |
-| The commit script accepts the scope | M8b-T1 | `grep -c 'webgpu-graph-algorithms' tools/commit-changes.sh` | the fifteen commits of this plan can be made at all |
-| Grid-stride planning | M8b-T1 | `pnpm exec vitest run --project=node test/kernel/dispatch.test.ts` | the cap, the stride and the zero case are the design's |
-| Reverse residency is free when undirected | M8b-T2 | `pnpm exec vitest run --project=node test/memory/residency.test.ts` | `stats().buffers` is unchanged and the buffers are the core's |
-| The eight bindings of the pull kernel | M8b-T3 | `pnpm exec vitest run --project=node test/kernel/bind-group-budget.test.ts` | every 8.10 count matches (G7 item 4) |
-| The compile matrix is bounded and covered | M8b-T3 | `pnpm exec vitest run --project=node test/kernel/wgsl-compile.test.ts` | 37 P7 cases, no uncovered pipeline key at teardown |
-| SpMV against the f64 oracle, and the twin | M8b-T4 | `pnpm exec vitest run --project=node test/primitives/spmv.test.ts` | <= `relTolerance` and bitwise-identical twin (G7 item 6) |
-| PageRank parity and the batch's single mapAsync | M8b-T5 | `pnpm exec vitest run --project=node test/algorithms/pagerank.test.ts` | 1e-5 relative, `iterations` +-1, `mapAsync` count 1 (G7 items 1, 5) |
-| HITS / eigenvector / Katz parity | M8b-T6 | `pnpm exec vitest run --project=node test/algorithms/spectral.test.ts` | 1e-5 relative and identical top-k |
-| The spectral batch's mapAsync count (PD-10) | M8b-T6 | `pnpm exec vitest run --project=node test/algorithms/spectral.test.ts` | `eigenvectorCentrality` and `katzCentrality` 1, `hits` 2 over a batch of 8 -- the normaliser stayed on the device |
-| WCC partition equality | M8b-T7 | `pnpm exec vitest run --project=node test/algorithms/components.test.ts` | labels identical to the union-find oracle (G7 item 7) |
-| The barrel and the accelerator | M8b-T8 | `pnpm exec vitest run --project=node test/index.test.ts test/accelerator.test.ts` | six new value exports, seven accelerator members, no stub |
-| Sabotage | M8b-T10 | `pnpm exec vitest run --project=node test/sabotage` | every P7 mutation breaks its check by >= 10x (G7 item 9) |
-| The no-subgroups twin | M8b-T10 | `GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms` | the reduction helpers agree without the feature |
-| Browser smoke | M8b-T10 | `GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js` | design 11.6 item 4 green (G7 item 8) |
-| node-limits | M8b-T10 | `pnpm exec vitest run --project=node-limits` | the lane the GPU workflow has always run finally has a test |
-| T-8 and T-9 | M8b-T9 | `pnpm run bench` then `node scripts/bench-compare.js` | both baselines carry `minMs`; the numbers are recorded in G7.md section 3 |
-| Coverage | M8b-T12 | `pnpm exec vitest run --project=node --coverage` on lavapipe | at or above 80 / 80 / 75 / 80, never lowered |
-| Plain ASCII | M8b-T12 | `LC_ALL=C grep -rnP '[^\x00-\x7F]' src test benchmarks docs \| wc -l` | 0 |
+| Check                                           | Where   | Command                                                                                                       | Green means                                                                                                       |
+| ----------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| The commit script accepts the scope             | M8b-T1  | `grep -c 'webgpu-graph-algorithms' tools/commit-changes.sh`                                                   | the fifteen commits of this plan can be made at all                                                               |
+| Grid-stride planning                            | M8b-T1  | `pnpm exec vitest run --project=node test/kernel/dispatch.test.ts`                                            | the cap, the stride and the zero case are the design's                                                            |
+| Reverse residency is free when undirected       | M8b-T2  | `pnpm exec vitest run --project=node test/memory/residency.test.ts`                                           | `stats().buffers` is unchanged and the buffers are the core's                                                     |
+| The eight bindings of the pull kernel           | M8b-T3  | `pnpm exec vitest run --project=node test/kernel/bind-group-budget.test.ts`                                   | every 8.10 count matches (G7 item 4)                                                                              |
+| The compile matrix is bounded and covered       | M8b-T3  | `pnpm exec vitest run --project=node test/kernel/wgsl-compile.test.ts`                                        | 37 P7 cases, no uncovered pipeline key at teardown                                                                |
+| SpMV against the f64 oracle, and the twin       | M8b-T4  | `pnpm exec vitest run --project=node test/primitives/spmv.test.ts`                                            | <= `relTolerance` and bitwise-identical twin (G7 item 6)                                                          |
+| PageRank parity and the batch's single mapAsync | M8b-T5  | `pnpm exec vitest run --project=node test/algorithms/pagerank.test.ts`                                        | 1e-5 relative, `iterations` +-1, `mapAsync` count 1 (G7 items 1, 5)                                               |
+| HITS / eigenvector / Katz parity                | M8b-T6  | `pnpm exec vitest run --project=node test/algorithms/spectral.test.ts`                                        | 1e-5 relative and identical top-k                                                                                 |
+| The spectral batch's mapAsync count (PD-10)     | M8b-T6  | `pnpm exec vitest run --project=node test/algorithms/spectral.test.ts`                                        | `eigenvectorCentrality` and `katzCentrality` 1, `hits` 2 over a batch of 8 -- the normaliser stayed on the device |
+| WCC partition equality                          | M8b-T7  | `pnpm exec vitest run --project=node test/algorithms/components.test.ts`                                      | labels identical to the union-find oracle (G7 item 7)                                                             |
+| The barrel and the accelerator                  | M8b-T8  | `pnpm exec vitest run --project=node test/index.test.ts test/accelerator.test.ts`                             | six new value exports, seven accelerator members, no stub                                                         |
+| Sabotage                                        | M8b-T10 | `pnpm exec vitest run --project=node test/sabotage`                                                           | every P7 mutation breaks its check by >= 10x (G7 item 9)                                                          |
+| The no-subgroups twin                           | M8b-T10 | `GRAPHTY_GPU_NO_SUBGROUPS=1 pnpm exec vitest run --project=node test/primitives test/layouts test/algorithms` | the reduction helpers agree without the feature                                                                   |
+| Browser smoke                                   | M8b-T10 | `GRAPHTY_BROWSER_GPU=swiftshader GRAPHTY_GPU_REQUIRE=any node scripts/run-browser-project.js`                 | design 11.6 item 4 green (G7 item 8)                                                                              |
+| node-limits                                     | M8b-T10 | `pnpm exec vitest run --project=node-limits`                                                                  | the lane the GPU workflow has always run finally has a test                                                       |
+| T-8 and T-9                                     | M8b-T9  | `pnpm run bench` then `node scripts/bench-compare.js`                                                         | both baselines carry `minMs`; the numbers are recorded in G7.md section 3                                         |
+| Coverage                                        | M8b-T12 | `pnpm exec vitest run --project=node --coverage` on lavapipe                                                  | at or above 80 / 80 / 75 / 80, never lowered                                                                      |
+| Plain ASCII                                     | M8b-T12 | `LC_ALL=C grep -rnP '[^\x00-\x7F]' src test benchmarks docs \| wc -l`                                         | 0                                                                                                                 |
 
 ### 7.3 Risk register for this plan
 
-| Id | Risk | Mitigation |
-| --- | --- | --- |
-| R-M8B-1 | The tier-0 pull kernel misses T-8 on a graph with a 10k in-degree hub, because one thread walks that row. | The `hub10k` fixture is in the parity set from Task M8b-T4, so the correctness is proven at the hub; the timing is a recorded number, and design 10.4 (`:3397-3402`) fixes what happens to a missed target -- a recorded owner decision in the PR, never a silently loosened target. The tiers are P4's deliverable (DEP-M8B-B) and land on this kernel with a `TIER` override and two dispatch ranges. |
-| R-M8B-2 | `atomicCompareExchangeWeak` behaves differently on lavapipe, SwiftShader, Dawn-on-NVIDIA and WARP, and the package has no prior art to compare against. | Task M8b-T7's parity cases run on the default lane and the hardware lane; `hosts.yml` adds Metal + WebKit and D3D12 WARP + Chromium on any push touching `webgpu-graph-algorithms/`, and `release.yml` requires it green. The bounded retry loop (PD-5) makes a spurious failure cost an iteration, never a wrong answer, and the changed flag forces another round when a bound is hit. |
-| R-M8B-3 | The 1M / 10M node-limits test or the new benchmark groups push the `webgpu-graph-algorithms-node` CI shard past ten minutes. | The limits test runs only in the `node-limits` project, which `ci.yml` never selects; the benchmarks run only on the GPU lane. If the default shard still slows, design 12.6's remedy is `--shard=1/2` into two matrix entries. |
-| R-M8B-4 | A benchmark session appended with only the two new groups makes every pre-existing row report "new (no baseline)" for ever after. | Task M8b-T9's append script refuses a session missing any required group, and `REQUIRED_GROUPS` gains `pagerank` and `wcc` before it is used (PD-17). `scripts/bench-compare.js` reads only the last session (`:177-198`), so the refusal is the only thing standing between a partial run and a silently disabled comparison. |
-| R-M8B-5 | The seven new kernels add 37 compile cases, and SwiftShader's JIT makes `test/browser/compile-matrix.test.ts` exceed the "light browser testing" budget of design 11.6. | The matrix is a bounded product by construction (`test/helpers/override-matrix.ts:1-22`), and `EXPECTED_CASES_BY_PHASE.P7 = 37` pins it. If the browser matrix does slow past the budget, the remedy G2 already recorded applies: the browser case list is a subset, chosen in that test, not in the generator. |
-| R-M8B-6 | M8a lands first and rewrites `src/types/accelerator.ts`, colliding with Task M8b-T8's edit to `GpuAccelerator`. | PD-19: the two edits touch different declarations of one file (`AlgorithmAccelerator` for M8a at `:177-204`, `GpuAccelerator` for M8b at `:229-236`) and the mirror's members are all optional, so whichever lands second is a small manual merge, not a redesign. The plan states the outcome for both orders. |
-| R-M8B-7 | The WCC round loop never settles on a pathological input and the call hangs. | Two bounds: the in-kernel `P.maxSteps` on every atomic loop (PD-5) and the host's `MAX_WCC_ROUNDS = 64`, which raises `E_VALIDATION` rather than looping. Neither is a CPU fallback, which the project rule forbids. |
-| R-M8B-8 | The `pr-scale` / `pr-finalize` subgroup twin diverges and no lane notices, because the CI twin pass covered only `test/primitives test/layouts`. | PD-18 extends the shard command to `test/algorithms` in the SAME PR that adds the kernels, and Task M8b-T10 Step 5 runs the twin locally first. |
+| Id      | Risk                                                                                                                                                                    | Mitigation                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-M8B-1 | The tier-0 pull kernel misses T-8 on a graph with a 10k in-degree hub, because one thread walks that row.                                                               | The `hub10k` fixture is in the parity set from Task M8b-T4, so the correctness is proven at the hub; the timing is a recorded number, and design 10.4 (`:3397-3402`) fixes what happens to a missed target -- a recorded owner decision in the PR, never a silently loosened target. The tiers are P4's deliverable (DEP-M8B-B) and land on this kernel with a `TIER` override and two dispatch ranges. |
+| R-M8B-2 | `atomicCompareExchangeWeak` behaves differently on lavapipe, SwiftShader, Dawn-on-NVIDIA and WARP, and the package has no prior art to compare against.                 | Task M8b-T7's parity cases run on the default lane and the hardware lane; `hosts.yml` adds Metal + WebKit and D3D12 WARP + Chromium on any push touching `webgpu-graph-algorithms/`, and `release.yml` requires it green. The bounded retry loop (PD-5) makes a spurious failure cost an iteration, never a wrong answer, and the changed flag forces another round when a bound is hit.                |
+| R-M8B-3 | The 1M / 10M node-limits test or the new benchmark groups push the `webgpu-graph-algorithms-node` CI shard past ten minutes.                                            | The limits test runs only in the `node-limits` project, which `ci.yml` never selects; the benchmarks run only on the GPU lane. If the default shard still slows, design 12.6's remedy is `--shard=1/2` into two matrix entries.                                                                                                                                                                         |
+| R-M8B-4 | A benchmark session appended with only the two new groups makes every pre-existing row report "new (no baseline)" for ever after.                                       | Task M8b-T9's append script refuses a session missing any required group, and `REQUIRED_GROUPS` gains `pagerank` and `wcc` before it is used (PD-17). `scripts/bench-compare.js` reads only the last session (`:177-198`), so the refusal is the only thing standing between a partial run and a silently disabled comparison.                                                                          |
+| R-M8B-5 | The seven new kernels add 37 compile cases, and SwiftShader's JIT makes `test/browser/compile-matrix.test.ts` exceed the "light browser testing" budget of design 11.6. | The matrix is a bounded product by construction (`test/helpers/override-matrix.ts:1-22`), and `EXPECTED_CASES_BY_PHASE.P7 = 37` pins it. If the browser matrix does slow past the budget, the remedy G2 already recorded applies: the browser case list is a subset, chosen in that test, not in the generator.                                                                                         |
+| R-M8B-6 | M8a lands first and rewrites `src/types/accelerator.ts`, colliding with Task M8b-T8's edit to `GpuAccelerator`.                                                         | PD-19: the two edits touch different declarations of one file (`AlgorithmAccelerator` for M8a at `:177-204`, `GpuAccelerator` for M8b at `:229-236`) and the mirror's members are all optional, so whichever lands second is a small manual merge, not a redesign. The plan states the outcome for both orders.                                                                                         |
+| R-M8B-7 | The WCC round loop never settles on a pathological input and the call hangs.                                                                                            | Two bounds: the in-kernel `P.maxSteps` on every atomic loop (PD-5) and the host's `MAX_WCC_ROUNDS = 64`, which raises `E_VALIDATION` rather than looping. Neither is a CPU fallback, which the project rule forbids.                                                                                                                                                                                    |
+| R-M8B-8 | The `pr-scale` / `pr-finalize` subgroup twin diverges and no lane notices, because the CI twin pass covered only `test/primitives test/layouts`.                        | PD-18 extends the shard command to `test/algorithms` in the SAME PR that adds the kernels, and Task M8b-T10 Step 5 runs the twin locally first.                                                                                                                                                                                                                                                         |
 
 ---
 
@@ -2366,20 +2433,20 @@ The agent never runs any of these; it prepares the tree and verifies the results
 
 The row is `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3270`. Item by item:
 
-| Deliverable (verbatim from the row) | Task |
-| --- | --- |
-| grid-stride dispatch | M8b-T1 Steps 2-3 |
-| `packViews` | M8b-T2 Step 3 (`packArrays`), PD-13 |
-| `spmvPull` | M8b-T3 Step 2 (the body), M8b-T4 Step 4 (the driver), M8b-T4 Step 1 (`coreOfView`, the seam it is called across) |
-| PageRank (+ personalized) with `firstConvergedIteration` | M8b-T5 Steps 3 (both entry points), PD-9 (the recording rule), M8b-T3 Step 3 (`pr-finalize`) |
-| HITS, eigenvector, Katz | M8b-T6 Step 3 |
-| Afforest WCC | M8b-T7 Step 3, kernels in M8b-T3 Step 4 |
-| `renumberPartition` on readback | M8b-T7 Step 3 item 7, PD-11 |
-| `reverse()` residency | M8b-T2 Step 3 (`buildReverse`) |
-| the `GpuAccelerator` algorithm members | M8b-T8 Step 2, PD-14 |
-| oracles | M8b-T4 Step 3 (spmv), T5 Step 1 (pagerank), T6 Step 1 (spectral), T7 Step 1 (union-find) |
-| `pagerank` / `wcc` benchmarks | M8b-T9 Steps 1-3 |
-| result parity per design 9.7 (1e-5 relative; labels renumbered first-seen; `precision: "f32"`) | M8b-T5 Step 2 cases 1-3, M8b-T7 Step 2 case 1, M8b-T1 Step 4 (`precision: "f32"` on the result types) |
+| Deliverable (verbatim from the row)                                                            | Task                                                                                                             |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| grid-stride dispatch                                                                           | M8b-T1 Steps 2-3                                                                                                 |
+| `packViews`                                                                                    | M8b-T2 Step 3 (`packArrays`), PD-13                                                                              |
+| `spmvPull`                                                                                     | M8b-T3 Step 2 (the body), M8b-T4 Step 4 (the driver), M8b-T4 Step 1 (`coreOfView`, the seam it is called across) |
+| PageRank (+ personalized) with `firstConvergedIteration`                                       | M8b-T5 Steps 3 (both entry points), PD-9 (the recording rule), M8b-T3 Step 3 (`pr-finalize`)                     |
+| HITS, eigenvector, Katz                                                                        | M8b-T6 Step 3                                                                                                    |
+| Afforest WCC                                                                                   | M8b-T7 Step 3, kernels in M8b-T3 Step 4                                                                          |
+| `renumberPartition` on readback                                                                | M8b-T7 Step 3 item 7, PD-11                                                                                      |
+| `reverse()` residency                                                                          | M8b-T2 Step 3 (`buildReverse`)                                                                                   |
+| the `GpuAccelerator` algorithm members                                                         | M8b-T8 Step 2, PD-14                                                                                             |
+| oracles                                                                                        | M8b-T4 Step 3 (spmv), T5 Step 1 (pagerank), T6 Step 1 (spectral), T7 Step 1 (union-find)                         |
+| `pagerank` / `wcc` benchmarks                                                                  | M8b-T9 Steps 1-3                                                                                                 |
+| result parity per design 9.7 (1e-5 relative; labels renumbered first-seen; `precision: "f32"`) | M8b-T5 Step 2 cases 1-3, M8b-T7 Step 2 case 1, M8b-T1 Step 4 (`precision: "f32"` on the result types)            |
 
 And the extra P7-row items the design's own line 4214 names that the integration row compresses: the device out-weight normaliser (M8b-T5 Step 3 item 3), `pr-scale` / `pr-finalize` (M8b-T3 Step 3), `degreeOrder({ of: "reverse" })` tiers (DEP-M8B-B, deferred to P4 with the reason and a decision file), the two-dispatch atomic dedupe (DEP-M8B-C, not built, with the reason and a decision file). Every G7 clause has a row in the verification matrix (7.2) and a numbered row in the G7 record template (M8b-T12 Step 2).
 

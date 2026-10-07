@@ -106,7 +106,12 @@ export class CrossPlatformBenchmark {
         console.log(`  Warmup completed for ${name}`);
     }
 
-    addTest(name: string, testFn: () => void | Promise<void>, testData: BenchmarkTestData = {}, options: Benchmark.Options = {}) {
+    addTest(
+        name: string,
+        testFn: () => void | Promise<void>,
+        testData: BenchmarkTestData = {},
+        options: Benchmark.Options = {},
+    ) {
         const memoryBefore = this.getMemoryInfo();
 
         // Store test function for warmup
@@ -210,9 +215,8 @@ export class CrossPlatformBenchmark {
     private calculateMemoryDelta(before: PlatformMemoryInfo, after: PlatformMemoryInfo): number {
         if (this.config.platform === "node") {
             return (after.heapUsed || 0) - (before.heapUsed || 0);
-        } 
-            return (after.usedJSHeapSize || 0) - (before.usedJSHeapSize || 0);
-        
+        }
+        return (after.usedJSHeapSize || 0) - (before.usedJSHeapSize || 0);
     }
 
     async run(): Promise<BenchmarkSession> {

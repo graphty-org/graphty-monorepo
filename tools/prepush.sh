@@ -107,9 +107,8 @@ run_step "No signing bypass in tools/ and .husky/" \
 # (2026-10-05). They run first and on every push, docs-only pushes included, so the commonest
 # failures stop the gate before the build starts.
 
-# Prettier on the files this branch adds or modifies. The tree is not formatted as a whole yet
-# (issue #239), so this stops new drift without asking a branch to reformat what it never touched.
-run_step "Formatting (changed files)" "pnpm run format:check:changed"
+# Prettier on the whole tree (issue #239).
+run_step "Formatting" "pnpm run format:check"
 
 # Every package that has its own eslint.config.js is linted with that file alone, so it must spread
 # the root config; a stale copy silently drops every rule the root gained since. Run for every push,

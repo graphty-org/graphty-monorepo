@@ -1616,7 +1616,7 @@ describe("the commit and push hooks", () => {
         };
         const build = at('run_step "Build"');
         assert.ok(at("PROJECTS=$(") < build);
-        for (const step of ["Formatting (changed files)", "ESLint root config", "Legacy graph API use", "Links"]) {
+        for (const step of ["Formatting", "ESLint root config", "Legacy graph API use", "Links"]) {
             assert.ok(
                 at(`run_step "${step}"`) < at("PROJECTS=$("),
                 `${step} runs before the affected list and the build`,

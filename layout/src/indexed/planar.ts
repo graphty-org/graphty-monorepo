@@ -61,7 +61,7 @@ function isKuratowski(adj: readonly number[][], edgeCount: number): boolean {
     // two-colour from node 0; an unreached node takes the second colour
     const colour = new Int8Array(n).fill(-1);
     colour[0] = 0;
-    for (const queue = [0]; queue.length > 0; ) {
+    for (const queue = [0]; queue.length > 0;) {
         const u = queue.shift() ?? 0;
         for (const v of adj[u]) {
             if (colour[v] === -1) {
@@ -255,7 +255,7 @@ function planarRows(g: GraphSnapshot, scale: number, center: readonly number[], 
         const reached = new Uint8Array(n);
         reached[0] = 1;
         let count = 1;
-        for (const stack = [0]; stack.length > 0; ) {
+        for (const stack = [0]; stack.length > 0;) {
             for (const v of adj[stack.pop() ?? 0]) {
                 if (reached[v] === 0) {
                     reached[v] = 1;

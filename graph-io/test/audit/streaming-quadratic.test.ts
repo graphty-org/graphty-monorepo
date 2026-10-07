@@ -96,9 +96,7 @@ describe.skipIf(!BENCH)("streaming audit: linearity and chunk-shape independence
             const chunked = await importWork(csvImporter, byteChunks(bytes, CHUNK));
             const asBytes = await importWork(csvImporter, bytes);
             const asString = await importWork(csvImporter, text);
-            console.log(
-                `csv 1M: chunks ${chunked.work}, Uint8Array ${asBytes.work}, string ${asString.work}`,
-            );
+            console.log(`csv 1M: chunks ${chunked.work}, Uint8Array ${asBytes.work}, string ${asString.work}`);
             expect(asBytes.work / chunked.work).toBeLessThan(SHAPE_BOUND);
             expect(asString.work / chunked.work).toBeLessThan(SHAPE_BOUND);
         },

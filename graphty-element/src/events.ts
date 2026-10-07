@@ -378,12 +378,7 @@ export interface SelectionChangedEvent {
 
 // node events
 export type NodeEvent =
-    | NodeGenericEvent
-    | NodeAddEvent
-    | NodeClickEvent
-    | NodeHoverEvent
-    | NodeDragStartEvent
-    | NodeDragEndEvent;
+    NodeGenericEvent | NodeAddEvent | NodeClickEvent | NodeHoverEvent | NodeDragStartEvent | NodeDragEndEvent;
 
 export interface NodeGenericEvent {
     type: "node-update-after" | "node-update-before";

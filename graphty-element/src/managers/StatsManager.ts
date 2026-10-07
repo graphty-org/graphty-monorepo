@@ -370,7 +370,7 @@ export class StatsManager implements Manager {
 
         function statsSection(name: string): void {
             statsStr += `\n${name}\n`;
-             
+
             for (let i = 0; i < name.length; i++) {
                 statsStr += "-";
             }
@@ -1004,14 +1004,12 @@ export class StatsManager implements Manager {
                 console.log(`  ${m.label}: ${m.count} calls, ${m.total.toFixed(2)}ms total, ${m.avg.toFixed(2)}ms avg`);
             });
 
-
             console.groupEnd();
         }
 
         // Event Counters
         const countersSnapshot = this.getCountersSnapshot();
         if (countersSnapshot.length > 0) {
-
             console.group("Event Counters");
 
             console.table(
@@ -1027,11 +1025,9 @@ export class StatsManager implements Manager {
 
         // GPU metrics (VERBOSE - all properties)
         if (snapshot.gpu) {
-
             console.log("GPU Metrics (BabylonJS EngineInstrumentation):");
 
             console.group("GPU Metrics (BabylonJS EngineInstrumentation)");
-
 
             console.log("  GPU Frame Time (ms):");
 
@@ -1051,7 +1047,6 @@ export class StatsManager implements Manager {
 
             console.groupEnd();
 
-
             console.log("  Shader Compilation (ms):");
 
             console.group("Shader Compilation (ms)");
@@ -1070,13 +1065,11 @@ export class StatsManager implements Manager {
 
             console.groupEnd();
 
-
             console.groupEnd();
         }
 
         // Scene metrics (VERBOSE - all properties for all 7 counters)
         if (snapshot.scene) {
-
             console.log("Scene Metrics (BabylonJS SceneInstrumentation):");
 
             console.group("Scene Metrics (BabylonJS SceneInstrumentation)");
@@ -1123,7 +1116,6 @@ export class StatsManager implements Manager {
 
             console.groupEnd();
 
-
             console.groupEnd();
         }
 
@@ -1134,7 +1126,6 @@ export class StatsManager implements Manager {
             console.log("Layout Session Performance:");
 
             console.group("Layout Session Performance");
-
 
             console.log(`Total Time: ${ls.totalElapsed.toFixed(2)}ms (${ls.frameCount} frames)`);
 
@@ -1157,7 +1148,6 @@ export class StatsManager implements Manager {
             console.log(`├─ GPU: ${ls.perFrame.gpu.toFixed(2)}ms/frame`);
 
             console.log(`└─ Blocking: ${ls.perFrame.blocking.toFixed(2)}ms/frame`);
-
 
             console.groupEnd();
         }

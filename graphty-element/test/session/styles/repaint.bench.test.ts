@@ -36,7 +36,12 @@ import jmespath from "jmespath";
 import { assert, describe, it } from "vitest";
 
 import type { Path } from "../../../src/catalog/types";
-import { createStylesApi, type ElementLayerSpec, type RepaintContext, type SessionStylesApi } from "../../../src/session/styles/index";
+import {
+    createStylesApi,
+    type ElementLayerSpec,
+    type RepaintContext,
+    type SessionStylesApi,
+} from "../../../src/session/styles/index";
 import { createStyleInterner } from "../../../src/session/styles/intern";
 import type { SelectorSource } from "../../../src/session/styles/predicate";
 import { createLayerRepaint, type RepaintEngine } from "../../../src/session/styles/repaint";
@@ -299,7 +304,12 @@ describe("a single-layer edit stays inside one frame", () => {
     }
 
     it("measures the selector pass it is being held against", () => {
-        report("jmespath.search, 50,000 calls", searchPass, FRAME_MS, `${((searchPass * 1e6) / ELEMENTS).toFixed(0)} ns each`);
+        report(
+            "jmespath.search, 50,000 calls",
+            searchPass,
+            FRAME_MS,
+            `${((searchPass * 1e6) / ELEMENTS).toFixed(0)} ns each`,
+        );
 
         // Not a budget, a sanity check: a reference of nothing would make every ratio below
         // meaningless, and that is exactly how a benchmark quietly stops testing anything.
@@ -316,7 +326,12 @@ describe("a single-layer edit stays inside one frame", () => {
         );
         const { ms, harness } = measurement;
 
-        reportEdit("colour encoding, 50,000 nodes", measurement, FRAME_MS, `${String(harness.engine.meshCount("node"))} meshes`);
+        reportEdit(
+            "colour encoding, 50,000 nodes",
+            measurement,
+            FRAME_MS,
+            `${String(harness.engine.meshCount("node"))} meshes`,
+        );
 
         // The pass really did paint: a benchmark that measures an edit which was refused, or one
         // that matched nothing, is a benchmark that measures nothing.

@@ -24,7 +24,5 @@ describe("DijkstraAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "dijkstra");
             assert.strictEqual(AlgClass, DijkstraAlgorithm);
         });
-
     });
-
 });

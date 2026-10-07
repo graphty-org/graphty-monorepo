@@ -7,7 +7,7 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { type JsonlEntry,JsonlWriter } from "../../src/server/jsonl-writer.js";
+import { type JsonlEntry, JsonlWriter } from "../../src/server/jsonl-writer.js";
 
 describe("JsonlWriter", () => {
     let writer: JsonlWriter;
@@ -82,12 +82,14 @@ describe("JsonlWriter", () => {
         // Fire off many concurrent writes
         const promises: Promise<void>[] = [];
         for (let i = 0; i < writeCount; i++) {
-            promises.push(writer.write(marker, {
-                time: new Date().toISOString(),
-                level: "INFO",
-                message: `Message ${i}`,
-                sessionId: "test-session",
-            }));
+            promises.push(
+                writer.write(marker, {
+                    time: new Date().toISOString(),
+                    level: "INFO",
+                    message: `Message ${i}`,
+                    sessionId: "test-session",
+                }),
+            );
         }
 
         await Promise.all(promises);

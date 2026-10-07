@@ -478,7 +478,7 @@ export const Prim: Story = {
         // them a spanning tree (n - 1 edges merely touching every node could hold a cycle).
         const ends = Array.from(treeLines, (l) => [l.getAttribute("data-source"), l.getAttribute("data-target")]);
         const reached = new Set([String(start)]);
-        for (let grew = true; grew; ) {
+        for (let grew = true; grew;) {
             grew = false;
             for (const [a, b] of ends) {
                 if (a !== null && b !== null && reached.has(a) !== reached.has(b)) {

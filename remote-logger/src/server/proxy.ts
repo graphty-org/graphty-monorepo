@@ -9,7 +9,7 @@
 import type * as http from "http";
 import httpProxy from "http-proxy";
 import * as https from "https";
-import { defaultTreeAdapter, type DefaultTreeAdapterMap,html as parse5Html, parse, serialize } from "parse5";
+import { defaultTreeAdapter, type DefaultTreeAdapterMap, html as parse5Html, parse, serialize } from "parse5";
 
 const HEADERS_TO_REMOVE = [
     "content-security-policy",
@@ -50,7 +50,6 @@ function extractPath(targetUrl: string): string {
     const parsed = new URL(targetUrl);
     return parsed.pathname + parsed.search;
 }
-
 
 /**
  * Rewrite a Location header to route back through the proxy.
@@ -109,7 +108,7 @@ function findElement(node: Document | Element, tagName: string): Element | null 
 function stripIntegrityAttributes(node: Document | Element): void {
     if (defaultTreeAdapter.isElementNode(node)) {
         if (node.tagName === "script" || node.tagName === "link") {
-            node.attrs = node.attrs.filter(a => a.name !== "integrity");
+            node.attrs = node.attrs.filter((a) => a.name !== "integrity");
         }
     }
     const children = node.childNodes ?? [];
@@ -122,7 +121,8 @@ function stripIntegrityAttributes(node: Document | Element): void {
 
 const XHTML_NS = parse5Html.NS.HTML;
 
-const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const CHROME_UA =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 /**
  * Inject the remote-logger script and base tag into HTML using parse5.
@@ -210,7 +210,8 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
     // TLS version, so sites that only support TLS 1.2 still work.
     const httpsAgent = new https.Agent({
         rejectUnauthorized: false,
-        sigalgs: "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512",
+        sigalgs:
+            "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512",
     });
 
     const proxy = httpProxy.createProxyServer({
@@ -280,13 +281,9 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
     });
 
     proxy.on("error", (err, _req, res) => {
-        const isTlsError = err.message.includes("SSL") ||
-            err.message.includes("TLS") ||
-            err.message.includes("EPROTO");
+        const isTlsError = err.message.includes("SSL") || err.message.includes("TLS") || err.message.includes("EPROTO");
 
-        const message = isTlsError
-            ? `TLS connection failed: ${err.message}`
-            : err.message;
+        const message = isTlsError ? `TLS connection failed: ${err.message}` : err.message;
 
         if (!quiet) {
             console.error(`[proxy] Error: ${message}`);

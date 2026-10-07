@@ -71,9 +71,7 @@ export function logsGetFilePathHandler(
 
     // Get file path from JsonlWriter if available, otherwise use default
     const jsonlWriter = storage.getJsonlWriter();
-    const filePath = jsonlWriter
-        ? jsonlWriter.getFilePath(projectMarker)
-        : getLogFilePath(projectMarker);
+    const filePath = jsonlWriter ? jsonlWriter.getFilePath(projectMarker) : getLogFilePath(projectMarker);
 
     // Check if file exists and get stats
     // Prefer JsonlWriter stats if available for consistency

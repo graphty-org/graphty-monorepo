@@ -152,13 +152,11 @@ function rampStops(swatches: readonly LegendSwatch[]): readonly LegendStop[] {
  * @returns at most five rows.
  */
 function categoriesOf(swatches: readonly LegendSwatch[]): readonly LegendCategory[] {
-    return swatches.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS).map(
-        (swatch, index): LegendCategory => ({
-            id: `swatch-${String(index)}`,
-            label: swatch.label,
-            color: swatchColor(swatch),
-        }),
-    );
+    return swatches.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS).map((swatch, index): LegendCategory => ({
+        id: `swatch-${String(index)}`,
+        label: swatch.label,
+        color: swatchColor(swatch),
+    }));
 }
 
 /**

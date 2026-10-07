@@ -47,9 +47,7 @@ declare module "d3-force-3d" {
         restart(): this;
     }
 
-    export function forceSimulation<NodeType extends Node = Node>(
-        nodes?: NodeType[],
-    ): ForceSimulation<NodeType>;
+    export function forceSimulation<NodeType extends Node = Node>(nodes?: NodeType[]): ForceSimulation<NodeType>;
 
     export interface ForceLink<NodeType = Node, EdgeType = Edge<NodeType>> {
         links(): EdgeType[];

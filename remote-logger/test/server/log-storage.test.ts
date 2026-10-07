@@ -19,9 +19,7 @@ describe("LogStorage", () => {
 
     describe("addLogs", () => {
         test("stores logs with session metadata", () => {
-            const logs: LogEntry[] = [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test message" },
-            ];
+            const logs: LogEntry[] = [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test message" }];
 
             storage.addLogs("session-123", logs);
 
@@ -32,9 +30,7 @@ describe("LogStorage", () => {
         });
 
         test("extracts project marker from session ID prefix", () => {
-            const logs: LogEntry[] = [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" },
-            ];
+            const logs: LogEntry[] = [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" }];
 
             storage.addLogs("graphty-element-1704067200000-abc123", logs);
 
@@ -43,9 +39,7 @@ describe("LogStorage", () => {
         });
 
         test("uses explicit projectMarker when provided", () => {
-            const logs: LogEntry[] = [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" },
-            ];
+            const logs: LogEntry[] = [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" }];
 
             storage.addLogs("session-123", logs, { projectMarker: "explicit-marker" });
 
@@ -54,9 +48,7 @@ describe("LogStorage", () => {
         });
 
         test("stores worktreePath when provided", () => {
-            const logs: LogEntry[] = [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" },
-            ];
+            const logs: LogEntry[] = [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" }];
 
             storage.addLogs("session-123", logs, {
                 worktreePath: "/home/user/.worktrees/remote-logging",
@@ -67,9 +59,7 @@ describe("LogStorage", () => {
         });
 
         test("stores pageUrl when provided", () => {
-            const logs: LogEntry[] = [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" },
-            ];
+            const logs: LogEntry[] = [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" }];
 
             storage.addLogs("session-123", logs, {
                 pageUrl: "http://localhost:9020/",
@@ -80,12 +70,8 @@ describe("LogStorage", () => {
         });
 
         test("appends to existing session", () => {
-            const logs1: LogEntry[] = [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "First" },
-            ];
-            const logs2: LogEntry[] = [
-                { time: "2024-01-15T10:00:01.000Z", level: "DEBUG", message: "Second" },
-            ];
+            const logs1: LogEntry[] = [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "First" }];
+            const logs2: LogEntry[] = [{ time: "2024-01-15T10:00:01.000Z", level: "DEBUG", message: "Second" }];
 
             storage.addLogs("session-123", logs1);
             storage.addLogs("session-123", logs2);
@@ -203,9 +189,7 @@ describe("LogStorage", () => {
         });
 
         test("applies filters before limiting", () => {
-            storage.addLogs("session-2", [
-                { time: "2024-01-15T10:00:05.000Z", level: "ERROR", message: "Error log" },
-            ]);
+            storage.addLogs("session-2", [{ time: "2024-01-15T10:00:05.000Z", level: "ERROR", message: "Error log" }]);
 
             const logs = storage.getRecentLogs(10, { level: "ERROR" });
             expect(logs).toHaveLength(1);
@@ -263,11 +247,9 @@ describe("LogStorage", () => {
                 ],
                 { projectMarker: "project-a" },
             );
-            storage.addLogs(
-                "session-b",
-                [{ time: "2024-01-15T10:00:02.000Z", level: "DEBUG", message: "B debug" }],
-                { projectMarker: "project-b" },
-            );
+            storage.addLogs("session-b", [{ time: "2024-01-15T10:00:02.000Z", level: "DEBUG", message: "B debug" }], {
+                projectMarker: "project-b",
+            });
         });
 
         test("lists all sessions with metadata", () => {
@@ -302,21 +284,15 @@ describe("LogStorage", () => {
 
     describe("clearLogs", () => {
         beforeEach(() => {
-            storage.addLogs(
-                "session-a",
-                [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" }],
-                { projectMarker: "project-a" },
-            );
-            storage.addLogs(
-                "session-b",
-                [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" }],
-                { projectMarker: "project-b" },
-            );
-            storage.addLogs(
-                "session-c",
-                [{ time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "C" }],
-                { projectMarker: "project-a" },
-            );
+            storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" }], {
+                projectMarker: "project-a",
+            });
+            storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" }], {
+                projectMarker: "project-b",
+            });
+            storage.addLogs("session-c", [{ time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "C" }], {
+                projectMarker: "project-a",
+            });
         });
 
         test("clears all logs when no filter", () => {
@@ -346,9 +322,7 @@ describe("LogStorage", () => {
 
     describe("getHealth", () => {
         test("returns health status with session count", () => {
-            storage.addLogs("session-1", [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" },
-            ]);
+            storage.addLogs("session-1", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" }]);
 
             const health = storage.getHealth();
             expect(health.status).toBe("ok");
@@ -360,9 +334,7 @@ describe("LogStorage", () => {
                 { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test 1" },
                 { time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Test 2" },
             ]);
-            storage.addLogs("session-2", [
-                { time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "Test 3" },
-            ]);
+            storage.addLogs("session-2", [{ time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "Test 3" }]);
 
             const health = storage.getHealth();
             expect(health.totalLogs).toBe(3);
@@ -391,9 +363,7 @@ describe("LogStorage", () => {
                 { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A1" },
                 { time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "A2" },
             ]);
-            storage.addLogs("session-b", [
-                { time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "B1" },
-            ]);
+            storage.addLogs("session-b", [{ time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "B1" }]);
 
             const logs = storage.getLogsForSession("session-a");
             expect(logs).toHaveLength(2);
@@ -409,12 +379,8 @@ describe("LogStorage", () => {
 
     describe("getAllLogsBySession", () => {
         test("returns all logs grouped by session ID", () => {
-            storage.addLogs("session-a", [
-                { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" },
-            ]);
-            storage.addLogs("session-b", [
-                { time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" },
-            ]);
+            storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" }]);
+            storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" }]);
 
             const allLogs = storage.getAllLogsBySession();
             expect(Object.keys(allLogs)).toHaveLength(2);
@@ -423,16 +389,12 @@ describe("LogStorage", () => {
         });
 
         test("filters by project marker", () => {
-            storage.addLogs(
-                "session-a",
-                [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" }],
-                { projectMarker: "project-a" },
-            );
-            storage.addLogs(
-                "session-b",
-                [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" }],
-                { projectMarker: "project-b" },
-            );
+            storage.addLogs("session-a", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "A" }], {
+                projectMarker: "project-a",
+            });
+            storage.addLogs("session-b", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "B" }], {
+                projectMarker: "project-b",
+            });
 
             const allLogs = storage.getAllLogsBySession({ projectMarker: "project-a" });
             expect(Object.keys(allLogs)).toHaveLength(1);
@@ -640,9 +602,7 @@ describe("LogStorage", () => {
 
             // Add recent info log
             const recentTime = new Date().toISOString();
-            retentionStorage.addLogs("mixed-session", [
-                { time: recentTime, level: "INFO", message: "New log" },
-            ]);
+            retentionStorage.addLogs("mixed-session", [{ time: recentTime, level: "INFO", message: "New log" }]);
 
             // Run cleanup
             retentionStorage.cleanupExpiredLogs();
@@ -719,14 +679,18 @@ describe("LogStorage", () => {
             // Add old log
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-            retentionStorage.addLogs("old-session", [
-                { time: twoDaysAgo.toISOString(), level: "INFO", message: "Old log" },
-            ], { projectMarker: "old-project" });
+            retentionStorage.addLogs(
+                "old-session",
+                [{ time: twoDaysAgo.toISOString(), level: "INFO", message: "Old log" }],
+                { projectMarker: "old-project" },
+            );
 
             // Add recent log
-            retentionStorage.addLogs("new-session", [
-                { time: new Date().toISOString(), level: "INFO", message: "New log" },
-            ], { projectMarker: "new-project" });
+            retentionStorage.addLogs(
+                "new-session",
+                [{ time: new Date().toISOString(), level: "INFO", message: "New log" }],
+                { projectMarker: "new-project" },
+            );
 
             // Wait for JSONL writes
             await jsonlWriter.flush();

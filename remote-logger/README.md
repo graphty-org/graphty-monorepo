@@ -61,7 +61,9 @@ The server serves a browser-ready script at `/remote-logger.js` that auto-config
 Or paste in the browser console for quick debugging:
 
 ```javascript
-var s=document.createElement('script');s.src='http://localhost:9080/remote-logger.js';document.head.appendChild(s);
+var s = document.createElement("script");
+s.src = "http://localhost:9080/remote-logger.js";
+document.head.appendChild(s);
 ```
 
 The script automatically intercepts all `console.log/warn/error/info/debug` calls and forwards them to the server. It exposes `window.__remoteLogger__` for manual control:
@@ -107,14 +109,15 @@ Logs appear in the server terminal with colors and session info:
 ```
 
 Log levels are displayed with the following colors:
-| Level | Color |
-|-------|-------|
-| ERROR | White text on red background |
-| WARN/WARNING | Bold text on yellow background |
-| INFO | Blue |
-| DEBUG | Cyan |
-| TRACE | Dim/gray |
-| LOG (default) | Green |
+
+| Level         | Color                          |
+| ------------- | ------------------------------ |
+| ERROR         | White text on red background   |
+| WARN/WARNING  | Bold text on yellow background |
+| INFO          | Blue                           |
+| DEBUG         | Cyan                           |
+| TRACE         | Dim/gray                       |
+| LOG (default) | Green                          |
 
 ## Debugging Third-Party Sites
 
@@ -125,6 +128,7 @@ http://localhost:9080/proxy/https://example.com
 ```
 
 Point your browser (including iOS Safari) at the proxy URL. The proxy:
+
 - Fetches the target page and injects the remote-logger script into HTML responses (using parse5 for safe HTML manipulation)
 - Injects a `<base>` tag so relative URLs resolve through the proxy
 - Strips Content-Security-Policy headers that would block the injected script
@@ -134,6 +138,7 @@ Point your browser (including iOS Safari) at the proxy URL. The proxy:
 - Passes non-HTML resources (CSS, JS, images) through unmodified
 
 **Limitations:**
+
 - Resources using absolute paths (e.g., `/fonts/...`, `/media/...`) bypass the `<base>` tag and return 404
 - JavaScript `fetch()` calls using absolute paths may bypass the proxy
 - OAuth redirect flows that check the origin domain will not work
@@ -170,9 +175,9 @@ Examples:
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `REMOTE_LOG_RETENTION_DAYS` | `7` | Number of days to retain logs before cleanup |
+| Variable                    | Default | Description                                  |
+| --------------------------- | ------- | -------------------------------------------- |
+| `REMOTE_LOG_RETENTION_DAYS` | `7`     | Number of days to retain logs before cleanup |
 
 ## API Reference
 
@@ -192,16 +197,16 @@ const client = createRemoteLogClient(options);
 
 #### Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `serverUrl` | `string` | required | URL of the log server |
-| `sessionPrefix` | `string` | `"session"` | Prefix for session ID |
-| `batchIntervalMs` | `number` | `1000` | Interval between batch sends |
-| `maxRetries` | `number` | `3` | Max retry attempts on failure |
-| `retryDelayMs` | `number` | `1000` | Base delay between retries (uses exponential backoff) |
-| `throttlePatterns` | `ThrottlePattern[]` | `[]` | Patterns to throttle (see below) |
-| `projectMarker` | `string` | auto | Project identifier for filtering (auto-detected from Vite globals) |
-| `worktreePath` | `string` | auto | Full worktree path for debugging (auto-detected from Vite globals) |
+| Option             | Type                | Default     | Description                                                        |
+| ------------------ | ------------------- | ----------- | ------------------------------------------------------------------ |
+| `serverUrl`        | `string`            | required    | URL of the log server                                              |
+| `sessionPrefix`    | `string`            | `"session"` | Prefix for session ID                                              |
+| `batchIntervalMs`  | `number`            | `1000`      | Interval between batch sends                                       |
+| `maxRetries`       | `number`            | `3`         | Max retry attempts on failure                                      |
+| `retryDelayMs`     | `number`            | `1000`      | Base delay between retries (uses exponential backoff)              |
+| `throttlePatterns` | `ThrottlePattern[]` | `[]`        | Patterns to throttle (see below)                                   |
+| `projectMarker`    | `string`            | auto        | Project identifier for filtering (auto-detected from Vite globals) |
+| `worktreePath`     | `string`            | auto        | Full worktree path for debugging (auto-detected from Vite globals) |
 
 #### Throttling High-Frequency Logs
 
@@ -221,16 +226,16 @@ const logger = new RemoteLogClient({
 
 #### Methods
 
-| Method | Description |
-|--------|-------------|
-| `log(level, message, data?)` | Log a message with optional data object |
-| `flush(): Promise<void>` | Immediately send pending logs to server |
-| `close(): Promise<void>` | Flush remaining logs and stop accepting new ones |
+| Method                       | Description                                      |
+| ---------------------------- | ------------------------------------------------ |
+| `log(level, message, data?)` | Log a message with optional data object          |
+| `flush(): Promise<void>`     | Immediately send pending logs to server          |
+| `close(): Promise<void>`     | Flush remaining logs and stop accepting new ones |
 
 #### Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
+| Property    | Type                | Description                                                         |
+| ----------- | ------------------- | ------------------------------------------------------------------- |
 | `sessionId` | `string` (readonly) | Unique session identifier in format `{prefix}-{timestamp}-{random}` |
 
 ### startLogServer
@@ -250,34 +255,35 @@ const server = startLogServer({
 
 #### Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `port` | `number` | `9080` | Port to listen on |
-| `host` | `string` | `"localhost"` | Hostname to bind to |
-| `certPath` | `string` | - | Path to SSL certificate |
-| `keyPath` | `string` | - | Path to SSL private key |
-| `logFile` | `string` | - | Path for file logging |
-| `useHttp` | `boolean` | `false` | Use HTTP instead of HTTPS |
-| `quiet` | `boolean` | `false` | Suppress output |
+| Option     | Type      | Default       | Description               |
+| ---------- | --------- | ------------- | ------------------------- |
+| `port`     | `number`  | `9080`        | Port to listen on         |
+| `host`     | `string`  | `"localhost"` | Hostname to bind to       |
+| `certPath` | `string`  | -             | Path to SSL certificate   |
+| `keyPath`  | `string`  | -             | Path to SSL private key   |
+| `logFile`  | `string`  | -             | Path for file logging     |
+| `useHttp`  | `boolean` | `false`       | Use HTTP instead of HTTPS |
+| `quiet`    | `boolean` | `false`       | Suppress output           |
 
 ### REST API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/log` | POST | Receive logs from client |
-| `/remote-logger.js` | GET | Browser-ready auto-config script |
-| `/proxy/<url>` | * | Reverse proxy with script injection |
-| `/logs` | GET | Get all logs by session |
-| `/logs/recent` | GET | Get recent logs (`?n=50&errors=true`) |
-| `/logs/errors` | GET | Get error-level logs only |
-| `/logs/clear` | POST | Clear all stored logs |
-| `/health` | GET | Health check |
+| Endpoint            | Method | Description                           |
+| ------------------- | ------ | ------------------------------------- |
+| `/log`              | POST   | Receive logs from client              |
+| `/remote-logger.js` | GET    | Browser-ready auto-config script      |
+| `/proxy/<url>`      | \*     | Reverse proxy with script injection   |
+| `/logs`             | GET    | Get all logs by session               |
+| `/logs/recent`      | GET    | Get recent logs (`?n=50&errors=true`) |
+| `/logs/errors`      | GET    | Get error-level logs only             |
+| `/logs/clear`       | POST   | Clear all stored logs                 |
+| `/health`           | GET    | Health check                          |
 
 #### POST /log
 
 Receive log entries from clients. This is the endpoint used by `RemoteLogClient`.
 
 **Request body:**
+
 ```json
 {
     "sessionId": "myapp-abc123-xyz789",
@@ -293,6 +299,7 @@ Receive log entries from clients. This is the endpoint used by `RemoteLogClient`
 ```
 
 **Response:**
+
 ```json
 { "success": true }
 ```
@@ -302,14 +309,11 @@ Receive log entries from clients. This is the endpoint used by `RemoteLogClient`
 Returns all logs grouped by session.
 
 **Response:**
+
 ```json
 {
-    "myapp-abc123": [
-        { "time": "2024-01-15T10:30:00Z", "level": "INFO", "message": "Hello" }
-    ],
-    "myapp-def456": [
-        { "time": "2024-01-15T10:31:00Z", "level": "DEBUG", "message": "Debug msg" }
-    ]
+    "myapp-abc123": [{ "time": "2024-01-15T10:30:00Z", "level": "INFO", "message": "Hello" }],
+    "myapp-def456": [{ "time": "2024-01-15T10:31:00Z", "level": "DEBUG", "message": "Debug msg" }]
 }
 ```
 
@@ -318,17 +322,17 @@ Returns all logs grouped by session.
 Returns recent logs across all sessions, sorted by time.
 
 **Query parameters:**
+
 - `n` (optional): Number of logs to return (default: 50)
 - `errors` (optional): Set to `true` to return only error-level logs
 
 **Response:**
+
 ```json
 {
     "total": 150,
     "showing": 50,
-    "logs": [
-        { "sessionId": "myapp-abc123", "time": "...", "level": "INFO", "message": "..." }
-    ]
+    "logs": [{ "sessionId": "myapp-abc123", "time": "...", "level": "INFO", "message": "..." }]
 }
 ```
 
@@ -337,12 +341,11 @@ Returns recent logs across all sessions, sorted by time.
 Returns only error-level logs across all sessions.
 
 **Response:**
+
 ```json
 {
     "total": 5,
-    "logs": [
-        { "sessionId": "myapp-abc123", "time": "...", "level": "ERROR", "message": "..." }
-    ]
+    "logs": [{ "sessionId": "myapp-abc123", "time": "...", "level": "ERROR", "message": "..." }]
 }
 ```
 
@@ -351,6 +354,7 @@ Returns only error-level logs across all sessions.
 Clears all stored logs from memory.
 
 **Response:**
+
 ```json
 { "success": true }
 ```
@@ -360,6 +364,7 @@ Clears all stored logs from memory.
 Health check endpoint for monitoring.
 
 **Response:**
+
 ```json
 { "status": "ok", "sessions": 3 }
 ```
@@ -374,12 +379,12 @@ Add the following to your Claude Code MCP configuration (`~/.config/claude-code/
 
 ```json
 {
-  "mcpServers": {
-    "remote-logger": {
-      "command": "npx",
-      "args": ["remote-log-server", "--mcp-only"]
+    "mcpServers": {
+        "remote-logger": {
+            "command": "npx",
+            "args": ["remote-log-server", "--mcp-only"]
+        }
     }
-  }
 }
 ```
 
@@ -387,12 +392,12 @@ Or if installed globally:
 
 ```json
 {
-  "mcpServers": {
-    "remote-logger": {
-      "command": "remote-log-server",
-      "args": ["--mcp-only"]
+    "mcpServers": {
+        "remote-logger": {
+            "command": "remote-log-server",
+            "args": ["--mcp-only"]
+        }
     }
-  }
 }
 ```
 
@@ -414,15 +419,17 @@ The MCP server provides 9 tools for log management:
 Get recent logs from the server, sorted by time (oldest first).
 
 **Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `count` | `number` | `50` | Number of logs to return (max 500) |
-| `projectMarker` | `string` | - | Filter by project marker |
-| `workingDirectory` | `string` | - | Derive marker from path (e.g., `/path/.worktrees/my-branch`) |
-| `level` | `string` | - | Filter by log level (ERROR, WARN, INFO, DEBUG) |
-| `since` | `string` | - | Only logs after this ISO timestamp |
+
+| Parameter          | Type     | Default | Description                                                  |
+| ------------------ | -------- | ------- | ------------------------------------------------------------ |
+| `count`            | `number` | `50`    | Number of logs to return (max 500)                           |
+| `projectMarker`    | `string` | -       | Filter by project marker                                     |
+| `workingDirectory` | `string` | -       | Derive marker from path (e.g., `/path/.worktrees/my-branch`) |
+| `level`            | `string` | -       | Filter by log level (ERROR, WARN, INFO, DEBUG)               |
+| `since`            | `string` | -       | Only logs after this ISO timestamp                           |
 
 **Example usage in Claude Code:**
+
 > "Show me the last 20 logs from the graphty-element project"
 
 #### `logs_status`
@@ -430,11 +437,13 @@ Get recent logs from the server, sorted by time (oldest first).
 Get the status of the remote log server.
 
 **Returns:**
+
 - Server status, uptime, session count, log count, error count, memory usage
 - HTTP endpoint configuration (port, host, protocol, full URL for browser clients)
 - Retention settings (how long logs are kept before automatic cleanup)
 
 **Example usage:**
+
 > "What is the status of the remote logger?"
 > "What URL should I use to configure the browser client?"
 > "How long are logs retained?"
@@ -444,16 +453,19 @@ Get the status of the remote log server.
 List all logging sessions with their metadata.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `projectMarker` | `string` | Filter by project marker |
-| `hasErrors` | `boolean` | Only show sessions with errors |
+
+| Parameter       | Type      | Description                    |
+| --------------- | --------- | ------------------------------ |
+| `projectMarker` | `string`  | Filter by project marker       |
+| `hasErrors`     | `boolean` | Only show sessions with errors |
 
 **Returns:** Array of sessions with:
+
 - `sessionId`, `projectMarker`, `worktreePath`, `pageUrl`
 - `firstLogTime`, `lastLogTime`, `logCount`, `errorCount`
 
 **Example usage:**
+
 > "List all logging sessions that have errors"
 
 #### `logs_receive`
@@ -461,21 +473,23 @@ List all logging sessions with their metadata.
 Store logs from a browser or application session.
 
 **Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `sessionId` | `string` | Yes | Unique session identifier |
-| `logs` | `array` | Yes | Array of log entries |
-| `projectMarker` | `string` | No | Project identifier |
-| `worktreePath` | `string` | No | Full worktree path |
-| `pageUrl` | `string` | No | Browser page URL |
+
+| Parameter       | Type     | Required | Description               |
+| --------------- | -------- | -------- | ------------------------- |
+| `sessionId`     | `string` | Yes      | Unique session identifier |
+| `logs`          | `array`  | Yes      | Array of log entries      |
+| `projectMarker` | `string` | No       | Project identifier        |
+| `worktreePath`  | `string` | No       | Full worktree path        |
+| `pageUrl`       | `string` | No       | Browser page URL          |
 
 #### `logs_get_all`
 
 Get all logs grouped by session.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
+
+| Parameter       | Type     | Description              |
+| --------------- | -------- | ------------------------ |
 | `projectMarker` | `string` | Filter by project marker |
 
 **Returns:** Object mapping session IDs to log arrays
@@ -485,12 +499,14 @@ Get all logs grouped by session.
 Get only ERROR level logs.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `projectMarker` | `string` | Filter by project marker |
-| `since` | `string` | Only errors after this timestamp |
+
+| Parameter       | Type     | Description                      |
+| --------------- | -------- | -------------------------------- |
+| `projectMarker` | `string` | Filter by project marker         |
+| `since`         | `string` | Only errors after this timestamp |
 
 **Example usage:**
+
 > "Show me all errors from the current project"
 
 #### `logs_clear`
@@ -498,13 +514,15 @@ Get only ERROR level logs.
 Clear logs from the server.
 
 **Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `confirm` | `boolean` | Yes | Must be `true` to proceed |
-| `projectMarker` | `string` | No | Only clear this project's logs |
-| `sessionId` | `string` | No | Only clear this session's logs |
+
+| Parameter       | Type      | Required | Description                    |
+| --------------- | --------- | -------- | ------------------------------ |
+| `confirm`       | `boolean` | Yes      | Must be `true` to proceed      |
+| `projectMarker` | `string`  | No       | Only clear this project's logs |
+| `sessionId`     | `string`  | No       | Only clear this session's logs |
 
 **Example usage:**
+
 > "Clear all logs for the remote-logging project, confirm"
 
 #### `logs_search`
@@ -512,15 +530,17 @@ Clear logs from the server.
 Search logs by text pattern.
 
 **Parameters:**
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `query` | `string` | required | Search text or regex pattern |
-| `regex` | `boolean` | `false` | Treat query as regex |
-| `projectMarker` | `string` | - | Filter by project |
-| `level` | `string` | - | Filter by log level |
-| `limit` | `number` | `100` | Max results (max 1000) |
+
+| Parameter       | Type      | Default  | Description                  |
+| --------------- | --------- | -------- | ---------------------------- |
+| `query`         | `string`  | required | Search text or regex pattern |
+| `regex`         | `boolean` | `false`  | Treat query as regex         |
+| `projectMarker` | `string`  | -        | Filter by project            |
+| `level`         | `string`  | -        | Filter by log level          |
+| `limit`         | `number`  | `100`    | Max results (max 1000)       |
 
 **Example usage:**
+
 > "Search the logs for 'connection failed'"
 > "Search logs for any network errors using regex 'network|timeout|connection'"
 
@@ -529,14 +549,16 @@ Search logs by text pattern.
 Get the file path to the JSONL log file for a project.
 
 **Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `projectMarker` | `string` | Project marker |
+
+| Parameter          | Type     | Description             |
+| ------------------ | -------- | ----------------------- |
+| `projectMarker`    | `string` | Project marker          |
 | `workingDirectory` | `string` | Derive marker from path |
 
 **Returns:** File path, existence status, and size
 
 **Example usage:**
+
 > "Get the log file path for this project so I can grep it"
 
 This tool is useful for accessing logs via file-based tools like `Grep` or `Read` when you need more advanced searching capabilities.
@@ -546,6 +568,7 @@ This tool is useful for accessing logs via file-based tools like `Grep` or `Read
 Project markers allow you to filter logs by project, which is especially useful in monorepos or when working with multiple projects simultaneously.
 
 Markers are determined in the following priority:
+
 1. Explicit `projectMarker` parameter
 2. Derived from `workingDirectory` path (extracts from `.worktrees/` or uses basename)
 3. Extracted from `sessionId` prefix (e.g., `graphty-element-123-abc` → `graphty-element`)
@@ -593,22 +616,22 @@ ui.destroy();
 
 The floating button (📋) appears in the top-right corner of the page. Clicking it reveals a menu with:
 
-| Button | Action |
-|--------|--------|
-| 📋 Copy Logs | Copy all captured logs to clipboard |
-| 💾 Download | Download logs as a timestamped text file |
-| 🗑️ Clear | Clear all captured logs |
-| 👁️ Show Logs | Open a modal to view and select logs |
+| Button       | Action                                   |
+| ------------ | ---------------------------------------- |
+| 📋 Copy Logs | Copy all captured logs to clipboard      |
+| 💾 Download  | Download logs as a timestamped text file |
+| 🗑️ Clear     | Clear all captured logs                  |
+| 👁️ Show Logs | Open a modal to view and select logs     |
 
 #### Instance Methods
 
-| Method | Description |
-|--------|-------------|
-| `getLogs(): string` | Get all captured logs as formatted text |
-| `clearLogs(): void` | Clear captured logs |
-| `copyLogs(): Promise<void>` | Copy logs to clipboard |
-| `downloadLogs(): void` | Download logs as text file |
-| `destroy(): void` | Restore console methods and remove UI |
+| Method                      | Description                             |
+| --------------------------- | --------------------------------------- |
+| `getLogs(): string`         | Get all captured logs as formatted text |
+| `clearLogs(): void`         | Clear captured logs                     |
+| `copyLogs(): Promise<void>` | Copy logs to clipboard                  |
+| `downloadLogs(): void`      | Download logs as text file              |
+| `destroy(): void`           | Restore console methods and remove UI   |
 
 #### Global Methods
 
@@ -616,16 +639,17 @@ When initialized, `window.__console__` is exposed for programmatic access:
 
 ```typescript
 // Available globally after initConsoleCaptureUI()
-window.__console__.copy();      // Copy to clipboard
-window.__console__.download();  // Download as file
-window.__console__.clear();     // Clear logs
-window.__console__.get();       // Get logs as string
-window.__console__.logs;        // Raw log array
+window.__console__.copy(); // Copy to clipboard
+window.__console__.download(); // Download as file
+window.__console__.clear(); // Clear logs
+window.__console__.get(); // Get logs as string
+window.__console__.logs; // Raw log array
 ```
 
 #### Log Format
 
 Captured logs are formatted as:
+
 ```
 [2024-01-15T10:30:00.000Z] [INFO] User logged in
 [2024-01-15T10:30:01.000Z] [ERROR] Failed to connect
@@ -700,6 +724,7 @@ export default defineConfig({
 ```
 
 The plugin automatically:
+
 - Detects if you're in a git worktree (e.g., `.worktrees/my-feature`) and uses the worktree name as the marker
 - Falls back to the project directory basename for regular projects
 - Injects `__REMOTE_LOG_PROJECT_MARKER__` and `__REMOTE_LOG_WORKTREE_PATH__` globals
@@ -736,7 +761,7 @@ import type { Server } from "http";
 const server: Server = startLogServer({
     port: 9080,
     useHttp: true,
-    quiet: true,  // Suppress banner for programmatic use
+    quiet: true, // Suppress banner for programmatic use
     logFile: "./logs/debug.jsonl",
 });
 
@@ -802,8 +827,9 @@ npx remote-log-server --log-file ./logs/debug.jsonl
 ```
 
 Each line contains a JSON object:
+
 ```json
-{"time":"2024-01-15T10:30:00Z","sessionId":"myapp-abc123","level":"INFO","message":"Hello"}
+{ "time": "2024-01-15T10:30:00Z", "sessionId": "myapp-abc123", "level": "INFO", "message": "Hello" }
 ```
 
 ## TypeScript
@@ -812,32 +838,24 @@ Full TypeScript support with type definitions included.
 
 ```typescript
 // Client types
-import type {
-    LogEntry,
-    RemoteLogClientOptions,
-    ThrottlePattern
-} from "@graphty/remote-logger";
+import type { LogEntry, RemoteLogClientOptions, ThrottlePattern } from "@graphty/remote-logger";
 
 // Server types (from server entry point)
-import type {
-    LogServerOptions,
-    ParseArgsResult,
-    GeneratedCert
-} from "@graphty/remote-logger/server";
+import type { LogServerOptions, ParseArgsResult, GeneratedCert } from "@graphty/remote-logger/server";
 ```
 
 ### Type Definitions
 
 ```typescript
 interface LogEntry {
-    time: string;      // ISO 8601 timestamp
-    level: string;     // Log level (INFO, DEBUG, WARN, ERROR, etc.)
-    message: string;   // Log message
-    data?: Record<string, unknown>;  // Optional additional data
+    time: string; // ISO 8601 timestamp
+    level: string; // Log level (INFO, DEBUG, WARN, ERROR, etc.)
+    message: string; // Log message
+    data?: Record<string, unknown>; // Optional additional data
 }
 
 interface ThrottlePattern {
-    pattern: RegExp;   // Pattern to match log messages
+    pattern: RegExp; // Pattern to match log messages
     intervalMs: number; // Minimum interval between matching messages
 }
 
@@ -848,8 +866,8 @@ interface RemoteLogClientOptions {
     maxRetries?: number;
     retryDelayMs?: number;
     throttlePatterns?: ThrottlePattern[];
-    projectMarker?: string;    // Project identifier for filtering
-    worktreePath?: string;     // Full path for debugging
+    projectMarker?: string; // Project identifier for filtering
+    worktreePath?: string; // Full path for debugging
 }
 
 interface LogServerOptions {
@@ -905,17 +923,10 @@ The package provides three entry points for different use cases:
 Browser-safe exports for the logging client:
 
 ```typescript
-import {
-    RemoteLogClient,
-    createRemoteLogClient
-} from "@graphty/remote-logger";
+import { RemoteLogClient, createRemoteLogClient } from "@graphty/remote-logger";
 
 // Types
-import type {
-    LogEntry,
-    RemoteLogClientOptions,
-    ThrottlePattern
-} from "@graphty/remote-logger";
+import type { LogEntry, RemoteLogClientOptions, ThrottlePattern } from "@graphty/remote-logger";
 ```
 
 ### Server Entry (`@graphty/remote-logger/server`)
@@ -924,11 +935,11 @@ Node.js-only exports for the log server:
 
 ```typescript
 import {
-    startLogServer,      // Start server programmatically
-    main,                // CLI entry point
-    parseArgs,           // Parse CLI arguments
-    clearLogs,           // Clear stored logs
-    HELP_TEXT,           // CLI help text
+    startLogServer, // Start server programmatically
+    main, // CLI entry point
+    parseArgs, // Parse CLI arguments
+    clearLogs, // Clear stored logs
+    HELP_TEXT, // CLI help text
 
     // Certificate utilities
     generateSelfSignedCert,
@@ -937,12 +948,7 @@ import {
 } from "@graphty/remote-logger/server";
 
 // Types
-import type {
-    LogServerOptions,
-    LogEntry,
-    ParseArgsResult,
-    GeneratedCert,
-} from "@graphty/remote-logger/server";
+import type { LogServerOptions, LogEntry, ParseArgsResult, GeneratedCert } from "@graphty/remote-logger/server";
 ```
 
 ### UI Entry (`@graphty/remote-logger/ui`)
@@ -950,10 +956,7 @@ import type {
 Browser exports for the console capture widget:
 
 ```typescript
-import {
-    ConsoleCaptureUI,
-    initConsoleCaptureUI
-} from "@graphty/remote-logger/ui";
+import { ConsoleCaptureUI, initConsoleCaptureUI } from "@graphty/remote-logger/ui";
 ```
 
 ### Client Entry (`@graphty/remote-logger/client`)
@@ -991,7 +994,7 @@ Or programmatically:
 import { LogStorage } from "@graphty/remote-logger/server";
 
 const storage = new LogStorage({
-    retentionDays: 3,           // Keep logs for 3 days
+    retentionDays: 3, // Keep logs for 3 days
     cleanupIntervalMs: 3600000, // Check every hour (default)
 });
 ```
@@ -1009,4 +1012,3 @@ const storage = new LogStorage({
 ## License
 
 MIT
-

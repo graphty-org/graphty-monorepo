@@ -10,7 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
-import { createDualServer, type DualServerResult,LogStorage } from "../../src/server/index.js";
+import { createDualServer, type DualServerResult, LogStorage } from "../../src/server/index.js";
 
 // Use ports in the integration test range (8200-8399)
 const BASE_PORT = 8300;
@@ -39,7 +39,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: true,
             });
@@ -65,7 +65,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: true,
             });
@@ -82,7 +82,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: true,
             });
@@ -99,7 +99,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: true,
             });
@@ -114,7 +114,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: true,
             });
@@ -129,7 +129,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: true,
             });
@@ -148,7 +148,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -171,7 +171,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -186,7 +186,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -201,7 +201,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -216,7 +216,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -233,7 +233,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -248,7 +248,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -266,7 +266,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -289,7 +289,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -333,7 +333,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
                 logReceiveOnly: false,
             });
@@ -364,7 +364,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
             });
 
@@ -378,7 +378,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
             });
 
@@ -393,7 +393,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
             });
 
@@ -407,7 +407,7 @@ describe("Server modes", () => {
                 httpHost: "127.0.0.1",
                 httpEnabled: true,
                 mcpEnabled: false,
-                                quiet: true,
+                quiet: true,
                 storage,
             });
 

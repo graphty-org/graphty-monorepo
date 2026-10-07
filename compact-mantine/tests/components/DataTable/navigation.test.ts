@@ -87,7 +87,9 @@ describe("nextGridPosition", () => {
     });
 
     it("moves nothing when every column is hidden", () => {
-        expect(nextGridPosition({ row: 0, column: 0 }, "ArrowRight", { ...BOUNDS, columnCount: 0 }, "ltr", NO_MODIFIERS)).toBeUndefined();
+        expect(
+            nextGridPosition({ row: 0, column: 0 }, "ArrowRight", { ...BOUNDS, columnCount: 0 }, "ltr", NO_MODIFIERS),
+        ).toBeUndefined();
     });
 });
 

@@ -6,7 +6,7 @@
 
 import type { F32, F64, NodeIdMap } from "@graphty/graph-format";
 
-import type { PositionMap } from "./types";
+import type { PositionMap } from "./types/index.js";
 
 /** The output of an index-based layout: `n` rows of `dim` components in node-index order, in layout units (not scene units). */
 export interface LayoutResult {

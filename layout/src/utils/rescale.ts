@@ -2,7 +2,7 @@
  * Layout rescaling utilities
  */
 
-import { PositionMap } from "../types";
+import { PositionMap } from "../types/index.js";
 
 /**
  * Returns scaled position array/dict to (-scale, scale) in all axes.

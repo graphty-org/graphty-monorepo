@@ -81,12 +81,23 @@ interface Retained {
  */
 const retained = {
     all: new Set<Retained>(),
-    seen: new WeakSet<ArrayBufferView>(),
+    byArray: new WeakMap<ArrayBufferView, Retained>(),
     byHolder: new WeakMap<object, Set<Retained>>(),
+    /** Retained with no holder since a dispatch last checked them; the next dispatch checks them once. */
+    fresh: new Set<Retained>(),
 };
 
-/** The holder of arrays no one object's state keeps (a merged row patch): every dispatch checks it. */
-const SHARED = {};
+/**
+ * Forget an array once it is collected. A WeakRef only clears at a full collection, which a
+ * roomy heap may not run for thousands of dispatches, so nothing a dispatch walks may depend on
+ * one clearing; this only keeps `all` from growing by one entry per array ever retained.
+ */
+const collected = new FinalizationRegistry<Retained>((entry) => {
+    retained.all.delete(entry);
+});
+
+/** How many array checks have run, for the tests that bound a dispatch's share. */
+let verifications = 0;
 
 /**
  * A checksum of an array's bytes (FNV-1a over 32-bit words where the view is aligned to them,
@@ -120,17 +131,24 @@ function checksum(array: ArrayBufferView): number {
  * happens when strict state is off, or for an array already noted.
  * @param array - The array.
  * @param what - What holds it, as a noun phrase naming the slice.
- * @param holder - The object whose state keeps it (a store, an arrangement), whose dispatcher
- *     checks it at each dispatch; absent, every dispatch checks it.
+ * @param holder - The object whose state keeps it (a store's snapshot), whose dispatcher checks it
+ *     at each dispatch. Absent, the next dispatch checks it once, and after that a dispatch checks
+ *     it only while its state names it (see {@link verifyRetainedArrays}).
  */
-export function retainArray(array: ArrayBufferView, what: string, holder: object = SHARED): void {
-    if (!strictStateEnabled() || retained.seen.has(array)) {
+export function retainArray(array: ArrayBufferView, what: string, holder?: object): void {
+    if (!strictStateEnabled() || retained.byArray.has(array)) {
         return;
     }
 
-    retained.seen.add(array);
     const entry = { array: new WeakRef(array), what, sum: checksum(array) };
+    retained.byArray.set(array, entry);
     retained.all.add(entry);
+    collected.register(array, entry);
+    if (holder === undefined) {
+        retained.fresh.add(entry);
+        return;
+    }
+
     let own = retained.byHolder.get(holder);
     if (own === undefined) {
         own = new Set();
@@ -151,6 +169,7 @@ function verify(entry: Retained): boolean {
         return false;
     }
 
+    verifications++;
     const sum = checksum(array);
     if (sum !== -1 && sum !== entry.sum) {
         throw strictViolation(
@@ -162,19 +181,30 @@ function verify(entry: Retained): boolean {
 }
 
 /**
- * Strict: check the retained arrays still alive: the ones the given holders' state keeps, as each
- * dispatch does, or every one, as the test setup does after each test.
- * @param holders - The holders whose arrays to check, beside the shared ones; every array when
- *     absent.
+ * Strict: check the retained arrays still alive: the ones a dispatch's state keeps, as each
+ * dispatch does, or every one, as the test setup does after each test. A dispatch checks the given
+ * holders' arrays, the given arrays its state names, and the arrays retained with no holder since
+ * the last dispatch -- never every array not yet collected, which grows with every capture ever
+ * taken until the next full collection (issue #584).
+ * @param holders - The holders whose arrays to check; every array when absent.
+ * @param kept - Arrays the dispatch's state names (its captures and row patches); one never
+ *     retained is skipped.
  */
-export function verifyRetainedArrays(holders?: readonly (object | null)[]): void {
+export function verifyRetainedArrays(
+    holders?: readonly (object | null)[],
+    kept: Iterable<ArrayBufferView | null | undefined> = [],
+): void {
     const sets =
         holders === undefined
             ? [retained.all]
-            : [...holders, SHARED].flatMap((holder) => {
-                  const own = holder === null ? undefined : retained.byHolder.get(holder);
-                  return own === undefined ? [] : [own];
-              });
+            : [
+                  retained.fresh,
+                  ...holders.flatMap((holder) => {
+                      const own = holder === null ? undefined : retained.byHolder.get(holder);
+                      return own === undefined ? [] : [own];
+                  }),
+              ];
+
     for (const set of sets) {
         for (const entry of set) {
             if (!verify(entry)) {
@@ -183,6 +213,23 @@ export function verifyRetainedArrays(holders?: readonly (object | null)[]): void
             }
         }
     }
+
+    retained.fresh.clear();
+    for (const array of kept) {
+        const entry = array === null || array === undefined ? undefined : retained.byArray.get(array);
+        if (entry !== undefined) {
+            verify(entry);
+        }
+    }
+}
+
+/**
+ * Strict: how many array checks have run since the module loaded. A test reads it on both sides of
+ * a dispatch to bound what one dispatch checks.
+ * @returns The count.
+ */
+export function strictArrayChecks(): number {
+    return verifications;
 }
 
 /**

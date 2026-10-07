@@ -92,8 +92,8 @@ const css = `
     vertical-align: middle;
 }
 .cm-kbd[data-active] {
-    border-color: var(--mantine-color-brand-2);
-    background-color: var(--mantine-color-brand-2);
+    border-color: var(--mantine-primary-color-2);
+    background-color: var(--mantine-primary-color-2);
     color: var(--cm-bg-menu);
 }
 .cm-kbd[data-variant="inline"] {
@@ -555,7 +555,7 @@ const css = `
     line-height: 15.6px;
     color: var(--cm-text-menu-secondary);
 }
-.cm-sheet-row[data-highlighted] .cm-sheet-row-label { color: var(--mantine-color-brand-2); }
+.cm-sheet-row[data-highlighted] .cm-sheet-row-label { color: var(--mantine-primary-color-2); }
 .cm-sheet-keys {
     display: inline-flex;
     gap: 3px;

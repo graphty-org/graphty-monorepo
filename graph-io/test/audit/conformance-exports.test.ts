@@ -127,6 +127,7 @@ interface DesignLossNote {
     readonly message: string;
     readonly column: string | null;
     readonly count: number | null;
+    readonly columns?: readonly string[];
 }
 interface DesignCommonExportOptions {
     sanitizeIds?: "error" | "mangle" | undefined;

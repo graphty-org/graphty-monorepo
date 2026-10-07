@@ -29,24 +29,32 @@
  * raw half the round consumed: mode 0 restarts the raw near half (word 1 to 0), mode 1 the raw far half (word 21
  * to 0); the relax kernels size themselves from words 0 and 20.
  *
- * Beamer's test (P8-T8, PD-21; amended for issue #391), evaluated at every boundary BEFORE the `done` branch (so a
- * switch can be counted at the done boundary too, which the host model of the tests mirrors): top-down switches to
- * bottom-up when `nextDegreeSum > unvisitedDegreeSum / alpha` (u32 division; alpha the host's
- * `max(1, floor(arcCount / n))` unless tuned) and the frontier is growing (`next > frontierCount`); bottom-up
+ * Beamer's test (P8-T8, PD-21; amended for issues #391 and #1358), evaluated at every boundary BEFORE the `done`
+ * branch (so a switch can be counted at the done boundary too, which the host model of the tests mirrors): top-down
+ * switches to bottom-up when `nextDegreeSum > max(unvisitedCount, unvisitedDegreeSum / alpha)` (u32 division; alpha
+ * the host's `BEAMER_ALPHA` unless tuned) and the frontier is growing (`next > frontierCount`). Both sides are arcs
+ * read: a top-down level reads its frontier's out-arcs, a bottom-up sweep reads at least one in-arc per unvisited
+ * vertex it can claim and at most all of their in-arcs (`unvisitedDegreeSum`, the IN-degree sum since issue #1358),
+ * and alpha is the share of those it expects to read before the early exit; the `unvisitedCount` floor keeps a
+ * graph whose unvisited vertices have one in-arc each (a directed tree) top-down, where the sweep reads exactly one
+ * arc per vertex whatever alpha says; bottom-up
  * switches back when `next * beta < unvisitedCount` (a u32 product, wrapping only above 178M vertices, which no
  * admitted device reaches) and the frontier is shrinking; `P.mode == 1` (the driver's `"top-down"`) pins the
- * direction at 0. Every change is counted in `switches`, the previous direction is word 14. `nextDegreeSum` (word
+ * direction at 0, `P.mode == 2` (the driver's `"bottom-up"`) takes the expected sweep reads as 0, so every growing
+ * boundary whose frontier has an out-arc switches in. Every change is counted in `switches`, the previous direction is word 14. `nextDegreeSum` (word
  * 25) is Beamer's m_f measured EXACTLY: `bfs-next-degree` sums the out-degrees of the vertices a level claims at
  * the end of that level, so the boundary that rotates them in as `next` compares the degree of the frontier it is
  * about to expand -- not, as before the amendment, `frontierDegreeSum` (word 2), the degree of the frontier the
  * previous level EXPANDED, one level stale and 0 after a bottom-up level, which on the 1M / 10M R-MAT missed the
  * switch at the level holding 13.6M of the 21M arcs. Word 2 is still accumulated by the expansion and rotated into
  * word 4 for the inspect seam. The two unvisited words are rebuilt exactly once per submit by `bfs-unvisited-flags`
- * (PD-18) and maintained here by subtraction from the SECOND boundary of a submit on, because a boundary may only
- * subtract what the submit's rebuild counted: the rebuild counts the vertices unclaimed when it runs, the frontier
- * rotated in at boundary 0 was claimed by the previous submit's last level, so it was never in the sums, and
- * boundary b subtracts `next = |F_b|` and `nextDegreeSum = deg(F_b)`, both inside the sums iff b >= 1. Both words
- * are therefore exact at every boundary, bottom-up levels included (the sweep's claims are summed like any other).
+ * (PD-18). `unvisitedCount` is maintained here by subtraction from the SECOND boundary of a submit on, because a
+ * boundary may only subtract what the submit's rebuild counted: the rebuild counts the vertices unclaimed when it
+ * runs, the frontier rotated in at boundary 0 was claimed by the previous submit's last level, so it was never in
+ * the count, and boundary b subtracts `next = |F_b|`, inside the count iff b >= 1. `unvisitedDegreeSum` is
+ * maintained by `bfs-next-degree`, which subtracts the in-degrees of what a level claims as it sums their
+ * out-degrees. Both words are therefore exact at every boundary, bottom-up levels included (the sweep's claims are
+ * summed like any other).
  * Body only (spec 3.5, D9); the text is normative: the sabotage rows of test/helpers/sabotage.ts are textual edits
  * of it.
  */
@@ -73,8 +81,7 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         atomicStore(&counters[9], 0u);                                 // edgeCountUnclamped
         atomicStore(&counters[12], atomicLoad(&counters[12]) + next);  // visitedCount
         if (P.firstOfSubmit >= 1u) {                                   // b = the boundary's index inside its submit, clamped (P8-T8, PD-18): F_b was inside the submit's rebuilt sums iff b >= 1
-            atomicStore(&counters[5], atomicLoad(&counters[5]) - next);       // unvisitedCount, exact
-            atomicStore(&counters[6], atomicLoad(&counters[6]) - nextDeg);    // unvisitedDegreeSum, exact (issue #391: no longer one level stale)
+            atomicStore(&counters[5], atomicLoad(&counters[5]) - next);       // unvisitedCount, exact (bfs-next-degree keeps unvisitedDegreeSum exact)
         }
         let level = atomicLoad(&counters[11]) + 1u;                    // the seed is U32_MAX, so the first boundary lands on 0
         atomicStore(&counters[11], level);
@@ -84,7 +91,8 @@ fn frontier_finalize(@builtin(local_invocation_id) lid: vec3<u32>) {
         if (P.mode == 1u) {
             direction = 0u;                                                 // top-down only (the test seam)
         } else if (direction == 0u) {
-            if (nextDeg > atomicLoad(&counters[6]) / P.alpha && next > finished) { direction = 1u; }   // m_f > m_u / alpha and growing, m_f the degree of the frontier about to be expanded
+            let bottomUpReads = select(max(atomicLoad(&counters[5]), atomicLoad(&counters[6]) / P.alpha), 0u, P.mode == 2u);   // what a sweep is expected to read: at least one in-arc per unvisited vertex (issue #1358); mode 2 (the test seam) forces the switch
+            if (nextDeg > bottomUpReads && next > finished) { direction = 1u; }   // m_f > the sweep's reads and growing, m_f the degree of the frontier about to be expanded
         } else {
             if (next * P.beta < atomicLoad(&counters[5]) && next < finished) { direction = 0u; }      // next * beta < unvisited and shrinking
         }

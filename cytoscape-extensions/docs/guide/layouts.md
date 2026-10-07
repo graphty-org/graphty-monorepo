@@ -185,6 +185,7 @@ A failure the package can detect before anything starts throws from `run()` inst
 - `graphty-planar` throws `G is not planar.` for K5, K3,3 and a connected graph with more than 3n - 6 distinct edges (n nodes). Other non-planar graphs are drawn with crossing edges.
 - `graphty-bfs` on a disconnected graph throws `bfs_layout didn't include all nodes. Graph may be disconnected.`
 - `graphty-bfs` or `graphty-radial` with a `root` that matches no node throws `graphty layout: root matches no node of the collection`.
+- `graphty-kamada-kawai` with a `dist` for two or more nodes that has no finite distance between two different nodes throws a `RangeError`. Such a matrix usually comes from a snapshot without edges, such as `toSnapshot(cy.nodes())`.
 
 ## Locked nodes and compound nodes
 

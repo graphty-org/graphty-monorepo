@@ -399,7 +399,7 @@ interface DirectionBoundary {
     readonly direction: 0 | 1;
     /** The `unvisitedCount` word after this boundary's subtraction. */
     readonly unvisitedCount: number;
-    /** The `unvisitedDegreeSum` word after this boundary's subtraction. */
+    /** The `unvisitedDegreeSum` word once the boundary's level has run: the in-degree sum of every vertex not yet claimed, the next frontier included (`bfs-next-degree` subtracts what a level claims; issue #1358). */
     readonly unvisitedDegreeSum: number;
     /** The `switches` word after this boundary. */
     readonly switches: number;
@@ -408,18 +408,21 @@ interface DirectionBoundary {
 }
 
 /**
- * The oracle's per-level frontier sizes and out-degree sums from a settled depth array (level 0 the source alone):
- * what `frontier-finalize` sees at a boundary as `next` and, since issue #391, as `nextDegreeSum`.
+ * The oracle's per-level frontier sizes, out-degree sums and in-degree sums from a settled depth array (level 0 the
+ * source alone): what `frontier-finalize` sees at a boundary as `next` and, since issue #391, as `nextDegreeSum`,
+ * and what `bfs-next-degree` takes out of `unvisitedDegreeSum` (issue #1358).
  * @param s - the snapshot
  * @param depth - the settled depths
- * @returns the sizes and the out-degree sums, indexed by level
+ * @returns the sizes, the out-degree sums and the in-degree sums, indexed by level
  */
 export function levelStatsOf(
     s: GraphSnapshot,
     depth: U32,
-): { readonly sizes: number[]; readonly degreeSums: number[] } {
+): { readonly sizes: number[]; readonly degreeSums: number[]; readonly inDegreeSums: number[] } {
+    const inDegree = s.inDegree();
     const sizes: number[] = [];
     const degreeSums: number[] = [];
+    const inDegreeSums: number[] = [];
     for (let v = 0; v < depth.length; v++) {
         const d = depth[v];
         if (d === INVALID_INDEX) {
@@ -428,66 +431,71 @@ export function levelStatsOf(
         while (sizes.length <= d) {
             sizes.push(0);
             degreeSums.push(0);
+            inDegreeSums.push(0);
         }
         sizes[d] += 1;
         degreeSums[d] += s.rowPtr[v + 1] - s.rowPtr[v];
+        inDegreeSums[d] += inDegree[v];
     }
-    return { sizes, degreeSums };
+    return { sizes, degreeSums, inDegreeSums };
 }
 /**
- * Beamer's rule replayed on the host from the oracle's per-level frontier sizes and out-degree sums, exactly as
- * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21, amended for issue #391), boundary by boundary
- * until the one that sets `done` (the rule is evaluated there too, because the kernel's test sits before its `done`
- * branch). The two unvisited words are rebuilt EXACTLY from the oracle's complement at the top of every submit
- * (everything claimed through the frontier that submit rotates in first is outside the sums), and both are
- * subtracted from the second boundary of a submit on: the count by the frontier the boundary rotates in, the degree
- * sum by that frontier's out-degree sum, which `bfs-next-degree` measured when the previous level claimed it. That
- * same sum is the m_f of the switch-into-bottom-up test -- the degree of the frontier the level is about to expand,
- * whichever direction claimed it -- so neither word is ever stale (before the amendment m_f was the degree of the
- * frontier the previous level had EXPANDED, one level behind and 0 after a bottom-up level). `alpha` divides as a
- * `u32` (floored), `next * beta` is exact (no wrap below 178M vertices).
+ * Beamer's rule replayed on the host from the oracle's per-level frontier sizes and degree sums, exactly as
+ * `frontier-finalize` evaluates it (P8-T8 Steps 2 and 5, PD-18, PD-21, amended for issues #391 and #1358), boundary
+ * by boundary until the one that sets `done` (the rule is evaluated there too, because the kernel's test sits before
+ * its `done` branch). The unvisited count is rebuilt EXACTLY from the oracle's complement at the top of every submit
+ * (everything claimed through the frontier that submit rotates in first is outside it) and decreased from the second
+ * boundary of a submit on by the frontier the boundary rotates in. The unvisited degree sum is the IN-degree sum of
+ * the vertices not yet claimed at every moment: the rebuild sums it and `bfs-next-degree` subtracts what each level
+ * claims, so a boundary sees `arcCount` minus the in-degrees of F_0 .. F_L, and the word a submit leaves has the
+ * next frontier's taken out too. m_f is the out-degree sum of the frontier the level is about to expand, whichever
+ * direction claimed it (before issue #391 it was the degree of the frontier the previous level had EXPANDED, one
+ * level behind and 0 after a bottom-up level). The switch into bottom-up needs m_f above
+ * `max(unvisitedCount, floor(unvisitedDegreeSum / alpha))` (`alpha` divides as a `u32`), `next * beta` is exact (no
+ * wrap below 178M vertices).
  * @param levelSizes - `|F_L|` per level, level 0 the source alone (a level past the end is 0)
  * @param levelDegreeSums - the out-degree sum of `F_L` per level
+ * @param levelInDegreeSums - the in-degree sum of `F_L` per level
  * @param n - the node count
- * @param arcCount - the arc count (the out-degree sum of every node)
- * @param alpha - Beamer's alpha as the driver passes it (`max(1, floor(arcCount / n))` unless tuned)
+ * @param arcCount - the arc count (the out-degree sum of every node, and the in-degree sum)
+ * @param alpha - Beamer's alpha as the driver passes it (`BEAMER_ALPHA` unless tuned)
  * @param beta - Beamer's beta (`BEAMER_BETA` unless tuned)
  * @param levelsPerSubmit - the submit cadence (the rebuild cadence)
  * @param maxDepth - the cap, raw (`level >= maxDepth` is `done`; absent or NaN never is)
- * @param topDown - the driver's `mode 1` (`direction: "top-down"`): the rule is never evaluated, the words still move
+ * @param mode - the driver's mode: 0 the rule, 1 (`direction: "top-down"`) never bottom-up, the words still move, 2 (`direction: "bottom-up"`) the expected sweep reads taken as 0
  * @returns the boundaries in order, the last one `done`
  */
 export function expectedDirections(
     levelSizes: readonly number[],
     levelDegreeSums: readonly number[],
+    levelInDegreeSums: readonly number[],
     n: number,
     arcCount: number,
     alpha: number,
     beta: number,
     levelsPerSubmit: number,
     maxDepth?: number,
-    topDown = false,
+    mode: 0 | 1 | 2 = 0,
 ): readonly DirectionBoundary[] {
     const sizeAt = (level: number): number => levelSizes[level] ?? 0;
     const degreeAt = (level: number): number => levelDegreeSums[level] ?? 0;
+    const inDegreeAt = (level: number): number => levelInDegreeSums[level] ?? 0;
     const cap = maxDepth ?? Infinity;
     const boundaries: DirectionBoundary[] = [];
     let direction: 0 | 1 = 0;
     let switches = 0;
     let unvisitedCount = 0;
-    let unvisitedDegreeSum = 0;
+    // the in-arcs of the vertices not yet claimed: F_0 is claimed before the first boundary
+    let unvisitedDegreeSum = arcCount - inDegreeAt(0);
     for (let level = 0; level <= n + 1; level++) {
         const b = level % levelsPerSubmit;
         if (b === 0) {
             // the rebuild: F_0 .. F_level are claimed when it runs (F_level by the previous submit's last contract)
             let claimed = 0;
-            let claimedDegree = 0;
             for (let j = 0; j <= level; j++) {
                 claimed += sizeAt(j);
-                claimedDegree += degreeAt(j);
             }
             unvisitedCount = n - claimed;
-            unvisitedDegreeSum = arcCount - claimedDegree;
         }
         const finished = level === 0 ? 0 : sizeAt(level - 1);
         const next = sizeAt(level);
@@ -497,14 +505,14 @@ export function expectedDirections(
         const degSum = level === 0 ? 0 : degreeAt(level);
         if (b >= 1) {
             unvisitedCount -= next;
-            unvisitedDegreeSum -= degSum;
         }
         const done = next === 0 || level >= cap;
         let chosen: 0 | 1 = direction;
-        if (topDown) {
+        if (mode === 1) {
             chosen = 0;
         } else if (direction === 0) {
-            if (degSum > Math.floor(unvisitedDegreeSum / alpha) && next > finished) {
+            const bottomUpReads = mode === 2 ? 0 : Math.max(unvisitedCount, Math.floor(unvisitedDegreeSum / alpha));
+            if (degSum > bottomUpReads && next > finished) {
                 chosen = 1;
             }
         } else if (next * beta < unvisitedCount && next < finished) {
@@ -514,6 +522,8 @@ export function expectedDirections(
             switches += 1;
         }
         direction = chosen;
+        // the level claims F_(level + 1) (nothing past the end) and bfs-next-degree takes its in-arcs out
+        unvisitedDegreeSum -= inDegreeAt(level + 1);
         boundaries.push({ direction, unvisitedCount, unvisitedDegreeSum, switches, done });
         if (done) {
             return boundaries;

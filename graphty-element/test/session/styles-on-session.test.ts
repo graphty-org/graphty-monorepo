@@ -148,7 +148,9 @@ function degreeRunner(): Runner {
                             technicalName: "degree",
                             kind: "node",
                             type: "number",
-                            path: `results.${context.runId}.value`,
+                            // What the element's own metric algorithms publish: the catalogue's
+                            // path, naming the run as "$" (#354).
+                            path: "results.$.value",
                         },
                     ],
                     measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
@@ -336,6 +338,41 @@ describe("session.styles", () => {
         assert.deepStrictEqual(known.unresolvedPaths, []);
         assert.isTrue(unknown.ok, "a path the session cannot answer yet is not a malformed layer");
         assert.deepStrictEqual(unknown.unresolvedPaths, ["data.nonesuch"]);
+        harness.session.dispose();
+    });
+
+    it("resolves a path naming a catalogue run's field, and the run's fields name the run (#354)", async () => {
+        // The runner publishes "results.$.value", as the element's metric algorithms do, and the
+        // catalogue descriptor says the same until a run is bound.
+        const runner = degreeRunner();
+        const harness = harnessOf({ execute: runner.execute });
+        runner.store = harness.store;
+        const run = harness.session.runs.start("degree", {}, { style: false, as: "degree" });
+        const path = harness.session.results.path(run, "value");
+
+        assert.include(
+            run.fields.map((field) => field.path),
+            path,
+            "a queued run names itself",
+        );
+        await run;
+        assert.include(
+            run.fields.map((field) => field.path),
+            path,
+        );
+        for (const selector of [
+            { match: "has", path },
+            { match: "top", path, n: 2 },
+        ] as const) {
+            const check = harness.session.styles.validate({
+                name: "By rank",
+                target: "node",
+                selector,
+                set: { "node.color": "#123456" },
+            });
+
+            assert.deepStrictEqual(check.unresolvedPaths, [], `a ${selector.match} selector`);
+        }
         harness.session.dispose();
     });
 

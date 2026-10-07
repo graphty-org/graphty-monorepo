@@ -37,8 +37,8 @@ import type { SetService } from "../commands/sets";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
-import type { ProgressChange } from "../shared";
-import type { ProjectConfig } from "../types";
+import type { CodedFact, ProgressChange } from "../shared";
+import type { HistoryCode, ProjectConfig } from "../types";
 import { Arrangement, type ArrangementOp } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
@@ -56,7 +56,7 @@ import {
     withoutNoOps,
 } from "./draft";
 import { GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
-import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
+import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyRetainedArrays } from "./strict";
 
@@ -205,7 +205,11 @@ interface DefinitionBase<C extends CommandLike> {
      * For a compound op (`batch`): the commands it is made of. It runs as a transaction of
      * them, one step, and its own `execute` is never called.
      */
-    members?(command: C): { readonly label: string; readonly steps: readonly CommandLike[] };
+    members?(command: C): {
+        readonly label: string;
+        readonly fact: CodedFact<HistoryCode>;
+        readonly steps: readonly CommandLike[];
+    };
     /** Settling, whether it commits or fails, closes the baseline window (an import). */
     readonly closesBaseline?: boolean;
     /**
@@ -221,6 +225,8 @@ export interface UndoableDefinition<C extends CommandLike> extends DefinitionBas
         readonly kind: "undoable";
         /** What the step is called in the history ("Changed colour of Hubs"). */
         label(command: C, state: ProjectState): string;
+        /** What the step did, as a code and its values, for an application to word. */
+        fact(command: C, state: ProjectState): CodedFact<HistoryCode>;
         /** Steps with equal keys recorded close together become one step. */
         coalesce?(command: C): string | null;
     };
@@ -255,9 +261,11 @@ export interface TransactionScope {
 
 type TransactionBody<T> = (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>;
 
-interface TransactionOptions {
+export interface TransactionOptions {
     /** Stamped on the recorded step, e.g. `{ via: "assistant" }`. */
     readonly provenance?: Readonly<Record<string, string>>;
+    /** What the step did; `{ code: "transaction", params: { label } }` when absent. */
+    readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it commits into the baseline. */
     readonly setup?: boolean;
     /**
@@ -448,6 +456,7 @@ const NO_SCHEDULER: Scheduler = {
 interface PendingStep {
     readonly id: string;
     readonly label: string;
+    readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
     readonly since: string;
     readonly runIds: readonly string[];
@@ -542,6 +551,7 @@ interface Group {
     readonly id: string;
     readonly since: string;
     label: string;
+    fact: CodedFact<HistoryCode>;
     key: string | null;
     readonly provenance: Readonly<Record<string, string>>;
     readonly draft: Draft;
@@ -1001,7 +1011,7 @@ export class Dispatcher {
 
         const controller = new AbortController();
         const group = this.group(
-            label,
+            { label, fact: options.fact ?? { code: "transaction", params: { label } } },
             null,
             options.provenance ?? {},
             null,
@@ -1554,7 +1564,7 @@ export class Dispatcher {
 
         const compound = definition.members?.(concrete);
         if (compound !== undefined) {
-            return this.compound(compound.label, compound.steps, tx, isSetup(concrete), options.beside === true);
+            return this.compound(compound, tx, isSetup(concrete), options.beside === true);
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1588,7 +1598,7 @@ export class Dispatcher {
         const group =
             tx ??
             this.group(
-                undoable.undo.label(concrete, state),
+                { label: undoable.undo.label(concrete, state), fact: undoable.undo.fact(concrete, state) },
                 origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
                 {},
                 origin?.step ?? null,
@@ -1644,8 +1654,10 @@ export class Dispatcher {
     /**
      * Run a compound command's members as one transaction, or inside the one dispatching it.
      * Every member is dispatched before any is awaited, so immediate members run now, in order.
-     * @param label - The step's label.
-     * @param steps - The members.
+     * @param name - The step's label and fact.
+     * @param name.label - The step's label.
+     * @param name.fact - The step's fact.
+     * @param name.steps - The members.
      * @param tx - The transaction it was dispatched in, or null.
      * @param setup - Whether it was declared at construction.
      * @param beside - Whether its queued members start at once, beside the queue, as a
@@ -1653,8 +1665,7 @@ export class Dispatcher {
      * @returns Settles when every member has.
      */
     private compound(
-        label: string,
-        steps: readonly CommandLike[],
+        { label, fact, steps }: { label: string; fact: CodedFact<HistoryCode>; steps: readonly CommandLike[] },
         tx: Group | null,
         setup: boolean,
         beside: boolean,
@@ -1670,6 +1681,7 @@ export class Dispatcher {
             {
                 setup,
                 compound: true,
+                fact,
             },
         );
         // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
@@ -1826,6 +1838,7 @@ export class Dispatcher {
             job.revert = group.draft.checkpoint();
         } else if (group.tx === null && group.after === null) {
             group.label = definition.undo.label(command, state);
+            group.fact = definition.undo.fact(command, state);
             group.key = definition.undo.coalesce?.(command) ?? null;
             if (this.open.has(group)) {
                 group.view = undefined;
@@ -2011,7 +2024,10 @@ export class Dispatcher {
         }
         for (const job of runs) {
             const deferred = this.group(
-                job.definition.undo.label(job.command, this.store.state),
+                {
+                    label: job.definition.undo.label(job.command, this.store.state),
+                    fact: job.definition.undo.fact(job.command, this.store.state),
+                },
                 null,
                 {},
                 stepId,
@@ -2093,6 +2109,7 @@ export class Dispatcher {
             const bytes = patchBytes(kept);
             const input = {
                 label: group.label,
+                fact: group.fact,
                 patch: kept,
                 key: group.key,
                 ops: group.ops,
@@ -2515,7 +2532,9 @@ export class Dispatcher {
 
     /**
      * A new group, with its draft open.
-     * @param label - Its label.
+     * @param name - What it is called.
+     * @param name.label - Its label.
+     * @param name.fact - Its fact.
      * @param key - Its history coalesce key.
      * @param provenance - Stamped on its step.
      * @param after - The step it is a deferred member of, or null.
@@ -2526,7 +2545,7 @@ export class Dispatcher {
      * @returns The group.
      */
     private group(
-        label: string,
+        { label, fact }: { readonly label: string; readonly fact: CodedFact<HistoryCode> },
         key: string | null,
         provenance: Readonly<Record<string, string>>,
         after: string | null,
@@ -2540,6 +2559,7 @@ export class Dispatcher {
             id: `pending-${seq}`,
             since: new Date().toISOString(),
             label,
+            fact,
             key,
             provenance: Object.freeze({ ...provenance }),
             draft: this.store.open(),
@@ -2657,6 +2677,7 @@ export class Dispatcher {
         group.view ??= Object.freeze({
             id: group.id,
             label: group.label,
+            fact: frozenFact(group.fact),
             since: group.since,
             runIds: Object.freeze([]),
         });

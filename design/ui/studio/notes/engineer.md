@@ -67,6 +67,9 @@ acceptance test. "The studio worktree" is
 13. (2026-10-06) Iterate locally: element build, then `pnpm exec nx run graphty:build`, re-run
    with `tool/real.mjs`. Others rebuild `graphty/dist` often: copy the build and use
    `REAL_DIST=<copy>`; check `pgrep -af "real.mjs --prove"` before trusting a FAIL. Never push.
+   (2026-10-07) The app's vite build now runs out of Node's default 4 GB heap ("rendering
+   chunks", core dumps in `graphty/`): build with `NODE_OPTIONS=--max-old-space-size=12288`.
+   Other agents rebuild the element mid-build; wait until no element build runs first.
 14. (2026-10-07) Focus: the compact-mantine Menu theme returns focus only from inside the menu;
    never add `returnFocus={false}` again. The canvas is named by the host's `aria-label`, has no
    autofocus; focus stays on the body after an open (re-record keys that expected otherwise).
@@ -124,6 +127,26 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-07) **"Whole graph" export keeps the on-screen angle (6f1cf692b, element + app; owner
+  door, hold + needs-decision).** `fitToGraph` declares `keepAngle` (boolean, default false): in 3D
+  it keeps the current direction and pivot rotation (roll too) and only moves target and
+  distance; the distance puts every corner of the bounds box, padded 10 percent off the view axis,
+  inside the narrower field of view. `ScreenshotOptions.camera` takes `{ preset, params }` and
+  `ScreenshotCapture` passes params to `resolveCameraPreset`. App: `cameraOf()` in
+  `export/choices.ts` asks for it on "Whole graph". Rejected: a new view id (second name for one
+  rule), changing the default (moves saved pictures), app-side camera math (workaround). Proof:
+  `test/cameras/fit-to-graph-keep-angle.test.ts` (angles kept, every corner inside at aspect
+  16/9 and 0.5, old numbers to the digit; fails on the old files with `E_UNKNOWN_OPTION`);
+  `screenshot-camera-override.test.ts` keepAngle test fails when params are dropped;
+  `tmp/r3fix-export-whole-graph-angle/s2/downloads/` (same turn as "Current view", every node
+  in, canvas camera unchanged after). Ceiling: framing the axis-aligned box, not the nodes,
+  leaves about 20 percent margin per side on Les Miserables; tighter needs node positions in
+  `CameraViewInput` (new API). Tried first: the box's bounding sphere -- same picture, so the box
+  is the limit. Not checked: interaction with the view insets that landed after (fa260f20d).
+  Lesson: shared files were edited by three agents at once (builtins.ts, ScreenshotCapture.ts,
+  api reports, these notes); stage by writing HEAD plus my hunks with `git hash-object -w` and
+  `git update-index --cacheinfo`, never `git add` on a shared file.
 
 - (2026-10-07) **Export leaves the selection ring out (4c087d8bc, element + app; owner door).**
   `ScreenshotOptions.showSelection` (default true); `false` disables every enabled

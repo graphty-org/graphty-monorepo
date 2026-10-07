@@ -75,9 +75,9 @@ const ISOMETRIC_BETA = Math.acos(1 / Math.sqrt(3));
 /**
  * Frame everything from the direction the camera looks from now (`fitToGraph`'s `keepAngle`).
  *
- * The distance puts the box's bounding sphere, padded, inside the narrower of the two fields of
- * view, so every node is in shot from any angle. The pivot rotation is carried over, so a turn
- * the reader gave the drawing (roll included) is kept.
+ * The distance puts every corner of the box, padded 10 percent off the view axis, inside the
+ * narrower of the two fields of view, so every node is in shot from any angle. The pivot
+ * rotation is carried over, so a turn the reader gave the drawing (roll included) is kept.
  * @param input - The box to frame and where the camera is now.
  * @param fov - The vertical field of view in radians.
  * @returns The state, or undefined when the current state has no direction to keep.
@@ -96,17 +96,35 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
         return undefined;
     }
 
-    const radius = (Math.hypot(bounds.size.x, bounds.size.y, bounds.size.z) / 2) * PERSPECTIVE_PADDING;
+    const ux = dx / length;
+    const uy = dy / length;
+    const uz = dz / length;
     const halfFov = aspect > 0 ? Math.min(fov / 2, Math.atan(Math.tan(fov / 2) * aspect)) : fov / 2;
-    const distance = radius / Math.sin(halfFov);
+    const tanHalf = Math.tan(halfFov);
     const { center } = bounds;
+
+    // The nearest distance from the center that keeps each corner of the box, padded off the
+    // view axis, inside the narrower field of view; the farthest of those keeps them all.
+    let distance = 0;
+    for (const x of [bounds.min.x, bounds.max.x]) {
+        for (const y of [bounds.min.y, bounds.max.y]) {
+            for (const z of [bounds.min.z, bounds.max.z]) {
+                const cx = x - center.x;
+                const cy = y - center.y;
+                const cz = z - center.z;
+                const along = cx * ux + cy * uy + cz * uz;
+                const off = Math.hypot(cx - along * ux, cy - along * uy, cz - along * uz);
+                distance = Math.max(distance, along + (off * PERSPECTIVE_PADDING) / tanHalf);
+            }
+        }
+    }
 
     return {
         type: "arcRotate",
         position: {
-            x: center.x + (dx / length) * distance,
-            y: center.y + (dy / length) * distance,
-            z: center.z + (dz / length) * distance,
+            x: center.x + ux * distance,
+            y: center.y + uy * distance,
+            z: center.z + uz * distance,
         },
         target: center,
         ...(current.pivotRotation === undefined ? {} : { pivotRotation: current.pivotRotation }),

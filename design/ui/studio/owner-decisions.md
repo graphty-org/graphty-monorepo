@@ -338,9 +338,9 @@ the camera looks from now -- the pivot rotation, roll included, is kept and only
 distance change -- instead of jumping to the fixed diagonal. It has no effect in 2D. The screenshot
 option `camera` also accepts `{ preset, params }`, so a capture can pass a named view's options:
 `captureScreenshot({ camera: { preset: "fitToGraph", params: { keepAngle: true } } })`. The graphty
-app asks for it when the Export dialog's View is "Whole graph". The distance puts the box's bounding
-sphere, padded 10 percent, inside the narrower field of view, so every node is in shot from any
-angle. Without the option every number is unchanged to the digit, so no saved picture moves.
+app asks for it when the Export dialog's View is "Whole graph". The distance puts every corner of the
+graph's box, padded 10 percent, inside the narrower field of view, so every node is in shot from
+any angle. Without the option every number is unchanged to the digit, so no saved picture moves.
 
 **Why.** "Whole graph" in 3D exported a picture turned to an angle the reader never chose, with a
 quarter of it empty: the drawing on screen and the drawing in the file did not match. A third-party

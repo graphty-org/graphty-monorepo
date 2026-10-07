@@ -1,3 +1,18 @@
+## 3.3.7 (2026-10-07)
+
+### 🩹 Fixes
+
+- **webgpu-graph-algorithms:** settle label propagation on ordered paths ([#694](https://github.com/graphty-org/graphty-monorepo/issues/694))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.22
+- Updated graph-format to 1.3.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.6 (2026-10-06)
 
 ### 🩹 Fixes

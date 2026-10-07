@@ -1,3 +1,68 @@
+## 3.16.0 (2026-10-07)
+
+### 🚀 Features
+
+- **graphty-element:** report where a broken graph file broke ([#1218](https://github.com/graphty-org/graphty-monorepo/issues/1218))
+- **graphty-element:** seed the default layout so one file draws the same way each time ([#801](https://github.com/graphty-org/graphty-monorepo/issues/801))
+- **graphty-element:** give notes an optional done state ([#705](https://github.com/graphty-org/graphty-monorepo/issues/705))
+- **graphty-element:** a range selection target and the top's threshold ([85a38487f](https://github.com/graphty-org/graphty-monorepo/commit/85a38487f))
+- **graphty-element:** implement session.catalog.optionsFor ([#336](https://github.com/graphty-org/graphty-monorepo/issues/336))
+- **graphty-element:** raise the render ceilings to 100,000 nodes and 1,000,000 edges ([342a6dec5](https://github.com/graphty-org/graphty-monorepo/commit/342a6dec5))
+- **graphty-element:** raise the declared edge ceiling to 500,000 ([d05e706a6](https://github.com/graphty-org/graphty-monorepo/commit/d05e706a6))
+
+### 🩹 Fixes
+
+- **graphty-element:** write the arrow caption glyphs as escapes ([#113](https://github.com/graphty-org/graphty-monorepo/issues/113))
+- **graphty-element:** one scope digest, the one production uses ([#75](https://github.com/graphty-org/graphty-monorepo/issues/75))
+- **graphty-element:** declare the language of the example pages ([#714](https://github.com/graphty-org/graphty-monorepo/issues/714))
+- **graphty-element:** accept a skybox image from any http(s) host ([412472831](https://github.com/graphty-org/graphty-monorepo/commit/412472831))
+- **graphty-element:** load story datasets from the repo, not GitHub ([#516](https://github.com/graphty-org/graphty-monorepo/issues/516))
+- **webgpu-graph-algorithms:** settle label propagation on ordered paths ([#694](https://github.com/graphty-org/graphty-monorepo/issues/694))
+- **graphty-element:** draw each instance once in a frozen frame ([f4db26959](https://github.com/graphty-org/graphty-monorepo/commit/f4db26959))
+- **graphty-element:** keep the ray and arrow-mesh members as deprecated shims ([a9057340a](https://github.com/graphty-org/graphty-monorepo/commit/a9057340a))
+- **graphty-element:** waitForStableFrame waits for the label counts to be announced ([3663f1a2d](https://github.com/graphty-org/graphty-monorepo/commit/3663f1a2d))
+- **graphty-element:** clear the SonarQube optional-chain and Set findings on the edge lines ([a456fac9b](https://github.com/graphty-org/graphty-monorepo/commit/a456fac9b))
+- **graphty-element:** pre-bundle the per-function lodash imports in the browser tests ([8863d118a](https://github.com/graphty-org/graphty-monorepo/commit/8863d118a))
+- **graphty-element:** draw nothing for a hidden 3D arrow cap instead of a full cap at the origin ([2793ded2c](https://github.com/graphty-org/graphty-monorepo/commit/2793ded2c))
+- **graphty-element:** keep a shared edge batch in the scene when some of its edges are removed ([a34c9211b](https://github.com/graphty-org/graphty-monorepo/commit/a34c9211b))
+- **graphty-element:** draw patterned lines at their opacity in 3D and along their line in 2D ([#619](https://github.com/graphty-org/graphty-monorepo/issues/619), [#620](https://github.com/graphty-org/graphty-monorepo/issues/620))
+- **graphty-element:** let a run of removals share one freeze instead of one each ([c45f1a05a](https://github.com/graphty-org/graphty-monorepo/commit/c45f1a05a))
+- **graphty-element:** place edges a filter reveals again, so an undone filter draws them ([165f337ba](https://github.com/graphty-org/graphty-monorepo/commit/165f337ba))
+- **graphty-element:** reconcile instanced edges with master's index sentinel, door list and floors ([fe3ee9dec](https://github.com/graphty-org/graphty-monorepo/commit/fe3ee9dec))
+- **graphty-element:** drop the line paths no edge takes, and centre a curve's reading ([440fd781c](https://github.com/graphty-org/graphty-monorepo/commit/440fd781c))
+- **graphty-element:** read a batch off hasThinInstances in the story assertions ([a0eb29b86](https://github.com/graphty-org/graphty-monorepo/commit/a0eb29b86))
+- **graphty-element:** dispose a line batch's material with it, and pin the scene's shape ([#444](https://github.com/graphty-org/graphty-monorepo/issues/444), [#441](https://github.com/graphty-org/graphty-monorepo/issues/441))
+- **graphty-element:** decide whether a node is round from its geometry, not from its name ([ff3517862](https://github.com/graphty-org/graphty-monorepo/commit/ff3517862))
+- **graphty-element:** unfreeze the scene when a mesh appears, not only when one moves ([14aeac609](https://github.com/graphty-org/graphty-monorepo/commit/14aeac609))
+- **graphty-element:** let a line batch die with its last edge, and say where a batched edge is drawn ([6d191e089](https://github.com/graphty-org/graphty-monorepo/commit/6d191e089))
+- **graphty-element:** draw 2D arrow caps in the plane the camera looks at ([f55dff88f](https://github.com/graphty-org/graphty-monorepo/commit/f55dff88f))
+- **graphty-element:** measure a cap's span the way its drawn box did ([5ac260f94](https://github.com/graphty-org/graphty-monorepo/commit/5ac260f94))
+
+### 🔥 Performance
+
+- **graphty-element:** keep Math.sqrt on three per-frame edge paths ([16b4165ce](https://github.com/graphty-org/graphty-monorepo/commit/16b4165ce))
+- **graphty-element:** draw every edge line style as thin instances, in 2D and 3D ([#444](https://github.com/graphty-org/graphty-monorepo/issues/444))
+- **graphty-element:** work out where a line meets a round node instead of searching for it ([#412](https://github.com/graphty-org/graphty-monorepo/issues/412))
+- **graphty-element:** stop re-deciding what to draw on a frame that changed nothing ([c74988d36](https://github.com/graphty-org/graphty-monorepo/commit/c74988d36))
+- **graphty-element:** stop doing per-edge work on a frame where nothing moved ([#412](https://github.com/graphty-org/graphty-monorepo/issues/412))
+- **graphty-element:** draw arrow caps as thin instances ([9b0c25743](https://github.com/graphty-org/graphty-monorepo/commit/9b0c25743))
+- **graphty-element:** nest the graph-root parenting instead of branching past it ([3e46fda90](https://github.com/graphty-org/graphty-monorepo/commit/3e46fda90))
+- **graphty-element:** draw 3D solid edge lines as thin instances ([cf8771571](https://github.com/graphty-org/graphty-monorepo/commit/cf8771571))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.36
+- Updated @graphty/remote-logger to 2.0.8
+- Updated graph-samples to 0.1.22
+- Updated graph-format to 1.3.7
+- Updated algorithms to 3.3.7
+- Updated graph-io to 0.3.27
+- Updated layout to 2.2.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.15.0 (2026-10-06)
 
 ### 🚀 Features

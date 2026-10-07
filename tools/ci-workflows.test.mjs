@@ -608,9 +608,11 @@ const DAY = 86_400_000;
 const idOf = (a) => (a.step === undefined ? a.job : `${a.job}/${a.step}`);
 
 // What is wrong with tools/ci-advisory-checks.json against ci.yml and against the base branch's copies of
-// both, and which entries are due for promotion. A warning period is granted only to a check the base
-// branch does not require yet, and "required" grows only by checks the base branch already runs, so a
-// pull request can neither put an existing check back into a warning period nor skip a new one's.
+// both, and which entries are due for promotion. "required" lists jobs, not steps, so renaming, adding or
+// removing a step inside a required job never touches the registry. A warning period is granted only to a
+// job or step the base branch does not require yet, and "required" grows only by jobs the base branch
+// already runs, so a pull request can neither put an existing check back into a warning period nor skip a
+// new job's.
 // The dates warn and never fail: an entry past its enforce date is simply required (the build job drops
 // it from the list), so no run turns red because a calendar day passed.
 const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
@@ -624,24 +626,20 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
         if (!ok) problems.push(message);
         return ok;
     };
-    const isAdvisory = (job, step) =>
-        registry.advisory.some((a) => a.job === job && (a.step === undefined || a.step === step));
 
-    for (const [job, steps] of Object.entries(checks))
-        for (const name of steps)
+    for (const job of Object.keys(checks))
+        check(
+            registry.required.includes(job) || registry.advisory.some((a) => a.job === job && a.step === undefined),
+            `${job}: unregistered: a new job goes into "advisory" first`,
+        );
+    for (const job of registry.required) {
+        check(job in checks, `${job}: in "required" but not a required job of ci.yml`);
+        if (baseRegistry && !baseRegistry.required.includes(job))
             check(
-                registry.required[job]?.includes(name) || isAdvisory(job, name),
-                `${job} / ${name}: unregistered: a new check goes into "advisory" first`,
+                job in baseChecks,
+                `${job}: "required" only grows by jobs the base branch already runs; a new one goes into "advisory" first`,
             );
-    for (const [job, names] of Object.entries(registry.required))
-        for (const name of names) {
-            check(checks[job]?.includes(name), `${job} / ${name}: in "required" but not a required check of ci.yml`);
-            if (baseRegistry && !baseRegistry.required[job]?.includes(name))
-                check(
-                    baseChecks[job]?.includes(name),
-                    `${job} / ${name}: "required" only grows by checks the base branch already runs; a new one goes into "advisory" first`,
-                );
-        }
+    }
 
     for (const a of registry.advisory) {
         const id = idOf(a);
@@ -667,11 +665,10 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
             check(j.needs.includes("build"), `${id}: the job needs build directly (it lists the advisory checks)`);
         let warn;
         if (a.step === undefined) {
-            check(!(a.job in registry.required), `${id}: a job in "required" is not new`);
+            check(!registry.required.includes(a.job), `${id}: a job in "required" is not new`);
             check(j.coe === coe, `${id}: job-level continue-on-error: ${coe}`);
             warn = { if: "${{ failure() }}", step: j.steps.at(-1) };
         } else {
-            check(!registry.required[a.job]?.includes(a.step), `${id}: a step in "required" is not new`);
             const i = j.steps.findIndex((s) => s.name === a.step);
             if (!check(i >= 0, `${id}: the step exists`)) continue;
             const s = j.steps[i];
@@ -768,7 +765,7 @@ jobs:
               run: echo "::warning::advisory check links failed"
 `,
         ).replace("needs: [build, test]", "needs: [build, test, links]");
-        const REQUIRED = { build: ["List advisory checks", "Lint"], test: ["Unit"], "all-checks": ["Check"] };
+        const REQUIRED = ["build", "test", "all-checks"];
         const entry = (job, step) => ({ job, step, added: "2026-10-01", enforce: "2026-10-15", issue: 1 });
         const ADVISORY = [entry("test", "Types"), entry("links")];
         const run = ({ ci = HEAD_CI, required = REQUIRED, advisory = ADVISORY, today = "2026-10-05" } = {}) =>
@@ -793,32 +790,34 @@ jobs:
             assert.equal(run({ today: "2026-10-12" }).warnings.length, 2);
         });
 
+        it("leaves the registry alone when a step of a required job is renamed, added or removed", () => {
+            const renamed = HEAD_CI.replace("- name: Lint", "- name: Lint everything").replace(
+                "            - name: Check\n",
+                "            - name: Check\n              run: x\n            - name: Check again\n",
+            );
+            assert.deepEqual(run({ ci: renamed }), { problems: [], warnings: [] });
+        });
+
         it("refuses to put a check the base branch requires back into a warning period", () => {
-            const { problems } = run({
-                required: { ...REQUIRED, build: ["List advisory checks"] },
-                advisory: [...ADVISORY, entry("build", "Lint")],
-            });
+            const { problems } = run({ advisory: [...ADVISORY, entry("build", "Lint")] });
             assert.ok(problems.some((p) => p.startsWith("build/Lint: the base branch already requires it")));
-            const job = run({ advisory: [...ADVISORY, entry("test")], required: { ...REQUIRED, test: [] } });
+            const job = run({ advisory: [...ADVISORY, entry("test")], required: ["build", "all-checks"] });
             assert.ok(job.problems.some((p) => p.startsWith("test: the base branch already requires it")));
         });
 
-        it("refuses a new check that skips its warning period", () => {
-            const { problems } = run({
-                required: { ...REQUIRED, test: ["Unit", "Types"] },
-                advisory: [entry("links")],
-            });
-            assert.ok(problems.some((p) => p.startsWith('test / Types: "required" only grows')));
+        it("refuses a new job that skips its warning period", () => {
+            const { problems } = run({ required: [...REQUIRED, "links"], advisory: [entry("test", "Types")] });
+            assert.ok(problems.some((p) => p.startsWith('links: "required" only grows')));
         });
 
-        it("refuses an unregistered check and a stale entry", () => {
+        it("refuses an unregistered job and a stale entry", () => {
             assert.ok(
-                run({ advisory: [entry("links")] }).problems.includes(
-                    'test / Types: unregistered: a new check goes into "advisory" first',
+                run({ advisory: [entry("test", "Types")] }).problems.includes(
+                    'links: unregistered: a new job goes into "advisory" first',
                 ),
             );
-            const stale = run({ required: { ...REQUIRED, build: [...REQUIRED.build, "Cache Nx"] } });
-            assert.ok(stale.problems.includes('build / Cache Nx: in "required" but not a required check of ci.yml'));
+            const stale = run({ required: [...REQUIRED, "lint"] });
+            assert.ok(stale.problems.includes('lint: in "required" but not a required job of ci.yml'));
         });
 
         it("refuses an entry that is not wired", () => {

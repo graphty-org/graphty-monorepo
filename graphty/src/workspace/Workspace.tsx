@@ -1,9 +1,10 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
+import { focusIsLost } from "./frame/focus";
 import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { useCommandKeys } from "./keys/useCommandKeys";
@@ -75,10 +76,30 @@ export function Workspace({
         });
     }, [element, store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
+    // Focus after the control that held it goes away. The project the workspace started with (a
+    // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
+    // project, New project) hands focus to its drawing as its element comes up, where the load is
+    // announced and keyboard node walking starts. Its element is keyed by project, so this runs
+    // once per project. Closing a project hands focus to the start screen's first way in.
+    const [startProjectId] = useState(() => store.get().project?.id);
+    const startDoor = useRef<HTMLButtonElement>(null);
+    const projectWasOpen = useRef(false);
+    useEffect(() => {
+        if (element.element !== null && store.get().project?.id !== startProjectId) {
+            element.element.focus();
+        }
+    }, [element, store, startProjectId]);
+    useEffect(() => {
+        if (projectOpen) {
+            projectWasOpen.current = true;
+        } else if (projectWasOpen.current && focusIsLost()) {
+            startDoor.current?.focus();
+        }
+    }, [projectOpen]);
 
     return (
         <WorkspaceContext.Provider value={value}>
-            {projectOpen ? <Frame onElementReady={onElementReady} /> : <StartScreen />}
+            {projectOpen ? <Frame onElementReady={onElementReady} /> : <StartScreen openRef={startDoor} />}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

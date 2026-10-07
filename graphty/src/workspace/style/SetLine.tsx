@@ -31,7 +31,7 @@ import {
     startingValue,
     writeLine,
 } from "./row";
-import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
+import { focusLineNext, focusSectionNext, listOpensNext, openListNext } from "./useFocusLine";
 import { bindLabel, bindsAtRest, channelWord, type CompoundLine, enumWords, paletteWord } from "./words";
 
 /** Props for SetLine. */
@@ -117,7 +117,8 @@ export function SetLine({
             write({ binding: proposal.binding });
         }
     };
-    const remove = (): void => {
+    const remove = (event: React.MouseEvent): void => {
+        focusSectionNext(event.currentTarget, channel);
         removeLine(session, line.layer, channel).then(() => {
             store.set({
                 notice: {
@@ -602,7 +603,8 @@ export function CompoundSetLine({
     const holders = [
         ...new Set(parts.flatMap((p) => (p.line === undefined || p.line.layer.locked ? [] : [p.line.layer]))),
     ];
-    const remove = (): void => {
+    const remove = (event: React.MouseEvent): void => {
+        focusSectionNext(event.currentTarget, compound.adds);
         Promise.all(
             holders.map((layer) =>
                 removeLine(
@@ -626,6 +628,7 @@ export function CompoundSetLine({
                 });
             },
             () => {
+                focusLineNext(null);
                 store.set({ notice: { message: `${name} could not be changed` } });
             },
         );

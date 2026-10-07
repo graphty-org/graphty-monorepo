@@ -283,6 +283,7 @@ export function TableDock(): React.JSX.Element {
     // unchecked it, then forget the ask.
     const wanted = useWorkspaceState((state) => state.dockColumn);
     const root = useRef<HTMLDivElement>(null);
+    const nodesTab = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (wanted === null || session === null) {
             return;
@@ -370,7 +371,9 @@ export function TableDock(): React.JSX.Element {
                     }}
                 >
                     <Tabs.List>
-                        <Tabs.Tab value="nodes">Nodes</Tabs.Tab>
+                        <Tabs.Tab ref={nodesTab} value="nodes">
+                            Nodes
+                        </Tabs.Tab>
                         <Tabs.Tab value="edges">Edges</Tabs.Tab>
                         {groups.map((run) => (
                             <Tabs.Tab key={run.id} value={`g:${run.id}`}>
@@ -387,6 +390,8 @@ export function TableDock(): React.JSX.Element {
                         members={shownMembers}
                         onRemove={() => {
                             arrange({ members: null });
+                            // The chip and its x go; focus goes to the tab it narrowed.
+                            nodesTab.current?.focus();
                         }}
                     />
                 ) : null}

@@ -20,7 +20,7 @@ import {
     type Target,
     writeLine,
 } from "./row";
-import { focusLineNext } from "./useFocusLine";
+import { focusLineNext, focusSectionNext } from "./useFocusLine";
 import { cellOfLocation, labelStatement, locationOfCell, positionWord } from "./words";
 
 /** Props for LabelSection. */
@@ -270,11 +270,16 @@ function LabelLine({
 }: Readonly<LabelLineProps>): React.JSX.Element {
     const [positionOpen, setPositionOpen] = useState(false);
     const position = positionWord(location);
-    const remove = (): void => {
+    const remove = (event: React.MouseEvent): void => {
         if (line === undefined) {
+            focusSectionNext(event.currentTarget, channel);
             onDropEmpty();
         } else if (!line.layer.locked) {
-            removeLine(session, line.layer, channel).catch(onFail);
+            focusSectionNext(event.currentTarget, channel);
+            removeLine(session, line.layer, channel).catch(() => {
+                focusLineNext(null);
+                onFail();
+            });
         }
     };
 

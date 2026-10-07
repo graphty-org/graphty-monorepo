@@ -1,8 +1,9 @@
 import { ModalFooter, PageList } from "@graphty/compact-mantine";
 import { browserProjects } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Modal, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { type RefObject, useEffect, useRef, useState } from "react";
 
+import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { locateRecent, openRecent, removeRecent } from "./actions";
@@ -45,12 +46,18 @@ function RowMenu({
  * @param props - Component props
  * @param props.entry - The project to remove, or null when closed
  * @param props.onClose - Closes the dialog
+ * @param props.onRemove - Removes the project
  * @returns The dialog
  */
 function RemoveDialog({
     entry,
     onClose,
-}: Readonly<{ entry: RecentProject | null; onClose: () => void }>): React.JSX.Element {
+    onRemove,
+}: Readonly<{
+    entry: RecentProject | null;
+    onClose: () => void;
+    onRemove: (entry: RecentProject) => void;
+}>): React.JSX.Element {
     return (
         <Modal opened={entry !== null} onClose={onClose} title={`Remove ${entry?.name ?? ""} from this browser?`}>
             <Text size="sm">The copy kept in this browser is deleted. A local copy you saved is not touched.</Text>
@@ -62,7 +69,7 @@ function RemoveDialog({
                     color="red"
                     onClick={() => {
                         if (entry !== null) {
-                            void removeRecent(entry);
+                            onRemove(entry);
                         }
                         onClose();
                     }}
@@ -120,12 +127,32 @@ function rowDescription(entry: RecentProject, lost: boolean): string {
  * The start screen's Recent projects list (tier1-design.md section 2.11), newest first: projects
  * kept in this browser and files the browser keeps a handle to. A tap opens one; a file the
  * browser can no longer read asks for it with Locate.... Under the list, when the browser has not
- * promised to keep its storage, a note to save a local copy.
+ * promised to keep its storage, a note to save a local copy. A removed row takes focus with it,
+ * so focus goes to the row now in the list's tab stop, or to `emptyFocus` once the list is empty.
+ * @param props - Component props
+ * @param props.emptyFocus - Where focus goes when the last row is removed
  * @returns The list
  */
-export function RecentProjects(): React.JSX.Element {
+export function RecentProjects({
+    emptyFocus,
+}: Readonly<{ emptyFocus?: RefObject<HTMLElement | null> }>): React.JSX.Element {
     const workspace = useWorkspace();
     const entries = useRecentProjects();
+    const list = useRef<HTMLDivElement>(null);
+    const removed = useRef(false);
+    useEffect(() => {
+        if (!removed.current || !focusIsLost()) {
+            return;
+        }
+        removed.current = false;
+        // The grid hands focus on to the row in its tab stop.
+        const grid = list.current?.querySelector<HTMLElement>("[role='grid']");
+        (grid ?? emptyFocus?.current)?.focus();
+    }, [entries, emptyFocus]);
+    const remove = (entry: RecentProject): void => {
+        removed.current = true;
+        void removeRecent(entry);
+    };
     const [missing, setMissing] = useState<ReadonlySet<string>>(new Set());
     const [removing, setRemoving] = useState<RecentProject | null>(null);
     const mayBeCleared = useMayBeCleared(entries.some((entry) => entry.stored === true));
@@ -155,7 +182,8 @@ export function RecentProjects(): React.JSX.Element {
     };
 
     return (
-        <>
+        // display: contents keeps the rows and the note in the column's own spacing.
+        <div ref={list} style={{ display: "contents" }}>
             <PageList
                 label="Recent projects"
                 items={entries.map((entry) => {
@@ -176,7 +204,7 @@ export function RecentProjects(): React.JSX.Element {
                                     if (entry.stored === true) {
                                         setRemoving(entry);
                                     } else {
-                                        void removeRecent(entry);
+                                        remove(entry);
                                     }
                                 }}
                             />
@@ -200,7 +228,8 @@ export function RecentProjects(): React.JSX.Element {
                 onClose={() => {
                     setRemoving(null);
                 }}
+                onRemove={remove}
             />
-        </>
+        </div>
     );
 }

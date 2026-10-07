@@ -390,10 +390,20 @@ describe("the Style tab on the real element", () => {
                 within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "dept" }),
             );
             const remove = await within(styleTab()).findByRole("button", { name: "Remove Color" });
-            await userEvent.click(remove);
+            const section = remove.closest("[data-section]")?.getAttribute("data-section");
+            assert.isString(section);
+            remove.focus();
+            await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.lengthOf(readerLayers(session), 0, "the emptied Everything layer is gone");
                 assert.equal(store.get().notice?.message, "Removed Color");
+            });
+            // The Remove button went with its line; focus goes to the section, not the page.
+            await waitFor(() => {
+                assert.isNotNull(
+                    document.activeElement?.closest(`[data-section="${section ?? ""}"]`),
+                    "focus is not in the line's section",
+                );
             });
             store.get().notice?.action?.run();
             await waitFor(() => {

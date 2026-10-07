@@ -165,6 +165,8 @@ describe("the table dock", () => {
             assert.isNotNull(within(dock).getByText(`Louvain: ${name}`));
             await userEvent.click(within(dock).getByRole("button", { name: `Show every node, not only ${name}` }));
             await within(dock).findByText("12 nodes");
+            // The chip and its x went; focus goes to the tab it narrowed.
+            assert.strictEqual(document.activeElement, within(dock).getByRole("tab", { name: "Nodes" }));
 
             // An Edges row click selects that edge through the element.
             await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));

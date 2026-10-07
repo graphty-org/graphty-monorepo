@@ -3,7 +3,7 @@ import "./frame.css";
 import { ResizeHandle } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import type React from "react";
+import React, { useEffect, useRef } from "react";
 
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
@@ -16,6 +16,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
+import { focusIsLost } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { Rail } from "./Rail";
@@ -36,7 +37,7 @@ interface FrameProps {
  * @returns The frame
  */
 export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Element {
-    const { store } = useWorkspace();
+    const { store, element } = useWorkspace();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -45,6 +46,16 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const panels = page === "panels";
+    // Leaving the Data page (Load, Cancel, Esc) or closing the table dock takes away the control
+    // that had focus; focus goes to the drawing rather than the page. Not on the first render.
+    const surfaces = useRef<string | null>(null);
+    useEffect(() => {
+        const now = `${String(panels)}:${String(dockOpen)}`;
+        if (surfaces.current !== null && surfaces.current !== now && focusIsLost()) {
+            element?.focus();
+        }
+        surfaces.current = now;
+    }, [panels, dockOpen, element]);
 
     return (
         <div className="ws-app">

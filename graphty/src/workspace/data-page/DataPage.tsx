@@ -30,6 +30,7 @@ import {
 } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
@@ -105,6 +106,15 @@ export function DataPage(): React.JSX.Element {
         request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null;
     const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial);
     const fileInput = useRef<HTMLInputElement>(null);
+    // The door that opened the page (New from data... on the start screen) goes with the start
+    // screen; focus goes to the page's first ask, "choose a file...", or its first control.
+    const pageRef = useRef<HTMLElement>(null);
+    useEffect(() => {
+        if (focusIsLost()) {
+            const ask = pageRef.current?.querySelector<HTMLElement>(".dp-main button");
+            (ask ?? pageRef.current?.querySelector<HTMLElement>("button"))?.focus();
+        }
+    }, []);
 
     const title = request.intent === "add" ? `Add to ${projectName}` : "Open as a new graph";
 
@@ -184,6 +194,7 @@ export function DataPage(): React.JSX.Element {
     return (
         <PopoutManager>
             <section
+                ref={pageRef}
                 className="dp"
                 aria-label="Data page"
                 onDragOver={(event) => {

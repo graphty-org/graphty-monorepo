@@ -1,7 +1,7 @@
 import "./start.css";
 
 import { Button, Kbd, Paper, Stack, Text, Title, UnstyledButton } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { type RefObject, useEffect, useRef, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { MainMenu } from "../frame/menus";
@@ -20,9 +20,18 @@ import { openSample } from "./open";
  * @param props - Component props
  * @param props.id - The command id
  * @param props.icon - The glyph
+ * @param props.ref - The row's button, for a caller that hands it focus
  * @returns The row, or nothing for a stub command
  */
-function Door({ id, icon }: Readonly<{ id: string; icon: React.ReactNode }>): React.JSX.Element | null {
+function Door({
+    id,
+    icon,
+    ref,
+}: Readonly<{
+    id: string;
+    icon: React.ReactNode;
+    ref?: RefObject<HTMLButtonElement | null>;
+}>): React.JSX.Element | null {
     const door = useCommand(id);
     if (door === null) {
         return null;
@@ -30,6 +39,7 @@ function Door({ id, icon }: Readonly<{ id: string; icon: React.ReactNode }>): Re
     const key = door.command.keys?.[0];
     return (
         <Button
+            ref={ref}
             variant="subtle"
             justify="space-between"
             fullWidth
@@ -65,10 +75,17 @@ function Column({ title, children }: Readonly<{ title: string; children: React.R
  * The start screen (tier1-design.md section 2.11), shown whenever no project is open: the two
  * ways in, Recent projects, the four samples, and the usage data card at its foot until it is
  * answered. A file dropped anywhere on it opens, as Open project or file... opens one.
+ * @param props - Component props
+ * @param props.openRef - Takes Open project or file..., the first way in: where focus goes when
+ *     the screen comes back and once the usage data card is answered
  * @returns The start screen
  */
-export function StartScreen(): React.JSX.Element {
+export function StartScreen({
+    openRef,
+}: Readonly<{ openRef?: RefObject<HTMLButtonElement | null> }>): React.JSX.Element {
     const workspace = useWorkspace();
+    const ownOpenRef = useRef<HTMLButtonElement>(null);
+    const firstDoor = openRef ?? ownOpenRef;
     const [dragging, setDragging] = useState(false);
 
     // The drop target is the whole window ("drop a file anywhere in this window"), so the
@@ -116,7 +133,7 @@ export function StartScreen(): React.JSX.Element {
             <main className="ws-start-main">
                 <div className="ws-start-cols">
                     <Column title="Start">
-                        <Door id="file.open" icon={<GLYPHS.open size={16} aria-hidden />} />
+                        <Door id="file.open" icon={<GLYPHS.open size={16} aria-hidden />} ref={firstDoor} />
                         <Door id="data.new" icon={<GLYPHS.newFile size={16} aria-hidden />} />
                         <Text size="xs" c="dimmed" className="ws-start-line">
                             <GLYPHS.upload size={12} aria-hidden /> or drop a file anywhere in this window
@@ -126,7 +143,7 @@ export function StartScreen(): React.JSX.Element {
                         </Text>
                     </Column>
                     <Column title="Recent projects">
-                        <RecentProjects />
+                        <RecentProjects emptyFocus={firstDoor} />
                     </Column>
                     <Column title="Samples">
                         {START_SAMPLES.map((sample) => (
@@ -155,11 +172,16 @@ export function StartScreen(): React.JSX.Element {
                 </div>
 
                 <div className="ws-start-foot">
-                    <UsageDataCard />
+                    <UsageDataCard
+                        onAnswered={() => {
+                            // The card's buttons go; focus goes to the first way in, not the page.
+                            firstDoor.current?.focus();
+                        }}
+                    />
                 </div>
             </main>
 
-            <NoticeSlot />
+            <NoticeSlot returnFocus={firstDoor} />
 
             {dragging ? (
                 <div className="ws-start-drop" aria-hidden>

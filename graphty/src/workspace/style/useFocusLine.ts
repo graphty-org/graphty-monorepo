@@ -21,6 +21,22 @@ export function focusLineNext(channel: Channel | null, bound = false): void {
 }
 
 /**
+ * Asks for keyboard focus on a section's first control once a line removed from it is gone: its
+ * add control in the header, or the line now drawn in its place. The line's own Remove button
+ * goes with it, so focus would fall to the page body (WCAG 2.4.3). Withdrawn with
+ * `focusLineNext(null)`.
+ * @param from - the Remove button, inside the section.
+ * @param channel - the removed line's channel.
+ */
+export function focusSectionNext(from: Element, channel: Channel): void {
+    const section = from.closest("[data-section]")?.getAttribute("data-section");
+    pending =
+        section === null || section === undefined
+            ? null
+            : `[data-section="${section}"]:not(:has([data-line="${channel}"] [aria-label^="Remove"]))`;
+}
+
+/**
  * Hands focus to the line `focusLineNext` asked for, on the first render that draws it.
  * @returns the ref for the element that holds the lines.
  */

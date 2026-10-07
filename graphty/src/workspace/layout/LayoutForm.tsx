@@ -7,8 +7,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { costLine, optionWords } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { useSessionVersion } from "../toolbar/useSessionVersion";
-import { LAYOUT_SEED, layoutChoices, layoutName, randomSeed, startingValues, unavailable } from "./methods";
+import { LAYOUT_SEED, layoutChoices, layoutName, randomSeed, startingValues, unavailable, useLayouts } from "./methods";
 
 /** Props for LayoutForm. */
 interface LayoutFormProps {
@@ -240,12 +239,12 @@ export function LayoutForm({
  */
 export function LayoutGroup(): React.JSX.Element | null {
     const { session } = useWorkspace();
-    useSessionVersion(session);
+    const layouts = useLayouts(session);
     const [picked, setPicked] = useState<string | null>(null);
     if (session === null) {
         return null;
     }
-    const choices = layoutChoices(session);
+    const choices = layoutChoices(session, layouts);
     const id = picked ?? session.layout.id;
     const open = choices.find((choice) => choice.descriptor.id === id);
     return (

@@ -4,10 +4,12 @@
  * estimate of `layout.set`.
  */
 
-import type { LayoutDescriptor } from "@graphty/graphty-element/catalog";
+import type { LayoutDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { type GraphSession, recommendLayout } from "@graphty/graphty-element/session";
+import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
+import { useSessionVersion } from "../toolbar/useSessionVersion";
 
 /**
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
@@ -68,38 +70,62 @@ export function layoutName(descriptor: LayoutDescriptor): string {
  * A layout's key option of one type (one the form draws outside the Advanced fold).
  * @param descriptor - the layout.
  * @param type - the option type.
- * @returns the option's name, or undefined.
+ * @returns the option, or undefined.
  */
-function keyOption(descriptor: LayoutDescriptor, type: "node-id" | "partition"): string | undefined {
-    return descriptor.options.find((o) => o.type === type && o.advanced !== true && o.internal !== true)?.name;
+function keyOption(descriptor: LayoutDescriptor, type: "node-id" | "partition"): OptionDescriptor | undefined {
+    return descriptor.options.find((o) => o.type === type && o.advanced !== true && o.internal !== true);
 }
 
 /**
- * The node attributes a grouping is opened with: the element's categorical ones, leaving out a
- * key or label column and any other with a value per node.
- * @param session - the element's session.
- * @returns their names.
+ * The element's layouts, each grouping layout's options resolved for this graph by
+ * `catalog.optionsFor`, so a partition option carries the columns that can group the nodes (a
+ * run's community among them). Resolved again whenever the project, the runs or the selection
+ * change; the catalog's own descriptors stand in until the first answer.
+ * @param session - the element's session, or null.
+ * @returns the layouts.
  */
-function groupings(session: GraphSession): string[] {
-    const { nodeCount } = session.data.statistics();
-    return session.data
-        .attributes()
-        .filter(
-            (a) =>
-                a.kind === "node" &&
-                a.measurement === "categorical" &&
-                // A column with a value per node (a name) makes a group of each node.
-                (a.uniqueCount ?? 0) < nodeCount &&
-                !(a.roles ?? []).some((role) => role === "key" || role === "label"),
-        )
-        .map((a) => a.name);
+export function useLayouts(session: GraphSession | null): readonly LayoutDescriptor[] {
+    const version = useSessionVersion(session);
+    const [resolved, setResolved] = useState<{
+        session: GraphSession;
+        layouts: readonly LayoutDescriptor[];
+    } | null>(null);
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+        let live = true;
+        void Promise.all(
+            session.catalog
+                .layouts()
+                .map(async (descriptor) =>
+                    descriptor.options.some((o) => o.type === "partition")
+                        ? { ...descriptor, options: await session.catalog.optionsFor(descriptor.id) }
+                        : descriptor,
+                ),
+        ).then(
+            (layouts) => {
+                if (live) {
+                    setResolved({ session, layouts });
+                }
+            },
+            () => undefined,
+        );
+        return () => {
+            live = false;
+        };
+    }, [session, version]);
+    if (session === null) {
+        return [];
+    }
+    return resolved?.session === session ? resolved.layouts : session.catalog.layouts();
 }
 
 /**
  * The values the form opens a layout with: what it is drawn with when it is the current layout,
- * else the app's seed, the selected node for a center and the first grouping the graph carries.
+ * else the app's seed, the selected node for a center and the first grouping the element offers.
  * @param session - the element's session.
- * @param descriptor - the layout.
+ * @param descriptor - the layout, its options resolved by {@link useLayouts}.
  * @returns the values.
  */
 export function startingValues(session: GraphSession, descriptor: LayoutDescriptor): Record<string, unknown> {
@@ -107,15 +133,15 @@ export function startingValues(session: GraphSession, descriptor: LayoutDescript
         return { ...session.layout.options };
     }
     const values: Record<string, unknown> = takesSeed(session, descriptor.id) ? { seed: LAYOUT_SEED } : {};
-    const node = keyOption(descriptor, "node-id");
+    const node = keyOption(descriptor, "node-id")?.name;
     const selected = session.selection.nodes.at(0);
     if (node !== undefined && selected !== undefined) {
         values[node] = selected;
     }
     const partition = keyOption(descriptor, "partition");
-    const first = groupings(session).at(0);
+    const first = partition?.values?.at(0)?.value;
     if (partition !== undefined && first !== undefined) {
-        values[partition] = first;
+        values[partition.name] = first;
     }
     return values;
 }
@@ -133,11 +159,11 @@ export function unavailable(
     descriptor: LayoutDescriptor,
     values: Readonly<Record<string, unknown>>,
 ): string | null {
-    const node = keyOption(descriptor, "node-id");
+    const node = keyOption(descriptor, "node-id")?.name;
     if (node !== undefined && (values[node] === undefined || values[node] === null)) {
         return "Select a node first";
     }
-    const partition = keyOption(descriptor, "partition");
+    const partition = keyOption(descriptor, "partition")?.name;
     if (partition !== undefined && values[partition] === undefined) {
         return "Needs a node attribute to group by";
     }
@@ -163,12 +189,13 @@ export interface LayoutChoice {
  * marked, "Recommended" on the one the element recommends for this graph, "slow" on one the
  * element's estimate puts over the app's threshold, and why one cannot run now.
  * @param session - the element's session.
+ * @param layouts - the layouts, from {@link useLayouts}.
  * @returns the rows.
  */
-export function layoutChoices(session: GraphSession): LayoutChoice[] {
+export function layoutChoices(session: GraphSession, layouts: readonly LayoutDescriptor[]): LayoutChoice[] {
     const statistics = session.data.statistics();
     const recommended = recommendLayout(statistics, { placedNodes: session.seededNodeCount })?.layout.id;
-    return session.catalog.layouts().map((descriptor) => {
+    return layouts.map((descriptor) => {
         const values = startingValues(session, descriptor);
         const reason = unavailable(session, descriptor, values);
         const estimate = session.estimate({ op: "layout.set", id: descriptor.id, options: values });

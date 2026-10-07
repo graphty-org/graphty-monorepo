@@ -9,6 +9,8 @@ import type { AlgorithmDescriptor, OptionDescriptor } from "../../src/catalog/ty
 import { isGraphtyError } from "../../src/errors";
 import { scopeResolverOfSession } from "../../src/session/GraphSession";
 import { optionsFor } from "../../src/session/optionsFor";
+import { createRunResult } from "../../src/session/results";
+import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { type Harness, makeSession } from "./helpers";
 
 /**
@@ -65,7 +67,55 @@ function boundedOver(harness: Harness, scope: Parameters<typeof optionsFor>[2]):
     return new Map(resolved.map((option) => [option.name, option]));
 }
 
+/**
+ * An executor that publishes a two-group partition of the {@link loaded} graph's seven nodes.
+ * @param context - The run being executed.
+ * @returns The outcome.
+ */
+async function twoGroups(context: RunExecutionContext): Promise<RunOutcome> {
+    await Promise.resolve();
+    return {
+        result: createRunResult({
+            runId: context.runId,
+            shape: "community",
+            fields: [
+                {
+                    name: "group",
+                    plainName: "Group",
+                    technicalName: "community",
+                    kind: "node",
+                    type: "integer",
+                    path: `results.${context.runId}.group`,
+                },
+            ],
+            measured: { nodes: 7, edges: 5 },
+            nodes: ["a", "b", "c", "d", "e", "f", "g"].map((id, i) => ({ id, values: { group: i < 4 ? 0 : 1 } })),
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", notes: [] },
+            durationMs: 1,
+        }),
+    };
+}
+
 describe("session.catalog.optionsFor", () => {
+    it("offers a grouping layout every column that can group the nodes, a run's result included", async () => {
+        const harness = makeSession({ runs: { execute: twoGroups } });
+        harness.add(
+            ["a", "b", "c", "d", "e", "f", "g"].map((id, i) => ({ id, team: i < 2 ? "red" : "blue", tag: `t${id}` })),
+            [{ src: "a", dst: "b" }],
+        );
+        const groupBy = async (): Promise<readonly string[] | undefined> =>
+            (await harness.session.catalog.optionsFor("shell"))
+                .find((option) => option.name === "groupBy")
+                ?.values?.map((choice) => choice.value);
+
+        assert.deepStrictEqual(await groupBy(), ["team"], "a column with a value per node cannot group");
+
+        const result = await harness.session.runs.start("louvain", {}, { style: false });
+
+        assert.deepStrictEqual(await groupBy(), ["team", `results.${result.runId}.group`]);
+        harness.session.dispose();
+    });
+
     it("lists the graph's real node ids for a node option", async () => {
         const harness = loaded();
 

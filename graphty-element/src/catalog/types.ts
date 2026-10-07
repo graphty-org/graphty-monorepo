@@ -1383,7 +1383,11 @@ export interface CatalogApi {
      * A bound written as an {@link OptionBound} reference (or as the bare reference string) comes
      * back as the number measured over the scope, and a "node-id" or "node-set" option comes back
      * with `values`: one choice per node in the scope, its value and label the node id as a
-     * string. Every other field is the static descriptor's.
+     * string. A "partition" option on nodes comes back with `values` too: one choice per column
+     * that can group the nodes -- a categorical node attribute (value: its name) or a finished
+     * run's categorical node field (value: its `results.` path, label: the run's label) --
+     * leaving out the key and label columns and any column with a value per node. Every other
+     * field is the static descriptor's.
      * @param key - An algorithm key, looked for first, or a layout id.
      * @param scope - What to measure; the session's default run scope when absent.
      * @returns The options, in declaration order.

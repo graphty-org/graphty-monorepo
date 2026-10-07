@@ -70,6 +70,33 @@ describe("the Layout popover", () => {
     });
 
     it(
+        "offers Rings by group once a community run has finished, grouped by that run",
+        async () => {
+            const session = await openK5();
+            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+            let popover = await screen.findByRole("dialog", { name: "Layout" });
+            const before = within(popover).getByRole("option", { name: /^Rings by group/ });
+            assert.strictEqual(before.getAttribute("aria-disabled"), "true", "no column groups K5 yet");
+            await userEvent.keyboard("{Escape}");
+
+            const run = await session.runs.start("louvain", {}, { style: false });
+            await userEvent.click(screen.getByRole("button", { name: "Layout" }));
+            popover = await screen.findByRole("dialog", { name: "Layout" });
+            await waitFor(() => {
+                const rings = within(popover).getByRole("option", { name: /^Rings by group/ });
+                assert.notStrictEqual(rings.getAttribute("aria-disabled"), "true", rings.textContent);
+            });
+            await userEvent.click(within(popover).getByRole("option", { name: /^Rings by group/ }));
+            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
+            await waitFor(() => {
+                assert.strictEqual(session.layout.id, "shell");
+            });
+            assert.deepInclude(session.layout.options, { groupBy: `results.${run.runId}.group` });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "lists every layout, opens a form that runs nothing until Apply, and draws Force flat with Shape 2D",
         async () => {
             const session = await openK5();

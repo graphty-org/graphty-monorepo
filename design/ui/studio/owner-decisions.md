@@ -4,6 +4,28 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- `catalog.optionsFor` lists the columns a grouping layout can group by
+
+**What.** `session.catalog.optionsFor(key)` now fills `values` on a "partition" option on nodes
+(the `groupBy` of the Rings by group, Two columns and Columns by group layouts: catalog ids
+`shell`, `bipartite`, `layers`), as it already did for "node-id" and "node-set" options. There is
+one choice per column that can group the nodes: each categorical node attribute (value: its
+name, label: its `plainName`), then each finished run's categorical node field (value: its
+`results.<run>.<field>` path, label: the run's label). Key and label columns, and any column with
+a value per node, are left out. No exported name or type changes; a partition option that used to
+come back without `values` now comes back with them. `layout.set` already accepted a run's path as
+`groupBy`, so nothing else changed.
+
+**Why.** After a community run, the graphty app kept the grouping layouts disabled with "Needs a
+node attribute to group by", because the app decided which columns can group by reading only the
+graph's attributes. Which columns can group a layout is a fact about the data, so the element
+answers it, run results included, and the app shows the element's list.
+
+**Alternatives.** A new method such as `data.groupings()` (a new exported name for one question
+`optionsFor` already exists to answer). Leave the decision in the app and add run results there
+(graph logic in the app, which a third-party consumer would have to rewrite). Fill `values` for
+every "attribute" option too (no consumer needs it yet).
+
 ## 2026-10-06 -- An export writes a partition's group as its rank, not the algorithm's group id
 
 **What.** When a community-detection result (Louvain, label propagation, connected components and

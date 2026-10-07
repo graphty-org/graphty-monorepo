@@ -56,8 +56,9 @@ interface FieldProps extends Omit<OptionsFormProps, "options" | "values" | "adva
 
 /**
  * An attribute or partition option as a choice among the attributes the graph carries on the
- * option's side (nodes unless it says edges). A partition reads groups, so it lists only
- * attributes that are not plain numbers; an attribute option with no default can be left at None (null).
+ * option's side (nodes unless it says edges). A partition the element has resolved lists the
+ * element's choices (its groupable columns, a run's community among them); otherwise it lists
+ * attributes that are not plain numbers. An attribute option with no default can be left at None (null).
  * @param props - Component props
  * @param props.session - The element's session
  * @param props.option - The option descriptor
@@ -76,10 +77,13 @@ function AttributeField({
     Pick<FieldProps, "session" | "option" | "value"> & { label: string; onChange: (v: unknown) => void }
 >): React.JSX.Element {
     const on = option.on ?? "node";
-    const attributes = session.data
-        .attributes()
-        .filter((a) => a.kind === on && (option.type !== "partition" || a.type !== "number"));
-    const data = attributes.map((a) => ({ value: a.name, label: a.plainName }));
+    const data =
+        option.type === "partition" && option.values !== undefined
+            ? option.values.map((choice) => ({ value: choice.value, label: choice.label }))
+            : session.data
+                  .attributes()
+                  .filter((a) => a.kind === on && (option.type !== "partition" || a.type !== "number"))
+                  .map((a) => ({ value: a.name, label: a.plainName }));
     const optional =
         option.type === "attribute" &&
         (option.default === undefined || option.default === null || option.default === "");

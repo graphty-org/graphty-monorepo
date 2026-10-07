@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { LayoutForm } from "./LayoutForm";
-import { layoutChoices } from "./methods";
+import { layoutChoices, useLayouts } from "./methods";
 
 /** Props for LayoutPopover. */
 interface LayoutPopoverProps {
@@ -28,7 +28,7 @@ interface LayoutPopoverProps {
  */
 export function LayoutPopover({ session, onClose, initialPick }: Readonly<LayoutPopoverProps>): React.JSX.Element {
     const [picked, setPicked] = useState<string | undefined>(initialPick);
-    const choices = layoutChoices(session);
+    const choices = layoutChoices(session, useLayouts(session));
     const open = choices.find((choice) => choice.descriptor.id === picked);
     const listRef = useRef<HTMLDivElement>(null);
     // On the list, focus sits on the checked row, so Esc (back from a form, or a second time)

@@ -2681,6 +2681,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
             runs: () => runs.list(),
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
+            attributes: () => data.attributes(),
+            results: () => results,
         }),
         readProject,
         controller: acceleration.controller,

@@ -23,7 +23,7 @@ import {
     writeLine,
 } from "./row";
 import { CompoundSetLine, SetLine } from "./SetLine";
-import { focusLineNext, useFocusLine } from "./useFocusLine";
+import { focusLineNext, openListNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
 import {
     channelWord,
@@ -326,9 +326,16 @@ function Section({
     const unset = entries.filter((e) => !isSet(e));
     const add = (entry: Entry): void => {
         const from = channels.find((d) => d.channel === entry.compound?.startsFrom) ?? entry.adds;
-        // The pick can remove "+" itself, so focus goes to the new line rather than back to it.
-        focusLineNext(entry.adds.channel);
+        if (entry.adds.channel === "node.size") {
+            // A fixed size changes nothing visible, so a new Size line asks at once what the sizes
+            // follow, "Fixed size" first; the list takes focus.
+            openListNext(entry.adds.channel);
+        } else {
+            // The pick can remove "+" itself, so focus goes to the new line rather than back to it.
+            focusLineNext(entry.adds.channel);
+        }
         writeLine(session, row, target, entry.adds.channel, { value: startingValue(from) }, fresh).catch(() => {
+            openListNext(null);
             focusLineNext(null);
             store.set({ notice: { message: `${entry.name} could not be added` } });
         });
@@ -352,7 +359,7 @@ function Section({
         );
     } else if (unset.length > 0) {
         plus = (
-            <Menu position="bottom-end" returnFocus={false}>
+            <Menu position="bottom-end">
                 <Menu.Target>
                     <Tooltip label={addLabel}>
                         <ActionIcon variant="subtle" size="sm" aria-label={addLabel}>

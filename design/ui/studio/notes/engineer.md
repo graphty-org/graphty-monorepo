@@ -37,22 +37,27 @@ acceptance test. "The studio worktree" is
    value-per-node); the app's `useLayouts()` in `layout/methods.ts` resolves the grouping layouts
    and `OptionsForm` lists `option.values`. Owner door recorded. Left: Two columns shows the
    element's English estimate reason ("needs exactly two groups ... names 4") -- needs a code.
-4. (2026-10-07) Not for round 3: 4x print re-render (T13 passed 2 of 2; labels are textures, a
+4. (2026-10-07) DONE: Size "+" opens its from-data list at once, "Fixed size" first and
+   highlighted (one Enter keeps the fixed 1 and focuses its number); the chain-link stays the way
+   back. App only: `openListNext()` in `useFocusLine.ts` (module state, survives the tab remount),
+   `fixedLabel`/`onFixed` on `FromDataList`. Only node Size; edge Width and Color "+" unchanged.
+   Proof: the two T9 tests in `StyleTab.real-element.test.tsx`; `tmp/check-r2-size-plus-opens-picker/`
+   10.png (list open), 11.png (bound 1 to 3, "Size: Influence"), 15.png (Fixed size, focus on "1").
+5. (2026-10-07) Not for round 3: 4x print re-render (T13 passed 2 of 2; labels are textures, a
    render-target capture is a risky swap), selection ring in export, label-count-vs-dot overlap,
    hover tooltip default, key placement / fit insets (owner API), a "show all names" control
-   (T10's prompt asked for what the build lacks; reword the task first), the sizing chain (decide
-   as design, not engineering; a second bind route was rejected in round 1).
-5. (2026-10-06) Graph logic goes in graphty-element, never the app; an app comment explaining why
+   (T10's prompt asked for what the build lacks; reword the task first).
+6. (2026-10-06) Graph logic goes in graphty-element, never the app; an app comment explaining why
    the element could not be used is an element bug report. The element returns neutral facts and
    `{ code, params }`; the app owns words. Style only through layers; suggested layers paint only
    their result. Public element API = owner one-way door: `owner-decisions.md` + `npm run api:report`.
-6. (2026-10-06) No default layout seed in the element (owner). The app seeds itself: `LAYOUT_SEED`
+7. (2026-10-06) No default layout seed in the element (owner). The app seeds itself: `LAYOUT_SEED`
    and `takesSeed()` in `layout/methods.ts`; seed on the tag in `ElementHost.tsx` and on every
    Method pick. Any new layout path passes the seed. A fixed seed makes overlay overlaps one event
    per dataset, not per session.
-7. (2026-10-06) Test the element first, and check whether an existing door reaches the wrong
+8. (2026-10-06) Test the element first, and check whether an existing door reaches the wrong
    screen before designing a new affordance (planar refusal, Neighborhood route).
-8. (2026-10-07) DONE: 2D Fit frames the whole graph. The app's Fit is
+9. (2026-10-07) DONE: 2D Fit frames the whole graph. The app's Fit is
    `applyCameraView("fitToGraph")`, not `zoomToBoundingBox` (the decision's suspect, correct). The
    built-in view answered 2D zoom in pixels per unit with the aspect inverted; the camera reads
    zoom as 5 / half-width. Fixed in `camera/builtins.ts` (`FLAT_HALF_WIDTH_AT_ZOOM_ONE`, shared
@@ -60,13 +65,11 @@ acceptance test. "The studio worktree" is
    Frame selection and `zoomToNodes` in 2D. Proof: `fit-frames-whole-graph.test.ts` (wide and
    tall rings; 2D fails on old code), stories "Camera Controls/Fit 2D" and "Fit 3D" (new
    baselines), `tmp/check-r2-fit-2d-whole-graph/a/06.png`, `08.png`.
-9. (2026-10-06) Every count on screen is computed from live element state, and every claim is
+10. (2026-10-06) Every count on screen is computed from live element state, and every claim is
    checked against the drawing. Look for motion first ("0 labels" was the camera spin).
-10. (2026-10-06) Open items still untraced: live Selection row blank after the neighbor route;
+11. (2026-10-06) Open items still untraced: live Selection row blank after the neighbor route;
     reopened run row has no count (element); Force re-applied with a new spring length freezes as
     a cloud (`repro/r2-s40/run/13.png`); Effects Outline black blobs; CSV headers internal.
-11. (2026-10-06) Re-record the answer key after every wording change (T11 refusal line, T13 tabs,
-    and run names once (c) lands).
 12. (2026-10-07) Baseline on 4a7a1a7fb (`rounds/round-2/baseline/bars.md`): bar 9 = 42 app words
     at rest (36 without the dataset title), so no round 3 fix may push it above 42; bar 8 axe fails
     on ONE cause, dimmed `#8c8c8c` on `#2c2c2c` (4.15:1) = compact-mantine `compactDarkColors[2]`.
@@ -133,6 +136,15 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-07) Size "+" opens its list (studio decision: 18 of 18 round-2 sizing sessions named
+  the fixed "1" that changes nothing). Adding node Size writes the fixed 1 as before, then the
+  line's own bind pop-out opens as it is drawn, with "Fixed size" as its first, highlighted row;
+  Enter on it closes the list and focuses the number; Esc or outside click leaves the fixed 1.
+  Rejected: a separate picker before the write (a second bind route, rejected in round 1);
+  component state for "open on mount" (lost when the first edit makes a layer and remounts the
+  tab). Kept to node Size: edge Width and Color "+" behave as before. Re-record the T9 answer key
+  path ("Size by attribute" click is gone) after every wording change, as with T11 and T13.
 
 - (2026-10-07) Study tool (`tool/real.mjs`): a focus line adds `; highlighted: option "..."`
   for `aria-activedescendant` (resolved in its own root, read from the AX tree); `--read` is
@@ -216,11 +228,8 @@ acceptance test. "The studio worktree" is
   per-component state (lost on remount). Proof: "focus after a pick" in
   `StyleTab.real-element.test.tsx`; `tmp/check-r1-focus-after-pick/`.
 
-- (2026-10-06) Study runner. Round 1's "failed 40m00s" sessions were runner timeouts (an agent's
-  clock ran while `real.mjs --start` waited for a browser slot; stopped agents kept slots). Now a
-  session nobody steps for 15 minutes closes itself, counted from the end of the last request
-  (commit 7d40cfe59); the rounds workflow runs at most 3 session agents, `--end` after every
-  attempt, and asks ease as "1 (very difficult) to 7 (very easy)" (round 1 ease = 8 minus answer).
+- (2026-10-06) Study runner: a session idle 15 minutes closes itself (7d40cfe59); at most 3
+  session agents, `--end` after every attempt; ease asked 1 (very difficult) to 7 (very easy).
 
 - (2026-10-06) Keyboard focus ring for plain controls (28bcb71a0): compact-mantine rings any
   `.mantine-focus-never` control with no `cm-` class on `:focus-visible`. App code never adds its
@@ -231,11 +240,9 @@ acceptance test. "The studio worktree" is
   reader. Now the Method select shows Mantine's `error` line naming the method until the layout
   changes (`LayoutRefusal.real-element.test.tsx`). Lesson: test the element first.
 
-- 2026-09-13 to 10-05 -- Standing owner decisions: styling only through layers, algorithms never
-  mute others, the element owns all graph logic (`CLAUDE.md`); a run paints as soon as it
-  finishes; tier 1 is built as the real app under `graphty/src/workspace/` at `/?next` (no more
-  mocks); the element is neutral about presentation. The group-row color fallback in
-  `graph-place/rows.ts` stays until #1099 removes it.
+- 2026-09-13 to 10-05 -- Standing owner decisions (see Top of mind 6): a run paints as soon as
+  it finishes; tier 1 is the real app under `graphty/src/workspace/` at `/?next`. The group-row
+  color fallback in `graph-place/rows.ts` stays until #1099 removes it.
 - 2026-10-06 -- Study tooling element APIs `nodeScreenPosition(id)`, `elementAt({x, y})`,
   `labelOf(id) -> { text, drawn }`: held PRs merged into the studio worktree; owner to confirm
   names. The element's default layout seed was undone (owner; `owner-decisions.md`); the app seeds
@@ -310,17 +317,8 @@ acceptance test. "The studio worktree" is
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only
   passes today through Recent projects. Adoption should be a small app change.
-- **Run landing above a reader's layer.** Today a suggested style is suppressed by a reader-set
-  "Everything" color, with a notice. If the study shows first-time users never see their run, the
-  remedy is a design decision for the owner, not a quiet code change.
 - **The image key's look (2026-10-06).** A fixed light card top left that can cover nodes; a
   fix is a placement option or camera fit (owner API questions), not app styling.
-- **What a study can and cannot observe.** The tool drives a headless browser and asserts on
-  element reads; it cannot judge color legibility or motion. Visual claims need a screenshot and a
-  human-readable check, and the image model only transcribes; its yes/no answers are not evidence.
-
-- **Public API report (2026-10-06).** Any element change that adds a public member needs
-  `npm run api:report` in the same commit and a line in `owner-decisions.md`.
 ## Sources
 
 - Digests in `design/ui/studio/digests/` (`tier1.md`, `decisions.md`, `study-rounds.md`,

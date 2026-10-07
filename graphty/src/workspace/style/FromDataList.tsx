@@ -20,7 +20,14 @@ interface FromDataListProps {
     onPick?: (choice: DataChoice) => void;
     /** Called by Escape. */
     onClose?: () => void;
+    /** A first choice that keeps the line's own value ("Fixed size"), named by this. */
+    fixedLabel?: string;
+    /** Called when the reader picks `fixedLabel`. */
+    onFixed?: () => void;
 }
+
+/** The key of the `fixedLabel` row; entry keys start "column:" or "result:". */
+const FIXED = "fixed";
 
 /** One entry before it becomes a palette row. */
 interface Entry {
@@ -115,6 +122,8 @@ function actionsOf(
  * @param props.inUse - paths in use on this row
  * @param props.onPick - called with the pick
  * @param props.onClose - called by Escape
+ * @param props.fixedLabel - a first choice that keeps the line's own value
+ * @param props.onFixed - called when the reader picks it
  * @returns The list, or nothing before the element has come up
  */
 export function FromDataList({
@@ -123,6 +132,8 @@ export function FromDataList({
     inUse = [],
     onPick,
     onClose,
+    fixedLabel,
+    onFixed,
 }: Readonly<FromDataListProps>): React.JSX.Element | null {
     const { session, element } = useWorkspace();
     useStyleVersion(session, element);
@@ -138,9 +149,16 @@ export function FromDataList({
             placeholder="Find an attribute"
             width={240}
             height={320}
-            actions={actionsOf(session, entries, channel, inUse)}
+            actions={[
+                ...(fixedLabel === undefined ? [] : [{ value: FIXED, label: fixedLabel }]),
+                ...actionsOf(session, entries, channel, inUse),
+            ]}
             filter={(action, query) => matchesWordStart(action.label, query)}
             onRun={(key) => {
+                if (key === FIXED) {
+                    onFixed?.();
+                    return;
+                }
                 const entry = entries.find((e) => e.key === key);
                 if (entry !== undefined) {
                     onPick?.(entry.choice);

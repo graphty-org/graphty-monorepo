@@ -31,7 +31,7 @@ import {
     startingValue,
     writeLine,
 } from "./row";
-import { focusLineNext } from "./useFocusLine";
+import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
 import { bindLabel, bindsAtRest, channelWord, type CompoundLine, enumWords, paletteWord } from "./words";
 
 /** Props for SetLine. */
@@ -92,7 +92,13 @@ export function SetLine({
     part = false,
 }: Readonly<SetLineProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const [binding, setBinding] = useState(false);
+    const [binding, setBinding] = useState(() => !part && listOpensNext(descriptor.channel));
+    const openBinding = (open: boolean): void => {
+        if (!open) {
+            openListNext(null);
+        }
+        setBinding(open);
+    };
     if (session === null) {
         return null;
     }
@@ -129,7 +135,7 @@ export function SetLine({
 
     const bindIcon =
         bindsAtRest(descriptor) && line.binding === undefined ? (
-            <Popout opened={binding} onOpenChange={setBinding}>
+            <Popout opened={binding} onOpenChange={openBinding}>
                 <Popout.Trigger>
                     {/* The Tooltip passes the trigger's click and ref to the button, but not its
                         ARIA, so the button states its own. */}
@@ -151,14 +157,20 @@ export function SetLine({
                     <FromDataList
                         target={target}
                         channel={channel}
+                        fixedLabel={channel === "node.size" ? "Fixed size" : undefined}
+                        onFixed={() => {
+                            openBinding(false);
+                            // The line keeps its value; focus goes to it to change the number.
+                            focusLineNext(channel);
+                        }}
                         onPick={(choice) => {
-                            setBinding(false);
+                            openBinding(false);
                             // The bind removes this icon; focus goes to the bound line instead.
                             focusLineNext(channel, true);
                             bind(choice);
                         }}
                         onClose={() => {
-                            setBinding(false);
+                            openBinding(false);
                         }}
                     />
                 </Popout.Panel>

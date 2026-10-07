@@ -39,3 +39,25 @@ export function useFocusLine<T extends HTMLElement>(): RefObject<T | null> {
     });
     return scope;
 }
+
+/** The line whose from-data list opens when it is drawn; module state, so it outlives a remount of the tab. */
+let listNext: Channel | null = null;
+
+/**
+ * Opens the from-data list of a line once it is drawn: adding a Size line asks which value the
+ * sizes follow at once, with "Fixed size" first. The line appears only after the element applies
+ * the write, and the first line a row sets makes a new layer, which remounts the tab.
+ * @param channel - the line's channel, or null to withdraw the ask (the write failed).
+ */
+export function openListNext(channel: Channel | null): void {
+    listNext = channel;
+}
+
+/**
+ * Whether a line's from-data list should open as it is drawn.
+ * @param channel - the line's channel.
+ * @returns true when `openListNext` asked for it.
+ */
+export function listOpensNext(channel: Channel): boolean {
+    return listNext === channel;
+}

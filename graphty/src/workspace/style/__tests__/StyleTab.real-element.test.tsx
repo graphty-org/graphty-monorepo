@@ -268,7 +268,7 @@ describe("the Style tab on the real element", () => {
             store.set({ inspected: { kind: "measure-row", id: runId } });
             await pickStyleTab();
 
-            // Shape "+" > Size adds a Size line.
+            // Shape "+" > Size adds a Size line and opens its From data list at once.
             // The tab remounts for the new row: read it afresh.
             await waitFor(
                 () => {
@@ -278,7 +278,6 @@ describe("the Style tab on the real element", () => {
             );
             await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Shape" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: /^Size/ }));
-            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Size by attribute" }));
             const list = await screen.findByRole("dialog", { name: "From data" });
             await userEvent.click(
                 within(within(list).getByRole("group", { name: runLabel })).getByRole("option", { name: runLabel }),
@@ -318,6 +317,45 @@ describe("the Style tab on the real element", () => {
             await waitFor(() => {
                 assert.deepEqual((sizeOf() as { range?: unknown } | undefined)?.range, [1, 5]);
             });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "T9: a new Size line's list offers Fixed size first, one Enter away; the bind icon stays",
+        async () => {
+            const { session, store } = await openWithGraph();
+            const { runId } = await session.runs.start("pagerank");
+            await session.styles.settled();
+            store.set({ inspected: { kind: "measure-row", id: runId } });
+            await pickStyleTab();
+            await waitFor(
+                () => {
+                    assert.isNotNull(within(styleTab()).getByRole("button", { name: "Add to Shape" }));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Shape" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /^Size/ }));
+            const list = await screen.findByRole("dialog", { name: "From data" });
+            const [first] = within(list).getAllByRole("option");
+            assert.equal(first.textContent, "Fixed size");
+            assert.equal(first.getAttribute("aria-selected"), "true", "Fixed size is highlighted");
+            await waitFor(() => {
+                assert.isNotNull(document.activeElement?.closest('[role="dialog"]'), "focus is in the list");
+            });
+
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "From data" }));
+            });
+            const measure = readerLayers(session).find((l) => l.source.by === "run");
+            assert.equal(measure?.set?.["node.size"], 1, "the line keeps its fixed size");
+            await waitFor(() => {
+                assert.isNotNull(document.activeElement?.closest('[data-line="node.size"]'), "focus is on the line");
+            });
+            // The chain-link is still the way back to the list.
+            assert.isNotNull(within(styleTab()).getByRole("button", { name: "Size by attribute" }));
         },
         TIMEOUT_MS * 2,
     );

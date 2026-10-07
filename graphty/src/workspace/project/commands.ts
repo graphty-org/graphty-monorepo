@@ -15,7 +15,7 @@ function cannotSave({ workspace, element }: CommandContext): string | null {
     return element === null ? "The graph is still loading" : null;
 }
 
-/** The Project package's commands: Save (Mod+S), Save as... (Shift+Mod+S), Save local copy... and Close project. */
+/** The Project package's commands: Save (Mod+S), Save as... (Shift+Mod+S), Save local copy... and Back to start. */
 export const registration = defineRegistration({
     owner: "project",
     commands: [
@@ -50,7 +50,7 @@ export const registration = defineRegistration({
         },
         {
             id: "project.close",
-            label: "Close project",
+            label: "Back to start",
             group: "Project",
             disabled: ({ workspace }) => (workspace.get().project === null ? "No project is open" : null),
             run: closeProject,

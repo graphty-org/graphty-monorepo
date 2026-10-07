@@ -301,7 +301,7 @@ function hasUnsaved({ workspace, session }: CommandContext): boolean {
 }
 
 /**
- * Runs something that replaces or closes the open project (New project, Close project), asking
+ * Runs something that replaces or closes the open project (New project, Back to start), asking
  * first when that would throw away unsaved changes.
  * @param ctx - the command context.
  * @param proceed - what replaces the project.
@@ -318,7 +318,7 @@ export function unlessUnsaved(ctx: CommandContext, proceed: () => void): void {
 }
 
 /**
- * Close project: back to the start screen, asking first when the element reports unsaved changes.
+ * Back to start: closes the project and shows the start screen, asking first when the element reports unsaved changes.
  * @param ctx - the command context.
  */
 export function closeProject(ctx: CommandContext): void {

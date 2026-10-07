@@ -128,5 +128,5 @@ export const RecentMissing: Story = {
 /** Save as..., the name selected (`#/project-menu/save-as`). */
 export const SaveAs: Story = dialogStory(SAVE_AS_DIALOG);
 
-/** Close project or opening another over unsaved changes: the question before they are lost. */
+/** Back to start or opening another over unsaved changes: the question before they are lost. */
 export const DiscardChanges: Story = dialogStory(DISCARD_DIALOG);

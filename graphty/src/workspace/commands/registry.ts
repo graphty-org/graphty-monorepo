@@ -108,10 +108,11 @@ export function stubCommands(commands: readonly Omit<Command, "run" | "stub">[])
 }
 
 /**
- * The File list, shared word for word by the main menu and the project-name menu
- * (tier1-design.md section 2.1). Each is registered by the package that owns it.
+ * The File list: what the main menu offers for the open project, after its ways to open one
+ * (tier1-design.md section 2.1). Drawn once, in the main menu, and left out of the start
+ * screen's copy. Each is registered by the package that owns it.
  */
-export const FILE_LIST = ["file.open", "project.save", "project.save-as", "project.save-copy", "file.export"] as const;
+export const FILE_LIST = ["project.save", "project.save-as", "project.save-copy", "file.export"] as const;
 
 /**
  * Every command id the tier 1 design needs, by owning package. A package that drops one fails

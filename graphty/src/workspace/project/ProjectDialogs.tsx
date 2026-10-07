@@ -73,7 +73,7 @@ function SaveAsDialog(): React.JSX.Element {
 }
 
 /**
- * The unsaved-changes question, asked when Close project or opening another project would throw
+ * The unsaved-changes question, asked when Back to start or opening another project would throw
  * away changes graphty-element reports as unsaved (`project.dirty`, `E_UNSAVED_CHANGES`).
  * @returns The dialog
  */

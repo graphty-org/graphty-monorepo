@@ -1,5 +1,5 @@
 /**
- * The Project package without the element: its commands, the Save as dialog, Close project, the
+ * The Project package without the element: its commands, the Save as dialog, Back to start, the
  * Recent projects list and the words for a file that does not open. The element is not registered
  * in this file; `Project.real-element.test.tsx` walks save and reopen on it.
  */
@@ -51,12 +51,12 @@ afterEach(() => {
 });
 
 describe("the Project package", () => {
-    it("registers Save, Save as..., Save local copy... and Close project, built, with their keys", () => {
+    it("registers Save, Save as..., Save local copy... and Back to start, built, with their keys", () => {
         const registry = createRegistry([registration]);
         assert.deepEqual(registry.built("project.save")?.keys, ["Mod+S"]);
         assert.deepEqual(registry.built("project.save-as")?.keys, ["Shift+Mod+S"]);
         assert.equal(registry.built("project.save-copy")?.label, "Save local copy...");
-        assert.equal(registry.built("project.close")?.label, "Close project");
+        assert.equal(registry.built("project.close")?.label, "Back to start");
     });
 
     it("opens Save as titled with the project's name, its name selected, and Cancel closes it", async () => {
@@ -83,7 +83,7 @@ describe("the Project package", () => {
 
         await userEvent.keyboard("{Control>}s{/Control}");
         assert.isNull(store.get().dialog);
-        await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
         const save = await screen.findByRole("menuitem", { name: /^Save(?! as| local)/ });
         assert.equal(save.getAttribute("aria-disabled"), "true");
         assert.isNotNull(within(save).getByText("The graph is still loading"));
@@ -93,8 +93,8 @@ describe("the Project package", () => {
         const store = createWorkspaceStore(OPEN);
         render(<Workspace store={store} />);
 
-        await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Close project" }));
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
         assert.isNull(store.get().project);
         assert.isNotNull(screen.getByText("Projects you save appear here. They are kept in this browser."));
     });

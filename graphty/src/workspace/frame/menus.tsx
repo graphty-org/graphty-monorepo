@@ -1,15 +1,19 @@
 /**
- * The header's two menus (tier1-design.md section 2.1). Every item is a command from the
- * registry, so a stub command is not drawn and a disabled one shows its reason on a second line.
+ * The main menu, the app's one menu (tier1-design.md section 2.1). Every item is a command from
+ * the registry, so a stub command is not drawn and a disabled one shows its reason on a second
+ * line.
  */
 
 import { Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { Fragment } from "react";
 
+import { START_SAMPLES } from "../../data/sampleManifest";
 import { FILE_LIST } from "../commands/registry";
 import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
+import { unlessUnsaved } from "../project/actions";
 import { RecentMenu } from "../project/RecentMenu";
+import { openSample } from "../start/open";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 
 /**
@@ -72,11 +76,46 @@ export function Sections({ sections }: Readonly<{ sections: readonly (readonly s
 }
 
 /**
- * The main menu: the app. New project, Open recent, the File list, Settings, Keyboard shortcuts,
- * Help.
+ * The main menu's "Open sample" submenu: one row per start-screen sample, opened as a new
+ * project (asking first over unsaved changes).
+ * @returns The submenu
+ */
+function SampleMenu(): React.JSX.Element {
+    const workspace = useWorkspace();
+    return (
+        <Menu.Sub>
+            <Menu.Sub.Target>
+                <Menu.Sub.Item>Open sample</Menu.Sub.Item>
+            </Menu.Sub.Target>
+            <Menu.Sub.Dropdown>
+                {START_SAMPLES.map((sample) => (
+                    <Menu.Item
+                        key={sample.id}
+                        rightSection={sample.size}
+                        onClick={() => {
+                            unlessUnsaved(workspace, () => {
+                                openSample(workspace.store, sample);
+                            });
+                        }}
+                    >
+                        {sample.name}
+                    </Menu.Item>
+                ))}
+            </Menu.Sub.Dropdown>
+        </Menu.Sub>
+    );
+}
+
+/**
+ * The main menu, the app's one menu: Back to start | New project, Open, Open sample, Open recent
+ * | the File list | Rename | Settings, Keyboard shortcuts, Help. The start screen's copy leaves
+ * out the rows that need a project (Back to start, the File list, Rename) rather than
+ * drawing them disabled.
+ * @param props - Component props
+ * @param props.start - Draws the start screen's shorter menu
  * @returns The menu button and its menu
  */
-export function MainMenu(): React.JSX.Element {
+export function MainMenu({ start = false }: Readonly<{ start?: boolean }>): React.JSX.Element {
     return (
         <Menu position="bottom-start" withinPortal>
             <Menu.Target>
@@ -87,10 +126,24 @@ export function MainMenu(): React.JSX.Element {
                 </Tooltip>
             </Menu.Target>
             <Menu.Dropdown>
+                {start ? null : (
+                    <>
+                        <CommandItem id="project.close" />
+                        <Menu.Divider />
+                    </>
+                )}
                 <CommandItem id="project.new" />
+                <CommandItem id="file.open" />
+                <SampleMenu />
                 <RecentMenu />
                 <Menu.Divider />
-                <Sections sections={[FILE_LIST, ["settings.open", "help.shortcuts"]]} />
+                <Sections
+                    sections={
+                        start
+                            ? [["settings.open", "help.shortcuts"]]
+                            : [FILE_LIST, ["project.rename"], ["settings.open", "help.shortcuts"]]
+                    }
+                />
                 <Menu.Sub>
                     <Menu.Sub.Target>
                         <Menu.Sub.Item>Help</Menu.Sub.Item>
@@ -101,36 +154,6 @@ export function MainMenu(): React.JSX.Element {
                         <CommandItem id="help.about" />
                     </Menu.Sub.Dropdown>
                 </Menu.Sub>
-            </Menu.Dropdown>
-        </Menu>
-    );
-}
-
-/**
- * The project-name menu: this project. Rename | the File list | Close project.
- * @param props - Component props
- * @param props.name - The project's name, the menu's button
- * @param props.onDoubleClick - Starts a rename
- * @returns The project name and its menu
- */
-export function ProjectMenu({
-    name,
-    onDoubleClick,
-}: Readonly<{ name: string; onDoubleClick: () => void }>): React.JSX.Element {
-    return (
-        <Menu position="bottom-start" withinPortal>
-            <Menu.Target>
-                <UnstyledButton
-                    className="ws-project-name"
-                    aria-label={`Project: ${name}`}
-                    onDoubleClick={onDoubleClick}
-                >
-                    <span className="ws-project-text">{name}</span>
-                    <GLYPHS.expand size={12} aria-hidden />
-                </UnstyledButton>
-            </Menu.Target>
-            <Menu.Dropdown>
-                <Sections sections={[["project.rename"], FILE_LIST, ["project.close"]]} />
             </Menu.Dropdown>
         </Menu>
     );

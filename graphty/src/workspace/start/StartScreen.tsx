@@ -4,7 +4,7 @@ import { Button, Kbd, Paper, Stack, Text, Title, UnstyledButton } from "@mantine
 import React, { useEffect, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
-import { CommandButton } from "../frame/CommandButton";
+import { MainMenu } from "../frame/menus";
 import { NoticeSlot } from "../frame/NoticeSlot";
 import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
@@ -104,13 +104,13 @@ export function StartScreen(): React.JSX.Element {
     return (
         <div className="ws-start">
             <header className="ws-start-head">
+                <MainMenu start />
                 <h1 className="ws-start-brand">
                     <GLYPHS.sample size={16} aria-hidden />
                     graphty
                 </h1>
                 <span className="ws-start-grow" />
                 <PrivacyChip />
-                <CommandButton id="settings.open" icon={<GLYPHS.settings size={16} aria-hidden />} />
             </header>
 
             <main className="ws-start-main">

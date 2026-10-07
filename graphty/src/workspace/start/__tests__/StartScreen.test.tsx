@@ -144,10 +144,11 @@ describe("the start screen", () => {
 });
 
 describe("Settings", () => {
-    it("opens on General from the gear and from Mod+,", async () => {
+    it("opens on General from the main menu and from Mod+,", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Settings..." }));
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Settings\.\.\./ }));
         let dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Theme" }));
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Number format" }));

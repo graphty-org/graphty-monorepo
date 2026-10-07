@@ -27,6 +27,15 @@ const LATER = defineRegistration({
     commands: stubCommands([{ id: "later.tool", label: "Later tool", group: "View", keys: ["Mod+Alt+L"] }]),
 });
 
+/**
+ * A menu row's label, without its key or the reason a disabled row gives.
+ * @param row - the menu row.
+ * @returns the label.
+ */
+function rowLabel(row: HTMLElement): string {
+    return row.querySelector("[class*='itemLabel']")?.firstChild?.textContent?.trim() ?? "";
+}
+
 function renderWorkspace(initialState?: Partial<WorkspaceState>, registrations?: readonly WorkspaceRegistration[]) {
     return render(<Workspace initialState={initialState} registrations={registrations} />);
 }
@@ -101,22 +110,41 @@ describe("the workspace frame", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Save(?! as| local)/ }));
     });
 
-    it("draws a File list command in both menus once its package builds it", async () => {
-        const save: WorkspaceRegistration = {
-            owner: "project",
-            commands: [{ id: "project.save", label: "Save", group: "Project", keys: ["Mod+S"], run: () => undefined }],
-        };
-        const registrations = REGISTRATIONS.map((registration) =>
-            registration.owner === "project" ? save : registration,
-        );
-        renderWorkspace(OPEN, registrations);
+    it("has one menu: Back to start first, every row once, and the name renames", async () => {
+        renderWorkspace(OPEN);
 
+        assert.lengthOf(screen.getAllByRole("button", { name: "Main menu" }), 1);
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        assert.isNotNull(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Save/ }));
+        const rows = within(await screen.findByRole("menu"))
+            .getAllByRole("menuitem")
+            .map(rowLabel);
+        assert.equal(rows[0], "Back to start");
+        for (const name of ["New project", "Open project or file...", "Open sample", "Save as...", "Rename"]) {
+            assert.include(rows, name);
+        }
+        assert.lengthOf(new Set(rows), rows.length, rows.join(", "));
         await userEvent.keyboard("{Escape}");
 
         await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
-        assert.isNotNull(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Save/ }));
+        assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
+        assert.isNull(screen.queryByRole("menu"));
+    });
+
+    it("draws the start screen's shorter menu, without the rows that need a project", async () => {
+        renderWorkspace();
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        const rows = within(await screen.findByRole("menu"))
+            .getAllByRole("menuitem")
+            .map(rowLabel);
+        assert.deepEqual(rows, [
+            "New project",
+            "Open project or file...",
+            "Open sample",
+            "Settings...",
+            "Keyboard shortcuts",
+            "Help",
+        ]);
     });
 
     it("shows a disabled command with its reason and keeps it focusable", async () => {
@@ -141,7 +169,7 @@ describe("the workspace frame", () => {
         assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, { timeout: 3000 }));
     });
 
-    it("renames the project with F2 and with a double-click", async () => {
+    it("renames the project with F2 and with a tap on its name", async () => {
         renderWorkspace(OPEN);
 
         await userEvent.keyboard("{F2}");
@@ -150,10 +178,8 @@ describe("the workspace frame", () => {
         await userEvent.type(field, "My copy{Enter}");
         assert.isNotNull(screen.getByRole("button", { name: "Project: My copy" }));
 
-        // A double-click's two clicks open and close the menu; the rename field is what stays.
-        await userEvent.dblClick(screen.getByRole("button", { name: "Project: My copy" }));
+        await userEvent.click(screen.getByRole("button", { name: "Project: My copy" }));
         const again = await screen.findByRole("textbox", { name: "Project name" });
-        assert.isNull(screen.queryByRole("menu"));
         // Esc abandons the rename and keeps the name.
         await userEvent.type(again, "Other{Escape}");
         assert.isNotNull(screen.getByRole("button", { name: "Project: My copy" }));

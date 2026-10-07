@@ -107,7 +107,7 @@ export function MainMenu(): React.JSX.Element {
 }
 
 /**
- * The project-name menu: this project. Rename | the File list | Save as..., Close project.
+ * The project-name menu: this project. Rename | the File list | Close project.
  * @param props - Component props
  * @param props.name - The project's name, the menu's button
  * @param props.onDoubleClick - Starts a rename
@@ -130,7 +130,7 @@ export function ProjectMenu({
                 </UnstyledButton>
             </Menu.Target>
             <Menu.Dropdown>
-                <Sections sections={[["project.rename"], FILE_LIST, ["project.save-as", "project.close"]]} />
+                <Sections sections={[["project.rename"], FILE_LIST, ["project.close"]]} />
             </Menu.Dropdown>
         </Menu>
     );

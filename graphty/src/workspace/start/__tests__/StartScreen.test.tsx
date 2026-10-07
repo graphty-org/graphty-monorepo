@@ -47,7 +47,7 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("main"));
         assert.isNotNull(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
         assert.isNotNull(screen.getByRole("button", { name: /New from data\.\.\./ }));
-        assert.isNotNull(screen.getByText("Projects you open or create appear here. They are kept in this browser."));
+        assert.isNotNull(screen.getByText("Projects you save appear here. They are kept in this browser."));
         const samples = within(screen.getByRole("region", { name: "Samples" })).getAllByRole("button");
         assert.deepEqual(
             samples.map((button) => button.getAttribute("aria-label")),

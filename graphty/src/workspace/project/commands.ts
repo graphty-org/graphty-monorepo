@@ -1,5 +1,5 @@
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { closeProject, SAVE_AS_DIALOG, saveProject } from "./actions";
+import { closeProject, SAVE_AS_DIALOG, saveLocalCopy, saveProject } from "./actions";
 
 /**
  * Why Save and Save as cannot run now.
@@ -15,7 +15,7 @@ function cannotSave({ workspace, element }: CommandContext): string | null {
     return element === null ? "The graph is still loading" : null;
 }
 
-/** The Project package's commands: Save (Mod+S), Save as... (Shift+Mod+S) and Close project. */
+/** The Project package's commands: Save (Mod+S), Save as... (Shift+Mod+S), Save local copy... and Close project. */
 export const registration = defineRegistration({
     owner: "project",
     commands: [
@@ -38,6 +38,15 @@ export const registration = defineRegistration({
             run: ({ workspace }) => {
                 workspace.set({ dialog: SAVE_AS_DIALOG });
             },
+        },
+        {
+            id: "project.save-copy",
+            label: "Save local copy...",
+            group: "Project",
+            keywords: ["project", "file", "download", "export"],
+            description: "Downloads the project file. Where Save goes does not change.",
+            disabled: cannotSave,
+            run: saveLocalCopy,
         },
         {
             id: "project.close",

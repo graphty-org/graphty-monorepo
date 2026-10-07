@@ -1,10 +1,10 @@
 /**
  * The browser's side of a project file: where the browser keeps file handles (the File System
- * Access API, Chromium), Save writes the same file again and Recent projects reopens it; elsewhere
- * Save downloads a copy and reopening asks for the file. Nothing here reads what is in a file.
+ * Access API, Chromium), Recent projects reopens the file; elsewhere reopening asks for the file.
+ * Nothing here reads what is in a file.
  */
 
-import { PROJECT_FILE, projectFileName } from "@graphty/graphty-element/session";
+import { PROJECT_FILE } from "@graphty/graphty-element/session";
 
 /** The file type a project is saved as, for the pickers: graphty-element's project file. */
 const PROJECT_TYPE = {
@@ -14,10 +14,6 @@ const PROJECT_TYPE = {
 
 /** The parts of the File System Access API this file uses, which TypeScript's DOM library lacks. */
 interface FileAccessWindow {
-    showSaveFilePicker?: (options: {
-        suggestedName?: string;
-        types?: readonly (typeof PROJECT_TYPE)[];
-    }) => Promise<FileSystemFileHandle>;
     showOpenFilePicker?: (options: { types?: readonly (typeof PROJECT_TYPE)[] }) => Promise<FileSystemFileHandle[]>;
 }
 
@@ -36,44 +32,12 @@ function pickers(): FileAccessWindow {
 }
 
 /**
- * Whether this browser keeps file handles, so Save can write the same file again.
- * @returns true in Chromium.
- */
-export function keepsFileHandles(): boolean {
-    return typeof pickers().showSaveFilePicker === "function";
-}
-
-/**
  * Whether an error is the reader cancelling a picker.
  * @param error - what a picker threw.
  * @returns true for a cancel.
  */
-export function isCancel(error: unknown): boolean {
+function isCancel(error: unknown): boolean {
     return error instanceof DOMException && error.name === "AbortError";
-}
-
-/**
- * Asks where to save (Save as...), where the browser keeps file handles.
- * @param name - the project's name, the suggested file name.
- * @returns the chosen file. Rejects with an AbortError when the reader cancels.
- */
-export function chooseSaveFile(name: string): Promise<FileSystemFileHandle> {
-    const { showSaveFilePicker } = pickers();
-    if (showSaveFilePicker === undefined) {
-        return Promise.reject(new Error("This browser keeps no file handles"));
-    }
-    return showSaveFilePicker({ suggestedName: projectFileName(name), types: [PROJECT_TYPE] });
-}
-
-/**
- * Writes a file's whole text.
- * @param handle - the file.
- * @param text - its new text.
- */
-export async function writeFile(handle: FileSystemFileHandle, text: string): Promise<void> {
-    const writable = await handle.createWritable();
-    await writable.write(text);
-    await writable.close();
 }
 
 /**

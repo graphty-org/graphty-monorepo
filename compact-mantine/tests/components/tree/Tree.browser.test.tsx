@@ -698,6 +698,32 @@ describe("PageList: second line, value and row menu", () => {
         expect(onCurrentChange).not.toHaveBeenCalled();
     });
 
+    it("opens the row menu with the menu key or Shift+F10, not with F10 alone", async () => {
+        const onMenu = vi.fn();
+        const items = [
+            {
+                id: "les",
+                name: "Les Miserables",
+                menu: (
+                    <button type="button" onClick={onMenu}>
+                        More for Les Miserables
+                    </button>
+                ),
+            },
+        ];
+        await renderThemed(<PageList label="Recent projects" items={items} />);
+        await tabIn();
+        const cell = screen.getByRole("gridcell", { name: "Les Miserables" });
+        await userEvent.keyboard("{F10}");
+        expect(onMenu).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(cell);
+        await userEvent.keyboard("{ContextMenu}");
+        expect(onMenu).toHaveBeenCalledTimes(1);
+        cell.focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        expect(onMenu).toHaveBeenCalledTimes(2);
+    });
+
     it("stays one Tab stop: Tab from the focused row leaves the list, past every row menu", async () => {
         const items = [...RECENT, { id: "two", name: "Second", menu: <button type="button">More for Second</button> }];
         await renderThemed(

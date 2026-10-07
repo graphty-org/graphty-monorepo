@@ -4,11 +4,10 @@ import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { DISCARD_DIALOG, discardAndContinue, openPending, SAVE_AS_DIALOG, saveProjectAs } from "./actions";
-import { keepsFileHandles } from "./files";
 
 /**
  * Save as... (`#/project-menu/save-as`): titled with the project's name, the name a field with
- * its text selected; Enter saves.
+ * its text selected; Enter keeps the project in this browser under that name.
  * @returns The dialog
  */
 function SaveAsDialog(): React.JSX.Element {
@@ -34,9 +33,8 @@ function SaveAsDialog(): React.JSX.Element {
         }
         setSaving(true);
         try {
-            if (await saveProjectAs(workspace, trimmed)) {
-                close();
-            }
+            await saveProjectAs(workspace, trimmed);
+            close();
         } finally {
             setSaving(false);
         }
@@ -61,11 +59,6 @@ function SaveAsDialog(): React.JSX.Element {
                         event.currentTarget.select();
                     }}
                 />
-                <Text size="xs" c="dimmed" mt="xs">
-                    {keepsFileHandles()
-                        ? "Choose where the file goes next. Later saves write the same file."
-                        : "The file is downloaded. Each later Save downloads a new copy."}
-                </Text>
                 <ModalFooter mt="md">
                     <Button variant="default" onClick={close}>
                         Cancel

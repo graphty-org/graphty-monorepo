@@ -111,7 +111,7 @@ export function stubCommands(commands: readonly Omit<Command, "run" | "stub">[])
  * The File list, shared word for word by the main menu and the project-name menu
  * (tier1-design.md section 2.1). Each is registered by the package that owns it.
  */
-export const FILE_LIST = ["file.open", "project.save", "file.export"] as const;
+export const FILE_LIST = ["file.open", "project.save", "project.save-as", "project.save-copy", "file.export"] as const;
 
 /**
  * Every command id the tier 1 design needs, by owning package. A package that drops one fails
@@ -148,7 +148,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     style: ["style.add-label-line"],
     table: ["table.toggle"],
     export: ["file.export"],
-    project: ["project.save", "project.save-as", "project.close"],
+    project: ["project.save", "project.save-as", "project.save-copy", "project.close"],
 };
 
 /** The commands, looked up and listed. */

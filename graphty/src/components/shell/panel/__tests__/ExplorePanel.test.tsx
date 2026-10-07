@@ -356,6 +356,16 @@ describe("ExplorePanel", () => {
 
             expect(onDeleteCaseNote).toHaveBeenCalledWith("a");
         });
+
+        it("hands a case note ticked Done to its caller", () => {
+            const onSetCaseNoteDone = vi.fn();
+
+            renderPanel({ caseNotes, onAddCaseNote: vi.fn(), onSetCaseNoteDone });
+            fireEvent.click(screen.getByRole("button", { name: "Expand Notes" }));
+            fireEvent.click(screen.getByRole("checkbox", { name: "Done: First look" }));
+
+            expect(onSetCaseNoteDone).toHaveBeenCalledWith("a", true);
+        });
     });
 
     describe("the filter chips", () => {

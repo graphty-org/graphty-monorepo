@@ -25,6 +25,7 @@ This document outlines the design for extracting the Mantine theme and custom co
 ### 1.1 Problem Statement
 
 The graphty app has developed a comprehensive Mantine theme with a "compact" size variant and several custom components. These are:
+
 - Highly reusable across projects needing dense UIs
 - Currently tightly coupled to graphty
 - Difficult to share with other projects in the monorepo or externally
@@ -126,11 +127,11 @@ The package will be added to the graphty-monorepo as a new workspace:
 ```yaml
 # pnpm-workspace.yaml
 packages:
-  - 'algorithms'
-  - 'layout'
-  - 'graphty-element'
-  - 'graphty'
-  - 'compact-mantine'  # New package
+    - "algorithms"
+    - "layout"
+    - "graphty-element"
+    - "graphty"
+    - "compact-mantine" # New package
 ```
 
 ---
@@ -145,12 +146,12 @@ The theme is built using Mantine's `createTheme()` API with custom "compact" siz
 
 ```typescript
 // src/theme/compactTheme.ts
-import { createTheme } from '@mantine/core';
-import { inputComponentExtensions } from './components/inputs';
-import { buttonComponentExtensions } from './components/buttons';
-import { controlComponentExtensions } from './components/controls';
-import { displayComponentExtensions } from './components/display';
-import { compactColors } from './colors';
+import { createTheme } from "@mantine/core";
+import { inputComponentExtensions } from "./components/inputs";
+import { buttonComponentExtensions } from "./components/buttons";
+import { controlComponentExtensions } from "./components/controls";
+import { displayComponentExtensions } from "./components/display";
+import { compactColors } from "./colors";
 
 export const compactTheme = createTheme({
     colors: compactColors,
@@ -214,16 +215,16 @@ The theme includes a custom dark color palette:
 // src/theme/colors.ts
 export const compactColors = {
     dark: [
-        '#d5d7da',  // 0 - lightest
-        '#a3a8b1',  // 1
-        '#7a828e',  // 2 - dimmed text
-        '#5f6873',  // 3
-        '#48525c',  // 4
-        '#374047',  // 5
-        '#2a3035',  // 6 - input background
-        '#1f2428',  // 7
-        '#161b22',  // 8
-        '#0d1117',  // 9 - darkest
+        "#d5d7da", // 0 - lightest
+        "#a3a8b1", // 1
+        "#7a828e", // 2 - dimmed text
+        "#5f6873", // 3
+        "#48525c", // 4
+        "#374047", // 5
+        "#2a3035", // 6 - input background
+        "#1f2428", // 7
+        "#161b22", // 8
+        "#0d1117", // 9 - darkest
     ],
 };
 ```
@@ -233,11 +234,11 @@ export const compactColors = {
 Consumers can merge the compact theme with their own customizations:
 
 ```typescript
-import { mergeThemeOverrides } from '@mantine/core';
-import { compactTheme } from '@graphty/compact-mantine';
+import { mergeThemeOverrides } from "@mantine/core";
+import { compactTheme } from "@graphty/compact-mantine";
 
 const customTheme = createTheme({
-    primaryColor: 'brand',
+    primaryColor: "brand",
     colors: {
         brand: [...myBrandColors],
     },
@@ -273,32 +274,32 @@ Based on analysis of graphty, the following components should be included:
 
 #### 4.1.1 Layout Components
 
-| Component | Description | Props |
-|-----------|-------------|-------|
-| `ControlSection` | Collapsible section with header | `label`, `defaultOpen`, `hasConfiguredValues`, `children` |
-| `ControlSubGroup` | Nested collapsible group | `label`, `defaultOpen`, `children` |
-| `ControlGroup` | Non-collapsible group container | `children` |
+| Component         | Description                     | Props                                                     |
+| ----------------- | ------------------------------- | --------------------------------------------------------- |
+| `ControlSection`  | Collapsible section with header | `label`, `defaultOpen`, `hasConfiguredValues`, `children` |
+| `ControlSubGroup` | Nested collapsible group        | `label`, `defaultOpen`, `children`                        |
+| `ControlGroup`    | Non-collapsible group container | `children`                                                |
 
 #### 4.1.2 Input Components
 
-| Component | Description | Key Features |
-|-----------|-------------|--------------|
-| `CompactColorInput` | Color picker with opacity | Swatch, hex input, opacity slider, HEXA support |
-| `StyleColorInput` | Color with default/explicit state | Italic styling for defaults, reset button |
-| `StyleNumberInput` | Number with default/explicit state | Min/max/step, suffix, reset button |
-| `StyleSelect` | Select with default/explicit state | Reset button, dropdown options |
+| Component           | Description                        | Key Features                                    |
+| ------------------- | ---------------------------------- | ----------------------------------------------- |
+| `CompactColorInput` | Color picker with opacity          | Swatch, hex input, opacity slider, HEXA support |
+| `StyleColorInput`   | Color with default/explicit state  | Italic styling for defaults, reset button       |
+| `StyleNumberInput`  | Number with default/explicit state | Min/max/step, suffix, reset button              |
+| `StyleSelect`       | Select with default/explicit state | Reset button, dropdown options                  |
 
 #### 4.1.3 Effect Components
 
-| Component | Description | Key Features |
-|-----------|-------------|--------------|
-| `EffectToggle` | Checkbox with expandable content | Shows children when checked |
-| `GradientEditor` | Multi-stop gradient editor | Add/remove stops, direction control |
+| Component        | Description                      | Key Features                        |
+| ---------------- | -------------------------------- | ----------------------------------- |
+| `EffectToggle`   | Checkbox with expandable content | Shows children when checked         |
+| `GradientEditor` | Multi-stop gradient editor       | Add/remove stops, direction control |
 
 #### 4.1.4 Display Components
 
-| Component | Description | Key Features |
-|-----------|-------------|--------------|
+| Component | Description      | Key Features                |
+| --------- | ---------------- | --------------------------- |
 | `StatRow` | Label/value pair | For read-only stats display |
 
 ### 4.2 Component Design Patterns
@@ -319,6 +320,7 @@ interface StyleInputProps<T> {
 ```
 
 Visual indicators:
+
 - **Default state**: Italic text, dimmed color, no reset button
 - **Explicit state**: Normal text, standard color, reset button shown
 
@@ -328,12 +330,12 @@ All components use Mantine's semantic color variables for light/dark mode compat
 
 ```typescript
 // CORRECT - works in both modes
-'var(--mantine-color-default)'      // Background
-'var(--mantine-color-dimmed)'       // Muted text
-'var(--mantine-color-default-border)' // Borders
+"var(--mantine-color-default)"; // Background
+"var(--mantine-color-dimmed)"; // Muted text
+"var(--mantine-color-default-border)"; // Borders
 
 // INCORRECT - only works in dark mode
-'var(--mantine-color-dark-7)'       // Hardcoded dark color
+"var(--mantine-color-dark-7)"; // Hardcoded dark color
 ```
 
 ### 4.3 Components NOT Included
@@ -349,12 +351,12 @@ The following graphty components are too domain-specific:
 
 Based on `progressive-disclosure-design.md`:
 
-| Component | Description | Priority |
-|-----------|-------------|----------|
-| `PopoverPanel` | Floating settings panel (Figma-style) | High |
-| `SettingsButton` | Trigger for popover (gear icon) | High |
-| `TabGroup` | Organize popover content | Medium |
-| `ToggleSwitch` | Figma-style toggle (replacing checkboxes) | Medium |
+| Component        | Description                               | Priority |
+| ---------------- | ----------------------------------------- | -------- |
+| `PopoverPanel`   | Floating settings panel (Figma-style)     | High     |
+| `SettingsButton` | Trigger for popover (gear icon)           | High     |
+| `TabGroup`       | Organize popover content                  | Medium   |
+| `ToggleSwitch`   | Figma-style toggle (replacing checkboxes) | Medium   |
 
 ---
 
@@ -368,13 +370,13 @@ Based on `progressive-disclosure-design.md`:
 
 ```typescript
 // tests/theme/theme-compliance.test.tsx
-describe('theme compliance', () => {
-    it('should not use hardcoded dark-N colors', () => {
+describe("theme compliance", () => {
+    it("should not use hardcoded dark-N colors", () => {
         const themeStr = JSON.stringify(compactTheme);
         expect(themeStr).not.toMatch(/--mantine-color-dark-[0-9]/);
     });
 
-    it('should use semantic color variables', () => {
+    it("should use semantic color variables", () => {
         // Verify --mantine-color-default, --mantine-color-dimmed, etc.
     });
 });
@@ -524,13 +526,13 @@ describe('CompactColorInput interactions', () => {
 
 ### 5.5 Test Matrix
 
-| Test Type | Theme | Components | Light/Dark | Interactions |
-|-----------|-------|------------|------------|--------------|
-| Unit | ✅ | ✅ | ✅ | - |
-| CSS Regression | ✅ | ✅ | ✅ | - |
-| Storybook | ✅ | ✅ | ✅ | - |
-| Chromatic | ✅ | ✅ | ✅ | - |
-| Integration | - | ✅ | ✅ | ✅ |
+| Test Type      | Theme | Components | Light/Dark | Interactions |
+| -------------- | ----- | ---------- | ---------- | ------------ |
+| Unit           | ✅    | ✅         | ✅         | -            |
+| CSS Regression | ✅    | ✅         | ✅         | -            |
+| Storybook      | ✅    | ✅         | ✅         | -            |
+| Chromatic      | ✅    | ✅         | ✅         | -            |
+| Integration    | -     | ✅         | ✅         | ✅           |
 
 ### 5.6 Coverage Targets
 
@@ -549,26 +551,26 @@ describe('CompactColorInput interactions', () => {
 // src/index.ts
 
 // Theme exports
-export { compactTheme } from './theme';
-export { compactColors } from './theme/colors';
+export { compactTheme } from "./theme";
+export { compactColors } from "./theme/colors";
 
 // Component exports
-export { ControlSection } from './components/ControlSection';
-export { ControlSubGroup } from './components/ControlSubGroup';
-export { ControlGroup } from './components/ControlGroup';
-export { CompactColorInput } from './components/CompactColorInput';
-export { StyleColorInput } from './components/StyleColorInput';
-export { StyleNumberInput } from './components/StyleNumberInput';
-export { StyleSelect } from './components/StyleSelect';
-export { EffectToggle } from './components/EffectToggle';
-export { GradientEditor } from './components/GradientEditor';
-export { StatRow } from './components/StatRow';
+export { ControlSection } from "./components/ControlSection";
+export { ControlSubGroup } from "./components/ControlSubGroup";
+export { ControlGroup } from "./components/ControlGroup";
+export { CompactColorInput } from "./components/CompactColorInput";
+export { StyleColorInput } from "./components/StyleColorInput";
+export { StyleNumberInput } from "./components/StyleNumberInput";
+export { StyleSelect } from "./components/StyleSelect";
+export { EffectToggle } from "./components/EffectToggle";
+export { GradientEditor } from "./components/GradientEditor";
+export { StatRow } from "./components/StatRow";
 
 // Hook exports
-export { useActualColorScheme } from './hooks/useActualColorScheme';
+export { useActualColorScheme } from "./hooks/useActualColorScheme";
 
 // Constant exports
-export { SWATCH_COLORS, SWATCH_COLORS_HEXA, MANTINE_SPACING } from './constants';
+export { SWATCH_COLORS, SWATCH_COLORS_HEXA, MANTINE_SPACING } from "./constants";
 
 // Type exports
 export type {
@@ -579,7 +581,7 @@ export type {
     ControlSectionProps,
     GradientEditorProps,
     ColorStop,
-} from './types';
+} from "./types";
 ```
 
 ### 6.2 Usage Examples
@@ -587,9 +589,9 @@ export type {
 #### 6.2.1 Basic Theme Usage
 
 ```tsx
-import { MantineProvider, TextInput, Button, Switch } from '@mantine/core';
-import '@mantine/core/styles.css';
-import { compactTheme } from '@graphty/compact-mantine';
+import { MantineProvider, TextInput, Button, Switch } from "@mantine/core";
+import "@mantine/core/styles.css";
+import { compactTheme } from "@graphty/compact-mantine";
 
 function App() {
     return (
@@ -605,20 +607,20 @@ function App() {
 #### 6.2.2 Using Custom Components
 
 ```tsx
-import { MantineProvider } from '@mantine/core';
+import { MantineProvider } from "@mantine/core";
 import {
     compactTheme,
     ControlSection,
     StyleNumberInput,
     StyleColorInput,
     EffectToggle,
-} from '@graphty/compact-mantine';
+} from "@graphty/compact-mantine";
 
 function PropertiesPanel() {
     const [size, setSize] = useState<number | undefined>(undefined);
     const [color, setColor] = useState<string | undefined>(undefined);
     const [glowEnabled, setGlowEnabled] = useState(false);
-    const [glowColor, setGlowColor] = useState('#ffffff');
+    const [glowColor, setGlowColor] = useState("#ffffff");
 
     return (
         <MantineProvider theme={compactTheme}>
@@ -635,20 +637,11 @@ function PropertiesPanel() {
             </ControlSection>
 
             <ControlSection label="Color" defaultOpen>
-                <StyleColorInput
-                    label="Fill Color"
-                    value={color}
-                    defaultValue="#5B8FF9"
-                    onChange={setColor}
-                />
+                <StyleColorInput label="Fill Color" value={color} defaultValue="#5B8FF9" onChange={setColor} />
             </ControlSection>
 
             <ControlSection label="Effects" defaultOpen={false}>
-                <EffectToggle
-                    label="Glow"
-                    checked={glowEnabled}
-                    onChange={setGlowEnabled}
-                >
+                <EffectToggle label="Glow" checked={glowEnabled} onChange={setGlowEnabled}>
                     <StyleColorInput
                         label="Glow Color"
                         value={glowColor}
@@ -665,25 +658,31 @@ function PropertiesPanel() {
 #### 6.2.3 Merging with Custom Theme
 
 ```tsx
-import { createTheme, mergeThemeOverrides, MantineProvider } from '@mantine/core';
-import { compactTheme } from '@graphty/compact-mantine';
+import { createTheme, mergeThemeOverrides, MantineProvider } from "@mantine/core";
+import { compactTheme } from "@graphty/compact-mantine";
 
 const brandTheme = createTheme({
-    primaryColor: 'brand',
+    primaryColor: "brand",
     colors: {
-        brand: ['#e6f7ff', '#bae7ff', '#91d5ff', '#69c0ff', '#40a9ff',
-                '#1890ff', '#096dd9', '#0050b3', '#003a8c', '#002766'],
+        brand: [
+            "#e6f7ff",
+            "#bae7ff",
+            "#91d5ff",
+            "#69c0ff",
+            "#40a9ff",
+            "#1890ff",
+            "#096dd9",
+            "#0050b3",
+            "#003a8c",
+            "#002766",
+        ],
     },
 });
 
 const mergedTheme = mergeThemeOverrides(compactTheme, brandTheme);
 
 function App() {
-    return (
-        <MantineProvider theme={mergedTheme}>
-            {/* Your app */}
-        </MantineProvider>
-    );
+    return <MantineProvider theme={mergedTheme}>{/* Your app */}</MantineProvider>;
 }
 ```
 
@@ -695,72 +694,62 @@ function App() {
 
 ```json
 {
-  "name": "@graphty/compact-mantine",
-  "version": "1.0.0",
-  "description": "Compact size variants for Mantine UI components",
-  "type": "module",
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
+    "name": "@graphty/compact-mantine",
+    "version": "1.0.0",
+    "description": "Compact size variants for Mantine UI components",
+    "type": "module",
+    "main": "dist/index.cjs",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            },
+            "require": {
+                "types": "./dist/index.d.cts",
+                "default": "./dist/index.cjs"
+            }
+        }
+    },
+    "files": ["dist"],
+    "sideEffects": false,
+    "peerDependencies": {
+        "@mantine/core": "^8.0.0",
+        "@mantine/hooks": "^8.0.0",
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0"
+    },
+    "devDependencies": {
+        "@mantine/core": "^8.3.10",
+        "@mantine/hooks": "^8.3.10",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+        "typescript": "^5.0.0",
+        "vite": "^6.0.0",
+        "vitest": "^3.0.0",
+        "@storybook/react-vite": "^8.0.0",
+        "lucide-react": "^0.525.0"
+    },
+    "scripts": {
+        "build": "vite build",
+        "build:types": "tsc --emitDeclarationOnly",
+        "test": "vitest",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "storybook": "storybook dev -p 9060",
+        "build-storybook": "storybook build",
+        "lint": "eslint src/",
+        "lint:fix": "eslint src/ --fix"
+    },
+    "keywords": ["mantine", "react", "ui", "theme", "compact", "sidebar", "property-panel"],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "compact-mantine"
     }
-  },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
-  "peerDependencies": {
-    "@mantine/core": "^8.0.0",
-    "@mantine/hooks": "^8.0.0",
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
-  },
-  "devDependencies": {
-    "@mantine/core": "^8.3.10",
-    "@mantine/hooks": "^8.3.10",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "typescript": "^5.0.0",
-    "vite": "^6.0.0",
-    "vitest": "^3.0.0",
-    "@storybook/react-vite": "^8.0.0",
-    "lucide-react": "^0.525.0"
-  },
-  "scripts": {
-    "build": "vite build",
-    "build:types": "tsc --emitDeclarationOnly",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "coverage": "vitest run --coverage",
-    "storybook": "storybook dev -p 9060",
-    "build-storybook": "storybook build",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
-  },
-  "keywords": [
-    "mantine",
-    "react",
-    "ui",
-    "theme",
-    "compact",
-    "sidebar",
-    "property-panel"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/graphty-org/graphty-monorepo.git",
-    "directory": "compact-mantine"
-  }
 }
 ```
 
@@ -768,9 +757,9 @@ function App() {
 
 ```typescript
 // vite.config.ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import dts from 'vite-plugin-dts';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import dts from "vite-plugin-dts";
 
 export default defineConfig({
     plugins: [
@@ -781,19 +770,12 @@ export default defineConfig({
     ],
     build: {
         lib: {
-            entry: 'src/index.ts',
-            formats: ['es', 'cjs'],
-            fileName: (format) => `index.${format === 'es' ? 'js' : 'cjs'}`,
+            entry: "src/index.ts",
+            formats: ["es", "cjs"],
+            fileName: (format) => `index.${format === "es" ? "js" : "cjs"}`,
         },
         rollupOptions: {
-            external: [
-                'react',
-                'react-dom',
-                'react/jsx-runtime',
-                '@mantine/core',
-                '@mantine/hooks',
-                'lucide-react',
-            ],
+            external: ["react", "react-dom", "react/jsx-runtime", "@mantine/core", "@mantine/hooks", "lucide-react"],
         },
     },
 });
@@ -803,16 +785,16 @@ export default defineConfig({
 
 ```json
 {
-  "extends": "../tsconfig.base.json",
-  "compilerOptions": {
-    "outDir": "dist",
-    "declaration": true,
-    "declarationDir": "dist",
-    "emitDeclarationOnly": false,
-    "composite": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
+    "extends": "../tsconfig.base.json",
+    "compilerOptions": {
+        "outDir": "dist",
+        "declaration": true,
+        "declarationDir": "dist",
+        "emitDeclarationOnly": false,
+        "composite": true
+    },
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
 }
 ```
 
@@ -821,30 +803,30 @@ export default defineConfig({
 ```json
 // compact-mantine/project.json
 {
-  "name": "compact-mantine",
-  "projectType": "library",
-  "targets": {
-    "build": {
-      "executor": "@nx/vite:build",
-      "outputs": ["{projectRoot}/dist"],
-      "options": {
-        "configFile": "compact-mantine/vite.config.ts"
-      }
-    },
-    "test": {
-      "executor": "@nx/vite:test",
-      "options": {
-        "configFile": "compact-mantine/vitest.config.ts"
-      }
-    },
-    "storybook": {
-      "executor": "@storybook/core/serve",
-      "options": {
-        "port": 9060,
-        "configDir": "compact-mantine/.storybook"
-      }
+    "name": "compact-mantine",
+    "projectType": "library",
+    "targets": {
+        "build": {
+            "executor": "@nx/vite:build",
+            "outputs": ["{projectRoot}/dist"],
+            "options": {
+                "configFile": "compact-mantine/vite.config.ts"
+            }
+        },
+        "test": {
+            "executor": "@nx/vite:test",
+            "options": {
+                "configFile": "compact-mantine/vitest.config.ts"
+            }
+        },
+        "storybook": {
+            "executor": "@storybook/core/serve",
+            "options": {
+                "port": 9060,
+                "configDir": "compact-mantine/.storybook"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -858,9 +840,9 @@ export default defineConfig({
 2. Set up build configuration (Vite, TypeScript)
 3. Set up test configuration (Vitest)
 4. Set up Storybook
-   - **Copy existing configs** from `graphty/.storybook/` or `graphty-element/.storybook/`
-   - Use `.env` file for port configuration (e.g., `STORYBOOK_PORT=9060`)
-   - Reference working configs in `algorithms/`, `layout/`, `graphty/`, `graphty-element/`
+    - **Copy existing configs** from `graphty/.storybook/` or `graphty-element/.storybook/`
+    - Use `.env` file for port configuration (e.g., `STORYBOOK_PORT=9060`)
+    - Reference working configs in `algorithms/`, `layout/`, `graphty/`, `graphty-element/`
 
 ### 8.2 Phase 2: Extract Theme (1-2 days)
 
@@ -902,21 +884,23 @@ Refactor custom components from inline styles to CSS modules for better performa
 
 **Components to refactor:**
 
-| Component | Current Approach | Refactor Target |
-|-----------|------------------|-----------------|
-| `ControlSection` | Inline `style` props | `ControlSection.module.css` |
-| `ControlSubGroup` | Inline `style` props | `ControlSubGroup.module.css` |
-| `ControlGroup` | Inline `style` props | `ControlGroup.module.css` |
+| Component           | Current Approach     | Refactor Target                |
+| ------------------- | -------------------- | ------------------------------ |
+| `ControlSection`    | Inline `style` props | `ControlSection.module.css`    |
+| `ControlSubGroup`   | Inline `style` props | `ControlSubGroup.module.css`   |
+| `ControlGroup`      | Inline `style` props | `ControlGroup.module.css`      |
 | `CompactColorInput` | Inline `style` props | `CompactColorInput.module.css` |
-| `GradientEditor` | Inline `style` props | `GradientEditor.module.css` |
-| `DataAccordion`* | Inline `style` props | (if included later) |
+| `GradientEditor`    | Inline `style` props | `GradientEditor.module.css`    |
+| `DataAccordion`\*   | Inline `style` props | (if included later)            |
 
 **Keep inline for dynamic styles:**
+
 - `StyleNumberInput`: Italic/dimmed for default values (state-dependent)
 - `StyleColorInput`: Italic/dimmed for default values (state-dependent)
 - `StyleSelect`: Italic/dimmed for default values (state-dependent)
 
 **Steps:**
+
 1. Create `.module.css` files for each component
 2. Extract static styles (padding, margins, backgrounds)
 3. Keep dynamic styles inline (conditional based on props/state)
@@ -980,6 +964,7 @@ Scoped under `@graphty` for monorepo consistency.
 ### 9.3 Component Scope: Exclude Data Components
 
 `DataGrid` and `DataAccordion` will **not** be included in this package because:
+
 - They have an external dependency (`@redheadphone/react-json-grid`)
 - They can still use the compact theme when the consumer wraps their app in `MantineProvider`
 - They could become a separate `@graphty/data-view` package later
@@ -1009,31 +994,33 @@ The theme will **not** set a default color scheme. Consumers control it via `Man
 
 According to [Mantine's styles performance documentation](https://mantine.dev/styles/styles-performance/):
 
-| Approach | Performance | Use Case |
-|----------|-------------|----------|
-| **CSS Modules** | Best | Primary styling method - generates static CSS |
-| **Inline Styles** | Good | 1-3 styles per component |
-| **Style Props** | Limited | Quick prototyping only |
-| **Responsive Props** | Poor at scale | Avoid with many components |
+| Approach             | Performance   | Use Case                                      |
+| -------------------- | ------------- | --------------------------------------------- |
+| **CSS Modules**      | Best          | Primary styling method - generates static CSS |
+| **Inline Styles**    | Good          | 1-3 styles per component                      |
+| **Style Props**      | Limited       | Quick prototyping only                        |
+| **Responsive Props** | Poor at scale | Avoid with many components                    |
 
 **Key insight**: "CSS modules is the most performant way to apply styles – this approach generates static CSS that is never re-evaluated."
 
 ### 10.2 Recommended Approach for compact-mantine
 
 **Hybrid approach**:
+
 1. **Theme extensions** use CSS variables via `vars` prop (already doing this)
 2. **Custom components** should use CSS modules for static styles
 3. **Dynamic styles** (like "default vs explicit" indicator) use inline `styles` prop
 
 **Current theme example** (good pattern):
+
 ```typescript
 TextInput.extend({
     vars: (_theme, props) => {
         if (props.size === "compact") {
             return {
                 wrapper: {
-                    "--input-size": "24px",      // CSS variable
-                    "--input-fz": "11px",        // CSS variable
+                    "--input-size": "24px", // CSS variable
+                    "--input-fz": "11px", // CSS variable
                     "--input-bg": "var(--mantine-color-default)", // Semantic
                 },
             };
@@ -1043,6 +1030,7 @@ TextInput.extend({
 ```
 
 **Refactor opportunity** for custom components:
+
 ```typescript
 // BEFORE (inline styles)
 <Box style={{ backgroundColor: 'var(--mantine-color-default-hover)' }}>
@@ -1067,7 +1055,7 @@ Mantine supports [CSS layers](https://mantine.dev/styles/css-modules/) for style
 
 ```css
 /* Ensure consumer styles override Mantine */
-@import '@mantine/core/styles.layer.css';
+@import "@mantine/core/styles.layer.css";
 
 @layer compact-mantine {
     .compact-input {
@@ -1098,6 +1086,7 @@ colors: {
 ### 11.2 Recoloring Options for Consumers
 
 **Option 1: Merge with custom colors**
+
 ```typescript
 import { mergeThemeOverrides, createTheme } from '@mantine/core';
 import { compactTheme } from '@graphty/compact-mantine';
@@ -1114,6 +1103,7 @@ const theme = mergeThemeOverrides(compactTheme, brandTheme);
 ```
 
 **Option 2: CSS variable overrides**
+
 ```css
 :root {
     /* Override Mantine's semantic colors */
@@ -1124,6 +1114,7 @@ const theme = mergeThemeOverrides(compactTheme, brandTheme);
 ```
 
 **Option 3: cssVariablesResolver**
+
 ```typescript
 import { compactTheme } from '@graphty/compact-mantine';
 
@@ -1337,43 +1328,45 @@ export const CheckUncheck: Story = {
 ### 13.2 Setup
 
 **Install Chromatic:**
+
 ```bash
 pnpm add -D chromatic
 ```
 
 **Add to CI (`.github/workflows/chromatic.yml`):**
+
 ```yaml
 name: Chromatic
 
 on:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
+    push:
+        branches: [master]
+    pull_request:
+        branches: [master]
 
 jobs:
-  chromatic:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    chromatic:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
+            - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  cache: "pnpm"
 
-      - run: pnpm install
+            - run: pnpm install
 
-      - name: Run Chromatic
-        uses: chromaui/action@latest
-        with:
-          workingDir: compact-mantine
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-          buildScriptName: build-storybook
+            - name: Run Chromatic
+              uses: chromaui/action@latest
+              with:
+                  workingDir: compact-mantine
+                  projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+                  buildScriptName: build-storybook
 ```
 
 ### 13.3 Modes Configuration
@@ -1381,37 +1374,39 @@ jobs:
 [Story Modes](https://www.chromatic.com/docs/modes/) allow testing the same story in multiple configurations (light/dark, viewport sizes):
 
 **Create `.storybook/modes.ts`:**
+
 ```typescript
 export const allModes = {
-    'light': {
-        theme: 'light',
-        backgrounds: { value: '#ffffff' },
+    light: {
+        theme: "light",
+        backgrounds: { value: "#ffffff" },
     },
-    'dark': {
-        theme: 'dark',
-        backgrounds: { value: '#1a1b1e' },
+    dark: {
+        theme: "dark",
+        backgrounds: { value: "#1a1b1e" },
     },
-    'light mobile': {
-        theme: 'light',
-        viewport: 'mobile',
+    "light mobile": {
+        theme: "light",
+        viewport: "mobile",
     },
-    'dark desktop': {
-        theme: 'dark',
-        viewport: 'desktop',
+    "dark desktop": {
+        theme: "dark",
+        viewport: "desktop",
     },
 } as const;
 ```
 
 **Apply modes in `.storybook/preview.tsx`:**
+
 ```typescript
-import { allModes } from './modes';
+import { allModes } from "./modes";
 
 const preview: Preview = {
     parameters: {
         chromatic: {
             modes: {
-                light: allModes['light'],
-                dark: allModes['dark'],
+                light: allModes["light"],
+                dark: allModes["dark"],
             },
         },
     },
@@ -1428,15 +1423,15 @@ export const ColorPickerOpen: Story = {
     parameters: {
         chromatic: {
             modes: {
-                light: allModes['light'],
-                dark: allModes['dark'],
+                light: allModes["light"],
+                dark: allModes["dark"],
             },
         },
     },
     play: async ({ canvasElement }) => {
         // Open the color picker for visual snapshot
         const canvas = within(canvasElement);
-        await userEvent.click(canvas.getByRole('button', { name: /color swatch/i }));
+        await userEvent.click(canvas.getByRole("button", { name: /color swatch/i }));
     },
 };
 ```
@@ -1453,23 +1448,23 @@ export const AccordionOpen: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        await userEvent.click(within(canvasElement).getByText('Section'));
+        await userEvent.click(within(canvasElement).getByText("Section"));
     },
 };
 ```
 
 ### 13.6 Testing Matrix
 
-| Component | States to Test | Modes |
-|-----------|----------------|-------|
-| TextInput | empty, filled, disabled, error, focused | light, dark |
-| NumberInput | empty, filled, with-suffix, disabled | light, dark |
-| Checkbox | unchecked, checked, disabled | light, dark |
-| Switch | off, on, disabled | light, dark |
-| ControlSection | collapsed, expanded | light, dark |
-| CompactColorInput | closed, picker-open | light, dark |
-| StyleNumberInput | default-value, explicit-value | light, dark |
-| GradientEditor | 2-stops, 5-stops | light, dark |
+| Component         | States to Test                          | Modes       |
+| ----------------- | --------------------------------------- | ----------- |
+| TextInput         | empty, filled, disabled, error, focused | light, dark |
+| NumberInput       | empty, filled, with-suffix, disabled    | light, dark |
+| Checkbox          | unchecked, checked, disabled            | light, dark |
+| Switch            | off, on, disabled                       | light, dark |
+| ControlSection    | collapsed, expanded                     | light, dark |
+| CompactColorInput | closed, picker-open                     | light, dark |
+| StyleNumberInput  | default-value, explicit-value           | light, dark |
+| GradientEditor    | 2-stops, 5-stops                        | light, dark |
 
 ---
 
@@ -1482,6 +1477,7 @@ export const AccordionOpen: Story = {
 ### 14.2 Storybook Configuration
 
 ✅ **Decision**:
+
 - Copy working Storybook configs from existing packages (`graphty/.storybook/`, etc.)
 - Use `.env` file for port: `STORYBOOK_PORT=9060`
 - Follow the 9000-9099 port convention

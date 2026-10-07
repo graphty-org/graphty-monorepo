@@ -1,13 +1,7 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import {
-    knnGraph,
-    planWaxman,
-    randomGeometricGraph,
-    waxmanGraph,
-    waxmanRows,
-} from "../../src/generators/geometric.js";
+import { knnGraph, planWaxman, randomGeometricGraph, waxmanGraph, waxmanRows } from "../../src/generators/geometric.js";
 import { EdgeBuffer } from "../../src/generators/util.js";
 import { type SampleGraph } from "../../src/types.js";
 import { expectSameGraph, expectSimple, fullGraphHash, graphHash } from "../helpers/graph.js";
@@ -393,11 +387,15 @@ describe("determinism", () => {
      * package -- never a test to update.
      */
     it("reproduces the golden graphs", () => {
-        expect(fullGraphHash(randomGeometricGraph({ n: 300, radius: 0.1, seed: 1 }))).toMatchInlineSnapshot(`"58b5ac32"`);
+        expect(fullGraphHash(randomGeometricGraph({ n: 300, radius: 0.1, seed: 1 }))).toMatchInlineSnapshot(
+            `"58b5ac32"`,
+        );
         expect(
             fullGraphHash(randomGeometricGraph({ n: 300, radius: 0.2, dimension: 3, periodic: true, seed: 1 })),
         ).toMatchInlineSnapshot(`"acdef35e"`);
-        expect(fullGraphHash(waxmanGraph({ n: 300, alpha: 0.1, beta: 0.5, seed: 1 }))).toMatchInlineSnapshot(`"1335942d"`);
+        expect(fullGraphHash(waxmanGraph({ n: 300, alpha: 0.1, beta: 0.5, seed: 1 }))).toMatchInlineSnapshot(
+            `"1335942d"`,
+        );
         expect(fullGraphHash(knnGraph({ n: 300, k: 4, seed: 1 }))).toMatchInlineSnapshot(`"b932861f"`);
         expect(
             fullGraphHash(knnGraph({ n: 300, k: 4, dimension: 3, directed: false, clusters: 3, spread: 0.1, seed: 1 })),

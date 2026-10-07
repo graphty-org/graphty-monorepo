@@ -138,7 +138,11 @@ describe("what encode() writes for overflow", () => {
 
 describe('overflow: "other"', () => {
     const { names, values } = column(10);
-    const prepared = prepare("node.color", bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color"), values);
+    const prepared = prepare(
+        "node.color",
+        bindingOf(plan({ run: "louvain", channel: "node.color" }), "node.color"),
+        values,
+    );
 
     it("keeps the palette's colours, in palette order, for the eight largest groups", () => {
         assert.strictEqual(prepared.palette?.id, "okabe-ito");

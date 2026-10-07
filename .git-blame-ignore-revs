@@ -1,0 +1,6 @@
+# Commits that only reformat; hide them from git blame:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# style: format the tree with prettier
+091e1fb68e0d0bc91592d33c9249a2f5f7016afc
+# style: format files merged since
+5d790f53daa68e382ca61947c3136ff01a0de852

@@ -199,12 +199,33 @@ export interface Caveats {
 export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
 
 // @public
+export type ChannelAgreement = {
+    readonly channel: Channel;
+    readonly state: "agree";
+    readonly value: unknown;
+    readonly layerId: LayerId;
+    readonly unpainted: number;
+} | {
+    readonly channel: Channel;
+    readonly state: "mixed";
+    readonly breakdown: readonly ChannelShare[];
+    readonly unpainted: number;
+};
+
+// @public
 export interface ChannelExplanation {
     readonly channel: Channel;
     readonly editable: boolean;
     readonly layerId: LayerId;
     readonly mode: "static" | "encoded";
     readonly reason?: string;
+}
+
+// @public
+export interface ChannelShare {
+    readonly count: number;
+    readonly layerId: LayerId;
+    readonly value: unknown;
 }
 
 // @public
@@ -714,6 +735,7 @@ export interface GraphSession {
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     readonly history: SessionHistory;
+    readonly journal: JournalApi;
     readonly layout: SessionLayout;
     readonly notes: NotesApi;
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
@@ -1310,6 +1332,30 @@ export type ItemKey = {
 };
 
 // @public
+export interface JournalApi {
+    cap: number;
+    clear(): void;
+    readonly entries: readonly JournalEntry[];
+    get(id: JournalId): JournalEntry | undefined;
+    subscribe(fn: (entry: JournalEntry) => void): () => void;
+}
+
+// @public
+export interface JournalEntry {
+    readonly at: string;
+    readonly coalesceKey?: string;
+    readonly command: SessionCommand;
+    readonly durationMs: number;
+    readonly engine: EngineVersions;
+    readonly id: JournalId;
+    readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
+    readonly runId?: RunId;
+}
+
+// @public
+export type JournalId = string;
+
+// @public
 export interface Layer {
     readonly enabled: boolean;
     readonly encode?: Encoding;
@@ -1499,6 +1545,14 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadError {
+    readonly code: string;
+    readonly field?: string;
+    readonly line?: number;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+// @public
 export type LoadMapping = TableMapping | {
     readonly tables: Readonly<Record<string, TableMapping>>;
 };
@@ -1515,6 +1569,7 @@ export interface LoadReport extends ImportReport {
         readonly rows: number;
         readonly ids: readonly (string | number)[];
     };
+    readonly errors: readonly LoadError[];
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
@@ -1607,6 +1662,7 @@ export type Normalization = "max" | "min-max" | "none";
 export interface Note {
     readonly author?: string;
     readonly cites?: readonly NoteCite[];
+    readonly done?: string;
     readonly edited?: string;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
@@ -1620,7 +1676,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -1655,6 +1711,7 @@ export interface NoteInput {
 export interface NoteListOptions {
     readonly author?: string;
     readonly cites?: ResultId;
+    readonly done?: boolean;
     readonly missing?: boolean;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
@@ -1671,6 +1728,7 @@ export interface NotePatch {
     readonly cites?: readonly {
         readonly result: ResultId;
     }[];
+    readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
     readonly targets?: readonly NoteTargetInput[];
@@ -2812,6 +2870,18 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
         readonly threshold: number;
     };
 }
+/**
+* Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
+* way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
+* bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
+* banded continuous field a value exactly on the last bar's upper edge comes too.
+*/
+| {
+    readonly range: ResultRef & {
+        readonly min?: number;
+        readonly max?: number;
+    };
+}
 /** The edges whose endpoints are both selected. Names no nodes. */
 | {
     readonly edgesBetween: true;
@@ -2943,6 +3013,9 @@ export interface SessionEventMap {
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
+    };
+    "journal:appended": {
+        readonly entry: JournalEntry;
     };
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;
@@ -3270,6 +3343,11 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export interface StyleAgreement {
+    readonly channels: readonly ChannelAgreement[];
+}
+
+// @public
 export interface StyleChange {
     readonly cause: HistoryCause;
     readonly layers: readonly LayerId[];
@@ -3312,6 +3390,7 @@ export interface StyleProblem {
 // @public
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
+    agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
@@ -3441,6 +3520,7 @@ export interface TopRanking {
         readonly count: number;
     } | null;
     readonly reason: string | null;
+    readonly threshold: number | null;
 }
 
 // @public

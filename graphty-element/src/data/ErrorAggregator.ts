@@ -10,6 +10,8 @@ export interface DataLoadingError {
     category?: string;
     /** Optional field/column name related to the error */
     field?: string;
+    /** Optional facts about the error, without words: what `LoadReport.errors` carries as `params` */
+    params?: Readonly<Record<string, unknown>>;
 }
 
 /**

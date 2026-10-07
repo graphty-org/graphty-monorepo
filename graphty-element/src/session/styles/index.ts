@@ -33,7 +33,16 @@ export type {
     EncodingSource,
     EncodingSpec,
 } from "./EncodingSpec";
-export type { ChannelExplanation, ExplainTarget, StyleContribution, StyleExplanation, UnboundLayer } from "./explain";
+export type {
+    ChannelAgreement,
+    ChannelExplanation,
+    ChannelShare,
+    ExplainTarget,
+    StyleAgreement,
+    StyleContribution,
+    StyleExplanation,
+    UnboundLayer,
+} from "./explain";
 export type {
     CompiledLayer,
     Layer,

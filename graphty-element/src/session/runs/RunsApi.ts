@@ -1330,9 +1330,9 @@ class Runs implements SessionRunsApi {
      * as data, start one here -- and write the run into the command's step when it finishes.
      * @param command - The command.
      * @param ctx - The command's context.
-     * @returns Settles once the run is written; rejects when it failed or was cancelled first.
+     * @returns The run's id, once the run is written; rejects when it failed or was cancelled first.
      */
-    private async execute(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<void> {
+    private async execute(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<RunId> {
         const run = this.adopt(command);
         const body = this.bodies.get(run.id);
 
@@ -1343,7 +1343,7 @@ class Runs implements SessionRunsApi {
                 this.applySuggested(ctx.draft, run);
             }
 
-            return;
+            return run.id;
         }
 
         this.bodies.delete(run.id);
@@ -1387,6 +1387,9 @@ class Runs implements SessionRunsApi {
         if (!wrote) {
             throw run.error ?? new DOMException(`Run "${run.id}" stopped before it was recorded.`, "AbortError");
         }
+
+        // The journal reads which run this command finished from what it resolves with.
+        return run.id;
     }
 
     /**

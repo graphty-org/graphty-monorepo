@@ -282,8 +282,8 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * `labelPropagation` passes its options through the same way, except that a call with `randomSeed`
  * set runs the CPU port: the partition depends on the seed, and a GPU kernel has none to honour. An
  * accelerator's result carries no `iterations` or `converged`; call `labelPropagation` directly for
- * those. webgpu-graph-algorithms runs synchronous passes with the lowest-label tie rule, so its
- * partition can differ from the CPU port's, which visits nodes in a seeded random order.
+ * those. webgpu-graph-algorithms runs synchronous passes (the rules of `labelPropagationSynchronous`),
+ * so its partition can differ from the CPU port's, which visits nodes in a seeded random order.
  *
  * `breadthFirstSearch` with a `target` or an `arcOrder` runs the CPU port: a GPU BFS expands whole
  * levels and has no early stop and no neighbour order, so it would give a different result.
@@ -337,15 +337,11 @@ export interface ClosenessResultLike extends ScoresResultLike {
  * the sources, which the accelerator's searches from the sources give only when distance is symmetric.
  *
  * `labelPropagationSynchronous` is the deterministic label propagation on both paths: the accelerator's
- * `labelPropagation` member (webgpu-graph-algorithms runs synchronous passes with the lowest-label tie rule) or
- * the synchronous port. The two share the rule family -- synchronous passes, one best-voted label chosen
- * by a fixed order, an alternating direction guard -- but not every detail (the order: the lowest label
- * on the device, a scramble of the label in the port, which on a path numbered in order makes the device
- * creep one node per two passes where the port settles in a few; which direction the first pass moves,
- * whether a label that ties for the lead is kept, and how a cycling run ends: the port stops when a pass
- * repeats the labels of two passes before and reports `converged: false`, the accelerator runs to
- * `maxIterations` and reports no `converged`), so on a tie the partitions can differ; they agree on
- * planted structure. Use it where a result should not depend on whether a device answered; use
+ * `labelPropagation` member (webgpu-graph-algorithms, since issue #694, follows the same rules) or
+ * the synchronous port. Both rank labels by the same scramble, keep a label that ties for the lead and
+ * move up on the first pass, so they give the same labels, except on a run that cycles: the port stops
+ * when a pass repeats the labels of two passes before and reports `converged: false`, the accelerator
+ * runs to `maxIterations` and reports no `converged`. Use it where a result should not depend on whether a device answered; use
  * `labelPropagation` for the seeded, asynchronous (FLPA) partition.
  *
  * `minimumSpanningTree` goes to the accelerator unless the call carries a per-arc `weights` override or

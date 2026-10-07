@@ -403,6 +403,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     scope: READ,
     sets: READ,
     notes: READ,
+    journal: READ,
     selection: READ,
     visibility: READ,
     styles: READ,
@@ -533,6 +534,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     proposeEncoding: READ,
     settled: READ,
     explain: READ,
+    agreement: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
@@ -568,6 +570,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             session: READ,
             nodeLabelCounts: READ,
+            labelOf: READ,
             setDefaultPalettes: PALETTE_DEFAULTS,
             run: calls(["degree"], [RUN_DEGREE]),
             select: SELECTION,
@@ -722,6 +725,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isRunning: READ,
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
+            nodeScreenPosition: READ,
             screenToWorld: READ,
             setData: calls(
                 [{ nodes: [{ id: "d1" }], edges: [] }],
@@ -787,6 +791,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             rendererStatus: READ,
             eventManager: READ,
             nodeLabelCounts: READ,
+            labelOf: READ,
             onNodeLabelCounts: READ,
             shutdown: LIFECYCLE,
             runAlgorithmsFromTemplate: {
@@ -913,6 +918,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startInputRecording: INPUT,
             stopInputRecording: INPUT,
             worldToScreen: READ,
+            nodeScreenPosition: READ,
             screenToWorld: READ,
             getCameraController: READ,
             getNodeMesh: READ,
@@ -1749,6 +1755,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 ],
             ),
+        },
+    },
+    {
+        name: "JournalApi",
+        file: "src/session/journal.ts",
+        half: "session",
+        doors: {
+            entries: READ,
+            get: READ,
+            subscribe: LISTEN,
+            clear: exempt("Forgets the record of what ran; it changes nothing a project saves."),
+            cap: exempt("How many records of what ran are kept; it changes nothing a project saves."),
         },
     },
     {

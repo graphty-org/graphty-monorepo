@@ -1,7 +1,7 @@
 #!/bin/bash
 # Prettier on the files a commit stages, run by .husky/pre-commit: each staged file is formatted and
 # staged again, so a formatting slip is fixed at commit time instead of failing the pre-push gate's
-# "Formatting (changed files)" step, or CI's, minutes later.
+# "Formatting" step, or CI's, minutes later.
 #
 # What it leaves alone:
 # - a file that also has unstaged changes: formatting it and staging it again would stage the

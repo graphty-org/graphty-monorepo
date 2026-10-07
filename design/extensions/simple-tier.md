@@ -865,7 +865,7 @@ defineDataSource({
     credential: { name: "API token" },
     options: { endpoint: "https://api.acme.example/graph" },
     async *load({ options, fetch }) {
-        for (let url = options.endpoint; url; ) {
+        for (let url = options.endpoint; url;) {
             const page = await (await fetch(url)).json();
             if (!Array.isArray(page.nodes) || !Array.isArray(page.edges)) {
                 throw new Error(`${url} did not return nodes and edges arrays`);

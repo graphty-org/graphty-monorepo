@@ -182,6 +182,8 @@ export interface ExplorePanelProps {
     readonly onAddCaseNote?: (text: string) => void;
     /** Deletes a case note. */
     readonly onDeleteCaseNote?: (noteId: string) => void;
+    /** Marks a case note done, or not done. */
+    readonly onSetCaseNoteDone?: (noteId: string, done: boolean) => void;
 }
 
 /**
@@ -221,6 +223,7 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
         caseNotes = [],
         onAddCaseNote,
         onDeleteCaseNote,
+        onSetCaseNoteDone,
     } = props;
 
     /*
@@ -559,6 +562,9 @@ export function ExplorePanel(props: ExplorePanelProps): React.JSX.Element {
                         onAddNote={onAddCaseNote}
                         onDeleteNote={(noteId) => {
                             onDeleteCaseNote?.(noteId);
+                        }}
+                        onSetNoteDone={(noteId, done) => {
+                            onSetCaseNoteDone?.(noteId, done);
                         }}
                     />
                 )}

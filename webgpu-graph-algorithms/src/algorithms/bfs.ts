@@ -141,8 +141,7 @@ export interface BfsTuning {
     readonly predKind?: 0 | 1 | undefined;
     /** The inspect seam (design 11.9 item 2): after every SUBMIT, the index of the last level recorded, the whole counters block as the submit left it, the vertices the submit's last level claimed (the next level's input queue, `nextFrontierCount` long), and the total `compact` wrote when it rebuilt the unvisited list at the top of the submit (the independent count the block's `unvisitedListLen` must equal, P8-T8). */
     readonly onLevel?:
-        | ((level: number, counters: UniformValues, frontier: U32, compactCount: number) => void)
-        | undefined;
+        ((level: number, counters: UniformValues, frontier: U32, compactCount: number) => void) | undefined;
     /** Fires once, right after `algorithmScope(...)`, so a test can hold the scope and read its ring counters after the run. */
     readonly onScope?: ((scope: AlgorithmScope) => void) | undefined;
 }

@@ -144,13 +144,7 @@ interface DesignGraphExporter<Opts = unknown> {
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
 }
 type DesignIssueCategory =
-    | "parse-error"
-    | "missing-value"
-    | "validation-error"
-    | "unsupported"
-    | "precision"
-    | "coercion"
-    | "merged";
+    "parse-error" | "missing-value" | "validation-error" | "unsupported" | "precision" | "coercion" | "merged";
 interface DesignImportIssue {
     readonly category: IssueCategory;
     readonly severity: "error" | "warning";

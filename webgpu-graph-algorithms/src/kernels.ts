@@ -1775,7 +1775,7 @@ const TRI_INTERSECT: KernelEntry = {
     phase: "P11",
 };
 
-/** `group-by-key-row` (design 8.6; P11): per listed row, the target key with the largest summed weight (lowest key on a tie), TIER 0 a thread per row, else a workgroup per row over a global hash region; 8 storage bindings. */
+/** `group-by-key-row` (design 8.6; P11): per listed row, the target key with the largest summed weight (on a tie the row's own key, else the lowest), TIER 0 a thread per row, else a workgroup per row over a global hash region; 8 storage bindings. */
 const GROUP_BY_KEY_ROW: KernelEntry = {
     id: "group-by-key-row",
     body: groupByKeyRowWgsl,

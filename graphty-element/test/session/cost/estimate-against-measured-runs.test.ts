@@ -116,7 +116,7 @@ function random(edgesPerNode: number): Shape {
         const src = new Uint32Array(edges);
         const dst = new Uint32Array(edges);
         const seen = new Set<number>();
-        for (let edge = 0; edge < edges; ) {
+        for (let edge = 0; edge < edges;) {
             const a = next();
             const b = next();
             const pair = Math.min(a, b) * nodes + Math.max(a, b);
@@ -373,16 +373,14 @@ const ROWS: readonly Row[] = [
             [scaleFree, "scale-free", [100_000], "about 63"],
             [path, "path", [100_000], "1 or 2"],
         ] as const
-    ).map(
-        ([shape, shapeName, sizes, passes]): Row => ({
-            key: "eigenvector",
-            sizes,
-            shape,
-            shapeName,
-            run: eigenvector,
-            optimismOnly: `this graph converges in ${passes} of the 1,000 passes the estimate charges`,
-        }),
-    ),
+    ).map(([shape, shapeName, sizes, passes]): Row => ({
+        key: "eigenvector",
+        sizes,
+        shape,
+        shapeName,
+        run: eigenvector,
+        optimismOnly: `this graph converges in ${passes} of the 1,000 passes the estimate charges`,
+    })),
     // Louvain on the graphs it is run on, held to both bounds: graphs with no triangles, which its
     // model charges in full, and a planted partition (transitivity about 0.09), which it charges
     // about half. The sizes are large enough that the per-element growth its log term charges is
@@ -395,15 +393,13 @@ const ROWS: readonly Row[] = [
             [scaleFree, "scale-free", [20_000, 50_000]],
             [planted, "planted partition", [100_000]],
         ] as const
-    ).map(
-        ([shape, shapeName, sizes]): Row => ({
-            key: "louvain",
-            sizes,
-            shape,
-            shapeName,
-            run: louvainRun,
-        }),
-    ),
+    ).map(([shape, shapeName, sizes]): Row => ({
+        key: "louvain",
+        sizes,
+        shape,
+        shapeName,
+        run: louvainRun,
+    })),
     // Shapes where Louvain settles in few sweeps (5 on a path, 13 on a ring of cliques, about 23 on
     // a star, erratic 15 to 90 on a grid), so a model safe on the slow shapes is 4x to 8x over them.
     // Kept to prove it stays safe there, the star's hub included.
@@ -414,16 +410,14 @@ const ROWS: readonly Row[] = [
             [star, "star", [100_000, 200_000]],
             [cliqueRing, "ring of 10-cliques", [100_000]],
         ] as const
-    ).map(
-        ([shape, shapeName, sizes]): Row => ({
-            key: "louvain",
-            sizes,
-            shape,
-            shapeName,
-            run: louvainRun,
-            optimismOnly: "louvain settles in a handful of sweeps on this shape, well under the model's charge",
-        }),
-    ),
+    ).map(([shape, shapeName, sizes]): Row => ({
+        key: "louvain",
+        sizes,
+        shape,
+        shapeName,
+        run: louvainRun,
+        optimismOnly: "louvain settles in a handful of sweeps on this shape, well under the model's charge",
+    })),
 ];
 
 /**

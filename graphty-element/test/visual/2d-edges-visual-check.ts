@@ -14,8 +14,6 @@
  * 4. Report success/failure based on whether screenshots were captured
  */
 
- 
-
 import { resolve } from "path";
 import { type Browser, chromium, type Page } from "playwright";
 

@@ -186,19 +186,16 @@ export function useStatusBarOverflow(): StatusBarOverflow {
         [measure],
     );
 
-    const measureSlot = useCallback(
-        (slot: StatusBarSlotId) => {
-            return (node: HTMLElement | null): void => {
-                if (node === null) {
-                    slotElements.current.delete(slot);
-                    return;
-                }
+    const measureSlot = useCallback((slot: StatusBarSlotId) => {
+        return (node: HTMLElement | null): void => {
+            if (node === null) {
+                slotElements.current.delete(slot);
+                return;
+            }
 
-                slotElements.current.set(slot, node);
-            };
-        },
-        [],
-    );
+            slotElements.current.set(slot, node);
+        };
+    }, []);
 
     useLayoutEffect(() => {
         measure();

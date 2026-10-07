@@ -106,7 +106,7 @@ import {
     UpdateManager,
     type ViewMasks,
 } from "./managers";
-import { LabelDeclutter, NO_NODE_LABELS, type NodeLabelCounts } from "./managers/LabelDeclutter";
+import { LabelDeclutter, NO_NODE_LABELS, type NodeLabel, type NodeLabelCounts } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
 import {
     openWebGPUEngine,
@@ -269,6 +269,24 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     }
 
     return queue;
+}
+
+/**
+ * Where one node is drawn on screen. Pixels count from the element's top-left corner, the same
+ * pixels `worldToScreen` returns and a pointer event's `offsetX` / `offsetY` on the canvas use.
+ */
+export interface NodeScreenPosition {
+    /** The node's centre, pixels from the element's left edge. */
+    x: number;
+    /** The node's centre, pixels from the element's top edge. */
+    y: number;
+    /**
+     * True when the node is drawn and its centre is on screen: inside the element, in front of
+     * the camera and not hidden by a filter. Another node drawn in front of it does not count.
+     */
+    visible: boolean;
+    /** The node's radius on screen in pixels: its largest half-extent, projected. 0 behind the camera. */
+    radius: number;
 }
 
 /**
@@ -1681,6 +1699,29 @@ export class Graph implements GraphContext {
     get nodeLabelCounts(): NodeLabelCounts {
         const declutter: unknown = this.scene.metadata?.labelDeclutter;
         return declutter instanceof LabelDeclutter ? declutter.counts : NO_NODE_LABELS;
+    }
+
+    /**
+     * One node's label as the last frame drew it: its words and whether it is on screen.
+     *
+     * READ FROM THE LABEL ITSELF, never worked out again: the text is the runs the label renderer
+     * parsed and paints, and `drawn` is the two switches that take a label off screen -- the
+     * visibility mask's `setEnabled` and the declutter pass's `isVisible`. So this can never say
+     * something the picture does not show.
+     * @param nodeId - The node.
+     * @returns The label, or undefined when there is no such node or it draws no label.
+     */
+    labelOf(nodeId: string | number): NodeLabel | undefined {
+        const label = this.dataManager.getNode(nodeId)?.label;
+        const mesh = label?.labelMesh;
+        if (!label || !mesh || mesh.isDisposed()) {
+            return undefined;
+        }
+
+        return {
+            text: label.textRuns.map((line) => line.map((run) => run.text).join("")).join("\n"),
+            drawn: mesh.isEnabled() && mesh.isVisible,
+        };
     }
 
     /**
@@ -4053,6 +4094,53 @@ export class Graph implements GraphContext {
         const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight();
 
         return { x: screenX, y: screenY };
+    }
+
+    /**
+     * Where a node is drawn on screen, in the same pixels {@link worldToScreen} returns.
+     * @param nodeId - The node's id.
+     * @returns The centre, whether it is drawn on screen, and its radius in pixels; undefined for
+     *     an id the graph does not hold.
+     */
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
+        const node = this.getNode(nodeId);
+        const camera = this.scene.activeCamera;
+        if (!node || !camera) {
+            return undefined;
+        }
+
+        // The world centre, not `mesh.position`: an XR gesture moves and scales graph-root.
+        const { mesh } = node;
+        mesh.computeWorldMatrix(true);
+        const centre = mesh.getAbsolutePosition();
+        const { x, y } = this.worldToScreen(centre);
+
+        // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
+        const view = this.scene.getViewMatrix().m;
+        const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+        const inDepth = depth >= camera.minZ && (camera.maxZ <= 0 || depth <= camera.maxZ);
+
+        const engine = this.scene.getEngine();
+        const width = engine.getRenderWidth();
+        const height = engine.getRenderHeight();
+        const onScreen = x >= 0 && x <= width && y >= 0 && y <= height;
+
+        // The node's largest half-extent in the world, projected: the projection's y scale over
+        // the clip w (the depth in perspective, 1 in orthographic), in pixels.
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        const scale = mesh.absoluteScaling;
+        const worldRadius =
+            Math.max(extent.x, extent.y, extent.z) * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
+        const projection = this.scene.getProjectionMatrix().m;
+        const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
+        const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
+
+        return {
+            x,
+            y,
+            visible: node.getRenderState() === "visible" && inDepth && onScreen,
+            radius,
+        };
     }
 
     /**

@@ -17,12 +17,12 @@ ships: an async `prepareX(scope, ...)` that compiles the pipelines once and retu
 whose `record(pass, ...)` is synchronous and records into an open compute pass.
 
 - `prepareCompact(scope)` returns `{ record(pass, { queue, flags, count, out, outCount, ... }),
-  recordDedupe(pass, { queue, count, owner, out, outCount, ... }), recordDedupeIndirect(pass,
-  record, args, claimSlot, filterSlot) }` (`src/primitives/compact.ts`). The count may be a
+recordDedupe(pass, { queue, count, owner, out, outCount, ... }), recordDedupeIndirect(pass,
+record, args, claimSlot, filterSlot) }` (`src/primitives/compact.ts`). The count may be a
   host number or a device word, and the indirect form takes both dispatch sizes from an args
   buffer, which is what a level recorded before its size is known needs.
 - `prepareFrontier(scope, n, arcCount, edgeCapacity?)` returns `{ frontier, recordFinalize(pass,
-  role, level, fields) }` (`src/primitives/frontier.ts`). The `Frontier` class keeps the design's
+role, level, fields) }` (`src/primitives/frontier.ts`). The `Frontier` class keeps the design's
   name and its two vertex queues, but its counters are ONE 96-byte block of 24 words
   (`FrontierCounters`, PD-8) rather than two four-byte counters, and `reset(queue, source, seed)`
   takes a record of named words (`{ nextFrontierCount: 1, level: U32_MAX }`) rather than a

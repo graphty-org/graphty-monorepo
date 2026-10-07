@@ -12,12 +12,15 @@
  * every other binding, and Escape closes it through the ladder's second rung.
  *
  * The rows themselves are the shell's, not this component's: AppShell owns what each
- * one does and hands them over already built, in the order they should read.
+ * one does and hands them over already built, in the order they should read. Below the
+ * commands come the nodes and edges graphty-element's `session.find` lists for the same
+ * text, best match first and capped, so the palette never walks the graph itself.
  */
 
 import { COMPACT_SIZING, PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+import type { FindHit, FindResult } from "@graphty/graphty-element";
 import { Box, Modal, TextInput, UnstyledButton } from "@mantine/core";
-import React, { useMemo, useState } from "react";
+import React, { useDeferredValue, useMemo, useState } from "react";
 
 import { keyChipFor } from "./bindings";
 
@@ -36,7 +39,10 @@ export const COMMAND_PALETTE_LABEL = "Command palette";
 export const COMMAND_PALETTE_PLACEHOLDER = "Search commands, nodes and edges";
 
 /** What the list says when the query matches nothing. */
-export const COMMAND_PALETTE_EMPTY = "No matching commands";
+export const COMMAND_PALETTE_EMPTY = "No matches";
+
+/** The most node and edge rows the palette asks the element for. */
+export const COMMAND_PALETTE_FIND_LIMIT = 20;
 
 /**
  * The dialog's width: the top rung of 6.11's 280 / 360 / 480 width ladder, which is
@@ -80,6 +86,22 @@ export interface CommandPaletteProps {
     readonly onClose: () => void;
     /** Every command the shell offers, in reading order. */
     readonly items: readonly CommandPaletteItem[];
+    /**
+     * Lists the nodes and edges that match the text: the element's `session.find`, or null
+     * before a graph is loaded.
+     */
+    readonly find?: (text: string, options: { readonly limit: number }) => FindResult | null;
+    /** Runs a node or edge row: the shell selects it. The palette closes itself first. */
+    readonly onPickElement?: (hit: FindHit) => void;
+}
+
+/**
+ * A hit's name: a node's name, or an edge's two ends.
+ * @param hit - the hit.
+ * @returns the name.
+ */
+function hitName(hit: FindHit): string {
+    return hit.kind === "edge" ? `${hit.ends.source.name} -- ${hit.ends.target.name}` : hit.name;
 }
 
 /**
@@ -107,10 +129,30 @@ function matches(item: CommandPaletteItem, query: string): boolean {
  * @returns the dialog.
  */
 export function CommandPalette(props: CommandPaletteProps): React.JSX.Element {
-    const { opened, onClose, items } = props;
+    const { opened, onClose, items, find, onPickElement } = props;
     const [query, setQuery] = useState("");
+    // The element's find runs at React's low priority, so a large graph never holds up typing.
+    const findText = useDeferredValue(query);
 
-    const visible = useMemo(() => items.filter((item) => matches(item, query)), [items, query]);
+    const elementRows = useMemo<CommandPaletteItem[]>(() => {
+        const found =
+            find === undefined || findText.trim() === "" ? null : find(findText, { limit: COMMAND_PALETTE_FIND_LIMIT });
+        const rows = (found?.records ?? []).map((hit): CommandPaletteItem => ({
+            id: `${hit.kind}:${String(hit.id)}`,
+            group: hit.kind === "edge" ? "Edges" : "Nodes",
+            label: hitName(hit),
+            onSelect: () => {
+                onPickElement?.(hit);
+            },
+        }));
+        // The element ranks the best match first; the groups keep that order within each.
+        return [...rows.filter((row) => row.group === "Nodes"), ...rows.filter((row) => row.group === "Edges")];
+    }, [find, findText, onPickElement]);
+
+    const visible = useMemo(
+        () => [...items.filter((item) => matches(item, query)), ...elementRows],
+        [items, query, elementRows],
+    );
 
     const take = (item: CommandPaletteItem): void => {
         onClose();

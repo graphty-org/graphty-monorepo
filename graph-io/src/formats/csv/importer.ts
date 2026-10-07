@@ -2071,7 +2071,7 @@ function sniff(head: Uint8Array): number {
 function hasControlCharacter(text: string): boolean {
     const last = text.length - 1;
     for (let i = 0; i <= last; i++) {
-        const c = text.charCodeAt(i);
+        const c = text.codePointAt(i) ?? 0;
         if (c < 0x20 && c !== 0x09 && c !== 0x0a && c !== 0x0d && !(c === 0x1a && i === last)) {
             return true;
         }

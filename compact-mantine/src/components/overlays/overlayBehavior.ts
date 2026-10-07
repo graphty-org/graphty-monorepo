@@ -35,6 +35,12 @@ const AUTO_SCROLL_STEP = 4;
 let installed = false;
 /** Until when (performance.now()) a focus-opened tooltip counts as a warm hand-off. */
 let warmUntil = 0;
+/**
+ * When focus last moved (performance.now()). The warm check compares this, not the tooltip's
+ * mount time: the key that moves focus is what hands off, and a slow render between the focus
+ * and the mount must not turn a warm hand-off cold.
+ */
+let focusedAt = 0;
 /** Tooltips whose mount has been seen (and held, when focus-opened); a newer one is not yet painted. */
 const seenTooltips = new WeakSet<Element>();
 
@@ -90,7 +96,7 @@ function holdIfFocusOpened(tooltip: HTMLElement): void {
     if (!trigger || trigger !== document.activeElement || trigger.matches(":hover")) {
         return;
     }
-    if (performance.now() < warmUntil || anotherTooltipVisible(tooltip)) {
+    if (focusedAt < warmUntil || anotherTooltipVisible(tooltip)) {
         return;
     }
     tooltip.setAttribute("data-cm-held", "");
@@ -214,6 +220,13 @@ export function installOverlayBehavior(): void {
     const capture = { capture: true, passive: true } as const;
     document.addEventListener("pointerdown", dismissTooltips, capture);
     document.addEventListener("wheel", dismissTooltips, capture);
+    document.addEventListener(
+        "focusin",
+        () => {
+            focusedAt = performance.now();
+        },
+        capture,
+    );
     document.addEventListener(
         "keydown",
         (event) => {

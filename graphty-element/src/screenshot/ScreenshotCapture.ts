@@ -9,6 +9,7 @@ import {
 } from "@babylonjs/core";
 
 import { type Graph, operationQueueOf } from "../Graph.js";
+import { SELECTION_HALO_MESH } from "../Node.js";
 import { downloadBlob } from "../utils/download.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
@@ -158,7 +159,25 @@ export class ScreenshotCapture {
             await this.waitForRender();
         }
 
+        // Left out of the picture only: the selection itself, and its events, are untouched. A
+        // frame is drawn without the halos before the capture reads one, because the capture
+        // reads the canvas at the end of the next tick and a tick can skip drawing.
+        const hiddenHalos =
+            options.showSelection === false
+                ? this.scene.meshes.filter((m) => m.name === SELECTION_HALO_MESH && m.isEnabled(false))
+                : [];
+        for (const halo of hiddenHalos) {
+            halo.setEnabled(false);
+        }
+        if (hiddenHalos.length > 0) {
+            this.graph.getUpdateManager().meshesShownOrHidden();
+        }
+
         try {
+            if (hiddenHalos.length > 0) {
+                await this.waitForRender();
+            }
+
             // Resolve preset if specified
             let finalOptions = options;
             if (options.preset) {
@@ -300,6 +319,15 @@ export class ScreenshotCapture {
                 }
             }
         } finally {
+            for (const halo of hiddenHalos) {
+                if (!halo.isDisposed()) {
+                    halo.setEnabled(true);
+                }
+            }
+            if (hiddenHalos.length > 0) {
+                this.graph.getUpdateManager().meshesShownOrHidden();
+            }
+
             // Restore camera if it was overridden
             if (originalCameraState) {
                 await this.graph.setCameraState(originalCameraState);

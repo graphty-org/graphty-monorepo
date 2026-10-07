@@ -263,6 +263,8 @@ export function screenshotOptions(
         format: choices.format,
         ...(choices.size === "400x300" ? { width: 400, height: 300 } : { multiplier: Number.parseInt(choices.size) }),
         transparentBackground: choices.background === "transparent",
+        // A picture shows the data, not what the reader happened to click.
+        showSelection: false,
         ...(preset?.enhance === true ? { enhanceQuality: true } : {}),
         ...(preset?.quality === undefined ? {} : { quality: preset.quality }),
         ...(choices.view === "current" ? {} : { camera: { preset: choices.view } }),

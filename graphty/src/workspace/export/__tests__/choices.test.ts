@@ -25,6 +25,7 @@ describe("the Export dialog's choices", () => {
             format: "png",
             multiplier: 2,
             transparentBackground: false,
+            showSelection: false,
             destination: { download: true },
             downloadFilename: "a_b.png",
         });

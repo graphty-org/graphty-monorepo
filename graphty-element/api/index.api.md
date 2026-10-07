@@ -4092,6 +4092,7 @@ export interface ScreenshotOptions {
     // (undocumented)
     height?: number;
     legend?: readonly ScreenshotLegendSection[];
+    showSelection?: boolean;
     // (undocumented)
     multiplier?: number;
     // (undocumented)
@@ -4340,6 +4341,7 @@ export class UpdateManager implements Manager {
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
     meshesAdded(): void;
+    meshesShownOrHidden(): void;
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;

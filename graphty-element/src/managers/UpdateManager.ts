@@ -1359,6 +1359,14 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Say that a mesh was shown or hidden outside a pass, so the next frame re-reads what is drawn
+     * instead of drawing the frozen list (see `settleActiveMeshFreeze`).
+     */
+    meshesShownOrHidden(): void {
+        this.sceneChanged = true;
+    }
+
+    /**
      * Make the next frame visit every edge, whatever the nodes say.
      *
      * Called when something other than a position has changed what an edge should draw: a style

@@ -76,6 +76,12 @@ export interface ScreenshotOptions {
      * legend: [{ title: "Color: Louvain", rows: [{ label: "1", color: "#4e79a7", value: "17" }] }]
      */
     legend?: readonly ScreenshotLegendSection[];
+    /**
+     * Whether the selection highlight is drawn into the image. `false` leaves it out of this
+     * capture only: the selection stays as it is on screen and no selection event fires.
+     * @default true -- the image shows what the canvas shows
+     */
+    showSelection?: boolean;
 
     // -------------------------------------------------------------------------
     // Future Features (Not Yet Implemented)

@@ -234,3 +234,26 @@ makes every graph format behave the same way.
 **Alternatives.** Keep master's partial load and have the app read `lastImport().errors` and warn
 (every other consumer still gets a partial graph by default). Add a load option such as
 `partial: "keep" | "refuse"` (new public API; the default still has to be chosen).
+
+## 2026-10-07 -- A capture can leave the selection highlight out: `showSelection`
+
+**What.** `ScreenshotOptions` gains `showSelection?: boolean`, default `true` (the image shows what
+the canvas shows, as before). With `false`, the selection halo is left out of that one capture
+only: the selection itself does not change, no `selection-changed` event fires, and the halo is
+drawn again when the capture ends, whether it succeeded or failed. `UpdateManager` (exported from
+the main entry) also gains `meshesShownOrHidden()`, which tells the next frame to re-read what is
+drawn instead of drawing its frozen list; the capture needs it, because a hidden halo otherwise
+stays on screen. The graphty app passes `false`
+for every image export and its preview; the Export dialog gets no new control.
+
+**Why.** A node selected before exporting kept its yellow ring in the file, and the ring tinted the
+node off its key color, so the picture said something the data did not. Whether a picture shows
+the selection is a consumer's choice, so it is an option with a neutral default rather than a
+change of behavior. Clearing the selection around the capture would have fired two selection
+events and made every consumer restore it.
+
+**Alternatives.** Change the default to leave the selection out (moves every existing caller's
+picture). A broader option such as `overlays: false` that also hides context points (nothing asks
+for that yet). Name it `hideSelection` or `selection` (`selection: false` reads as "no selection",
+not "not drawn"). Have the app deselect and reselect around the export (a workaround that fires
+events and loses a multi-node selection).

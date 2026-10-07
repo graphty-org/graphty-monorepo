@@ -45,7 +45,7 @@ export type NodeRenderState = "visible" | "hidden" | "context";
 const logger = GraphtyLogger.getLogger(["graphty", "node"]);
 
 /** The cached source mesh every selection halo is an instance of. */
-const SELECTION_HALO_MESH = "graphty-selection-halo";
+export const SELECTION_HALO_MESH = "graphty-selection-halo";
 
 /** The cached source mesh every context point is an instance of. */
 const CONTEXT_POINT_MESH = "graphty-context-point";

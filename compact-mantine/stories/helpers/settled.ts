@@ -1,3 +1,5 @@
+import { expect, waitFor } from "@storybook/test";
+
 import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
 
 /**
@@ -33,11 +35,20 @@ export async function waitForSettledLayout(root: HTMLElement, selector: string):
 /**
  * Ends a play function that leaves keyboard focus on a control: focus opens the control's
  * tooltip, if it has one, only after the theme's open delay, so a screenshot taken inside that
- * delay shows the tooltip or not depending on how long the capture took. Wait the delay out and
- * let any tooltip settle, so every capture shows the same thing. Harmless without a tooltip.
+ * delay shows the tooltip or not depending on how long the capture took. Wait the delay out,
+ * then until no tooltip is still held or not yet seen by the overlay behavior (a slow machine
+ * can run the hold's timer after ours), and let any tooltip settle, so every capture shows the
+ * same thing. Harmless without a tooltip.
  * @param root - the story's canvas element
  */
 export async function settleFocusTooltip(root: HTMLElement): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, TOOLTIP_OPEN_DELAY + 100));
+    await waitFor(
+        () =>
+            expect(root.ownerDocument.querySelector(".cm-tooltip:is([data-cm-held], :not([data-cm-seen]))")).toBeNull(),
+        {
+            timeout: 5000,
+        },
+    );
     await waitForSettledLayout(root, ".mantine-Tooltip-tooltip");
 }

@@ -1606,6 +1606,7 @@ export class Graph implements GraphContext {
     // @deprecated
     needsRayUpdate(): boolean;
     get nodeLabelCounts(): NodeLabelCounts;
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
@@ -2019,6 +2020,7 @@ export class Graphty extends LitElement {
     get nodeLabelCounts(): NodeLabelCounts;
     get nodeLabelPath(): string | undefined;
     set nodeLabelPath(value: string | undefined);
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     pin(ids: (string | number) | readonly (string | number)[]): void;
@@ -2975,6 +2977,14 @@ export interface NodeLabelCounts {
     readonly hiddenByOverlap: number;
     readonly labeled: number;
     readonly nodeHidden: number;
+}
+
+// @public
+export interface NodeScreenPosition {
+    radius: number;
+    visible: boolean;
+    x: number;
+    y: number;
 }
 
 // @public

@@ -6,6 +6,10 @@
  *
  * Every function works on the RAW text (escapes still in place) and unescapes only the pieces it
  * hands back, so an escaped quote, colon, comma, brace or `!` never ends a construct.
+ *
+ * The scanners read characters with charAt(), never `text[i]`: the importer's linear-time tests
+ * count the characters the import reads through the string methods, and an index read is
+ * invisible to them, so a quadratic scan written with it would pass unnoticed.
  */
 
 /** The OBO escapes with a meaning of their own; any other `\x` is `x` (the guides). */
@@ -29,14 +33,14 @@ export function unescapeObo(text: string): string {
     }
     let out = "";
     for (let i = 0; i < text.length; i++) {
-        const ch = text[i];
+        const ch = text.charAt(i);
         if (ch !== "\\") {
             out += ch;
             continue;
         }
         i++;
         if (i < text.length) {
-            const next = text[i];
+            const next = text.charAt(i);
             out += ESCAPES[next] ?? next;
         }
     }
@@ -51,7 +55,7 @@ export function unescapeObo(text: string): string {
  */
 function isEscaped(text: string, index: number): boolean {
     let run = 0;
-    for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) {
+    for (let i = index - 1; i >= 0 && text.charAt(i) === "\\"; i--) {
         run++;
     }
     return run % 2 === 1;
@@ -71,8 +75,8 @@ export function splitFormFeeds(line: string): string[] {
     const pieces: string[] = [];
     let quoted = false;
     let start = 0;
-    for (let i = 0; i < line.length; i += line[i] === "\\" ? 2 : 1) {
-        const ch = line[i];
+    for (let i = 0; i < line.length; i += line.charAt(i) === "\\" ? 2 : 1) {
+        const ch = line.charAt(i);
         if (ch === '"') {
             quoted = !quoted;
         } else if (ch === "\f" && !quoted) {
@@ -110,11 +114,11 @@ interface TagValue {
  */
 export function splitTagValue(line: string): TagValue | null {
     for (let i = 0; i < line.length; i++) {
-        if (line[i] === "\\") {
+        if (line.charAt(i) === "\\") {
             i++;
             continue;
         }
-        if (line[i] === ":") {
+        if (line.charAt(i) === ":") {
             return { tag: unescapeObo(line.slice(0, i).trim()), rest: line.slice(i + 1).trimStart() };
         }
     }
@@ -134,12 +138,12 @@ export function splitTagValue(line: string): TagValue | null {
 export function stripComment(rest: string): string {
     let quoted = false;
     for (let i = 0; i < rest.length; i++) {
-        const ch = rest[i];
+        const ch = rest.charAt(i);
         if (ch === "\\") {
             i++;
             continue;
         }
-        const atStart = i === 0 || rest[i - 1] === " " || rest[i - 1] === "\t";
+        const atStart = i === 0 || rest.charAt(i - 1) === " " || rest.charAt(i - 1) === "\t";
         if (ch === '"' && (quoted || atStart)) {
             quoted = !quoted;
         } else if (ch === "!" && !quoted && atStart) {
@@ -183,7 +187,7 @@ export function splitQualifiers(value: string): QualifiedValue {
     const parsed: Qualifiers[] = [];
     let end = value.length;
     let badBlock: string | null = null;
-    while (end > 0 && value[end - 1] === "}" && !isEscaped(value, end - 1)) {
+    while (end > 0 && value.charAt(end - 1) === "}" && !isEscaped(value, end - 1)) {
         const open = blocks.get(end - 1) ?? -1;
         const block = open < 0 ? null : parseQualifiers(value.slice(open + 1, end - 1));
         if (block === null) {
@@ -192,7 +196,7 @@ export function splitQualifiers(value: string): QualifiedValue {
         }
         parsed.push(block);
         end = open;
-        while (end > 0 && /\s/.test(value[end - 1])) {
+        while (end > 0 && /\s/.test(value.charAt(end - 1))) {
             end--;
         }
     }
@@ -217,7 +221,7 @@ function braceBlocks(value: string): Map<number, number> {
     let quoted = false;
     let open = -1;
     for (let i = 0; i < value.length; i++) {
-        const ch = value[i];
+        const ch = value.charAt(i);
         if (ch === "\\") {
             i++;
             continue;
@@ -244,8 +248,8 @@ function braceBlocks(value: string): Map<number, number> {
 export function unclosedBlock(value: string): number {
     let quoted = false;
     let open = -1;
-    for (let i = 0; i < value.length; i += value[i] === "\\" ? 2 : 1) {
-        const ch = value[i];
+    for (let i = 0; i < value.length; i += value.charAt(i) === "\\" ? 2 : 1) {
+        const ch = value.charAt(i);
         if (ch === "\\") {
             continue;
         }
@@ -297,7 +301,7 @@ export function parseQualifiers(inner: string): Qualifiers | null {
     const n = inner.length;
     let any = false;
     while (i < n) {
-        while (i < n && (inner[i] === " " || inner[i] === "\t" || inner[i] === ",")) {
+        while (i < n && (inner.charAt(i) === " " || inner.charAt(i) === "\t" || inner.charAt(i) === ",")) {
             i++;
         }
         if (i >= n) {
@@ -312,11 +316,11 @@ export function parseQualifiers(inner: string): Qualifiers | null {
             return null;
         }
         i = eq + 1;
-        while (i < n && (inner[i] === " " || inner[i] === "\t")) {
+        while (i < n && (inner.charAt(i) === " " || inner.charAt(i) === "\t")) {
             i++;
         }
         let value: string;
-        if (inner[i] === '"') {
+        if (inner.charAt(i) === '"') {
             const end = closingQuote(inner, i + 1);
             if (end < 0) {
                 return null;
@@ -325,8 +329,8 @@ export function parseQualifiers(inner: string): Qualifiers | null {
             i = end + 1;
         } else {
             let end = i;
-            while (end < n && inner[end] !== ",") {
-                end += inner[end] === "\\" ? 2 : 1;
+            while (end < n && inner.charAt(end) !== ",") {
+                end += inner.charAt(end) === "\\" ? 2 : 1;
             }
             value = unescapeObo(inner.slice(i, end).trim());
             i = end;
@@ -345,9 +349,9 @@ export function parseQualifiers(inner: string): Qualifiers | null {
  */
 function closingQuote(text: string, from: number): number {
     for (let i = from; i < text.length; i++) {
-        if (text[i] === "\\") {
+        if (text.charAt(i) === "\\") {
             i++;
-        } else if (text[i] === '"') {
+        } else if (text.charAt(i) === '"') {
             return i;
         }
     }
@@ -379,7 +383,7 @@ export function tokenize(value: string): Token[] {
     const n = value.length;
     let i = 0;
     while (i < n) {
-        const ch = value[i];
+        const ch = value.charAt(i);
         if (ch === " " || ch === "\t") {
             i++;
             continue;
@@ -390,8 +394,8 @@ export function tokenize(value: string): Token[] {
             // a 1.4 language tag glued to the closing quote ("chat"@fr) is kept with the text, as an
             // unquoted chat@fr is (research-obo.md 4.1: no language is split out)
             let after = stop + 1;
-            if (end >= 0 && value[after] === "@") {
-                while (after < n && value[after] !== " " && value[after] !== "\t") {
+            if (end >= 0 && value.charAt(after) === "@") {
+                while (after < n && value.charAt(after) !== " " && value.charAt(after) !== "\t") {
                     after++;
                 }
             }
@@ -412,8 +416,8 @@ export function tokenize(value: string): Token[] {
             continue;
         }
         let end = i;
-        while (end < n && value[end] !== " " && value[end] !== "\t") {
-            end += value[end] === "\\" ? 2 : 1;
+        while (end < n && value.charAt(end) !== " " && value.charAt(end) !== "\t") {
+            end += value.charAt(end) === "\\" ? 2 : 1;
         }
         tokens.push({ kind: "word", text: unescapeObo(value.slice(i, Math.min(end, n))), unterminated: false });
         i = end;
@@ -430,7 +434,7 @@ export function tokenize(value: string): Token[] {
 function closingBracket(text: string, from: number): number {
     let quoted = false;
     for (let i = from; i < text.length; i++) {
-        const ch = text[i];
+        const ch = text.charAt(i);
         if (ch === "\\") {
             i++;
         } else if (ch === '"') {
@@ -468,9 +472,9 @@ export function parseXref(raw: string): Xref | null {
     const { value, qualifiers } = splitQualifiers(raw.trim());
     let quote = -1;
     for (let i = 0; i < value.length; i++) {
-        if (value[i] === "\\") {
+        if (value.charAt(i) === "\\") {
             i++;
-        } else if (value[i] === '"') {
+        } else if (value.charAt(i) === '"') {
             quote = i;
             break;
         }
@@ -508,7 +512,7 @@ export function parseXrefList(inner: string): Xref[] {
         }
     };
     for (let i = 0; i < inner.length; i++) {
-        const ch = inner[i];
+        const ch = inner.charAt(i);
         if (ch === "\\") {
             i++;
         } else if (ch === '"') {
@@ -538,7 +542,7 @@ export function hasStrayBrace(value: string): boolean {
     let quoted = false;
     let listed = false;
     for (let i = 0; i < value.length; i++) {
-        const ch = value[i];
+        const ch = value.charAt(i);
         if (ch === "\\") {
             i++;
         } else if (ch === '"') {

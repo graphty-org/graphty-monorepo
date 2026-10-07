@@ -28,9 +28,10 @@ name: Release
 # Nothing here pushes to master: the version commit reaches master only by the pull request. The file keeps its
 # name because npm's trusted-publisher entry for every package names it.
 #
-# The scheduled attempts are started by an external scheduler (cron-job.org), not by GitHub's cron: GitHub
-# creates this repository's scheduled runs hours late or not at all (owner decision, 2026-10-07). At 00:00, 06:00,
-# 12:00 and 18:00 UTC it dispatches this workflow with scheduled=true:
+# The scheduled attempts are not started by GitHub's cron: GitHub creates this repository's scheduled runs hours
+# late or not at all (owner decision, 2026-10-07). Instead the Cloudflare Worker in tools/release-scheduler/
+# dispatches release.yml with scheduled=true at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler
+# GitHub App (setup and operation: tools/release-scheduler/README.md):
 #   POST https://api.github.com/repos/graphty-org/graphty-monorepo/actions/workflows/release.yml/dispatches
 #   {"ref":"master","inputs":{"scheduled":"true"}}   (answers HTTP 204)
 # Such a run behaves exactly like a scheduled train attempt; a person can still dispatch it by hand.

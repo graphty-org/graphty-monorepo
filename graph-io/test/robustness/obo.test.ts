@@ -14,6 +14,7 @@ import { DUPLICATE_EDGE_CODE, EDGES_MERGED_CODE, SELF_LOOP_CODE } from "../../sr
 import { OBO_ISSUE, oboImporter, type OboImportOptions } from "../../src/formats/obo/importer.js";
 import { importGraph } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../src/types.js";
+import { charactersExamined } from "../helpers/work-meter.js";
 
 type Options = OboImportOptions & CommonImportOptions;
 
@@ -697,24 +698,22 @@ describe("robustness: encodings", () => {
 const GROWTH_LIMIT = 9;
 
 /**
- * How much slower a run at 4n is than one at n, each the best of three, so a ratio (not a
- * wall-clock limit) pins the complexity and the machine's load cancels out.
- * @param run - the work at a size
+ * How much more work importing doc(4n) does than importing doc(n), counted as the characters the
+ * import examines (test/helpers/work-meter.ts). A count is the same on an idle and a busy
+ * machine, so the ratio pins the complexity and nothing else: a value re-sliced per continuation
+ * line or per qualifier block examines its length once per line or block.
+ * @param doc - the document at a size
  * @param n - the smaller size
- * @returns time(4n) / time(n)
+ * @returns work(4n) / work(n)
  */
-async function growth(run: (n: number) => Promise<unknown>, n: number): Promise<number> {
-    const best = async (k: number): Promise<number> => {
-        let min = Infinity;
-        for (let i = 0; i < 3; i++) {
-            const started = performance.now();
-            await run(k);
-            min = Math.min(min, performance.now() - started);
-        }
-        return min;
+async function growth(doc: (n: number) => string, n: number): Promise<number> {
+    const work = async (k: number): Promise<number> => {
+        const text = doc(k);
+        return charactersExamined(async () => {
+            await load(text);
+        });
     };
-    await run(n);
-    return (await best(4 * n)) / (await best(n));
+    return (await work(4 * n)) / (await work(n));
 }
 
 describe("robustness: size and time", () => {
@@ -724,7 +723,7 @@ describe("robustness: size and time", () => {
         const { snapshot, report } = await load(doc(n));
         expect(cell(snapshot, "name", "X:1")).toBe(`${"ab ".repeat(n)}end`);
         expect(codes(report)).toEqual([OBO_ISSUE.DEPRECATED_SYNTAX]);
-        expect(await growth((k) => load(doc(k)), n / 4)).toBeLessThan(GROWTH_LIMIT);
+        expect(await growth(doc, n / 4)).toBeLessThan(GROWTH_LIMIT);
     });
 
     it("splits 100k trailing qualifier blocks in linear time (many-qualifier-blocks-quadratic)", async () => {
@@ -735,7 +734,7 @@ describe("robustness: size and time", () => {
         expect(cell(snapshot, "name", "X:1")).toBe("n");
         const q = cell(snapshot, "obo.qualifiers", "X:1") as { name: { qualifiers: { a: string[] } }[] };
         expect(q.name[0].qualifiers.a).toHaveLength(n);
-        expect(await growth((k) => load(doc(k)), n / 4)).toBeLessThan(GROWTH_LIMIT);
+        expect(await growth(doc, n / 4)).toBeLessThan(GROWTH_LIMIT);
     });
 
     it("reads a million-backslash run once per line (long-backslash-run)", async () => {

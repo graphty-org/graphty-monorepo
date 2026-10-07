@@ -24,6 +24,9 @@ const config: KnipConfig = {
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
+                // The release scheduler Worker (deployed by wrangler, not imported) and its tests
+                "tools/release-scheduler/src/worker.js",
+                "tools/release-scheduler/test/*.test.mjs",
             ],
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignoreDependencies: [

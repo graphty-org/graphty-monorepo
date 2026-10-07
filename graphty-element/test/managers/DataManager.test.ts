@@ -74,6 +74,14 @@ describe("DataManager", () => {
             assert.equal(node.id, "node1");
         });
 
+        it("reads the added nodes' ids with the idPath setNodes was given", () => {
+            dataManager.addNodes([{ key: "a" }, { key: "b" }], "key");
+
+            dataManager.setNodes([{ key: "b" }, { key: "c" }], "key");
+
+            assert.deepStrictEqual([...dataManager.nodes.keys()].map(String).sort(), ["b", "c"]);
+        });
+
         it("should not update existing node (current behavior)", () => {
             const nodeData = {
                 id: "node1",

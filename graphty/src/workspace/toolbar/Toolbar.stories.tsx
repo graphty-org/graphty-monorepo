@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import { Workspace } from "../Workspace";
 
@@ -184,12 +184,13 @@ export const QuickActions: Story = {
     },
 };
 
-/** One node selected: the selection bar with Neighborhood above the toolbar (`#/selection-bar/one-node`). */
-export const SelectionBar: Story = {
+/** One node selected: the toolbar is unchanged and nothing sits above it (`#/selection-bar/one-node`). */
+export const OneNodeSelected: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n0"] });
         await element.waitForStableFrame();
+        await expect(within(canvasElement).queryByRole("toolbar", { name: "Selection" })).toBeNull();
     },
 };

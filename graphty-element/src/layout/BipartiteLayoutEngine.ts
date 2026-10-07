@@ -3,6 +3,8 @@ import { bipartite } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { GraphtyError } from "../errors";
+import { groupRows } from "./groupBy";
 import { SimpleLayoutConfig } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
@@ -10,11 +12,19 @@ import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./Sn
  * Zod-based options schema for Bipartite Layout
  */
 const bipartiteLayoutOptionsSchema = defineOptions({
+    groupBy: {
+        schema: z.string().nullable().default(null),
+        meta: {
+            label: "Group By",
+            description: "The node attribute or result field whose values name each node's group",
+        },
+    },
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(40),
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     align: {
@@ -47,7 +57,8 @@ const bipartiteLayoutOptionsSchema = defineOptions({
 
 const BipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
-    nodes: z.array(z.number().or(z.string())),
+    nodes: z.array(z.number().or(z.string())).optional(),
+    groupBy: z.string().nullable().default(null),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -111,10 +122,28 @@ export class BipartiteLayout extends SnapshotLayoutEngine {
      */
     protected compute(input: SnapshotLayoutInput): F32 {
         const top = makeMask(input.graph.nodeCount);
-        for (const id of this.config.nodes) {
-            const row = this.rowOfId(id);
-            if (row !== INVALID_INDEX) {
+        const { nodes } = this.config;
+        if (this.config.groupBy !== null || nodes === undefined) {
+            const { groups } = groupRows(input, BipartiteLayout.type);
+            if (groups.length !== 2) {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `the layout "bipartite" needs exactly two groups, and "${String(this.config.groupBy)}" names ${groups.length}`,
+                    source: "layout",
+                    details: { layout: BipartiteLayout.type, option: "groupBy", groups: groups.length },
+                });
+            }
+
+            // The first group is one column; the second, and any node with no group, the other.
+            for (const row of groups[0]) {
                 maskSet(top, row, true);
+            }
+        } else {
+            for (const id of nodes) {
+                const row = this.rowOfId(id);
+                if (row !== INVALID_INDEX) {
+                    maskSet(top, row, true);
+                }
             }
         }
 

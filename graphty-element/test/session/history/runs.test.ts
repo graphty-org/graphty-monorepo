@@ -11,6 +11,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { isGraphtyError } from "../../../src/errors";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { RunChange } from "../../../src/session/runs";
 import type { ElementSession, GraphSession } from "../../../src/session/types";
@@ -204,6 +205,84 @@ describe("a run is one step", () => {
         await session.undo();
         assert.isDefined(session.runs.get("deg"));
         assert.lengthOf(layersOf(session, "deg"), 1);
+        session.dispose();
+    });
+});
+
+describe("moving a run's layers", () => {
+    /**
+     * Run A with two layers, then run B, whose layer sits on top.
+     * @returns The session and the stack, bottom first.
+     */
+    async function twoRuns(): Promise<{ session: GraphSession; before: string[] }> {
+        const { session } = await gated();
+        await session.runs.start("degree", {}, { as: "a" });
+        await session.styles.encode({ run: "a", field: "value", channel: "node.size" });
+        await session.runs.start("pagerank", {}, { as: "b" });
+        await session.styles.settled();
+
+        return { session, before: session.styles.list().map((layer) => layer.id) };
+    }
+
+    it("moves the block to the top in its own order, as one step, and one undo puts it back", async () => {
+        const { session, before } = await twoRuns();
+        const a = layersOf(session, "a");
+        const b = layersOf(session, "b");
+        assert.lengthOf(a, 2);
+        assert.isAbove(before.indexOf(b[0] ?? ""), before.indexOf(a[1] ?? ""), "B starts above A");
+        const steps = session.history.steps.length;
+
+        await session.runs.move("a", null);
+
+        const after = session.styles.list().map((layer) => layer.id);
+        assert.deepEqual(after.slice(-2), a, "both A layers on top, in their order");
+        assert.isBelow(after.indexOf(b[0] ?? ""), after.indexOf(a[0] ?? ""));
+        assert.lengthOf(session.history.steps, steps + 1);
+
+        await session.undo();
+        assert.deepEqual(
+            session.styles.list().map((layer) => layer.id),
+            before,
+        );
+        session.dispose();
+    });
+
+    it("moves the block to sit immediately below another layer", async () => {
+        const { session } = await twoRuns();
+        const b = layersOf(session, "b");
+        await session.runs.move("b", layersOf(session, "a")[0] ?? "");
+
+        const after = session.styles.list().map((layer) => layer.id);
+        assert.strictEqual(after.indexOf(b[0] ?? "") + 1, after.indexOf(layersOf(session, "a")[0] ?? ""));
+        session.dispose();
+    });
+
+    it("refuses an unknown run, an unknown layer and an element-owned layer, recording nothing", async () => {
+        const { session, before } = await twoRuns();
+        const steps = session.history.steps.length;
+        const locked = session.styles.list().find((layer) => layer.locked);
+        assert.isDefined(locked, "the stack has an element-owned layer");
+
+        const codes = await Promise.all(
+            [
+                session.runs.move("no-such-run", null),
+                session.runs.move("a", "no-such-layer"),
+                session.runs.move("a", locked?.id ?? ""),
+                session.runs.move("a", layersOf(session, "a")[1] ?? ""),
+            ].map((move) =>
+                move.then(
+                    () => "resolved",
+                    (error: unknown) => (isGraphtyError(error) ? error.code : "other"),
+                ),
+            ),
+        );
+
+        assert.deepEqual(codes, ["E_UNKNOWN_RUN", "E_UNKNOWN_LAYER", "E_PROTECTED", "E_BAD_COMMAND"]);
+        assert.lengthOf(session.history.steps, steps);
+        assert.deepEqual(
+            session.styles.list().map((layer) => layer.id),
+            before,
+        );
         session.dispose();
     });
 });

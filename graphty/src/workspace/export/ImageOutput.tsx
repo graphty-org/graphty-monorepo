@@ -1,7 +1,7 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { ScreenshotErrorCode, ScreenshotLegendSection } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Alert, Button, Input, Loader, Select, Tabs, Text } from "@mantine/core";
+import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { imageLegend, rowName } from "../canvas/legendWords";
@@ -9,6 +9,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     backgroundRefusal,
     CUSTOM,
+    failureWords,
     fileName,
     IMAGE_EXTENSIONS,
     IMAGE_PRESETS,
@@ -34,6 +35,15 @@ const VIEW_LABELS: Readonly<Record<string, string>> = {
 };
 
 const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
+
+/** The preview is captured this wide (height by the canvas's aspect), not at the canvas's size. */
+const PREVIEW_WIDTH = 480;
+
+/**
+ * Why a size cannot be captured. `canCaptureScreenshot` gives a sentence but no code, so the app
+ * cannot say which limit it hit; the gap is recorded with the Export dialog package.
+ */
+const SIZE_REFUSED = "this browser cannot make an image this size";
 
 /**
  * The key an image carries: the legend card's sections exactly when the canvas shows the card --
@@ -63,7 +73,7 @@ type Status =
     | { kind: "capturing" }
     | { kind: "settle-timeout"; destination: "download" | "clipboard" }
     | { kind: "clipboard-refused" }
-    | { kind: "failed"; message: string };
+    | { kind: "failed"; words: string };
 
 /**
  * The Image output: preset, size, format, view and background, a preview the element draws, and
@@ -80,7 +90,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
     const legendShown = useWorkspaceState((state) => state.legendShown);
-    const [preview, setPreview] = useState<{ url: string; width: number; height: number } | null>(null);
+    const [preview, setPreview] = useState<string | null>(null);
     const [previewError, setPreviewError] = useState<string | null>(null);
     const [refused, setRefused] = useState<Partial<Record<ImageSize, string>>>({});
     const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -89,27 +99,34 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const preset = presetOf(choices);
     const backgroundReason = backgroundRefusal(choices.format, "transparent");
 
-    // The preview: one capture at the canvas's own size, drawn as the file will be drawn.
+    // The preview: one small capture in the chosen format, drawn as the file will be drawn. The
+    // object URL only shows it in an <img>; it is revoked when the preview changes or closes.
     useEffect(() => {
         if (element === null) {
             return undefined;
         }
         let live = true;
         let url: string | null = null;
+        // An explicit width wins over the options' 1x multiplier.
         const options = screenshotOptions({ ...choices, size: "1x" }, { blob: true });
         element
-            .captureScreenshot({ ...options, legend: imageKey(session, legendShown), timing: { waitForSettle: false } })
+            .captureScreenshot({
+                ...options,
+                width: PREVIEW_WIDTH,
+                legend: imageKey(session, legendShown),
+                timing: { waitForSettle: false },
+            })
             .then((result) => {
                 if (!live) {
                     return;
                 }
                 url = URL.createObjectURL(result.blob);
-                setPreview({ url, width: result.metadata.width, height: result.metadata.height });
+                setPreview(url);
                 setPreviewError(null);
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setPreviewError(error instanceof Error ? error.message : String(error));
+                    setPreviewError(failureWords(error));
                 }
             });
         return () => {
@@ -131,7 +148,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 const check = await element.canCaptureScreenshot(
                     screenshotOptions({ ...choices, size }, { blob: true }),
                 );
-                return [size, check.supported ? undefined : check.reason] as const;
+                return [size, check.supported ? undefined : SIZE_REFUSED] as const;
             }),
         ).then((entries) => {
             if (live) {
@@ -171,21 +188,14 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
             if (error instanceof Error && "code" in error && error.code === SETTLE_TIMEOUT) {
                 setStatus({ kind: "settle-timeout", destination });
             } else {
-                setStatus({ kind: "failed", message: error instanceof Error ? error.message : String(error) });
+                setStatus({ kind: "failed", words: failureWords(error) });
             }
         }
     };
 
-    const pixels = (size: ImageSize): string => {
-        if (size === "400x300") {
-            return "400 x 300";
-        }
-        if (preview === null) {
-            return size;
-        }
-        const times = Number.parseInt(size);
-        return `${size} (${String(preview.width * times)} x ${String(preview.height * times)})`;
-    };
+    // ponytail: multiples only; the element tells no caller the canvas's pixel size without a
+    // full-size capture (gap recorded with the Export dialog package).
+    const pixels = (size: ImageSize): string => (size === "400x300" ? "400 x 300" : size);
 
     const callout = (() => {
         switch (status.kind) {
@@ -204,7 +214,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
             case "failed":
                 return (
                     <Alert color="red" title="The image was not saved" role="alert">
-                        {status.message}
+                        {status.words}
                     </Alert>
                 );
             default:
@@ -216,7 +226,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
 
     return (
         <>
-            <Tabs.Panel value="image" className="ws-export-main">
+            <section className="ws-export-main" aria-label="Image">
                 <div>
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Image
@@ -305,13 +315,15 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 <div className="ws-export-preview" data-transparent={choices.background === "transparent"}>
                     {preview === null ? (
                         <Text size="sm" c="dimmed">
-                            {previewError === null ? "Drawing the preview..." : `No preview: ${previewError}`}
+                            {previewError === null
+                                ? "Drawing the preview..."
+                                : `The preview could not be made. ${previewError}`}
                         </Text>
                     ) : (
-                        <img src={preview.url} alt={`Preview of ${name}`} />
+                        <img src={preview} alt={`Preview of ${name}`} />
                     )}
                 </div>
-            </Tabs.Panel>
+            </section>
             <ModalFooter className="ws-export-footer">
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {busy ? (

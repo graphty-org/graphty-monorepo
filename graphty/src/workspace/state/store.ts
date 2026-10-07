@@ -48,6 +48,8 @@ export interface WorkspaceState {
     readonly dialog: string | null;
     /** Whether the project name is being renamed in place. */
     readonly renaming: boolean;
+    /** The paint-tree row whose name is being edited in place, or null. */
+    readonly renamingRow: string | null;
     readonly inspected: Inspected | null;
     /** The tab last chosen per inspected kind. */
     readonly tabs: Readonly<Record<string, "style" | "values">>;
@@ -56,10 +58,15 @@ export interface WorkspaceState {
     readonly dockHeight: number;
     readonly dockOpen: boolean;
     /**
-     * A request to show the table dock on its Nodes or Edges tab (a Sources table's click); the
-     * dock takes it once and clears it.
+     * The table dock's tab: "nodes", "edges" or a group run's "g:<run id>". Kept while the dock
+     * is closed, and set by whatever opens the dock on a table (the Data place's source rows).
      */
-    readonly tableOn: "nodes" | "edges" | null;
+    readonly dockTab: string;
+    /**
+     * A table column to bring into view once the dock shows it (`a:<attribute>`), set by Show in
+     * table and cleared by the dock; null when none is asked for.
+     */
+    readonly dockColumn: string | null;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -89,13 +96,15 @@ const INITIAL: WorkspaceState = {
     place: "graph",
     dialog: null,
     renaming: false,
+    renamingRow: null,
     inspected: null,
     tabs: {},
     leftWidth: PANEL_MIN,
     rightWidth: PANEL_MIN,
     dockHeight: 240,
     dockOpen: false,
-    tableOn: null,
+    dockTab: "nodes",
+    dockColumn: null,
     legendShown: true,
     exportOn: "image",
     singleKeyShortcuts: true,

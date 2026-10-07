@@ -170,3 +170,116 @@ ${Array.from({ length: 8 }, (_, i) => `    <edge source="n${String(i)}" target="
         TIMEOUT_MS,
     );
 });
+
+/**
+ * Makes the next file picker the app opens answer with `file`, as a reader choosing it would.
+ * @param file - the file the reader chooses.
+ */
+function chooseNextFile(file: File): void {
+    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        this.files = transfer.files;
+        this.dispatchEvent(new Event("change"));
+    });
+}
+
+/**
+ * Opens Les Miserables, saves it as a project file and closes it again.
+ * @returns the project file, named as the element names a downloaded project.
+ */
+async function lesMiserablesProjectFile(): Promise<File> {
+    const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Open the Les Miserables sample" }));
+    const session = await elementSession();
+    await waitFor(
+        () => {
+            assert.equal(session.data.statistics().nodeCount, 77);
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    await session.project.rename("Les Miserables");
+    const { text } = await session.project.save();
+    unmount();
+    return new File([text], "Les Miserables.graphty.json");
+}
+
+describe("Open project or file... and a dropped file, on the real element", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    it(
+        "opens a project file from the start screen under the project's own name, chosen or dropped",
+        async () => {
+            const file = await lesMiserablesProjectFile();
+
+            for (const how of ["chosen", "dropped"] as const) {
+                const store = createWorkspaceStore();
+                const { unmount } = render(<Workspace store={store} />);
+                if (how === "chosen") {
+                    chooseNextFile(file);
+                    await userEvent.click(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
+                } else {
+                    const transfer = new DataTransfer();
+                    transfer.items.add(file);
+                    globalThis.dispatchEvent(new DragEvent("drop", { bubbles: true, dataTransfer: transfer }));
+                }
+                const session = await elementSession();
+                await waitFor(
+                    () => {
+                        assert.equal(session.data.statistics().nodeCount, 77, how);
+                        assert.equal(store.get().project?.name, "Les Miserables", how);
+                    },
+                    { timeout: TIMEOUT_MS },
+                );
+                assert.isFalse(store.get().notice?.error ?? false, how);
+                unmount();
+            }
+        },
+        TIMEOUT_MS * 3,
+    );
+
+    it(
+        "adds a data file to the open project, and asks before a project file replaces unsaved changes",
+        async () => {
+            const project = await lesMiserablesProjectFile();
+            const store = createWorkspaceStore();
+            const { unmount } = render(<Workspace store={store} />);
+            await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+            const session = await elementSession();
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 15);
+                },
+                { timeout: TIMEOUT_MS },
+            );
+
+            chooseNextFile(new File(["source,target\nx1,x2\nx2,x3\n"], "extra.csv", { type: "text/csv" }));
+            await userEvent.keyboard("{Control>}o{/Control}");
+            await waitFor(
+                () => {
+                    assert.equal(store.get().notice?.message, "Added extra.csv to this project");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.equal(session.data.statistics().nodeCount, 18);
+            assert.isTrue(session.project.dirty);
+
+            chooseNextFile(project);
+            await userEvent.keyboard("{Control>}o{/Control}");
+            const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            assert.equal(session.data.statistics().nodeCount, 18);
+            await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 77);
+                    assert.equal(store.get().project?.name, "Les Miserables");
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            unmount();
+        },
+        TIMEOUT_MS * 2,
+    );
+});

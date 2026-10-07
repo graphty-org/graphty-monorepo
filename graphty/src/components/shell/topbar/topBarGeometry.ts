@@ -80,16 +80,6 @@ export const SPLIT_DIVIDER_WIDTH = 1;
 /** The 1 px x 16 px rule between the two halves. Spec 02 section 2.3. */
 export const SPLIT_DIVIDER_HEIGHT = PANEL_GRID.GLYPH_SLOT;
 
-/**
- * Dwell, in milliseconds, before a press on the Undo main half counts as a
- * long-press and opens History.
- *
- * DERIVED, not quoted: spec 02 section 2.5 names long-press as one of History's three
- * routes but gives no duration, and 500 ms is the platform convention every touch
- * context-menu gesture uses.
- */
-export const LONG_PRESS_MS = 500;
-
 /* -------------------------------------------------------------------------- */
 /* Command palette trigger pill (spec 02 section 2.3c)                         */
 /* -------------------------------------------------------------------------- */

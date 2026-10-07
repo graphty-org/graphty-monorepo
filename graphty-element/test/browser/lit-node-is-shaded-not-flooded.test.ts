@@ -41,13 +41,12 @@
  * material by hand, which is the one thing nothing in this package is allowed to do -- so the
  * standing gate is the ceiling below.
  *
- * The arithmetic that makes it a decision rather than a threshold to taste: with the colour spent
- * after the clamp, a pixel is `clamp(...) * colour + white * specular`, so its spread can never
- * exceed the colour's own spread, 153 for the orange used here, however bright the light. With the
- * colour inside the clamp the lit cap climbs to about 1.16 times the colour before it saturates,
- * and the spread measures 178. There is no tuning of the light, the floor or the diffuse that
- * moves the first number: it is a ceiling, and passing it is only possible for a renderer that
- * multiplies the instance colour in before the clamp.
+ * SINCE THE LIGHT WENT MATTE. The scene's light now has no specular and an intensity of 0.8, so
+ * under it the light term tops out at 0.8 + 0.2 = 1.0 and never reaches the clamp: the face turned
+ * to the light is exactly the colour, and a pale colour no longer washes to white. Under that
+ * light the plugin and the stock shader draw the same picture, so this file now pins the picture
+ * itself -- lit up to the colour and no further, shadowed to the floor, flat in 2D. The plugin
+ * still matters for any brighter light a consumer adds to the scene.
  */
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
@@ -99,13 +98,8 @@ const COLOR_GREEN = 0x33;
  */
 const FLOODED_SPREAD = COLOR_RED - COLOR_GREEN;
 
-/**
- * How far past that ceiling the lit cap must reach.
- *
- * The shading being asked for measures 178 -- 25 past the ceiling -- so a margin of 8 is well
- * short of it and still unreachable by a renderer that has the fault. It is insurance against a driver that dithers, not a tolerance for a partial fix.
- */
-const SHADED_MARGIN = 8;
+/** How close to the colour's own spread the brightest face must come, in bytes. */
+const LIT_CAP_MARGIN = 3;
 
 /**
  * How far apart two channels must be before a pixel counts as the node rather than the page.
@@ -218,22 +212,30 @@ describe("a lit node's surface", () => {
         );
     });
 
-    it("keeps the gradient its own colour makes, instead of flooding with it", () => {
-        assert.isAbove(
+    it("lights the face turned to the light up to its own colour, and no further", () => {
+        // The light is matte at intensity 0.8, so the face turned straight at it is 0.8 + the 0.2
+        // floor = exactly the colour, and nothing is brighter: a brighter light would clamp a
+        // pale colour toward white (see lit-node-keeps-its-color.test.ts). So the widest spread
+        // reaches the colour's own and stops there.
+        assert.isAtMost(
             surface.widestSpread,
-            FLOODED_SPREAD + SHADED_MARGIN,
-            `The lit cap of the node is flat. The widest red-minus-green anywhere on it is ` +
-                `${String(surface.widestSpread)}, and the node's own colour spreads ` +
-                `${String(FLOODED_SPREAD)} -- so no pixel is lit past the flat colour, which is ` +
-                `what happens when the per-instance colour is multiplied in AFTER the shader ` +
-                `clamps the light term. The colour has to reach the diffuse term before the ` +
-                `clamp, not after it.`,
+            FLOODED_SPREAD + LIT_CAP_MARGIN,
+            `The lit cap of the node is brighter than its own colour: the widest red-minus-green ` +
+                `on it is ${String(surface.widestSpread)} where the colour spreads ` +
+                `${String(FLOODED_SPREAD)}. The scene's light is lifting it past 1.0.`,
+        );
+        assert.isAtLeast(
+            surface.widestSpread,
+            FLOODED_SPREAD - LIT_CAP_MARGIN * 4,
+            `The lit cap of the node never reaches its own colour: the widest red-minus-green on ` +
+                `it is ${String(surface.widestSpread)} where the colour spreads ` +
+                `${String(FLOODED_SPREAD)}.`,
         );
     });
 
     it("keeps the shadowed side where the brightness floor puts it", () => {
-        // The floor is a fifth, and the hemispheric light's ground colour is 0.35, so the dimmest
-        // lit pixel is about 0.55 of the colour: 112 of 204. The band is wide enough for the
+        // The floor is a fifth, and the hemispheric light's ground colour is 0.35 at intensity
+        // 0.8, so the dimmest lit pixel is about 0.48 of the colour: 98 of 204. The band is wide enough for the
         // silhouette to be a pixel out and narrow enough to fail a "fix" that lifts the whole
         // surface -- raising the light or dropping the floor buys the gradient back by washing the
         // shadowed side out, and that is a different picture, not this one.
@@ -247,7 +249,7 @@ describe("a lit node's surface", () => {
             Math.round(COLOR_RED * 0.65),
             `The shadowed side of the node has been washed out: the dimmest red on it is ` +
                 `${String(surface.dimmestRed)} where the floor puts it near ` +
-                `${String(Math.round(COLOR_RED * 0.55))}. A gradient bought by brightening the ` +
+                `${String(Math.round(COLOR_RED * 0.48))}. A gradient bought by brightening the ` +
                 `light or dropping the floor is a different picture, not the one this asks for.`,
         );
     });

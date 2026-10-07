@@ -4,6 +4,7 @@ import { Observable } from "@babylonjs/core/Misc/observable";
 import { BabylonInputSystem } from "../input/babylon-input-system";
 import { MockDeviceInputSystem } from "../input/mock-device-input-system";
 import type { KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "../input/types";
+import { downloadBlob } from "../utils/download";
 import type { Manager, ManagerContext } from "./interfaces";
 
 /**
@@ -449,12 +450,7 @@ export class InputManager implements Manager {
             const blob = new Blob([JSON.stringify(data, null, 2)], {
                 type: "application/json",
             });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `input-recording-${Date.now()}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+            downloadBlob(blob, `input-recording-${Date.now()}.json`);
         }
     }
 

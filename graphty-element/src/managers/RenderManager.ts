@@ -275,6 +275,11 @@ export class RenderManager implements Manager {
         // Setup lighting with ground color for fill from below
         const light = new HemisphericLight("light", new Vector3(1, 1, 0), this.scene);
         light.groundColor = new Color3(0.35, 0.35, 0.35);
+        // Matte: no specular anywhere, and the full-facing diffuse (0.8) plus the node material's
+        // 0.2 emissive floor tops out at exactly the style color, so a pale color never clamps to
+        // white and a lit face always reads as the color it was styled.
+        light.specular = Color3.Black();
+        light.intensity = 0.8;
 
         // Set background color
         const backgroundColor = this.config.backgroundColor ?? DEFAULT_BACKGROUND_COLOR;

@@ -1118,9 +1118,12 @@ ac/dialog-accessibility-settings, hm/comment-delete-confirm-dialog)
   but not dimmed; a caller dims it with `overlayProps={{ backgroundOpacity: 0.5 }}` (`--cm-modal-backdrop`).
 - Header 40 (41 with its 1px bottom border `inset 0 -1px 0 var(--cm-border)`), padding
   `0 32px 0 16px`, title 11/16 550 at x+16, Close 24 ghost at the end.
-- Body padding 16. Footer (a NEW `ModalFooter` helper or documented markup): 40 tall,
-  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 8px 0 16px`, buttons 24 tall,
-  end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger.
+- Body padding 16. Footer (a NEW `ModalFooter` helper or documented markup): 48 tall,
+  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 16px`, buttons 24 tall (12 above
+  and below), end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger.
+  This is a deliberate departure from Figma, made for touch: Figma's desktop footer is 40 tall
+  with an 8px end inset, which puts the last button 8px from the edge inside a 13px corner and
+  leaves it cramped under a finger. The 48/16 footer applies to every pointer type.
 - Focus moves to the first field; Tab trapped; Escape closes. No animation.
 
 ### 8.6 Toast (NEW exports `Toast`, `ToastProvider`, `useToast`; Mantine `Notification` themed for the look)

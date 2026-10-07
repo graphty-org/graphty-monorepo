@@ -12,9 +12,6 @@ import {
     type RunResult,
 } from "@graphty/graphty-element/session";
 
-import type { WorkspaceStore } from "../state/store";
-import { nodeKey } from "./inspected";
-
 /** A finished run with its result, and the field its result is read by. */
 interface FinishedRun {
     readonly id: string;
@@ -44,18 +41,6 @@ export function finishedRuns(session: GraphSession): FinishedRun[] {
  */
 export function selectNode(session: GraphSession, id: NodeId): void {
     void session.selection.apply({ nodes: [id] });
-}
-
-/**
- * Selects a node's neighborhood and lists it: the Degree row and the Neighborhood command
- * with one node selected both land here.
- * @param session - the session.
- * @param store - the workspace store.
- * @param id - the node at the center.
- */
-export async function openNeighborhood(session: GraphSession, store: WorkspaceStore, id: NodeId): Promise<void> {
-    await session.selection.apply({ neighborsOf: [id] });
-    store.set({ inspected: { kind: "neighborhood", id: nodeKey(id) } });
 }
 
 /** Set by a find pick, so the next node view takes keyboard focus on its Summary values. */

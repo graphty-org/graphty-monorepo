@@ -643,6 +643,10 @@ export function exportSession(
     options: ExportGraphOptions = {},
     view: ExportViewState = {},
 ): ExportResult {
+    if (format === "graphty") {
+        return exportProject(session, options);
+    }
+
     const writer = writerFor(format, options);
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
     try {
@@ -656,6 +660,32 @@ export function exportSession(
     }
 
     return writeWith(writer, built.snapshot, format, built.notes);
+}
+
+/**
+ * Write the project file, Graphty JSON: the document `session.project.save` produces, without
+ * marking the project saved. The one format still built as a single string, because the project
+ * is serialized as one document; `bytes` yields that string's UTF-8 in one chunk. Nothing is lost,
+ * so `lossNotes` is empty.
+ * @param session - The session.
+ * @param options - Must be empty: the project file takes no writer options.
+ * @returns The result.
+ * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for any option.
+ */
+function exportProject(session: GraphSession, options: ExportGraphOptions): ExportResult {
+    resolveOptionValues([], options, { kind: "format", id: "graphty" });
+    const saved = session.project.save({ markSaved: false });
+    const text = async (): Promise<string> => (await saved).text;
+    return {
+        format: "graphty",
+        lossNotes: Object.freeze([]),
+        text,
+        bytes: {
+            async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
+                yield new TextEncoder().encode(await text());
+            },
+        },
+    };
 }
 
 /**

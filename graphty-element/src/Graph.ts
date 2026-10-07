@@ -27,6 +27,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
 import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
+import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
 import { GraphtyLogger, type Logger } from "./logging";
 
@@ -152,7 +153,9 @@ import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./sess
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
+import { downloadBlob } from "./utils/download";
 import type { QueueableOptions, RunAlgorithmOptions, SetLayoutOptions } from "./utils/queue-migration";
+import { XrAvailability } from "./xr/XrAvailability";
 import { XRSessionManager } from "./xr/XRSessionManager";
 // import {createXrButton} from "./xr-button";
 
@@ -174,6 +177,19 @@ const BASE_DOCUMENT: StyleSchemaV1 = deepFreeze(StyleTemplate.parse({ graphtyTem
 
 /** The project settings of a graph whose session is still being built: every one at its default. */
 const DEFAULT_PROJECT: ProjectConfig = readProjectConfig(new Map(), DataConfig.parse({}));
+
+/**
+ * The immersive mode a WebXR session mode names.
+ * @param mode - The WebXR session mode, or null.
+ * @returns `"vr"`, `"ar"` or null.
+ */
+function immersiveOf(mode: "immersive-vr" | "immersive-ar" | null): "vr" | "ar" | null {
+    if (mode === null) {
+        return null;
+    }
+
+    return mode === "immersive-vr" ? "vr" : "ar";
+}
 
 /**
  * Whether a rejection is a cancellation: work withdrawn or replaced, which is not a failure.
@@ -451,6 +467,10 @@ export class Graph implements GraphContext {
     // XR managers
     private xrSessionManager: XRSessionManager | null = null;
     private xrUIManager: XRUIManager | null = null;
+    /** What VR and AR can do here, and which is presenting: `session.capabilities.xr`. */
+    private readonly xrAvailability: XrAvailability;
+    /** Stops redrawing the canvas XR buttons on each availability change. */
+    #unwatchXrButtons: (() => void) | null = null;
 
     // GraphContext implementation
     private graphContext: DefaultGraphContext;
@@ -538,9 +558,19 @@ export class Graph implements GraphContext {
         // The records live in the session's `graph` slice, which every write through the graph
         // primitives fills, so the session reads them there; the data manager is bound to the
         // session below so that its writes are those primitives.
+        this.xrAvailability = new XrAvailability({
+            enabled: () => {
+                const xr = this.xrConfig();
+                return { xr: xr.enabled, vr: xr.vr.enabled, ar: xr.ar.enabled };
+            },
+            // WebXR draws through an XRWebGLLayer and has no WebGPU binding in any shipping browser.
+            webgpu: () => this.#rendererStatus?.active === "webgpu",
+            active: () => immersiveOf(this.xrSessionManager?.getActiveMode() ?? null),
+        });
         this.session = createElementSession(
             {
                 acceleration: this.acceleration,
+                xr: this.xrAvailability,
                 store: laneStoreOf(this.dataManager),
                 runs: {
                     // The element's own queue, so a run takes its turn among the loads, the layouts
@@ -910,7 +940,10 @@ export class Graph implements GraphContext {
         // A layout scope is canonicalised and resolved through the session, and a layout holding
         // nodes for one is a user of the sets it names.
         const resolver = scopeResolverOfSession(this.session);
+        // A layout's grouping option names an attribute or a run's field the way an algorithm's does.
+        const columns = sessionColumns(this.session, [], {}, "layout");
         this.layoutManager.setScopeSource({
+            nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
             detached: (scope) => {
@@ -1448,8 +1481,8 @@ export class Graph implements GraphContext {
                 this.update(frameMs);
             });
 
-            // Initialize XR (VR/AR) if enabled
-            await this.initializeXR();
+            // XR (VR/AR): on unless `xr.enabled` is false; nothing is allocated until entry.
+            this.initializeXR();
 
             // Watch for browser/canvas resize events
             window.addEventListener("resize", this.resizeHandler);
@@ -3668,14 +3701,8 @@ export class Graph implements GraphContext {
         }
 
         try {
-            if (this.dimension() === "2d") {
-                await dispatcher.transaction(`Switched to 3D for ${mode.toUpperCase()}`, async (tx) => {
-                    await tx.dispatch({ op: "view.dimension", dimension: "3d" });
-                    await tx.dispatch({ op: "view.immersive", mode });
-                });
-            } else {
-                await dispatcher.dispatch({ op: "view.immersive", mode });
-            }
+            // From 2D the op switches to 3D itself, in the same step.
+            await this.session.execute({ op: "view.immersive", mode });
         } catch (error) {
             console.warn(`[Graph] Cannot switch to ${mode} mode:`, error);
         }
@@ -3870,11 +3897,11 @@ export class Graph implements GraphContext {
 
     /**
      * Enter or leave an immersive session: `view.immersive`. Exempt from history -- a device
-     * session is not the document -- and refused from 2D, which the caller switches out of in
-     * the same step first.
+     * session is not the document. From 2D, `session.execute` switches to 3D first, in the same
+     * step. A failed entry is also reported as `graph-error` with context `"xr"`.
      * @param mode - VR, AR, or null to leave.
-     * @throws A `GraphtyError` with `E_BAD_COMMAND` from 2D, or `E_UNSUPPORTED` without WebXR;
-     *     whatever the browser rejects the session with otherwise.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR; whatever the browser rejects
+     *     the session with otherwise.
      */
     private async setImmersive(mode: "vr" | "ar" | null): Promise<void> {
         if (mode === null) {
@@ -3897,25 +3924,24 @@ export class Graph implements GraphContext {
             return;
         }
 
-        if (this.dimension() === "2d") {
-            throw new GraphtyError({
-                code: "E_BAD_COMMAND",
-                message: `${mode.toUpperCase()} draws in 3D. Switch to 3D first, in the same step: setViewMode("${mode}") does.`,
-                source: "view",
-                details: { mode },
+        try {
+            if (!this.xrSessionManager) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: `${mode.toUpperCase()} needs WebXR, and this graph's XR is switched off (xr.enabled).`,
+                    source: "view",
+                    details: { mode },
+                });
+            }
+
+            await this.enterXR(mode === "vr" ? "immersive-vr" : "immersive-ar");
+        } catch (error) {
+            this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "xr", {
+                mode,
             });
+            throw error;
         }
 
-        if (!this.xrSessionManager) {
-            throw new GraphtyError({
-                code: "E_UNSUPPORTED",
-                message: `${mode.toUpperCase()} needs WebXR, and this graph has no XR session manager.`,
-                source: "view",
-                details: { mode },
-            });
-        }
-
-        await this.enterXR(mode === "vr" ? "immersive-vr" : "immersive-ar");
         this.writeViewSettings((settings) => {
             settings.graph.immersive = mode;
         });
@@ -3975,13 +4001,35 @@ export class Graph implements GraphContext {
 
     /**
      * Set XR configuration.
-     * Merges with defaults and updates the graph context.
+     * Merges the partial into the configuration in force, so `{ ui: { enabled: false } }` leaves
+     * the rest as it was. After init the XR session manager and the canvas buttons are rebuilt
+     * from it, ending an immersive session first, and `capabilities:changed` fires.
      * @param config - Partial XR configuration to apply
      */
     setXRConfig(config: PartialXRConfig): void {
-        // Parse through zod schema to apply defaults
-        const fullConfig = xrConfigSchema.parse(config);
+        const current = this.xrConfig();
+        const patch = config ?? {};
+        const fullConfig = xrConfigSchema.parse({
+            ...current,
+            ...patch,
+            ui: { ...current.ui, ...patch.ui },
+            vr: { ...current.vr, ...patch.vr },
+            ar: { ...current.ar, ...patch.ar },
+            input: { ...current.input, ...patch.input },
+            teleportation: { ...current.teleportation, ...patch.teleportation },
+        });
         this.graphContext.updateConfig({ xr: fullConfig });
+        if (this.initialized) {
+            void this.reinitializeXR();
+        }
+    }
+
+    /**
+     * The XR configuration in force.
+     * @returns The configuration.
+     */
+    private xrConfig(): XRConfig {
+        return this.graphContext.getConfig().xr ?? defaultXRConfig;
     }
 
     /**
@@ -4005,11 +4053,8 @@ export class Graph implements GraphContext {
      * ```
      */
     async isVRSupported(): Promise<boolean> {
-        if (!this.xrSessionManager) {
-            return false;
-        }
-
-        return this.xrSessionManager.isVRSupported();
+        await this.xrAvailability.probe();
+        return this.xrAvailability.capability.vr;
     }
 
     /**
@@ -4025,11 +4070,8 @@ export class Graph implements GraphContext {
      * ```
      */
     async isARSupported(): Promise<boolean> {
-        if (!this.xrSessionManager) {
-            return false;
-        }
-
-        return this.xrSessionManager.isARSupported();
+        await this.xrAvailability.probe();
+        return this.xrAvailability.capability.ar;
     }
 
     // Input manager access
@@ -4593,12 +4635,7 @@ export class Graph implements GraphContext {
                 }
             }
 
-            const url = URL.createObjectURL(result.blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
+            downloadBlob(result.blob, filename);
         }
     }
 
@@ -5981,7 +6018,9 @@ export class Graph implements GraphContext {
      *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
-     * "neo4j" })`.
+     * "neo4j" })`; a format's `exportVariants` list each such kind of file with the options that
+     * make it. `exportGraph("graphty")` writes the project file without marking the project saved;
+     * it is built as one string and read back by `session.project.open`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
      * and the element's `notes`.
@@ -6453,54 +6492,72 @@ export class Graph implements GraphContext {
     // ===========================================
 
     /**
-     * Initialize XR (VR/AR) system
-     * Creates session manager and UI buttons based on configuration
+     * Initialize XR (VR/AR): the session manager unless `xr.enabled` is false, and the canvas
+     * buttons when `xr.ui.enabled` is set. Nothing Babylon-side is allocated until a session is
+     * entered, and the browser is asked which modes it supports once, after the first frame.
      */
-    private async initializeXR(): Promise<void> {
-        const xrConfig = this.graphContext.getConfig().xr;
-        if (!xrConfig?.enabled) {
+    private initializeXR(): void {
+        const xrConfig = this.xrConfig();
+        if (xrConfig.enabled) {
+            this.xrSessionManager = new XRSessionManager(this.scene, {
+                vr: xrConfig.vr,
+                ar: xrConfig.ar,
+                handTracking: xrConfig.input.handTracking,
+            });
+            // The headset can end the session itself; the view then leaves VR or AR as it would
+            // for `view.immersive` with `null`.
+            this.xrSessionManager.onSessionEnded = () => {
+                void dispatcherOf(this.session)
+                    .dispatch({ op: "view.immersive", mode: null })
+                    .catch((error: unknown) => {
+                        console.warn("[Graph] Failed to leave XR after the session ended:", error);
+                    });
+            };
+        }
+
+        this.#unwatchXrButtons ??= this.xrAvailability.onChange(() => {
+            this.drawXRButtons();
+        });
+        this.drawXRButtons();
+        this.scene.onAfterRenderObservable.addOnce(() => {
+            void this.xrAvailability.probe();
+        });
+    }
+
+    /**
+     * Draw the canvas XR buttons (opt-in, `xr.ui.enabled`) from the current availability, once
+     * the browser has answered.
+     */
+    private drawXRButtons(): void {
+        this.xrUIManager?.dispose();
+        this.xrUIManager = null;
+        const { ui } = this.xrConfig();
+        const { reasons, vr, ar } = this.xrAvailability.capability;
+        if (!ui.enabled || reasons.vr === "probing" || reasons.ar === "probing") {
             return;
         }
 
-        // Create XR session manager
-        this.xrSessionManager = new XRSessionManager(this.scene, {
-            vr: xrConfig.vr,
-            ar: xrConfig.ar,
-            handTracking: xrConfig.input.handTracking,
-        });
-
-        // Determine which modes are available by actually checking device support. WebXR draws
-        // through an XRWebGLLayer and has no WebGPU binding in any shipping browser, so under
-        // WebGPU both modes are reported unavailable rather than offered and failing on entry.
-        const webgl = this.#rendererStatus?.active !== "webgpu";
-        const vrAvailable = webgl && xrConfig.vr.enabled && (await this.xrSessionManager.isVRSupported());
-        const arAvailable = webgl && xrConfig.ar.enabled && (await this.xrSessionManager.isARSupported());
-
-        // Create XR UI manager
-        this.xrUIManager = new XRUIManager(this.element as HTMLElement, vrAvailable, arAvailable, xrConfig.ui);
-
-        // Wire up button click handlers
+        this.xrUIManager = new XRUIManager(this.element as HTMLElement, vr, ar, ui);
         this.xrUIManager.onEnterXR = (mode) => {
-            void (async () => {
-                try {
-                    await this.enterXR(mode);
-                } catch (error) {
+            // Failures are reported as `graph-error` (context "xr") by the op itself.
+            this.session
+                .execute({ op: "view.immersive", mode: mode === "immersive-vr" ? "vr" : "ar" })
+                .catch((error: unknown) => {
                     console.error("Failed to enter XR mode:", error);
-
-                    // Show user-friendly alert on error
-                    const errorMsg = error instanceof Error ? error.message : String(error);
-                    alert(`XR Session Failed:\n${errorMsg}\n\nCheck console for details.`);
-
-                    // Emit error event
-                    this.eventManager.emitGraphError(
-                        this,
-                        error instanceof Error ? error : new Error(String(error)),
-                        "xr",
-                        { mode },
-                    );
-                }
-            })();
+                });
         };
+    }
+
+    /** Rebuild the XR session manager and buttons from a changed configuration. */
+    private async reinitializeXR(): Promise<void> {
+        if (this.viewSettings.graph.immersive !== undefined) {
+            await this.setImmersive(null);
+        }
+
+        this.xrSessionManager?.dispose();
+        this.xrSessionManager = null;
+        this.initializeXR();
+        this.xrAvailability.changed();
     }
 
     /**
@@ -6546,6 +6603,7 @@ export class Graph implements GraphContext {
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;
         this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
+        this.xrAvailability.changed();
     }
 
     /**
@@ -6575,7 +6633,11 @@ export class Graph implements GraphContext {
             this.scene.metadata.xrHelper = null;
         }
 
-        await this.xrSessionManager.exitXR();
+        try {
+            await this.xrSessionManager.exitXR();
+        } finally {
+            this.xrAvailability.changed();
+        }
     }
 
     /**
@@ -6590,6 +6652,8 @@ export class Graph implements GraphContext {
         this.disableAiControl();
 
         // Clean up XR resources
+        this.#unwatchXrButtons?.();
+        this.xrAvailability.dispose();
         this.xrUIManager?.dispose();
         this.xrSessionManager?.dispose();
         this.shutdown();

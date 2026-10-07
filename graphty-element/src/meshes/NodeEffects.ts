@@ -13,17 +13,7 @@ import {
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
-
-/**
- * Default outline configuration for selection highlight.
- */
-const DEFAULT_OUTLINE_COLOR = "#FFFF00";
-
-/**
- * Default glow colour, used when a style asks for `effect.glow` without naming a colour.
- * White reads as a neutral bloom over any node colour.
- */
-const DEFAULT_GLOW_COLOR = "#FFFFFF";
+import { DEFAULT_GLOW_COLOR, DEFAULT_OUTLINE_COLOR } from "../session/styles/channels";
 
 /**
  * Manages visual effects for node meshes.

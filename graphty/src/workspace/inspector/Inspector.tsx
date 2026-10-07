@@ -1,65 +1,25 @@
 import { PANEL_GRID, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
-import {
-    ChartColumn,
-    Circle,
-    Columns3,
-    Component,
-    Group as GroupIcon,
-    Layers,
-    type LucideIcon,
-    MoreHorizontal,
-    MousePointer2,
-    Paintbrush,
-    Shapes,
-    Share2,
-    Spline,
-    Workflow,
-} from "lucide-react";
 import React, { useEffect, useState } from "react";
 
-import { LayoutGroup } from "../layout/LayoutGroup";
+import { useAttributeActions } from "../data-place/attributeActions";
+import { AttributeMenuItems } from "../data-place/MenuItems";
+import { Sections } from "../frame/menus";
+import { GLYPHS, KIND_GLYPHS } from "../glyphs";
+import { LayoutGroup } from "../layout/LayoutForm";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { StyleTab } from "../style/StyleTab";
+import { GroupStyle, SelectionRowStyle, SelectionStyle, StyleTab } from "../style/StyleTab";
 import { AttributeValues, CanvasSection, EverythingValues, Overview } from "./GraphValues";
 import { useSessionVersion } from "./hooks";
 import { identityOf, type InspectedKindId, type Resolved, resolveInspected } from "./inspected";
+import { MENUS } from "./kindMenus";
 import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValues";
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
 import { groupName, KIND_WORDS, runDate } from "./words";
-
-/**
- * The commands each kind's "..." holds (tier1-design.md section 2.7), the same list as its
- * context menu. A command another package has not built is left out, and a kind with none draws
- * no "...": a row's verbs (rerun, remove, rename) arrive with the Graph place's row menus.
- */
-const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
-    graph: ["layout.rerun", "layout.reshuffle"],
-    node: ["selection.neighborhood", "view.frame-selection"],
-    edge: ["view.frame-selection"],
-    several: ["view.frame-selection"],
-    neighborhood: ["view.frame-selection"],
-};
-
-/** The kind icon on the header's first line. */
-const KIND_ICONS: Readonly<Record<InspectedKindId, LucideIcon>> = {
-    graph: Workflow,
-    node: Circle,
-    edge: Spline,
-    several: GroupIcon,
-    neighborhood: Share2,
-    "measure-row": ChartColumn,
-    "run-row": Shapes,
-    "group-row": Component,
-    "everything-row": Layers,
-    "selection-row": MousePointer2,
-    "layer-row": Paintbrush,
-    attribute: Columns3,
-};
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -104,6 +64,7 @@ export function Inspector(): React.JSX.Element {
     const remembered = useWorkspaceState((state) => state.tabs);
     const [picked, setPicked] = useState<{ identity: string; tab: "style" | "values" } | null>(null);
     const [draft, setDraft] = useState<{ run: string; values: Draft } | null>(null);
+    const attributeActionsOf = useAttributeActions();
 
     // The inspector shows the selected thing: a selection change closes an open row.
     useEffect(() => {
@@ -160,7 +121,15 @@ export function Inspector(): React.JSX.Element {
     });
     const body = bodyOf(resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
-    const KindIcon = KIND_ICONS[kindId];
+    // An attribute's verbs are the Data place's row menu's, so the two cannot drift apart.
+    const attribute =
+        resolved.kind === "attribute"
+            ? session.data.attributes().find((candidate) => candidate.path === resolved.path)
+            : undefined;
+    const attributeActions = attributeActionsOf(
+        attribute === undefined ? null : { kind: attribute.kind, name: attribute.name },
+    );
+    const KindIcon = KIND_GLYPHS[kindId];
 
     let content: React.ReactNode;
     if ("only" in body) {
@@ -220,29 +189,23 @@ export function Inspector(): React.JSX.Element {
                                 {header.from.words}
                             </Anchor>
                         )}
-                        {menu.length > 0 && (
+                        {menu.length + attributeActions.length > 0 && (
                             <Menu position="bottom-end">
                                 <Menu.Target>
                                     <ActionIcon
                                         variant="subtle"
                                         size="sm"
                                         ml="auto"
+                                        // Alone at the row's end, so a finger gets the full 44px.
+                                        style={{ "--cm-ai-touch-target": "44px" }}
                                         aria-label={`${KIND_WORDS[kindId]} actions`}
                                     >
-                                        <MoreHorizontal size={14} />
+                                        <GLYPHS.more size={14} />
                                     </ActionIcon>
                                 </Menu.Target>
                                 <Menu.Dropdown>
-                                    {menu.map((command) => (
-                                        <Menu.Item
-                                            key={command.id}
-                                            onClick={() => {
-                                                runCommand(command.id);
-                                            }}
-                                        >
-                                            {command.label}
-                                        </Menu.Item>
-                                    ))}
+                                    <Sections sections={[menu.map((command) => command.id)]} />
+                                    <AttributeMenuItems actions={attributeActions} />
                                 </Menu.Dropdown>
                             </Menu>
                         )}
@@ -374,18 +337,28 @@ function bodyOf(
             };
         case "node":
             return {
-                style: <WhyThisLook target={{ node: resolved.node }} />,
+                style: (
+                    <>
+                        <SelectionRowStyle />
+                        <WhyThisLook target={{ node: resolved.node }} />
+                    </>
+                ),
                 values: <NodeValues id={resolved.node} />,
             };
         case "edge":
             return {
-                style: <WhyThisLook target={{ edge: resolved.edge }} />,
+                style: (
+                    <>
+                        <SelectionRowStyle />
+                        <WhyThisLook target={{ edge: resolved.edge }} />
+                    </>
+                ),
                 values: <EdgeValues id={resolved.edge} />,
             };
         case "several":
-            return { only: <SeveralValues version={version} /> };
+            return { style: <SelectionRowStyle />, values: <SeveralValues version={version} /> };
         case "neighborhood":
-            return { only: <NeighborList center={resolved.node} /> };
+            return { only: <NeighborList center={resolved.node} hops={resolved.hops} /> };
         case "measure-row":
         case "run-row":
             return run === undefined
@@ -394,13 +367,15 @@ function bodyOf(
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }
-                : // A group is not a style layer, so it has nothing for the Style tab to edit.
-                  { only: <GroupValues run={run} group={resolved.group} version={version} /> };
+                : {
+                      style: <GroupStyle run={run.id} group={resolved.group} />,
+                      values: <GroupValues run={run} group={resolved.group} version={version} />,
+                  };
         case "everything-row":
             return { style: <StyleTab />, values: <EverythingValues /> };
-        // The selection's look is not a style layer, so the row shows what the selection holds.
+        // Style edits the highlight a selected node is drawn with; Values is what the selection holds.
         case "selection-row":
-            return { only: <SeveralValues version={version} /> };
+            return { style: <SelectionStyle />, values: <SeveralValues version={version} /> };
         case "layer-row":
             return { only: <StyleTab /> };
         default:

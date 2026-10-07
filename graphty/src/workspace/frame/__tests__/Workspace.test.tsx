@@ -5,6 +5,7 @@
  */
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { page } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
@@ -26,6 +27,15 @@ const LATER = defineRegistration({
     owner: "later",
     commands: stubCommands([{ id: "later.tool", label: "Later tool", group: "View", keys: ["Mod+Alt+L"] }]),
 });
+
+/**
+ * A menu row's label, without its key or the reason a disabled row gives.
+ * @param row - the menu row.
+ * @returns the label.
+ */
+function rowLabel(row: HTMLElement): string {
+    return row.querySelector("[class*='itemLabel']")?.firstChild?.textContent?.trim() ?? "";
+}
 
 function renderWorkspace(initialState?: Partial<WorkspaceState>, registrations?: readonly WorkspaceRegistration[]) {
     return render(<Workspace initialState={initialState} registrations={registrations} />);
@@ -89,6 +99,50 @@ describe("the workspace frame", () => {
         );
     });
 
+    it("lets each panel's resize handle be hit on both sides of the panel edge", async () => {
+        const { innerWidth, innerHeight } = window;
+        await page.viewport(1180, 820);
+        renderWorkspace({ ...OPEN, dockOpen: true });
+
+        for (const name of ["Resize left panel", "Resize inspector", "Resize table"]) {
+            const handle = screen.getByRole("separator", { name });
+            const box = handle.getBoundingClientRect();
+            const vertical = handle.getAttribute("aria-orientation") === "vertical";
+            const x = box.left + box.width / 2;
+            const y = box.top + box.height / 2;
+            // 1px in from each outer side of the handle: one side lies inside the panel, the
+            // other outside it, where a clipping panel would cut the handle off.
+            const points = vertical
+                ? [
+                      [box.left + 1, y],
+                      [box.right - 1, y],
+                  ]
+                : [
+                      [x, box.top + 1],
+                      [x, box.bottom - 1],
+                  ];
+            for (const [px, py] of points) {
+                assert.strictEqual(document.elementFromPoint(px, py), handle, `${name} at ${String(px)},${String(py)}`);
+            }
+        }
+        await page.viewport(innerWidth, innerHeight);
+    });
+
+    it("keeps the table dock above the side panels' resize handles where a handle reaches into it", async () => {
+        const { innerWidth, innerHeight } = window;
+        await page.viewport(820, 1180);
+        renderWorkspace({ ...OPEN, dockOpen: true });
+
+        const dock = screen.getByRole("region", { name: "Table" });
+        const box = dock.getBoundingClientRect();
+        const y = box.top + box.height / 2;
+        // 1px inside the dock from each side, under the overhang of the neighboring panel's handle.
+        for (const x of [box.left + 1, box.right - 1]) {
+            assert.isTrue(dock.contains(document.elementFromPoint(x, y)), `dock at ${String(x)},${String(y)}`);
+        }
+        await page.viewport(innerWidth, innerHeight);
+    });
+
     it("lists built commands in the main menu and leaves stubs out", async () => {
         renderWorkspace(OPEN);
 
@@ -98,25 +152,44 @@ describe("the workspace frame", () => {
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "New project" }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: /Keyboard shortcuts/ }));
         assert.isNotNull(within(menu).getByRole("menuitem", { name: "Help" }));
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Save/ }));
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Save(?! as| local)/ }));
     });
 
-    it("draws a File list command in both menus once its package builds it", async () => {
-        const save: WorkspaceRegistration = {
-            owner: "project",
-            commands: [{ id: "project.save", label: "Save", group: "Project", keys: ["Mod+S"], run: () => undefined }],
-        };
-        const registrations = REGISTRATIONS.map((registration) =>
-            registration.owner === "project" ? save : registration,
-        );
-        renderWorkspace(OPEN, registrations);
+    it("has one menu: Back to start first, every row once, and the name renames", async () => {
+        renderWorkspace(OPEN);
 
+        assert.lengthOf(screen.getAllByRole("button", { name: "Main menu" }), 1);
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-        assert.isNotNull(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Save/ }));
+        const rows = within(await screen.findByRole("menu"))
+            .getAllByRole("menuitem")
+            .map(rowLabel);
+        assert.equal(rows[0], "Back to start");
+        for (const name of ["New project", "Open project or file...", "Open sample", "Save as...", "Rename"]) {
+            assert.include(rows, name);
+        }
+        assert.lengthOf(new Set(rows), rows.length, rows.join(", "));
         await userEvent.keyboard("{Escape}");
 
         await userEvent.click(screen.getByRole("button", { name: "Project: Les Miserables" }));
-        assert.isNotNull(within(await screen.findByRole("menu")).getByRole("menuitem", { name: /^Save/ }));
+        assert.isNotNull(await screen.findByRole("textbox", { name: "Project name" }));
+        assert.isNull(screen.queryByRole("menu"));
+    });
+
+    it("draws the start screen's shorter menu, without the rows that need a project", async () => {
+        renderWorkspace();
+
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        const rows = within(await screen.findByRole("menu"))
+            .getAllByRole("menuitem")
+            .map(rowLabel);
+        assert.deepEqual(rows, [
+            "New project",
+            "Open project or file...",
+            "Open sample",
+            "Settings...",
+            "Keyboard shortcuts",
+            "Help",
+        ]);
     });
 
     it("shows a disabled command with its reason and keeps it focusable", async () => {
@@ -141,7 +214,7 @@ describe("the workspace frame", () => {
         assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, { timeout: 3000 }));
     });
 
-    it("renames the project with F2 and with a double-click", async () => {
+    it("renames the project with F2 and with a tap on its name", async () => {
         renderWorkspace(OPEN);
 
         await userEvent.keyboard("{F2}");
@@ -150,10 +223,8 @@ describe("the workspace frame", () => {
         await userEvent.type(field, "My copy{Enter}");
         assert.isNotNull(screen.getByRole("button", { name: "Project: My copy" }));
 
-        // A double-click's two clicks open and close the menu; the rename field is what stays.
-        await userEvent.dblClick(screen.getByRole("button", { name: "Project: My copy" }));
+        await userEvent.click(screen.getByRole("button", { name: "Project: My copy" }));
         const again = await screen.findByRole("textbox", { name: "Project name" });
-        assert.isNull(screen.queryByRole("menu"));
         // Esc abandons the rename and keeps the name.
         await userEvent.type(again, "Other{Escape}");
         assert.isNotNull(screen.getByRole("button", { name: "Project: My copy" }));
@@ -163,18 +234,46 @@ describe("the workspace frame", () => {
         renderWorkspace(OPEN, [...REGISTRATIONS, LATER]);
 
         await userEvent.keyboard("?");
-        const sheet = await screen.findByRole("region", { name: "Keyboard shortcuts" });
-        assert.isNotNull(within(sheet).getByText("Rename"));
-        assert.isNotNull(within(sheet).getByText("F2"));
+        const sheet = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+        // The project's Rename, and a style row's Rename and Delete, which act on the focused row.
+        assert.lengthOf(within(sheet).getAllByText("Rename"), 2);
+        assert.lengthOf(within(sheet).getAllByText("F2"), 2);
+        assert.isNotEmpty(within(sheet).getAllByText("Delete"));
         // A stub's key is not listed until its command is built.
         assert.isNull(within(sheet).queryByText("Later tool"));
+    });
+
+    it("shows the keyboard shortcuts in a centered dialog, one group at a time, scrolling only up and down", async () => {
+        renderWorkspace(OPEN, [...REGISTRATIONS, LATER]);
+
+        await userEvent.keyboard("?");
+        const dialog = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+        const groups = within(dialog).getByRole("grid", { name: "Shortcut groups" });
+        const names = within(groups)
+            .getAllByRole("gridcell")
+            .map((cell) => cell.textContent);
+        assert.strictEqual(names[0], "All");
+        assert.includeMembers(names, ["Project", "Selection"]);
+
+        await userEvent.click(within(groups).getByRole("gridcell", { name: "Project" }));
+        const shown = within(dialog).getByRole("region", { name: "Project" });
+        assert.deepEqual(
+            within(shown)
+                .getAllByRole("heading")
+                .map((heading) => heading.textContent),
+            ["Project"],
+        );
+        assert.strictEqual(shown.scrollWidth, shown.clientWidth);
+
+        await userEvent.keyboard("{Escape}");
+        assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
     });
 
     it("ignores single-key shortcuts when the reader switched them off", async () => {
         renderWorkspace({ ...OPEN, singleKeyShortcuts: false });
 
         await userEvent.keyboard("?");
-        assert.isNull(screen.queryByRole("region", { name: "Keyboard shortcuts" }));
+        assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
         // F2 is not a character key, so it still renames.
         await userEvent.keyboard("{F2}");
         assert.isNotNull(screen.getByRole("textbox", { name: "Project name" }));
@@ -185,7 +284,7 @@ describe("the workspace frame", () => {
 
         await userEvent.keyboard("{F2}");
         await userEvent.type(screen.getByRole("textbox", { name: "Project name" }), "?");
-        assert.isNull(screen.queryByRole("region", { name: "Keyboard shortcuts" }));
+        assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
     });
 
     it("shows the build stamp in Help > About", async () => {

@@ -4,7 +4,7 @@
  *
  * Box (3.1): 280 wide -- the same column as an activity panel, and NOT the 260 of the
  * earlier properties sidebar -- pinned to the right edge, `border-left: 1px solid`, column
- * flex, `overflow: hidden`. It takes the same 16 / 224 / 8 / 24 / 8 grid, the same
+ * flex. It takes the same 16 / 224 / 8 / 24 / 8 grid, the same
  * 24 px field and the same 32 px pitch. It is collapsible; the collapsed state is
  * remembered by the store (6.5) and the toggle lives both here and in the top bar.
  * The desktop drag is clamped by the store so the canvas never falls below 520 px.
@@ -23,94 +23,20 @@
  * component threads the latch through and holds no latch state itself.
  */
 
-import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+import { PANEL_GRID, PANEL_INK, ResizeHandle } from "@graphty/compact-mantine";
 import { Box } from "@mantine/core";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useState } from "react";
 
 import { CANVAS_MENU_Z_INDEX, INSPECTOR_MAX_WIDTH, INSPECTOR_MIN_WIDTH } from "../constants";
 import type { InspectorProps } from "../types";
 import {
     INSPECTOR_BORDER_WIDTH,
-    INSPECTOR_RESIZE_HANDLE_WIDTH,
-    INSPECTOR_RESIZE_KEYBOARD_STEP,
     kindTakesPin,
 } from "./inspectorConstants";
 import { InspectorStateProvider } from "./inspectorContext";
 import { InspectorHeader } from "./InspectorHeader";
 import { useInspectorPin } from "./inspectorState";
 import { PinnedCard } from "./PinnedCard";
-
-/**
- * The boundary between the canvas and the inspector, which the desktop drag grabs.
- */
-interface ResizeHandleProps {
-    readonly width: number;
-    readonly onWidthChange: (width: number) => void;
-}
-
-/**
- * Draws the resize boundary and turns a drag or an arrow press into a width request.
- *
- * It requests; it never clamps. The store owns the 520 px canvas clamp and hands back
- * the width the column actually takes.
- * @param props - the boundary's props.
- * @returns the boundary.
- */
-function InspectorResizeHandle(props: ResizeHandleProps): React.JSX.Element {
-    const { width, onWidthChange } = props;
-    const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-    return (
-        <Box
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize the inspector"
-            aria-valuenow={width}
-            aria-valuemin={INSPECTOR_MIN_WIDTH}
-            aria-valuemax={INSPECTOR_MAX_WIDTH}
-            tabIndex={0}
-            data-testid="inspector-resize-handle"
-            onPointerDown={(event) => {
-                dragRef.current = { startX: event.clientX, startWidth: width };
-                event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerMove={(event) => {
-                const drag = dragRef.current;
-
-                if (drag === null) {
-                    return;
-                }
-
-                // The column sits on the right edge, so dragging towards the canvas
-                // -- leftwards, a falling clientX -- widens it.
-                onWidthChange(drag.startWidth + (drag.startX - event.clientX));
-            }}
-            onPointerUp={(event) => {
-                dragRef.current = null;
-                event.currentTarget.releasePointerCapture(event.pointerId);
-            }}
-            onKeyDown={(event) => {
-                if (event.key === "ArrowLeft") {
-                    event.preventDefault();
-                    onWidthChange(width + INSPECTOR_RESIZE_KEYBOARD_STEP);
-                }
-
-                if (event.key === "ArrowRight") {
-                    event.preventDefault();
-                    onWidthChange(width - INSPECTOR_RESIZE_KEYBOARD_STEP);
-                }
-            }}
-            style={{
-                position: "absolute",
-                insetBlock: 0,
-                insetInlineStart: 0,
-                width: INSPECTOR_RESIZE_HANDLE_WIDTH,
-                cursor: "col-resize",
-                background: "transparent",
-            }}
-        />
-    );
-}
 
 /**
  * The part of the column that reads the pin, which is everything inside the provider.
@@ -237,7 +163,8 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
                 boxSizing: "border-box",
                 display: "flex",
                 flexDirection: "column",
-                overflow: "hidden",
+                // No clip here: the content scrolls in its own box, and a clip would cut the
+                // resize handle, which straddles this edge, down to its inner half.
                 borderInlineStart: `${INSPECTOR_BORDER_WIDTH}px solid ${PANEL_INK.BORDER}`,
                 background: PANEL_INK.PANEL,
             }}
@@ -245,7 +172,15 @@ export function Inspector(props: InspectorProps): React.JSX.Element | null {
             {/* Below 1280 px the column is an overlay and does not resize, so the
                 boundary is not drawn at all rather than drawn and inert. */}
             {!overlaid && onWidthChange !== undefined && (
-                <InspectorResizeHandle width={width} onWidthChange={onWidthChange} />
+                // The store clamps what this asks for, so the canvas keeps its minimum.
+                <ResizeHandle
+                    edge="start"
+                    value={width}
+                    min={INSPECTOR_MIN_WIDTH}
+                    max={INSPECTOR_MAX_WIDTH}
+                    onChange={onWidthChange}
+                    label="Resize the inspector"
+                />
             )}
 
             <InspectorStateProvider

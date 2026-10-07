@@ -1,6 +1,13 @@
 import "./data-page.css";
 
-import { DataTable, type DataTableColumn, SegmentedControl, StyleSelect } from "@graphty/compact-mantine";
+import {
+    DataTable,
+    type DataTableColumn,
+    Popout,
+    PopoutManager,
+    SegmentedControl,
+    StyleSelect,
+} from "@graphty/compact-mantine";
 import type { DraftRow, DraftTable, LoadDraft, LoadReport } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -13,7 +20,6 @@ import {
     Menu,
     NavLink,
     NumberInput,
-    Popover,
     Select,
     Stack,
     Text,
@@ -22,9 +28,9 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import { CircleCheck, CircleDashed, Plus } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     elementRole,
@@ -51,6 +57,12 @@ import {
     SEPARATORS,
     tooLargeRefusal,
 } from "./words";
+
+/** The URL / Paste entry pop-out's width. */
+const ENTRY_WIDTH = 280;
+
+/** The File settings pop-out's width. */
+const SETTINGS_WIDTH = 240;
 
 /** An open menu, list or popover keeps its own Esc. */
 const OPEN_OVERLAY = '[role="menu"], [role="dialog"], [role="listbox"]';
@@ -170,58 +182,60 @@ export function DataPage(): React.JSX.Element {
     };
 
     return (
-        <section
-            className="dp"
-            aria-label="Data page"
-            onDragOver={(event) => {
-                event.preventDefault();
-            }}
-            onDrop={(event) => {
-                event.preventDefault();
-                addFiles([...event.dataTransfer.files], true);
-            }}
-        >
-            <input
-                ref={fileInput}
-                type="file"
-                multiple
-                hidden
-                data-testid="data-page-file-input"
-                onChange={(event) => {
-                    addFiles([...(event.currentTarget.files ?? [])], joining.current);
-                    event.currentTarget.value = "";
+        <PopoutManager>
+            <section
+                className="dp"
+                aria-label="Data page"
+                onDragOver={(event) => {
+                    event.preventDefault();
                 }}
-            />
-            <header className="dp-header">
-                <Title order={1} size="h4">
-                    {title}
-                </Title>
-            </header>
-            <div className="dp-body">
-                <TablesList
-                    page={page}
-                    onChooseFiles={() => {
-                        chooseFiles(true);
+                onDrop={(event) => {
+                    event.preventDefault();
+                    addFiles([...event.dataTransfer.files], true);
+                }}
+            >
+                <input
+                    ref={fileInput}
+                    type="file"
+                    multiple
+                    hidden
+                    data-testid="data-page-file-input"
+                    onChange={(event) => {
+                        addFiles([...(event.currentTarget.files ?? [])], joining.current);
+                        event.currentTarget.value = "";
                     }}
                 />
-                <section className="dp-main" aria-label="Table">
-                    <MainView
+                <header className="dp-header">
+                    <Title order={1} size="h4">
+                        {title}
+                    </Title>
+                </header>
+                <div className="dp-body">
+                    <TablesList
                         page={page}
                         onChooseFiles={() => {
-                            chooseFiles(false);
+                            chooseFiles(true);
                         }}
                     />
-                </section>
-            </div>
-            <MatchReport page={page} />
-            <Footer
-                page={page}
-                onCancel={cancel}
-                onLoad={() => {
-                    void load();
-                }}
-            />
-        </section>
+                    <section className="dp-main" aria-label="Table">
+                        <MainView
+                            page={page}
+                            onChooseFiles={() => {
+                                chooseFiles(false);
+                            }}
+                        />
+                    </section>
+                </div>
+                <MatchReport page={page} />
+                <Footer
+                    page={page}
+                    onCancel={cancel}
+                    onLoad={() => {
+                        void load();
+                    }}
+                />
+            </section>
+        </PopoutManager>
     );
 }
 
@@ -239,6 +253,7 @@ interface PartProps {
  */
 function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
     const [entry, setEntry] = useState<"url" | "paste" | null>(null);
+    const addButton = useRef<HTMLButtonElement>(null);
     const { draft } = page;
     return (
         <section className="dp-tables" aria-label="Tables">
@@ -246,57 +261,61 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 <Text size="xs" fw={600}>
                     Tables
                 </Text>
-                <Popover
+                <Menu position="bottom-start">
+                    <Menu.Target>
+                        <Tooltip label="Add a table">
+                            <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
+                                <GLYPHS.add size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                        <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
+                        <Menu.Item
+                            onClick={() => {
+                                setEntry("url");
+                            }}
+                        >
+                            From a URL...
+                        </Menu.Item>
+                        <Menu.Item
+                            onClick={() => {
+                                setEntry("paste");
+                            }}
+                        >
+                            Paste...
+                        </Menu.Item>
+                    </Menu.Dropdown>
+                </Menu>
+                {/* Opened from the menu, so there is no Popout.Trigger: the panel docks to "+". */}
+                <Popout
                     opened={entry !== null}
-                    onChange={(open) => {
+                    onOpenChange={(open) => {
                         if (!open) {
                             setEntry(null);
                         }
                     }}
-                    position="right-start"
                 >
-                    <Popover.Target>
-                        <span>
-                            <Menu position="bottom-start">
-                                <Menu.Target>
-                                    <Tooltip label="Add a table">
-                                        <ActionIcon variant="subtle" size="sm" aria-label="Add a table">
-                                            <Plus size={14} aria-hidden />
-                                        </ActionIcon>
-                                    </Tooltip>
-                                </Menu.Target>
-                                <Menu.Dropdown>
-                                    <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
-                                    <Menu.Item
-                                        onClick={() => {
-                                            setEntry("url");
-                                        }}
-                                    >
-                                        From a URL...
-                                    </Menu.Item>
-                                    <Menu.Item
-                                        onClick={() => {
-                                            setEntry("paste");
-                                        }}
-                                    >
-                                        Paste...
-                                    </Menu.Item>
-                                </Menu.Dropdown>
-                            </Menu>
-                        </span>
-                    </Popover.Target>
-                    <Popover.Dropdown>
-                        {entry === null ? null : (
-                            <EntryForm
-                                kind={entry}
-                                onDone={(source) => {
-                                    setEntry(null);
-                                    page.setSource(source);
-                                }}
-                            />
-                        )}
-                    </Popover.Dropdown>
-                </Popover>
+                    <Popout.Panel
+                        width={ENTRY_WIDTH}
+                        header={{ variant: "title", title: entry === "paste" ? "Paste" : "From a URL" }}
+                        anchorX={addButton}
+                        anchorY={addButton}
+                        placement="right"
+                    >
+                        <Popout.Content>
+                            {entry === null ? null : (
+                                <EntryForm
+                                    kind={entry}
+                                    onDone={(source) => {
+                                        setEntry(null);
+                                        page.setSource(source);
+                                    }}
+                                />
+                            )}
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
             </Group>
             {draft === null || page.source === null ? null : <TableRows page={page} draft={draft} />}
         </section>
@@ -347,9 +366,9 @@ function tablesReady(page: LoadDraftState): boolean {
  */
 function ReadyMark({ ready }: { ready: boolean }): React.JSX.Element {
     return ready ? (
-        <CircleCheck size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />
+        <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />
     ) : (
-        <CircleDashed size={14} role="img" aria-label="Not ready" />
+        <GLYPHS.empty size={14} role="img" aria-label="Not ready" />
     );
 }
 
@@ -403,7 +422,7 @@ function EntryForm({
                 }
             }}
         >
-            <Stack gap="xs" w={280}>
+            <Stack gap="xs">
                 {kind === "url" ? (
                     <TextInput
                         label="Address"
@@ -624,61 +643,70 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
     const named = type === "csv" && separator !== undefined ? `, ${separator.toLowerCase()}` : "";
     const line = type === undefined ? "File settings" : formatName(type) + named;
     return (
-        <Popover position="bottom-start" withinPortal>
-            <Popover.Target>
+        <Popout>
+            <Popout.Trigger>
                 <Button variant="default" size="xs" aria-label={`File settings: ${line}`}>
                     {line}
                     {settings.type === undefined && draft !== null ? <span className="dp-auto">auto</span> : null}
                 </Button>
-            </Popover.Target>
-            <Popover.Dropdown>
-                <Stack gap="xs" w={220}>
-                    <Select
-                        label="Format"
-                        // Its list opens inside the popover, so a pick is not a click outside it.
-                        comboboxProps={{ withinPortal: false }}
-                        size="xs"
-                        data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
-                        value={settings.type ?? ""}
-                        allowDeselect={false}
-                        onChange={(value) => {
-                            page.setSettings({ ...settings, type: value === null || value === "" ? undefined : value });
-                        }}
-                    />
-                    {type === "csv" ? (
+            </Popout.Trigger>
+            <Popout.Panel
+                width={SETTINGS_WIDTH}
+                header={{ variant: "title", title: "File settings" }}
+                placement="bottom"
+            >
+                <Popout.Content>
+                    <Stack gap="xs">
                         <Select
-                            label="Separator"
+                            label="Format"
+                            // Its list opens inside the popover, so a pick is not a click outside it.
                             comboboxProps={{ withinPortal: false }}
                             size="xs"
-                            data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
-                            value={settings.delimiter ?? ""}
+                            data={[{ value: "", label: "Auto" }, ...READABLE_FORMATS]}
+                            value={settings.type ?? ""}
                             allowDeselect={false}
                             onChange={(value) => {
                                 page.setSettings({
                                     ...settings,
-                                    delimiter: value === null || value === "" ? undefined : value,
+                                    type: value === null || value === "" ? undefined : value,
                                 });
                             }}
                         />
-                    ) : null}
-                    <NumberInput
-                        label="Error limit"
-                        description="Bad rows read past before the file is refused"
-                        size="xs"
-                        min={0}
-                        allowDecimal={false}
-                        placeholder="100"
-                        value={settings.errorLimit ?? ""}
-                        onChange={(value) => {
-                            page.setSettings({
-                                ...settings,
-                                errorLimit: typeof value === "number" ? value : undefined,
-                            });
-                        }}
-                    />
-                </Stack>
-            </Popover.Dropdown>
-        </Popover>
+                        {type === "csv" ? (
+                            <Select
+                                label="Separator"
+                                comboboxProps={{ withinPortal: false }}
+                                size="xs"
+                                data={SEPARATORS.map(({ value, label }) => ({ value, label }))}
+                                value={settings.delimiter ?? ""}
+                                allowDeselect={false}
+                                onChange={(value) => {
+                                    page.setSettings({
+                                        ...settings,
+                                        delimiter: value === null || value === "" ? undefined : value,
+                                    });
+                                }}
+                            />
+                        ) : null}
+                        <NumberInput
+                            label="Error limit"
+                            description="Bad rows read past before the file is refused"
+                            size="xs"
+                            min={0}
+                            allowDecimal={false}
+                            placeholder="100"
+                            value={settings.errorLimit ?? ""}
+                            onChange={(value) => {
+                                page.setSettings({
+                                    ...settings,
+                                    errorLimit: typeof value === "number" ? value : undefined,
+                                });
+                            }}
+                        />
+                    </Stack>
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
     );
 }
 

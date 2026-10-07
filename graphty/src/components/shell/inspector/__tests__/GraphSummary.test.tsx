@@ -292,6 +292,21 @@ describe("GraphSummary", () => {
             expect(screen.getByRole("button", { name: "Export schema JSON" })).toBeInTheDocument();
         });
 
+        it("draws no export or type verbs when the caller passes no handler for them", () => {
+            renderSummary({
+                onExportTop: undefined,
+                onExportRanked: undefined,
+                onExportSchemaJson: undefined,
+                onFilterToType: undefined,
+                onSelectAllOfType: undefined,
+            });
+
+            expect(screen.queryByRole("button", { name: "Export schema JSON" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Filter to type" })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Select all of type" })).toBeNull();
+            expect(screen.queryByTestId("most-connected-export")).toBeNull();
+        });
+
         it("names the gear that opens the 480 report", () => {
             renderSummary({
                 schema: { ...defaultProps.schema, completeness: [{ name: "cat", count: "100%" }] },

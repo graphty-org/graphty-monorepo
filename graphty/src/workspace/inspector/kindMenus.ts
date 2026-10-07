@@ -1,0 +1,17 @@
+import type { InspectedKindId } from "./inspected";
+
+/**
+ * The commands each kind's "..." holds (tier1-design.md section 2.7), the same list as its
+ * context menu. A command another package has not built is left out, and a kind with none draws
+ * no "..." (Selection, Everything, a group row).
+ */
+export const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
+    graph: ["layout.rerun", "layout.reshuffle"],
+    node: ["selection.neighborhood", "view.frame-selection"],
+    edge: ["view.frame-selection"],
+    several: ["selection.neighborhood", "view.frame-selection"],
+    neighborhood: ["selection.grow-neighborhood", "view.frame-selection"],
+    "measure-row": ["row.move-up", "row.move-down", "row.delete"],
+    "run-row": ["row.move-up", "row.move-down", "row.delete"],
+    "layer-row": ["row.rename", "row.move-up", "row.move-down", "row.delete"],
+};

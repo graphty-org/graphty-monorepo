@@ -9,6 +9,7 @@ import {
 } from "@babylonjs/core";
 
 import { type Graph, operationQueueOf } from "../Graph.js";
+import { downloadBlob } from "../utils/download.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
@@ -249,7 +250,7 @@ export class ScreenshotCapture {
                 let downloaded = false;
                 if (destinations.download) {
                     try {
-                        this.downloadBlob(blob, finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`);
+                        downloadBlob(blob, finalOptions.downloadFilename ?? `graph-${Date.now()}.${format}`);
                         downloaded = true;
                     } catch {
                         // Download failed, but we continue
@@ -554,24 +555,6 @@ export class ScreenshotCapture {
 
             img.src = imgUrl;
         });
-    }
-
-    /**
-     * Downloads a Blob as a file using a temporary anchor element.
-     * Creates an object URL, triggers a click on a download link, then cleans up.
-     * @param blob - The Blob to download
-     * @param filename - The filename for the downloaded file
-     * @internal
-     */
-    private downloadBlob(blob: Blob, filename: string): void {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
     }
 
     /**

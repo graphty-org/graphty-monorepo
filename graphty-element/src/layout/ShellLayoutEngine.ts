@@ -3,6 +3,7 @@ import { shell } from "@graphty/layout";
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { groupRows } from "./groupBy";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
@@ -10,11 +11,19 @@ import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./Sn
  * Zod-based options schema for Shell Layout
  */
 const shellLayoutOptionsSchema = defineOptions({
+    groupBy: {
+        schema: z.string().nullable().default(null),
+        meta: {
+            label: "Group By",
+            description: "The node attribute or result field whose values name each node's group",
+        },
+    },
     scalingFactor: {
         schema: z.number().min(1).max(1000).default(100),
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -37,6 +46,7 @@ const shellLayoutOptionsSchema = defineOptions({
 const ShellLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
     nlist: z.array(z.array(z.number())).or(z.null()).default(null),
+    groupBy: z.string().nullable().default(null),
     dim: z.number().default(2),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     scale: z.number().positive().default(1),
@@ -94,13 +104,19 @@ export class ShellLayout extends SnapshotLayoutEngine {
      * @returns the coordinates, in scene units
      */
     protected compute(input: SnapshotLayoutInput): F32 {
-        const { nlist } = this.config;
+        const { nlist, groupBy } = this.config;
+        let rings: number[][] | undefined;
+        if (groupBy !== null) {
+            const { groups, ungrouped } = groupRows(input, ShellLayout.type);
+            rings = ungrouped.length > 0 ? [...groups, [...ungrouped]] : [...groups];
+        } else {
+            // A node a shell names that the graph does not hold has nowhere to be drawn.
+            rings = nlist?.map((shell) => shell.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX));
+        }
+
         return sceneUnits(
             shell(input.graph, {
-                // A node a shell names that the graph does not hold has nowhere to be drawn.
-                nlist: nlist?.map((shell) =>
-                    shell.map((id) => this.rowOfId(id)).filter((row) => row !== INVALID_INDEX),
-                ),
+                nlist: rings,
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
                 dim: layoutDim(this.config.dim),

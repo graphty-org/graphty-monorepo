@@ -1,16 +1,17 @@
-import { AlignmentMatrix, FieldRow } from "@graphty/compact-mantine";
+import { AlignmentMatrix, FieldRow, Popout, PopoutButton } from "@graphty/compact-mantine";
 import type { Channel, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Popover, Stack, Text, Tooltip } from "@mantine/core";
-import { Minus, Plus } from "lucide-react";
+import { ActionIcon, Button, Checkbox, Group, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FromDataList } from "./FromDataList";
 import {
     type DataChoice,
     type Line,
     lineOf,
+    type NewLayer,
     propose,
     readsNothing,
     removeLine,
@@ -30,11 +31,16 @@ interface LabelSectionProps {
     row: readonly LayerId[];
     /** The row's layers on this side, bottom first. */
     layers: readonly Layer[];
+    /** The layer the row's first edit adds, when it is not the Everything row. */
+    fresh?: NewLayer;
 }
 
 /** Why the Label "+" adds nothing now, or null when it adds a line. */
 const ONE_LINE = "One label line per row for now";
 const PICK_FIRST = "Pick an attribute for the new label line first";
+
+/** The width of the label line's pop-outs, as wide as the panel's own rows. */
+const POPOUT_WIDTH = 248;
 
 /** The label channel and its style channel, by target. */
 const CHANNELS = {
@@ -87,9 +93,10 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
  * @param props.target - nodes or edges
  * @param props.row - the row's layers
  * @param props.layers - the row's layers on this side
+ * @param props.fresh - the layer the row's first edit adds, when it is not the Everything row
  * @returns The section
  */
-export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps>): React.JSX.Element | null {
+export function LabelSection({ target, row, layers, fresh }: Readonly<LabelSectionProps>): React.JSX.Element | null {
     const { session, element, store } = useWorkspace();
     const [empty, setEmpty] = useState(false);
     const [listOpen, setListOpen] = useState(false);
@@ -104,7 +111,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
         store.set({ notice: { message: "The label could not be changed" } });
     };
     const writeStyle = (change: LabelStyle): void => {
-        writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }).catch(fail);
+        writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }, fresh).catch(fail);
     };
     const pick = (choice: DataChoice): void => {
         setListOpen(false);
@@ -113,7 +120,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
             setEmpty(false);
             // The list closes and the line is redrawn bound; focus goes to the line, not the body.
             focusLineNext(channel, true);
-            writeLine(session, row, target, channel, { binding: proposal.binding }).catch(() => {
+            writeLine(session, row, target, channel, { binding: proposal.binding }, fresh).catch(() => {
                 focusLineNext(null);
                 fail();
             });
@@ -162,7 +169,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                         data-disabled={blocked === null ? undefined : true}
                         onClick={add}
                     >
-                        <Plus size={14} aria-hidden />
+                        <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             </Group>
@@ -266,49 +273,57 @@ function LabelLine({
             trailing={
                 <Tooltip label="Remove label line">
                     <ActionIcon variant="subtle" size="sm" aria-label="Remove label line" onClick={remove}>
-                        <Minus size={14} aria-hidden />
+                        <GLYPHS.remove size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             }
         >
             <Group gap={4} wrap="nowrap">
-                <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
-                    <Popover.Target>
+                <Popout opened={positionOpen} onOpenChange={setPositionOpen}>
+                    <Popout.Trigger>
+                        {/* The Tooltip passes the trigger's click and ref to the button, but not
+                            its ARIA, so the button states its own. */}
                         <Tooltip label="Label position">
-                            <ActionIcon
-                                variant="default"
-                                size="sm"
+                            <PopoutButton
+                                icon={
+                                    <Text size="xs" component="span">
+                                        Aa
+                                    </Text>
+                                }
                                 aria-label="Label position"
-                                onClick={() => {
-                                    setPositionOpen(!positionOpen);
-                                }}
-                            >
-                                <Text size="xs" component="span">
-                                    Aa
-                                </Text>
-                            </ActionIcon>
+                                aria-haspopup="dialog"
+                                aria-expanded={positionOpen}
+                            />
                         </Tooltip>
-                    </Popover.Target>
-                    <Popover.Dropdown>
-                        <AlignmentMatrix
-                            label="Label position"
-                            value={cellOfLocation(location)}
-                            onChange={(cell) => {
-                                onLocation(locationOfCell(cell));
-                            }}
-                        />
-                    </Popover.Dropdown>
-                </Popover>
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={POPOUT_WIDTH}
+                        placement="left"
+                        alignment="start"
+                        header={{ variant: "title", title: "Label position" }}
+                    >
+                        <Popout.Content>
+                            <AlignmentMatrix
+                                label="Label position"
+                                value={cellOfLocation(location)}
+                                onChange={(cell) => {
+                                    onLocation(locationOfCell(cell));
+                                }}
+                            />
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
                 <Text size="xs" truncate>
                     {position}
                 </Text>
             </Group>
-            <Popover opened={listOpen} onChange={onListOpen} position="left-start" trapFocus>
-                <Popover.Target>
+            <Popout opened={listOpen} onOpenChange={onListOpen}>
+                <Popout.Trigger>
+                    {/* A boxed field, as the other values are. */}
                     <Button
                         size="compact-xs"
-                        variant="subtle"
-                        color={line === undefined ? "gray" : "dark"}
+                        variant="default"
+                        c={line === undefined ? "dimmed" : undefined}
                         fullWidth
                         justify="flex-start"
                         aria-label={
@@ -316,14 +331,16 @@ function LabelLine({
                                 ? `Label, ${position}: no attribute, draws nothing`
                                 : `Label, ${position}: ${reads ?? ""}`
                         }
-                        onClick={() => {
-                            onListOpen(!listOpen);
-                        }}
                     >
                         {line === undefined ? "Pick an attribute" : `Abc ${reads ?? ""}`}
                     </Button>
-                </Popover.Target>
-                <Popover.Dropdown p={0}>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: "Label" }}
+                >
                     <FromDataList
                         target={target}
                         channel={channel}
@@ -333,8 +350,8 @@ function LabelLine({
                             onListOpen(false);
                         }}
                     />
-                </Popover.Dropdown>
-            </Popover>
+                </Popout.Panel>
+            </Popout>
         </FieldRow>
     );
 }

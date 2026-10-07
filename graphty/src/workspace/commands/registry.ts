@@ -55,6 +55,12 @@ export interface Command {
      * modifier is a single-key shortcut, which the reader can switch off (WCAG 2.1.4).
      */
     readonly keys?: readonly string[];
+    /**
+     * Keys that run it on the focused row of the paint tree, for the row: listed with the other
+     * keys, but bound by the tree rather than window-wide, so one may repeat a window key (F2
+     * renames the project anywhere else).
+     */
+    readonly rowKeys?: readonly string[];
     /** Extra words Quick actions matches ("field", "column"). */
     readonly keywords?: readonly string[];
     /** A tooltip sentence, where the label alone is not enough. */
@@ -108,10 +114,11 @@ export function stubCommands(commands: readonly Omit<Command, "run" | "stub">[])
 }
 
 /**
- * The File list, shared word for word by the main menu and the project-name menu
- * (tier1-design.md section 2.1). Each is registered by the package that owns it.
+ * The File list: what the main menu offers for the open project, after its ways to open one
+ * (tier1-design.md section 2.1). Drawn once, in the main menu, and left out of the start
+ * screen's copy. Each is registered by the package that owns it.
  */
-export const FILE_LIST = ["file.open", "project.save", "file.export"] as const;
+export const FILE_LIST = ["project.save", "project.save-as", "project.save-copy", "file.export"] as const;
 
 /**
  * Every command id the tier 1 design needs, by owning package. A package that drops one fails
@@ -141,14 +148,15 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
         "view.toggle-dimension",
         "quick-actions.open",
         "selection.neighborhood",
+        "selection.grow-neighborhood",
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],
-    "graph-place": ["find.focus"],
+    "graph-place": ["find.focus", "row.rename", "row.move-up", "row.move-down", "row.delete"],
     style: ["style.add-label-line"],
     table: ["table.toggle"],
     export: ["file.export"],
-    project: ["project.save", "project.save-as", "project.close"],
+    project: ["project.save", "project.save-as", "project.save-copy", "project.close"],
 };
 
 /** The commands, looked up and listed. */

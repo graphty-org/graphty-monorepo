@@ -190,11 +190,24 @@ export const KNOWN_LAYOUT_IDS = [
 export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
 
 /**
+ * The built-in layout names kept only as aliases, and removed at the next major release.
+ *
+ * `force-2d` is the `force` layout drawn by its two-dimensional `arf` engine: asking for it sets
+ * layout `force` with engine `arf`, which is what `session.layout` then reports. It is no longer
+ * in `catalog.layouts()`. The name stays in {@link KNOWN_LAYOUT_IDS}, so no plugin can claim it and
+ * no code that names it stops compiling.
+ */
+export const DEPRECATED_LAYOUT_IDS = ["force-2d"] as const satisfies readonly (typeof KNOWN_LAYOUT_IDS)[number][];
+
+/**
  * The built-in file formats.
  *
  * "sif" and "cx2" are deprecated: no data source reads them (see `UNSERVED_FORMAT_IDS`, and issues
  * #306 and #307). A load that names either fails with that reason. Both are removed at the next
  * major release unless a reader lands first.
+ *
+ * "graphty" is the project file (Graphty JSON): written by `exportGraph("graphty")` and read by
+ * `session.project.open`, never by `session.data.import`.
  */
 export const KNOWN_FORMAT_IDS = [
     "json",
@@ -210,7 +223,26 @@ export const KNOWN_FORMAT_IDS = [
     "cx",
     "cys",
     "obo",
+    "graphty",
 ] as const;
+
+/**
+ * How a project file is named and typed: what `element.downloadProject()` gives the file, and
+ * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
+ * @example
+ * ```typescript
+ * const handle = await showSaveFilePicker({
+ *     suggestedName: projectFileName(session.project.name),
+ *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
+ * });
+ * ```
+ */
+export const PROJECT_FILE = Object.freeze({
+    /** The file name's ending, with its leading dot. */
+    extension: ".graphty.json",
+    /** The file's media type. */
+    mediaType: "application/vnd.graphty+json",
+} as const);
 
 /**
  * A format id: a built-in name, or a plugin's.
@@ -794,6 +826,31 @@ export interface FormatDescriptor {
      * here is refused with `E_UNKNOWN_OPTION`.
      */
     writerOptions?: readonly OptionDescriptor[];
+    /**
+     * The distinct file types the writer produces, when it produces more than one: JSON's seven
+     * graph shapes, CSV's plain, Gephi and Neo4j tables. A picker can offer one entry per variant
+     * and call `exportGraph(format.id, { ...variant.preset, ...values })`. Absent when the format
+     * writes one kind of file.
+     */
+    exportVariants?: readonly FormatExportVariant[];
+    /** What the format is for, when its name does not say, such as which call reads it. */
+    description?: string;
+}
+
+/** One kind of file a format's writer produces: a format id plus the writer options that fix it. */
+export interface FormatExportVariant {
+    /** Unique within its format. */
+    id: string;
+    plainName: string;
+    extensions: readonly string[];
+    mimeTypes: readonly string[];
+    /** The writer options this variant fixes, passed to `exportGraph` unchanged. */
+    preset: Readonly<Record<string, unknown>>;
+    /**
+     * The writer options that apply to this variant: the format's `writerOptions` without the
+     * preset's keys and without anything that applies only to another variant.
+     */
+    options: readonly OptionDescriptor[];
 }
 
 /** One colour palette. */

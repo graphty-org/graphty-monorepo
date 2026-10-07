@@ -3,7 +3,7 @@ import { assert, describe, it } from "vitest";
 import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { tabFor } from "../../state/store";
-import { groupKey, INSPECTED_KINDS, nodeKey, resolveInspected } from "../inspected";
+import { groupKey, INSPECTED_KINDS, neighborhoodKey, nodeKey, resolveInspected } from "../inspected";
 
 const NOTHING = { nodes: [], edges: [] };
 
@@ -30,6 +30,13 @@ describe("what the inspector shows", () => {
         assert.deepEqual(resolveInspected({ kind: "neighborhood", id: nodeKey(7) }, selection), {
             kind: "neighborhood",
             node: 7,
+            hops: 1,
+        });
+        // Grown by a hop, the row carries how far out it reaches.
+        assert.deepEqual(resolveInspected({ kind: "neighborhood", id: neighborhoodKey(7, 2) }, selection), {
+            kind: "neighborhood",
+            node: 7,
+            hops: 2,
         });
         assert.deepEqual(resolveInspected({ kind: "attribute", id: "data.age" }, selection), {
             kind: "attribute",
@@ -47,6 +54,7 @@ describe("what the inspector shows", () => {
         assert.deepEqual(resolveInspected({ kind: "neighborhood", id: nodeKey("1") }, NOTHING), {
             kind: "neighborhood",
             node: "1",
+            hops: 1,
         });
     });
 

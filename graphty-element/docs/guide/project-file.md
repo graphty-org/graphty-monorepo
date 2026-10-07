@@ -45,6 +45,13 @@ openInput.addEventListener("change", () => {
   [save report](#saving-without-a-download), whose `leftOut` lists a run still computing, which
   the file does not hold. It rejects only as `project.save()` does, with `E_BAD_COMMAND` for an
   `extensions` name or value it cannot store.
+- **`element.downloadGraph(format, options)`** hands the reader a copy instead of saving: it
+  writes the graph as `exportGraph(format, options)` does and downloads it as
+  `<project name><the format's first extension>`, such as `Pioneers.graphml`. Pass
+  `downloadGraph("graphty")` for a copy of the project file. It never changes `dirty` -- a copy
+  is not a save -- which is the one difference from `downloadProject`, which always does. It
+  takes `{ fileName }` too, and resolves to the export, whose `lossNotes` list what the format
+  could not hold.
 - **`project.open(file)`** takes the `File` (or any `Blob`), its bytes, or its text. It never
   takes a URL: nothing is fetched. Opening a project replaces what the session holds and starts a
   fresh undo history. It also opens any data file, so one "Open..." button serves both (see
@@ -153,6 +160,37 @@ const handle = await window.showSaveFilePicker({
 
 Both come from `@graphty/graphty-element/session`, which loads in Node, and from the main entry.
 
+## Keeping projects in the browser
+
+Where there is no file system to save to -- a tablet, a kiosk -- keep projects in the browser's
+own storage (IndexedDB) with `browserProjects`:
+
+```typescript
+import { browserProjects } from "@graphty/graphty-element/session";
+
+const stored = await browserProjects.save(element.session); // { id, name, savedAt, nodes, edges }
+const file = await browserProjects.get(stored.id);
+if (file) await element.session.project.open(file, { discard: true });
+```
+
+- **`save(session, { id })`** stores the whole project, exactly as `project.save()` writes it.
+  `dirty` clears only once the browser has committed the write, so a failed write leaves the
+  project dirty. Pass the `id` of a stored project to replace it; without one, every save is a new
+  entry.
+- **`list()`** returns every stored project, newest first, as `{ id, name, savedAt, nodes, edges }`:
+  `savedAt` is milliseconds since the epoch and `name` is null for an unnamed project. It never
+  reads a project's contents, so it stays quick however large the projects are.
+- **`get(id)`** returns the project as a `File` named by `projectFileName`, ready for
+  `project.open`, or `undefined` when nothing is stored under that id. **`remove(id)`** deletes one.
+- **`persisted()`** resolves true when the browser has promised to keep this site's storage, and
+  false when it has not or cannot say. Browsers may clear storage that is not kept -- Safari does
+  after seven days without a visit -- so when it is false, tell your reader to save a copy of any
+  project they need with `downloadProject`. The first `save` asks the browser to keep the storage.
+
+Every method except `persisted` rejects with a `GraphtyError`: `E_UNSUPPORTED` when the browser
+has no usable IndexedDB (and always in Node), and `E_TOO_LARGE` from `save` when the site's
+storage is full. The projects live in the database `graphty-projects`, one per origin.
+
 ## The name and unsaved changes
 
 ```typescript
@@ -165,6 +203,11 @@ A file with no name of its own takes the file's name without `.graphty.json`.
 
 `dirty` follows the undo history: undoing back to the point of the last save makes it false again.
 The selection and your extensions never set it.
+
+The first `data.import` into a new session -- one with no undo history that was never saved or
+opened -- is where the project starts, so a graph read from a sample or a file leaves `dirty`
+false and a page can leave it without asking. The import is still an undoable step: undoing it
+sets `dirty`. Every later import sets it, like any other change.
 
 ## What did not come back
 

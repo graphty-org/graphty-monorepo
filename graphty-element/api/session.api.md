@@ -157,6 +157,23 @@ export type Binding = {
 export type BindingOverflow = "other" | "shape" | "extend";
 
 // @public
+export interface BrowserProjects {
+    get(id: string): Promise<File | undefined>;
+    list(): Promise<StoredProject[]>;
+    persisted(): Promise<boolean>;
+    remove(id: string): Promise<void>;
+    save(session: GraphSession, options?: BrowserProjectSaveOptions): Promise<StoredProject>;
+}
+
+// @public
+export const browserProjects: BrowserProjects;
+
+// @public
+export interface BrowserProjectSaveOptions {
+    readonly id?: string;
+}
+
+// @public
 export interface Capabilities {
     readonly acceleration: AccelerationStatus;
     readonly calibration: CalibrationRecord | null;
@@ -248,6 +265,7 @@ export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]
 // @public
 export interface CommandOutcomeMap {
     "algo.legacy": Promise<void>;
+    "algo.move": Promise<void>;
     "algo.remove": Promise<RunRemoval>;
     "algo.run": Run;
     "config.set": Promise<void>;
@@ -704,7 +722,7 @@ export interface GraphSession {
     acceleration: AccelerationPolicy;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
-    readonly capabilities: AccelerationCapabilities;
+    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     readonly catalog: SessionCatalogApi;
     readonly config: SessionConfig;
     readonly data: SessionDataApi;
@@ -2598,6 +2616,9 @@ export interface RunsApi {
     bindings(id: RunId): readonly LayerId[];
     get(id: RunId): Run | undefined;
     list(): readonly Run[];
+    move(id: RunId, before: LayerId | null, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<void>;
     painting(id: RunId): RunPainting | undefined;
     readonly queue: readonly QueueEntry[];
     remove(id: RunId): RunRemoval;
@@ -2875,7 +2896,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -2939,7 +2960,7 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 // @public
 export interface SessionEventMap {
     "capabilities:changed": {
-        readonly capabilities: AccelerationCapabilities;
+        readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
@@ -2992,6 +3013,7 @@ export interface SessionHistory {
 
 // @public
 export interface SessionLayout {
+    readonly arrangedDimension: "2d" | "3d";
     readonly dimension: "2d" | "3d";
     readonly engine: string;
     readonly id: LayoutId;
@@ -3270,6 +3292,15 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export interface StoredProject {
+    readonly edges: number;
+    readonly id: string;
+    readonly name: string | null;
+    readonly nodes: number;
+    readonly savedAt: number;
+}
+
+// @public
 export interface StyleChange {
     readonly cause: HistoryCause;
     readonly layers: readonly LayerId[];
@@ -3509,9 +3540,17 @@ export interface WorkerCapability {
 
 // @public
 export interface XrCapability {
+    readonly active: "vr" | "ar" | null;
     readonly ar: boolean;
+    readonly reasons: {
+        readonly vr: XrUnavailableReason | null;
+        readonly ar: XrUnavailableReason | null;
+    };
     readonly vr: boolean;
 }
+
+// @public
+export type XrUnavailableReason = "no-webxr" | "insecure-context" | "unsupported" | "webgpu-renderer" | "disabled" | "probing";
 
 // (No @packageDocumentation comment for this package)
 

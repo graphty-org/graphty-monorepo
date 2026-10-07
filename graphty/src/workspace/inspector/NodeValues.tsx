@@ -1,4 +1,4 @@
-import { ControlSection, DataRow, DataRowHeader } from "@graphty/compact-mantine";
+import { ControlSection, DataRow, DataRowHeader, PANEL_GRID, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, NodeId, SelectionAttributeStatistics } from "@graphty/graphty-element/session";
 import { Button, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
-import { finishedRuns, openNeighborhood, selectNode, takeNodeValuesFocus } from "./reads";
+import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
 import { count, formatNumber, groupName, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
@@ -87,7 +87,7 @@ function fileAttributes(
  * @returns The tab
  */
 export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+    const { session, store, run: runCommand } = useWorkspace();
     const degree = useRef<HTMLDivElement>(null);
     const summary = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -141,8 +141,9 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                         <DataRow
                             name="Degree"
                             value={connections}
+                            trailing={<UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />}
                             onClick={() => {
-                                void openNeighborhood(session, store, id);
+                                runCommand("selection.neighborhood");
                             }}
                         />
                     </div>
@@ -171,12 +172,16 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
  * tie value, strongest first, read whole from graphty-element's `data.neighbors()`. Each name
  * selects that node; Esc returns to the node at the center.
  *
+ * Grown past one hop, it lists the selected nodes other than the center instead: "17 nodes
+ * within 2 hops of 1".
+ *
  * The heading names the center by its id until graphty-element publishes a node's name (#895).
  * @param props - Component props
  * @param props.center - The node at the center
+ * @param props.hops - How many hops out the neighborhood reaches
  * @returns The list
  */
-export function NeighborList({ center }: Readonly<{ center: NodeId }>): React.JSX.Element | null {
+export function NeighborList({ center, hops = 1 }: Readonly<{ center: NodeId; hops?: number }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const heading = useRef<HTMLElement>(null);
     // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
@@ -198,9 +203,29 @@ export function NeighborList({ center }: Readonly<{ center: NodeId }>): React.JS
         return () => {
             region.removeEventListener("keydown", onKeyDown);
         };
-    }, [center, session]);
+    }, [center, hops, session]);
     if (session === null) {
         return null;
+    }
+    if (hops > 1) {
+        const around = session.selection.nodes.filter((node) => node !== center);
+        const words = `${count(around.length, "node")} within ${String(hops)} hops of ${String(center)}`;
+        return (
+            <section ref={heading} tabIndex={-1} aria-label={words}>
+                <Text size="xs" fw={600} px="md" py={6}>
+                    {words}
+                </Text>
+                {around.map((node) => (
+                    <DataRow
+                        key={nodeKey(node)}
+                        name={String(node)}
+                        onClick={() => {
+                            selectNode(session, node);
+                        }}
+                    />
+                ))}
+            </section>
+        );
     }
     let page;
     try {

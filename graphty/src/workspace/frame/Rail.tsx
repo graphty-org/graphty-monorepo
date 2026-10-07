@@ -1,7 +1,7 @@
 import { NavRail, RailButton } from "@graphty/compact-mantine";
-import { Database, Workflow } from "lucide-react";
 import type React from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 
 /**
@@ -15,7 +15,7 @@ export function Rail(): React.JSX.Element {
     return (
         <NavRail aria-label="Places" className="ws-rail">
             <RailButton
-                icon={<Workflow size={20} aria-hidden />}
+                icon={<GLYPHS.graph size={20} aria-hidden />}
                 label="Graph"
                 active={place === "graph"}
                 aria-current={place === "graph" ? "page" : undefined}
@@ -24,7 +24,7 @@ export function Rail(): React.JSX.Element {
                 }}
             />
             <RailButton
-                icon={<Database size={20} aria-hidden />}
+                icon={<GLYPHS.data size={20} aria-hidden />}
                 label="Data"
                 active={place === "data"}
                 aria-current={place === "data" ? "page" : undefined}

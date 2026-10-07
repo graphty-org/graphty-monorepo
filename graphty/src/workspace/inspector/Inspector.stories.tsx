@@ -201,7 +201,7 @@ export const RunRowSettingsChanged: Story = {
         const element = await loadRings(canvasElement);
         const id = await runToEnd(element, "pagerank");
         retuned.store.set({ inspected: { kind: "measure-row", id } });
-        const field = await inspector(canvasElement).findByRole("spinbutton", { name: "Damping Factor" });
+        const field = await inspector(canvasElement).findByRole("spinbutton", { name: "Damping factor" });
         await userEvent.clear(field);
         await userEvent.type(field, "0.5{Enter}");
         await inspector(canvasElement).findByRole("status");

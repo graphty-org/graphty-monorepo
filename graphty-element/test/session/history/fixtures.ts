@@ -257,6 +257,16 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "algo.remove", runId: "deg" },
     },
     {
+        name: "algo.move: a run's layers to the top of the stack",
+        tags: BOTH,
+        before: async (session) => {
+            await session.runs.start("degree", {}, { as: "deg" });
+            await session.styles.add(nodeLayer("Fixture above", "#00ff00"));
+            await session.styles.settled();
+        },
+        command: { op: "algo.move", runId: "deg", before: null },
+    },
+    {
         name: "style.patch add",
         variant: "add",
         tags: BOTH,

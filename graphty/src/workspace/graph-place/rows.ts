@@ -4,10 +4,10 @@
  * count is one the element publishes (a run's summary, a group's size, the selection's size).
  */
 
-import type { LayerId, RunId } from "@graphty/graphty-element/catalog";
+import type { Channel, LayerId, RunId } from "@graphty/graphty-element/catalog";
 import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 
-import { EVERYTHING_KEY } from "../style/row";
+import { colorBlockOf, EVERYTHING_KEY, groupHidden, runColorOf } from "../style/row";
 
 /** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
 export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";
@@ -32,12 +32,13 @@ export interface PaintRow {
     /** A count the element publishes for this row, or absent. */
     readonly count?: number;
     /**
-     * The layers the eye shows and hides. Empty when the row has no eye: the fixed rows, whose
-     * layers are the element's own, and a group row, whose paint is one part of its run's layer
-     * (#907 asks the element to hide one group's paint).
+     * The layers the eye shows and hides. Empty for the fixed rows, whose layers are the
+     * element's own, and for a group row, whose eye hides one value of its run's layer instead.
      */
     readonly layerIds: readonly LayerId[];
-    /** Whether every layer the eye covers is switched off. */
+    /** For a group row of a run that paints a color: the value its eye hides (`styles.setValueHidden`). */
+    readonly value?: { readonly layerId: LayerId; readonly channel: Channel; readonly value: string | number };
+    /** Whether every layer the eye covers is switched off, or the group's value is hidden. */
     readonly hidden: boolean;
     /** The run behind the row, when a run made it. */
     readonly runId?: RunId;
@@ -54,16 +55,15 @@ export interface PaintRow {
  */
 export function paintRows(session: GraphSession): PaintRow[] {
     const layers = session.styles.list();
-    const legend = session.styles.legend();
     const runs = session.runs.list().filter((run) => run.status !== "removed");
     const byId = new Map(runs.map((run) => [run.id, run]));
 
     const rowFor = (run: (typeof runs)[number]): PaintRow => {
         const layerIds = session.runs.bindings(run.id);
         const owned = layers.filter((layer) => layerIds.includes(layer.id));
-        const blocks = legend.filter((block) => block.runId === run.id);
-        // The block that carries a palette is the one that paints a color.
-        const color = blocks.find((block) => block.palette !== undefined);
+        const color = colorBlockOf(session, run.id);
+        // The eye's target is read from the style stack, which the legend lags while it repaints.
+        const bound = runColorOf(session, run.id);
         const { summary } = run.record;
         // The element publishes groups only for a result that partitions.
         const groups = summary?.groups;
@@ -97,7 +97,11 @@ export function paintRows(session: GraphSession): PaintRow[] {
                         swatch: swatch === undefined ? undefined : { color: swatch },
                         count: group.size,
                         layerIds: [],
-                        hidden,
+                        value:
+                            bound === undefined
+                                ? undefined
+                                : { layerId: bound.layerId, channel: bound.channel, value: group.group },
+                        hidden: hidden || (bound !== undefined && groupHidden(bound, group.group)),
                         runId: run.id,
                     };
                 }),
@@ -192,4 +196,51 @@ export function findRow(rows: readonly PaintRow[], id: string): PaintRow | undef
         }
     }
     return undefined;
+}
+
+/**
+ * Whether a row has an eye: it owns layers, or it is a group whose run paints a color.
+ * @param row - the row.
+ * @returns true when it has one.
+ */
+export function hasEye(row: PaintRow): boolean {
+    return row.layerIds.length > 0 || row.value !== undefined;
+}
+
+/**
+ * Whether a row can be dragged or moved: a run, measure or layer row that paints. Selection,
+ * Everything, a group row and a run with no layer yet never move.
+ * @param row - the row.
+ * @returns true when it moves.
+ */
+export function isMovable(row: PaintRow): boolean {
+    return row.layerIds.length > 0 && row.kind !== "group-row";
+}
+
+/**
+ * Where a row would sit in the style stack if it were the top-level row at `index`, counted
+ * with it taken out (the tree's move): below the bottom layer of the nearest row above it that
+ * paints, or at the top (null) when none does. Undefined for a place it cannot go: inside
+ * another row, above Selection or below Everything.
+ * @param rows - the rows, top first.
+ * @param id - the moving row.
+ * @param parentId - the row it would land in, null for the top level.
+ * @param index - its place among the top-level rows without it.
+ * @returns the layer it would sit below, null for the top, or undefined.
+ */
+export function layerAbove(
+    rows: readonly PaintRow[],
+    id: string,
+    parentId: string | null,
+    index: number,
+): LayerId | null | undefined {
+    const others = rows.filter((row) => row.id !== id);
+    if (parentId !== null || others.length === rows.length || index < 1 || index > others.length - 1) {
+        return undefined;
+    }
+    const above = others
+        .slice(0, index)
+        .reverse()
+        .find((row) => row.layerIds.length > 0);
+    return above?.layerIds[0] ?? null;
 }

@@ -13,7 +13,15 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point reaches it.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
+import {
+    type EdgeId,
+    type FieldDescriptor,
+    type NodeId,
+    PROJECT_FILE,
+    type ResultShape,
+    type RunId,
+    type SetDefinitionInput,
+} from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { Dispatcher } from "./project/Dispatcher";
@@ -183,7 +191,10 @@ export interface ProjectApi {
     readonly name: string | null;
     /**
      * Whether anything the file saves has changed since the last save or open. Undoing back to
-     * that point makes it false again. The selection and the extensions never set it.
+     * that point makes it false again. The selection and the extensions never set it. The first
+     * `data.import` into a new session -- one with no history that was never saved or opened --
+     * is the starting point, so a graph read from a file or a sample is not an unsaved change;
+     * undoing that import sets it. Any later import sets it, like any other change.
      */
     readonly dirty: boolean;
     /**
@@ -1194,23 +1205,7 @@ function rowsOf<Key, Id extends NodeId>(
     return out;
 }
 
-/**
- * How a project file is named and typed: what `element.downloadProject()` gives the file, and
- * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
- * @example
- * ```typescript
- * const handle = await showSaveFilePicker({
- *     suggestedName: projectFileName(session.project.name),
- *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
- * });
- * ```
- */
-export const PROJECT_FILE = Object.freeze({
-    /** The file name's ending, with its leading dot. */
-    extension: ".graphty.json",
-    /** The file's media type. */
-    mediaType: "application/vnd.graphty+json",
-} as const);
+export { PROJECT_FILE };
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`
@@ -1287,7 +1282,40 @@ export function projectOf(
         tell();
     };
 
+    // Until the project is saved, opened or changed, the step holding its first `data.import`
+    // (alone, or in a transaction with what the load sets up) is its baseline: a graph read from a
+    // sample or a file is not an unsaved change. Undoing past it is.
+    let fresh = true;
+    const isFirstImport = (): boolean => {
+        const { steps, position } = session.history;
+        return (
+            fresh &&
+            steps.length === 1 &&
+            position === 1 &&
+            steps[0].ops.includes("data.import") &&
+            (point.step === null || point.step === steps[0].id) &&
+            !point.lost &&
+            waiting.size === 0
+        );
+    };
+
     session.on("history:changed", ({ reason }) => {
+        if (reason === "pending" && fresh) {
+            // Still loading: the step it records decides.
+            return;
+        }
+
+        if ((reason === "record" || reason === "merge") && isFirstImport()) {
+            point = pointNow();
+            top = topNow();
+            tell();
+            return;
+        }
+
+        if (reason !== "size") {
+            fresh = false;
+        }
+
         for (const each of [point, ...waiting.values()]) {
             if (reason === "merge" && topNow() === each.step) {
                 each.lost = true;
@@ -1324,6 +1352,7 @@ export function projectOf(
                     leftOut,
                 }),
             });
+            fresh = false;
             if (options.markSaved === false) {
                 const waited = pointNow();
                 waiting.add(waited);
@@ -1389,10 +1418,12 @@ export function projectOf(
                 );
                 // A project opens with a fresh history: its opened state is the baseline.
                 session.history.clear();
+                fresh = false;
                 adopt(pointNow());
             } else {
                 const data = doc.members.get("graphty-data")?.[0];
                 const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+                fresh = false;
                 await session.transaction("Open document", async (tx) => {
                     const opening = { tx, problems, restored };
                     if (graph !== undefined) {

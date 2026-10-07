@@ -1,3 +1,4 @@
+import type { XrCapability, XrUnavailableReason } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,6 +7,16 @@ import { LEGEND_EMPTY_REASON } from "../../canvas/legendAvailability";
 import { CANVAS_TOOLBAR_DESKTOP } from "../../constants";
 import { ViewsMenu, type ViewsMenuProps } from "../ViewsMenu";
 
+function xrFacts(
+    vr: XrUnavailableReason | null,
+    ar: XrUnavailableReason | null,
+    active: "vr" | "ar" | null = null,
+): XrCapability {
+    return { vr: vr === null, ar: ar === null, reasons: { vr, ar }, active };
+}
+
+const XR_READY = xrFacts(null, null);
+
 function props(overrides: Partial<ViewsMenuProps> = {}): ViewsMenuProps {
     return {
         opened: true,
@@ -13,8 +24,7 @@ function props(overrides: Partial<ViewsMenuProps> = {}): ViewsMenuProps {
         profile: CANVAS_TOOLBAR_DESKTOP,
         legendShown: true,
         toolbarShown: true,
-        vrSupported: false,
-        arSupported: false,
+        xr: xrFacts("no-webxr", "no-webxr"),
         visibleNodeCount: 20,
         onResetView: vi.fn(),
         onViewPreset: vi.fn(),
@@ -22,6 +32,7 @@ function props(overrides: Partial<ViewsMenuProps> = {}): ViewsMenuProps {
         onToggleLegend: vi.fn(),
         onEnterVr: vi.fn(),
         onEnterAr: vi.fn(),
+        onExitXr: vi.fn(),
         ...overrides,
     };
 }
@@ -80,7 +91,7 @@ describe("ViewsMenu", () => {
 
     describe("the rows", () => {
         it("draws 5.6's rows in order", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
+            render(<ViewsMenu {...props({ xr: XR_READY })} />);
 
             const names = await rowNames();
 
@@ -100,7 +111,7 @@ describe("ViewsMenu", () => {
         });
 
         it("separates the four groups", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
+            render(<ViewsMenu {...props({ xr: XR_READY })} />);
 
             expect(within(await menu()).getAllByRole("separator")).toHaveLength(3);
         });
@@ -200,7 +211,7 @@ describe("ViewsMenu", () => {
         });
 
         it("keeps the disabled row in the arrow-key ring, so traversal counts do not change", async () => {
-            render(<ViewsMenu {...props({ legendAvailable: false, vrSupported: true, arSupported: true })} />);
+            render(<ViewsMenu {...props({ legendAvailable: false, xr: XR_READY })} />);
 
             const names = await rowNames();
 
@@ -272,24 +283,57 @@ describe("ViewsMenu", () => {
     });
 
     describe("the XR rows", () => {
-        it("omits both rows when the browser reports no session support", async () => {
-            render(<ViewsMenu {...props()} />);
+        it("draws one disabled VR / AR row with the reason when neither mode can be entered for the same reason", async () => {
+            const user = userEvent.setup();
+            const onEnterVr = vi.fn();
+
+            render(<ViewsMenu {...props({ onEnterVr })} />);
 
             const names = await rowNames();
+            const both = await row("VR / AR");
 
-            expect(names.some((name) => name.startsWith("Enter VR"))).toBe(false);
-            expect(names.some((name) => name.startsWith("Enter AR"))).toBe(false);
+            expect(names.some((name) => name.startsWith("Enter"))).toBe(false);
+            expect(both).toHaveAttribute("aria-disabled", "true");
+            expect(both.textContent).toBe("VR / ARThis browser has no VR or AR");
+
+            await user.click(both);
+
+            expect(onEnterVr).not.toHaveBeenCalled();
+        });
+
+        it("draws a row per mode, the unavailable one disabled with its own reason", async () => {
+            render(<ViewsMenu {...props({ xr: xrFacts(null, "unsupported") })} />);
+
+            expect(await row("Enter VR")).toHaveAttribute("aria-disabled", "false");
+
+            const arRow = await row("Enter AR");
+
+            expect(arRow).toHaveAttribute("aria-disabled", "true");
+            expect(arRow.textContent).toContain("This device has no AR");
+        });
+
+        it("offers Exit VR while presenting, and leaves the session through it", async () => {
+            const user = userEvent.setup();
+            const onExitXr = vi.fn();
+
+            render(<ViewsMenu {...props({ xr: xrFacts(null, null, "vr"), onExitXr })} />);
+
+            expect((await rowNames()).some((name) => name.startsWith("Enter"))).toBe(false);
+
+            await user.click(await row("Exit VR"));
+
+            expect(onExitXr).toHaveBeenCalledTimes(1);
         });
 
         it("carries the readiness count on Enter VR and none on Enter AR", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, arSupported: true })} />);
+            render(<ViewsMenu {...props({ xr: XR_READY })} />);
 
             expect((await row("Enter VR")).textContent).toContain("20 visible nodes");
             expect((await row("Enter AR")).textContent).toBe("Enter AR");
         });
 
         it("offers the visible subset between the ceiling and 50,000 nodes", async () => {
-            render(<ViewsMenu {...props({ vrSupported: true, visibleNodeCount: 20000 })} />);
+            render(<ViewsMenu {...props({ xr: XR_READY, visibleNodeCount: 20000 })} />);
 
             const vrRow = await row("Enter VR");
 
@@ -302,7 +346,7 @@ describe("ViewsMenu", () => {
             const user = userEvent.setup();
             const onEnterVr = vi.fn();
 
-            render(<ViewsMenu {...props({ vrSupported: true, visibleNodeCount: 60000, onEnterVr })} />);
+            render(<ViewsMenu {...props({ xr: XR_READY, visibleNodeCount: 60000, onEnterVr })} />);
 
             const vrRow = await row("Enter VR");
 
@@ -314,11 +358,11 @@ describe("ViewsMenu", () => {
             expect(onEnterVr).not.toHaveBeenCalled();
         });
 
-        it("opens the flat entry sheet rather than the session", async () => {
+        it("asks to enter VR when Enter VR is chosen", async () => {
             const user = userEvent.setup();
             const onEnterVr = vi.fn();
 
-            render(<ViewsMenu {...props({ vrSupported: true, onEnterVr })} />);
+            render(<ViewsMenu {...props({ xr: XR_READY, onEnterVr })} />);
 
             await user.click(await row("Enter VR"));
 

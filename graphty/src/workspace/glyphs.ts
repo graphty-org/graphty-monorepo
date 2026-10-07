@@ -1,0 +1,140 @@
+/**
+ * The workspace's icons: one icon per concept, one concept per icon. Every workspace file draws
+ * its icons from here (lint forbids importing lucide-react anywhere else under src/workspace), so
+ * a concept looks the same in the toolbar, the paint tree, the inspector and the menus.
+ */
+
+import {
+    Calendar,
+    CaseSensitive,
+    ChartColumn,
+    ChartNetwork,
+    Check,
+    ChevronDown,
+    ChevronLeft,
+    Circle,
+    CircleAlert,
+    CircleCheck,
+    CircleDashed,
+    CircleDot,
+    CircleHelp,
+    CircleSlash,
+    Columns3,
+    Database,
+    Eye,
+    EyeOff,
+    FilePlus,
+    FileText,
+    FlaskConical,
+    FolderOpen,
+    Group,
+    Hash,
+    Layers,
+    Link2,
+    List,
+    ListFilter,
+    ListOrdered,
+    LoaderCircle,
+    Lock,
+    type LucideIcon,
+    Menu,
+    Minus,
+    MoreHorizontal,
+    Network,
+    Orbit,
+    Paintbrush,
+    Plus,
+    Redo2,
+    Route,
+    Search,
+    Settings,
+    Shapes,
+    Share2,
+    Spline,
+    SquareDashed,
+    TriangleAlert,
+    Undo2,
+    Upload,
+    Workflow,
+} from "lucide-react";
+
+import type { InspectedKindId } from "./inspector/inspected";
+
+export type { LucideIcon };
+
+/** The icon of each concept the workspace draws. */
+export const GLYPHS = {
+    // Things in the graph.
+    graph: Workflow,
+    node: CircleDot,
+    edge: Spline,
+    several: Group,
+    neighborhood: Orbit,
+    attribute: Columns3,
+    // Paint tree rows. A group row's icon is filled with the group's color.
+    selection: SquareDashed,
+    measure: ChartColumn,
+    run: Shapes,
+    group: Circle,
+    layer: Paintbrush,
+    everything: Layers,
+    // Analyses and value types.
+    paths: Route,
+    number: Hash,
+    category: CaseSensitive,
+    ordinal: ListOrdered,
+    time: Calendar,
+    unknown: CircleHelp,
+    file: FileText,
+    // Tools and commands.
+    analyze: FlaskConical,
+    layout: ChartNetwork,
+    legend: List,
+    quickActions: Search,
+    filter: ListFilter,
+    data: Database,
+    sample: Network,
+    newFile: FilePlus,
+    open: FolderOpen,
+    upload: Upload,
+    settings: Settings,
+    menu: Menu,
+    more: MoreHorizontal,
+    undo: Undo2,
+    redo: Redo2,
+    add: Plus,
+    remove: Minus,
+    link: Link2,
+    back: ChevronLeft,
+    // The current choice in a list.
+    check: Check,
+    expand: ChevronDown,
+    show: Eye,
+    hide: EyeOff,
+    // States.
+    loading: LoaderCircle,
+    // Nothing here yet: an empty graph, a step not ready.
+    empty: CircleDashed,
+    ready: CircleCheck,
+    warning: TriangleAlert,
+    failed: CircleAlert,
+    canceled: CircleSlash,
+    private: Lock,
+    shared: Share2,
+} as const satisfies Readonly<Record<string, LucideIcon>>;
+
+/** The icon of each thing the inspector shows; a paint tree row draws the same icon. */
+export const KIND_GLYPHS: Readonly<Record<InspectedKindId, LucideIcon>> = {
+    graph: GLYPHS.graph,
+    node: GLYPHS.node,
+    edge: GLYPHS.edge,
+    several: GLYPHS.several,
+    neighborhood: GLYPHS.neighborhood,
+    "measure-row": GLYPHS.measure,
+    "run-row": GLYPHS.run,
+    "group-row": GLYPHS.group,
+    "everything-row": GLYPHS.everything,
+    "selection-row": GLYPHS.selection,
+    "layer-row": GLYPHS.layer,
+    attribute: GLYPHS.attribute,
+};

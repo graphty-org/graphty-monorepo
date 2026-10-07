@@ -99,6 +99,21 @@ const css = `
     text-overflow: ellipsis;
 }
 
+/* A row with a second line (MenuItemDescription): it grows to a 44px touch target (WCAG 2.5.5)
+   and both lines stay whole; the leading and trailing slots stay centered on it. */
+.cm-menu-item:has(.cm-menu-item-description) {
+    height: auto;
+    min-height: 44px;
+    padding-block: 4px;
+}
+.cm-menu-item-description {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--cm-text-menu-secondary);
+    ${cmFont("caption")}
+}
+
 /* Leading slot: a 24 x 24 icon starts 12px from the menu edge with a 4px gap to the label; the
    16 x 16 check column starts at 16 with no gap (labels 32 from the edge). */
 .cm-menu-item-section {
@@ -293,19 +308,21 @@ const css = `
     padding: 8px 16px;
     ${cmFont("body")}
 }
-/* ModalFooter: 40 tall across the modal's full width (it cancels the body's 8px 16px padding,
-   leaving Figma's 8px between the last field and the footer),
-   a 1px top divider, buttons end-aligned 8px apart. */
+/* ModalFooter: 48 tall across the modal's full width (it cancels the body's 8px 16px padding,
+   leaving Figma's 8px between the last field and the footer), a 1px top divider, buttons
+   end-aligned 8px apart, 16px in from both sides and 12px above and below 24px buttons.
+   A deliberate departure from Figma's 40px footer with an 8px end inset (design/figma-spec.md
+   8.5): that put the last button 8px from the edge inside a 13px corner, too tight for touch. */
 .cm-modal-footer {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
     box-sizing: border-box;
-    height: 40px;
+    height: 48px;
     margin: 8px -16px -8px;
     padding-block: 0;
-    padding-inline: 16px 8px;
+    padding-inline: 16px;
     box-shadow: inset 0 1px 0 var(--cm-border);
 }
 

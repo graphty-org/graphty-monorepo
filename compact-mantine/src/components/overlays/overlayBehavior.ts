@@ -252,3 +252,16 @@ export function installOverlayBehavior(): void {
         }
     });
 }
+
+/**
+ * The default click handler of a submenu row (Menu.Sub.Item): a tap or a click opens the submenu
+ * and focuses its first row. Mantine opens a submenu only on mouseenter and ArrowRight, so a touch
+ * screen (no hover) could never reach one; this replays the row's own ArrowRight path, which runs
+ * Mantine's open and focus. Enter and Space on a focused row produce a click, so they open it too.
+ * ponytail: a caller passing its own onClick to Menu.Sub.Item replaces this default (none does);
+ * compose the two in the theme if one ever needs to.
+ * @param event - the click on the submenu row
+ */
+export function openSubmenuOnClick(event: Pick<Event, "currentTarget">): void {
+    event.currentTarget?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+}

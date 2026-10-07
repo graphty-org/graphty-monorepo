@@ -47,7 +47,7 @@ describe("the start screen", () => {
         assert.isNotNull(screen.getByRole("main"));
         assert.isNotNull(screen.getByRole("button", { name: /Open project or file\.\.\./ }));
         assert.isNotNull(screen.getByRole("button", { name: /New from data\.\.\./ }));
-        assert.isNotNull(screen.getByText("Projects you open or create appear here. They are kept in this browser."));
+        assert.isNotNull(screen.getByText("Projects you save appear here. They are kept in this browser."));
         const samples = within(screen.getByRole("region", { name: "Samples" })).getAllByRole("button");
         assert.deepEqual(
             samples.map((button) => button.getAttribute("aria-label")),
@@ -144,10 +144,11 @@ describe("the start screen", () => {
 });
 
 describe("Settings", () => {
-    it("opens on General from the gear and from Mod+,", async () => {
+    it("opens on General from the main menu and from Mod+,", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Settings..." }));
+        await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Settings\.\.\./ }));
         let dialog = await screen.findByRole("dialog", { name: "Settings" });
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Theme" }));
         assert.isNotNull(within(dialog).getByRole("radiogroup", { name: "Number format" }));

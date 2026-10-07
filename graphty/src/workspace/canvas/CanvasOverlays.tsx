@@ -1,10 +1,11 @@
 import "./canvas.css";
 
 import type { GraphSession, LegendBlock, ProgressChange } from "@graphty/graphty-element/session";
-import { Button, Tooltip } from "@mantine/core";
-import { CircleDashed, LoaderCircle } from "lucide-react";
+import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { SampleItems } from "../frame/menus";
+import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { keyBlocks } from "./legendWords";
@@ -112,7 +113,7 @@ export function LoadingCard({
 }: Readonly<LoadingCardProps>): React.JSX.Element {
     return (
         <StateCard
-            icon={<LoaderCircle size={20} />}
+            icon={<GLYPHS.loading size={20} />}
             title={`Reading ${projectName}`}
             sentence={`${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges...`}
             progress={fraction}
@@ -123,7 +124,7 @@ export function LoadingCard({
 /**
  * What the canvas draws over the element (tier1-design.md section 2.4): the legend card at its
  * top left, and one state card at its center -- loading while the element reports a load, empty
- * while it holds no node. The canvas has no other buttons.
+ * while it holds no node, with Add data... and Open a sample. The canvas has no other buttons.
  *
  * Not drawn yet, because graphty-element cannot report them: the loading card's Cancel (#296);
  * the file name on the loading card and the too-large card (#902: a load event names no source,
@@ -155,21 +156,33 @@ export function CanvasOverlays(): React.JSX.Element | null {
     } else if (nodeCount === 0) {
         card = (
             <StateCard
-                icon={<CircleDashed size={20} />}
+                icon={<GLYPHS.empty size={20} />}
                 title="No nodes to draw"
                 actions={
-                    addData === null ? undefined : (
-                        <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
-                            <Button
-                                size="xs"
-                                aria-disabled={addData.disabledReason !== null}
-                                data-disabled={addData.disabledReason === null ? undefined : true}
-                                onClick={addData.disabledReason === null ? addData.run : undefined}
-                            >
-                                {addData.command.label}
-                            </Button>
-                        </Tooltip>
-                    )
+                    <>
+                        {addData === null ? null : (
+                            <Tooltip label={addData.disabledReason} disabled={addData.disabledReason === null}>
+                                <Button
+                                    size="xs"
+                                    aria-disabled={addData.disabledReason !== null}
+                                    data-disabled={addData.disabledReason === null ? undefined : true}
+                                    onClick={addData.disabledReason === null ? addData.run : undefined}
+                                >
+                                    {addData.command.label}
+                                </Button>
+                            </Tooltip>
+                        )}
+                        <Menu position="bottom" withinPortal>
+                            <Menu.Target>
+                                <Button size="xs" variant="default">
+                                    Open a sample
+                                </Button>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                                <SampleItems />
+                            </Menu.Dropdown>
+                        </Menu>
+                    </>
                 }
             />
         );

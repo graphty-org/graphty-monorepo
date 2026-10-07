@@ -19,7 +19,10 @@
  * - It paints at `CANVAS_MENU_Z_INDEX`, over the bar's own.
  *
  * Rows (SPEC:3589-3591, in this order): Reset view, Top, Front, Side, Isometric,
- * Follow selection | Save as view... | Minimap, Toolbar, Legend | Enter VR, Enter AR.
+ * Follow selection | Save as view... | Minimap, Toolbar, Legend | the XR rows. The XR rows
+ * are always drawn: one disabled "VR / AR" row when neither mode can be entered for the same
+ * reason, otherwise Enter VR and Enter AR, each disabled with its own reason when it cannot be
+ * entered, and Exit VR or Exit AR while the element presents one.
  * The three unshipped rows carry the muted `Coming` tag of 5.8 and, per 10.3, no key
  * chip; the longest unshipped run is two rows and Save as view... sits alone in its
  * group, so the three-or-more consolidation does not fire here -- no group note and
@@ -37,9 +40,11 @@
 
 import { COMPACT_SIZING, PANEL_GRID, PANEL_INK, UiGlyph, useNumberFormatter } from "@graphty/compact-mantine";
 import type { CameraId } from "@graphty/graphty-element/catalog";
+import type { XrCapability } from "@graphty/graphty-element/session";
 import { ActionIcon, createScopedKeydownHandler, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import React from "react";
 
+import { xrRows } from "../../../workspace/inspector/words";
 import { keyChipFor } from "../bindings";
 import { LEGEND_EMPTY_REASON } from "../canvas/legendAvailability";
 import { ComingTag } from "../ComingTag";
@@ -86,6 +91,9 @@ const ENTER_VR_LABEL = "Enter VR";
 /** The AR verb row, verbatim (SPEC:3491-3498). */
 const ENTER_AR_LABEL = "Enter AR";
 
+/** The one XR row drawn when neither mode can be entered for the same reason. */
+const XR_BOTH_LABEL = "VR / AR";
+
 /**
  * Props of {@link ViewsMenu}.
  */
@@ -110,10 +118,8 @@ export interface ViewsMenuProps {
     readonly legendAvailable?: boolean;
     /** Whether the toolbar is shown. Unchecking it hides this menu with the bar. */
     readonly toolbarShown: boolean;
-    /** Whether the browser reports immersive-vr support. The row is omitted when it does not. */
-    readonly vrSupported: boolean;
-    /** Whether the browser reports immersive-ar support. */
-    readonly arSupported: boolean;
+    /** The element's XR facts (`session.capabilities.xr`): which modes can be entered, why not, and which is presenting. */
+    readonly xr: XrCapability;
     /** Visible nodes, which the XR rows act on and name before they act. */
     readonly visibleNodeCount: number;
     /** Visible edges; the second half of the XR entry ceiling. */
@@ -126,10 +132,12 @@ export interface ViewsMenuProps {
     readonly onToggleToolbar: () => void;
     /** Toggle the legend. The same action the L binding fires. */
     readonly onToggleLegend: () => void;
-    /** Opens the flat XR entry sheet for VR, never the session. */
+    /** Enter an immersive VR session. */
     readonly onEnterVr: () => void;
-    /** Opens the flat XR entry sheet for AR, never the session. */
+    /** Enter an immersive AR session. */
     readonly onEnterAr: () => void;
+    /** Leave the immersive session the element is presenting. */
+    readonly onExitXr: () => void;
 }
 
 interface ViewsMenuRowProps {
@@ -283,8 +291,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         legendShown,
         legendAvailable = true,
         toolbarShown,
-        vrSupported,
-        arSupported,
+        xr,
         visibleNodeCount,
         visibleEdgeCount = 0,
         onResetView,
@@ -293,6 +300,7 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
         onToggleLegend,
         onEnterVr,
         onEnterAr,
+        onExitXr,
     } = props;
     const numberFormatter = useNumberFormatter();
     const xrState = xrEntryState(visibleNodeCount, visibleEdgeCount);
@@ -458,28 +466,47 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
                     onSelect={onToggleLegend}
                 />
 
-                {vrSupported || arSupported ? <ViewsMenuSeparator /> : null}
+                <ViewsMenuSeparator />
 
-                {vrSupported ? (
+                {xr.active === null ? (
+                    xrRows(xr).map(({ mode, reason }) => {
+                        if (mode === "both") {
+                            return (
+                                <ViewsMenuRow
+                                    key={mode}
+                                    label={XR_BOTH_LABEL}
+                                    secondLine={reason ?? undefined}
+                                    glyph={<ToolbarGlyph name="enterVr" size={glyphSize} />}
+                                    disabled
+                                    height={PANEL_GRID.ROW_PITCH}
+                                />
+                            );
+                        }
+
+                        const vr = mode === "vr";
+                        const verb = vr ? ENTER_VR_LABEL : ENTER_AR_LABEL;
+                        // The gate's readiness count rides on Enter VR; Enter AR carries it only to say why it is refused.
+                        const secondLine = reason ?? (vr || xrBlocked ? readiness : undefined);
+
+                        return (
+                            <ViewsMenuRow
+                                key={mode}
+                                label={reason === null ? xrRowLabel(verb, xrState) : verb}
+                                secondLine={secondLine}
+                                glyph={<ToolbarGlyph name={vr ? "enterVr" : "enterAr"} size={glyphSize} />}
+                                disabled={reason !== null || xrBlocked}
+                                height={secondLine === undefined ? PANEL_GRID.CONTROL_HEIGHT : PANEL_GRID.ROW_PITCH}
+                                onSelect={choose(vr ? onEnterVr : onEnterAr)}
+                            />
+                        );
+                    })
+                ) : (
                     <ViewsMenuRow
-                        label={xrRowLabel(ENTER_VR_LABEL, xrState)}
-                        secondLine={readiness}
-                        glyph={<ToolbarGlyph name="enterVr" size={glyphSize} />}
-                        disabled={xrBlocked}
-                        height={PANEL_GRID.ROW_PITCH}
-                        onSelect={choose(onEnterVr)}
+                        label={`Exit ${xr.active.toUpperCase()}`}
+                        glyph={<ToolbarGlyph name={xr.active === "vr" ? "enterVr" : "enterAr"} size={glyphSize} />}
+                        onSelect={choose(onExitXr)}
                     />
-                ) : null}
-                {arSupported ? (
-                    <ViewsMenuRow
-                        label={xrRowLabel(ENTER_AR_LABEL, xrState)}
-                        secondLine={xrBlocked ? readiness : undefined}
-                        glyph={<ToolbarGlyph name="enterAr" size={glyphSize} />}
-                        disabled={xrBlocked}
-                        height={xrBlocked ? PANEL_GRID.ROW_PITCH : PANEL_GRID.CONTROL_HEIGHT}
-                        onSelect={choose(onEnterAr)}
-                    />
-                ) : null}
+                )}
             </Menu.Dropdown>
         </Menu>
     );

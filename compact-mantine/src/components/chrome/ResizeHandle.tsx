@@ -4,6 +4,7 @@ import React, { forwardRef, useRef } from "react";
 
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { isRtl, useDirection } from "../../utils/rtl";
+import { shieldDragSelection } from "./dragSelectionShield";
 
 // Figma's panel resize handle (design/figma-spec.md 9.9, components.md 54; captures
 // left-sidebar/resize-handle-focus, left-sidebar/split-handle-keyboard-focus,
@@ -188,6 +189,7 @@ export const ResizeHandle = forwardRef<HTMLDivElement, ResizeHandleProps>(functi
         }
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
+        shieldDragSelection();
         const start = horizontalAxis ? event.clientX : event.clientY;
         drag.current = { start, from: size, last: size };
     };

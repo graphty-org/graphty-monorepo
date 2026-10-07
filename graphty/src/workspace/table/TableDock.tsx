@@ -3,7 +3,7 @@ import "./table.css";
 import { type DataTableSort, MenuCheckItem, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -19,6 +19,8 @@ const CHROME_HEIGHT = 64;
 interface View {
     /** Column ids the reader unchecked. */
     readonly hidden: readonly string[];
+    /** The reader's column order, ids first to last; ids missing from it keep their place after it. */
+    readonly order: readonly string[];
     readonly sort: DataTableSort | null;
 }
 
@@ -30,20 +32,36 @@ interface Members {
     readonly scope: ScopeInput;
 }
 
-const EMPTY_VIEW: View = { hidden: [], sort: null };
+const EMPTY_VIEW: View = { hidden: [], order: [], sort: null };
 
-/** The reader's arrangement of the dock: its tab, each table's view, and the members chip. */
+/**
+ * The columns a view shows, in the reader's order: the keys first, then the order the reader set.
+ * @param choices - every column the table can show.
+ * @param view - the reader's view.
+ * @returns the shown columns, first to last.
+ */
+function shownColumns(choices: readonly TableColumnChoice[], view: View): TableColumnChoice[] {
+    const rank = (choice: TableColumnChoice): number => {
+        if (choice.group === "key") {
+            return -1;
+        }
+        const at = view.order.indexOf(choice.id);
+        return at === -1 ? view.order.length : at;
+    };
+    return choices.filter((choice) => !view.hidden.includes(choice.id)).sort((a, b) => rank(a) - rank(b));
+}
+
+/** The reader's arrangement of the dock: each table's view and the members chip (the tab is the store's). */
 interface Arrangement {
-    readonly tab: string;
     readonly views: Readonly<Record<RecordKind, View>>;
     readonly members: Members | null;
 }
 
-const FIRST_ARRANGEMENT: Arrangement = { tab: "nodes", views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
+const FIRST_ARRANGEMENT: Arrangement = { views: { node: EMPTY_VIEW, edge: EMPTY_VIEW }, members: null };
 
 /**
  * The arrangement per workspace, kept while the dock is closed: the Frame unmounts the dock, and
- * Shift+T twice must bring back the same tab, sort, columns and chip. Keyed by the workspace's
+ * Shift+T twice must bring back the same sort, columns and chip (the store keeps the tab). Keyed by the workspace's
  * store, so each mounted workspace (each story, each test) keeps its own.
  */
 const ARRANGEMENTS = new WeakMap<WorkspaceStore, Arrangement>();
@@ -141,8 +159,8 @@ function ColumnsMenu({ choices, hidden, onHiddenChange }: Readonly<ColumnsMenuPr
     return (
         <Menu closeOnItemClick={false} position="bottom-end">
             <Menu.Target>
-                <Button variant="subtle" size="compact-xs">
-                    {`Columns: ${String(shown)} of ${String(choices.length)}`}
+                <Button variant="subtle" size="compact-xs" className="ws-table-columns">
+                    <span className="ws-table-ellipsis">{`Columns: ${String(shown)} of ${String(choices.length)}`}</span>
                 </Button>
             </Menu.Target>
             <Menu.Dropdown mah={320} style={{ overflowY: "auto" }}>
@@ -252,20 +270,41 @@ function tableKey(kind: RecordKind, members: Members | null): string {
 export function TableDock(): React.JSX.Element {
     const { session, store } = useWorkspace();
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const tab = useWorkspaceState((state) => state.dockTab);
     useSessionVersion(session);
     const [arrangement, setArrangement] = useState<Arrangement>(() => ARRANGEMENTS.get(store) ?? FIRST_ARRANGEMENT);
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
-    // A Sources table's click asks for its tab: take the request once.
-    const tableOn = useWorkspaceState((state) => state.tableOn);
+    const { views, members } = arrangement;
+
+    // Show in table: bring the asked-for column into view, checking it first if the reader
+    // unchecked it, then forget the ask.
+    const wanted = useWorkspaceState((state) => state.dockColumn);
+    const root = useRef<HTMLDivElement>(null);
     useEffect(() => {
-        if (tableOn !== null) {
-            setArrangement((now) => ({ ...now, tab: tableOn }));
-            store.set({ tableOn: null });
+        if (wanted === null || session === null) {
+            return;
         }
-    }, [store, tableOn]);
-    const { tab, views, members } = arrangement;
+        const kind: RecordKind = store.get().dockTab === "edges" ? "edge" : "node";
+        const view = arrangement.views[kind];
+        const { hidden } = view;
+        if (hidden.includes(wanted)) {
+            // The next render draws it, and this runs again to scroll to it.
+            setArrangement((now) => ({
+                ...now,
+                views: { ...now.views, [kind]: { ...now.views[kind], hidden: hidden.filter((h) => h !== wanted) } },
+            }));
+            return;
+        }
+        const at = shownColumns(columnChoices(session, kind), view).findIndex((choice) => choice.id === wanted);
+        if (at >= 0) {
+            root.current
+                ?.querySelector(`.cm-dt-head [aria-colindex="${String(at + 1)}"]`)
+                ?.scrollIntoView({ block: "nearest", inline: "center" });
+        }
+        store.set({ dockColumn: null });
+    }, [wanted, session, store, arrangement]);
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));
     };
@@ -301,7 +340,7 @@ export function TableDock(): React.JSX.Element {
     const choices = columnChoices(session, kind);
     const groupRun = groups.find((run) => `g:${run.id}` === active);
     const view = views[kind];
-    const visible = choices.filter((choice) => !view.hidden.includes(choice.id));
+    const visible = shownColumns(choices, view);
     const sorted = visible.find((choice) => choice.id === view.sort?.id);
     // A chip whose run went away (undo, remove) goes with it.
     const shownMembers = groups.some((run) => run.id === members?.run) ? members : null;
@@ -318,13 +357,14 @@ export function TableDock(): React.JSX.Element {
             : countOf(groupRun.groups.length, "group");
 
     return (
-        <div className="ws-table">
+        <div className="ws-table" ref={root}>
             <div className="ws-table-strip">
                 <Tabs
+                    className="ws-table-tabs"
                     value={active}
                     onChange={(value) => {
                         if (value !== null) {
-                            arrange({ tab: value });
+                            store.set({ dockTab: value });
                         }
                     }}
                 >
@@ -338,7 +378,7 @@ export function TableDock(): React.JSX.Element {
                         ))}
                     </Tabs.List>
                 </Tabs>
-                <Text size="xs" c="dimmed" className="ws-table-count">
+                <Text size="xs" c="dimmed" className="ws-table-count ws-table-ellipsis">
                     {count}
                 </Text>
                 {active === "nodes" && shownMembers !== null ? (
@@ -377,6 +417,16 @@ export function TableDock(): React.JSX.Element {
                         setView({ sort });
                     }}
                     height={tableHeight}
+                    onMoveColumn={(id, by) => {
+                        const ids = visible.filter((choice) => choice.group !== "key").map((choice) => choice.id);
+                        const from = ids.indexOf(id);
+                        const to = from + by;
+                        if (from === -1 || to < 0 || to >= ids.length) {
+                            return;
+                        }
+                        [ids[from], ids[to]] = [ids[to], ids[from]];
+                        setView({ order: ids });
+                    }}
                 />
             ) : (
                 <GroupTable
@@ -384,8 +434,8 @@ export function TableDock(): React.JSX.Element {
                     groups={groupRun.groups}
                     height={tableHeight}
                     onShowMembers={(group, name) => {
+                        store.set({ dockTab: "nodes" });
                         arrange({
-                            tab: "nodes",
                             members: {
                                 run: groupRun.id,
                                 runLabel: groupRun.label,

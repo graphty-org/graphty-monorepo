@@ -247,7 +247,7 @@ describe("the inspector", () => {
         });
     });
 
-    it("shows the selection's Summary when the Selection row is opened", async () => {
+    it("shows the selection's Summary on the Selection row's Values tab", async () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
@@ -256,6 +256,8 @@ describe("the inspector", () => {
             store.set({ inspected: { kind: "selection-row" } });
         });
 
+        // The row opens on Style (the highlight); Values holds the Summary.
+        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         const nodes = await screen.findByRole("group", { name: "Nodes" });
         assert.include(nodes.textContent, "3");
         assert.isNotNull(screen.getByRole("group", { name: "Edges among them" }));

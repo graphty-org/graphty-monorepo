@@ -505,6 +505,8 @@ export class SessionData implements SessionDataApi {
 
     /**
      * Load a file, a URL or inline text through a registered data source, as one undoable step.
+     * The first import into a new session (no history, never saved or opened) leaves
+     * `project.dirty` false: it is where the project starts. Every other import sets it.
      * @param source - The data source's name and its options.
      * @param options - Whether to replace the graph (the default) or add to it.
      * @returns Settles once the last chunk is in the graph; rejects, recording nothing, when the

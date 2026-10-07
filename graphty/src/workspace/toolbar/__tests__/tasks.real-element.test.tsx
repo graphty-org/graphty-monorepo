@@ -1,7 +1,7 @@
 /**
  * The tier 1 tasks this package delivers, each walked from the empty app on the REAL
  * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the View
- * flyout and the selection bar. Every assertion reads what the element reports, never pixels.
+ * flyout and a node's neighborhood. Every assertion reads what the element reports, never pixels.
  *
  * Opening the sample goes through the element's own import by URL, as the Start screen package
  * will; until that package lands its sample cards are not drawn, so the walk calls the same door.
@@ -191,12 +191,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: "Layout" }));
             // The graph's inspector shows the same group; this one is the popover's.
             const popover = await screen.findByRole("dialog", { name: "Layout" });
-            const method = within(popover).getByRole("combobox", { name: "Method" });
-            // The sample opened on the layout the element recommends, and the group says so.
-            assert.match((method as HTMLInputElement).value, / - Recommended$/);
+            // The sample opened on the layout the element recommends: checked, and the list says so.
+            const current = within(popover)
+                .getAllByRole("option")
+                .find((row) => row.getAttribute("aria-selected") === "true");
+            assert.include(current?.textContent, "Recommended");
 
-            await userEvent.click(method);
-            await userEvent.click(await within(popover).findByRole("option", { name: /^Circle/ }));
+            await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
             await waitFor(() => {
                 assert.equal(session.layout.id, "circular");
             });
@@ -220,7 +222,53 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
     );
 
     it(
-        "switches to 2D with 5, and selects a node's neighbors from the selection bar",
+        "names the view mode on the View tool and offers 2D, 3D and VR or AR from its menu",
+        async () => {
+            const session = await openKarate();
+            const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+            const view = within(toolbar).getByRole("button", { name: "View" });
+            assert.equal(view.textContent, "3D");
+            // No XR buttons on the canvas: the menu is the one way in.
+            assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
+
+            await userEvent.click(view);
+            const menu = await screen.findByRole("menu", { name: "View" });
+            const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
+            const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
+            assert.equal(threeD.getAttribute("aria-checked"), "true");
+            // Key 5 is shown on the row it switches to, not on the current one.
+            assert.include(twoD.textContent, "5");
+            assert.notInclude(threeD.textContent, "5");
+            // Without a headset (the test browser), VR and AR are drawn, disabled, with a reason.
+            await waitFor(() => {
+                const xr = within(menu)
+                    .getAllByRole("menuitemradio")
+                    .filter((row) => /^(VR|AR)/.test(row.textContent));
+                assert.isAbove(xr.length, 0);
+                for (const row of xr) {
+                    assert.equal(row.getAttribute("aria-disabled"), "true");
+                    assert.notInclude(row.textContent, "Checking");
+                }
+            });
+            assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Front/ }));
+
+            await userEvent.click(twoD);
+            await waitFor(() => {
+                assert.equal(session.layout.dimension, "2d");
+                assert.equal(view.textContent, "2D");
+            });
+            await userEvent.click(view);
+            const flat = await screen.findByRole("menu", { name: "View" });
+            // One row says why the camera views are gone, instead of four disabled ones.
+            assert.isNull(within(flat).queryByRole("menuitem", { name: /^Front/ }));
+            assert.include(within(flat).getByRole("menuitem", { name: /^Camera views/ }).textContent, "Only in 3D");
+            assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "switches to 2D with 5, and opens a node's neighborhood from its Degree row, then grows it",
         async () => {
             const session = await openKarate();
 
@@ -233,11 +281,31 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
             const node = session.data.nodes()[0].id;
             await session.selection.apply({ nodes: [node] });
-            const bar = await screen.findByRole("toolbar", { name: "Selection" });
-            await userEvent.click(within(bar).getByRole("button", { name: "Neighborhood" }));
+            // A selection changes nothing about the toolbar: no bar appears above it.
+            const values = await screen.findByRole("group", { name: "Summary values" });
+            assert.isNull(screen.queryByRole("toolbar", { name: "Selection" }));
+
+            await userEvent.click(within(values).getByRole("button", { name: /Degree/ }));
+            let neighborhood = 0;
             await waitFor(() => {
-                assert.isAbove(session.selection.nodes.length, 1);
+                neighborhood = session.selection.nodes.length;
+                assert.isAbove(neighborhood, 1);
+                // The inspector shows the node's neighborhood, not a plain selection.
+                assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
+
+            // Grow by one hop, from the neighborhood's "...", walks one step further and keeps
+            // the neighborhood open.
+            await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /Grow by one hop/ }));
+            await waitFor(() => {
+                assert.isAbove(session.selection.nodes.length, neighborhood);
+                assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
+            });
+            // The list follows the grown selection instead of still naming the first hop's
+            // connections.
+            const grown = session.selection.nodes.length - 1;
+            await screen.findByRole("region", { name: `${String(grown)} nodes within 2 hops of ${String(node)}` });
         },
         TIMEOUT_MS,
     );

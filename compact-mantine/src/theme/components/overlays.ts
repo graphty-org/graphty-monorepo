@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import { createElement } from "react";
 
-import { installOverlayBehavior } from "../../components/overlays/overlayBehavior";
+import { installOverlayBehavior, openSubmenuOnClick } from "../../components/overlays/overlayBehavior";
 import { FLOATING_UI_Z_INDEX, TOOLTIP_Z_INDEX } from "../../constants/popout";
 import { UiGlyph } from "../../icons";
 import {
@@ -32,6 +32,22 @@ import {
     TOOLTIP_OPEN_DELAY,
     VIEWPORT_MARGIN,
 } from "../styles/overlays";
+
+/**
+ * Menu.Sub.Item's defaults. A click (a tap on a touch screen, which has no hover) opens the
+ * submenu instead of closing the whole menu: a submenu row is never an action. MenuSubItemProps
+ * does not declare the button's onClick (the item is polymorphic), so the defaults are built
+ * outside the extend() literal, where its excess-property check does not reach.
+ */
+const menuSubItemDefaults = {
+    closeMenuOnClick: false,
+    onClick: openSubmenuOnClick,
+    rightSection: createElement(
+        "span",
+        { className: "cm-menu-chevron", "aria-hidden": true },
+        createElement(UiGlyph, { name: "caretRight", size: 10 }),
+    ),
+};
 
 /**
  * Theme extensions for the overlays (design/figma-spec.md section 8): Figma's dark menu, dark
@@ -86,15 +102,7 @@ export const overlayComponentExtensions: MantineThemeComponents = {
     }),
 
     // The submenu chevron: a 24 x 24 box holding a 3 x 5 caret (UiGlyph caretRight at 10).
-    MenuSubItem: Menu.Sub.Item.extend({
-        defaultProps: {
-            rightSection: createElement(
-                "span",
-                { className: "cm-menu-chevron", "aria-hidden": true },
-                createElement(UiGlyph, { name: "caretRight", size: 10 }),
-            ),
-        },
-    }),
+    MenuSubItem: Menu.Sub.Item.extend({ defaultProps: menuSubItemDefaults }),
 
     Tooltip: Tooltip.extend({
         defaultProps: {

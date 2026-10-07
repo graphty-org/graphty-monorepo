@@ -86,12 +86,14 @@ describe("the Graph place", () => {
         assert.isNotNull(screen.getByText("Add data to start"));
     });
 
-    it("reads 'Analyze (Shift+A) to add results here' with a graph and nothing run, as a hint and not a second Analyze control", async () => {
+    it("reads 'Analyze in the toolbar (Shift+A) to add results here' with a graph and nothing run, as a hint and not a second Analyze control", async () => {
         renderPlace(await sessionWithGraph());
 
         const footer = screen.getByText(/to add results here/);
-        assert.equal(footer.textContent, "Analyze (Shift+A) to add results here");
+        assert.equal(footer.textContent?.replace(/\s+/g, " "), "Analyze in the toolbar (Shift+A) to add results here");
         assert.isNull(within(footer).queryByRole("button"));
+        // The toolbar button's glyph, for a touch reader who sees no tooltip and has no key.
+        assert.isNotNull(footer.querySelector("svg[aria-hidden='true']"));
     });
 
     it("lists matches while typing and selects nothing until a pick", async () => {

@@ -3,12 +3,12 @@ import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 
 import {
-    type AccelerationCapabilities,
     type AccelerationController,
     type AccelerationPolicy,
+    type Capabilities,
     isAccelerationPolicy,
 } from "./acceleration";
-import { layoutIdForEngine } from "./catalog/layouts";
+import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
@@ -46,6 +46,7 @@ import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { downloadBlob } from "./utils/download";
 
 /**
  * How often a run's progress may reach a DOM listener, in milliseconds.
@@ -183,13 +184,51 @@ export class Graphty extends LitElement {
         // The download is the write, and the caller never sees a SavedProject to mark, so this
         // save always clears `dirty`.
         const { text, report } = await this.session.project.save({ ...options, markSaved: true });
-        const url = URL.createObjectURL(new Blob([text], { type: PROJECT_FILE.mediaType }));
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = options.fileName ?? projectFileName(this.session.project.name);
-        link.click();
-        URL.revokeObjectURL(url);
+        downloadBlob(
+            new Blob([text], { type: PROJECT_FILE.mediaType }),
+            options.fileName ?? projectFileName(this.session.project.name),
+        );
         return report;
+    }
+
+    /**
+     * Write the graph in a file format (`exportGraph`) and hand it to the reader as a download
+     * named `<project name><the format's first extension>`, such as `Pioneers.graphml`; an unnamed
+     * project downloads as `project.graphml`. `"graphty"` downloads the project file
+     * (`<project name>.graphty.json`) without marking the project saved: it is a copy, and
+     * `project.dirty` is left as it was. To save, use `downloadProject`. The file is assembled from
+     * the export's UTF-8 chunks, never as one string.
+     * @param format - The format id, as `session.catalog.formats()` lists it.
+     * @param options - The writer's options, as `exportGraph` takes them, and the file's name.
+     * @returns The export, whose `lossNotes` list everything the format could not hold.
+     * @throws A `GraphtyError` (as a rejection), as `exportGraph` rejects.
+     * @since 3.0.0
+     * @example
+     * ```typescript
+     * const { lossNotes } = await element.downloadGraph("graphml");
+     * for (const note of lossNotes) console.warn(note.message);
+     * ```
+     */
+    async downloadGraph(
+        format: FormatId,
+        options: ExportGraphOptions & { readonly fileName?: string } = {},
+    ): Promise<ExportResult> {
+        const { fileName, ...exportOptions } = options;
+        const result = await this.exportGraph(format, exportOptions);
+        const chunks: BlobPart[] = [];
+        for await (const chunk of result.bytes) {
+            chunks.push(chunk.slice());
+        }
+        const { name } = this.session.project;
+        const descriptor = this.session.catalog.formats().find((entry) => entry.id === format);
+        downloadBlob(
+            new Blob(chunks, { type: descriptor?.mimeTypes[0] ?? "application/octet-stream" }),
+            fileName ??
+                (format === "graphty"
+                    ? projectFileName(name)
+                    : `${name?.trim() ? name : "project"}${descriptor?.extensions[0] ?? ""}`),
+        );
+        return result;
     }
 
     /**
@@ -1361,9 +1400,10 @@ export class Graphty extends LitElement {
     /**
      * Layout algorithm to use for positioning nodes.
      * @remarks
-     * Available layouts:
-     * - `ngraph`: Force-directed (3D optimized, recommended)
-     * - `d3-force`: Force-directed (2D)
+     * A catalogue id from `catalog.layouts()` (such as `force`, drawn by its default engine) or a
+     * registered engine name (such as `ngraph`). Reading it back gives the engine. Some layouts:
+     * - `force`: Force-directed, drawn by `ngraph` (3D optimized, recommended)
+     * - `d3`: Force-directed, the d3 engine
      * - `circular`: Nodes arranged in a circle
      * - `grid`: Nodes arranged in a grid
      * - `hierarchical`: Tree/DAG layout
@@ -1439,17 +1479,19 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Choose a layout from the property pair, as one step. The engine name maps to the catalogue
-     * id it serves, and the slice keeps the engine itself.
-     * @param engine - The engine name.
+     * Choose a layout from the property pair, as one step. A catalogue id ("force") is drawn by
+     * its default engine; an engine name maps to the catalogue id it serves, and the slice keeps
+     * the engine itself.
+     * @param name - The catalogue id or the engine name.
      * @param options - Its options.
      */
-    #setLayoutPair(engine: string, options: Readonly<Record<string, unknown>>): void {
+    #setLayoutPair(name: string, options: Readonly<Record<string, unknown>>): void {
+        const descriptor = layoutDescriptor(name);
         void dispatcherOf(this.#graph.getSession())
             .dispatch({
                 op: "layout.set",
-                id: layoutIdForEngine(engine) ?? engine,
-                engine,
+                id: descriptor?.id ?? layoutIdForEngine(name) ?? name,
+                engine: descriptor?.engine ?? name,
                 options: { ...options },
                 coalesce: ELEMENT_LAYOUT,
                 ...(this.#settingUp ? { setup: true } : {}),
@@ -2803,7 +2845,8 @@ export class Graphty extends LitElement {
      * colours and sizes, wherever the format has a place for them. `lossNotes` lists everything
      * the format could not hold.
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
-     *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
+     *     "json", "csv", "gml", "dot", "pajek", "graphty" for the project file, or a registered
+     *     writer's id)
      * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
      *     admin-import file; `{ notes: true }` adds the `graphty.notes.count` and
      *     `graphty.notes.text` columns (notes are left out by default, and reported as
@@ -4122,24 +4165,25 @@ export class Graphty extends LitElement {
     /**
      * The acceleration controller, which is the Graph's -- the element does not build one.
      *
-     * Every transition it publishes is mirrored as a `graphty-capabilities-change` DOM event,
-     * so a page with a tag and six lines of script can show whether the GPU is in use, say why
-     * it is not, and update itself when a device is lost -- without importing a module or
-     * naming a single GPU type. The mirror carries the controller's own capability document, the
-     * same object `element.session.capabilities` returns, so the two channels cannot disagree.
+     * Every transition the session publishes (acceleration and XR) is mirrored as a
+     * `graphty-capabilities-change` DOM event, so a page with a tag and six lines of script can
+     * show whether the GPU is in use, whether VR can be entered, say why not, and update itself
+     * when a device is lost -- without importing a module or naming a single GPU type. The
+     * mirror carries the same object `element.session.capabilities` returns, so the two channels
+     * cannot disagree.
      * @returns The controller.
      */
     #ensureAcceleration(): AccelerationController {
         const controller = this.#graph.acceleration;
 
         if (!this.#capabilitiesMirrored) {
-            controller.onChange(() => {
+            this.#graph.getSession().on("capabilities:changed", ({ capabilities }) => {
                 // The status carries the policy, so a policy written through
                 // `element.session.acceleration` lands here too, and the attribute reflects it.
                 this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
-                        detail: { capabilities: controller.capabilities },
+                        detail: { capabilities },
                         bubbles: true,
                         composed: true,
                     }),
@@ -4210,7 +4254,9 @@ declare global {
         }>;
         "graphty-note-change": CustomEvent<Pick<NoteChange, "id" | "change" | "fields" | "cause">>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
-        "graphty-capabilities-change": CustomEvent<{ readonly capabilities: AccelerationCapabilities }>;
+        "graphty-capabilities-change": CustomEvent<{
+            readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+        }>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;
         "graphty-node-hover": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;

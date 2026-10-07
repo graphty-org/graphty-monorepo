@@ -148,8 +148,20 @@ describe("WelcomeState surface", () => {
             expect(container.querySelector('[role="alert"]')).toBeNull();
             expect(zone.textContent).toContain("Drop a graph file (or a nodes file and an edges file) here");
             expect(zone.textContent).toContain(
-                "Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2",
+                "Accepted formats: JSON, CSV, GraphML, GEXF, GML, DOT, Pajek NET, XGMML, CX2, CX, Cytoscape Session, OBO",
             );
+        });
+
+        it("lists only the formats graphty-element can read", () => {
+            const zone = dropZoneOf(renderWelcome());
+            const formats = [...zone.querySelectorAll("span")].find((span) =>
+                span.textContent?.startsWith("Accepted formats:"),
+            );
+
+            expect(formats?.textContent).toContain("XGMML");
+            expect(formats?.textContent).toContain("CX2");
+            expect(formats?.textContent).not.toContain("SIF");
+            expect(formats?.textContent).not.toContain("Graphty JSON");
         });
 
         it("draws the sentence inside the drop zone, above the accepted formats line", () => {

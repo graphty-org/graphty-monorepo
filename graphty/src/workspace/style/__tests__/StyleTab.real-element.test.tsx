@@ -20,6 +20,9 @@ import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
 import { EVERYTHING_KEY } from "../row";
 
+/** A pause in a slow drag: longer than any debounce, so each move could be its own write. */
+const PAUSE_MS = 300;
+
 /** A hang guard for the element coming up and painting, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
 
@@ -100,6 +103,18 @@ function readerLayers(session: GraphSession): ReturnType<GraphSession["styles"][
     return session.styles.list().filter((l) => l.source.by !== "element");
 }
 
+/**
+ * What a Color line's paint field shows: its hex and its opacity.
+ * @param container - where the line is.
+ * @returns the hex and the opacity text, as "#6366F1 100%".
+ */
+function paintShown(container: HTMLElement): string {
+    const field = within(container).getByRole("group", { name: "Color" });
+    const hex = within(field).getByRole<HTMLInputElement>("textbox", { name: "Color hex value" });
+    const opacity = within(field).getByRole<HTMLInputElement>("textbox", { name: "Opacity" });
+    return `#${hex.value} ${opacity.value}%`;
+}
+
 describe("the Style tab on the real element", () => {
     // The design's frame. At the runner's default width the inspector has no room.
     beforeAll(async () => {
@@ -112,7 +127,8 @@ describe("the Style tab on the real element", () => {
             await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
             const fill = within(tab).getByRole("group", { name: "Fill" });
-            assert.isNotNull(within(fill).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+            // Figma's paint field, whole: the hex and the opacity, nothing cut off.
+            assert.equal(paintShown(fill), "#6366F1 100%");
             // The app's own words: the shape line is Shape.
             assert.isNotNull(
                 within(within(tab).getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Shape / }),
@@ -232,7 +248,7 @@ describe("the Style tab on the real element", () => {
             store.set({ inspected: { kind: "everything-row", id: "everything" } });
             await waitFor(() => {
                 assert.isNull(within(styleTab()).queryByRole("button", { name: /Detach Color/ }));
-                assert.isNotNull(within(styleTab()).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+                assert.equal(paintShown(styleTab()), "#6366F1 100%");
             });
         },
         TIMEOUT_MS * 2,
@@ -339,6 +355,91 @@ describe("the Style tab on the real element", () => {
             await waitFor(() => {
                 assert.isDefined(readerLayers(session)[0]?.encode?.["node.color"]);
             });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "Glow is one line: added as its strength alone, edited in a titled popover, removed in one undo step",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            const effects = within(tab).getByRole("group", { name: "Effects" });
+            await userEvent.click(within(effects).getByRole("button", { name: "Add to Effects" }));
+            const items = (await screen.findAllByRole("menuitem")).map((i) => i.textContent);
+            assert.include(items, "Glow");
+            assert.notInclude(items, "Glow strength");
+            await userEvent.click(screen.getByRole("menuitem", { name: "Glow" }));
+            await waitFor(() => {
+                const set = readerLayers(session)[0]?.set;
+                assert.equal(set?.["node.glowStrength"], 1);
+                assert.isUndefined(set?.["node.glow"], "the element draws its own glow color");
+            });
+
+            await userEvent.click(within(styleTab()).getByRole("button", { name: /^Glow: / }));
+            const popover = await screen.findByRole("dialog", { name: "Glow" });
+            assert.isNotNull(within(popover).getByRole("group", { name: "Color" }));
+            // Unset, the color shows what the element draws, not an invented black.
+            const glowColor = String(channelsFor("node").find((d) => d.channel === "node.glow")?.default);
+            assert.include(
+                [...popover.querySelectorAll("input")].map((i) => `#${i.value}`.toUpperCase()),
+                glowColor.toUpperCase(),
+            );
+            assert.isNotNull(within(popover).getByRole("combobox", { name: "Glow strength" }));
+            await userEvent.click(within(popover).getByRole("button", { name: /close/i }));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Glow" }));
+            });
+
+            await session.styles.update(readerLayers(session)[0].id, {
+                set: { ...readerLayers(session)[0].set, "node.glow": "#FF0000" },
+            });
+            const steps = session.history.steps.length;
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Remove Glow" }));
+            await waitFor(() => {
+                assert.lengthOf(readerLayers(session), 0, "both parts went, and the emptied layer with them");
+            });
+            assert.equal(session.history.steps.length, steps + 1, "one step for both parts");
+            await session.undo();
+            await waitFor(() => {
+                const set = readerLayers(session)[0]?.set;
+                assert.equal(set?.["node.glow"], "#FF0000");
+                assert.equal(set?.["node.glowStrength"], 1);
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "lists an edge's arrows as Head arrow and Tail arrow, and Pattern's count and animation in its popover",
+        async () => {
+            await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(within(tab).getByRole("radio", { name: "Edges" }));
+            const arrows = within(styleTab()).getByRole("group", { name: "Arrows" });
+            const plus = within(arrows).queryByRole("button", { name: "Add to Arrows" });
+            if (plus === null) {
+                // A directed graph's base layer already draws the head: Tail arrow is the one left.
+                assert.isNotNull(within(arrows).getByRole("button", { name: "Add Tail arrow" }));
+            } else {
+                await userEvent.click(plus);
+                const items = (await screen.findAllByRole("menuitem")).map((i) => i.textContent);
+                assert.deepEqual(items, ["Head arrow", "Tail arrow"]);
+                await userEvent.keyboard("{Escape}");
+            }
+
+            // The element's base layer draws the pattern, so Pattern is a line already.
+            const line = within(styleTab()).getByRole("group", { name: "Line" });
+            await userEvent.click(within(line).getByRole("button", { name: /^Pattern: / }));
+            const popover = await screen.findByRole("dialog", { name: "Pattern" });
+            const caveat = channelsFor("edge").find((d) => d.channel === "edge.patternCount")?.caveat ?? "";
+            assert.isNotEmpty(caveat);
+            assert.isNotNull(within(popover).getByText(caveat));
+            assert.isNotNull(within(popover).getByRole("combobox", { name: "Pattern count" }));
+            // Animation moves only a straight solid line: a setting of Pattern, not a line of its own.
+            assert.isNotNull(within(popover).getByRole("combobox", { name: /animation/i }));
+            assert.isNull(within(line).queryByRole("button", { name: /^Animation/ }));
+            assert.isNull(within(line).queryByText(/^Animation/));
         },
         TIMEOUT_MS * 2,
     );
@@ -545,7 +646,11 @@ describe("editing lines on the real element", () => {
         async () => {
             const { session } = await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-            await userEvent.click(within(tab).getByRole("button", { name: /^Color #/ }));
+            await userEvent.click(
+                within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
+                    name: "Color swatch",
+                }),
+            );
             const hex = await screen.findByTestId("color-picker-value");
             await userEvent.clear(hex);
             await userEvent.type(hex, "FF0000{Enter}");
@@ -563,6 +668,86 @@ describe("editing lines on the real element", () => {
                 assert.isString(mine(session, "node.shape"));
             });
             assert.isNotNull(within(styleTab()).getByRole("button", { name: `Shape ${shape}` }));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "the bind icon, the bound value, the Shape value and the label line open titled pop-outs their X closes",
+        async () => {
+            await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            /**
+             * Opens a pop-out from a trigger, then closes it with its own X.
+             * @param trigger - what opens it.
+             * @param title - the pop-out's title.
+             */
+            async function openAndClose(trigger: HTMLElement, title: string): Promise<void> {
+                await userEvent.click(trigger);
+                const panel = await screen.findByRole("dialog", { name: title });
+                await userEvent.click(within(panel).getByTestId("popout-header-close"));
+                await waitFor(() => {
+                    assert.isNull(screen.queryByRole("dialog", { name: title }));
+                });
+            }
+
+            await openAndClose(within(tab).getByRole("button", { name: "Color by attribute" }), "Color by attribute");
+            const shape = within(within(styleTab()).getByRole("group", { name: "Shape" })).getByRole("button", {
+                name: /^Shape /,
+            });
+            await openAndClose(shape, "Shape");
+
+            // The bound value: bind Color, then open and close its Binding pop-out.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Color by attribute" }));
+            await userEvent.click(
+                within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "dept" }),
+            );
+            await openAndClose(await within(styleTab()).findByRole("button", { name: /^dept,/ }), "Color from data");
+
+            // The label line: its attribute list, then its position.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label line" }));
+            const list = await screen.findByRole("dialog", { name: "Label" });
+            await userEvent.click(within(list).getByTestId("popout-header-close"));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Label" }));
+            });
+            await openAndClose(within(styleTab()).getByRole("button", { name: "Label position" }), "Label position");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "a drag across the Color picker is one undo step",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(
+                within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
+                    name: "Color swatch",
+                }),
+            );
+            const field = await screen.findByTestId("color-picker-saturation");
+            const before = session.history.steps.length;
+            const box = field.getBoundingClientRect();
+            const at = (fx: number, fy: number): MouseEventInit => ({
+                bubbles: true,
+                clientX: box.left + box.width * fx,
+                clientY: box.top + box.height * fy,
+            });
+            field.dispatchEvent(new MouseEvent("mousedown", at(0.2, 0.2)));
+            // A slow drag: the reader pauses between moves, as a finger does.
+            for (const f of [0.3, 0.5, 0.7, 0.9]) {
+                document.dispatchEvent(new MouseEvent("mousemove", at(f, f)));
+                await new Promise((done) => setTimeout(done, PAUSE_MS));
+            }
+            document.dispatchEvent(new MouseEvent("mouseup", at(0.9, 0.9)));
+            await waitFor(() => {
+                const written = mine(session, "node.color");
+                assert.isString(written);
+                assert.notMatch(String(written), /^#6366F1/i);
+            });
+            await session.styles.settled();
+            assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
         },
         TIMEOUT_MS * 2,
     );
@@ -717,6 +902,72 @@ describe("editing lines on the real element", () => {
             store.set({ inspected: { kind: "run", id: runId } });
             await waitFor(() => {
                 assert.isNull(screen.queryByTestId("style-tab"));
+            });
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
+describe("the selection's own row on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * The reader's layers that name ids: the selections' own rows.
+     * @param session - the element's session.
+     * @returns the layers, bottom first.
+     */
+    function idLayers(session: GraphSession): ReturnType<GraphSession["styles"]["list"]> {
+        return readerLayers(session).filter((l) => l.selector.match === "ids");
+    }
+
+    it(
+        "a node's first edit adds its row and selects it; selecting it again edits that row",
+        async () => {
+            const { session, store } = await openWithGraph();
+            await session.selection.apply({ nodes: ["1"] });
+            await pickStyleTab();
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+            await waitFor(() => {
+                assert.equal(idLayers(session).length, 1);
+            });
+            const [row] = idLayers(session);
+            assert.equal(row.name, "1");
+            assert.deepEqual(row.selector, { match: "ids", nodes: ["1"], edges: [] });
+            await waitFor(() => {
+                assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row.id });
+            });
+
+            session.selection.clear();
+            await session.selection.apply({ nodes: ["1"] });
+            await pickStyleTab();
+            const field = await within(styleTab()).findByRole("textbox", { name: "Tooltip" });
+            await userEvent.type(field, "hello{Enter}");
+            await waitFor(() => {
+                assert.equal(session.styles.get(row.id)?.set?.["node.tooltip"], "hello");
+            });
+            assert.equal(idLayers(session).length, 1, "the same ids reuse their row");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "several selected share one row, named by their count, and Undo takes it away",
+        async () => {
+            const { session } = await openWithGraph();
+            await session.selection.apply({ nodes: ["2", "3", "4"] });
+            await pickStyleTab();
+            await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add Tooltip" }));
+            await waitFor(() => {
+                assert.deepEqual(
+                    idLayers(session).map((l) => l.name),
+                    ["3 nodes"],
+                );
+            });
+            await session.undo();
+            await waitFor(() => {
+                assert.equal(idLayers(session).length, 0);
             });
         },
         TIMEOUT_MS * 2,

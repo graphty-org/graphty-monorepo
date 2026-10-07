@@ -19,6 +19,7 @@ import { commands, page, userEvent } from "vitest/browser";
 import { InfoCircle } from "../../src/components/InfoCircle";
 import { ContextMenu } from "../../src/components/overlays/ContextMenu";
 import { MenuCheckItem } from "../../src/components/overlays/MenuCheckItem";
+import { MenuItemDescription } from "../../src/components/overlays/MenuItemDescription";
 import { ModalFooter } from "../../src/components/overlays/ModalFooter";
 import { Toast } from "../../src/components/overlays/Toast";
 import { TooltipShortcut } from "../../src/components/overlays/TooltipShortcut";
@@ -359,6 +360,32 @@ describe("8.1 dark menu keyboard and scroll", () => {
         await userEvent.keyboard("v");
         expect(focused()).toBe("View");
         await userEvent.keyboard("{Escape}");
+    });
+
+    it("a row with a second line is a 44px touch target and neither line is cut off", async () => {
+        await renderFigma(
+            <Menu opened trapFocus={false} closeOnClickOutside={false}>
+                <Menu.Target>
+                    <Button>View</Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                    <Menu.Item>Fit</Menu.Item>
+                    <MenuCheckItem radio checked={false} aria-disabled data-disabled>
+                        VR / AR
+                        <MenuItemDescription>This browser has no VR or AR</MenuItemDescription>
+                    </MenuCheckItem>
+                </Menu.Dropdown>
+            </Menu>,
+        );
+        const two = await waitFor(() =>
+            document.querySelector<HTMLElement>(".cm-menu-item:has(.cm-menu-item-description)"),
+        );
+        expect(box(two).height).toBeGreaterThanOrEqual(44);
+        const line = part(two, ".cm-menu-item-description");
+        expect(line.scrollHeight).toBeLessThanOrEqual(line.clientHeight);
+        expect(box(line).bottom).toBeLessThanOrEqual(box(two).bottom);
+        // A one-line row keeps Figma's 24.
+        expect(box(row(document, "Fit")).height).toBe(24);
     });
 
     it("a clamped menu shows 24px chevron rows at the ends it can scroll to; hovering one scrolls", async () => {
@@ -916,19 +943,18 @@ describe.skipIf(!available)("8.5 modal", () => {
             expect(box(field).top - box(bar).bottom).toBeCloseTo(8, 0);
             const bottom = part(content, ".cm-modal-footer");
             expect(box(bottom).top - box(field).bottom).toBeCloseTo(8, 0);
+            // The footer departs from Figma's 40px / 8px desktop footer for touch (figma-spec.md 8.5):
+            // 48 tall with 16px on both sides. The divider still matches.
             expectMeasured(bottom, {
-                ...figmaSpec(footer, [
-                    "height",
-                    "paddingLeft",
-                    "paddingRight",
-                    ...(scheme === "light" ? ["boxShadow"] : []),
-                ]),
+                ...figmaSpec(footer, ["paddingLeft", ...(scheme === "light" ? ["boxShadow"] : [])]),
+                height: 48,
+                paddingRight: "16px",
                 width: frame.box[2],
             });
             expect(box(content).bottom - box(bottom).bottom).toBeCloseTo(0, 0);
             const buttons = bottom.querySelectorAll("button");
             expect(box(buttons[1]).left - box(buttons[0]).right).toBeCloseTo(8, 0);
-            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(8, 0);
+            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(16, 0);
             // centered, a transparent overlay that blocks the page by default, focus in the first field
             const overlay = document.querySelector(".mantine-Modal-overlay");
             expect(overlay).not.toBeNull();

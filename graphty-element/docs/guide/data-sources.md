@@ -756,6 +756,36 @@ A CSV export puts an apostrophe before every text cell, id and header that start
 formula. Numbers, and texts that are numbers such as `-2.31`, are never touched. Pass
 `{ neutraliseFormulas: false }` for a pipeline that reads the file with a CSV parser.
 
+### Kinds of file a format writes
+
+JSON and CSV each write several kinds of file. Their catalogue entries list them in
+`exportVariants`, one entry per kind, so a picker can offer them by name:
+
+| Format | Variants                                                                                                                |
+| ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `json` | Node-link JSON (NetworkX), Cytoscape.js JSON, JSON Graph Format, graphology JSON, vis.js JSON, d3 JSON, OBO Graphs JSON |
+| `csv`  | CSV, Gephi CSV, Neo4j CSV                                                                                               |
+
+Each variant carries a `preset`, the writer options that make that kind of file, and `options`,
+the writer options that still apply to it. Pass the preset unchanged, with any option values:
+
+```typescript
+import { formatDescriptor } from "@graphty/graphty-element/catalog";
+
+const cytoscape = formatDescriptor("json")?.exportVariants?.find((v) => v.id === "cytoscape");
+const result = await element.exportGraph("json", { ...cytoscape?.preset, indent: 2 });
+```
+
+Every writer option except CSV's `table` and Neo4j's `part` is marked `advanced`.
+
+### The project file
+
+`exportGraph("graphty")` writes the project file, Graphty JSON (`.graphty.json`): the document
+`session.project.save()` produces, without marking the project saved. It is the only export that
+reads back exactly -- styles, results, layout and notes -- and it is read back by
+`session.project.open`, never by `session.data.import`, which refuses the name with
+`E_UNKNOWN_FORMAT`. It takes no options, has no loss notes, and is built as one string.
+
 Each format's options are listed in its catalogue entry's `writerOptions`, graph-io's
 `sanitizeIds` and `onMixedDirection` included; an option not listed there is refused with
 `E_UNKNOWN_OPTION`, and a value outside its choices with `E_OPTION_RANGE`.

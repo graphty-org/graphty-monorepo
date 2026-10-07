@@ -1,7 +1,7 @@
 import { Button, Tooltip } from "@mantine/core";
-import { Lock, Share2 } from "lucide-react";
 import type React from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useUsageAnswer } from "./usageData";
 
@@ -20,7 +20,7 @@ export function PrivacyChip(): React.JSX.Element {
                 variant="subtle"
                 size="compact-xs"
                 className="ws-privacy-chip"
-                leftSection={on ? <Share2 size={12} aria-hidden /> : <Lock size={12} aria-hidden />}
+                leftSection={on ? <GLYPHS.shared size={12} aria-hidden /> : <GLYPHS.private size={12} aria-hidden />}
                 onClick={() => {
                     run("settings.privacy");
                 }}

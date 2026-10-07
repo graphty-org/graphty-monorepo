@@ -2,9 +2,9 @@ import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Text } from "@mantine/core";
-import { CircleDot, ListFilter, Minus } from "lucide-react";
 import React, { useId, useMemo, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { focusNodeValuesNext } from "../inspector/reads";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "./useSessionVersion";
@@ -163,7 +163,7 @@ export function FindBox(): React.JSX.Element {
                                         name={name}
                                         match={text}
                                         path={where}
-                                        icon={hit.kind === "edge" ? <Minus size={14} /> : <CircleDot size={14} />}
+                                        icon={hit.kind === "edge" ? <GLYPHS.edge size={14} /> : <GLYPHS.node size={14} />}
                                         current={i === active}
                                         onClick={() => {
                                             void pick({ type: "hit", hit });
@@ -188,7 +188,7 @@ export function FindBox(): React.JSX.Element {
                                         key={optionId(i)}
                                         id={optionId(i)}
                                         name={`Select where ${attributeName(session, row.path)} is ${String(row.value)} (${String(row.count)})`}
-                                        icon={<ListFilter size={14} />}
+                                        icon={<GLYPHS.filter size={14} />}
                                         current={i === active}
                                         onClick={() => {
                                             void pick({ type: "value", row });

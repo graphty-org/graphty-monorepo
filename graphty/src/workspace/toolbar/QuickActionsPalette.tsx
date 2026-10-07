@@ -19,8 +19,8 @@ const GROUP_ORDER = [
 
 /**
  * Quick actions (tier1-design.md 2.3): every built command by its one label, grouped by its home,
- * with its key; a disabled command is listed but cannot be run. Running one closes the palette
- * first, so a command that opens another popover opens it in the freed slot.
+ * with its key; a disabled command is listed with its reason but cannot be run. Running one closes
+ * the palette first, so a command that opens another popover opens it in the freed slot.
  * @param props - Component props
  * @param props.onClose - Closes the palette
  * @returns The palette
@@ -30,14 +30,18 @@ export function QuickActionsPalette({ onClose }: Readonly<{ onClose: () => void 
     const actions = workspace.registry.live
         .filter((command) => command.id !== "quick-actions.open")
         .sort((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group))
-        .map((command) => ({
-            value: command.id,
-            label: command.label,
-            section: command.group,
-            shortcut: command.keys?.[0] === undefined ? undefined : formatKey(command.keys[0]),
-            keywords: command.keywords,
-            disabled: (command.disabled?.(workspace) ?? null) !== null,
-        }));
+        .map((command) => {
+            const reason = command.disabled?.(workspace) ?? null;
+            return {
+                value: command.id,
+                label: command.label,
+                section: command.group,
+                shortcut: command.keys?.[0] === undefined ? undefined : formatKey(command.keys[0]),
+                keywords: command.keywords,
+                disabled: reason !== null,
+                description: reason ?? undefined,
+            };
+        });
     return (
         <QuickActions
             actions={actions}

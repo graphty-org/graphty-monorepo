@@ -86,9 +86,10 @@ export function CanvasSection(): React.JSX.Element | null {
                     color={color}
                     defaultColor="#ffffff"
                     showOpacity={false}
-                    onChange={(next) => {
+                    onChangeEnd={(next) => {
                         if (next !== undefined) {
-                            // One step; project:changed re-renders the inspector with the new color.
+                            // Once per gesture, so a drag is one step; project:changed re-renders
+                            // the inspector with the new color.
                             void session.config.set({ background: { backgroundType: "color", color: next } });
                         }
                     }}

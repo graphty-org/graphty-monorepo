@@ -35,24 +35,35 @@ describe("the Export dialog", () => {
         // The image carries the legend card, so there is no note saying it does not.
         assert.isNull(within(dialog).queryByText("The legend is not in the image"));
 
-        await userEvent.click(within(dialog).getByRole("tab", { name: "Data" }));
+        await userEvent.click(within(dialog).getByRole("gridcell", { name: "Data" }));
         assert.isNotNull(within(dialog).getByRole("heading", { name: "Data" }));
         assert.isNull(within(dialog).queryByRole("heading", { name: "Image" }));
     });
 
-    it("names its two kinds as tabs, each with its own panel", async () => {
+    it("lists its two kinds in the shared page list, the current one marked", async () => {
         render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
 
         const dialog = await screen.findByRole("dialog", { name: "Export" });
-        const kinds = within(dialog).getByRole("tablist", { name: "What to export" });
-        const tabs = within(kinds).getAllByRole("tab");
+        const kinds = within(dialog).getByRole("grid", { name: "What to export" });
+        const rows = within(kinds).getAllByRole("gridcell");
         assert.deepEqual(
-            tabs.map((tab) => tab.textContent),
+            rows.map((row) => row.textContent),
             ["Image", "Data"],
         );
-        assert.strictEqual(tabs[0].getAttribute("aria-selected"), "true");
-        const panel = within(dialog).getByRole("tabpanel");
-        assert.strictEqual(panel.getAttribute("aria-labelledby"), tabs[0].id);
+        assert.strictEqual(rows[0].getAttribute("aria-current"), "page");
+        assert.isNotNull(within(dialog).getByRole("region", { name: "Image" }));
+    });
+
+    it("keeps its footer 12px above its own bottom edge and inside the window on a short screen", async () => {
+        await page.viewport(1180, 640);
+        render(<Workspace initialState={{ ...OPEN, dialog: "export" }} />);
+
+        const dialog = await screen.findByRole("dialog", { name: "Export" });
+        const content = dialog.closest(".mantine-Modal-content") ?? dialog;
+        const edge = content.getBoundingClientRect();
+        const cancel = within(dialog).getByRole("button", { name: "Cancel" }).getBoundingClientRect();
+        assert.isAtMost(edge.bottom, window.innerHeight);
+        assert.closeTo(edge.bottom - cancel.bottom, 12, 1);
     });
 
     it("blocks the page behind it: the rail beside the dialog cannot be clicked", async () => {

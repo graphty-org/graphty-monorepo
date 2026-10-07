@@ -62,6 +62,11 @@ export interface TreeNodeData {
      * too.
      */
     description?: string;
+    /**
+     * Whether the item can be picked up and moved (a drag, Alt+ArrowUp / Alt+ArrowDown).
+     * Default true. Where an item may land is `Tree`'s `canDrop`.
+     */
+    movable?: boolean;
 }
 
 /** One visible row. */
@@ -181,11 +186,12 @@ export interface TreeDrop {
  * Turn a pointer over a row into a drop: top quarter = before it, middle half = into it (a
  * container) or the nearer edge (a leaf), bottom quarter = its first child when it is expanded,
  * else after it. Returns null for a drop onto the dragged item, into its own subtree, or back
- * where it already is.
+ * where it already is, and for a move `canDrop` refuses.
  * @param rows - the visible rows
  * @param dragId - the item being dragged
  * @param overIndex - the row under the pointer
  * @param fraction - the pointer's height within that row, 0..1
+ * @param canDrop - the caller's rule for where an item may land; a refused move is no drop
  * @returns the drop, or null
  */
 export function computeDrop(
@@ -193,6 +199,7 @@ export function computeDrop(
     dragId: string,
     overIndex: number,
     fraction: number,
+    canDrop?: (move: TreeMove) => boolean,
 ): TreeDrop | null {
     const over = rows[overIndex] as FlatTreeRow | undefined;
     const dragged = rows.find((r) => r.node.id === dragId);
@@ -256,7 +263,11 @@ export function computeDrop(
     if (dragged.parentId === parentId && dragged.posInSet - 1 === index) {
         return null;
     }
-    return { move: { id: dragId, parentId, index }, boxRow, line };
+    const move = { id: dragId, parentId, index };
+    if (canDrop && !canDrop(move)) {
+        return null;
+    }
+    return { move, boxRow, line };
 }
 
 /**

@@ -5,6 +5,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import type React from "react";
 
+import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
@@ -59,7 +60,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             >
                 <Rail />
                 <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
-                    {place === "graph" ? <GraphPlace /> : <DataPlace />}
+                    <div className="ws-panel-body">{place === "graph" ? <GraphPlace /> : <DataPlace />}</div>
                     <ResizeHandle
                         edge="end"
                         label="Resize left panel"
@@ -74,7 +75,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 </aside>
                 <main className="ws-main" aria-label="Graph" hidden={!panels}>
                     <div className="ws-canvas">
-                        <ElementHost key={projectId} onReady={onElementReady} />
+                        <CanvasMenu>
+                            <ElementHost key={projectId} onReady={onElementReady} />
+                        </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock">
@@ -101,7 +104,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     ) : null}
                 </main>
                 <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
-                    <Inspector />
+                    <div className="ws-panel-body">
+                        <Inspector />
+                    </div>
                     <ResizeHandle
                         edge="start"
                         label="Resize inspector"

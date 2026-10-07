@@ -110,7 +110,7 @@ export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
 export type { GraphLister, RegisteredFormat } from "./src/catalog/formatRegistry";
 export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from "./src/catalog/formatRegistry";
-export type { FormatDescriptor, FormatId } from "./src/catalog/types";
+export type { FormatDescriptor, FormatExportVariant, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
 export type { AdHocData } from "./src/config/index";
 export type {

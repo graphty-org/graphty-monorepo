@@ -34,3 +34,12 @@
     display: flex;
     color: var(--mantine-color-dimmed);
 }
+
+/* The graph under the overlays. A touch-and-hold opens the canvas menu, so iOS must not show its
+   own callout or start a text selection during the hold. */
+.ws-canvas-surface {
+    height: 100%;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+}

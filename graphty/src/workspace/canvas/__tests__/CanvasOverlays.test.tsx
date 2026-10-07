@@ -146,13 +146,36 @@ describe("the canvas's state cards", () => {
         assert.isNull(screen.queryByRole("status"));
     });
 
-    it("shows No nodes to draw over an empty graph, with Add data... its one door", () => {
+    it("shows No nodes to draw over an empty graph, with Add data... and Open a sample", () => {
         renderOver(standIn({ nodeCount: 0 }).session);
         assert.isNotNull(screen.getByRole("region", { name: "No nodes to draw" }));
         assert.deepEqual(
             screen.getAllByRole("button").map((button) => button.textContent),
-            ["Add data..."],
+            ["Add data...", "Open a sample"],
         );
+    });
+
+    it("lists every sample under Open a sample, and a row runs that sample's command", async () => {
+        const karate: Command = {
+            id: "sample.open.karate",
+            label: "Open sample: Zachary's karate club",
+            group: "Project",
+            run: vi.fn(),
+        };
+        renderOver(standIn({ nodeCount: 0 }).session, {}, [karate]);
+        await userEvent.click(screen.getByRole("button", { name: "Open a sample" }));
+        const rows = await screen.findAllByRole("menuitem");
+        assert.deepEqual(
+            rows.map((row) => row.textContent),
+            [
+                "Les Miserables77 characters",
+                "Zachary's karate club34 members",
+                "College football115 teams",
+                "Florentine families15 families",
+            ],
+        );
+        await userEvent.click(rows[1]);
+        assert.equal(vi.mocked(karate.run).mock.calls.length, 1);
     });
 
     it("offers Add data on the empty card, and runs it", async () => {

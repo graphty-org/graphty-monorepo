@@ -20,6 +20,7 @@ import type {
     AccelerationCapabilities,
     AccelerationPolicy,
     AccelerationStatus,
+    Capabilities,
     GraphAccelerator,
 } from "../acceleration";
 // EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
@@ -1395,8 +1396,12 @@ export interface SessionEventMap {
      * looking at an old picture that reads as an answer.
      */
     "style:problem": StyleProblem;
-    /** Every acceleration transition; the document is the one `capabilities` returns. */
-    "capabilities:changed": { readonly capabilities: AccelerationCapabilities };
+    /**
+     * Every acceleration transition, and every change to what VR and AR can do: the probe
+     * settling, a WebXR device change, entering or leaving a session (including the headset
+     * ending it), an XR configuration change. The document is the one `capabilities` returns.
+     */
+    "capabilities:changed": { readonly capabilities: Pick<Capabilities, "acceleration" | "xr"> };
     /**
      * The history changed: a step was recorded, merged, undone, redone, restored, evicted or
      * cleared, or the pending work (and so what the next undo will do) changed. Fires
@@ -1576,6 +1581,8 @@ export interface CommandOutcomeMap {
     "algo.legacy": Promise<void>;
     /** What went with the run, once the removal is recorded. */
     "algo.remove": Promise<RunRemoval>;
+    /** Settles once the run's layers have moved, as one step. */
+    "algo.move": Promise<void>;
     /** Settles once every member is recorded as one step and the pass that draws it has run. */
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */
@@ -1750,8 +1757,15 @@ export interface SessionLayout {
     readonly engine: string;
     /** The options it was chosen with. */
     readonly options: Readonly<Record<string, unknown>>;
-    /** Whether the graph is drawn in two dimensions or three. */
+    /** Whether the graph is drawn in two dimensions or three: the view's dimension. */
     readonly dimension: "2d" | "3d";
+    /**
+     * How many dimensions the current layout actually places nodes in. Always `"2d"` in the 2D
+     * view; in the 3D view `"2d"` for an engine that only draws flat (such as `arf`) or one chosen
+     * with `dim: 2`, and `"3d"` otherwise. Read it, not `options.dim`, to tell a flat layout in the
+     * 3D view: options hold only what was asked for, not the defaults the element fills in.
+     */
+    readonly arrangedDimension: "2d" | "3d";
     /**
      * Choose the layout. One step.
      * @param id - The catalogue id; a registered engine name is read as the id it serves.
@@ -1914,8 +1928,12 @@ export interface GraphSession {
     readonly catalog: SessionCatalogApi;
     /** The settings as they are now, and `set` to change the project ones. */
     readonly config: SessionConfig;
-    /** What this machine can do, measured rather than guessed at by the consumer. */
-    readonly capabilities: AccelerationCapabilities;
+    /**
+     * What this machine can do, measured rather than guessed at by the consumer: acceleration,
+     * and which immersive modes can be entered (with the reason when one cannot) and which one
+     * is presenting. A session that draws nothing reports VR and AR as `"unsupported"`.
+     */
+    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     /**
      * What the consumer asks of the hardware: use an accelerator when there is one, never look,
      * or refuse to run without one.

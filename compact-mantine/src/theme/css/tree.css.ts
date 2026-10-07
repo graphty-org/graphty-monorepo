@@ -31,8 +31,14 @@ const css = `
     outline: none;
     cursor: default;
     user-select: none;
+    -webkit-user-select: none;
+    /* No iOS callout or magnifier while a row is held; a vertical swipe still scrolls the list. */
+    -webkit-touch-callout: none;
+    touch-action: pan-y;
 }
 .cm-tree-row[data-strong] { font-weight: 600; }
+/* The row being dragged. */
+.cm-tree-row[data-dragging] { opacity: 0.5; }
 .cm-tree-row::before,
 .cm-tree-row::after {
     content: "";
@@ -197,6 +203,10 @@ const css = `
 .cm-tree-actions > [aria-checked="true"],
 .cm-tree-actions > [data-pinned],
 .cm-tree-actions > :has([aria-pressed="true"], [aria-checked="true"], :checked) { opacity: 1; }
+/* A touch screen has no hover to reveal them, so the toggles stay visible (as ActionRow's do). */
+@media (hover: none) {
+    .cm-tree-actions > * { opacity: 1; }
+}
 
 /* Sticky expanded top-level rows (stickyRoots). */
 .cm-tree[data-sticky-roots] .cm-tree-block > .cm-tree-row[aria-level="1"][aria-expanded="true"] {
@@ -613,6 +623,10 @@ const css = `
 .cm-dt .cm-dt-header:hover .cm-dt-header-menu,
 .cm-dt .cm-dt-header:focus-within .cm-dt-header-menu,
 .cm-dt .cm-dt-header-menu[aria-expanded="true"] { opacity: 1; }
+/* A touch screen has no hover to reveal the column menu, so its caret stays visible. */
+@media (hover: none) {
+    .cm-dt .cm-dt-header-menu { opacity: 1; }
+}
 .cm-dt .cm-dt-sort-priority { flex: none; color: var(--cm-text-secondary); ${cmFont("caption")} }
 .cm-dt .cm-dt-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-dt-empty {

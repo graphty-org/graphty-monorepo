@@ -3,7 +3,7 @@ import { afterEach, assert, beforeEach, describe, expect, it, type Mock, vi } fr
 
 import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../../data/sampleGraphs";
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../../data/sampleManifest";
-import { act, fireEvent, render, screen, waitFor, within } from "../../../test/test-utils";
+import { act, fireEvent, mouseDrag, render, screen, waitFor, within } from "../../../test/test-utils";
 import { NODE_METRIC_DEFINITIONS } from "../analysis/nodeMetrics";
 import { COMMUNITY_NAMESPACE, COMMUNITY_TYPE, DEGREE_NAMESPACE, DEGREE_TYPE } from "../analysis/runs";
 import { AppShell } from "../AppShell";
@@ -2320,24 +2320,20 @@ describe("AppShell", () => {
         });
 
         /**
-         * Drags one layer row and drops it on another row, with the HTML5 drag events the
-         * list's Tree listens for.
+         * Drags one layer row with the mouse and drops it on another row.
          * @param list - the layer list.
          * @param from - the name of the row to drag.
          * @param to - the name of the row to drop it on.
          */
         async function dragRow(list: HTMLElement, from: string, to: string): Promise<void> {
-            // The list is a Tree: its rows are treeitems moved with HTML5 drag events. A row
-            // dragged up lands above the target, dragged down below it -- the target's place.
+            // The list is a Tree: its rows are treeitems moved by a pointer drag. A row dragged
+            // up lands above the target, dragged down below it -- the target's place.
             const rowOf = (name: string): HTMLElement => within(list).getByRole("treeitem", { name });
             const source = rowOf(from).getBoundingClientRect();
             const target = rowOf(to).getBoundingClientRect();
             const clientY = target.top + target.height * (target.top < source.top ? 0.1 : 0.9);
-            const dataTransfer = new DataTransfer();
 
-            fireEvent.dragStart(rowOf(from), { dataTransfer });
-            fireEvent.dragOver(rowOf(to), { dataTransfer, clientY });
-            fireEvent.drop(rowOf(to), { dataTransfer, clientY });
+            mouseDrag(rowOf(from), target.left + target.width / 2, clientY);
             await settleSession();
         }
 
@@ -4122,7 +4118,7 @@ describe("AppShell", () => {
 
             expect(zone?.getAttribute("data-dragging")).not.toBeNull();
             expect(zone?.textContent).toContain(
-                "Accepted formats: JSON, CSV or TSV, GraphML, GEXF, GML, DOT, Pajek, SIF, CX2",
+                "Accepted formats: JSON, CSV, GraphML, GEXF, GML, DOT, Pajek NET, XGMML, CX2, CX, Cytoscape Session, OBO",
             );
             expect(inline?.closest("[role='tooltip']")).toBeNull();
             expect(inline?.closest("[data-info-circle]")).toBeNull();

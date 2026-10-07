@@ -188,7 +188,7 @@ describe("StylePanel", () => {
         });
 
         it("keeps the saved-thing verbs in the section's own overflow", async () => {
-            renderPanel();
+            renderPanel({ onStylesOverflow: vi.fn() });
 
             fireEvent.click(screen.getByTestId("style-styles-more"));
 
@@ -200,8 +200,21 @@ describe("StylePanel", () => {
             ]);
         });
 
-        it("carries the resident Save as style plus", () => {
+        it("draws no Styles overflow, no Save as style plus and no clickable rows without handlers", () => {
             renderPanel();
+
+            fireEvent.click(screen.getByRole("button", { name: "Expand Styles" }));
+
+            expect(screen.queryByTestId("style-styles-more")).toBeNull();
+            expect(screen.queryByText("Import style...")).toBeNull();
+            expect(screen.queryByText("Export style (JSON)")).toBeNull();
+            expect(screen.queryByText("Reset styles to defaults")).toBeNull();
+            expect(screen.queryByRole("button", { name: "Save as style..." })).toBeNull();
+            expect(screen.getByText("Default").closest("button")).toBeNull();
+        });
+
+        it("carries the resident Save as style plus", () => {
+            renderPanel({ onSaveStyle: vi.fn() });
 
             expect(screen.getByRole("button", { name: "Save as style..." })).toBeInTheDocument();
         });

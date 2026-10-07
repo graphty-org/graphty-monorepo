@@ -1,11 +1,3 @@
-/* The selection bar sits directly above the toolbar, centered on it. */
-.ws-toolbar-stack {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-
 .ws-analyze-list {
     max-height: 420px;
     overflow-y: auto;
@@ -34,4 +26,14 @@
 .ws-analyze-icon {
     display: inline-flex;
     padding-top: 2px;
+}
+
+/* The View tool's face: the current mode as a word and a caret, in the tool's 24px box. */
+.ws-view-face {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
 }

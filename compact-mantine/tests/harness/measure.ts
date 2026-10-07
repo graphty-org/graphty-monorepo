@@ -32,6 +32,7 @@ declare module "vitest/browser" {
         mouseAway: () => Promise<void>;
         mouseDown: () => Promise<void>;
         mouseUp: () => Promise<void>;
+        touchDrag: (selector: string, dx: number) => Promise<void>;
         emulateReducedMotion: (reduce: boolean) => Promise<void>;
     }
 }

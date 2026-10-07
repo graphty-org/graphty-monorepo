@@ -309,6 +309,8 @@ export type {
 // The project file: the whole session saved to one file and opened again, as `session.project`
 // ---------------------------------------------------------------------------------------------
 
+export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
+export { browserProjects } from "./src/session";
 export type {
     ProjectApi,
     ProjectOpenOptions,
@@ -477,6 +479,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
 export type { DefaultableLimits } from "./src/session";

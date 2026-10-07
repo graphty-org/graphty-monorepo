@@ -1,16 +1,16 @@
 /**
  * Tier 1 task T14, "Save and reopen", on the REAL graphty-element: from the empty app, open a
- * sample, run Degree, add a style layer and select a node; Save opens Save as; Close returns to
- * the start screen, where the project is first in Recent projects; a click reopens it with its
- * runs, styles and selection. Run once where the browser keeps file handles (the save picker hands
- * back a file in the origin private file system) and once where it does not (Save downloads, and
- * Recent projects asks for the file with Locate...). Every assertion reads what the element reports.
+ * sample, run Degree, add a style layer and select a node; Save opens Save as and keeps the
+ * project in this browser; Close returns to the start screen, where the project is first in
+ * Recent projects; a click reopens it with its runs, styles and selection. Save local copy...
+ * downloads the project file without changing what is saved. Every assertion reads what the
+ * element reports.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
@@ -158,12 +158,35 @@ async function saveAs(name: string): Promise<void> {
 }
 
 /**
- * Close project from the project-name menu.
- * @param name - the project's name.
+ * Back to start from the main menu.
  */
-async function closeFromMenu(name: string): Promise<void> {
-    await userEvent.click(screen.getByRole("button", { name: `Project: ${name}` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: "Close project" }));
+async function closeFromMenu(): Promise<void> {
+    await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
+}
+
+/**
+ * Records every download the element starts, without saving a file.
+ * @returns the downloads, filled as they happen.
+ */
+function watchDownloads(): { name: string; blob: Blob }[] {
+    const downloads: { name: string; blob: Blob }[] = [];
+    const blobs = new Map<string, Blob>();
+    const create = URL.createObjectURL.bind(URL);
+    vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
+        const url = create(object);
+        if (object instanceof Blob) {
+            blobs.set(url, object);
+        }
+        return url;
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+        const blob = blobs.get(this.href);
+        if (this.download !== "" && blob !== undefined) {
+            downloads.push({ name: this.download, blob });
+        }
+    });
+    return downloads;
 }
 
 beforeEach(async () => {
@@ -176,229 +199,180 @@ afterEach(() => {
 
 describe("T14: save and reopen, on the real element", () => {
     it(
-        "saves to a file the browser keeps, and reopens it from Recent projects",
+        "keeps the project in this browser, saves again without asking, and reopens it from Recent projects",
         async () => {
-            const root = await navigator.storage.getDirectory();
-            const file = await root.getFileHandle("t14.graphty.json", { create: true });
-            const picker = vi.fn(() => Promise.resolve(file));
-            vi.stubGlobal("showSaveFilePicker", picker);
-            try {
-                const store = createWorkspaceStore();
-                const { session, before } = await buildProject(store);
-                assert.isTrue(session.project.dirty);
+            const downloads = watchDownloads();
+            const store = createWorkspaceStore();
+            const { session, before } = await buildProject(store);
+            assert.isTrue(session.project.dirty);
 
-                await saveAs("Florentine, my copy");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Saved as Florentine, my copy");
-                });
-                assert.equal(picker.mock.calls.length, 1);
-                assert.isFalse(session.project.dirty);
-                assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
-                assert.include(await (await file.getFile()).text(), "graphty-document");
-
-                // A later Save writes the same file, with no dialog.
-                await session.styles.add({
-                    name: "Later",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 2 },
-                });
-                await userEvent.keyboard("{Control>}s{/Control}");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Saved Florentine, my copy");
-                });
-                assert.equal(picker.mock.calls.length, 1);
-                const saved = snapshot(session);
-
-                await closeFromMenu("Florentine, my copy");
-                assert.isNull(store.get().project);
-                const recent = await screen.findByRole("button", { name: /^Florentine, my copy/ });
-                assert.isNotNull(within(recent).getByText("15 nodes"));
-
-                await userEvent.click(recent);
-                const reopened = await elementSession(session);
-                await waitFor(
-                    () => {
-                        assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
-                assert.deepEqual(snapshot(reopened), saved);
-                assert.include(saved.runs, before.runs[0]);
-                assert.deepEqual(saved.selection, before.selection);
-                assert.isFalse(reopened.project.dirty);
-                assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
-
-                // Opening it again over unsaved changes: the element refuses, the reader discards.
-                await reopened.styles.add({
-                    name: "Unsaved",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 3 },
-                });
-                store.set({ notice: null });
-                await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
-                await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
-                await userEvent.click(await screen.findByRole("menuitem", { name: /^Florentine, my copy/ }));
-                const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-                await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
-                await waitFor(
-                    () => {
-                        assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
-                assert.deepEqual(snapshot(reopened), saved);
-            } finally {
-                vi.unstubAllGlobals();
-                await root.removeEntry("t14.graphty.json");
-            }
-        },
-        TIMEOUT_MS * 2,
-    );
-
-    it(
-        "downloads where the browser keeps no file handles, and reopens with Locate...",
-        async () => {
-            vi.stubGlobal("showSaveFilePicker", undefined);
-            vi.stubGlobal("showOpenFilePicker", undefined);
-            const downloads: { name: string; blob: Blob }[] = [];
-            const blobs = new Map<string, Blob>();
-            const create = URL.createObjectURL.bind(URL);
-            vi.spyOn(URL, "createObjectURL").mockImplementation((object: Blob | MediaSource) => {
-                const url = create(object);
-                if (object instanceof Blob) {
-                    blobs.set(url, object);
-                }
-                return url;
+            await saveAs("Florentine, my copy");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Saved Florentine, my copy in this browser.");
             });
-            vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-                const blob = blobs.get(this.href);
-                if (this.download !== "" && blob !== undefined) {
-                    downloads.push({ name: this.download, blob });
-                }
-            });
-            try {
-                const store = createWorkspaceStore();
-                const { session, before } = await buildProject(store);
+            assert.deepEqual(downloads, []);
+            assert.isFalse(session.project.dirty);
+            assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
 
-                await saveAs("Florentine");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Downloaded Florentine");
-                });
+            // A later Save writes the same browser-kept project, with no dialog.
+            await session.styles.add({
+                name: "Later",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 2 },
+            });
+            store.set({ notice: null });
+            await userEvent.keyboard("{Control>}s{/Control}");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Saved Florentine, my copy in this browser.");
+            });
+            assert.isNull(screen.queryByRole("dialog"));
+            assert.lengthOf(await browserProjects.list(), 1);
+            const saved = snapshot(session);
+
+            // Save local copy... downloads the file and leaves the project saved.
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            await waitFor(() => {
                 assert.deepEqual(
                     downloads.map((download) => download.name),
-                    ["Florentine.graphty.json"],
+                    ["Florentine, my copy.graphty.json"],
                 );
+            });
+            assert.include(await downloads[0].blob.text(), "graphty-document");
+            assert.isFalse(session.project.dirty);
 
-                await closeFromMenu("Florentine");
-                const recent = await screen.findByRole("button", { name: /^Florentine/ });
-                assert.isNotNull(within(recent).getByText(/ - Locate\.\.\.$/));
+            await closeFromMenu();
+            assert.isNull(store.get().project);
+            const recent = await screen.findByRole("gridcell", { name: /^Florentine, my copy/ });
+            assert.isNotNull(within(recent).getByText(/^In this browser - 15 nodes - /));
 
-                // Locate... asks for the file: the reader picks the download.
-                const picked = new File([downloads[0].blob], "Florentine.graphty.json");
-                vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
-                    const transfer = new DataTransfer();
-                    transfer.items.add(picked);
-                    this.files = transfer.files;
-                    this.dispatchEvent(new Event("change"));
-                });
-                await userEvent.click(recent);
-                const reopened = await elementSession(session);
-                await waitFor(
-                    () => {
-                        assert.match(store.get().notice?.message ?? "", OPENED("Florentine"));
-                    },
-                    { timeout: TIMEOUT_MS },
-                );
-                assert.deepEqual(snapshot(reopened), before);
+            await userEvent.click(recent);
+            const reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.deepEqual(snapshot(reopened), saved);
+            assert.include(saved.runs, before.runs[0]);
+            assert.deepEqual(saved.selection, before.selection);
+            assert.isFalse(reopened.project.dirty);
 
-                // Save again downloads a new copy, with no dialog.
-                await reopened.styles.add({
-                    name: "Later",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 2 },
-                });
-                await userEvent.keyboard("{Control>}s{/Control}");
-                await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Downloaded Florentine");
-                });
-                assert.equal(downloads.length, 2);
-            } finally {
-                vi.unstubAllGlobals();
-            }
+            // Save after the reopen writes the same project again, with no dialog.
+            await reopened.styles.add({
+                name: "Unsaved",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 3 },
+            });
+            store.set({ notice: null });
+            await userEvent.keyboard("{Control>}s{/Control}");
+            await waitFor(() => {
+                assert.equal(store.get().notice?.message, "Saved Florentine, my copy in this browser.");
+            });
+            assert.lengthOf(await browserProjects.list(), 1);
+
+            // Opening it again over unsaved changes: the element refuses, the reader discards.
+            await reopened.styles.add({
+                name: "Unsaved again",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 4 },
+            });
+            const kept = snapshot(reopened);
+            store.set({ notice: null });
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.hover(await screen.findByRole("menuitem", { name: "Open recent" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /^Florentine, my copy/ }));
+            const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            assert.notDeepEqual(snapshot(reopened).styles, kept.styles);
         },
         TIMEOUT_MS * 2,
     );
 
     it(
-        "renames through the element: the new name is unsaved and survives an edit",
+        "leaves an unsaved project unsaved after Save local copy...",
         async () => {
-            const root = await navigator.storage.getDirectory();
-            const file = await root.getFileHandle("t14-rename.graphty.json", { create: true });
-            vi.stubGlobal(
-                "showSaveFilePicker",
-                vi.fn(() => Promise.resolve(file)),
-            );
-            try {
-                const store = createWorkspaceStore();
-                const { session } = await buildProject(store);
-                await saveAs("Florentine A");
-                await waitFor(() => {
-                    assert.isFalse(session.project.dirty);
-                });
-
-                await userEvent.keyboard("{F2}");
-                const field = await screen.findByRole("textbox", { name: "Project name" });
-                await userEvent.clear(field);
-                await userEvent.type(field, "Florentine B{Enter}");
-                await waitFor(() => {
-                    assert.equal(session.project.name, "Florentine B");
-                });
-                assert.isTrue(session.project.dirty);
-
-                // An edit publishes the project's status again; the header keeps the new name.
-                await session.styles.add({
-                    name: "Later",
-                    target: "node",
-                    selector: { match: "everything" },
-                    set: { "node.size": 2 },
-                });
-                assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
-
-                // Close asks, because the rename is not saved.
-                await closeFromMenu("Florentine B");
-                const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
-                await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
-            } finally {
-                vi.unstubAllGlobals();
-                await root.removeEntry("t14-rename.graphty.json");
-            }
+            const downloads = watchDownloads();
+            const store = createWorkspaceStore();
+            const { session } = await buildProject(store);
+            assert.isTrue(session.project.dirty);
+            await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: "Save local copy..." }));
+            await waitFor(() => {
+                assert.deepEqual(
+                    downloads.map((download) => download.name),
+                    ["Florentine families.graphty.json"],
+                );
+            });
+            assert.isTrue(session.project.dirty);
+            assert.deepEqual(await browserProjects.list(), []);
         },
         TIMEOUT_MS,
     );
 
     it(
-        "keeps the old name and still asks before Close when Save as cannot write the file",
+        "renames through the element: the new name is unsaved and survives an edit",
         async () => {
-            const refused = {
-                createWritable: () => Promise.reject(new DOMException("refused", "NotAllowedError")),
-            };
-            vi.stubGlobal(
-                "showSaveFilePicker",
-                vi.fn(() => Promise.resolve(refused)),
-            );
+            const store = createWorkspaceStore();
+            const { session } = await buildProject(store);
+            await saveAs("Florentine A");
+            await waitFor(() => {
+                assert.isFalse(session.project.dirty);
+            });
+
+            await userEvent.keyboard("{F2}");
+            const field = await screen.findByRole("textbox", { name: "Project name" });
+            await userEvent.clear(field);
+            await userEvent.type(field, "Florentine B{Enter}");
+            await waitFor(() => {
+                assert.equal(session.project.name, "Florentine B");
+            });
+            assert.isTrue(session.project.dirty);
+
+            // An edit publishes the project's status again; the header keeps the new name.
+            await session.styles.add({
+                name: "Later",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.size": 2 },
+            });
+            assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
+
+            // Close asks, because the rename is not saved.
+            await closeFromMenu();
+            const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
+            await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "keeps the old name and still asks before Close when the browser cannot keep the project",
+        async () => {
             try {
                 const store = createWorkspaceStore();
                 await buildProject(store);
+                vi.stubGlobal("indexedDB", undefined);
                 await saveAs("Florentine, unsaved");
                 await waitFor(() => {
-                    assert.equal(store.get().notice?.message, "Florentine, unsaved could not be saved.");
+                    assert.equal(
+                        store.get().notice?.message,
+                        "Florentine, unsaved could not be saved: this browser does not let graphty keep projects. Save a local copy instead.",
+                    );
                 });
                 assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
 
-                await closeFromMenu("Florentine families");
+                await closeFromMenu();
                 assert.isNotNull(await screen.findByRole("dialog", { name: "Discard unsaved changes?" }));
                 assert.isNotNull(store.get().project);
             } finally {
@@ -409,7 +383,7 @@ describe("T14: save and reopen, on the real element", () => {
     );
 
     it(
-        "asks before Close project or New project throws away unsaved changes",
+        "asks before Back to start or New project throws away unsaved changes",
         async () => {
             const store = createWorkspaceStore();
             const { session } = await buildProject(store);
@@ -421,12 +395,12 @@ describe("T14: save and reopen, on the real element", () => {
             await userEvent.click(within(asked).getByRole("button", { name: "Cancel" }));
             assert.equal(store.get().project?.name, "Florentine families");
 
-            await closeFromMenu("Florentine families");
+            await closeFromMenu();
             const dialog = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
             await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
             assert.isNotNull(store.get().project);
 
-            await closeFromMenu("Florentine families");
+            await closeFromMenu();
             await userEvent.click(
                 within(await screen.findByRole("dialog", { name: "Discard unsaved changes?" })).getByRole("button", {
                     name: "Discard",

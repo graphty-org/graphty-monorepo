@@ -39,8 +39,7 @@ acceptance test. "The studio worktree" is
    public option, owner door. Deferred to after round 3 as a placement question; have the
    owner-decisions entry drafted, do not build it.
 6. (2026-10-07) Still deferred, with reasons in round 2 decisions: 4x print re-render
-   (`ScreenshotCapture.ts` scales; labels also soft at 2x), selection ring in export, name behind
-   a dot counted as shown, Force re-apply cloud (untraced -- trace before round 3 launches and
+   (`ScreenshotCapture.ts` scales; labels also soft at 2x), name behind a dot counted as shown, Force re-apply cloud (untraced -- trace before round 3 launches and
    file an element issue with the cause, do not hold the round), refusal parity for "New from
    data...".
 7. (2026-10-07) Small open defects from the re-pilots (not on a measured path, safe after round
@@ -71,8 +70,12 @@ acceptance test. "The studio worktree" is
 14. (2026-10-07) Focus: the compact-mantine Menu theme returns focus only from inside the menu;
    never add `returnFocus={false}` again. The canvas is named by the host's `aria-label`, has no
    autofocus; focus stays on the body after an open (re-record keys that expected otherwise).
-15. (2026-10-06) Still untraced: live Selection row blank after the neighbor route; reopened run
-   row has no count (element); Effects Outline black blobs; header "Untitled" after New from data.
+15. (2026-10-07) The element FREEZES Babylon's active-mesh list on a still frame
+   (`UpdateManager.settleActiveMeshFreeze`). A mesh enabled or disabled outside an update pass is
+   ignored until something unfreezes it: call `getUpdateManager().meshesShownOrHidden()`. Suspect
+   this first when "I hid it and it is still drawn" (or the reverse). Also untraced (2026-10-06):
+   live Selection row blank after the neighbor route; reopened run row has no count; Effects
+   Outline black blobs; header "Untitled" after New from data.
 
 ## Priorities and values
 
@@ -122,36 +125,31 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
-- (2026-10-07) **Show all labels (b7590f8de, app only).** A Mantine Checkbox "Show all labels",
-  off by default, beside the label line's count in `LabelSection.tsx`; the count now reads
-  "N labels, M hidden" ("N labels" while on). State is the store's `allLabelsShown` (a reader
-  preference, not saved with the project, like `legendShown`); `ElementHost.tsx` writes
-  `layoutBehavior={{ labels: { declutter: !allLabelsShown } }}` on the tag (memoized). Did not
-  work: assigning `element.layoutBehavior` from the section -- the app's `no-element-mutation`
-  lint rule refuses it (the property can also set saved pacing fields, so it is a dispatching
-  door). Writing it declaratively on the tag, as the constant was, passes. No element change:
-  the element already re-runs the declutter pass when the setting flips. Proof: the T10 test in
-  `StyleTab.real-element.test.tsx` (stacked nodes: switch on -> `hiddenByOverlap` 0, every
-  `labelOf().drawn`, "4 labels"; off -> hidden again) fails on the old files;
-  `tmp/check-r2-show-all-labels-switch/06-08.png` (Les Miserables: "77 labels, 7 hidden", on
-  draws Gillenormand, Marguerite, Mother Innocent..., off hides them again). Study tool quirk:
-  `--click "Show all labels"` prints `ambiguous` (input and its label), takes the input, works.
-  Answer key T10/T15 must be re-recorded with the new words.
+- (2026-10-07) **Export leaves the selection ring out (4c087d8bc, element + app; owner door).**
+  `ScreenshotOptions.showSelection` (default true); `false` disables every enabled
+  `graphty-selection-halo` mesh (`SELECTION_HALO_MESH`, now exported from `Node.ts`) for that
+  capture, tells `UpdateManager.meshesShownOrHidden()` (new, public via the main entry), draws a
+  frame, captures, and re-enables in the outer `finally` (success and failure). Selection state
+  and events untouched. App: `screenshotOptions()` always passes `showSelection: false` (export
+  and preview); no dialog control. Rejected: deselect/reselect in the app (fires events, loses a
+  multi-selection), default false (moves every caller's picture), `selection: false` (reads as "no
+  selection"). Did not work first: disabling the halo alone -- the frozen active-mesh list kept
+  drawing it (Top of mind 15). Proof: `test/browser/screenshot/screenshot-selection.test.ts`
+  (real Babylon capture via `vi.importActual`; fails on the old capture with 18214 differing
+  pixels); app run `design/ui/studio/tmp/r3fix-export-no-selection/run/` (06 Medici ringed,
+  08 preview no ring, downloads/florentine_current-view.png no ring, 09 still ringed and
+  "Selection 1"). `owner-decisions.md` entry; PR needs hold + needs-decision.
 
-- (2026-10-07) **A clickable DataRow's trailing glyph is part of the row (compact-mantine).**
-  Cause: `DataRow` drew `trailing` outside its `<button>`, so a click on the "Degree 17 >"
-  chevron landed on the inspector's "Summary values" group and did nothing (4 of 6 pointer users
-  clicked it first). Fix: the slot sits in a `role="presentation"`, `display: contents` wrapper
-  whose click activates the row (focus moves to the row's button, source "pointer") unless the
-  click lands on a control INSIDE the slot (button, link, input, label, a role other than
-  presentation, tabindex) -- `closest()` must be bounded by the slot, or the row's own stat group
-  and the inspector's group above it read as controls. Keyboard unchanged (one stop). Not moving
-  the glyph into the button: a caller's glyph and a caller's reset button cannot be told apart
-  statically, and a button inside a button is invalid. No exported name changed. Proof: two tests
-  in `compact-mantine/tests/components/rows/DataRow.test.tsx` (chevron click activates; fails on
-  the old file); `tmp/check-r2-datarow-trailing-hit-area/a/05.png` opens "Javert's 17
-  connections" from the chevron at 1410,236 where `repro/r2-s19/run1/05.png` did nothing. The
-  only trailing caller today is NodeValues' Degree row.
+- (2026-10-07) **Show all labels (b7590f8de, app only).** Checkbox beside the label count in
+  `LabelSection.tsx` ("N labels, M hidden"); store `allLabelsShown` (reader preference, not saved);
+  `ElementHost.tsx` writes `layoutBehavior={{ labels: { declutter: !allLabelsShown } }}` on the tag
+  (assigning `element.layoutBehavior` is refused by the `no-element-mutation` lint rule). Proof:
+  T10 test in `StyleTab.real-element.test.tsx`; `tmp/check-r2-show-all-labels-switch/`.
+
+- (2026-10-07) **A clickable DataRow's trailing glyph is part of the row (compact-mantine).** The
+  `trailing` slot sits in a `display: contents` wrapper whose click activates the row unless it
+  lands on a control inside the slot (`closest()` bounded by the slot). Proof: two tests in
+  `compact-mantine/tests/components/rows/DataRow.test.tsx`; `tmp/check-r2-datarow-trailing-hit-area/`.
 - (2026-10-07) **Menu-to-dialog focus (b7db5da7d, compact-mantine).** Mantine's
   `useFocusReturn` refocused the menu button 10 ms after close. The Menu theme now remembers the
   opener and returns focus only when focus is inside the dropdown or on body (`overlayBehavior.ts`).
@@ -201,11 +199,8 @@ acceptance test. "The studio worktree" is
   named it. Lesson: when the element "already detects" something, check whether it reports it only
   in words -- that is the neutrality defect and often the whole bug.
 
-- (2026-10-07) Rounds 1 and 2 (summary). Round 2: 52 of 54 tasks, both failures the
-  screen-reader persona; neighbors fixed by the round 1 routing fix. Round 1's decisions
-  (`rounds/round-1/decisions.md`): I built changes 1-10; rejected a Degree-row cue (two changes at
-  once hides which helped), a refusal code (app knows the method), filling the Size list (second
-  bind route), a Style-tab signpost (one model's guess).
+- (2026-10-07) Rounds 1-2: round 2 passed 52 of 54 (both failures screen reader); round 1
+  decisions in `rounds/round-1/decisions.md`.
 
 - (2026-10-06, folded 2026-10-07) Focus after a Style pick moves to the first control of the
   new line (e82708488; its `returnFocus={false}` is superseded by the Menu theme fix, Top of mind
@@ -243,10 +238,9 @@ acceptance test. "The studio worktree" is
   `camera/builtins.ts` (also fixes Frame selection, `zoomToNodes` in 2D). Re-pilots confirm each
   on screen. Why it worked: every change traced the cause first and named a test failing on the
   old build.
-- (2026-10-07) **Round 2 lesson: trace before fixing paid off.** Key: the insights said "build
-  the key from the live style stack", but the element already proved the cover and only said it
-  in English. 2D Fit: the cause was the built-in view's zoom units, not the bounds math. Keep
-  "trace first" in every change.
+- (2026-10-07) **Lesson: trace before fixing** (key cover was already proved by the element, only
+  in English; 2D Fit was the view's zoom units). Again on 2026-10-07: the halo "hidden but drawn"
+  was the frozen mesh list.
 
 ## Tried: worked / did not work
 
@@ -273,6 +267,16 @@ acceptance test. "The studio worktree" is
 - 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
   `aria-activedescendant`, first match active): worked; `tmp/check-r0-analyze-keyboard-pick/`.
   The `AnalyzeFiltered` story's baseline changed (owner review).
+- (2026-10-07) **Shared worktree: stage by building the index, never by copying files.** Another
+  agent had uncommitted edits in the same files (ScreenshotCapture.ts, types.ts, choices.ts, the
+  API report). Worked: a script that takes `git show HEAD:<path>`, applies only my edits, and
+  writes it with `git hash-object -w` + `git update-index --cacheinfo`
+  (`tmp/r3fix-export-no-selection/stage.py`). Did not do well: proving "fails without" by copying
+  HEAD over a SHARED file -- it briefly wipes the other agent's edits; prove with a scratch copy
+  of the test against a HEAD build instead. The app's `vite build` can exceed Node's 4 GB heap:
+  `NODE_OPTIONS=--max-old-space-size=8192 npx vite build` in graphty (env knob, not a code change);
+  another agent's half-done TS edit can also fail `nx run graphty:build` -- copy a good build to
+  your session folder and use `REAL_DIST`.
 - (2026-10-07) **Nx can restore a partial element dist.** `nx run graphty-element:build` said
   "from cache" yet `dist/` had no `.d.ts`, so `npm run api:report` failed; `npm run build` in
   graphty-element fixed it. Vitest browser runs go through `with-browser.sh` too. The Bash safety

@@ -63,6 +63,15 @@ export class OrbitInputController {
         this.keysDown[evt.key.toLowerCase()] = false;
     };
 
+    // One mouse wheel notch (deltaY 100) moves the camera by keyboardZoomSpeed / 2 of its distance;
+    // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
+    // delta from jumping the camera.
+    private wheelHandler = (evt: WheelEvent): void => {
+        evt.preventDefault();
+        const notches = Math.max(-1, Math.min(1, evt.deltaY / 100));
+        this.controller.zoom((this.controller.cameraDistance * this.config.keyboardZoomSpeed * notches) / 2);
+    };
+
     // The canvas never sees the keyup of a key released after it lost focus
     private releaseKeys = (): void => {
         this.keysDown = {};
@@ -127,6 +136,7 @@ export class OrbitInputController {
         this.canvas.addEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.addEventListener("pointerup", this.pointerUpHandler);
         this.canvas.addEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
@@ -152,6 +162,7 @@ export class OrbitInputController {
         this.canvas.removeEventListener("pointerdown", this.pointerDownHandler);
         this.canvas.removeEventListener("pointerup", this.pointerUpHandler);
         this.canvas.removeEventListener("pointermove", this.pointerMoveHandler);
+        this.canvas.removeEventListener("wheel", this.wheelHandler);
 
         this.canvas.removeEventListener("keydown", this.keyDownHandler);
         this.canvas.removeEventListener("keyup", this.keyUpHandler);

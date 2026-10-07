@@ -269,6 +269,21 @@ describe("Input Speed and Sensitivity", () => {
             assert.isBelow(distanceChange, initialDistance, "Zoom speed should not be excessively fast");
         });
 
+        test("mouse wheel zooms the camera in and out", () => {
+            const { cameraController } = get3DControllers(graph);
+            const wheel = (deltaY: number): boolean =>
+                graph.canvas.dispatchEvent(new WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true }));
+
+            const start = cameraController.cameraDistance;
+            assert.isFalse(wheel(-100), "the wheel must not scroll the page");
+            const zoomedIn = cameraController.cameraDistance;
+            assert.isBelow(zoomedIn, start * 0.95, "wheel up should move the camera closer");
+            assert.isAbove(zoomedIn, start * 0.5, "one notch should not jump the camera");
+
+            wheel(100);
+            assert.isAbove(cameraController.cameraDistance, zoomedIn, "wheel down should move the camera away");
+        });
+
         test("keyboard rotation speed is within expected range", () => {
             const { cameraController, inputController } = get3DControllers(graph);
 

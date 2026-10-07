@@ -487,7 +487,7 @@ The target flow:
   passes a batch whose images equal the owner-approved images of its pull requests.
 - Master runs no tests: a push to master only builds what graphty.app deploys. A red master build
   freezes the queue and opens a `priority:critical` revert automatically.
-- A release is attempted every 6 hours: the full suite, the T4 GPU lane, Hosts and the security
+- A release is attempted at 00:00, 06:00, 12:00 and 18:00 UTC: the full suite, the T4 GPU lane, Hosts and the security
   audit run on the candidate commit, and only when all pass is a release pull request opened. Plus
   an ad hoc release on demand.
 
@@ -519,7 +519,7 @@ CI, and Mergify queues only ready pull requests.
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. On a push to master only the Build job runs; the summaries pass when it does |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Dispatch: at 00:00, 06:00, 12:00 and 18:00 UTC by an external scheduler (cron-job.org) with `scheduled=true`, which behaves as a scheduled train attempt; by hand without it (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
@@ -555,8 +555,10 @@ package has no guide pages, so its documentation link is the generated API refer
 
 ### Release versioning
 
-Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Every 6 hours
-(00:00, 06:00, 12:00 and 18:00 UTC) `release.yml` takes master's newest commit and runs the full CI
+Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11). At 00:00,
+06:00, 12:00 and 18:00 UTC an external scheduler (cron-job.org) dispatches `release.yml` with
+`scheduled=true`, because GitHub's own scheduler delays or drops this repository's scheduled runs;
+a person can still dispatch it by hand (the ad hoc release, below). Each scheduled attempt takes master's newest commit and runs the full CI
 suite (ci.yml, every shard), the T4 GPU lane, Hosts and the production security audit on it; only
 if all pass does it version that commit and open a
 `chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)
@@ -568,8 +570,8 @@ check or left the merge queue is closed and re-cut from the newest commit; one l
 waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
 changed. A held release restarts itself: after every push to master whose build passes, while a
 "Release held" issue is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
-attempt on that pushed commit at once; with no held issue it does nothing, and the schedule keeps
-skipping while the issue is open. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
+attempt on that pushed commit at once; with no held issue it does nothing, and the scheduled
+attempts keep skipping while the issue is open. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
 publish run's failed jobs publishes what is missing and closes it. A
 red lane holds the whole release: no pull request, nothing published, and one `Release held: <what>
 failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that githerd picks up. Its

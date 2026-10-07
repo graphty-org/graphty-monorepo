@@ -3,20 +3,9 @@ import "./data-place.css";
 import { ControlSection, SearchInput, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
-import {
-    Calendar,
-    CaseSensitive,
-    ChartColumn,
-    CircleDashed,
-    CircleDot,
-    FileText,
-    Hash,
-    ListOrdered,
-    Plus,
-    Waypoints,
-} from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type AttributeRow,
@@ -31,18 +20,18 @@ import {
 } from "./words";
 
 const SOURCE_GLYPHS: Record<SourceKind, React.ReactNode> = {
-    file: <FileText size={14} aria-hidden />,
-    nodes: <CircleDot size={14} aria-hidden />,
-    edges: <Waypoints size={14} aria-hidden />,
+    file: <GLYPHS.file size={14} aria-hidden />,
+    nodes: <GLYPHS.node size={14} aria-hidden />,
+    edges: <GLYPHS.edge size={14} aria-hidden />,
 };
 
 const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
-    category: <CaseSensitive size={14} aria-hidden />,
-    number: <Hash size={14} aria-hidden />,
-    ordinal: <ListOrdered size={14} aria-hidden />,
-    time: <Calendar size={14} aria-hidden />,
-    unknown: <CircleDashed size={14} aria-hidden />,
-    result: <ChartColumn size={14} aria-hidden />,
+    category: <GLYPHS.category size={14} aria-hidden />,
+    number: <GLYPHS.number size={14} aria-hidden />,
+    ordinal: <GLYPHS.ordinal size={14} aria-hidden />,
+    time: <GLYPHS.time size={14} aria-hidden />,
+    unknown: <GLYPHS.unknown size={14} aria-hidden />,
+    result: <GLYPHS.measure size={14} aria-hidden />,
 };
 
 /**
@@ -341,7 +330,7 @@ export function DataPlace(): React.JSX.Element {
                 <Menu.Target>
                     <Tooltip label="Add data">
                         <ActionIcon variant="subtle" aria-label="Add data">
-                            <Plus size={14} aria-hidden />
+                            <GLYPHS.add size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>
                 </Menu.Target>

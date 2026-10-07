@@ -2,9 +2,9 @@ import "./canvas.css";
 
 import type { GraphSession, LegendBlock, ProgressChange } from "@graphty/graphty-element/session";
 import { Button, Tooltip } from "@mantine/core";
-import { CircleDashed, LoaderCircle } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { keyBlocks } from "./legendWords";
@@ -112,7 +112,7 @@ export function LoadingCard({
 }: Readonly<LoadingCardProps>): React.JSX.Element {
     return (
         <StateCard
-            icon={<LoaderCircle size={20} />}
+            icon={<GLYPHS.loading size={20} />}
             title={`Reading ${projectName}`}
             sentence={`${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges...`}
             progress={fraction}
@@ -155,7 +155,7 @@ export function CanvasOverlays(): React.JSX.Element | null {
     } else if (nodeCount === 0) {
         card = (
             <StateCard
-                icon={<CircleDashed size={20} />}
+                icon={<GLYPHS.empty size={20} />}
                 title="No nodes to draw"
                 actions={
                     addData === null ? undefined : (

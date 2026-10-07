@@ -78,7 +78,10 @@
     border-radius: 5px;
     background: var(--mantine-color-default-hover);
     font: 11px/16px var(--mantine-font-family-monospace);
-    white-space: pre;
+    /* Wrapped, so a one-line JSON file reads without scrolling sideways; six lines tall. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: calc(6 * 16px + 16px);
     overflow: auto;
 }
 

@@ -3,9 +3,9 @@ import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/c
 import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import { ActionIcon, Button, Checkbox, ColorSwatch, Popover, Select, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDebouncedCallback } from "@mantine/hooks";
-import { Link2, Minus } from "lucide-react";
 import React, { useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { BindingPopover } from "./BindingPopover";
 import { FromDataList } from "./FromDataList";
@@ -114,7 +114,7 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
                                 setBinding(!binding);
                             }}
                         >
-                            <Link2 size={14} aria-hidden />
+                            <GLYPHS.link size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>
                 </Popover.Target>
@@ -143,7 +143,7 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
                 line.layer.locked ? null : (
                     <Tooltip label={`Remove ${name}`}>
                         <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${name}`} onClick={remove}>
-                            <Minus size={14} aria-hidden />
+                            <GLYPHS.remove size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>
                 )

@@ -3,9 +3,9 @@ import { type ChannelDescriptor, channelsFor, toColorValue } from "@graphty/grap
 import type { LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Group, Indicator, Menu, Stack, Text, Tooltip, VisuallyHidden } from "@mantine/core";
-import { Plus } from "lucide-react";
 import React, { useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSection } from "./LabelSection";
 import { everythingRow, lineOf, rowLayers, startingValue, type Target, writeLine } from "./row";
@@ -207,7 +207,7 @@ function Section({
                         add(unset[0]);
                     }}
                 >
-                    <Plus size={14} aria-hidden />
+                    <GLYPHS.add size={14} aria-hidden />
                 </ActionIcon>
             </Tooltip>
         );
@@ -217,7 +217,7 @@ function Section({
                 <Menu.Target>
                     <Tooltip label={addLabel}>
                         <ActionIcon variant="subtle" size="sm" aria-label={addLabel}>
-                            <Plus size={14} aria-hidden />
+                            <GLYPHS.add size={14} aria-hidden />
                         </ActionIcon>
                     </Tooltip>
                 </Menu.Target>

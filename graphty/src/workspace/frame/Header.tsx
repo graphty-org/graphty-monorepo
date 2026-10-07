@@ -1,8 +1,8 @@
 import { InlineRename } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Redo2, Undo2 } from "lucide-react";
 import React, { useCallback, useSyncExternalStore } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CommandButton } from "./CommandButton";
@@ -66,8 +66,8 @@ export function Header(): React.JSX.Element {
                     }}
                 />
             )}
-            <CommandButton id="history.undo" icon={<Undo2 size={16} aria-hidden />} />
-            <CommandButton id="history.redo" icon={<Redo2 size={16} aria-hidden />} />
+            <CommandButton id="history.undo" icon={<GLYPHS.undo size={16} aria-hidden />} />
+            <CommandButton id="history.redo" icon={<GLYPHS.redo size={16} aria-hidden />} />
             <PrivacyChip />
         </header>
     );

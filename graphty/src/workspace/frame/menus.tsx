@@ -4,10 +4,10 @@
  */
 
 import { Menu, Text, Tooltip, UnstyledButton } from "@mantine/core";
-import { ChevronDown, Menu as MenuIcon } from "lucide-react";
 import React, { Fragment } from "react";
 
 import { FILE_LIST } from "../commands/registry";
+import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
 import { RecentMenu } from "../project/RecentMenu";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
@@ -82,7 +82,7 @@ export function MainMenu(): React.JSX.Element {
             <Menu.Target>
                 <Tooltip label="Main menu: open, save, export, settings">
                     <UnstyledButton aria-label="Main menu" className="ws-header-button">
-                        <MenuIcon size={16} aria-hidden />
+                        <GLYPHS.menu size={16} aria-hidden />
                     </UnstyledButton>
                 </Tooltip>
             </Menu.Target>
@@ -126,7 +126,7 @@ export function ProjectMenu({
                     onDoubleClick={onDoubleClick}
                 >
                     <span className="ws-project-text">{name}</span>
-                    <ChevronDown size={12} aria-hidden />
+                    <GLYPHS.expand size={12} aria-hidden />
                 </UnstyledButton>
             </Menu.Target>
             <Menu.Dropdown>

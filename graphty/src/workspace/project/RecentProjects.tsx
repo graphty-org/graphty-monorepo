@@ -1,9 +1,9 @@
 import { ModalFooter, PageList } from "@graphty/compact-mantine";
 import { browserProjects } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Menu, Modal, Text } from "@mantine/core";
-import { MoreHorizontal } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { locateRecent, openRecent, removeRecent } from "./actions";
 import { type RecentProject, useRecentProjects } from "./recent";
@@ -27,7 +27,7 @@ function RowMenu({
         <Menu position="bottom-end" withinPortal>
             <Menu.Target>
                 <ActionIcon variant="subtle" size="sm" aria-label={`More for ${entry.name}`}>
-                    <MoreHorizontal size={14} aria-hidden />
+                    <GLYPHS.more size={14} aria-hidden />
                 </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>

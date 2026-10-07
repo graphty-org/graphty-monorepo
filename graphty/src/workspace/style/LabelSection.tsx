@@ -2,9 +2,9 @@ import { AlignmentMatrix, FieldRow } from "@graphty/compact-mantine";
 import type { Channel, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, Group, Popover, Stack, Text, Tooltip } from "@mantine/core";
-import { Minus, Plus } from "lucide-react";
 import React, { useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FromDataList } from "./FromDataList";
 import {
@@ -156,7 +156,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                         data-disabled={blocked === null ? undefined : true}
                         onClick={add}
                     >
-                        <Plus size={14} aria-hidden />
+                        <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             </Group>
@@ -259,7 +259,7 @@ function LabelLine({
             trailing={
                 <Tooltip label="Remove label line">
                     <ActionIcon variant="subtle" size="sm" aria-label="Remove label line" onClick={remove}>
-                        <Minus size={14} aria-hidden />
+                        <GLYPHS.remove size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             }

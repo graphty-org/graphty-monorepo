@@ -1,36 +1,14 @@
 import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import { Loader, Tooltip } from "@mantine/core";
-import {
-    ChartColumn,
-    Circle,
-    CircleAlert,
-    CircleSlash,
-    Eye,
-    EyeOff,
-    Layers,
-    Paintbrush,
-    SquareDashed,
-    SquareStack,
-    TriangleAlert,
-} from "lucide-react";
 import React, { useState } from "react";
 
+import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { deleteRow, setRowHidden } from "./actions";
-import { findRow, type PaintRow, type RowKind } from "./rows";
+import { findRow, type PaintRow } from "./rows";
 
 /** A group run with more groups than this opens collapsed (tier1-design.md section 2.5). */
 const OPEN_UP_TO = 12;
-
-/** The kind slot's icon for each row kind. */
-const KIND_ICONS: Record<RowKind, React.ReactNode> = {
-    "selection-row": <SquareDashed size={14} />,
-    "measure-row": <ChartColumn size={14} />,
-    "run-row": <Layers size={14} />,
-    "group-row": <Circle size={14} />,
-    "layer-row": <Paintbrush size={14} />,
-    "everything-row": <SquareStack size={14} />,
-};
 
 /**
  * The kind slot: the kind's icon, or the run's state with its sentence in a tooltip. The
@@ -50,26 +28,28 @@ function kindSlot(row: PaintRow): React.ReactNode {
         case "partial":
             return (
                 <Tooltip label="Stopped early: the values are partial">
-                    <TriangleAlert size={14} />
+                    <GLYPHS.warning size={14} />
                 </Tooltip>
             );
         case "failed":
             return (
                 <Tooltip label={row.problem ?? "Failed"}>
-                    <CircleAlert size={14} color="var(--cm-text-danger)" />
+                    <GLYPHS.failed size={14} color="var(--cm-text-danger)" />
                 </Tooltip>
             );
         case "canceled":
             return (
                 <Tooltip label="Canceled">
-                    <CircleSlash size={14} />
+                    <GLYPHS.canceled size={14} />
                 </Tooltip>
             );
-        default:
+        default: {
             if (row.kind === "group-row" && row.swatch !== undefined && "color" in row.swatch) {
-                return <Circle size={14} fill={row.swatch.color} color={row.swatch.color} />;
+                return <GLYPHS.group size={14} fill={row.swatch.color} color={row.swatch.color} />;
             }
-            return KIND_ICONS[row.kind];
+            const KindIcon = KIND_GLYPHS[row.kind];
+            return <KindIcon size={14} />;
+        }
     }
 }
 
@@ -127,8 +107,8 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
                     variant="swap"
                     label={`Hide ${row.name}`}
                     checked={row.hidden}
-                    icon={<Eye size={14} />}
-                    checkedIcon={<EyeOff size={14} />}
+                    icon={<GLYPHS.show size={14} />}
+                    checkedIcon={<GLYPHS.hide size={14} />}
                     onChange={(hide) => {
                         void setRowHidden(session, row, hide);
                     }}

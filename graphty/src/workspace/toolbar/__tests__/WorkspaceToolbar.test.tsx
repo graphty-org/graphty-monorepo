@@ -39,6 +39,17 @@ describe("the canvas toolbar", () => {
         assert.deepEqual(names, ["Analyze", "Layout", "View", "Legend", "Quick actions"]);
     });
 
+    it("draws Layout as a network chart and Quick actions as a search", () => {
+        render(<Workspace initialState={OPEN} />);
+
+        const icon = (name: string): string | undefined =>
+            [...(screen.getByRole("button", { name }).querySelector("svg")?.classList ?? [])].find(
+                (c) => c.startsWith("lucide-") && c !== "lucide-icon",
+            );
+        assert.equal(icon("Layout"), "lucide-chart-network");
+        assert.equal(icon("Quick actions"), "lucide-search");
+    });
+
     it("disables everything but Quick actions with nothing drawn, saying why", () => {
         render(<Workspace initialState={OPEN} />);
 

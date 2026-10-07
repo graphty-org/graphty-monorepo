@@ -4,7 +4,9 @@
  * React, so the rules are tested on their own.
  */
 
-import type { ScreenshotOptions } from "@graphty/graphty-element";
+import type { ExportResult, ScreenshotErrorCode, ScreenshotOptions } from "@graphty/graphty-element";
+import type { FormatDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
+import type { GraphtyErrorCode } from "@graphty/graphty-element/session";
 
 /** An image format `captureScreenshot` writes. */
 export type ImageFormat = NonNullable<ScreenshotOptions["format"]>;
@@ -28,8 +30,144 @@ export interface ImageChoices {
 export interface DataChoices {
     /** A format id from `session.catalog.formats()` that can be written. */
     readonly format: string;
-    /** The table a CSV file holds. */
-    readonly table: "nodes" | "edges";
+    /** One of the format's `exportVariants`, by id, when it has them. */
+    readonly variant?: string;
+    /** The key options' values, by option name; a row reads only its own options from here. */
+    readonly values: Readonly<Record<string, unknown>>;
+}
+
+/** The project file, Graphty JSON; every other row starts on its options' own defaults. */
+export const DEFAULT_DATA: DataChoices = { format: "graphty", values: {} };
+
+/** One row of the Data output's Format list: a format, or one of its export variants. */
+export interface FormatRow {
+    /** `<format>` or `<format>/<variant>`. */
+    readonly id: string;
+    readonly format: string;
+    readonly variant?: string;
+    readonly plainName: string;
+    readonly extensions: readonly string[];
+    /** The writer options the row fixes. */
+    readonly preset: Readonly<Record<string, unknown>>;
+    /** The writer options that apply to the row. */
+    readonly options: readonly OptionDescriptor[];
+}
+
+/**
+ * The Format list: one row per file type the element writes -- each format's export variants
+ * when it has them, else the format -- Graphty JSON first, then catalog order.
+ * @param formats - `session.catalog.formats()`.
+ * @returns the rows.
+ */
+export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
+    return formats
+        .filter((format) => format.canExport)
+        .sort((a, b) => Number(b.id === "graphty") - Number(a.id === "graphty"))
+        .flatMap((format) =>
+            format.exportVariants === undefined
+                ? [
+                      {
+                          id: format.id,
+                          format: format.id,
+                          plainName: format.plainName,
+                          extensions: format.extensions,
+                          preset: {},
+                          options: format.writerOptions ?? [],
+                      },
+                  ]
+                : format.exportVariants.map((variant) => ({
+                      id: `${format.id}/${variant.id}`,
+                      format: format.id,
+                      variant: variant.id,
+                      plainName: variant.plainName,
+                      extensions: variant.extensions,
+                      preset: variant.preset,
+                      options: variant.options,
+                  })),
+        );
+}
+
+/**
+ * The options a row shows under Format: the ones the element does not mark advanced (CSV's
+ * Table, Neo4j's Tables).
+ * @param row - the row.
+ * @returns the key options.
+ */
+export function keyOptions(row: FormatRow): readonly OptionDescriptor[] {
+    return row.options.filter((option) => option.advanced !== true && option.type === "enum");
+}
+
+/**
+ * The writer options for a row: its preset, then each key option's value (the first choice when
+ * none is set).
+ * @param row - the row.
+ * @param values - the choices' values.
+ * @returns the options for `exportGraph` / `downloadGraph`.
+ */
+export function writerOptions(row: FormatRow, values: DataChoices["values"]): Record<string, unknown> {
+    const chosen = Object.fromEntries(
+        keyOptions(row).map((option) => [option.name, values[option.name] ?? option.default ?? option.values?.[0]?.value]),
+    );
+    return { ...row.preset, ...chosen };
+}
+
+/** The preview stops at this many lines or this many characters, whichever comes first. */
+const PREVIEW_LINES = 6;
+const PREVIEW_CHARS = 4096;
+
+/**
+ * The start of an export, read from its first chunks only: never the whole file.
+ * @param result - the export.
+ * @returns up to PREVIEW_LINES lines and PREVIEW_CHARS characters.
+ */
+export async function previewOf(result: ExportResult): Promise<string> {
+    const decoder = new TextDecoder();
+    let text = "";
+    for await (const chunk of result.bytes) {
+        text += decoder.decode(chunk, { stream: true });
+        if (text.length >= PREVIEW_CHARS || text.split("\n").length > PREVIEW_LINES) {
+            break;
+        }
+    }
+    return text.slice(0, PREVIEW_CHARS).split("\n").slice(0, PREVIEW_LINES).join("\n");
+}
+
+/** What went wrong, in the app's words, for the codes an export or a capture fails with. */
+const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${ScreenshotErrorCode}`, string>>> = {
+    E_OUT_OF_MEMORY: "The browser ran out of memory.",
+    E_TOO_LARGE: "The graph is too large for this format.",
+    E_CAP_EXCEEDED: "The graph is too large for this format.",
+    E_UNKNOWN_FORMAT: "This format is not available.",
+    E_UNKNOWN_OPTION: "A setting is not one this format has.",
+    E_OPTION_RANGE: "A setting is out of range.",
+    E_UNSUPPORTED: "This browser cannot do this.",
+    E_DISPOSED: "The graph was closed.",
+    E_UNKNOWN_CAMERA: "This view is not available.",
+    DIMENSION_TOO_LARGE: "The image is too large for this browser.",
+    RESOLUTION_TOO_HIGH: "The image is too large for this browser.",
+    CANVAS_ALLOCATION_FAILED: "The browser ran out of memory for an image this size.",
+    INVALID_DIMENSIONS: "The image size is not valid.",
+    UNSUPPORTED_FORMAT: "This browser cannot write this image format.",
+    TRANSPARENT_REQUIRES_PNG: "Only PNG keeps a transparent background.",
+    SCREENSHOT_CAPTURE_FAILED: "The drawing could not be captured.",
+    ENGINE_NOT_CONFIGURED: "The drawing is not ready yet.",
+};
+
+/**
+ * What went wrong, worded by the error's code; a code the app has no words for shows as itself.
+ * @param error - what the element threw.
+ * @returns the sentence.
+ */
+export function failureWords(error: unknown): string {
+    const code =
+        typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
+            ? error.code
+            : undefined;
+    if (code === undefined) {
+        return "Something went wrong.";
+    }
+    const words: Readonly<Record<string, string | undefined>> = FAILURE_WORDS;
+    return words[code] ?? `Something went wrong (${code}).`;
 }
 
 /** One image preset (tier1-design.md section T13). */

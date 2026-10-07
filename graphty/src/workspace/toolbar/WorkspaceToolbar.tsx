@@ -2,11 +2,11 @@ import "./toolbar.css";
 
 import { Toolbar, ToolButton } from "@graphty/compact-mantine";
 import { Menu, Popover, VisuallyHidden } from "@mantine/core";
-import { Box, Command, FlaskConical, List, Move, Square, Target } from "lucide-react";
 import React, { forwardRef, useRef, useState } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
 import { Sections } from "../frame/menus";
+import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
 import { LayoutGroup } from "../layout/LayoutGroup";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -65,7 +65,7 @@ function SelectionBar(): React.JSX.Element | null {
     }
     return (
         <Toolbar aria-label="Selection" className="ws-selection-bar">
-            <CommandTool command="selection.neighborhood" icon={<Target size={20} />} />
+            <CommandTool command="selection.neighborhood" icon={<GLYPHS.neighborhood size={20} />} />
         </Toolbar>
     );
 }
@@ -123,7 +123,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
             <Toolbar aria-label="Canvas tools">
                 <Popover {...popoverProps("analyze")} closeOnEscape={false} width={380}>
                     <Popover.Target>
-                        <CommandTool ref={anchor("analyze")} command="analyze.open" icon={<FlaskConical size={20} />} />
+                        <CommandTool ref={anchor("analyze")} command="analyze.open" icon={<GLYPHS.analyze size={20} />} />
                     </Popover.Target>
                     <Popover.Dropdown aria-label="Analyze">
                         {dialog !== "analyze" || session === null ? null : (
@@ -140,7 +140,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                 <Toolbar.Divider />
                 <Popover {...popoverProps("layout")} width={280}>
                     <Popover.Target>
-                        <CommandTool ref={anchor("layout")} command="layout.open" icon={<Move size={20} />} />
+                        <CommandTool ref={anchor("layout")} command="layout.open" icon={<GLYPHS.layout size={20} />} />
                     </Popover.Target>
                     <Popover.Dropdown aria-label="Layout">
                         {dialog === "layout" ? <LayoutGroup /> : null}
@@ -151,7 +151,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         <CommandTool
                             ref={anchor("view")}
                             command="view.open"
-                            icon={dimension === "3d" ? <Box size={20} /> : <Square size={20} />}
+                            icon={dimension === "3d" ? <GLYPHS.view3d size={20} /> : <GLYPHS.view2d size={20} />}
                         />
                     </Menu.Target>
                     <Menu.Dropdown aria-label="View">
@@ -166,14 +166,14 @@ export function WorkspaceToolbar(): React.JSX.Element {
                         />
                     </Menu.Dropdown>
                 </Menu>
-                <CommandTool command="view.legend" icon={<List size={20} />} selected={legendShown} />
+                <CommandTool command="view.legend" icon={<GLYPHS.legend size={20} />} selected={legendShown} />
                 <Toolbar.Divider />
                 <Popover {...popoverProps("quick-actions")}>
                     <Popover.Target>
                         <CommandTool
                             ref={anchor("quick-actions")}
                             command="quick-actions.open"
-                            icon={<Command size={20} />}
+                            icon={<GLYPHS.quickActions size={20} />}
                         />
                     </Popover.Target>
                     <Popover.Dropdown p={0}>

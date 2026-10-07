@@ -22,9 +22,9 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import { CircleCheck, CircleDashed, Plus } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     elementRole,
@@ -261,7 +261,7 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                                 <Menu.Target>
                                     <Tooltip label="Add a table">
                                         <ActionIcon variant="subtle" size="sm" aria-label="Add a table">
-                                            <Plus size={14} aria-hidden />
+                                            <GLYPHS.add size={14} aria-hidden />
                                         </ActionIcon>
                                     </Tooltip>
                                 </Menu.Target>
@@ -347,9 +347,9 @@ function tablesReady(page: LoadDraftState): boolean {
  */
 function ReadyMark({ ready }: { ready: boolean }): React.JSX.Element {
     return ready ? (
-        <CircleCheck size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />
+        <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />
     ) : (
-        <CircleDashed size={14} role="img" aria-label="Not ready" />
+        <GLYPHS.empty size={14} role="img" aria-label="Not ready" />
     );
 }
 

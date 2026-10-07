@@ -4,7 +4,7 @@ import { Modal, Tabs } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { type DataChoices, DEFAULT_IMAGE, type ImageChoices } from "./choices";
+import { type DataChoices, DEFAULT_DATA, DEFAULT_IMAGE, type ImageChoices } from "./choices";
 import { DataOutput } from "./DataOutput";
 import { ImageOutput } from "./ImageOutput";
 
@@ -22,7 +22,7 @@ export function ExportDialog(): React.JSX.Element {
     const exportOn = useWorkspaceState((state) => state.exportOn);
     const [output, setOutput] = useState<"image" | "data">("image");
     const [image, setImage] = useState<ImageChoices>(DEFAULT_IMAGE);
-    const [data, setData] = useState<DataChoices>({ format: "csv", table: "nodes" });
+    const [data, setData] = useState<DataChoices>(DEFAULT_DATA);
 
     useEffect(() => {
         if (!opened) {
@@ -32,7 +32,12 @@ export function ExportDialog(): React.JSX.Element {
             setOutput("image");
         } else {
             setOutput("data");
-            setData((choices) => ({ ...choices, table: exportOn }));
+            // The table dock asked for its table: the plain CSV of it.
+            setData((choices) => ({
+                format: "csv",
+                variant: "csv",
+                values: { ...choices.values, table: exportOn },
+            }));
         }
     }, [opened, exportOn]);
 

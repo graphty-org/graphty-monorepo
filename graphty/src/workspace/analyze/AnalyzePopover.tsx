@@ -2,18 +2,18 @@ import { SearchInput } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
-import { ChartColumn, ChevronLeft, Hash, Layers, Waypoints } from "lucide-react";
 import React, { useEffect, useId, useRef, useState } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { OptionField } from "./OptionField";
 import { costLine, groupAlgorithms, type Heading, HEADINGS, isEssential, wordsFor } from "./words";
 
 /** The type icon of the row a run adds, by heading. */
 const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
-    rank: <ChartColumn size={16} />,
-    groups: <Layers size={16} />,
-    paths: <Waypoints size={16} />,
-    measure: <Hash size={16} />,
+    rank: <GLYPHS.measure size={16} />,
+    groups: <GLYPHS.run size={16} />,
+    paths: <GLYPHS.paths size={16} />,
+    measure: <GLYPHS.number size={16} />,
 };
 
 /** How many recent algorithms the list leads with. */
@@ -357,7 +357,7 @@ function Essentials({
             <Stack gap={8}>
                 <Group gap={4} wrap="nowrap">
                     <UnstyledButton aria-label="Back to analyses" onClick={onBack} className="ws-analyze-back">
-                        <ChevronLeft size={16} />
+                        <GLYPHS.back size={16} />
                     </UnstyledButton>
                     <span aria-hidden="true">{rowIcon(descriptor)}</span>
                     <Text size="sm" fw={600}>

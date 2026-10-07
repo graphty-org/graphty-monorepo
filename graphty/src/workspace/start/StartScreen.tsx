@@ -1,12 +1,12 @@
 import "./start.css";
 
 import { Button, Kbd, Paper, Stack, Text, Title, UnstyledButton } from "@mantine/core";
-import { FilePlus, FolderOpen, Lock, Network, Settings, Upload } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import { START_SAMPLES } from "../../data/sampleManifest";
 import { CommandButton } from "../frame/CommandButton";
 import { NoticeSlot } from "../frame/NoticeSlot";
+import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { UsageDataCard } from "../privacy/UsageDataCard";
@@ -105,24 +105,24 @@ export function StartScreen(): React.JSX.Element {
         <div className="ws-start">
             <header className="ws-start-head">
                 <h1 className="ws-start-brand">
-                    <Network size={16} aria-hidden />
+                    <GLYPHS.sample size={16} aria-hidden />
                     graphty
                 </h1>
                 <span className="ws-start-grow" />
                 <PrivacyChip />
-                <CommandButton id="settings.open" icon={<Settings size={16} aria-hidden />} />
+                <CommandButton id="settings.open" icon={<GLYPHS.settings size={16} aria-hidden />} />
             </header>
 
             <main className="ws-start-main">
                 <div className="ws-start-cols">
                     <Column title="Start">
-                        <Door id="file.open" icon={<FolderOpen size={16} aria-hidden />} />
-                        <Door id="data.new" icon={<FilePlus size={16} aria-hidden />} />
+                        <Door id="file.open" icon={<GLYPHS.open size={16} aria-hidden />} />
+                        <Door id="data.new" icon={<GLYPHS.newFile size={16} aria-hidden />} />
                         <Text size="xs" c="dimmed" className="ws-start-line">
-                            <Upload size={12} aria-hidden /> or drop a file anywhere in this window
+                            <GLYPHS.upload size={12} aria-hidden /> or drop a file anywhere in this window
                         </Text>
                         <Text size="xs" c="dimmed" className="ws-start-line">
-                            <Lock size={12} aria-hidden /> Files are read on this computer and never uploaded.
+                            <GLYPHS.private size={12} aria-hidden /> Files are read on this computer and never uploaded.
                         </Text>
                     </Column>
                     <Column title="Recent projects">
@@ -165,7 +165,7 @@ export function StartScreen(): React.JSX.Element {
                 <div className="ws-start-drop" aria-hidden>
                     <Paper withBorder p="lg">
                         <Stack align="center" gap={4}>
-                            <Upload size={24} aria-hidden />
+                            <GLYPHS.upload size={24} aria-hidden />
                             <Text fw={600}>Drop to open</Text>
                             <Text size="xs" c="dimmed">
                                 The file is read here and never uploaded.

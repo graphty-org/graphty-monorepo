@@ -113,6 +113,29 @@ export default tseslint.config(
         },
     },
 
+    // The workspace draws every icon from one map, src/workspace/glyphs.ts, so each concept keeps
+    // one icon everywhere it appears. The block repeats the rule's options because a later block
+    // replaces a rule's options rather than adding to them.
+    {
+        files: ["src/workspace/**/*.{ts,tsx}"],
+        ignores: ["src/workspace/glyphs.ts"],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                {
+                    patterns: RESTRICTED_IMPORT_PATTERNS,
+                    paths: [
+                        ...MANTINE_REPLACEMENTS,
+                        {
+                            name: "lucide-react",
+                            message: "Use GLYPHS from src/workspace/glyphs.ts: one icon per concept.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+
     // The app's own lint rules are tooling, not app code: their tests read graphty-element's door
     // list at its source, which is the list the rule enforces against. The build scripts are
     // tooling too: scripts/write-sample-gml.ts writes the sample files with graph-io at build time,

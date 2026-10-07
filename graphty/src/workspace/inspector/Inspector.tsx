@@ -1,24 +1,9 @@
 import { PANEL_GRID, PopoutManager } from "@graphty/compact-mantine";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
 import { ActionIcon, Anchor, Box, ColorSwatch, Group, Menu, Stack, Tabs, Text } from "@mantine/core";
-import {
-    ChartColumn,
-    Circle,
-    Columns3,
-    Component,
-    Group as GroupIcon,
-    Layers,
-    type LucideIcon,
-    MoreHorizontal,
-    MousePointer2,
-    Paintbrush,
-    Shapes,
-    Share2,
-    Spline,
-    Workflow,
-} from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { LayoutGroup } from "../layout/LayoutGroup";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -43,22 +28,6 @@ const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
     edge: ["view.frame-selection"],
     several: ["view.frame-selection"],
     neighborhood: ["view.frame-selection"],
-};
-
-/** The kind icon on the header's first line. */
-const KIND_ICONS: Readonly<Record<InspectedKindId, LucideIcon>> = {
-    graph: Workflow,
-    node: Circle,
-    edge: Spline,
-    several: GroupIcon,
-    neighborhood: Share2,
-    "measure-row": ChartColumn,
-    "run-row": Shapes,
-    "group-row": Component,
-    "everything-row": Layers,
-    "selection-row": MousePointer2,
-    "layer-row": Paintbrush,
-    attribute: Columns3,
 };
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
@@ -160,7 +129,7 @@ export function Inspector(): React.JSX.Element {
     });
     const body = bodyOf(resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
-    const KindIcon = KIND_ICONS[kindId];
+    const KindIcon = KIND_GLYPHS[kindId];
 
     let content: React.ReactNode;
     if ("only" in body) {
@@ -226,7 +195,7 @@ export function Inspector(): React.JSX.Element {
                                         ml="auto"
                                         aria-label={`${KIND_WORDS[kindId]} actions`}
                                     >
-                                        <MoreHorizontal size={14} />
+                                        <GLYPHS.more size={14} />
                                     </ActionIcon>
                                 </Menu.Target>
                                 <Menu.Dropdown>

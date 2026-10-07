@@ -64,13 +64,12 @@ const config: KnipConfig = {
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
         "cytoscape-extensions": {
-            // the root, and the browser and Node builds the "#gpu-platform" dynamic import loads (the package's
-            // `imports` field maps it into dist/, which knip does not follow back to src/)
+            // the root, and the Node build the "#gpu-platform" dynamic import loads (knip 5.88 follows the
+            // package's `imports` field to the browser build, but not to the Node one)
             entry: [
                 "src/index.ts!",
                 "src/io.ts!",
                 "src/samples.ts!",
-                "src/gpu-platform-browser.ts!",
                 "src/gpu-platform-node.ts!",
                 // the script-tag build's entry (vite.bundle.config.ts)
                 "bundle.ts!",
@@ -79,7 +78,6 @@ const config: KnipConfig = {
                 "test/consumer/consumer.ts",
             ],
             project: ["src/**/*.ts!", "scripts/**/*.ts", "test/**/*.ts", "stories/**/*.ts", ".storybook/*.ts"],
-            ignore: ["dist/**", "coverage/**", "node_modules/**"],
             // `webgpu` (Dawn for Node) is an OPTIONAL peer that nothing here imports: @graphty/webgpu-graph-algorithms
             // loads it at run time, and declaring it here is what lets a package manager hand it through (only
             // --production calls it unused; the normal run sees the GPU package's own use). `cytoscape`

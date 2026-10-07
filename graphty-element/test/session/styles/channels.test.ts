@@ -263,6 +263,12 @@ describe("what the element can really draw", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.size"].min, 0);
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.size"].max);
     });
+
+    it("draws a glow with no strength at 1, and offers no strength the node style refuses", () => {
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].default, 1);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.glowStrength"].min, 0.1);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.glow"].default, "an unset glow draws nothing");
+    });
 });
 
 describe("what a style editor needs to draw a row", () => {
@@ -277,7 +283,6 @@ describe("what a style editor needs to draw a row", () => {
         "node.tooltipStyle",
         "node.outline",
         "node.glow",
-        "node.glowStrength",
         "node.marker",
         "edge.patternCount",
         "edge.arrowHeadText",

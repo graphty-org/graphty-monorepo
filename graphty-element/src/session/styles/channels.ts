@@ -659,8 +659,11 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow Strength",
         shortName: "Glow strength",
         group: "effects",
+        // What a glow with no strength is drawn at (NodeEffects); the node style requires a
+        // strength above zero, so the smallest one offered is 0.1.
+        default: 1,
         accepts: "number",
-        min: 0,
+        min: 0.1,
         stylePath: "effect.glow.strength",
         renderable: true,
     },

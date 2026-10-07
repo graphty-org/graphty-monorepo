@@ -138,6 +138,7 @@ docs/layout/
 docs/graph-io/
 docs/public/
 docs/visual-review/
+docs/cytoscape-extensions/
 
 # Layout package specific
 layout/examples/layout.js

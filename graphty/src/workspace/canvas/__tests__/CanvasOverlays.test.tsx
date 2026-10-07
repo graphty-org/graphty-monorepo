@@ -10,7 +10,7 @@ import { assert, describe, it, vi } from "vitest";
 import { act, render, screen, within } from "../../../test/test-utils";
 import { type Command, createRegistry, defineRegistration } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
-import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
+import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
 import { CanvasOverlays } from "../CanvasOverlays";
 import { runNotice } from "../runNotice";
@@ -33,6 +33,7 @@ interface StandInFacts {
 function standIn(facts: StandInFacts = {}): {
     session: GraphSession;
     progress: (change: ProgressChange) => void;
+    emit: (event: string, payload: unknown) => void;
     encode: ReturnType<typeof vi.fn>;
     highlight: ReturnType<typeof vi.fn>;
 } {
@@ -51,20 +52,26 @@ function standIn(facts: StandInFacts = {}): {
             get: (id: string) => (facts.layers?.[id] === undefined ? undefined : { id, name: facts.layers[id] }),
             encode,
             highlight,
+            settled: () => Promise.resolve(),
         },
+        catalog: { algorithms: () => [{ key: "pagerank", technicalName: "PageRank" }] },
         runs: {
             get: (id: string) => (facts.runs?.[id] === undefined ? undefined : { id, label: facts.runs[id] }),
             painting: () => facts.painting,
         },
         data: { statistics: () => ({ nodeCount: facts.nodeCount ?? 77, edgeCount: facts.edgeCount ?? 254 }) },
     } as unknown as GraphSession;
+    const emit = (event: string, payload: unknown): void => {
+        listeners.get(event)?.forEach((listener) => {
+            listener(payload);
+        });
+    };
     return {
         session,
         progress: (change) => {
-            listeners.get("progress:changed")?.forEach((listener) => {
-                listener(change);
-            });
+            emit("progress:changed", change);
         },
+        emit,
         encode,
         highlight,
     };
@@ -84,8 +91,13 @@ function openCommand(disabled: string | null): Command {
  * @param session - the session.
  * @param state - more of the chrome's state.
  * @param commands - commands to register in place of the stubs.
+ * @returns the chrome's store.
  */
-function renderOver(session: GraphSession, state: Partial<WorkspaceState> = {}, commands: Command[] = []): void {
+function renderOver(
+    session: GraphSession,
+    state: Partial<WorkspaceState> = {},
+    commands: Command[] = [],
+): WorkspaceStore {
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, ...state });
     const registrations =
         commands.length === 0
@@ -103,6 +115,7 @@ function renderOver(session: GraphSession, state: Partial<WorkspaceState> = {}, 
             <CanvasOverlays />
         </WorkspaceContext.Provider>,
     );
+    return store;
 }
 
 const LOAD = { task: "load", phase: "progress", completed: 197, total: null, fraction: null } as const;
@@ -128,8 +141,8 @@ describe("the canvas's state cards", () => {
         const card = screen.getByRole("region", { name: "Reading Les Miserables" });
         assert.isNotNull(within(card).getByText("77 nodes, 254 edges..."));
         assert.isNotNull(within(card).getByRole("progressbar", { name: "Progress" }));
-        // Only the title is live, so the counts are not read out on every chunk.
-        assert.equal(within(card).getByRole("status").textContent, "Reading Les Miserables");
+        // Nothing on the card is live: the toolbar's status line announces the finished load.
+        assert.isNull(within(card).queryByRole("status"));
 
         act(() => {
             progress({ ...LOAD, phase: "end" });
@@ -196,6 +209,39 @@ describe("the canvas's state cards", () => {
         assert.equal(vi.mocked(command.run).mock.calls.length, 0);
         await userEvent.hover(button);
         assert.isNotNull(await screen.findByText("Close the dialog first"));
+    });
+});
+
+describe("the status line", () => {
+    it("announces a finished load with the element's counts", () => {
+        const { session, progress } = standIn();
+        const store = renderOver(session);
+        act(() => {
+            progress(LOAD);
+        });
+        assert.equal(store.get().announcement, "");
+        act(() => {
+            progress({ ...LOAD, phase: "end" });
+        });
+        assert.equal(store.get().announcement, "Les Miserables: 77 nodes, 254 edges");
+    });
+
+    it("announces a run that ended, by the app's name for its method, once", () => {
+        const { session, emit } = standIn();
+        const store = renderOver(session, { announcement: "PageRank added, running" });
+        const run = { id: "run-1", label: "pagerank #1", algorithm: "pagerank", status: "running" };
+        act(() => {
+            emit("run:changed", { run, phase: "start", cause: "command", generation: 1 });
+        });
+        assert.equal(store.get().announcement, "PageRank added, running");
+        act(() => {
+            emit("run:changed", { run: { ...run, status: "succeeded" }, phase: "end", cause: "command", generation: 1 });
+        });
+        assert.equal(store.get().announcement, "PageRank finished");
+        act(() => {
+            emit("run:changed", { run: { ...run, status: "failed" }, phase: "end", cause: "command", generation: 2 });
+        });
+        assert.equal(store.get().announcement, "PageRank failed");
     });
 });
 

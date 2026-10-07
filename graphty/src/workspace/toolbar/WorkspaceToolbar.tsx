@@ -3,7 +3,7 @@ import "./toolbar.css";
 import { MenuCheckItem, MenuItemDescription, Toolbar, ToolButton } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Menu, Popover, VisuallyHidden } from "@mantine/core";
-import React, { forwardRef, useRef, useState } from "react";
+import React, { forwardRef, useRef } from "react";
 
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
 import { CommandMenuItem, Sections } from "../frame/menus";
@@ -212,7 +212,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useSessionVersion(session);
     const dialog = useWorkspaceState((state) => state.dialog);
-    const [announcement, setAnnouncement] = useState("");
+    const announcement = useWorkspaceState((state) => state.announcement);
     // The button each popover opened from. Mantine's own returnFocus records the element focused
     // when the popover opens, but the Filter box and the Quick actions search focus themselves as
     // they mount, before Mantine records it, so it would hand focus back to a box that is gone.
@@ -262,7 +262,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
                                 session={session}
                                 onClose={close}
                                 onStarted={(name) => {
-                                    setAnnouncement(`${name} added, running`);
+                                    store.set({ announcement: `${name} added, running` });
                                 }}
                             />
                         )}

@@ -1,9 +1,10 @@
 import "./canvas.css";
 
-import type { GraphSession, LegendBlock, ProgressChange } from "@graphty/graphty-element/session";
+import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@graphty/graphty-element/session";
 import { Button, Menu, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { wordsFor } from "../analyze/words";
 import { SampleItems } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -11,6 +12,9 @@ import { LegendCard } from "./LegendCard";
 import { keyBlocks } from "./legendWords";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
+
+/** How a run that ended is announced, by its status. */
+const ENDED: Partial<Record<RunStatus, string>> = { succeeded: "finished", failed: "failed", canceled: "stopped" };
 
 /** The element's events after which the legend or the node count may read differently. */
 const REDRAW_EVENTS = ["style:changed", "run:changed", "project:changed"] as const;
@@ -28,7 +32,8 @@ const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: n
 
 /**
  * Reads the legend, the node and edge counts and the load in flight from the session, again after every
- * event that can change them; and, when a run finishes, posts the notice its painting calls for.
+ * event that can change them; announces a finished load with its size and a finished run by name;
+ * and, when a run finishes, posts the notice its painting calls for.
  * @param session - the element's session, or null.
  * @returns what the canvas draws from.
  */
@@ -55,11 +60,26 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 if (change.task === "load") {
                     load = change.phase === "end" ? null : change;
                     read();
+                    if (change.phase === "end") {
+                        const { nodeCount, edgeCount } = session.data.statistics();
+                        const name = store.get().project?.name ?? "Graph";
+                        store.set({
+                            announcement: `${name}: ${nodeCount.toLocaleString()} nodes, ${edgeCount.toLocaleString()} edges`,
+                        });
+                    }
                 }
             }),
             session.on("run:changed", (change) => {
                 if (change.phase !== "end" || change.cause !== "command") {
                     return;
+                }
+                const ended = ENDED[change.run.status];
+                if (ended !== undefined) {
+                    const descriptor = session.catalog
+                        .algorithms()
+                        .find((algorithm) => algorithm.key === change.run.algorithm);
+                    const name = descriptor === undefined ? change.run.label : wordsFor(descriptor).name;
+                    store.set({ announcement: `${name} ${ended}` });
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {

@@ -78,6 +78,11 @@ export interface WorkspaceState {
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
     /**
+     * The one polite status line for the core path: a load finished with its size, a run
+     * started, a run finished. Each replaces the last.
+     */
+    readonly announcement: string;
+    /**
      * What to load once the element of a project that was just opened has come up (a sample or
      * a file from the start screen), with the name it is known by; run once, then cleared.
      */
@@ -109,6 +114,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,
+    announcement: "",
     opening: null,
 };
 

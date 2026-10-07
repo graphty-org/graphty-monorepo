@@ -103,19 +103,23 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         "T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row",
         async () => {
             const session = await openKarate();
+            // The finished load is announced with its size, read from the element.
+            await screen.findByText("Untitled: 34 nodes, 78 edges");
 
             await analyze("PageRank", "PageRank");
-            // Running closes the popover; a screen reader hears the run start.
+            // Running closes the popover; a screen reader hears the run start, then, on the same
+            // line, that it finished (on Karate it may already have).
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
             });
-            assert.isNotNull(screen.getByText("PageRank added, running"));
+            assert.isNotNull(screen.getByText(/^PageRank (added, running|finished)$/));
             // Focus goes back to Analyze, not to the page.
             await waitFor(() => {
                 assert.equal(document.activeElement, analyzeTool());
             });
 
             const runId = await finished(session, "pagerank");
+            await screen.findByText("PageRank finished");
             // The run's suggested style landed as a layer bound to the run: it paints.
             await waitFor(() => {
                 assert.isAbove(session.runs.bindings(runId).length, 0);

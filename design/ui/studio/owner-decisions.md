@@ -4,6 +4,36 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- Why a selector was refused, as a code: `E_BAD_SELECTOR` `details.reason`
+
+**What.** Every `E_BAD_SELECTOR` refusal now carries `details.reason`, a stable code, beside the
+existing `details.position` and the other details. An expression selector (also what
+`select({ where })` and Find's `=` queries use) gives one of `unclosed-quote`,
+`bare-word-needs-quotes`, `bad-quoted-name`, `unsupported-syntax`, `pipe-not-supported`,
+`expression-reference-not-supported`, `number-needs-backticks`, `bad-character`, `dot-needs-name`,
+`name-contains-dot`, `function-not-supported`, `unclosed-parenthesis`, `missing-operand`,
+`not-needs-parentheses`, `trailing-input`, `quoted-whole-expression` or `reads-no-attribute`. A
+selector of the wrong shape gives `bare-string`, `not-a-selector`, `where-missing`,
+`has-path-missing`, `ids-not-a-list`, `not-an-id`, `top-path-not-a-result`, `top-n-not-whole`,
+`bad-member-scope` or `unknown-kind`. One existing detail moves: a refused `member` selector used to
+put the scope parser's own details under `details.reason`; they are now under `details.scope`. The
+query language itself is unchanged. `weight > 3` is refused with `reason: "number-needs-backticks"`,
+`position: 9`. The codes are documented on the error code and in the source, not exported as a type.
+
+**Why.** The element returns facts and the app writes the words. Until now the only way for a
+consumer to tell a reader what was wrong with a query was to parse the English message. The app's
+Find box shows nothing at all for `=weight > 3` today (the refusal escapes as an uncaught error);
+with a code it can say "put the 3 in backticks" in its own words.
+
+**Alternatives.** Export the codes as a union type: a stronger contract, but every new refusal
+would then be a type change; easy to add later. Keep only the message: every consumer parses
+English. Use a separate error code per mistake: too many top-level codes for one kind of failure.
+
+**Owner question.** Should the query language accept a bare number (`weight > 3`) instead of
+refusing it and asking for backticks (`` weight > `3` ``)? JMESPath, which the language is a subset
+of, does not, so accepting it would make an accepted selector mean something JMESPath would refuse;
+but nearly every person who types a comparison writes the bare number first.
+
 ## 2026-10-07 -- Focusing the element focuses its drawing (`delegatesFocus`)
 
 **What.** `<graphty-element>`'s shadow root is now opened with `delegatesFocus: true`, so

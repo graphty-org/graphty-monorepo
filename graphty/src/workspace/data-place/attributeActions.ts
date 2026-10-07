@@ -2,6 +2,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
+import { NEW, openStepEditor } from "./filterSteps";
 import { labelRefusalWords } from "./words";
 
 /** One verb on an attribute: its words, why it cannot run now (or null), and what it does. */
@@ -29,8 +30,8 @@ function labelRefusalFor(session: GraphSession, column: ColumnRef): string | nul
 
 /**
  * The verbs on one attribute, the same wherever it is picked (the Data place's row menu and the
- * attribute inspector's "..."): Add label line on a node attribute, and Show in table once the
- * table dock is built.
+ * attribute inspector's "..."): Add label line on a node attribute, Filter to... on a number or
+ * category attribute, and Show in table once the table dock is built.
  * @param column - the attribute.
  * @param session - the element's session, or null.
  * @param store - the chrome store.
@@ -63,6 +64,20 @@ export function attributeActions(
                         });
                     },
                 );
+            },
+        });
+    }
+    // A number or a category column can be filtered on; the editor opens with it filled.
+    const descriptor = session?.data.attributes().find((a) => a.kind === column.kind && a.name === column.name);
+    if (
+        descriptor !== undefined &&
+        (descriptor.type === "number" || descriptor.type === "integer" || descriptor.measurement === "categorical")
+    ) {
+        actions.push({
+            label: "Filter to...",
+            disabledReason: null,
+            run: () => {
+                openStepEditor(store, `${NEW}:${descriptor.kind}:${descriptor.path}`);
             },
         });
     }

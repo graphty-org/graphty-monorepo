@@ -116,14 +116,21 @@ export function matchesKey(event: KeyPress, combo: string): boolean {
     return letterOrNamed ? event.shiftKey === want.shift : true;
 }
 
+/** Input types that take no typing: a key pressed on one is the app's, as on a button. */
+const UNTYPED_INPUTS = new Set(["checkbox", "radio", "button", "submit", "reset", "color", "file", "image"]);
+
 /**
  * Whether a key press lands in something the reader types into.
  * @param target - the event's target.
- * @returns true for an input, textarea, select or editable element.
+ * @returns true for a text input, textarea, select or editable element; false for a checkbox,
+ * a radio or a button-like input, so Ctrl+Z on a ticked checkbox still undoes.
  */
 export function isTypingTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) {
         return false;
     }
-    return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+    if (target instanceof HTMLInputElement) {
+        return !UNTYPED_INPUTS.has(target.type);
+    }
+    return target.isContentEditable || ["TEXTAREA", "SELECT"].includes(target.tagName);
 }

@@ -314,7 +314,7 @@ describe("the Data place on the real element", () => {
     );
 
     it(
-        "the attribute inspector's ... holds the same Show in table and Add label line",
+        "the attribute inspector's ... holds the same Add label line, Filter to... and Show in table",
         async () => {
             const { session, store } = await openDataPlace(TABLE_BUILT);
             await importGraphFile(session);
@@ -327,7 +327,7 @@ describe("the Data place on the real element", () => {
                 within(menu)
                     .getAllByRole("menuitem")
                     .map((item) => item.textContent),
-                ["Add label line", "Show in table"],
+                ["Add label line", "Filter to...", "Show in table"],
             );
             await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
             await waitFor(() => {

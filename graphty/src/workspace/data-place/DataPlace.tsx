@@ -8,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
+import { FiltersSection } from "./Filters";
 import { AttributeMenuItems, ItemLabel } from "./MenuItems";
 import {
     type AttributeRow,
@@ -214,7 +215,8 @@ function AttributesSection(): React.JSX.Element {
 }
 
 /**
- * The Data place (tier1-design.md section 2.6): the graph's name, then Sources and Attributes.
+ * The Data place (tier1-design.md section 2.6): the graph's name, then Sources, Filters
+ * (tier2-design.md section 1) and Attributes.
  * Every fact is the element's: `data.source()` and `data.lastImport()` for Sources,
  * `data.attributes()` for Attributes.
  *
@@ -282,6 +284,7 @@ export function DataPlace(): React.JSX.Element {
                     />
                 )}
             </ControlSection>
+            <FiltersSection />
             <AttributesSection />
         </section>
     );

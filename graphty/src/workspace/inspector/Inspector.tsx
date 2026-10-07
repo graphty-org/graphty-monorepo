@@ -5,6 +5,8 @@ import React, { useEffect, useState } from "react";
 
 import { runName, wordsFor } from "../analyze/words";
 import { useAttributeActions } from "../data-place/attributeActions";
+import { FilterStepEditor } from "../data-place/Filters";
+import { stepEditorName } from "../data-place/filterSteps";
 import { AttributeMenuItems } from "../data-place/MenuItems";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
@@ -315,6 +317,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: "Selection" };
         case "layer-row":
             return { name: session.styles.get(resolved.layer)?.name ?? "Gone" };
+        case "filter-step":
+            return { name: stepEditorName(session, resolved.step) };
         default: {
             const column = session.data.attributes().find((candidate) => candidate.path === resolved.path);
             const made = column?.runId === undefined ? undefined : session.runs.get(column.runId);
@@ -396,6 +400,9 @@ function bodyOf(
             return { style: <SelectionStyle />, values: <SeveralValues version={version} /> };
         case "layer-row":
             return { only: <StyleTab /> };
+        case "filter-step":
+            // Keyed by the step, so opening another step starts from its own fields.
+            return { only: <FilterStepEditor key={resolved.step} id={resolved.step} /> };
         default:
             return { only: <AttributeValues path={resolved.path} /> };
     }

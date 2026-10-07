@@ -3,6 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useSyncExternalStore } from "react";
 
+import { FilterChip } from "../data-place/Filters";
 import { GLYPHS } from "../glyphs";
 import { formatKey } from "../keys/keys";
 import { PrivacyChip } from "../privacy/PrivacyChip";
@@ -24,7 +25,8 @@ function useHistoryVersion(session: GraphSession | null): void {
 
 /**
  * The header (tier1-design.md section 2.1): the main menu, the project name (a tap or F2
- * renames it), Undo and Redo, and the privacy chip.
+ * renames it), Undo and Redo, the filter chip while a filter step is on (tier2-design.md
+ * section 1), and the privacy chip.
  * @returns The header
  */
 export function Header(): React.JSX.Element {
@@ -75,6 +77,7 @@ export function Header(): React.JSX.Element {
             )}
             <CommandButton id="history.undo" icon={<GLYPHS.undo size={16} aria-hidden />} />
             <CommandButton id="history.redo" icon={<GLYPHS.redo size={16} aria-hidden />} />
+            <FilterChip />
             <PrivacyChip />
         </header>
     );

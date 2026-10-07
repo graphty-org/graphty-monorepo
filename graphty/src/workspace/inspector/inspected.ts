@@ -26,6 +26,8 @@ import type { WorkspaceState } from "../state/store";
  * - `everything-row` and `selection-row`: the Graph place's two built-in rows; no id.
  * - `layer-row`: one of the reader's own style layers in the Graph place; the id is the layer id.
  * - `attribute`: an attribute from the Data place; the id is its path, such as `data.age`.
+ * - `filter-step`: the filter step editor; the id is the step's id, `new`, or
+ *   `new:<node|edge>:<path>` for a new step on that attribute.
  */
 export const INSPECTED_KINDS = [
     "graph",
@@ -40,6 +42,7 @@ export const INSPECTED_KINDS = [
     "selection-row",
     "layer-row",
     "attribute",
+    "filter-step",
 ] as const;
 
 /** One of {@link INSPECTED_KINDS}. */
@@ -56,7 +59,8 @@ export type Resolved =
     | { readonly kind: "group-row"; readonly run: RunId; readonly group: string | number }
     | { readonly kind: "everything-row" | "selection-row" }
     | { readonly kind: "layer-row"; readonly layer: string }
-    | { readonly kind: "attribute"; readonly path: string };
+    | { readonly kind: "attribute"; readonly path: string }
+    | { readonly kind: "filter-step"; readonly step: string };
 
 /**
  * The id a node carries in `inspected.id`. A node id is a string or a number, and the two must
@@ -162,6 +166,11 @@ function fromRow(inspected: WorkspaceState["inspected"]): Resolved | undefined {
         case "attribute":
             if (inspected.id !== undefined) {
                 return { kind: "attribute", path: inspected.id };
+            }
+            break;
+        case "filter-step":
+            if (inspected.id !== undefined) {
+                return { kind: "filter-step", step: inspected.id };
             }
             break;
         default:

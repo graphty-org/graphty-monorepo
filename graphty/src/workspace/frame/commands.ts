@@ -1,4 +1,5 @@
 import { defineRegistration } from "../commands/registry";
+import { stepHistoryNotice } from "../data-place/filterSteps";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
 
@@ -44,8 +45,17 @@ export const registration = defineRegistration({
             group: "Project",
             keys: ["Mod+Z"],
             disabled: ({ session }) => (session?.canUndo === true ? null : "Nothing to undo"),
-            run: async ({ session }) => {
-                await session?.undo();
+            run: async ({ session, workspace }) => {
+                if (session === null) {
+                    return;
+                }
+                // A filter step's undo names the step (tier2-design.md section 1).
+                const notice = stepHistoryNotice(session, true);
+                await session.undo();
+                const message = notice?.() ?? null;
+                if (message !== null) {
+                    workspace.set({ notice: { message } });
+                }
             },
         },
         {
@@ -54,8 +64,16 @@ export const registration = defineRegistration({
             group: "Project",
             keys: ["Shift+Mod+Z", "Mod+Y"],
             disabled: ({ session }) => (session?.canRedo === true ? null : "Nothing to redo"),
-            run: async ({ session }) => {
-                await session?.redo();
+            run: async ({ session, workspace }) => {
+                if (session === null) {
+                    return;
+                }
+                const notice = stepHistoryNotice(session, false);
+                await session.redo();
+                const message = notice?.() ?? null;
+                if (message !== null) {
+                    workspace.set({ notice: { message } });
+                }
             },
         },
         {

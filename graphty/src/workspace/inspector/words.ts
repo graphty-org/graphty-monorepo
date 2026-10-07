@@ -31,6 +31,7 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "selection-row": "Selection",
     "layer-row": "Layer",
     attribute: "Attribute",
+    "filter-step": "Filter step",
 };
 
 /**

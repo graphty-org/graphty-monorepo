@@ -61,6 +61,9 @@ describe("workspace keys", () => {
         assert.isTrue(isTypingTarget(document.createElement("input")));
         assert.isTrue(isTypingTarget(document.createElement("textarea")));
         assert.isFalse(isTypingTarget(document.createElement("button")));
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        assert.isFalse(isTypingTarget(checkbox), "Ctrl+Z on a ticked checkbox is the app's Undo");
         assert.isFalse(isTypingTarget(null));
     });
 

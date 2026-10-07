@@ -118,6 +118,11 @@ const SEED_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
     seed: { type: "seed" },
 };
 
+/** A layout's `groupBy` names a node attribute or a run's field whose values partition the nodes. */
+const GROUP_BY_OVERRIDE: Readonly<Record<string, Partial<OptionDescriptor>>> = {
+    groupBy: { type: "partition", on: "node" },
+};
+
 /**
  * Emit one engine's options as plain JSON.
  * @param schema - The engine's Zod options schema.
@@ -287,7 +292,7 @@ const shell: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
-    options: engineOptions(ShellLayout.zodOptionsSchema),
+    options: engineOptions(ShellLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: ShellLayout.honoursWeights,
     scoped: ShellLayout.scoped,
 };
@@ -373,7 +378,7 @@ const bipartite: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
-    options: engineOptions(BipartiteLayout.zodOptionsSchema),
+    options: engineOptions(BipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: BipartiteLayout.honoursWeights,
     scoped: BipartiteLayout.scoped,
 };
@@ -385,7 +390,7 @@ const multipartite: LayoutImplementationSpec = {
     kind: "batch",
     maxDimensions: 2,
     reason: "The only engine that draws this arrangement.",
-    options: engineOptions(MultipartiteLayout.zodOptionsSchema),
+    options: engineOptions(MultipartiteLayout.zodOptionsSchema, GROUP_BY_OVERRIDE),
     honoursWeights: MultipartiteLayout.honoursWeights,
     scoped: MultipartiteLayout.scoped,
 };
@@ -666,7 +671,8 @@ export function arrangedDimension(choice: {
     }
 
     const implementation = LAYOUT_CATALOG.flatMap((e) => e.implementations).find((i) => i.engine === choice.engine);
-    const maxDimensions = implementation?.maxDimensions ?? registeredLayoutById(choice.engine)?.descriptor.maxDimensions;
+    const maxDimensions =
+        implementation?.maxDimensions ?? registeredLayoutById(choice.engine)?.descriptor.maxDimensions;
     if (maxDimensions === 2) {
         return "2d";
     }

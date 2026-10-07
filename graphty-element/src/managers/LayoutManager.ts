@@ -1,4 +1,4 @@
-import { INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
+import { type GraphSnapshot, INVALID_INDEX, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 import type {
     ForceAtlas2Options,
     FruchtermanReingoldOptions,
@@ -451,6 +451,13 @@ interface LayoutScopeSource {
      * @returns True when it is detached.
      */
     detached(scope: Scope): boolean;
+    /**
+     * The node values at a `data.<key>` or `results.<run>.<field>` path, by row of a snapshot.
+     * @param graph - The snapshot whose rows the values are laid out over.
+     * @param path - The path.
+     * @returns The values, or null when nothing carries the path.
+     */
+    nodeValues?(graph: GraphSnapshot, path: string): readonly unknown[] | null;
 }
 
 /**
@@ -1158,6 +1165,7 @@ export class LayoutManager implements Manager {
 
                     this.reportLayoutFailure(type, error, "stepped");
                 },
+                column: (graph, path) => this.scopeSource?.nodeValues?.(graph, path) ?? null,
                 arrived: () => {
                     // The answer is published by the next frame's step, which runs only while the
                     // layout does.

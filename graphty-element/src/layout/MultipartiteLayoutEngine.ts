@@ -36,6 +36,7 @@ const multipartiteLayoutOptionsSchema = defineOptions({
 
 const MultipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(40),
     // subsetKey: z.string().or(z.record(z.number(), z.array(z.string().or(z.number())))),
     subsetKey: z.record(z.string(), z.array(z.string().or(z.number()))),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
@@ -52,8 +53,6 @@ export class MultipartiteLayout extends SnapshotLayoutEngine {
     static type = "multipartite";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = multipartiteLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 40;
     protected readonly dimensions: 2 | 3;
     config: MultipartiteLayoutConfigType;
 
@@ -106,7 +105,7 @@ export class MultipartiteLayout extends SnapshotLayoutEngine {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
             }),
-            MultipartiteLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

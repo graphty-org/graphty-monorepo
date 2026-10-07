@@ -216,10 +216,15 @@ export type ChannelAgreement = {
 export interface ChannelExplanation {
     readonly channel: Channel;
     readonly editable: boolean;
+    readonly fact?: CodedFact<ChannelRefusalCode>;
     readonly layerId: LayerId;
     readonly mode: "static" | "encoded";
+    // @deprecated
     readonly reason?: string;
 }
+
+// @public
+export type ChannelRefusalCode = "layer.locked" | "channel.encoded";
 
 // @public
 export interface ChannelShare {
@@ -3571,10 +3576,15 @@ export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | 
 
 // @public
 export interface UnboundLayer {
+    readonly fact: CodedFact<UnboundLayerCode>;
     readonly layerId: LayerId;
     readonly needs: readonly Path[];
+    // @deprecated
     readonly reason: string;
 }
+
+// @public
+export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
 export interface ValidationResult {

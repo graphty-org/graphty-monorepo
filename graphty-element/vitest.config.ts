@@ -666,11 +666,10 @@ export default defineConfig({
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.
             //
-            // This project runs in no gate and in no CI job -- `grep -n llm .github/workflows/*.yml`
-            // finds nothing -- and that is deliberate rather than an oversight: every case makes a
-            // paid API call, and its seven real test files sit inside describe.skipIf(skipIfNoApiKey()),
-            // so without keys even `npm run test:llm-regression` collects harness.test.ts and nothing
-            // else. Run it by hand, with keys, when the tool-calling surface changes.
+            // Every case makes a paid API call, so this project runs in no pull-request or merge-queue
+            // job. The release train runs it on every release candidate (release.yml's "LLM regression"
+            // job). Its seven real test files sit inside describe.skipIf(skipIfNoApiKey()), so without a
+            // key they skip; the release job checks the key is set first and fails if it is not.
             {
                 test: {
                     name: "llm-regression",

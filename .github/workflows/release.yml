@@ -13,9 +13,11 @@ name: Release
 #    failed, or it left the merge queue) is closed and replaced by this attempt.
 # 2. On that commit, in parallel: the FULL CI suite (ci.yml called on it, every shard of every package, which
 #    also makes the builds this release ships), the paid NVIDIA T4 lane (gpu.yml), the host matrix (hosts.yml,
-#    full scope) and the security audit of the shipped dependencies. Coverage is published from the same CI run
-#    (coverage.yml).
-# 3. Only when all four pass does the train job version the commit with nx release and open a
+#    full scope), the security audit of the shipped dependencies and the LLM regression tests (graphty-element's
+#    llm-regression project: real, paid OpenAI calls that check the model still picks the element's tools, with
+#    the OPENAI_API_KEY repository secret; a missing secret fails the job, it never skips). Coverage is published
+#    from the same CI run (coverage.yml).
+# 3. Only when all five pass does the train job version the commit with nx release and open a
 #    "chore(release): publish" pull request holding only version fields and changelogs. Anything red holds the
 #    WHOLE release: no pull request, nothing published, and the held job opens or updates ONE "Release held:
 #    <what> failed on <sha>" issue for githerd to fix. A later train that passes closes it. Mergify merges the
@@ -234,6 +236,51 @@ jobs:
             - name: Security audit
               run: pnpm audit --prod --audit-level=high
 
+    # graphty-element's llm-regression project on exactly the candidate: each case sends a prompt to OpenAI
+    # (gpt-4o-mini) and checks the model calls the element's own tools with the right arguments. It runs only here,
+    # never on a pull request or in the merge queue, because every case is a paid API call. A missing or empty
+    # OPENAI_API_KEY secret fails the job: the tests would otherwise skip, and a release test that skips is worse
+    # than none. Each case has vitest's 60 s limit (graphty-element/vitest.config.ts), so the job ends on its own.
+    llm:
+        name: LLM regression
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # graphty-element's tests resolve the workspace packages it depends on from their dist folders.
+            - name: Build graphty-element and its dependencies
+              run: pnpm exec nx run graphty-element:build
+
+            - name: LLM regression tests
+              working-directory: graphty-element
+              env:
+                  VITE_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${VITE_OPENAI_API_KEY}" ]; then
+                      echo "::error::the OPENAI_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"
+                      exit 1
+                  fi
+                  npx vitest run --project llm-regression
+
     # Coveralls' master coverage, from the CI run above (a push to master runs no test shards). Advisory: it
     # never holds the release.
     coverage:
@@ -254,7 +301,7 @@ jobs:
     # a later train passes.
     held:
         name: Hold the release
-        needs: [pick, ci, t4, hosts, audit, train]
+        needs: [pick, ci, t4, hosts, audit, llm, train]
         if: ${{ !cancelled() && needs.pick.outputs.release == 'true' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
         runs-on: ubuntu-24.04
         permissions:
@@ -269,6 +316,7 @@ jobs:
             T4_RESULT: ${{ needs.t4.result }}
             HOSTS_RESULT: ${{ needs.hosts.result }}
             AUDIT_RESULT: ${{ needs.audit.result }}
+            LLM_RESULT: ${{ needs.llm.result }}
             TRAIN_RESULT: ${{ needs.train.result }}
         steps:
             - uses: actions/checkout@v4
@@ -287,12 +335,13 @@ jobs:
                   [ "$T4_RESULT" != failure ] || what+=("T4 GPU")
                   [ "$HOSTS_RESULT" != failure ] || what+=("Hosts")
                   [ "$AUDIT_RESULT" != failure ] || what+=("security audit")
+                  [ "$LLM_RESULT" != failure ] || what+=("LLM regression")
                   [ "$TRAIN_RESULT" != failure ] || what+=("release pull request")
                   if [ "${#what[@]}" = 0 ]; then
                       # Only cancelled (gpu.yml's queue replaced the pending T4 run, a person cancelled a
                       # lane): nothing to fix, so no issue; the run goes red so the attempt leaves a trace,
                       # and the next attempt retries.
-                      echo "::error::release attempt on ${SHA} did not finish: a lane was cancelled (CI ${CI_RESULT}, T4 ${T4_RESULT}, Hosts ${HOSTS_RESULT}, audit ${AUDIT_RESULT}); the next attempt retries"
+                      echo "::error::release attempt on ${SHA} did not finish: a lane was cancelled (CI ${CI_RESULT}, T4 ${T4_RESULT}, Hosts ${HOSTS_RESULT}, audit ${AUDIT_RESULT}, LLM regression ${LLM_RESULT}); the next attempt retries"
                       exit 1
                   fi
                   # The first attempt failed only because a spot runner was taken away (every failed job says its
@@ -331,12 +380,12 @@ jobs:
                   open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
                   echo "::error::release held: ${what} failed on ${SHA}; no release pull request was opened (issue ${open})"
 
-    # Versions the candidate and opens the release pull request, only after the full suite, the T4, Hosts and the
-    # audit all passed on it.
+    # Versions the candidate and opens the release pull request, only after the full suite, the T4, Hosts, the
+    # audit and the LLM regression tests all passed on it.
     train:
         name: Open the release pull request
-        needs: [pick, ci, t4, hosts, audit]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' }}
+        needs: [pick, ci, t4, hosts, audit, llm]
+        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -429,7 +478,7 @@ jobs:
                   [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || kind="ad hoc"
                   [ "$GITHUB_EVENT_NAME" != workflow_run ] || kind="restarted"
                   {
-                      echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts and the security audit passed on it in ${run_url}."
+                      echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on it in ${run_url}."
                       [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."
                       echo
                       echo "Releases:"
@@ -440,7 +489,7 @@ jobs:
                   gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
                   for context in "All Checks Pass" "Lint PR Title"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
-                          -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts and the audit" \
+                          -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts, the audit and the LLM regression tests" \
                           -f target_url="$run_url" >/dev/null
                   done
 
@@ -451,7 +500,7 @@ jobs:
               run: |
                   set -euo pipefail
                   tools/release-held.sh close \
-                      "The full CI suite, the T4 GPU lane, Hosts and the security audit passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases everything that was held."
+                      "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases everything that was held."
 
     # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
     # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.

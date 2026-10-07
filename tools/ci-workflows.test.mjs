@@ -1154,6 +1154,7 @@ describe("release.yml", () => {
     const t4 = job(release, "t4");
     const audit = job(release, "audit");
     const hosts = job(release, "hosts");
+    const llm = job(release, "llm");
     const coverage = job(release, "coverage");
     const held = job(release, "held");
     const train = job(release, "train");
@@ -1249,10 +1250,10 @@ describe("release.yml", () => {
         assert.match(audit, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(audit, /run: pnpm audit --prod --audit-level=high/);
         assert.doesNotMatch(audit, /continue-on-error/, "a high advisory holds the release");
-        assert.match(train, /needs: \[pick, ci, t4, hosts, audit\]/);
+        assert.match(train, /needs: \[pick, ci, t4, hosts, audit, llm\]/);
         assert.match(
             train,
-            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' \}\}/,
+            /if: \$\{\{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' \}\}/,
         );
         // the release ships the builds of its own CI call, not a master run's
         assert.match(train, /pattern: "build-\{graph-format,[^"]*\}"\n\s+path: \$\{\{ runner.temp \}\}\/builds\n\n/);
@@ -1273,8 +1274,25 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
+    it("runs the LLM regression tests on the candidate with the OpenAI secret, failing when it is missing", () => {
+        assert.match(llm, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
+        assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
+        assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
+        assert.match(llm, /VITE_OPENAI_API_KEY: \$\{\{ secrets.OPENAI_API_KEY \}\}/);
+        // the tests skip without a key; the job must fail instead, naming the secret, before vitest runs
+        const check = llm.indexOf('if [ -z "${VITE_OPENAI_API_KEY}" ]; then');
+        assert.ok(check > 0, "checks the key is non-empty");
+        assert.match(llm.slice(check), /^\s+echo "::error::the OPENAI_API_KEY repository secret[^\n]*\n\s+exit 1\n/m);
+        assert.ok(check < llm.indexOf("npx vitest run --project llm-regression"), "before the tests run");
+        assert.doesNotMatch(llm, /continue-on-error/, "a failure holds the release");
+        // paid calls: never on a pull request, the merge queue or a master push
+        for (const file of ["ci.yml", "gpu.yml", "hosts.yml", "coverage.yml"]) {
+            assert.doesNotMatch(workflow(file), /llm-regression|OPENAI_API_KEY/, file);
+        }
+    });
+
     it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
-        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, train\]/);
+        assert.match(held, /needs: \[pick, ci, t4, hosts, audit, llm, train\]/);
         assert.match(
             held,
             /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && \(contains\(needs.\*.result, 'failure'\) \|\| contains\(needs.\*.result, 'cancelled'\)\) \}\}/,
@@ -1292,6 +1310,7 @@ describe("release.yml", () => {
             ["T4", "T4 GPU"],
             ["HOSTS", "Hosts"],
             ["AUDIT", "security audit"],
+            ["LLM", "LLM regression"],
         ]) {
             assert.ok(held.includes(`[ "$${result}_RESULT" != failure ] || what+=("${name}")`), name);
         }

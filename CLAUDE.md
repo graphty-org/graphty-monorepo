@@ -458,7 +458,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `storybook` - Component tests (4 CI shards)
 - `interactions` - Interaction tests
 - `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
-- `llm-regression` - LLM regression tests
+- `llm-regression` - LLM regression tests: real, paid OpenAI calls. Runs in the release train (release.yml), never on a pull request or in the merge queue; needs `VITE_OPENAI_API_KEY` (the `OPENAI_API_KEY` repository secret in CI)
 
 ### Running Specific Test Projects
 

@@ -25,6 +25,14 @@ cd "$ROOT_DIR"
 # landed on the branch being pushed. No step needs them; each runs from this directory.
 unset $(git rev-parse --local-env-vars)
 
+# A push to a pull request in Mergify's merge queue dequeues it and throws away its batch run, so it
+# is refused before the gate starts (ALLOW_PUSH_WHILE_QUEUED=1 for a deliberate one). It checks the
+# checked-out branch, the one this gate tests.
+PUSH_BRANCH="$(git symbolic-ref --short -q HEAD)"
+if [ -n "$PUSH_BRANCH" ] && ! node tools/queued-push-guard.mjs "$PUSH_BRANCH"; then
+    exit 1
+fi
+
 # node_modules must match the lockfile, or everything below runs against dependency versions CI
 # (pnpm install --frozen-lockfile) does not have. pnpm copies the lockfile it installed from to
 # node_modules/.pnpm/lock.yaml, byte for byte.

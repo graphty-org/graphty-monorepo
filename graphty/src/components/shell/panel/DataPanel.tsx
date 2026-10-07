@@ -139,7 +139,7 @@ function loadedSummarySegments(summary: LoadedDataSummary): CompoundSegment[] {
  * @param props.summary - what the loaded file is.
  * @returns the row.
  */
-function LoadedSummaryRow({ summary }: { summary: LoadedDataSummary }): React.JSX.Element {
+function LoadedSummaryRow({ summary }: Readonly<{ summary: LoadedDataSummary }>): React.JSX.Element {
     const label = summary.title ?? LOADED_SUMMARY_LABEL;
     const segments = loadedSummarySegments(summary);
 

@@ -26,6 +26,7 @@
 
 import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
@@ -34,7 +35,6 @@ import {
     type Caveats,
     type EngineVersions,
     isTerminalRunStatus,
-    type JournalId,
     type Progress,
     type ResolvedScope,
     type Run,
@@ -442,8 +442,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     readonly style: RunStyle;
 
-    /** The journal has not landed, so every run reports that it wrote no entry. */
-    readonly journalId: JournalId | null = null;
+    /** The journal entry this run's latest command wrote; set by the session as the entry lands. */
+    journalId: JournalId | null = null;
 
     /** What the run is. Replaced only by {@link ManagedRun.retune}, which changes the parameters and seed. */
     private definition: RunDefinition<T>;

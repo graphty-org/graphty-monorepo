@@ -45,6 +45,7 @@ import "./src/graphty-element";
 // Core classes
 // =============================================================================
 export { Edge } from "./src/Edge";
+export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type { GraphtyElementEventMap } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";

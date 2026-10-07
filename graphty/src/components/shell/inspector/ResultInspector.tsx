@@ -38,6 +38,12 @@
  * door, because a door may not separate a floor item from the thing it qualifies -- the
  * same rule that keeps them out of the Details chevron.
  *
+ * The member verbs (spec 2307, 2366 and 2376) act on the result's elements: a metric
+ * result offers Select top N, Select above threshold and Filter above threshold, with the
+ * threshold field opening where the caller says the result is drawable, and a range slider
+ * under the chart that brushes its bars; a grouping result offers Export groups. Every one
+ * hands its input to the caller, which asks graphty-element; nothing here ranks or counts.
+ *
  * There is deliberately NO legend block on this surface. Floor item 5 is marked not
  * applicable on the Result face (spec 2258): the obligation to say what the colours mean
  * lands on the canvas legend's colour channel, which is where a metric run publishes it.
@@ -46,14 +52,16 @@
 import {
     ControlSection,
     DataRow,
+    FieldRow,
     HistogramRow,
     PANEL_GRID,
     PANEL_INK,
+    PanelField,
     ProseBlock,
     RankChip,
 } from "@graphty/compact-mantine";
-import { Box, Group, Text } from "@mantine/core";
-import React from "react";
+import { Box, Group, RangeSlider, Text } from "@mantine/core";
+import React, { useState } from "react";
 
 import { type InspectorAction, InspectorActions } from "./InspectorActions";
 import { INSPECTOR_CLUSTER_GAP, INSPECTOR_SECTION_IDS, SWATCH_RADIUS } from "./inspectorConstants";
@@ -133,7 +141,41 @@ export interface ResultInspectorProps {
      * because there is then no count to name.
      */
     readonly removeResultCost?: string;
+    /**
+     * The member verbs of a metric result: Select top N, Select above threshold and Filter
+     * above threshold, with the two fields they read. Absent draws none of them.
+     */
+    readonly members?: ResultMembers;
+    /**
+     * Selects what the bars from `first` to `last` counted, by position. Given, a range
+     * slider under the chart brushes the bars; absent, the chart only shows them.
+     */
+    readonly onSelectBins?: (first: number, last: number) => void;
+    /** Downloads a grouping result's groups as CSV. Absent draws no Export groups verb. */
+    readonly onExportGroups?: () => void;
 }
+
+/**
+ * What a metric result's member verbs need.
+ * @public
+ */
+export interface ResultMembers {
+    /** The most Select top N may ask for: the selection cap. */
+    readonly topLimit: number;
+    /** Where the threshold field opens: the lowest value whose matches are still drawable. */
+    readonly threshold: number;
+    /** The sentence saying where the threshold opened and why, when it left some out. */
+    readonly thresholdNote?: string;
+    /** Selects the top `n`. */
+    readonly onSelectTop: (n: number) => void;
+    /** Selects everything above `threshold`. */
+    readonly onSelectAbove: (threshold: number) => void;
+    /** Shows only what is above `threshold`. */
+    readonly onFilterAbove: (threshold: number) => void;
+}
+
+/** How many Select top N asks for until the reader says otherwise. */
+const DEFAULT_TOP_N = 10;
 
 /**
  * The Algorithm-result surface.
@@ -154,7 +196,25 @@ export function ResultInspector(props: ResultInspectorProps): React.JSX.Element 
         onDeleteLayer,
         onRemoveResult,
         removeResultCost,
+        members,
+        onSelectBins,
+        onExportGroups,
     } = props;
+
+    const [topN, setTopN] = useState(() => Math.min(DEFAULT_TOP_N, members?.topLimit ?? DEFAULT_TOP_N));
+    const [threshold, setThreshold] = useState(members?.threshold ?? 0);
+    const binCount = distribution?.bins.length ?? 0;
+    const [brush, setBrush] = useState<[number, number]>([0, Math.max(0, binCount - 1)]);
+    /* A different result opens its fields afresh: the threshold where it is drawable and the
+       brush across every bar (React's "adjusting state when a prop changes" pattern). */
+    const [openedFor, setOpenedFor] = useState({ threshold: members?.threshold, binCount });
+    if (openedFor.threshold !== members?.threshold || openedFor.binCount !== binCount) {
+        setOpenedFor({ threshold: members?.threshold, binCount });
+        setThreshold(members?.threshold ?? 0);
+        setBrush([0, Math.max(0, binCount - 1)]);
+    }
+
+    const brushed = brush[0] > 0 || brush[1] < binCount - 1;
 
     const bodySection = useInspectorSection(INSPECTOR_SECTION_IDS.resultBody, true);
 
@@ -184,6 +244,34 @@ export function ResultInspector(props: ResultInspectorProps): React.JSX.Element 
             ...(removeResultCost === undefined ? {} : { cost: removeResultCost }),
             onSelect: onRemoveResult,
         },
+        ...(members === undefined
+            ? []
+            : [
+                  {
+                      id: "selectTop",
+                      label: `Select top ${String(topN)}`,
+                      onSelect: () => {
+                          members.onSelectTop(topN);
+                      },
+                  },
+                  {
+                      id: "selectAbove",
+                      label: "Select above threshold",
+                      onSelect: () => {
+                          members.onSelectAbove(threshold);
+                      },
+                  },
+                  {
+                      id: "filterAbove",
+                      label: "Filter above threshold",
+                      onSelect: () => {
+                          members.onFilterAbove(threshold);
+                      },
+                  },
+              ]),
+        ...(onExportGroups === undefined
+            ? []
+            : [{ id: "exportGroups", label: "Export groups", cost: "CSV of id and group", onSelect: onExportGroups }]),
     ];
 
     return (
@@ -236,7 +324,7 @@ export function ResultInspector(props: ResultInspectorProps): React.JSX.Element 
                 )}
             </Box>
 
-            {body.length === 0 && distribution === undefined ? (
+            {body.length === 0 && distribution === undefined && members === undefined ? (
                 <ControlSection
                     label="Result"
                     opened={bodySection.opened}
@@ -273,10 +361,84 @@ export function ResultInspector(props: ResultInspectorProps): React.JSX.Element 
                     {distribution !== undefined && (
                         <HistogramRow
                             label={distribution.caption}
-                            bins={[...distribution.bins]}
+                            bins={distribution.bins.map((bin, index) => ({
+                                ...bin,
+                                highlighted: brushed && index >= brush[0] && index <= brush[1],
+                            }))}
                             minLabel={distribution.axisMin}
                             maxLabel={distribution.axisMax}
                         />
+                    )}
+
+                    {/*
+                        The brush: Mantine's own range slider, one step per bar, under the
+                        chart it brushes. Letting go selects what the brushed bars counted.
+                    */}
+                    {distribution !== undefined && onSelectBins !== undefined && binCount > 1 && (
+                        <Box
+                            style={{
+                                paddingInlineStart: PANEL_GRID.PAD_LEFT,
+                                paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
+                            }}
+                        >
+                            <RangeSlider
+                                size="xs"
+                                min={0}
+                                max={binCount - 1}
+                                step={1}
+                                minRange={0}
+                                value={brush}
+                                onChange={setBrush}
+                                onChangeEnd={(range) => {
+                                    onSelectBins(range[0], range[1]);
+                                }}
+                                label={(index) => distribution.bins[index]?.label}
+                                thumbFromLabel="First bar to select"
+                                thumbToLabel="Last bar to select"
+                                data-testid="result-histogram-brush"
+                            />
+                        </Box>
+                    )}
+
+                    {members !== undefined && (
+                        <>
+                            <FieldRow groupLabel="Members">
+                                <PanelField
+                                    label="How many to select"
+                                    glyph="N"
+                                    kind="number"
+                                    min={1}
+                                    max={members.topLimit}
+                                    step={1}
+                                    value={topN}
+                                    onChange={(value) => {
+                                        setTopN(Number(value));
+                                    }}
+                                />
+                                <PanelField
+                                    label="Threshold"
+                                    glyph="K"
+                                    kind="number"
+                                    value={threshold}
+                                    onChange={(value) => {
+                                        setThreshold(Number(value));
+                                    }}
+                                />
+                            </FieldRow>
+                            {members.thresholdNote !== undefined && (
+                                <Text
+                                    size="xs"
+                                    c="dimmed"
+                                    data-testid="result-threshold-note"
+                                    style={{
+                                        paddingInlineStart: PANEL_GRID.PAD_LEFT,
+                                        paddingInlineEnd: PANEL_GRID.PAD_RIGHT,
+                                    }}
+                                >
+                                    {members.thresholdNote}
+                                </Text>
+                            )}
+                        </>
                     )}
                 </ControlSection>
             )}

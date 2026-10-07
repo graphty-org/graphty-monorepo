@@ -168,7 +168,7 @@ export class VercelAiProvider implements LlmProvider {
                         if ("input" in event) {
                             ({ input: args } = event as { input: Record<string, unknown> });
                         } else if ("args" in event) {
-                            ({ args } = event as unknown as { args: Record<string, unknown> });
+                            ({ args } = event);
                         }
 
                         const toolCall: ToolCall = {
@@ -187,7 +187,7 @@ export class VercelAiProvider implements LlmProvider {
                         if ("output" in event) {
                             ({ output } = event as { output: unknown });
                         } else if ("result" in event) {
-                            ({ result: output } = event as unknown as { result: unknown });
+                            ({ result: output } = event);
                         }
 
                         callbacks.onToolResult(event.toolName, output);

@@ -223,6 +223,10 @@ after the load, so the numbers before and after cannot disagree. Beside the impo
   still fit with other choices: when the load has node rows, `unmatched: "leave-out"` drops the
   edges to nodes the file never declared, and the nodes they would have created. Call `report()`
   again with them; if nothing fits, `dispose()` the draft.
+- `errors`: every problem the load met, as `{ code, params, line?, field? }` entries with no
+  words in them -- a GraphML or GEXF file that breaks off (`"parse-error"`, with the `line`), a
+  row the format's reader could not use, and each rejected row (`"refused-row"`). Empty for a
+  clean file. See [Reading the errors of a load](./data-sources#reading-the-errors-of-a-load).
 
 `draft.rows(id, { offset, limit, only, choices })` pages through a table as
 `{ records, offset, total }`, each record `{ line, values }`. For a CSV file `line` is the line the
@@ -246,8 +250,8 @@ const unmatched = await draft.rows("edges", { only: "unmatched", choices, limit:
 // unmatched.total === report.unmatched.rows
 ```
 
-A rejected row here is one the mapping cannot turn into a node or an edge; it is not a row the
-format's own schema refused, which `data-loading-error-summary` reports after a load.
+A rejected row here is one the mapping cannot turn into a node or an edge; a row the format's own
+reader refused is not one, and is in `errors` instead.
 
 ## Errors
 

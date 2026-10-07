@@ -111,7 +111,7 @@ describe("DataManager", () => {
         });
 
         it("should get all nodes", () => {
-            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }]);
 
             const nodes = Array.from(dataManager.nodes.values());
             assert.equal(nodes.length, 3);
@@ -221,7 +221,7 @@ describe("DataManager", () => {
                 id: "edge1",
                 src: "node1",
                 dst: "node2",
-            } as unknown as AdHocData);
+            });
 
             const removed = dataManager.removeEdge("0");
 
@@ -240,7 +240,7 @@ describe("DataManager", () => {
                 { id: "edge1", src: "node1", dst: "node2" },
                 { id: "edge2", src: "node1", dst: "node3" },
                 { id: "edge3", src: "node2", dst: "node3" },
-            ] as unknown as AdHocData[]);
+            ]);
 
             const removed = dataManager.removeNodeAndIncidentEdges("node1");
 
@@ -307,7 +307,7 @@ describe("DataManager", () => {
         it("should return correct node count", () => {
             assert.equal(dataManager.nodes.size, 0);
 
-            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }]);
 
             assert.equal(dataManager.nodes.size, 3);
 
@@ -316,14 +316,14 @@ describe("DataManager", () => {
         });
 
         it("should return correct edge count", () => {
-            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }, { id: "node3" }]);
 
             assert.equal(dataManager.edges.size, 0);
 
             dataManager.addEdges([
                 { id: "edge1", src: "node1", dst: "node2" },
                 { id: "edge2", src: "node2", dst: "node3" },
-            ] as unknown as AdHocData[]);
+            ]);
 
             assert.equal(dataManager.edges.size, 2);
 
@@ -338,12 +338,12 @@ describe("DataManager", () => {
             await graph.setLayout("ngraph", {});
 
             // Add nodes and edges
-            dataManager.addNodes([{ id: "node1" }, { id: "node2" }] as unknown as AdHocData[]);
+            dataManager.addNodes([{ id: "node1" }, { id: "node2" }]);
 
             dataManager.addEdge({
                 src: "node1",
                 dst: "node2",
-            } as unknown as AdHocData);
+            });
 
             // Layout engine should have the nodes and edges
             const layoutManager = graph.getLayoutManager();

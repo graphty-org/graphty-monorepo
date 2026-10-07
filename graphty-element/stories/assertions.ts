@@ -518,11 +518,7 @@ function sagittaOf(points: readonly Vector3[]): number {
  * @returns What is on screen.
  */
 export async function drawn(canvasElement: HTMLElement, story: string): Promise<Drawn> {
-    const element = canvasElement.querySelector<HTMLElement>("graphty-element") as Graphty | null;
-
-    await holds(element !== null, `${story}: the story rendered no <graphty-element> at all`);
-
-    const live = element as Graphty;
+    const live = await renderedElement(canvasElement, `${story}: the story rendered no <graphty-element> at all`);
     const { graph, session } = live;
     const deadline = Date.now() + SETTLE_BUDGET_MS;
 
@@ -605,7 +601,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             shape: source?.name ?? node.mesh.name,
             geometryKey: `${source?.name ?? node.mesh.name}#${String(source?.uniqueId ?? node.mesh.uniqueId)}`,
             vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? (node.mesh as unknown as Parameters<typeof digestOf>[0])),
+            geometryDigest: digestOf(source ?? node.mesh),
             wireframe: source?.material?.wireframe ?? false,
             enabled: node.mesh.isEnabled(),
             opacity: node.mesh.visibility,

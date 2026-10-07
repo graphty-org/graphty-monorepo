@@ -714,6 +714,7 @@ function report(
         unmatched: { rows: issues.unmatched ?? 0, values: issues.unmatched ?? 0 },
         tooLarge: null,
         duplicates: { rows: issues.duplicates ?? 0, ids: [] },
+        errors: [],
     };
 }
 

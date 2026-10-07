@@ -34,7 +34,7 @@ const MINUTE = 60_000;
 const INTERMITTENT_LABELS = ["intermittent", "bug", "priority:high", "effort:medium"];
 const CRITICAL = "priority:critical";
 /** The line that ties an `intermittent` issue to its failure key. */
-const MARKER = "githerd-key: ";
+export const MARKER = "githerd-key: ";
 /** The longest log excerpt put into an issue or comment. */
 const EXCERPT_MAX = 2000;
 

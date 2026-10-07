@@ -196,6 +196,14 @@ live daemon writes (a development daemon only with `GITHERD_DEV_ACT=1`). The iss
 githerd makes no job or triage of it. `.github/workflows/githerd-watchdog.yml` reads it to alarm the
 owner when githerd stops while the dev machine is off.
 
+**Statistics.** At its first poll of each new UTC day the daemon appends yesterday's record to
+`stats-history.jsonl` in the state directory: open issues by type and priority, issues opened (by
+source: the owner by hand, a Claude session, githerd, a CI bot, anyone else) and closed (by a merged
+pull request's closing keyword, as not planned or duplicate, by githerd, or otherwise), pull
+requests opened, merged and closed unmerged, the heads whose required lanes failed, merge-queue
+dequeues and release trains. It is rebuilt from GitHub's list endpoints, so a day the daemon missed
+is filled in the next day. `githerd stats` reports it.
+
 ## Commands
 
 `node githerd/bin/githerd.mjs <command>`, or `pnpm exec githerd <command>`:
@@ -203,6 +211,8 @@ owner when githerd stops while the dev machine is off.
 ```bash
 githerd status [--json]          # the daemon's status, as githerd_status shows it
 githerd ledger --since 1d --kind job-created --target pr:704
+githerd stats [--json]           # issues and pull requests per week, where issues come from, what is stalled
+githerd stats --backfill         # first rebuild the missing days of the last 8 weeks from GitHub (reads only)
 githerd mode paused              # lower the mode locally (also dry-run); mode clear removes it
 githerd pause | resume           # stop / restart every worker start and doorbell
 githerd workers <n> | --stop     # working sessions (0 keeps only the urgent slot); --stop ends all

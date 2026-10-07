@@ -23,6 +23,7 @@ import { TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 const META = { githerd: { protocol: TOOL_PROTOCOL } };
 import { notifyCommandProblem, PROTOCOL, startDaemon } from "../lib/daemon.mjs";
 import { containerStart, identify } from "../lib/proc.mjs";
+import { readHistory } from "../lib/stats.mjs";
 import { readLedger, repoIdentity, spoolEvent } from "../lib/store.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { createFakeGh, httpOutput } from "./helpers/fake-gh.mjs";
@@ -213,6 +214,7 @@ function respond({ args, input }) {
         });
     }
     if (path.includes("/commits?sha=master")) return ok(scene.commits);
+    if (path.includes("/releases?")) return ok(scene.releases ?? []);
     const events = /\/issues\/(\d+)\/events\?/.exec(path);
     if (events) return ok(scene.events?.[events[1]] ?? []);
     if (path.includes("/issues?")) return ok(scene.issues ?? []);
@@ -1213,6 +1215,27 @@ describe("the poll loop", () => {
             `API: last poll ${last.core} core, 1 not modified (304, free), ${graphql} GraphQL; ` +
                 `hour 12:00 UTC so far ${hour.core} core, 1 not modified (304, free), ${hour.graphql} GraphQL`,
         );
+    });
+
+    it("records the statistics history at the first poll of each new UTC day, never again that day, filling missed days", async () => {
+        const daemon = await start();
+        const history = () => readHistory(join(dir, ".githerd"));
+        await poll(daemon);
+        const first = history();
+        // With no history, only yesterday: the backfill is githerd stats --backfill.
+        expect(first.map((r) => [r.day, r.source])).toEqual([["2026-10-01", "poll"]]);
+        const calls = gh.calls.length;
+        clock = new Date(clock.getTime() + 3 * 60_000);
+        await poll(daemon);
+        const later = gh.calls.slice(calls).map((c) => c.args.at(-1));
+        expect(later.some((p) => p.includes("/releases?"))).toBe(false);
+        clock = new Date("2026-10-03T00:01:00Z");
+        await poll(daemon);
+        expect(
+            history()
+                .map((r) => r.day)
+                .slice(-2),
+        ).toEqual(["2026-10-01", "2026-10-02"]);
     });
 
     it("skips a poll while one is running", async () => {

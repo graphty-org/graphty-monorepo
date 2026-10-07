@@ -14,7 +14,8 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
 import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
-import { originHead, repoRoot } from "./config.mjs";
+import { originHead, repoRoot, resolveConfig } from "./config.mjs";
+import { createGitHub } from "./github.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
 import { callingSession } from "./owners.mjs";
 import {
@@ -38,6 +39,7 @@ import { createNotifier } from "./notify.mjs";
 import { pushQueueTickets, sameProcess } from "./proc.mjs";
 import { runSelftest, selftestText } from "./selftest.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
+import { githerdClosedIssues, readHistory, recordMissingDays, statsReport, statsText } from "./stats.mjs";
 import { serverArgs, tmuxSocket } from "./tmux.mjs";
 import { PACKAGE_DIR, readVersion } from "./version.mjs";
 import { readSigningEnv } from "./worker-settings.mjs";
@@ -49,6 +51,9 @@ const USAGE = `usage: githerd <command>
   mode                                     each write group's mode and its ledger coverage
   ledger [--since 1d] [--target pr:704] [--kind error,fatal]
                                            ledger entries, one JSON line each
+  stats [--json] [--backfill [--days 56]]  issues and pull requests per week, where issues come
+                                           from, and what is stalled; --backfill first rebuilds the
+                                           missing days from GitHub's history (read-only)
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
   veto <issue:N|pr:N>                      never let githerd close this issue or pull request
@@ -215,7 +220,8 @@ function parseArgs(args) {
     const rest = [...args];
     for (let a = rest.shift(); a !== undefined; a = rest.shift()) {
         if (!a.startsWith("--")) positional.push(a);
-        else if (["--json", "--send-test", "--stop", "--with-job", "--list"].includes(a)) flags[a.slice(2)] = true;
+        else if (["--json", "--send-test", "--stop", "--with-job", "--list", "--backfill"].includes(a))
+            flags[a.slice(2)] = true;
         else flags[a.slice(2)] = rest.shift() ?? "";
     }
     return { positional, flags };
@@ -644,6 +650,47 @@ async function cmdLedger(c) {
 }
 
 /**
+ * `stats`: the progress report from the statistics history. `--backfill` first records the days of
+ * the last `--days` (56) the history lacks, from GitHub's lists, with reads only.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdStats(c) {
+    if (c.flags.backfill) {
+        const days = Number(c.flags.days ?? 56);
+        if (!Number.isInteger(days) || days < 1) {
+            c.err(`githerd stats: --days takes a whole number of days, not "${c.flags.days}"`);
+            return 2;
+        }
+        const found = resolveConfig(c.root, c.env);
+        if ("reason" in found) {
+            c.err(`githerd stats: ${found.reason}`);
+            return 1;
+        }
+        mkdirSync(c.stateDir, { recursive: true });
+        const github = createGitHub({ repo: found.config.repo, mode: "dry-run", ledger: () => {}, env: c.env });
+        try {
+            const written = await recordMissingDays({
+                github,
+                config: found.config,
+                stateDir: c.stateDir,
+                owner: await github.login(),
+                githerdClosed: githerdClosedIssues(await offlineState(c.stateDir)),
+                now: c.now(),
+                days,
+            });
+            c.err(`githerd stats: recorded ${written.length} days`);
+        } catch (e) {
+            c.err(`githerd stats: backfill failed: ${/** @type {Error} */ (e).message}`);
+            return 1;
+        }
+    }
+    const report = statsReport(readHistory(c.stateDir));
+    c.out(c.flags.json ? JSON.stringify(report, null, 2) : statsText(report));
+    return 0;
+}
+
+/**
  * Every `kind: "..."` githerd's code names: the ledger kinds it writes, read from its own source so
  * the list never falls behind.
  * @returns {Set<string>} the kinds
@@ -879,6 +926,7 @@ const HANDLERS = {
     keep: cmdControl,
     release: cmdControl,
     ledger: cmdLedger,
+    stats: cmdStats,
     mode: cmdMode,
     install: cmdService,
     ensure: cmdService,

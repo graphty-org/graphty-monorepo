@@ -187,6 +187,7 @@ export function createReplay() {
         const url = new URL(path, "https://api.github.com/");
         const q = url.searchParams;
         const perPage = Math.min(Number(q.get("per_page") ?? 30), 100);
+        const skip = (Number(q.get("page") ?? 1) - 1) * perPage;
         const prefix = `/repos/${REPO}/`;
         if (!url.pathname.startsWith(prefix)) return { status: 404, body: { message: "Not Found" } };
         const rest = url.pathname.slice(prefix.length);
@@ -239,7 +240,7 @@ export function createReplay() {
             const open = record.prs
                 .filter((p) => Date.parse(p.createdAt) <= at && !(latest([p.closedAt, p.mergedAt], at) > -Infinity))
                 .sort((a, b) => b.number - a.number)
-                .slice(0, perPage)
+                .slice(skip, skip + perPage)
                 .map((p) => ({
                     number: p.number,
                     title: p.title,
@@ -284,7 +285,7 @@ export function createReplay() {
                 })
                 .filter((i) => Date.parse(i.updated_at) >= since)
                 .sort((a, b) => b.number - a.number)
-                .slice(0, perPage);
+                .slice(skip, skip + perPage);
             return { status: 200, body: list };
         }
         if (rest === "issues/comments") {
@@ -302,7 +303,7 @@ export function createReplay() {
                 )
                 .filter((c) => Date.parse(c.created_at) <= at && Date.parse(c.created_at) >= since)
                 .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
-                .slice(0, perPage);
+                .slice(skip, skip + perPage);
             return { status: 200, body: list };
         }
         return { status: 404, body: { message: "Not Found" } };

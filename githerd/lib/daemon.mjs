@@ -180,6 +180,7 @@ import {
 import { recoverDeath } from "./session-death.mjs";
 import { resumeVerified } from "./selftest.mjs";
 import { stopGating, updateGate } from "./self-update.mjs";
+import { githerdClosedIssues, readHistory, recordMissingDays } from "./stats.mjs";
 import { secretValues } from "./text.mjs";
 import { sessionToolSet } from "./session-tools.mjs";
 import { alertBanner, statusData } from "./tools.mjs";
@@ -1875,6 +1876,7 @@ export async function startDaemon({
                 commits,
                 at: iso,
             }).catch((err) => ledger({ kind: "error", where: "flakes", error: err.message }));
+            await recordStats(gh, t).catch((err) => ledger({ kind: "error", where: "stats", error: err.message }));
         }
         // Holds post at every rate tier; the client's budget refuses a success below its floor.
         // The merge gate reads each githerd-made pull request's patch id (decision line 6).
@@ -2966,6 +2968,35 @@ export async function startDaemon({
         const poll = Object.fromEntries(Object.entries(total).map(([k, v]) => [k, v - (before[k] ?? 0)]));
         state.github.lastPoll = { at, ...poll };
         if (Object.values(poll).some((n) => n > 0)) await ledger({ kind: "api-use", ...poll });
+    }
+
+    /**
+     * The first poll of a new UTC day records the days the statistics history lacks (stats.mjs):
+     * yesterday, and every day since the last recorded one. Tried once a day; a failure waits for
+     * the next day, whose record fills the gap.
+     * @param {ReturnType<typeof createGitHub>} gh the client
+     * @param {Date} t the poll's time
+     */
+    async function recordStats(gh, t) {
+        const today = t.toISOString().slice(0, 10);
+        state.stats ??= {};
+        if (state.stats.day === today || !state.trust.login) return;
+        state.stats.day = today;
+        // The days since the last recorded one, at most 8 weeks; with no history only yesterday
+        // (the backfill is `githerd stats --backfill`).
+        const last = readHistory(stateDir).at(-1)?.day;
+        const gap = last ? Math.round((Date.parse(today) - Date.parse(last)) / 86_400_000) - 1 : 1;
+        const written = await recordMissingDays({
+            days: Math.min(gap, 56),
+            github: gh,
+            config,
+            stateDir,
+            owner: state.trust.login,
+            githerdClosed: githerdClosedIssues(state),
+            now: t,
+            poll: true,
+        });
+        if (written.length) void ledger({ kind: "stats", days: written.map((r) => r.day) });
     }
 
     /**

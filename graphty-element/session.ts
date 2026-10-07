@@ -90,6 +90,7 @@ export type {
     GraphSession,
     GraphStatistics,
     HistoryCause,
+    HistoryCode,
     HistoryOutcome,
     HistoryStep,
     HistoryStepId,

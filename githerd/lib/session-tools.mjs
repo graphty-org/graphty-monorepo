@@ -310,7 +310,11 @@ export function sessionToolSet(ctx) {
             // The session's room for more jobs, which inviteStep reads (asks.mjs).
             if (args.capacity !== undefined && session) {
                 state.capacity ??= {};
-                state.capacity[session] = { n: args.capacity, at: now.toISOString() };
+                // The jobs it holds now: once one of them ends, the answer is stale (asks.mjs).
+                const held = Object.values(state.jobs ?? {})
+                    .filter((j) => j.holder?.session === session)
+                    .map((j) => j.id);
+                state.capacity[session] = { n: args.capacity, at: now.toISOString(), held };
             }
             await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason });
             return JSON.stringify(until ? { ok: true, until } : { ok: true });

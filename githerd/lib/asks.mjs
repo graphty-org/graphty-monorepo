@@ -280,9 +280,37 @@ function inviteText(job, reason) {
 }
 
 /**
+ * When a capacity answer went stale, or null while it holds: the latest end (done, released,
+ * cancelled) of a job the session held when it answered (`said.held`, recorded by githerd_expect;
+ * for an older answer without it, the jobs it had claimed by then), when that end came after the
+ * answer. The answer counted those jobs, so it no longer says what the session can take.
+ * @param {any} state the daemon state
+ * @param {string} session the session id
+ * @param {{at: string, held?: string[]}} said its last capacity answer
+ * @returns {string | null} when it went stale
+ */
+function staleSince(state, session, said) {
+    const jobs = state.jobs ?? {};
+    const held =
+        said.held ??
+        Object.values(jobs)
+            .filter((j) => j.claim?.session === session && j.claim.at <= said.at)
+            .map((j) => j.id);
+    let since = null;
+    for (const id of held) {
+        const j = jobs[id];
+        if (j?.holder?.session === session) continue;
+        const end = j?.stateSince ?? said.at;
+        if (end >= said.at && (!since || end > since)) since = end;
+    }
+    return since;
+}
+
+/**
  * How many more jobs a session can take now: its last `capacity` answer to the status question
- * (`state.capacity[session]`, recorded by githerd_expect), less the jobs it claimed since. Null
- * when it never answered.
+ * (`state.capacity[session]`, recorded by githerd_expect), less the jobs it claimed since. An
+ * answer gone stale (`staleSince`) counts as room for one from when it went stale, so the
+ * session is invited once and its claim or its next answer governs. Null when it never answered.
  * @param {any} state the daemon state
  * @param {string} session the session id
  * @returns {number | null} the room left
@@ -290,10 +318,12 @@ function inviteText(job, reason) {
 function room(state, session) {
     const said = state.capacity?.[session];
     if (!said) return null;
+    const stale = staleSince(state, session, said);
+    const from = stale ?? said.at;
     const claimed = Object.values(state.jobs ?? {}).filter(
-        (j) => j.claim?.session === session && j.claim.at >= said.at,
+        (j) => j.claim?.session === session && j.claim.at >= from,
     ).length;
-    return said.n - claimed;
+    return (stale ? 1 : said.n) - claimed;
 }
 
 /** Job states a session is actively working in; a `waiting` job counts only while it waits on the session's own task. */

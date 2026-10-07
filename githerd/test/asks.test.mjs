@@ -415,6 +415,55 @@ describe("inviting idle sessions to pull work", () => {
         expect(f.sent.map(([socket]) => socket)).toEqual(["/s1.sock", "/s2.sock"]);
     });
 
+    /**
+     * s2 (registry status `shell`, running a watcher) answered capacity 0 at NOW while holding
+     * issue-1, and issue-5 is queued.
+     * @param {any} [said] its capacity answer
+     * @returns {any} the state
+     */
+    function heldAtAnswer(said) {
+        const state = queued("issue-5", "issue-1");
+        move(state.jobs["issue-1"], "starting", NOW, { holder: { session: "s2", nonce: "n" } });
+        move(state.jobs["issue-1"], "working", NOW);
+        state.jobs["issue-1"].claim = { session: "s2", at: NOW.toISOString() };
+        state.capacity = { s2: said ?? { n: 0, at: later(1).toISOString(), held: ["issue-1"] } };
+        return state;
+    }
+    const shell = () => SESSIONS.map((s) => ({ ...s, status: s.sessionId === "s2" ? "shell" : "busy" }));
+
+    it("does not invite a session running a shell command as idle", async () => {
+        const state = queued("issue-5");
+        const f = fake();
+        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered })).toEqual([]);
+        expect(f.sent).toEqual([]);
+    });
+
+    it("asks a session again once the jobs its capacity answer counted have ended, and only once", async () => {
+        const state = heldAtAnswer();
+        const f = fake();
+        // While it still holds issue-1, its answer of 0 holds.
+        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(2) })).toEqual([]);
+        // issue-1 ends: the answer is stale, so s2 hears the queued job once.
+        move(state.jobs["issue-1"], "verifying", later(3));
+        move(state.jobs["issue-1"], "done", later(3));
+        await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(4) });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(5) })).toEqual([]);
+        // A new answer governs: 0 again stays quiet.
+        state.capacity.s2 = { n: 0, at: later(6).toISOString(), held: [] };
+        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(7) })).toEqual([]);
+        expect(f.sent).toHaveLength(1);
+    });
+
+    it("reads an answer without its held jobs as counting the jobs the session had claimed by then", async () => {
+        const state = heldAtAnswer({ n: 0, at: later(1).toISOString() });
+        const f = fake();
+        expect(await inviteStep(state, { ...f.opts({ sessions: shell }), offered, now: later(2) })).toEqual([]);
+        move(state.jobs["issue-1"], "queued", later(3), { reason: "released" });
+        await inviteStep(state, { ...f.opts({ sessions: shell }), offered: offered.slice(0, 1), now: later(4) });
+        expect(f.sent.map(([socket]) => socket)).toEqual(["/s2.sock"]);
+    });
+
     it("counts a job's older invitedAt as heard by every session", async () => {
         const state = queued("issue-5");
         state.jobs["issue-5"].invitedAt = NOW.toISOString();

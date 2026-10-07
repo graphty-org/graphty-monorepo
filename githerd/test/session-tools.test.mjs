@@ -539,7 +539,7 @@ describe("sessionToolSet", () => {
             JSON.stringify({ ok: true }),
         );
         expect(job.status).toEqual({ at: "2026-10-04T12:00:00.000Z", text: "reviewing" });
-        expect(ctx.state.capacity).toEqual({ w1: { n: 1, at: "2026-10-04T12:00:00.000Z" } });
+        expect(ctx.state.capacity).toEqual({ w1: { n: 1, at: "2026-10-04T12:00:00.000Z", held: ["pr-7"] } });
         expect(job.expect ?? null).toBeNull();
         await call(ctx, "githerd_expect", { job: "pr-7", minutes: 30, reason: "build" });
         await call(ctx, "githerd_expect", { job: "pr-7", reason: "still building" });
@@ -560,7 +560,7 @@ describe("sessionToolSet", () => {
         expect(ctx.state.capacity).toBeUndefined();
         // The optional capacity is the session's answer to "can you take another job?" (asks.mjs).
         await call(ctx, "githerd_expect", { job: "pr-7", minutes: 30, reason: "build", capacity: 2 });
-        expect(ctx.state.capacity).toEqual({ w1: { n: 2, at: "2026-10-04T12:00:00.000Z" } });
+        expect(ctx.state.capacity).toEqual({ w1: { n: 2, at: "2026-10-04T12:00:00.000Z", held: ["pr-7", "pr-8"] } });
         expect((await call(ctx, "githerd_status", {})).text).toContain("pr-7 working status 12:00 UTC: build");
         expect(
             (

@@ -1,0 +1,38 @@
+# Grade: session r1-s10b -- Elena, names on every dot (Les Miserables)
+
+- **Grade:** SD (success with difficulty)
+- **Failure codes:** none
+- **False "done":** no. Elena said "Mostly ... strictly I did not get every character's name on",
+  which matches the screen ("77 labels, 7 hidden to avoid overlap").
+- **Steps:** 6 to the success state (start, open the sample, Style, Everything, Add label line,
+  name), against a path of 4; 11 in all. The 5 after step 6 were searches for a way to show the
+  hidden names, which the build does not have.
+- **Wrong turns:** 1 before success (step 3, the Graph's Style tab); 4 after it, all looking for
+  a control that does not exist (wheel zoom twice, Label position, the "7 hidden" note, the Layout
+  button).
+- **Ease (from the transcript):** 4 of 7.
+- **Usage card:** declined ("No thanks"), no detour, no stated belief about what is sent.
+- **Silent commits:** none. Choosing `name` drew names at once (05.png to 06.png).
+- **Tool prints:** no `ambiguous`, script errors or failed requests in the session log.
+
+## Why SD
+
+The final screenshot (12.png) shows Everything selected, a label line "Abc name" on its Style
+tab, names drawn beside most dots, and "77 labels, 7 hidden to avoid overlap" under the line.
+That meets the success definition: a label line bound to `name` on the row covering every node,
+names on the canvas, and Elena read the hidden count and said why ("The app says it hides 7 on
+purpose 'to avoid overlap'"). She reached it after a detour: the Style tab of the whole graph
+(03.png) holds only the background and the layout method, and she found the node settings by
+guessing that "Everything" would change the right panel ("Guess, not obvious"). A detour then a
+correction is SD.
+
+## Problems
+
+| # | Problem | Severity | Kind | Evidence |
+|---|---------|----------|------|----------|
+| 1 | Scrolling the mouse wheel over the drawing does not zoom. Elena tried twice to get closer to the crowded middle, where the labels are smallest and the hidden ones sit. | 3 | build-defect | Steps 7 and 11; 06.png and 07.png identical, 11.png unchanged. Reproduced on the same build (commit 4522851, graphty@0.8.53) in `rounds/round-1/repro/r1-s10b/`: start empty; `--click "No thanks" --click "Les Miserables"` (02.png); `--wheel 700,420,-400` (03.png); `--wheel 700,420,-2000` (04.png); `--wheel 700,420,1500` (05.png). 02.png to 05.png are byte-identical: neither zoom in nor zoom out moves the camera. The tool sends a real mouse move and wheel at the point, as a person would. |
+| 2 | The hidden-for-overlap note reports a problem and offers no way to act on it: no "show all", and the note is plain text. Elena ends knowing 7 names are missing and unable to show them. | 2 | behavior | Steps 6 and 9; 06.png, 09.png (click on the note, no change). Expected on this build per the task definition. |
+| 3 | The Style tab on the opening Graph place holds only Background, Method and Seed; nothing says node and edge styling lives under Everything. A first-time user looking for "how the dots look" lands there first. | 2 | behavior | Step 3, 03.png; "Nothing about the dots ... maybe if I pick everything I get settings for the dots." |
+| 4 | Labels are drawn very small; most of the crowded middle is unreadable at the default view. | 2 | opinion | Step 6, 06.png; "Names! Tiny though." |
+| 5 | "Attribute" in the label picker ("Find an attribute", list "Attributes") is not a word a non-specialist uses; it did not stop her because the list was short. | 1 | wording | Step 5, 05.png |
+| 6 | The four-arrows icon in the bottom toolbar reads as move or pan but opens Layout. | 1 | opinion | Steps 10-11, 10.png tooltip "Layout" |

@@ -10,45 +10,46 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-06 -- The "failed ... 40m00s" sessions in the studio list are session agents that hit
-  the 40-minute limit, which counted the wait for a browser slot (17-50 min). Not app failures.
-  Do not restart: first runs with a "b" re-run are covered (r1-s03 -> r1-s03b, graded success
-  with difficulty); 14 finished first runs need grading only; the 7 timed-out "b" re-runs move
-  into round 2's roster; Morgan's 7 wait for the tool's screen-reader mode.
-- 2026-10-06 -- Before any round 2 session: the runner fix (at most 4 agents alive, clock starts
-  once a slot is held, `--end` always) proven by a dry run of 8 with a planted stop. Ease asked
-  as 7 = very easy. Without these, round 2 voids the same way.
-- 2026-10-06 -- Round 1 standing (partial, 29 graded): 26 succeed; 0 false "done"; bar 3 not
-  shown, bar 4 borderline, bar 5 not shown pending the stale-legend repro (r1-s49b), bar 7 cannot
-  pass, bar 8 expected to fail on focus. Reconcile `scores.md` with `insights.md` before any report.
-- 2026-10-06 -- Round 2 tests one change per problem: Neighborhood command opens the neighbor
-  list (no Degree-row cue, so the effect is attributable); Summary drops "Babet (1)"; Selection row
-  and Sources tables stop dead-ending; empty "Open list" arrow gone; "No crossings" refusal line;
-  wheel zoom; focus ring and focus after "+" pick; runs named by method.
-- 2026-10-06 -- Watch T12 first: re-test on both datasets with fresh personas. If the routed build
-  still fails, the Degree-row cue comes back. Sam's keyboard names session runs after the focus fixes.
-- 2026-10-06 -- Watch T11: the pilot found "Force, flat" lays nothing out (even disc, unchanged
-  after 10 s) and Spectral clumps under the toolbar. A "did not help" there is the build, not the
-  participant; confirm in graphty-element before round 2 and report T11 with and without it.
-- 2026-10-06 -- Watch overlays: legend, Layout popover and toolbar cover nodes (Florentine node,
-  Les Mis node at 525,186, the post-search camera pushing the graph under the toolbar). Could
-  decide a "find this node" step; deferred, so log every session where it bites.
-- 2026-10-06 -- Pilot on e82708488 reached every walked task's end state; answer-key edits owed:
-  T11 refusal words are "No crossings could not lay out this graph, so the drawing is unchanged";
-  T13 Export kinds are `role=tab:Image/Data`; T8 "Group 1" matches 4 controls (first is right).
-  Re-pilot again once changes 3-12 land, and re-record reference values.
-- 2026-10-06 -- All participants are one model: N participants alike is not independent. Count a
-  finding solid only with a `run.sh` repro or a cause in the code. Failure strong, pass weak.
-- 2026-10-06 -- Before counting a finding against a bar: is the count actually false (not just
-  confusing), is the step on the path, is the session valid (cut-off = void, not F)?
-- 2026-10-06 -- Grade from the last screenshot and the transcript, never self-ratings; check a
-  transcript.md and screenshots exist; a truncated transcript is graded from screenshots or void.
-- 2026-10-06 -- Keep the short per-step think-aloud prompt (0 provider-filter stops in 35 vs 14 of
-  41). Point the prompt at the studio persona files, not round 8's.
-- 2026-10-06 -- Task wording never reuses a control's word (`tmp/researcher/wording-check.py`);
-  run bar 8 and bar 9 scripts on the round 1 build as the baseline before fixes land.
-- 2026-10-06 -- Simulated participants never hover: hover cues (DataRow tint, tooltips, dot
-  tooltip) are untested either way; do not count them as passes.
+- 2026-10-06 -- Round 1 is fully graded (43 sessions). Bar 1 FAILS on T12 (Les Miserables half
+  1 of 3); bar 3 FAILS (neighbor list severity 4: r1-s17b F and r1-s18 left with a stated
+  reason; 0 of 6 mouse users clicked Degree); bar 2 HOLDS (31 of 34); bar 7 cannot pass. T15, T3,
+  T7, T8, T11 pass bar 1. `scores.md` and `insights.md` now agree (addenda at their tops).
+- 2026-10-06 -- T12 must be reported per dataset in round 2: Florentine (6 neighbors) passes by
+  clicking dots one at a time; Les Miserables (17) breaks. A Neighborhood-to-list fix judged on
+  Florentine alone would look done. Re-test both halves with fresh personas.
+- 2026-10-06 -- Round 2 process (criteria.md change log): no step cap (end on done, gave up, or
+  repeating without progress; graders flag a cap ending -- none in round 1); one or two sentences
+  per step; at most 4 participants alive at once; rating asked as 7 = very easy. tasks.md changed,
+  so round 2's preflight re-records the frozen files' hashes.
+- 2026-10-06 -- Before any round 2 session: prove the runner (at most 4 alive, `--end` always)
+  with a dry run of 8 and a planted stop. Without it round 2 voids the same way (r1-s14 waited
+  about an hour for a slot).
+- 2026-10-06 -- Sizing chain is the main ease cost: named in all 12 SD sessions of T15 and T9;
+  empty "Open list" in 6. Severity 2 for the chain (graders), 3 for the empty list. If round 2
+  only removes the empty list, expect T9/T15 still SD.
+- 2026-10-06 -- Round 2 tests one change per problem: Neighborhood opens the neighbor list (no
+  Degree-row cue, so the effect is attributable); Summary drops "Babet (1)"; Selection row and
+  Sources tables stop dead-ending; empty "Open list" gone; "No crossings" refusal line; wheel zoom;
+  focus ring and focus after "+" pick; runs named by method.
+- 2026-10-06 -- 7 round 1 voids (r1-s08b, s16b, s26b, s27b, s34b, s46b, s48b) move into round 2's
+  roster; Morgan's 7 wait for the tool's screen-reader mode.
+- 2026-10-06 -- Still owed for round 1: the stale-legend repro (r1-s49b, decides bar 5); bars 8
+  and 9 by script on round 1's build as the baseline. Add to bar 8: the search box is not
+  reachable by its visible text "Find nodes, edges, values" (3 sessions).
+- 2026-10-06 -- Watch T11: "Force, flat" lays nothing out and Spectral clumps; a "did not help"
+  there is the build. Confirm in graphty-element before round 2; report T11 with and without.
+- 2026-10-06 -- Watch overlays: legend, Layout popover and toolbar cover nodes. Log every session
+  where it bites.
+- 2026-10-06 -- All participants are one model: N alike is not independent. Count a finding solid
+  only with a `run.sh` repro or a cause in the code. Failure strong, pass weak.
+- 2026-10-06 -- Before counting a finding against a bar: is the count false (not just confusing),
+  is the step on the path, is the session valid (cut-off = void)? Before downgrading a severity,
+  ask what one more failure would do; r1-s18 reversed a downgrade that rested on n = 1.
+- 2026-10-06 -- Grade from the last screenshot and the transcript, never self-ratings; a truncated
+  transcript is graded from screenshots or void.
+- 2026-10-06 -- Simulated participants never hover: hover cues (DataRow tint, tooltips) are
+  untested either way; do not count them as passes.
+- 2026-10-06 -- Task wording never reuses a control's word (`tmp/researcher/wording-check.py`).
 
 ## Priorities and values
 
@@ -60,277 +61,144 @@ made and evidence comes in.
   layout, find a node and its neighbors, export a picture and the numbers, save and reopen, and the
   whole chain in one sitting. Until tier 1 meets its bars, studio changes go to tier 1 problems.
 - **Behavior over opinion.** What ended on screen and what the participant concluded outweigh what
-  they said. Focus groups are weighted below sessions; an opinion-only finding is held one
-  severity level down.
+  they said. An opinion-only finding is held one severity level down.
 - **Studies are expensive; validate before launch** (owner, 2026-09-29). Preflight, rehearsal,
   dry run and a snapshot before any paid round. A check that inspects zero items must fail.
 - **Generality.** Personas validate the design; they never generate features (owner, 2026-09-26).
   No persona-specific fix, no one-domain wording.
-- **Honest reporting.** Every number reported with its denominator, with and without deciding
-  defects, and successes alongside failures.
+- **Honest reporting.** Every number with its denominator, with and without deciding defects and
+  cut-off sessions, and successes alongside failures.
 
 ## Design criteria
 
-The criteria a study holds the tier 1 build to. Each is a measurable bar or an observable check.
+The bars live in `criteria.md` (frozen 2026-10-06; changes only between rounds, logged). Their
+reasons, in short:
 
-- **Every tier 1 task at >= 80% graded success** (success plus success-with-difficulty). Reason:
-  the studio's bar since round 7; tier 1 was 75% in round 8, 86% without the whole-session task.
-- **The whole first session (task 15) passes**: open Les Miserables with nothing run, read the
-  overview, run an analysis that paints on top, size by it, add a label line bound to the name,
-  export the image with its legend, and the picture matches the screen. Reason: it is the build's
-  acceptance walk and was 0 of 21 in round 8.
-- **No confirmed severity-4 problem unresolved.** Severity is Nielsen 0-4; 4 = cannot be done, or
-  the user leaves or reports a wrong answer unknowingly. Confirmed = observed in 2 or more
-  participants. Reason: a confident wrong answer is the worst outcome for a first-time user.
-- **Mean ease >= 5.5 of 7**, with median also reported. Reason: published task average; never met,
-  so track the round-over-round trend as the real signal.
-- **Every change a step makes is visible on the canvas and the legend the moment it commits.**
-  Reason: "the panel said one thing and the drawing showed another" was the most common reason
-  round 8 participants would not switch to the app.
-- **Every count shown is computed from live state.** Reason: fixed strings ("64 labels hidden")
-  were the top trust-killer in rounds 2-8.
-- **Candidate first-use bars, from the framework and the onboarding workflow** (to be chosen when
-  criteria are frozen): first visualization in under 2 minutes; runs at least one analysis
-  unprompted; can say what loaded and whether it loaded right; a sample is one step and a file
-  three; at rest, at most 50 words of app text. Reason: the framework's own provisional targets;
-  none has been measured.
+- **Each tier 1 task >= 80% success, each dataset half >= 75%** -- the studio's bar since round 7;
+  the half floor stops a one-domain fix passing on combined counts (T12 shows why).
+- **The whole first session (T15) passes** -- the acceptance walk; 0 of 21 in round 8, 8 of 8 in
+  round 1.
+- **No confirmed severity-4 problem.** Severity is Nielsen 0-4; 4 = cannot be done, the user
+  leaves, or reports a wrong answer unknowingly. Confirmed = 2 participants, or a scripted repro
+  for a build defect.
+- **Mean ease >= 5.5 of 7** (median also reported) -- never met; the trend is the signal. Round 1:
+  4.50, core four 4.07.
+- **Every committed step visible on canvas and legend at once; every count from live state** --
+  the top trust-killers of rounds 2-8.
+- **Candidate first-use bars** (unchosen): first drawing under 2 minutes; runs an analysis
+  unprompted; can say what loaded; sample one step, file two; at most 50 words at rest.
 
 ## Decisions and reasons
 
-- 2026-10-06 -- Answer key changed for round 2 without moving any bar: (1) run names list the
-  method first, the round 1 result word in parentheses, both accepted; paths say which word to
-  click on which build. (2) T12 gains a Neighborhood-command path (selection bar, node menu or
-  G), graded like the Degree route; on round 1's build that command listed no names and stays a
-  non-success there. (3) T11 records the refusal line under Method as a correct reading, not
-  `false-done` and not a success. Reason: graders must grade the routed build and the renamed
-  runs the same way as round 1. Evidence: `rounds/round-1/decisions.md` items 3, 7, 11, 12; the
-  app code on 452285142 still has the old behavior (`commands.ts` only selects; `LayoutGroup.tsx`
-  posts a notice), so the words and key counts are provisional until the pilot.
-
-- 2026-09-28 (owner) -- Studies use simulated personas built from public sources (forums,
-  YouTube, Biostars, Cytoscape and Gephi forums), each checked by a skeptical reviewer; mocks are
-  shown to the owner as they appear so at least one real human is involved.
-- 2026-09-29 (studio, after a script review) -- Answer keys are kept from participants. Every tree
-  test and first-click test before round 7 was unsound: the key was in the prompt, and later in
-  the outline file itself. Outline and answers now live in separate files, with a check that the
-  outline holds no answers; one grader agent scores afterwards.
-- 2026-09-29 (owner) -- Task wording must never reuse the words a fix puts on screen; every label
-  change is tested on at least two domains; no one-domain special cases. Evidence: round 6's
-  "money in against money out" went from ease 2.00 to 5.00 partly by word matching.
-- 2026-09-29 (studio) -- An Ontology and Generality Steward gate checks every decided change before
-  it is drawn. Reason: the critic had no veto, fixes were never challenged, and re-running the same
-  task on the same dataset rewarded overfitting.
-- 2026-09-29 (studio) -- Every flow task runs on at least two datasets from different domains, each
-  with a participant from that domain. Reason: more participants on the same money screen only
-  confirm the money screen; another domain's participants must see the label to object to it.
-- 2026-09-29 (studio) -- Frozen core task set and a stop rule (converge on the core set; stop after
-  two non-improving rounds and go to real users). Reason: a moving target with skeptical critics
-  never clears "no confirmed severity 3".
-- 2026-09-29 (studio) -- A landing step before a round: every decision must be visible on the
-  rendered screen, checked by a separate agent, or it is excluded. Reason: 114 of 347 decisions had
-  never been drawn, which spoiled rounds 5 and 6.
-- 2026-10-01 (owner) -- Determine success criteria before starting.
-- 2026-10-02 (studio, after round 7) -- Rehearsal: before any session, each task is clicked from
-  its first screen to its last using only participant actions, and the data must stay the task's
-  own. Reason: the round 7 check opened screens by address and passed 18 tasks whose end state no
-  click reached; the tool's typing silently did nothing.
-- 2026-10-02 (owner) -- Tier the tasks; first-time users first; at least 60% of sessions on tier 1;
-  every tier 1 task starts from the empty app.
-- 2026-10-02 (studio) -- Self-ratings and session summaries are not used for grades or ease.
-- 2026-10-03 (owner) -- Stop mocking; build tier 1 as the real app and study that. Reason: "our
-  user studies keep breaking on the fact that it's not a real app".
-- 2026-10-06 (studio plan) -- The next round runs on a local production build of master plus the
-  study-tool element branches, without waiting for release or deploy. Designers keep running notes.
-  Success criteria are drafted, critiqued by four specialists, revised once and frozen; every task
-  is walked on the real app before participants see it; up to three rounds, stopping early when the
-  frozen criteria are met.
-
-- 2026-10-06 (researcher, critique of criteria, tasks, answers, roster) -- Proposed: grade claims
-  separately from tasks; per-dataset floors on two-dataset tasks; an open-ended first-look task
-  for activation and time to first drawing; T1 folded into every empty start as a measure rather
-  than a standalone task, T4 kept but not gating; T11's "did it help" not graded; a second dataset
-  for the ranking tasks because the model knows Les Miserables (Valjean is first from memory);
-  per-measure expected top threes filled in from the rehearsal run; a scripted echo check of task
-  words against the build's visible text (the build shows "Connections", "Arrangement", "Recent
-  projects", "Close project", "N labels, M hidden to avoid overlap"). Reason: each is a way the
-  study could pass or fail for reasons that are not the design.
-
-- 2026-10-06 (researcher, answer-key fixes after the pilot) -- Graders accept a run's on-screen
-  name ("Influence", "Communities") as naming the measure; the key copies the screen's spellings
-  (MmeThenardier, Woman1); T10 drops the show-all branch because no such control exists; T3's
-  S needs a rows count on screen; T11's "did not help" is expected. Reason: otherwise a grader
-  scores the build's words as participant error. Bar 4 and the own-file first-drawing measure were
-  aligned with the build and logged. I did not loosen T13 for the CSV group numbers that differ
-  from the screen: that is a build defect the round should see.
-
-- 2026-10-06 (researcher, round 1 plan) -- 56 sessions under the studio's budget: core four at
-  full size, the rest at 2-3 with an all-must-pass rule, T2 and T7 on Les Miserables dropped, T16
-  at 2. Reason: the core four decide convergence and need 4 per half to tolerate one failure; a
-  reduced task can still show a failure, which sends it to round 2 at full size. Alternatives
-  rejected: every task at 3 (the core halves could not tolerate a single failure); dropping T16
-  (the only activation measure).
-- 2026-10-06 (researcher, persona allocation) -- 38 first-time sessions (68%); Elena and Tom 7
-  each, Dev, Ruth, Grace 6 each (thinner files carry fewer); Morgan 7 on the criteria's list minus
-  T2; Sam 3 (T15, T10, T12 other halves); the four other personas 1-3 each, mostly on the core four
-  so first-time and others can be compared there. Each session is a fresh agent.
-- 2026-10-06 (researcher, answer key) -- Core depth, How tightly knit and How far from everything
-  else are not answers to "how much the network depends on them": F (`meaning-wrong`) on T7 unless
-  corrected. A top three with a tie is right in either order of the tied names.
-
-- 2026-10-06 (researcher, round 1 re-runs) -- A session stopped by the provider's filter, by the
-  run being stopped, or that never got a browser is void and re-run with the same persona and
-  task in a new folder (`b` suffix). Reason: none says anything about the design; keeping the
-  persona keeps the allocation in `roster.md`. Sessions on 9d6598eea and 452285142 are pooled
-  because the only visible change is one repeated header word; the report labels the build.
-
-- 2026-10-06 (researcher, round 1 scoring) -- Sessions cut off by the runner's time limit are
-  void and re-run even when graded F from the last screen (r1-s16b, s27b), with both numbers
-  reported. Reason: the participant had not given up; the re-run rule above already covers "the
-  run being stopped", and it was set before these results. Bar 3 counts the neighbor-list problem
-  as severity 4: 4 of 4 participants missed the route and one failed; scoring it 3 would flatter
-  the design. "0 hidden to avoid overlap" beside colliding names is listed as borderline for bar
-  5, not counted, because the graders judged the count true. (Severity 4 reversed to 3 after
-  the skeptic check, below.)
-
-- 2026-10-06 (researcher, round 1 skeptic verdicts) -- Applied two skeptics' verdicts: two drops
-  drop an item, one drop weakens it. Severity 4 on the neighbor list reversed to 3: the only F
-  (r1-s17b) is a 16-step, 3-minute session ending in a bare `--end`, three graders said 3, and
-  the scorer's "scoring 3 would flatter the design" overrode the graders' own call. Bar 5 items
-  dropped: "18 nodes, 0 edges" beside "Edges among them 61" are both true; "Babet (1)" is
-  `attributeSummary()` printing the commonest value. Lesson: before counting a finding against a
-  bar, check that the count is false, not just confusing, and that the step is on the path.
-
-- 2026-10-06 (researcher, round 2 critique) -- Proposed the smallest fixes for verified,
-  reproduced problems on the core path only; held back every severity 1-2 item that rests on one
-  model's shared first guess (Style-tab signpost, run names, toolbar words, "Start here"). Two
-  challenges to the insights: the multi-node summary's "commonest value" is a computation over a
-  column and belongs in graphty-element as a neutral fact (distinct count), not in the app; and
-  `scores.md` still says bars 3 and 5 fail while `insights.md` says not shown, so reconcile before
-  any report. Re-test T12 with fresh personas and new wording on both datasets after the fix.
-
-- 2026-10-06 (round 1 close, Design Director with my input) -- The failed-in-list sessions are
-  not restarted: grade the 14 valid first runs; move the 7 timed-out re-runs into round 2 instead
-  of round 1 "c" runs (round 1's build leaves the served folder; rebuilding it for 7 cells costs
-  more than it tells); Morgan's blocked until screen-reader mode. Rejected for round 2: the Degree
+- 2026-10-06 (researcher, round 1 re-score with all 43 grades) -- Bar 3 back to fails: r1-s18 is
+  a second failure on the neighbor list, a participant who left with a stated reason ("I'm not
+  clicking 17 dots one at a time"), which is severity 4 by definition; the earlier downgrade
+  rested on one thin failure. Bar 1 decided as failing on T12's Les Miserables half; bar 2 decided
+  as holding. Pooled the 14 first-run sessions (full think-aloud prompt) with the re-runs (short
+  prompt): same build, no grade pattern differs by prompt. Evidence: `rounds/round-1/scores.md`
+  addendum; `tmp/researcher/r1-score.py` (rows for all 43).
+- 2026-10-06 (researcher, round 2 process) -- No step cap; one or two sentences per step; at most
+  4 participants alive; rating asked as 7 = very easy. Reasons and evidence in `criteria.md`'s
+  change log. Checked every round 1 session for a cap ending: none (longest 33 of 60, 28 of 40),
+  so no round 1 grade changes. Alternative rejected: a higher cap (still ends a slow success on
+  the study's terms, not the participant's).
+- 2026-10-06 (round 1 close, Design Director with my input) -- The 14 valid first runs are graded,
+  not restarted; the 7 timed-out re-runs move into round 2 (rebuilding round 1's build for 7 cells
+  costs more than it tells); Morgan's wait for screen-reader mode. Rejected for round 2: the Degree
   row cue (two changes at once), Size moves, Style-tab signpost, toolbar words, "show all labels"
   (wheel zoom first). Reason: round 2 must be able to tell which change helped.
+- 2026-10-06 (researcher, round 2 critique) -- Smallest fixes for verified, reproduced core-path
+  problems only; held back severity 1-2 items that rest on one model's shared first guess
+  (Style-tab signpost, run names, toolbar words, "Start here"). The multi-node summary's
+  commonest value is a computation over a column: a neutral fact (distinct count) belongs in
+  graphty-element, the words in the app.
+- 2026-10-06 (researcher, round 1 skeptic verdicts) -- Two skeptic drops drop an item, one drop
+  weakens it. Dropped from bar 5: "18 nodes, 0 edges" beside "Edges among them 61" (both true) and
+  "Babet (1)" (commonest value). Lesson: check the count is false, not just confusing.
+- 2026-10-06 (researcher, round 1 scoring and re-runs) -- A session stopped by the provider's
+  filter, by the run being stopped, by the runner's time limit, or that never got a browser is
+  void and re-run with the same persona and task (`b` suffix); numbers are reported both as graded
+  and with cut-offs void. Sessions on 9d6598eea and 452285142 are pooled (one header word apart).
+- 2026-10-06 (researcher, answer key) -- Round 2: run names list the method first, the round 1
+  result word accepted too; T12 gains a Neighborhood-command path (not a success on round 1's
+  build); T11's refusal line is a correct reading, not `false-done` and not a success. Graders
+  accept a run's on-screen name as naming the measure; the key copies the screen's spellings;
+  Core depth, How tightly knit and How far are not answers to "depends on them"; a tie is right in
+  either order. I did not loosen T13 for CSV group numbers that differ from the screen.
+- 2026-10-06 (researcher, round 1 plan and allocation) -- 56 sessions: core four at full size
+  (4 per half tolerates one failure), the rest at 2-3 with all-must-pass. 38 first-time sessions
+  (68%); thinner persona files carry fewer sessions; each session a fresh agent.
+- 2026-10-06 (researcher, criteria critique) -- Claims graded apart from tasks; per-dataset
+  floors; T16 as an open first look; a second dataset for ranking (the model knows Les
+  Miserables); a scripted echo check of task words against the build's text.
+- 2026-10-03 (owner) -- Stop mocking; study the real app. 2026-10-06 (studio plan): a local
+  production build, criteria frozen before the round, every task walked first, up to three rounds.
+- 2026-10-02 (owner and studio) -- Tier the tasks, first-time users first, at least 60% of sessions
+  on tier 1, every tier 1 task from the empty app; self-ratings and summaries never used for grades;
+  rehearsal by participant actions only.
+- 2026-09-29 (owner and studio) -- Answer keys kept from participants; task wording never reuses
+  on-screen words; every label change tested on two domains; a generality gate on every change; a
+  frozen core task set with a stop rule; decisions must be visible on the rendered screen.
+- 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
 
-- 2026-09-28 to 2026-09-30 (rounds 1-3, static mocks; participants described clicks) -- Ease on
-  repeated tasks rose 3.65 to 4.21 to 4.45. Taught: steady wording gains are real but static mocks
-  cannot reveal what happens after a click; one task (clear or refer a flagged account) stayed at
-  2.0 all three rounds.
-- 2026-09-29 (round 4, tree test and first click added) -- Showed places were mostly right; failures
-  were on settings and file jobs. Did not work: the answer key leaked, so the outline numbers were
-  inflated.
-- 2026-09-29 (round 5) -- Re-measured round 4 because its decisions were not drawn, and overwrote
-  round 4's raw answers. Taught: fresh round folder and "decided, not drawn" exclusion.
-- 2026-09-29 (round 6) -- The precondition gate FAILED and the round ran anyway; a task check
-  reported "0 problems on 0 pages"; nine summaries carried higher ease than their transcripts.
-  Taught: every check fails on zero items and proves it can fail (planted failures); ease from the
-  transcript only. One finding held up: undo with a notice plus Ctrl+Z restoring the selection
-  beat a notice alone (ease 5.12 vs 3.62).
-- 2026-10-01 (round 7, first clickable skeleton) -- 23 concurrent browsers filled swap (49 GB).
-  Taught: the shared 4-slot browser gate. 18 of 61 tasks could not reach their end state; on the
-  14 tasks with no deciding defect, 91% success and ease 4.86. Taught: rehearsal by participant
-  actions, not by address.
-- 2026-10-02 (round 8, tiered tasks) -- Worked: tiering; the scripted rehearsal; grading from the
-  last render (it exposed 17 of 21 false self-ratings). Did not work: the sample's pre-run results
-  made task 15 ambiguous; one fixed screen after load made "did my file load or the sample?" 10 of
-  10; experts drew the hardest tasks, so first-time vs expert numbers could not be compared; the
-  click-by-name tool picked the first of several same-named controls, inflating wrong turns.
-  Without four skeleton-decided tasks success was 90% and ease 4.59, against 83% and 4.28 reported.
-- 2026-10-02 (round 8, outline and first-click methods) -- Tree test 99.7% correct but 68% direct;
-  first click 87%. Taught: these methods measure where people look, not whether the step after
-  works; they cannot predict task success on their own.
-- 2026-10-06 (real-app study tool) -- `tool/real.mjs` drives the production build with one live
-  browser per session, numbered full-window screenshots, uploads and downloads, click by name, by
-  point, or on a drawn node label; it holds a browser slot and closes itself after 45 idle minutes.
-  Untried in a round yet. Never more than 4 browsers at once (`with-browser.sh`); one live
-  browser per session; always `--end` a session so it frees its slot.
-
-- 2026-10-06 (T14 setup run whole) -- Worked: the corrected setup (label line on Everything,
-  then PageRank picked by click) ended on an Influence row, names drawn, "77 labels, 7 hidden"
-  (`rounds/pilot/T14/setup-check/01.png`). The setup log is empty on success; check the
-  screenshot, not the log.
-
-- 2026-10-06 (round 1 preflight) -- Worked: a Playwright harness of my own under the browser gate
-  for what `real.mjs` cannot do (dump text and accessible names, print focus and live regions,
-  record every ranking): `tmp/researcher/lib.mjs`, `ranks.mjs`, `wording-dump.mjs`,
-  `wording-check.py`, `keypaths.mjs`, `sessions.py`. Did not work: my own stand-in for the app's
-  file picker failed to open friends.csv by keyboard; `real.mjs` did it. Use `real.mjs` for any
-  file open. Also: pressing Shift+A after clicking a run row did not add a run in the harness;
-  clicking the Analyze button did (not reproduced by hand).
-- 2026-10-06 (round 1 preflight) -- The re-pilot on 9d6598eea (`rounds/r0/pilot/`) reached every
-  task's end state; together with the keyboard walks it settled preflight item 3 without a new
-  mouse walk.
-
-- 2026-10-06 (round 1, first run) -- Did not work: launching every session agent at once against
-  4 browser slots (agents gave up waiting and ended without a session) and a think-aloud prompt
-  that tripped the provider's filter in 14 of 41 started sessions. Worked: the tool itself; every
-  stopped session's last screen shows the app behaving as the re-pilot did.
-
-- 2026-10-06 (round 1 re-runs) -- Worked: the shorter per-step prompt (no filter stops in 35
-  re-runs); graders with reproduction scripts (`repro/<session>/run.sh`) confirmed 15 build
-  defects at one participant each. Did not work: launching many agents against 4 browser slots
-  under a 40-minute limit (7 voids, waits up to 50 minutes); agents killed before `--end` left
-  browsers holding slots (r1-s08b, s29b, ended by hand); the 14 valid first-run sessions were
-  never sent to graders. Scoring arithmetic: `tmp/researcher/r1-score.py`, ratings
-  `r1-ease.py`.
+- 2026-10-06 (round 1 re-score) -- Worked: one row per graded session in `r1-score.py`, printed
+  as graded and with cut-offs void, plus a scan of every session's screenshot count for cap
+  endings. The 14 late grades changed three conclusions (bars 1, 2, 3); a partial score must say
+  which bars are undecided, as round 1's first scoring did.
 - 2026-10-06 (round 1 skeptic check) -- Worked: two independent skeptics against transcripts,
-  repros and source caught overcounts in my scores (sizing "9 of 9" was 3 with the empty list,
-  "tried to click the hidden note" was 2 not 6, a voided session used as the sizing failure). Did
-  not work: counting a cut-off session's dead end as evidence for a finding; treating the study
-  tool's "ambiguous" name prints as accessibility defects (different roles are not a WCAG fail).
-  Still owed: `run.sh` for the r1-s43b and r1-s09b repros. Simulated participants never hover,
-  so hover cues (DataRow tint, toolbar tooltips) are untested either way.
-
-- 2026-10-06 (re-pilot on e82708488, `rounds/r1/pilot/`) -- Worked: every walked tier 1 task
-  reached its end state; drawings deterministic (byte-identical screenshots); the Neighborhood "g"
-  route and the keyboard PageRank path already work. Found: "Force, flat" not laying out, overlays
-  covering nodes, raw direction text in the Overview, internal CSV column names, a possible false
-  "still moving" from the tool (a tooltip change). Lesson: pilot every task, not just touched ones.
+  repros and source caught overcounts ("9 of 9" sizing was 3 with the empty list; a voided session
+  used as a failure). Did not work: counting a cut-off session's dead end as evidence; treating
+  the tool's "ambiguous" prints as accessibility defects. Still owed: `run.sh` for r1-s43b and
+  r1-s09b.
+- 2026-10-06 (round 1 runs) -- Did not work: launching every agent at once against 4 browser slots
+  under a 40-minute limit (9 never started, 7 re-runs cut off, waits up to an hour; agents killed
+  before `--end` held slots); the full think-aloud prompt (14 of 41 filter stops). Worked: the
+  short per-step prompt (0 stops in 35); graders with `repro/<session>/run.sh` (15 build defects
+  confirmed at one participant each).
+- 2026-10-06 (preflight and pilots) -- Worked: my Playwright harness under the browser gate for
+  text dumps, focus and rankings (`tmp/researcher/lib.mjs`, `ranks.mjs`, `wording-dump.mjs`,
+  `wording-check.py`, `keypaths.mjs`); the re-pilots reached every task's end state with
+  byte-identical drawings; T14's setup worked (check the screenshot, the log is empty on success).
+  Did not work: my own file-picker stand-in (use `real.mjs` for any file open). Lesson: pilot
+  every task, not just touched ones.
+- 2026-10-06 (real-app study tool) -- `tool/real.mjs`: one live browser per session, numbered
+  full-window screenshots, uploads and downloads, click by name, point or drawn label; never more
+  than 4 browsers (`with-browser.sh`); always `--end`.
+- 2026-10-02 (round 8) -- Worked: tiering, scripted rehearsal, grading from the last render (17 of
+  21 self-ratings false). Did not work: pre-run sample results made T15 ambiguous; experts drew
+  the hardest tasks; click-by-name picked the first of same-named controls. Tree test and first
+  click measure where people look, not whether the next step works.
+- 2026-10-01 (round 7) -- 23 concurrent browsers filled swap: the 4-slot gate. 18 of 61 tasks
+  could not reach their end state: rehearsal by participant actions.
+- 2026-09-28 to 09-30 (rounds 1-6, static mocks) -- Wording gains real but mocks hide what
+  happens after a click; answer keys leaked; a failed precondition gate was ignored; summaries
+  carried higher ease than transcripts. Kept: every check fails on zero items; ease from
+  transcripts only.
 
 ## Thinking
 
-- **Returning users (open, 2026-10-06).** Whether to add briefed returning-user sessions (a
-  short note on what the participant did last time, graded on steps against the shortest path).
-  Every simulated session is a first visit, so repeat-use speed has never been measured. Tier 1
-  does not need it.
-- **What can still produce a false pass on the real app.** (1) Task words that echo control
-  names, now including words the real build shows that the mock did not. (2) Graders who accept
-  "I think it worked" without checking the screenshot. (3) Setup states that pre-do part of the
-  task. (4) Same-named controls that the click-by-name tool resolves for the participant -- an
-  "ambiguous" print is itself a finding (two reachable controls must not share a name). (5)
-  Assertions the build's own tests make on element reports that do not match what a person sees.
-- **What can produce a false fail.** Build defects that decide the task (legend missing from the
-  exported image; ids instead of names), tool limits (a node with no drawn label cannot be clicked
-  by name, as for a person; clicking by point is the fallback), and timing in a headless browser.
-  Rehearsal sorts these out before sessions; anything left is reported with and without.
-- **Between rounds (folded 2026-10-06).** Re-test failing tasks with fresh personas, new wording
-  and a second domain; a same-persona, same-words re-test is not evidence. Bars kept from rounds
-  7-8 for comparison, plus T15 as a must and "each committed step shows on the drawing".
-- **When to stop simulating.** If two rounds on the real app do not move the core set, the
-  remaining problems are probably beyond what simulated participants can see (speed, feel, trust
-  over weeks). Then the next study is real: graphty.app with opt-in usage data, and a handful of
-  real analysts.
+- **Returning users (open).** Every simulated session is a first visit; repeat-use speed has
+  never been measured. Briefed returning-user sessions are a tier 2 question.
+- **What can still produce a false pass on the real app.** Task words that echo controls; graders
+  accepting "I think it worked"; setups that pre-do part of a task; the click-by-name tool
+  resolving same-named controls; tests that assert element reports a person never sees; a fix
+  judged on the easier dataset (T12's Florentine half).
+- **What can produce a false fail.** Build defects that decide the task, tool limits (a node with
+  no drawn label cannot be clicked by name; click by point), headless timing, and the runner
+  (time limits, slot waits, step caps). Rehearsal and the round 2 process changes address these.
+- **Stopping simulation.** If round 2 does not move the core four (success and mean ease) over
+  round 1, the remaining problems are probably beyond simulated participants; go to real users
+  (graphty.app with opt-in usage data, 5 to 8 analysts, a real screen-reader user).
 
 ## Sources
 
-- `design/ui/studio/digests/study-rounds.md`, `tier1.md`, `decisions.md`, `owner-voice.md`,
-  `framework.md` (this worktree; all read 2026-10-06).
-- `design/ui/studio/tool/README.md` (the real-app study tool).
-- Round records cited by the digests: `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/round-N/insights.md`,
-  `study/decision-log.md`, `study/round-8/preflight.md`, `study/round-8/sessions/grades-r8-t01.md`,
-  `grades-r8-t10.md`, `grades-r8-t12.md`, `prototype/owner-feedback.md`.
-- Tier 1 spec and plan: `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/tier1-design.md`,
-  `plan.md`, `ship-and-study.md`.
-- Transcript `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536.jsonl`, assistant messages of
-  2026-09-29 03:32 (simulated scores against published norms), 2026-09-29 14:57 (stop rule),
-  2026-09-29 15:45-15:53 (answer key leak and script review), 2026-09-29 19:17 and 19:53 (why
-  overfitting was missed; two-domain rule), 2026-09-30 00:23 (114 of 347 decisions not drawn),
-  2026-10-02 16:31 (why the dry run missed mock defects; first-use share; returning-user
-  question), 2026-10-02 16:40 (tiering and the typical use case), 2026-10-03 05:20 (stop round 9),
-  2026-10-06 18:27 (this studio run's plan).
-- Extraction scripts: `design/ui/studio/tmp/researcher/scan.py`, `full_at.py`.
+- `design/ui/studio/digests/` (`study-rounds.md`, `tier1.md`, `decisions.md`, `owner-voice.md`,
+  `framework.md`), `tool/README.md`, `criteria.md`, `tasks.md`, `answers.md`, `roster.md`.
+- Round 1: `rounds/round-1/plan.md`, `preflight.md`, `scores.md`, `insights.md`, `decisions.md`,
+  `sessions/*/grade.md`, `repro/`.
+- Earlier rounds: `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/`.
+- Tier 1 spec: `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/`.
+- Scripts: `design/ui/studio/tmp/researcher/` (`r1-score.py`, `r1-ease.py`, `scan.py`,
+  `full_at.py`, `sessions.py`).

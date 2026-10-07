@@ -1,0 +1,4 @@
+--click No thanks
+--click Open project or file...
+--upload friends.csv
+--click Load

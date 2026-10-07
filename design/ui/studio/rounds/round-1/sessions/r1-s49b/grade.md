@@ -1,0 +1,48 @@
+# Grade: session r1-s49b -- Grace, first look (friends.csv)
+
+- **Grade:** none. "First look" is a measure, not a graded task: it has no success path (see
+  answers.md and tasks.md). The record it asks for is below. For tables that need a letter, this
+  session counts as S: she reached a drawing, ran two analyses, read the one with reference values
+  correctly and gave a reasoned verdict.
+- **Data used:** her own file, friends.csv, dropped on the window.
+- **Steps to the first drawing:** 1 action after the start (dropping the file; the usage-data
+  card's "No thanks" went in the same command). The drawing appeared with no import dialog
+  (`02.png`).
+- **Analysis run without being asked:** yes, two. Degree ("Connections", step 6) and Louvain
+  ("Communities", step 13).
+- **Read correctly:** yes. She read "Connections 6, #1 of 20" for Ava and the Top 10 "Ava 6, Ivan
+  5" (`06.png`, `07.png`), which match the reference (Ava 6, Ivan 5, then a tie at 4). The four
+  community sizes (6, 6, 5, 3) are on screen in `13.png` and she checked they sum to 20; there is
+  no reference value for Louvain on this file.
+- **Verdict:** keep trying it, with reservations. For: the export went in unchanged, the counts
+  matched her spreadsheet (20 people, 41 rows), "never uploaded", and names, a ranking and groups
+  within about a dozen clicks. Against: no way found to take a ranked list back to Excel, small
+  labels with one hidden, two groups in similar blues.
+- **Ease (from the transcript):** 3 of 7 difficulty.
+- **Steps:** 13 commands from start to end. **Wrong turns:** 1 -- step 8 opened Data looking for
+  a table to copy and found none, then went back to the Graph place.
+- **False "done":** no. Her closing claims ("names on the picture", "Ava, then Ivan", "four groups
+  that add up to everyone") match `11.png` to `13.png`, and she said herself that one label is
+  hidden. One small misreading with no effect on the result: she read the label "Sana" as "Sara".
+  The hidden label is Farah's (the only one of the 20 names not drawn in `11.png`), and the screen
+  does not say whose it is.
+- **Tool prints:** no `ambiguous`, script errors or failed requests in the session log. No files
+  were downloaded (none were asked for). The start waited about 15 minutes for a browser slot;
+  that changed nothing she saw.
+
+## Problems
+
+| # | Problem | Severity | Kind | Evidence |
+|---|---------|----------|------|----------|
+| 1 | After a second coloring run, the legend keeps the first run's key. Louvain recolored every node by group, yet the legend box still shows "Color: Connections 3 -- 6" under the four groups, while no node shows that orange scale any more. The reader cannot tell which color key is in force. | 3 | behavior | Step 13, `13.png`: legend "Color: Communities" Group 1-4 and below it "Color: Connections 3 -- 6". "Which color am I looking at?" Likely a build defect (any run that colors every node after another one should show it), but not yet reproduced: the scripted path `rounds/round-1/repro/r1-s49b/run.sh` was still waiting for a free browser slot when this grade was written. If its last PNG shows both legend keys over group-colored nodes, re-mark this row build-defect. |
+| 2 | Two of the four group colors are both blue (Group 2 light blue, Group 4 dark blue) and are hard to tell apart on the drawing, especially where they touch (Hana, Gus, Chloe's neighbor). | 2 | opinion | Step 13, `13.png`. "On a projector I couldn't tell them apart." |
+| 3 | The first drawing has no names; getting them takes Graph, Everything, Style, Label +, then "id" -- four steps she found only by guessing that "Label" means names. With names on, one of 20 is hidden to avoid overlap and the screen does not say whose (Farah's). | 2 | behavior | Steps 2-11, `02.png`, `09.png`-`11.png` "20 labels, 1 hidden to avoid overlap". |
+| 4 | "Top 10" shows only two people (Ava 6, Ivan 5) and does not say why: the next 6 or more are tied at 4 and the list stops before a tie it cannot fit. She took it as people missing. | 2 | wording | Step 7, `07.png`. "It says Top 10, but there are only two names. Where are the other eight?" |
+| 5 | No way found to copy a ranked list (name and value) out to a spreadsheet: neither the run's Values nor the Data page offers a table to copy or export. | 2 | opinion | Steps 7-8, `07.png`, `08.png`; her main reason for "not yet". |
+| 6 | The Analyze list speaks in method names (Betweenness, Katz, HITS, Eigenvector) and has no "most connected" entry; "Start here" sits on PageRank, which is not what she wanted. The one-line descriptions carried her to Degree. | 1 | wording | Step 4, `04.png`. |
+| 7 | The Style tab for Everything shows Fill Color "#63..." purple while every ball is drawn orange by the Connections run; nothing says a run's layer is painting over it. | 1 | behavior | Step 9, `09.png`. "Funny that the color here says purple when the balls are orange." |
+| 8 | Overview words a newcomer cannot read: "Directed" for a friendship list, "Density", "Components"; and "Degree 6" on the node before any run. | 1 | wording | Steps 2-3, `02.png`, `03.png`. |
+
+Problem 6 matches the method-name and "Start here" findings of sessions r1-s37b and r1-s38b. The
+short Top 10 (problem 4) is documented in answers.md as expected behavior, so it is graded as
+wording, not as a wrong count.

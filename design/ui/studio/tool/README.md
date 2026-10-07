@@ -57,11 +57,13 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 
 A file is a path, or a name from `files/`:
 
-| File                   | What it is                                                              |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `friends.csv`          | A links spreadsheet: `source,target,weight`, 41 rows between 20 people. |
-| `florentine.gml`       | A small GML network: marriages between 15 Florentine families.          |
-| `club-members.graphml` | A GraphML file cut off part way through, which the app cannot read.     |
+| File                   | What it is                                                                                    |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `friends.csv`          | A links spreadsheet: `source,target,weight`, 41 rows between 20 people.                       |
+| `florentine.gml`       | A small GML network: marriages between 15 Florentine families.                                |
+| `club-members.graphml` | A GraphML file cut off part way through, which the app cannot read.                           |
+| `people.csv`           | A node spreadsheet: `id,name,team`, 12 staff of a small nonprofit.                            |
+| `messages.csv`         | Its edge spreadsheet: `from,to,emails`, 23 rows; one names `p13`, who is not in `people.csv`. |
 
 ## Names, dialogs and lists
 

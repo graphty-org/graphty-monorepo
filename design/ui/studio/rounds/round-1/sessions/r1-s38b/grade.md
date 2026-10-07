@@ -1,0 +1,35 @@
+# Grade: session r1-s38b -- Jordan, who matters most (running club, friends.csv)
+
+- **Grade:** S (success)
+- **Failure codes:** none
+- **False "done":** no. Jordan said she finished with Ava, Ivan and Sana from Betweenness, and the
+  last screenshot (05.png) shows exactly that Top 10 under "Bridges".
+- **Steps:** 4 commands after the setup start (Shift+A, Betweenness, Run, the Bridges row),
+  against a success path of 5 from the same start (Shift+A, type the name, pick it, Run, select
+  the row). She picked from the list instead of typing a filter, which saved one.
+- **Wrong turns:** 0.
+- **Ease (from the transcript):** 2 of 7 difficulty.
+- **Tool prints:** no `ambiguous`, script errors or failed requests in the session or setup log.
+  No files were downloaded (none were asked for).
+
+## Why S
+
+The last screenshot (05.png) shows the "Bridges" run row selected and its Values tab with a Top 10
+of Ava 51.27, Ivan 40.02, Sana 21.35, Kofi 18.31, and so on. Those match the reference
+Betweenness values for friends.csv (Ava 51.27, Ivan 40.02, Sana 21.35). The names appeared in a
+screenshot before she stated them. She named the measure both ways: "betweenness, which the app
+labels 'Bridges'", with a correct reading of what it measures. Betweenness is a ranking that
+answers "how much the club depends on them", so no `meaning-wrong`. No detour, no sorted table.
+
+## Problems
+
+| # | Problem | Severity | Kind | Evidence |
+|---|---------|----------|------|----------|
+| 1 | Once the run finishes, the method's name is gone. The list said "Betweenness"; the legend, the run row and "Made with: Analysis" all say only "Bridges", and nothing says what the number is (a raw count of shortest paths or a normalized share). Jordan could not explain 51.27 or name the method from the screen she ended on. | 2 | wording | Steps 4-5; 04.png legend "Color: Bridges", 05.png "Made with -- Analysis: Bridges". "If my VP asks what 'Bridges' is, the panel doesn't say Betweenness anywhere any more." |
+| 2 | The Values histogram draws twenty bars of the same height for twenty different values, so it says nothing about the spread (Ava and Ivan stand far above a median of 11.2). Cause: graphty-element's `buildHistogram` (graphty-element/src/session/results/statistics.ts) switches to one bar per distinct value whenever the distinct values fit in the bin count, even for a continuous measure; with every value distinct, every bar is 1. Deterministic for any small graph whose measure has all-distinct values. | 2 | behavior | Step 5, 05.png: 20 equal bars over "2.583 to 51.27, median 11.2". "That histogram is useless ... looks broken." |
+| 3 | The "Start here" badge sits on PageRank, which measures popularity by connection, while the question was who the club depends on. Jordan noticed and ignored it; she expects a less sure user to follow it. (PageRank would still pass this task, so held at opinion.) | 1 | opinion | Step 2, 02.png "PageRank Start here"; "Hesitated briefly over the 'Start here' badge." |
+| 4 | The drawing shows no names, so the two dark nodes that are the answer cannot be read off the map; the names exist only in the side panel's Top 10. | 1 | opinion | Step 4, 04.png; "I can't put an unlabeled brown dot in a brief." |
+| 5 | The Analyze list is in algorithm names (Betweenness, Katz, HITS), not task words; the one-line descriptions under each carried her to the right one. | 1 | wording | Step 2, 02.png. |
+| 6 | No way to take the Top 10 out (CSV) from the run's Values; she wanted it for the brief. Outside this task. | 1 | opinion | Debrief; 05.png has no export on the panel. |
+
+No build defect was found in this session, so no repro script was written.

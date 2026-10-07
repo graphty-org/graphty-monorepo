@@ -15,66 +15,58 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) **Neighborhood header DONE (no door).** The G list (`inspector/NodeValues.tsx
-   NeighborList`) has Hops 1|2|3 and, only when `session.status.directed`, Follow Out|In|All
-   (Mantine SegmentedControl from compact-mantine); a change = `selection.apply({ neighborsOf:
-   [center], depth, direction })`, reopens `inspected` (key `neighborhoodKey(center, hops,
-   direction)`, old keys still parse) and sets the status line once ("14 nodes within 2 hops of
-   Ava"). "Filter to neighbors" appends `{ kind: "neighborhood", seeds, depth }` via
-   `filterSteps.writeSteps`/`newId`; Filters row reads "neighbors of Ava within 2 hops". Grow by
-   one hop is gone (command, toolbar list, neighborhood menu, CanvasMenu special case). ELEMENT
-   GAP: the `neighborhood` filter rule has no `direction`, so the button is hidden unless Follow
-   is All (a door if added). Proof: toolbar `tasks.real-element.test.tsx` (karate, Hops 2,
-   status, filter step); `tmp/t2feat-app-neighborhood/s1/06-14.png` (friends: 14 within 2 hops =
-   Selection 15; Out 2 hops = 6; chip 15 of 20).
-2. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** Sources draws one
-   row per `data.sources()` entry (`data-place/words.ts sourceRows`; ids `source:<i>`,
-   `source:<i>:<j>`); a two-file load is named "people.csv and messages.csv" by the element and
-   expands to its tables; a lone one-table load keeps the tier 1 Node/Edge table children. Graph
-   header line = `sourcesWords`: "From friends.csv", "From 2 files", "From 3 files" ("sources"
-   when a load has `config.url`). Edit source... = `data-page/request.ts editSource`: the app
-   remembers each load's Files + `PageChoices` in a WeakMap keyed by the `LoadedSource` entry
-   (`rememberLoad` after a Data page load and a start-screen load); an unseen load (reopened
-   project) opens an empty Add page. ELEMENT GAP, unfiled: `LoadedSource` keeps neither its input
-   nor its roles. Still open: Load on an edited source ADDS again (no replace-one-load route).
-   Proof: `DataPage.real-element.test.tsx` "lists each load..."; `tmp/t2feat-app-sources/s1/13,15.png`.
-3. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
+1. (2026-10-07) **Replace with file + out-of-date runs DONE (ca8b3b916, no door).** Source row
+   menu "Replace with file..." when `canReplace(data.sources())` (one load, <= 1 table;
+   `data-page/request.ts`), `start/open.ts pickFile`, then `replaceSource` -> Data page intent
+   `"replace"` (mode replace, Cancel back to panels, title "Replace: <file>", header line
+   `replaceWords` "Was 20 nodes, 41 edges; now 20, 41", remembered roles carried, loaded weight
+   meaning re-applied once per draft by `useCarriedMeaning`; Load focus is the Footer's existing
+   clean-file rule). Status line `replacedWords` after load. Stale: `rows.ts` state `"stale"`
+   (succeeded + `run.stale !== null`), glyph `GLYPHS.outOfDate` (History), tree `label` "<name>,
+   out of date", tooltip/description `inspector/words.ts staleWords(reason)`; `RunStateBar` stale
+   branch with Rerun = `runs.start(algorithm, params, { as: id, scope: stale.scopeSpec })`.
+   Proof: `Replace.real-element.test.tsx`; `tmp/t2feat-app-replace/s1/08-13.png`. Open: a replace
+   lays the graph out afresh (positions not kept); focus lands on the Everything row after Load.
+2. (2026-10-07) **Neighborhood header DONE (no door).** `NodeValues.tsx NeighborList`: Hops
+   1|2|3, Follow Out|In|All only when directed; a change = `selection.apply({ neighborsOf, depth,
+   direction })` + one status line; "Filter to neighbors" appends a `neighborhood` step. ELEMENT
+   GAP: that filter rule has no `direction` (button hidden unless All). Proof: toolbar
+   `tasks.real-element.test.tsx`, `tmp/t2feat-app-neighborhood/s1/`.
+3. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** One row per
+   `data.sources()` entry (ids `source:<i>[:<j>]`), header `sourcesWords` ("From 2 files");
+   `request.ts` remembers each load's files + `PageChoices` in a WeakMap keyed by `LoadedSource`
+   (`rememberLoad`). ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles. Load on
+   an edited source ADDS again. Proof: `DataPage.real-element.test.tsx`, `tmp/t2feat-app-sources/`.
+4. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
    Analyze > Shortest path open one popover (`analyze/PathForm.tsx`); pick button = capture-phase
    swallow + `elementAt`; status from `pathAnnouncement` reading `session.runs.get(id)`. Open:
    no Follow (Dijkstra always undirected; would be an owner door); same From/To reuses its run id.
    Proof: `PathForm.real-element.test.tsx`, `tmp/t2feat-app-path-popover/`.
-4. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
+5. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
    `filterWords.ts`, `filterSteps.ts`; editor = inspected kind `filter-step`; counts from
    `plan({ op: "visibility.steps" })`; `FilterChip` in Header; read a step BEFORE undoing it.
    `keys.isTypingTarget` no longer swallows shortcuts on checkbox/radio. Open: row name truncates
    at 240px. Proof: `Filters.real-element.test.tsx`, `tmp/t2feat-app-filters/s2`.
-5. (2026-10-07) **Tier 2 element work landed (owner doors on hold + needs-decision; details in
-   Decisions):** edge pick + selected-edge mark (5a2b3b605), filter steps (8966b0888), runs stale
-   on data change (ce34f31f3; app never reads `run.stale`; edge-metric runs keyed by old edge
-   ids), every load kept as a source (f141b1283; app side done, item 1), runs read the loaded
-   weight + weight meaning at load (app side done), edge-attribute filter (559f5dcb2), coded
-   selector refusals (3d89d43c3).
-6. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
+6. (2026-10-07) **Tier 2 element work landed (owner doors, hold + needs-decision):** edge pick
+   (5a2b3b605), filter steps (8966b0888), stale runs (ce34f31f3; edge-metric runs keyed by old
+   edge ids), every load a source (f141b1283), loaded weight + meaning, edge-attribute filter
+   (559f5dcb2), coded selector refusals (3d89d43c3). App sides all done.
+7. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
    edge inspector (`edgeName()`, ends, attributes, per-run `result.edge(id)`), "Select
    endpoints"; status line announces every selection. Open: Frame selection disabled in the edge
    menu (unchecked whether `scope: "selection"` frames an edge). Proof: `tmp/t2feat-app-edge-select/`.
-7. (2026-10-07) **CSV intake FIXED (52ae4b683, no door).** A data file opened into an open project
+8. (2026-10-07) **CSV intake FIXED (52ae4b683, no door).** A data file opened into an open project
    goes through the Data page (`openInSession` -> `openDataPage({ intent: "add", files })`); the
    start screen still loads straight in. Tests must click "Add" in the Match report.
-8. (2026-10-07) **Notes place DONE (no door).** `notes/NotesPlace.tsx`, `notes.add` (N, menus,
-   "+") writes about what the inspector shows (`notes/words.ts targetsOf`); draft in the store;
-   header link "N notes". Not built: edit text, Cites, author. Proof:
-   `Notes.real-element.test.tsx`, `tmp/t2feat-app-notes/s1/`.
 9. (2026-10-07) **Tier 2 audit defects still open (`tmp/t2-audit/`):** path row counts 61
    (`summary.measured`, `graph-place/rows.ts`) and the header calls a path a "Measure"
-   (`rowKindOf`); Edit source... ADDS a re-chosen file (41 -> 74 edges), never replaces; app
-   ignores `run.stale`; element caps a load at one node + one edge table. No app UI for Replace,
-   Select where, node weight. Fixed: path Values (2df88ddef), Find hint/refusal (f09aae3aa),
+   (`rowKindOf`); Edit source... ADDS a re-chosen file (41 -> 74 edges), never replaces (Replace with
+   file... covers one source); element caps a load at one node + one edge table. No app UI for Select
+   where, node weight. Fixed: path Values (2df88ddef), Find hint/refusal (f09aae3aa),
    Sources (8569342f6).
 10. (2026-10-07) **Remaining element plan:** a run result says each field's type (fixes (a) at the
    root); several node types / Links to / One edge per Pair is the largest item -- last.
-   Undecided by the design: OR/NOT between steps (keep "all"), Path popover grouping key, where
-   Replace puts runs (I proposed a stale state bar, never auto-rerun).
+   Undecided by the design: OR/NOT between steps (keep "all"), Path popover grouping key.
 11. (2026-10-07) Element English still on screen: Analyze's algorithm refusals (codes exist,
    `AnalyzePopover.tsx` `estimate.reason`), `MetricAvailability.reason`, layout descriptions,
    `run.label`, partition choice labels. Fix = codes from the element, words in the app.
@@ -142,6 +134,14 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-07) **Replace reads `run.stale`, never reruns (no door).** One mark for "out of date"
+  (a new `outOfDate` glyph, not the partial warning: one concept per icon), words in the
+  accessible name via Tree's `label` (the description is only aria-describedby). Rerun passes
+  `stale.scopeSpec` so a scope-changed run reruns over the same scope. The weight meaning is
+  re-applied in the page, not in `replaceSource`, because a draft's table ids ("rows" for one
+  CSV, "nodes"/"edges" for a pair) are only known once it is read; ids are stable across files,
+  so remembered `PageChoices` carry over unchanged. Rejected: Rerun all, auto-rerun (design).
 
 - (2026-10-07) **Notes: one command, the inspector decides the target.** Every door (N, "+",
   menus) runs `notes.add`, which reads `resolveInspected` at press time and stores the targets in
@@ -280,9 +280,10 @@ acceptance test. "The studio worktree" is
   `nx run graphty:build` often fails on another agent's test type error: build the served dist
   with `NODE_OPTIONS=--max-old-space-size=16384 npx vite build` in `graphty/`.
 
-- (2026-10-07) **App change checked on :9366 in two halves: worked.** A Playwright probe under
-  `with-browser.sh` finds a point (`elementAt`) and reads selection, `[role=status]` and
-  `[data-inspected]`; then real.mjs `--click-at` the same point for what a person sees.
+- (2026-10-07) **Checking on :9366: worked.** A Playwright probe under `with-browser.sh`
+  (`tmp/t2feat-el-edge-pick/probe.mjs`: `page.evaluate` on the element, `elementAt`) for facts,
+  then real.mjs at the same point for what a person sees. real.mjs answers a dynamically created
+  file input (`pickFile`) with `--click ... --upload <file>` (2026-10-07, replace walk).
 
 - (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Others stage and commit
   here continuously: commit from an empty `git diff --cached`, then check `git show --stat HEAD`
@@ -297,8 +298,6 @@ acceptance test. "The studio worktree" is
   (2026-10-07) `nx run graphty:build` runs `tsc` first and fails on other agents' half-done edits
   (e.g. `choices.test.ts`, `QuickActionsPalette.tsx`): worked around by `NODE_OPTIONS=...16384 npx
   vite build --outDir <session>/dist` + `REAL_DIST` (plain heap OOMs and drops `core.*` files).
-- (2026-10-07) **Element facts on :9366: a Playwright probe** under `with-browser.sh`
-  (`tmp/t2feat-el-edge-pick/probe.mjs`: load friends.csv, `page.evaluate` on the element).
 - (2026-10-07) **Pixel assertions in browser tests: worked.** `waitForStableFrame()`, then
   `graph.scene.render()`, then `engine.readPixels(x, h - y - half, ...)` (rows from the bottom);
   take the darkest pixel in a 6x6 square to read a thin line's color on a light canvas.

@@ -92,6 +92,9 @@ export interface AttributeDescriptor {
 }
 
 // @public
+// @public
+export type AttributeLeafNodes = "all" | "ends";
+
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 
 // @public
@@ -1245,10 +1248,12 @@ export type RuleTree = {
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
+    readonly nodes?: AttributeLeafNodes;
     readonly values: readonly string[];
 } | {
     readonly kind: "degree";
     readonly min?: number;
+    readonly nodes?: AttributeLeafNodes;
     readonly max?: number;
     readonly direction?: SelectionDirection;
 } | {

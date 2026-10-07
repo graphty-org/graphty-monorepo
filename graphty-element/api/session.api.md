@@ -99,6 +99,9 @@ export interface AttributeDescriptor {
 }
 
 // @public
+export type AttributeLeafNodes = "all" | "ends";
+
+// @public
 export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
 
 // @public
@@ -2493,10 +2496,12 @@ export type RuleTree = {
 | {
     readonly kind: "repeated-edge";
 } | {
+    readonly nodes?: AttributeLeafNodes;
     readonly kind: "edges";
     readonly where: Query;
 }
 /**
+    readonly nodes?: AttributeLeafNodes;
 * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
 * set is read from its kept record, so removing a set never changes what a rule holds.
 */

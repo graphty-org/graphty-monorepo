@@ -134,6 +134,9 @@ describe("sets.containing", () => {
             { kind: "rule", where: { kind: "range", attribute: "data.weight", min: 4 }, reading: "induced" },
             { name: "Heavy" },
         );
+        // Which half carries data.weight is described once per graph and cached; warm it so the
+        // count below is what one question costs.
+        h.session.data.attributes();
         let reads = 0;
         const get = h.nodeAttributes.get.bind(h.nodeAttributes);
         h.nodeAttributes.get = (index: number) => {

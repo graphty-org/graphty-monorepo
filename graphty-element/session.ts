@@ -357,6 +357,7 @@ export type {
     RuleTree,
     TimeStep,
     TimeWindow,
+    AttributeLeafNodes,
     VisibilityApi,
     VisibilityChange,
     VisibilitySummary,

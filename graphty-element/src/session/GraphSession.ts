@@ -1417,8 +1417,13 @@ function resolveAcceleration(
  * @param records - Where the attribute bags are read.
  * @param readSnapshot - Reads the snapshot the indices address.
  * @returns The value source.
+ * @param kindsOf - Which halves carry a path, as {@link fieldKindsOf} answers.
  */
-function valueSourceOf(records: SessionRecordSource, readSnapshot: () => GraphSnapshot): FilterValueSource {
+function valueSourceOf(
+    records: SessionRecordSource,
+    readSnapshot: () => GraphSnapshot,
+    kindsOf: (path: Path) => readonly string[],
+): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
 
@@ -1430,6 +1435,10 @@ function valueSourceOf(records: SessionRecordSource, readSnapshot: () => GraphSn
         edgeValue: (index: number, path: Path): unknown =>
             records.edgeAttributes(index)?.[keyOf(path)] ?? edgeEndpointOf(readSnapshot(), index, keyOf(path)),
     };
+        halvesOf: (path: Path) => {
+            const kinds = kindsOf(path);
+            return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+        },
 }
 
 /**
@@ -2042,13 +2051,16 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         sessionEdgeMember(snapshot(), id, (row) => records.edgeAttributes(row), readData().knownFields.edgeIdPath);
     // What a `{ set }` reference names and what "visible" reads, so a door can refuse a chain of
     // references that loops (design/sets 5.2). Read through calls: the sets and the visibility
+    // Which halves carry a value path: what a dependency and an attribute filter leaf read.
+    const fieldKinds = (path: Path): readonly string[] =>
+        fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields);
     // API are built below.
     const dependencies: DependencySources = {
         referent: (id: SetId) => setsStoreOf(sets).get(id)?.definition,
         visibility: () => visibility.filter,
         pathsOf: (where: Query) => requireQuery(query).pathsOf(where),
         shapeOf: (run: RunId) => runs.get(run)?.result?.shape,
-        fieldKinds: (path: Path) => fieldKindsOf(path, data, (run) => runs.get(run)?.result?.fields),
+        fieldKinds,
     };
     // One resolution cache for the scope resolver and the status reads of its last passes.
     const setsCache = new SetsCache();
@@ -2222,7 +2234,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         edgeMember,
         fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
-        values: valueSourceOf(records, snapshot),
+        values: valueSourceOf(records, snapshot, fieldKinds),
     });
 
     const visibility = createVisibilityApi({
@@ -2245,7 +2257,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         unresolvedPathsOf: (where: Query) => requireQuery(query).unresolvedPathsOf(where),
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         result: resultSource,
-        values: valueSourceOf(records, snapshot),
+        values: valueSourceOf(records, snapshot, fieldKinds),
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);

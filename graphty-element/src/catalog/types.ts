@@ -1083,17 +1083,39 @@ export type SelectionDirection = "in" | "out" | "all";
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
  * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
- * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
- * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
- * or halves their field lives on; every other leaf speaks nodes. A group with no members
- * constrains nothing.
+ * `repeated-edge` speak edges; `range` and `categories` speak each half whose elements carry the
+ * attribute (one on `data.weight` speaks edges); `member` speaks the referenced set's nodes, and
+ * its edges only when that set is read `listed` or `clipped` (`"visible"` is); `item` and
+ * `threshold` speak the half or halves their field lives on; every other leaf speaks nodes. A
+ * group with no members constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
+/**
+ * Which nodes a `range` or `categories` leaf keeps when its attribute lives on edges (such as
+ * `data.weight`). `"all"` (the default): the leaf is silent about nodes, so every node stays and
+ * only the passing edges are kept. `"ends"`: only the nodes at the ends of a passing edge are kept.
+ * When the nodes carry the attribute too, `"ends"` keeps a node only when it passes AND is an end.
+ */
+export type AttributeLeafNodes = "all" | "ends";
+
  */
 export type RuleTree =
     | { readonly kind: "expression"; readonly where: Query }
-    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
-    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
+    | {
+          readonly kind: "range";
+          readonly attribute: Path;
+          readonly min?: number;
+          readonly max?: number;
+          /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
+      }
+    | {
+          readonly kind: "categories";
+          readonly attribute: Path;
+          readonly values: readonly string[];
+          /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
+          readonly nodes?: AttributeLeafNodes;
+      }
     | {
           readonly kind: "degree";
           readonly min?: number;

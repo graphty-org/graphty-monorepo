@@ -81,6 +81,7 @@ export { toColorValue } from "./src/session/styles/channels";
 
 export { parseScope, parseSetDefinition } from "./src/catalog/sets/parse";
 export type {
+    AttributeLeafNodes,
     EdgeMember,
     EdgeReading,
     EdgeRef,

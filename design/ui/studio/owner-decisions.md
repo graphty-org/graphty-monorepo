@@ -4,6 +4,34 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- A filter on an edge attribute narrows the edges: `nodes: "all" | "ends"`
+
+**What.** A `range` or `categories` rule (in `visibility.set`, a rule set or any rule tree) now
+speaks about each half whose elements carry the attribute. Before, both always read nodes only, so
+a rule on an edge column such as `{ kind: "range", attribute: "data.weight", min: 4 }` found no
+node with a weight, hid every node, and with them every edge: 0 nodes and 0 edges. Now that rule
+keeps the edges of weight 4 or more. Both leaves gain an optional field `nodes` (new exported type
+`AttributeLeafNodes`): `"all"`, the default, says nothing about nodes, so every node stays (on the
+friends sample: 20 nodes, 12 edges); `"ends"` keeps only the nodes at the ends of a kept edge (19
+nodes, 12 edges). A rule on a column both halves carry narrows both; with `"ends"` a node must pass
+and be an end. A column neither half carries still holds no node and is reported in
+`unresolvedPaths`, as before. The value source a session builds gains an optional `halvesOf(path)`
+on the exported `FilterValueSource`, so a rule asked about one element still reads one element.
+
+**Why.** "Show only the strong friendships" is a tier 2 task, and the element's documented rule
+model (each leaf speaks nodes, edges or both, and is silent about the rest) already covers it; the
+two attribute leaves simply ignored the edge half. Readers ask two different questions of an edge
+filter -- "which ties are strong, among everyone" and "who has a strong tie" -- and the second
+cannot be built from the first without a neighborhood walk the app must not do, hence the option.
+
+**Alternatives.** A new leaf kind (`edge-range`): a second spelling of the same rule, and every
+consumer must pick the right one by knowing where a column lives. A required `on: "nodes" |
+"edges"` field: explicit, but it breaks every stored rule and asks the consumer for a fact the
+element already knows. Defaulting to `"ends"`: matches some readers' first guess, but contradicts
+the documented silent-half rule and makes `any` / `all` groups with node leaves behave
+surprisingly. Expressing "ends" as `{ any: [...] }` of an `edges` leaf and a neighborhood: not
+possible today without listing seed nodes.
+
 ## 2026-10-07 -- Why a selector was refused, as a code: `E_BAD_SELECTOR` `details.reason`
 
 **What.** Every `E_BAD_SELECTOR` refusal now carries `details.reason`, a stable code, beside the

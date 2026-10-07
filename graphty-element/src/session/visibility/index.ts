@@ -13,6 +13,7 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
+export type { AttributeLeafNodes } from "../../catalog/types";
 export {
     assertVisibility,
     type CompiledVisibility,

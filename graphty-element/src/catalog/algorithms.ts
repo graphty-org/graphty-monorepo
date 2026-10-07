@@ -320,10 +320,15 @@ interface AlgorithmOptionsSource {
  * The class's Zod schema is the single source of truth for every option it already has; this
  * table adds names and costs, never option definitions.
  * @param algorithm - The registered algorithm class to read.
+ * @param overrides - Descriptor fields a Zod schema cannot express, by option name: that a string
+ * names an edge attribute, or that an option is accepted only for compatibility and is `internal`.
  * @returns The class's option descriptors, in declaration order.
  */
-function optionsOf(algorithm: AlgorithmOptionsSource): readonly OptionDescriptor[] {
-    return optionsFromZod(algorithm.getZodOptionsSchema());
+function optionsOf(
+    algorithm: AlgorithmOptionsSource,
+    overrides: Readonly<Record<string, Partial<OptionDescriptor>>> = {},
+): readonly OptionDescriptor[] {
+    return optionsFromZod(algorithm.getZodOptionsSchema(), { overrides });
 }
 
 /**
@@ -477,7 +482,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence", technicalName: "PageRank score" }),
-        options: optionsOf(PageRankAlgorithm),
+        options: optionsOf(PageRankAlgorithm, {
+            weight: { type: "attribute", on: "edge" },
+            useDelta: { internal: true },
+        }),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "pagerank" }],
@@ -542,7 +550,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Community", true),
-        options: optionsOf(LouvainAlgorithm),
+        options: optionsOf(LouvainAlgorithm, { useOptimized: { internal: true } }),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "louvain" }],
@@ -704,7 +712,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
-            optionsOf(DijkstraAlgorithm),
+            optionsOf(DijkstraAlgorithm, { bidirectional: { internal: true } }),
             optionsOf(BellmanFordAlgorithm),
             optionsFromZod(shortestPathEngineOptions),
         ),

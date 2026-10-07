@@ -1576,6 +1576,8 @@ export interface CommandOutcomeMap {
     "algo.legacy": Promise<void>;
     /** What went with the run, once the removal is recorded. */
     "algo.remove": Promise<RunRemoval>;
+    /** Settles once the run's layers have moved, as one step. */
+    "algo.move": Promise<void>;
     /** Settles once every member is recorded as one step and the pass that draws it has run. */
     batch: Promise<void>;
     /** Settles once the change is recorded and the pass that draws it has run. */

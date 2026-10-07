@@ -38,6 +38,7 @@ export const COMMANDS = Object.freeze({
     "algo.run": { undo: "undoable" },
     "algo.legacy": { undo: "undoable" },
     "algo.remove": { undo: "undoable" },
+    "algo.move": { undo: "undoable" },
     batch: { undo: "undoable" },
     "data.apply": { undo: "undoable" },
     "data.import": { undo: "undoable" },

@@ -1,5 +1,5 @@
 /**
- * @file The run ops: `algo.run`, `algo.legacy` and `algo.remove`.
+ * @file The run ops: `algo.run`, `algo.legacy`, `algo.remove` and `algo.move`.
  *
  * `algo.run` takes a slot on the queue under `algorithm-run`, computes, and then, in one
  * synchronous commit tail, writes the finished run into the `runs` slice together with the style
@@ -10,6 +10,9 @@
  *
  * `algo.remove` takes a run out of the `runs` slice and removes the layers bound to it, in one
  * draft, so one undo brings both back.
+ *
+ * `algo.move` moves the layers bound to a run, as one block in their own order, to sit below
+ * another layer, in one draft.
  *
  * `algo.legacy` runs a plugin algorithm that declares no catalogue descriptor, and so has no run:
  * it writes onto node and edge records and `graphResults` as it goes, and may call the graph's
@@ -23,7 +26,7 @@
  * 4.8 and 6.3.
  */
 
-import type { RunId } from "../../catalog/types";
+import type { LayerId, RunId } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { AlgorithmRunCommand } from "../planning";
 import type { Dispatcher, DispatchFunction, UndoableContext, UndoableDefinition } from "../project/Dispatcher";
@@ -35,6 +38,15 @@ export interface AlgoRemoveCommand {
     readonly op: "algo.remove";
     /** The run. */
     readonly runId: RunId;
+}
+
+/** `algo.move`: move every layer bound to a run, as one block, to sit below another layer. */
+export interface AlgoMoveCommand {
+    readonly op: "algo.move";
+    /** The run. */
+    readonly runId: RunId;
+    /** The layer the block sits immediately below, or null for the top of the stack. */
+    readonly before: LayerId | null;
 }
 
 /**
@@ -80,6 +92,12 @@ export interface RunService {
      * @returns What went with it.
      */
     remove(command: AlgoRemoveCommand, draft: Draft): unknown;
+    /**
+     * Move the layers bound to a run through `draft`, or refuse as `styles.move` would.
+     * @param command - The move.
+     * @param draft - The command's draft.
+     */
+    move(command: AlgoMoveCommand, draft: Draft): void;
 }
 
 /**
@@ -147,8 +165,24 @@ const algoRemove: UndoableDefinition<AlgoRemoveCommand> = {
     execute: (command, ctx) => required(ctx.services.runs).remove(command, ctx.draft),
 };
 
+const algoMove: UndoableDefinition<AlgoMoveCommand> = {
+    op: "algo.move",
+    undo: {
+        kind: "undoable",
+        label: (command, state) =>
+            `Moved ${state.runs.get(command.runId)?.command.algorithm ?? `run ${command.runId}`}`,
+    },
+    moves: false,
+    draws: true,
+    keys: () => ["styles"],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        required(ctx.services.runs).move(command, ctx.draft);
+    },
+};
+
 /** The run ops' definitions. */
-export const ALGO_DEFINITIONS = [algoRun, algoLegacy, algoRemove] as const;
+export const ALGO_DEFINITIONS = [algoRun, algoLegacy, algoRemove, algoMove] as const;
 
 // ---------------------------------------------------------------------------------------------
 // Copy-on-write records

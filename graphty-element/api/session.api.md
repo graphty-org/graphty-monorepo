@@ -265,6 +265,7 @@ export type CommandOutcome<C extends SessionCommand> = CommandOutcomeMap[C["op"]
 // @public
 export interface CommandOutcomeMap {
     "algo.legacy": Promise<void>;
+    "algo.move": Promise<void>;
     "algo.remove": Promise<RunRemoval>;
     "algo.run": Run;
     "config.set": Promise<void>;
@@ -2615,6 +2616,9 @@ export interface RunsApi {
     bindings(id: RunId): readonly LayerId[];
     get(id: RunId): Run | undefined;
     list(): readonly Run[];
+    move(id: RunId, before: LayerId | null, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<void>;
     painting(id: RunId): RunPainting | undefined;
     readonly queue: readonly QueueEntry[];
     remove(id: RunId): RunRemoval;
@@ -2892,7 +2896,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {

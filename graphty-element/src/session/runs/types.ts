@@ -780,6 +780,22 @@ export interface RunsApi {
      */
     remove(id: RunId): RunRemoval;
     /**
+     * Move every style layer reading a run, as one block and in its own order, to another place
+     * in the stack, as one step.
+     *
+     * `before` reads as it does in `styles.move`: the block sits IMMEDIATELY BELOW that layer,
+     * and `null` means the top of the stack. A run that no layer reads moves nothing.
+     * @param id - The run id.
+     * @param before - The layer to sit below, or null for the top of the stack.
+     * @param options - How the move is dispatched.
+     * @param options.signal - Withdraws the move.
+     * @returns Settles once the block has moved. Rejects with `E_UNKNOWN_RUN` for a run this
+     *     session does not hold, `E_UNKNOWN_LAYER` when `before` is not in the stack,
+     *     `E_PROTECTED` when `before` is an element-owned layer (nothing goes beneath those) and
+     *     `E_BAD_COMMAND` when `before` is one of the run's own layers.
+     */
+    move(id: RunId, before: LayerId | null, options?: { readonly signal?: AbortSignal }): Promise<void>;
+    /**
      * Which style layers read a run.
      *
      * Run-to-layer is many-to-many, so a layer reading two runs survives the removal of one.

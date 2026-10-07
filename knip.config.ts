@@ -305,6 +305,10 @@ const config: KnipConfig = {
                 // Used in storybook demos
                 "@zag-js/floating-panel",
                 "@zag-js/react",
+                // The engine @storybook/addon-a11y ships (a devDependency here), imported by
+                // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
+                // Declaring it would change pnpm-lock.yaml.
+                "axe-core",
             ],
         },
     },

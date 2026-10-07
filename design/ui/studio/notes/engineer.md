@@ -30,10 +30,12 @@ acceptance test. "The studio worktree" is
    planar", "results.louvain.group names 6"), layout descriptions (`catalog/layouts.ts`, British
    "centre"), graph-io's CSV export warnings, and `run.label`. Fix = `{ code, params }` from the
    element, words in the app; never an app rename or string match.
-4. (2026-10-07) Perspective in the default 3D view makes a nearer dot look bigger: on friends.csv
-   Ava reads larger than Farah though Farah ranks first (T15, T9 re-pilots; also exported). This
-   can make a size answer meaning-wrong. Candidate for round 3 decisions; the fix (flat/ortho by
-   default when sizing, or screen-constant sizes) is element behavior, likely an owner door.
+4. (2026-10-07) 3D size misreading TRACED: perspective, nothing else (`next-steps/traces/3d-size.md`,
+   rerun `3d-size.mjs` beside it). Style sizes and world sizes are in PageRank order for all 190
+   pairs; drawn size = world diameter / depth exactly (element radius and pixels agree within
+   1 px). Default 3D: Ava depth 80.8, Farah 93.9 (16% vs a 6% size gap), 20 of 190 pairs drawn
+   inverted; half a turn flips them; 2D (ortho) 0. Fix = a depth-independent node size option in
+   the element (owner door), not the mapping, not the camera distance.
 5. (2026-10-07) Key covering nodes FIXED (fa260f20d, owner door, hold + needs-decision): element
    `viewInsets` (CSS px per side), honored by every fit; the app's LegendCard reports its box.
    Open: the toolbar is reserved only while the card takes the top; "Current view" exports rely
@@ -246,6 +248,13 @@ acceptance test. "The studio worktree" is
   was the frozen mesh list.
 
 ## Tried: worked / did not work
+
+- **(2026-10-07) Reading the element in a trace script: worked.** A standalone Playwright script
+  against :9366 (via `with-browser.sh`), driving the app by role names, then reading
+  `nodeScreenPosition(id).radius`, `node.size`, the mesh bounding box and the view matrix.
+  A run's per-node values are NOT on `node.data` nor in `session.results.get(run).nodes` (empty
+  for a node metric); read them with `session.data.nodePage({ limit: Infinity, columns: [runId] })`.
+  The view menu button is found by `getByRole("toolbar", { name: "Canvas tools" })` then name /^View/.
 
 - **(2026-10-06) Screen-reader mode in `real.mjs`: worked** (CDP AX tree on the deep
   `activeElement`; init-script MutationObserver for live regions).

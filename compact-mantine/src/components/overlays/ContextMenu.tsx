@@ -7,6 +7,7 @@ import {
     type PointerEvent,
     type ReactElement,
     type ReactNode,
+    type SyntheticEvent,
     type TouchEvent,
     useEffect,
     useRef,
@@ -22,7 +23,8 @@ import { joinPress } from "../pressGesture";
 // with arrow-key movement, type-ahead and Escape; on close, focus goes back to
 // the element that had it. On touch and pen there is no right button, so a
 // press held still for half a second (pressGesture) opens it too, at the
-// finger; moving the held finger on (a drag) closes it again.
+// finger; lifting that finger chooses nothing, and moving it on (a drag)
+// closes the menu again.
 
 /** Where the menu's top-left corner sits relative to the pointer, in px (Figma, C33). */
 const POINTER_OFFSET = { x: 3, y: -5 } as const;
@@ -101,6 +103,10 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
     const swallowContextMenu = useRef(false);
     // True while the hold's own contextmenu event is being dispatched.
     const holding = useRef(false);
+    // Set while a menu a hold opened is still under the finger that opened it: lifting that
+    // finger (its pointerup and the click after it) chooses nothing. The next press in the
+    // menu, or a key, clears it.
+    const liftPending = useRef(false);
 
     const openAt = (x: number, y: number): void => {
         returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -184,6 +190,7 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
                 );
                 holding.current = false;
                 openedByHold = true;
+                liftPending.current = true;
                 swallowClick.current = true;
                 swallowContextMenu.current = true;
             },
@@ -234,6 +241,7 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
         if (press.current !== null && !fromHold) {
             endPress();
             swallowClick.current = true;
+            liftPending.current = true;
         }
         target.props.onContextMenu?.(event);
         if (event.defaultPrevented) {
@@ -247,6 +255,7 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+        liftPending.current = false;
         swallowClick.current = false;
         swallowContextMenu.current = false;
         target.props.onKeyDown?.(event);
@@ -266,6 +275,16 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
     };
 
     const { x, y } = point ?? lastPoint.current;
+
+    const ignoreLift = (event: SyntheticEvent): void => {
+        if (liftPending.current) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    };
+    const armMenu = (): void => {
+        liftPending.current = false;
+    };
 
     return (
         <>
@@ -297,7 +316,15 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
                         style={{ position: "fixed", left: x, top: y - 1, width: 1, height: 1, pointerEvents: "none" }}
                     />
                 </Menu.Target>
-                <Menu.Dropdown ref={dropdownRef}>{children}</Menu.Dropdown>
+                <Menu.Dropdown
+                    ref={dropdownRef}
+                    onPointerUpCapture={ignoreLift}
+                    onClickCapture={ignoreLift}
+                    onPointerDownCapture={armMenu}
+                    onKeyDownCapture={armMenu}
+                >
+                    {children}
+                </Menu.Dropdown>
             </Menu>
         </>
     );

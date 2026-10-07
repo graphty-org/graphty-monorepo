@@ -15,6 +15,7 @@ import {
     SAVED_LOCALLY,
     writerOptions,
 } from "./choices";
+import { columnWords, type LossFacts, lossLines } from "./lossWords";
 
 /** Props for DataOutput. */
 interface DataOutputProps {
@@ -29,6 +30,7 @@ interface DataOutputProps {
 const SUMMARIES: Readonly<Record<string, string>> = {
     nodes: "One row per node, with every computed value",
     edges: "One row per edge, with every edge attribute and computed value",
+    adjacency: "One row per node, listing its neighbors",
 };
 
 /**
@@ -64,7 +66,7 @@ interface Failure {
 export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<DataOutputProps>): React.JSX.Element {
     const { element, session } = useWorkspace();
     const project = useWorkspaceState((state) => state.project?.name ?? "untitled");
-    const [preview, setPreview] = useState<{ lines: string; notes: readonly string[] } | null>(null);
+    const [preview, setPreview] = useState<{ lines: string; losses: readonly LossFacts[] } | null>(null);
     const [failure, setFailure] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -94,9 +96,11 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             .then(async (result) => {
                 const lines = await previewOf(result);
                 if (live) {
-                    // ponytail: the element's own sentences; the app words them once LossNote
-                    // carries neutral facts only (gap recorded with the Export dialog package).
-                    setPreview({ lines, notes: result.lossNotes.map((note) => note.message) });
+                    // Only the coded facts: the notes' English messages never reach the screen.
+                    setPreview({
+                        lines,
+                        losses: result.lossNotes.map(({ code, column, count }) => ({ code, column, count })),
+                    });
                 }
             })
             .catch((error: unknown) => {
@@ -123,6 +127,11 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             setBusy(false);
         }
     };
+
+    const notes =
+        preview === null
+            ? []
+            : lossLines(preview.losses, (column) => (session === null ? null : columnWords(session, column)));
 
     const summary =
         choices.format === "graphty"
@@ -172,14 +181,14 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                         {failure.words}
                     </Alert>
                 )}
-                {failure === null && preview !== null && preview.notes.length > 0 ? (
+                {failure === null && notes.length > 0 ? (
                     <Alert
                         color="yellow"
                         role="note"
                         title={`${row?.plainName ?? choices.format} cannot hold everything`}
                     >
                         <ul className="ws-export-notes">
-                            {preview.notes.map((note) => (
+                            {notes.map((note) => (
                                 <li key={note}>{note}</li>
                             ))}
                         </ul>

@@ -140,6 +140,8 @@ function fromCurrentAngle(input: CameraViewInput, fov: number): CameraState | un
 function fitToGraph(input: CameraViewInput): CameraState {
     const { bounds } = input;
     const { center } = bounds;
+    // The part of the viewport the view insets leave free; all of it when there are none.
+    const free = freeArea(input.insets, input.viewport.width, input.viewport.height);
 
     if (input.mode === "2d") {
         // The width that shows the whole box: its own width, or the width a frame of this aspect
@@ -159,10 +161,11 @@ function fitToGraph(input: CameraViewInput): CameraState {
         };
     }
 
+    // In 3D the camera already centers what it looks at on the free area; the box only has to be
+    // small enough for it, so the distance grows by the narrower free share.
+    const room = Math.min(free.width, free.height);
     const fov = input.fov ?? DEFAULT_FOV;
     const keptAngle = input.options.keepAngle === true ? fromCurrentAngle(input, fov) : undefined;
-    // The part of the viewport the view insets leave free; all of it when there are none.
-    const free = freeArea(input.insets, input.viewport.width, input.viewport.height);
     if (keptAngle !== undefined) {
         return farther(keptAngle, room);
     }
@@ -179,29 +182,8 @@ function fitToGraph(input: CameraViewInput): CameraState {
         },
         target: center,
     };
-    // In 3D the camera already centers what it looks at on the free area; the box only has to be
-    // small enough for it, so the distance grows by the narrower free share.
-    const room = Math.min(free.width, free.height);
 }
 
-/**
- * Look straight down at the graph, which is the natural view for a flat arrangement.
- * @param input - The box to frame and the drawing mode.
- * @returns The state that looks down the y axis.
- */
-function topView(input: CameraViewInput): CameraState {
-    const { center } = input.bounds;
-
-    if (input.mode === "2d") {
-        // Flat drawing already looks straight down, so the only thing left to decide is where the
-        // centre of the frame is. The zoom stays at the element's neutral 1.0 rather than fitting,
-        // which is what distinguishes this view from fitToGraph in two dimensions.
-        return {
-            type: "orthographic",
-            zoom: 1,
-            pan: { x: center.x, y: center.y },
-        };
-    }
 /**
  * Move an orbit state back along its line of sight, so the box fits a smaller free area.
  * @param state - A state with a position and a target.
@@ -225,6 +207,24 @@ function farther(state: CameraState, room: number): CameraState {
     };
 }
 
+/**
+ * Look straight down at the graph, which is the natural view for a flat arrangement.
+ * @param input - The box to frame and the drawing mode.
+ * @returns The state that looks down the y axis.
+ */
+function topView(input: CameraViewInput): CameraState {
+    const { center } = input.bounds;
+
+    if (input.mode === "2d") {
+        // Flat drawing already looks straight down, so the only thing left to decide is where the
+        // centre of the frame is. The zoom stays at the element's neutral 1.0 rather than fitting,
+        // which is what distinguishes this view from fitToGraph in two dimensions.
+        return {
+            type: "orthographic",
+            zoom: 1,
+            pan: { x: center.x, y: center.y },
+        };
+    }
 
     const distance = input.bounds.maxDimension * STRAIGHT_ON_DISTANCE;
 

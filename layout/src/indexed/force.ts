@@ -5,13 +5,13 @@
 
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
-import { fromPositionColumn, type LayoutResult, rescaleInPlace } from "../positions";
-import { ForceAtlas2Simulation } from "../simulation/forceatlas2";
-import { FruchtermanReingoldSimulation } from "../simulation/fruchterman-reingold";
-import { Lcg, seedPositions } from "../simulation/seed";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import type { ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions } from "../simulation/types";
-import { layoutDim, startColumn } from "./start";
+import { fromPositionColumn, type LayoutResult, rescaleInPlace } from "../positions.js";
+import { ForceAtlas2Simulation } from "../simulation/forceatlas2.js";
+import { FruchtermanReingoldSimulation } from "../simulation/fruchterman-reingold.js";
+import { Lcg, seedPositions } from "../simulation/seed.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import type { ForceAtlas2Options, FruchtermanReingoldOptions, SimulationOptions } from "../simulation/types.js";
+import { layoutDim, startColumn } from "./start.js";
 
 /**
  * An iteration count as a whole number: the ceiling of a fraction, 0 for a negative or non-finite count.

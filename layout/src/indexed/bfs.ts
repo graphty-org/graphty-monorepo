@@ -1,9 +1,9 @@
 import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
-import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite";
+import type { LayoutResult } from "../positions.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite.js";
 
 /** Options of the index-based breadth-first layout. */
 export interface BfsLayoutOptions extends CommonLayoutOptions {

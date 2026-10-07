@@ -1,9 +1,9 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
-import { type LayoutResult, rescaleInPlace } from "../positions";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { RandomNumberGenerator } from "../utils/random";
-import { type CommonLayoutOptions, resolve, result } from "./common";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { RandomNumberGenerator } from "../utils/random.js";
+import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
 /**
  * Spectral rows over an undirected snapshot. The Laplacian counts each distinct neighbour once and ignores

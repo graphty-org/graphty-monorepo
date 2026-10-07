@@ -374,7 +374,7 @@ function githerdTools(procs) {
     const known = new Set(procs.map((p) => p.pid));
     return (pid) => {
         if (!known.has(pid)) return null;
-        for (const stack = [pid]; stack.length; ) {
+        for (const stack = [pid]; stack.length;) {
             for (const c of children.get(stack.pop()) ?? []) {
                 if (c.cmd?.includes("githerd-mcp.mjs")) return true;
                 stack.push(c.pid);
@@ -426,7 +426,7 @@ function cwdsUnder(procs) {
     const cwdOf = new Map(procs.map((p) => [p.pid, p.cwd]));
     return (pid) => {
         const out = [cwdOf.get(pid)];
-        for (const stack = [pid]; stack.length; ) {
+        for (const stack = [pid]; stack.length;) {
             for (const c of children.get(stack.pop()) ?? []) {
                 out.push(c.cwd);
                 stack.push(c.pid);

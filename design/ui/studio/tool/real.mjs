@@ -2,11 +2,14 @@
 // Drives the real graphty app (the tier 1 workspace, from a production build) the way a study
 // participant does: one live browser per session, a step at a time, a numbered PNG after each.
 //
-//   node real.mjs --start <session dir> [empty | setup:<setup file>]
+//   node real.mjs --start <session dir> [empty | setup:<setup file>] [--sr]
 //       opens the app with clean storage in a browser held for the whole session, runs the setup
 //       steps (never shown to the participant), saves 01.png and writes session.json (the commit
 //       under study, the URL). A setup file holds one step per line, "--click Open the ... sample";
 //       a blank line or one starting with # is skipped. A setup step that misses fails the start.
+//       --sr (screen-reader mode): after every step, prints what a screen reader would say: the
+//       focused element's role, accessible name, value and states ("focus: ..."), and the text of
+//       every live region that appeared or changed ("live: ...").
 //   node real.mjs --step <session dir> <steps...>
 //       acts on the live session, waits for the drawing to settle, saves the next NN.png and prints
 //       what a participant would notice
@@ -198,7 +201,7 @@ const say = (r) => {
     return r.code;
 };
 
-async function start(dir, how) {
+async function start(dir, how, sr) {
     dir = resolve(dir);
     if (existsSync(sockOf(dir))) {
         const alive = await ask(dir, { op: "ping" }).catch(() => null);
@@ -229,11 +232,15 @@ async function start(dir, how) {
     }
     // the session process holds a browser slot for its whole life, so it runs inside the gate
     const log = openSync(join(dir, "session.log"), "a");
-    const child = spawn(gate, [process.execPath, fileURLToPath(import.meta.url), "--serve", dir], {
-        detached: true,
-        stdio: ["ignore", log, log],
-        env: { ...process.env, BROWSER_SLOTS: process.env.BROWSER_SLOTS || "4" },
-    });
+    const child = spawn(
+        gate,
+        [process.execPath, fileURLToPath(import.meta.url), "--serve", dir, ...(sr ? ["--sr"] : [])],
+        {
+            detached: true,
+            stdio: ["ignore", log, log],
+            env: { ...process.env, BROWSER_SLOTS: process.env.BROWSER_SLOTS || "4" },
+        },
+    );
     let exited = null;
     child.on("exit", (c) => (exited = c));
     let waited = 0;
@@ -268,7 +275,7 @@ const TYPES = {
     ".gml": "text/plain",
     ".txt": "text/plain",
 };
-async function serve(dir) {
+async function serve(dir, sr) {
     const { chromium } = await import(join(repo, "node_modules/playwright/index.mjs"));
     if (!existsSync(join(dist, "index.html")))
         throw new Error(`no production build at ${dist}; run pnpm exec nx run graphty:build`);
@@ -296,8 +303,20 @@ async function serve(dir) {
     const origin = `http://127.0.0.1:${http.address().port}`;
     const browser = await chromium.launch();
     const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1, acceptDownloads: true });
-    const s = { dir, context, origin, errors: [], downloads: [], chooser: null, picker: null, picked: [], saved: {} };
+    const s = {
+        dir,
+        sr,
+        context,
+        origin,
+        errors: [],
+        downloads: [],
+        chooser: null,
+        picker: null,
+        picked: [],
+        saved: {},
+    };
     await answerPickers(s);
+    if (sr) await s.context.addInitScript(watchLive);
     await newTab(s);
 
     const sock = sockOf(dir);
@@ -352,6 +371,7 @@ async function serve(dir) {
 // A tab of the session's browser: its errors, file choosers and downloads reported to the session
 async function newTab(s) {
     const page = (s.page = await s.context.newPage());
+    s.cdp = null;
     const { origin } = s;
     page.on("pageerror", (e) => s.errors.push(`script error: ${e.message.split("\n")[0]}`));
     page.on("console", (m) => m.type() === "error" && s.errors.push(`console error: ${m.text().slice(0, 300)}`));
@@ -399,6 +419,73 @@ async function answerPickers(s) {
         };
     });
 }
+// ---------- screen-reader mode (--sr) ----------
+// In the page: records the text of every live region when it appears or changes, in window.__srLive.
+// ponytail: light DOM only; graphty-element's shadow root has no live region today
+function watchLive() {
+    const LIVE = "[aria-live]:not([aria-live=off]), [role=status], [role=alert], [role=log]";
+    const last = new WeakMap();
+    window.__srLive = [];
+    const scan = () => {
+        for (const r of document.querySelectorAll(LIVE)) {
+            // a region inside another is read as part of it; a hidden one is not read at all
+            if (r.parentElement?.closest(LIVE) || r.closest("[aria-hidden=true]") || !r.checkVisibility()) continue;
+            const text = r.textContent.replace(/\s+/g, " ").trim();
+            if (last.get(r) === text) continue;
+            last.set(r, text);
+            const role = r.getAttribute("role");
+            const level = r.getAttribute("aria-live") || (role === "alert" ? "assertive" : "polite");
+            if (text) window.__srLive.push(`${role || "region"} (${level}): ${JSON.stringify(text)}`);
+        }
+    };
+    new MutationObserver(scan).observe(document, {
+        subtree: true,
+        childList: true,
+        characterData: true,
+        attributes: true,
+    });
+}
+const SR_STATES = new Set(["checked", "pressed", "expanded", "selected", "disabled", "invalid", "required"]);
+// What a screen reader says for the focused element (through shadow roots), from Chromium's own
+// accessibility tree, and the live-region text recorded since the last call
+async function srReport(s, out) {
+    s.cdp ??= await s.context.newCDPSession(s.page);
+    const { result } = await s.cdp.send("Runtime.evaluate", {
+        expression:
+            "(() => { let e = document.activeElement; while (e?.shadowRoot?.activeElement) e = e.shadowRoot.activeElement; return e === document.body ? null : e; })()",
+    });
+    let said = "nothing (the page itself)";
+    if (result.objectId) {
+        const { nodes } = await s.cdp.send("Accessibility.getPartialAXTree", {
+            objectId: result.objectId,
+            fetchRelatives: false,
+        });
+        const n = nodes[0];
+        const states = (n?.properties || [])
+            .filter((p) => SR_STATES.has(p.name) && p.value.value !== false && p.value.value !== "false")
+            .map((p) => (p.value.value === true || p.value.value === "true" ? p.name : `${p.name}=${p.value.value}`));
+        said =
+            !n || n.ignored
+                ? "an element screen readers skip (no role in the accessibility tree)"
+                : [
+                      n.role?.value || "unknown role",
+                      n.name?.value ? JSON.stringify(n.name.value) : "(no name)",
+                      n.value?.value !== undefined && n.value.value !== ""
+                          ? `value ${JSON.stringify(String(n.value.value))}`
+                          : "",
+                      states.join(", "),
+                  ]
+                      .filter(Boolean)
+                      .join(" ");
+    }
+    out.push(`focus: ${said}`);
+    srLive(s, out);
+}
+async function srLive(s, out) {
+    const live = await s.page.evaluate(() => (window.__srLive || []).splice(0)).catch(() => []);
+    for (const l of live) out.push(`live: ${l}`);
+}
+
 // Copies every file the app wrote through a save picker into <session dir>/saved/ and says so
 async function copySaves(s, out) {
     const now = await s.page
@@ -478,6 +565,7 @@ async function opStart(s, setup) {
                 uncommittedChanges: commit.dirty,
                 buildStamp: commit.build,
                 url: TIER1,
+                screenReaderMode: !!s.sr,
                 viewport: VIEWPORT,
                 started: new Date().toISOString(),
                 setup: setup.map((x) => x.join(" ")),
@@ -499,6 +587,7 @@ async function opStart(s, setup) {
         }
     }
     s.errors.length = 0; // what loading and setup printed is in session.log, not the participant's view
+    if (s.sr) await srReport(s, out);
     out.push(`commit ${commit.sha}${commit.dirty ? " (with uncommitted changes)" : ""}, build ${commit.build}`);
     out.push(await shot(s));
     return { out, code };
@@ -934,8 +1023,10 @@ async function run(s, steps, out) {
         for (const p of s.picked.splice(0)) out.push(p);
         if ((s.chooser || s.picker) && a !== "--upload")
             out.push("a file chooser is open (answer it with --upload <file>)");
+        if (s.sr) await srReport(s, out);
     }
     await settle(s, out);
+    if (s.sr) await srLive(s, out); // what was announced while the drawing settled
     await copySaves(s, out);
     // downloads that started during these steps: saved into the session folder and named
     if (s.downloads.length) {
@@ -994,6 +1085,7 @@ async function prove() {
     try {
         let x = step(A, "--click", "No thanks", "--expect", "Samples");
         check("a click by a control's name", x.code === 0 && pngs(A).length === 2, x.out);
+        check("a session without --sr prints no screen-reader lines", !/^(focus|live): /m.test(x.out), x.out);
         x = step(
             A,
             "--click",
@@ -1127,7 +1219,32 @@ async function prove() {
         `exit ${r.status} ${r.stdout}`,
     );
     node(["--end", C]);
-    return finish(bad, [A, B, C]);
+    // screen-reader mode: the focused element's role and name after every step, and live-region text
+    const D = join(base, "session-d");
+    r = node(["--start", D, "empty", "--sr"]);
+    check(
+        "an --sr start prints what has focus",
+        r.status === 0 && /^focus: /m.test(r.stdout),
+        `exit ${r.status} ${r.stdout}${r.stderr}`,
+    );
+    if (r.status === 0) {
+        let x = step(D, "--click", "No thanks", "--click", "Open project or file", "--upload", "florentine.gml");
+        check("every step prints a focus line", (x.out.match(/^focus: /gm) || []).length === 3, x.out);
+        x = step(D, "--click", "Find");
+        check(
+            "the focus line gives the role and the accessible name",
+            /^focus: (combobox|textbox|searchbox) "[^"]+"/m.test(x.out),
+            x.out,
+        );
+        x = step(D, "--type", "zzzz");
+        check(
+            "a live region's new text is printed",
+            /^live: status \(polite\): "No match for \\"zzzz\\""/m.test(x.out) && /value "zzzz"/.test(x.out),
+            x.out,
+        );
+    }
+    node(["--end", D]);
+    return finish(bad, [A, B, C, D]);
 }
 function finish(bad, dirs) {
     for (const d of dirs)
@@ -1141,12 +1258,13 @@ const args = process.argv.slice(2);
 const mode = args[0];
 let code = 0;
 if (mode === "--serve") {
-    await serve(resolve(args[1]));
+    await serve(resolve(args[1]), args[2] === "--sr");
 } else if (mode === "--start") {
-    if (!args[1]) {
-        console.error("usage: real.mjs --start <session dir> [empty | setup:<file>]");
+    const [dir, how] = args.slice(1).filter((x) => x !== "--sr");
+    if (!dir) {
+        console.error("usage: real.mjs --start <session dir> [empty | setup:<file>] [--sr]");
         code = 2;
-    } else code = await start(args[1], args[2] || "empty");
+    } else code = await start(dir, how || "empty", args.includes("--sr"));
 } else if (mode === "--step") {
     const p = parseSteps(args.slice(2));
     if (!args[1] || p.refused) {
@@ -1172,7 +1290,7 @@ if (mode === "--serve") {
     code = await prove();
 } else {
     console.error(
-        "usage: real.mjs --start <dir> [empty|setup:<file>] | --step <dir> <steps...> | --end <dir> | --prove",
+        "usage: real.mjs --start <dir> [empty|setup:<file>] [--sr] | --step <dir> <steps...> | --end <dir> | --prove",
     );
     code = 2;
 }

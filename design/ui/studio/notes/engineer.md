@@ -15,11 +15,13 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-06) The study tool can now save, reopen and see motion: `real.mjs` answers the save and
-   open pickers (real private-file-system handles, copies in `<session>/saved/`), `--reopen` closes
-   the tab and opens a new one on the same storage (preflight 7 settled: it works), names resolve
-   only inside an open `aria-modal` dialog, and a canvas that keeps changing across three captures
-   prints "the drawing is still moving". `--prove` covers all four.
+1. (2026-10-06) The study tool saves, reopens and sees motion: `real.mjs` answers the save and open
+   pickers (copies in `<session>/saved/`), `--reopen` keeps browser storage, names resolve only
+   inside an open `aria-modal` dialog, a still-changing canvas prints "the drawing is still
+   moving". Screen-reader mode (`--start <dir> empty --sr`, 2026-10-06) prints after every step
+   `focus: <role> "<name>" value ... states` (Chromium's AX tree via CDP) and `live: ...` for every
+   live region that appears or changes; it unblocks the screen-reader sessions. `--prove` covers
+   all of it.
 2. (2026-10-06) Graph logic goes in graphty-element, never the app. An app comment that explains why
    the element could not be used is an element bug report; I fix the element locally rather than
    add or keep an app workaround. Presentation (words, headings, grouping, what to show) is the
@@ -226,6 +228,15 @@ acceptance test. "The studio worktree" is
   (`tmp/check-r0-csv-group-numbers/s1/05.png`, `downloads/`).
 
 ## Tried: worked / did not work
+
+- **(2026-10-06) Screen-reader mode in `real.mjs`.** Accessible name from CDP
+  `Accessibility.getPartialAXTree` on the deep `activeElement` (Chromium's own computation; no
+  hand-rolled name logic); live regions through an init-script MutationObserver, so a message
+  that comes and goes inside one step is still caught. First run on Florentine already found
+  `focus: Canvas (no name)` after a file opens (the graph canvas takes focus with no accessible
+  name) and a polite status that says "No nodes to draw" then "Reading florentine" on open.
+  Evidence: `tmp/check-r1-sr-mode/s1/`, `--prove` session-d. Another agent's `--prove` run deletes
+  `tmp/prove/` under a running one: a FAIL with ENOENT there is that, not a defect.
 
 - 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
   `aria-activedescendant`, first match active): worked; `tmp/check-r0-analyze-keyboard-pick/`.

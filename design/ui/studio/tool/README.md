@@ -28,6 +28,8 @@ Every command prints what a participant would notice, then the path of the new s
 - `--start <folder> setup:<file>` runs the setup file's steps first and never shows them: one step
   per line, unquoted (`--click Open the Zachary's karate club sample`); `#` lines are comments. A
   setup step that misses fails the start with `SETUP FAILED`, which is itself a finding.
+- `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
+  see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json` (the commit and build under study, the
   start), `session.log` (the session process's own log), `setup.log`, and `downloads/`.
 - A session nobody steps for 45 minutes closes itself, so a forgotten one cannot hold a browser.
@@ -99,6 +101,29 @@ node $T/real.mjs --step $S --click "<project name>"       # reopens the saved fi
 - Every script error, `console.error` and failed request since the last step. In the real app
   each is a defect worth a bug report. They make the command exit 1.
 
+## Screen-reader mode
+
+For a participant who uses a screen reader, start the session with `--sr`. After every step (and
+at the start) the tool prints what a screen reader would say, read from Chromium's own
+accessibility tree, as well as the screenshot:
+
+```
+focus: combobox "Find" value "zzzz"
+live: status (polite): "No match for \"zzzz\""
+```
+
+- `focus:` is the focused element (inside a shadow root too): its role, its accessible name, its
+  value, and its states (`expanded`, `checked`, `selected`, `pressed`, `disabled`, ...). `(no name)`
+  means a screen reader would say only the role. `nothing (the page itself)` means focus is on no
+  control, for example after a dialog closed without handing focus back.
+- `live:` is the text of a live region (`aria-live`, `role=status`, `role=alert`, `role=log`) each
+  time it appears or changes, with its politeness. A region inside another one is read as part of
+  it; a hidden one is not read. Text that changes several times in one step (typing a letter at a
+  time) prints each version; a real screen reader may speak only the last.
+- What it cannot tell: how a particular screen reader phrases it, or when it would cut itself off.
+  Read the lines as what the page offers a screen reader, not as a transcript of speech.
+- `session.json` records `"screenReaderMode": true`.
+
 ## Browsers
 
 At most four browsers run at once on this machine, across every study and tool. A session takes
@@ -115,5 +140,6 @@ Runs real sessions against the build: a start, clicks by control name and by a n
 label, a click at a point, a hover tooltip, typing, an upload, a download, a name inside an open
 dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
 planted spin (a camera key held on the canvas) that must be reported, setup starts (one that works,
-one that fails) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
+one that fails), a screen-reader session (a focus line after every step, a live region's new
+text) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`.

@@ -221,13 +221,14 @@ describe("indexed.spectralClustering", () => {
         });
     }
 
-    it("reaches a relaxed cut no larger than legacy's embedding on every undirected fixture", () => {
-        // The eigenvector step minimises trace(V^T L V) over orthonormal V; its minimum is the sum
-        // of the k smallest eigenvalues. The legacy step does not reach it: for k <= 3 it runs a
-        // fixed number of power steps from a random start, and above that it finds the LARGEST.
-        for (const { name, graph } of undirectedFixtures()) {
-            const s = checksummedSnapshot(graph);
-            for (const type of ["unnormalized", "normalized"] as const) {
+    // One test per fixture and Laplacian, so no single test carries the whole list's eigensolves.
+    for (const { name, graph } of undirectedFixtures()) {
+        for (const type of ["unnormalized", "normalized"] as const) {
+            it(`reaches a relaxed cut no larger than legacy's embedding on ${name}, ${type} Laplacian`, () => {
+                // The eigenvector step minimises trace(V^T L V) over orthonormal V; its minimum is the sum
+                // of the k smallest eigenvalues. The legacy step does not reach it: for k <= 3 it runs a
+                // fixed number of power steps from a random start, and above that it finds the LARGEST.
+                const s = checksummedSnapshot(graph);
                 const l = denseLaplacian(graph, s, type);
                 for (const k of [2, 3, 4]) {
                     const port = ritzTrace(
@@ -244,18 +245,17 @@ describe("indexed.spectralClustering", () => {
                         }
                     }
                 }
-            }
+            });
         }
-    });
+    }
 
-    it("cuts no worse than legacy's average on the fixtures with community structure", () => {
-        // Left out: the 40-node random graph, whose spectrum has no gap after the first eigenvalue,
-        // so neither embedding carries cluster structure and the cut is k-means luck. There the
-        // port's normalised cut at k = 2 and 3 is within 6% of legacy's ten-seed average.
-        const structured = undirectedFixtures().filter((f) => f.name !== "random 40 nodes, 120 edges");
-        for (const { name, graph } of structured) {
-            const s = checksummedSnapshot(graph);
-            for (const type of TYPES) {
+    // Left out: the 40-node random graph, whose spectrum has no gap after the first eigenvalue,
+    // so neither embedding carries cluster structure and the cut is k-means luck. There the
+    // port's normalised cut at k = 2 and 3 is within 6% of legacy's ten-seed average.
+    for (const { name, graph } of undirectedFixtures().filter((f) => f.name !== "random 40 nodes, 120 edges")) {
+        for (const type of TYPES) {
+            it(`cuts no worse than legacy's average on ${name}, ${type} Laplacian`, () => {
+                const s = checksummedSnapshot(graph);
                 for (const k of [2, 3, 4]) {
                     const port = normalisedCut(
                         graph,
@@ -269,9 +269,9 @@ describe("indexed.spectralClustering", () => {
                     }
                     expect(port, `${name} ${type} k=${k}`).toBeLessThanOrEqual(sum / 10 + 1e-9);
                 }
-            }
+            });
         }
-    });
+    }
 
     it("reads a directed snapshot as its undirected counterpart", () => {
         const [chorded] = directedFixtures();

@@ -87,6 +87,13 @@ body {
 ${FOCUSABLE_REST} {
     outline: 1px solid transparent;
 }
+/* The default ring: a Mantine focusable the theme gave no cm- class (an UnstyledButton with the
+   app's own class) still rings on keyboard focus. A control with a cm- class draws its own ring,
+   so it is left out; :where keeps this at Mantine's specificity so any later rule wins. */
+.mantine-focus-never:where(:not([class^="cm-"], [class*=" cm-"])):focus-visible {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: 1px;
+}
 .cm-focus-outside { outline-offset: 1px; }
 .cm-focus-flush { outline-offset: 0; }
 .cm-focus-inside { outline-offset: -1px; }

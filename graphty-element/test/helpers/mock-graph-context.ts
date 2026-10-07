@@ -16,7 +16,7 @@ import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
 import type { GraphSession } from "../../src/session";
 import { createStylesApi } from "../../src/session/styles";
-import type { SelectorSource } from "../../src/session/styles/predicate";
+import { columnsFor, compileExpressionPredicate, type SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
 
 /**
@@ -248,6 +248,15 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // session as `tx`, which is what a command is handed as `ctx.tx`.
     const mockSession = {
         styles: mockSessionStyles,
+        // A `{ where }` scope, read by the same expression compiler a style layer uses, so a
+        // command that selects nodes reads the same selector language a layer does.
+        scope: {
+            resolve: (spec: { where: string }) =>
+                Promise.resolve().then(() => {
+                    const { test } = compileExpressionPredicate(spec.where, columnsFor(selectorSource, "node"));
+                    return { nodes: new Set(nodeRows.flatMap((row, index) => (test(index) ? [row["data.id"]] : []))) };
+                }),
+        },
         layout: {
             set: async (id: string, options?: { engine?: string }) => {
                 await mockGraph.setLayout(options?.engine ?? id);

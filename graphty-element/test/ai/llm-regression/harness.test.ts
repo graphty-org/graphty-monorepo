@@ -6,16 +6,20 @@
  * These tests verify the harness works correctly with both mocked and real LLM providers.
  */
 
+import { APICallError, RetryError } from "ai";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import {
+    getLlmRegressionApiKey,
+    getLlmRegressionKeyVariable,
     getLlmRegressionModel,
-    getOpenAiApiKey,
+    getLlmRegressionProvider,
     getSkipReason,
     isLlmRegressionEnabled,
     skipIfNoApiKey,
 } from "../../helpers/llm-regression-env";
 import {
+    accountRefusalOf,
     type LlmRegressionResult,
     LlmRegressionTestHarness,
     type TestGraphFixture,
@@ -23,11 +27,45 @@ import {
 
 describe("LlmRegressionTestHarness", () => {
     describe("Environment Utilities", () => {
-        it("getOpenAiApiKey returns undefined when not set", () => {
+        it("getLlmRegressionApiKey returns undefined when not set", () => {
             // This test will pass when API key is not set
             // and will still work when it is set (just returns the key)
-            const key = getOpenAiApiKey();
+            const key = getLlmRegressionApiKey();
             assert.ok(key === undefined || typeof key === "string");
+        });
+
+        describe("provider selection", () => {
+            afterEach(() => {
+                vi.unstubAllEnvs();
+            });
+
+            it("defaults to anthropic and its key variable and model", () => {
+                vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", "");
+                vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "");
+                assert.strictEqual(getLlmRegressionProvider(), "anthropic");
+                assert.strictEqual(getLlmRegressionKeyVariable(), "VITE_ANTHROPIC_API_KEY");
+                assert.strictEqual(getLlmRegressionModel(), "claude-haiku-4-5-20251001");
+            });
+
+            it.each([
+                ["openai", "VITE_OPENAI_API_KEY", "gpt-4o-mini"],
+                ["google", "VITE_GOOGLE_API_KEY", "gemini-3.8-flash"],
+            ])("%s reads %s and defaults to %s", (provider, keyVariable, model) => {
+                vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", provider);
+                vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "");
+                assert.strictEqual(getLlmRegressionKeyVariable(), keyVariable);
+                assert.strictEqual(getLlmRegressionModel(), model);
+            });
+
+            it("VITE_LLM_REGRESSION_MODEL overrides the default model", () => {
+                vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "some-model");
+                assert.strictEqual(getLlmRegressionModel(), "some-model");
+            });
+
+            it("rejects a provider the element does not support", () => {
+                vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", "mistral");
+                assert.throws(() => getLlmRegressionProvider(), /must be one of openai, anthropic, google/);
+            });
         });
 
         it("isLlmRegressionEnabled returns boolean", () => {
@@ -43,7 +81,7 @@ describe("LlmRegressionTestHarness", () => {
 
         it("getSkipReason returns descriptive message", () => {
             const reason = getSkipReason();
-            assert.ok(reason.includes("VITE_OPENAI_API_KEY"));
+            assert.ok(reason.includes(getLlmRegressionKeyVariable()));
         });
 
         it("getLlmRegressionModel returns gpt-4o-mini by default", () => {
@@ -57,7 +95,7 @@ describe("LlmRegressionTestHarness", () => {
     describe("Harness Creation (No API Key)", () => {
         beforeEach(() => {
             // Mock environment to ensure no API key
-            vi.stubEnv("VITE_OPENAI_API_KEY", "");
+            vi.stubEnv(getLlmRegressionKeyVariable(), "");
         });
 
         afterEach(() => {
@@ -75,7 +113,7 @@ describe("LlmRegressionTestHarness", () => {
                 assert.fail("Expected error to be thrown");
             } catch (error) {
                 assert.ok(error instanceof Error);
-                assert.ok(error.message.includes("VITE_OPENAI_API_KEY"));
+                assert.ok(error.message.includes(getLlmRegressionKeyVariable()));
             }
         });
     });
@@ -97,7 +135,7 @@ describe("LlmRegressionTestHarness", () => {
             assert.ok(harness.getGraph());
         });
 
-        it("configures OpenAI provider from environment", () => {
+        it("configures the selected provider from environment", () => {
             // If we got here, the harness was created successfully with the API key
             assert.ok(harness);
         });
@@ -143,12 +181,46 @@ describe("LlmRegressionTestHarness", () => {
         });
     });
 
+    describe("account refusals", () => {
+        /** A provider error as the AI SDK reports it. */
+        function apiError(statusCode: number, responseBody: string): APICallError {
+            return new APICallError({
+                message: "request failed",
+                url: "https://provider.example/v1",
+                requestBodyValues: {},
+                statusCode,
+                responseBody,
+                isRetryable: statusCode === 429,
+            });
+        }
+
+        it("a rejected key is the owner's to fix", () => {
+            assert.strictEqual(accountRefusalOf(apiError(401, '{"type":"authentication_error"}')), "HTTP 401");
+            assert.strictEqual(accountRefusalOf(apiError(403, '{"type":"permission_error"}')), "HTTP 403");
+        });
+
+        it("an empty balance is the owner's to fix, whatever status the provider uses", () => {
+            assert.ok(accountRefusalOf(apiError(400, "Your credit balance is too low to access the Anthropic API.")));
+            const quota = apiError(429, '{"error":{"code":"insufficient_quota"}}');
+            assert.ok(
+                accountRefusalOf(new RetryError({ message: "gave up", reason: "maxRetriesExceeded", errors: [quota] })),
+            );
+        });
+
+        it("a rate limit or an ordinary failure is not an account refusal", () => {
+            assert.strictEqual(accountRefusalOf(apiError(429, '{"type":"rate_limit_error"}')), null);
+            assert.strictEqual(accountRefusalOf(apiError(500, "overloaded")), null);
+            assert.strictEqual(accountRefusalOf(new Error("tool failed")), null);
+        });
+    });
+
     describe("Result Structure Validation", () => {
         it("LlmRegressionResult interface matches expected structure", () => {
             // Create a mock result to verify the interface
             const mockResult: LlmRegressionResult = {
                 prompt: "test prompt",
                 toolWasCalled: true,
+                toolCalls: [{ name: "testTool", arguments: { param1: "value1" } }],
                 toolName: "testTool",
                 toolParams: { param1: "value1" },
                 commandResult: { success: true, message: "done" },
@@ -172,6 +244,7 @@ describe("LlmRegressionTestHarness", () => {
             const mockResult: LlmRegressionResult = {
                 prompt: "test",
                 toolWasCalled: false,
+                toolCalls: [],
                 toolName: null,
                 toolParams: null,
                 commandResult: null,
@@ -249,7 +322,7 @@ describe("LlmRegressionTestHarness", () => {
         describe.skipIf(skipIfNoApiKey())("with real API", () => {
             it("accepts custom model option", async () => {
                 const localHarness = await LlmRegressionTestHarness.create({
-                    model: "gpt-4o-mini",
+                    model: getLlmRegressionModel(),
                 });
 
                 assert.ok(localHarness);

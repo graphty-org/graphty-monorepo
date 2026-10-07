@@ -17,6 +17,16 @@ import type {
 export type VercelProviderType = "openai" | "anthropic" | "google";
 
 /**
+ * The model each provider uses when `configure` is given none. Each is a current model id from
+ * the provider's own model list (checked 2026-10-07); a retired id fails every request.
+ */
+const DEFAULT_MODELS: Readonly<Record<VercelProviderType, string>> = {
+    openai: "gpt-4o",
+    anthropic: "claude-haiku-4-5-20251001",
+    google: "gemini-3.8-flash",
+};
+
+/**
  * LLM provider implementation using the Vercel AI SDK.
  * Supports OpenAI, Anthropic, and Google providers.
  */
@@ -65,7 +75,7 @@ export class VercelAiProvider implements LlmProvider {
         switch (this.providerType) {
             case "openai": {
                 const openai = createOpenAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return openai(this.model ?? "gpt-4o");
+                return openai(this.model ?? DEFAULT_MODELS.openai);
             }
             case "anthropic": {
                 const anthropic = createAnthropic({
@@ -76,14 +86,12 @@ export class VercelAiProvider implements LlmProvider {
                         "anthropic-dangerous-direct-browser-access": "true",
                     },
                 });
-                // Use claude-3-haiku as default - it's cost-effective and known to work well
-                // claude-3-5-sonnet-20241022 has been deprecated in favor of newer naming conventions
-                return anthropic(this.model ?? "claude-3-haiku-20240307");
+                return anthropic(this.model ?? DEFAULT_MODELS.anthropic);
             }
             case "google":
             default: {
                 const google = createGoogleGenerativeAI({ apiKey: this.apiKey, baseURL: this.baseUrl });
-                return google(this.model ?? "gemini-2.0-flash");
+                return google(this.model ?? DEFAULT_MODELS.google);
             }
         }
     }
@@ -227,6 +235,15 @@ export class VercelAiProvider implements LlmProvider {
      * @returns Array of ModelMessage objects
      */
     private convertMessages(messages: Message[]): ModelMessage[] {
+        // A tool result names its tool: Google refuses a function response with an empty name.
+        // The name is the one the assistant's call with the same id gave.
+        const toolNames = new Map<string, string>();
+        for (const msg of messages) {
+            for (const call of msg.toolCalls ?? []) {
+                toolNames.set(call.id, call.name);
+            }
+        }
+
         return messages.map((msg): ModelMessage => {
             switch (msg.role) {
                 case "system":
@@ -261,7 +278,7 @@ export class VercelAiProvider implements LlmProvider {
                             {
                                 type: "tool-result" as const,
                                 toolCallId: msg.toolCallId ?? "",
-                                toolName: "", // Will be matched by toolCallId
+                                toolName: toolNames.get(msg.toolCallId ?? "") ?? "",
                                 output: { type: "text" as const, value: msg.content },
                             },
                         ],

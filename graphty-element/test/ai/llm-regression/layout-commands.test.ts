@@ -12,7 +12,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
@@ -84,13 +84,12 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             const result = await harness.testPrompt("Use circular layout");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "setLayout");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "setLayout");
 
             // Verify layout type is circular
             assert.ok(
-                isValidLayoutType(result.toolParams.type, "circular"),
-                `Expected layout type 'circular' but got '${result.toolParams.type}'`,
+                isValidLayoutType(call.arguments.type, "circular"),
+                `Expected layout type 'circular' but got '${call.arguments.type}'`,
             );
         });
 
@@ -98,13 +97,12 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             const result = await harness.testPrompt("Switch to force-directed layout");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "setLayout");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "setLayout");
 
             // Force-directed could be ngraph, d3, spring, or forceatlas2
             assert.ok(
-                isValidLayoutType(result.toolParams.type, "force-directed"),
-                `Expected force-directed layout type but got '${result.toolParams.type}'`,
+                isValidLayoutType(call.arguments.type, "force-directed"),
+                `Expected force-directed layout type but got '${call.arguments.type}'`,
             );
         });
 
@@ -112,13 +110,12 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             const result = await harness.testPrompt("Arrange nodes randomly");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "setLayout");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "setLayout");
 
             // Verify layout type is random
             assert.ok(
-                isValidLayoutType(result.toolParams.type, "random"),
-                `Expected layout type 'random' but got '${result.toolParams.type}'`,
+                isValidLayoutType(call.arguments.type, "random"),
+                `Expected layout type 'random' but got '${call.arguments.type}'`,
             );
         });
     });
@@ -128,11 +125,10 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             const result = await harness.testPrompt("Switch to 2D view");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "setDimension");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "setDimension");
 
             // Verify dimension is 2D (accept various formats)
-            const { dimension } = result.toolParams;
+            const { dimension } = call.arguments;
             assert.ok(
                 dimension === "2d" || dimension === "2D" || dimension === 2,
                 `Expected dimension '2d' but got '${String(dimension)}'`,
@@ -143,11 +139,10 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             const result = await harness.testPrompt("Show in 3D");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "setDimension");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "setDimension");
 
             // Verify dimension is 3D (accept various formats)
-            const { dimension } = result.toolParams;
+            const { dimension } = call.arguments;
             assert.ok(
                 dimension === "3d" || dimension === "3D" || dimension === 3,
                 `Expected dimension '3d' but got '${String(dimension)}'`,
@@ -160,7 +155,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             const result = await harness.testPrompt("Change layout to circular arrangement");
 
             assert.ok(result.toolWasCalled, "Expected setLayout to be called");
-            assert.strictEqual(result.toolName, "setLayout");
+            assertCalled(result, "setLayout");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
@@ -171,7 +166,7 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             const result = await harness.testPrompt("Make the graph 2D");
 
             assert.ok(result.toolWasCalled, "Expected setDimension to be called");
-            assert.strictEqual(result.toolName, "setDimension");
+            assertCalled(result, "setDimension");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");

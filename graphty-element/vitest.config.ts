@@ -668,8 +668,10 @@ export default defineConfig({
             //
             // Every case makes a paid API call, so this project runs in no pull-request or merge-queue
             // job. The release train runs it on every release candidate (release.yml's "LLM regression"
-            // job). Its seven real test files sit inside describe.skipIf(skipIfNoApiKey()), so without a
-            // key they skip; the release job checks the key is set first and fails if it is not.
+            // job). VITE_LLM_REGRESSION_PROVIDER picks the provider (anthropic by default; openai and
+            // google also work) and its key variable (VITE_ANTHROPIC_API_KEY, ...). Its seven real test
+            // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
+            // job checks the key is set first and fails if it is not.
             {
                 test: {
                     name: "llm-regression",

@@ -7,6 +7,7 @@
  */
 
 import { Color3 } from "@babylonjs/core";
+import { APICallError, RetryError } from "ai";
 
 import { AiController } from "../../src/ai/AiController";
 import { CommandRegistry } from "../../src/ai/commands";
@@ -16,7 +17,12 @@ import type { ToolCall } from "../../src/ai/providers/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
 import { SchemaManager } from "../../src/ai/schema";
 import type { Graph } from "../../src/Graph";
-import { getLlmRegressionModel, getOpenAiApiKey } from "./llm-regression-env";
+import {
+    getLlmRegressionApiKey,
+    getLlmRegressionKeyVariable,
+    getLlmRegressionModel,
+    getLlmRegressionProvider,
+} from "./llm-regression-env";
 import { createMockGraphContext } from "./mock-graph-context";
 
 /**
@@ -35,9 +41,15 @@ export interface LlmRegressionResult {
     prompt: string;
     /** Whether a tool was called */
     toolWasCalled: boolean;
-    /** Name of the tool that was called (or null if no tool call) */
+    /**
+     * Every tool call the model made for this prompt, across every turn, in order. The element
+     * hands each tool's result back to the model, so a model may look first (findNodes) and act
+     * after (zoomToNodes).
+     */
+    toolCalls: CapturedToolCall[];
+    /** Name of the LAST tool the model called: the action it ended on (or null if no tool call) */
     toolName: string | null;
-    /** Parameters passed to the tool (or null if no tool call) */
+    /** Parameters of that last call (or null if no tool call) */
     toolParams: Record<string, unknown> | null;
     /** Result of executing the command (or null if no tool call or execution failed) */
     commandResult: CommandResult | null;
@@ -74,6 +86,40 @@ export interface RetryOptions {
 }
 
 /**
+ * The words a failed run prints when the provider refused the ACCOUNT -- a bad or revoked key, or
+ * no credit or quota left -- rather than the request. The release job looks for them: such a
+ * failure is the owner's to fix (fund the account, replace the key), not a code defect.
+ */
+export const ACCOUNT_REFUSED_MARKER = "[llm-regression] provider refused the account";
+
+/**
+ * Why the provider refused the account behind a request, or null when it refused only the request.
+ * @param error - What the request failed with.
+ * @returns A short reason, such as "HTTP 401", or null.
+ */
+export function accountRefusalOf(error: unknown): string | null {
+    const last = RetryError.isInstance(error) ? error.lastError : error;
+    const cause = last instanceof Error && !APICallError.isInstance(last) ? last.cause : last;
+    if (!APICallError.isInstance(cause)) {
+        return null;
+    }
+
+    const status = cause.statusCode;
+    if (status === 401 || status === 403) {
+        return `HTTP ${status}`;
+    }
+
+    // Anthropic answers an empty balance with 400 ("credit balance is too low"), OpenAI with 429
+    // insufficient_quota, Google with 429 RESOURCE_EXHAUSTED on a billing quota.
+    const text = `${cause.message} ${cause.responseBody ?? ""}`.toLowerCase();
+    if (/credit balance|insufficient_quota|no credits|billing|exceeded your current quota/.test(text)) {
+        return `HTTP ${status ?? "?"}, out of credit or quota`;
+    }
+
+    return null;
+}
+
+/**
  * Default retry options
  */
 const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
@@ -87,9 +133,7 @@ const DEFAULT_RETRY_OPTIONS: Required<Omit<RetryOptions, "retryOn">> = {
 export interface LlmRegressionTestHarnessOptions {
     /** Test graph fixture data */
     graphData?: TestGraphFixture;
-    /** Provider type (currently only openai supported) */
-    provider?: "openai";
-    /** Model to use (defaults to gpt-4o-mini) */
+    /** Model to use (defaults to VITE_LLM_REGRESSION_MODEL, else the provider's default) */
     model?: string;
     /** Temperature setting (defaults to 0 for determinism) */
     temperature?: number;
@@ -98,7 +142,7 @@ export interface LlmRegressionTestHarnessOptions {
 /**
  * Captured tool call information from the provider
  */
-interface CapturedToolCall {
+export interface CapturedToolCall {
     name: string;
     arguments: Record<string, unknown>;
 }
@@ -120,17 +164,19 @@ class ToolCallCapturingProvider extends VercelAiProvider {
         counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
         const result = await super.generate(messages, tools, options);
 
-        // Capture tool calls
-        this.capturedToolCalls = result.toolCalls.map((tc: ToolCall) => ({
-            name: tc.name,
-            arguments: tc.arguments,
-        }));
+        // Every turn's tool calls, in order: one prompt may ask the model several times.
+        this.capturedToolCalls.push(
+            ...result.toolCalls.map((tc: ToolCall) => ({
+                name: tc.name,
+                arguments: tc.arguments,
+            })),
+        );
 
-        // Capture token usage
+        // Token usage, summed over the prompt's turns
         if (result.usage) {
             this.capturedTokenUsage = {
-                prompt: result.usage.promptTokens,
-                completion: result.usage.completionTokens,
+                prompt: (this.capturedTokenUsage?.prompt ?? 0) + result.usage.promptTokens,
+                completion: (this.capturedTokenUsage?.completion ?? 0) + result.usage.completionTokens,
             };
         }
 
@@ -147,7 +193,7 @@ class ToolCallCapturingProvider extends VercelAiProvider {
  * LLM Regression Test Harness
  *
  * Provides infrastructure for testing real LLM tool calling behavior.
- * Sends prompts to OpenAI's API and verifies correct tools are called.
+ * Sends prompts to the selected provider's API and verifies correct tools are called.
  */
 export class LlmRegressionTestHarness {
     private controller: AiController;
@@ -168,13 +214,15 @@ export class LlmRegressionTestHarness {
      * @throws Error if API key is not available
      */
     static create(options: LlmRegressionTestHarnessOptions = {}): Promise<LlmRegressionTestHarness> {
-        const apiKey = getOpenAiApiKey();
+        const apiKey = getLlmRegressionApiKey();
         if (!apiKey) {
-            throw new Error("VITE_OPENAI_API_KEY environment variable is required for LLM regression tests");
+            throw new Error(
+                `${getLlmRegressionKeyVariable()} environment variable is required for LLM regression tests`,
+            );
         }
 
-        // Create provider
-        const provider = new ToolCallCapturingProvider("openai");
+        // The provider VITE_LLM_REGRESSION_PROVIDER names (anthropic by default)
+        const provider = new ToolCallCapturingProvider(getLlmRegressionProvider());
         provider.configure({
             apiKey,
             model: options.model ?? getLlmRegressionModel(),
@@ -256,6 +304,12 @@ export class LlmRegressionTestHarness {
             // NOT this: it is part of what the model did, and stays in `commandResult`.
             const failure = this.controller.getLastError();
             if (failure) {
+                const refusal = accountRefusalOf(failure);
+                if (refusal !== null) {
+                    // Retrying cannot help, and the message carries the marker the release job reads.
+                    throw new Error(`${ACCOUNT_REFUSED_MARKER} (${refusal}): ${failure.message}`, { cause: failure });
+                }
+
                 if (attempt < maxRetries && shouldRetry(failure)) {
                     await this.delay(retryDelayMs);
                     continue;
@@ -266,13 +320,14 @@ export class LlmRegressionTestHarness {
                 });
             }
 
-            const toolCalls = this.provider.capturedToolCalls;
-            const firstToolCall = toolCalls.length > 0 ? toolCalls[0] : null;
+            const toolCalls = [...this.provider.capturedToolCalls];
+            const lastToolCall = toolCalls.at(-1) ?? null;
             const result: LlmRegressionResult = {
                 prompt,
                 toolWasCalled: toolCalls.length > 0,
-                toolName: firstToolCall?.name ?? null,
-                toolParams: firstToolCall?.arguments ?? null,
+                toolCalls,
+                toolName: lastToolCall?.name ?? null,
+                toolParams: lastToolCall?.arguments ?? null,
                 commandResult: {
                     success: executionResult.success,
                     message: executionResult.message,
@@ -280,7 +335,7 @@ export class LlmRegressionTestHarness {
                     affectedNodes: executionResult.affectedNodes,
                     affectedEdges: executionResult.affectedEdges,
                 },
-                llmText: executionResult.message,
+                llmText: executionResult.llmText ?? null,
                 latencyMs: Date.now() - startTime,
                 tokenUsage: this.provider.capturedTokenUsage,
             };
@@ -325,23 +380,13 @@ export class LlmRegressionTestHarness {
                 ? expectations.expectedTool
                 : [expectations.expectedTool];
 
-            if (!result.toolWasCalled) {
-                throw new Error(`Expected tool call but none occurred. Expected one of: ${expectedTools.join(", ")}`);
-            }
+            const call = assertCalled(result, expectedTools);
 
-            if (result.toolName && !expectedTools.includes(result.toolName)) {
-                throw new Error(
-                    `Expected tool to be one of [${expectedTools.join(", ")}] but got "${result.toolName}"`,
-                );
-            }
-        }
-
-        // Check expected params (partial match)
-        if (expectations.expectedParams !== undefined && result.toolParams !== null) {
-            for (const [key, value] of Object.entries(expectations.expectedParams)) {
-                if (result.toolParams[key] !== value) {
+            // Check expected params (partial match) on that call
+            for (const [key, value] of Object.entries(expectations.expectedParams ?? {})) {
+                if (call.arguments[key] !== value) {
                     throw new Error(
-                        `Expected param "${key}" to be ${JSON.stringify(value)} but got ${JSON.stringify(result.toolParams[key])}`,
+                        `Expected param "${key}" to be ${JSON.stringify(value)} but got ${JSON.stringify(call.arguments[key])}`,
                     );
                 }
             }
@@ -371,6 +416,25 @@ export class LlmRegressionTestHarness {
             this.disposed = true;
         }
     }
+}
+
+/**
+ * The model's first call to a tool, asserting there is one. The model may look before it acts
+ * and look again after, so a test asks whether the tool it is about was called, not whether it
+ * was called first or last.
+ * @param result - The prompt's result.
+ * @param name - The tool, or the tools any one of which is acceptable.
+ * @returns The first call to it.
+ */
+export function assertCalled(result: LlmRegressionResult, name: string | readonly string[]): CapturedToolCall {
+    const names = typeof name === "string" ? [name] : name;
+    const call = result.toolCalls.find((candidate) => names.includes(candidate.name));
+    if (!call) {
+        const made = result.toolCalls.map((candidate) => candidate.name).join(", ") || "none";
+        throw new Error(`Expected a call to ${names.join(" or ")}; the model called: ${made}`);
+    }
+
+    return call;
 }
 
 /**

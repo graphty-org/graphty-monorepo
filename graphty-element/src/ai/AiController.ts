@@ -14,6 +14,40 @@ import type { SchemaManager } from "./schema";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
+/**
+ * How many times one message may ask the model. Each ask after the first carries the results of
+ * the tools the previous one called; the last one's tools still run, and its answer is final.
+ */
+const MAX_MODEL_TURNS = 5;
+
+/** How much of one tool result is handed back to the model, so a large graph's answer stays a bounded prompt. */
+const MAX_TOOL_RESULT_CHARS = 8000;
+
+/**
+ * What the model is told a tool did: its success, its message and its data, as JSON.
+ * @param result - The tool's result, or undefined for a tool that did not run because an earlier one failed.
+ * @returns The tool message's content.
+ */
+function toolResultContent(result: CommandResult | undefined): string {
+    if (result === undefined) {
+        return JSON.stringify({ success: false, message: "Not run: an earlier tool call in this step failed." });
+    }
+
+    const content = JSON.stringify({ success: result.success, message: result.message, data: result.data });
+    return content.length > MAX_TOOL_RESULT_CHARS
+        ? `${content.slice(0, MAX_TOOL_RESULT_CHARS)}... (truncated)`
+        : content;
+}
+
+/**
+ * The model's text across every turn of one message.
+ * @param texts - Each turn's text, empty ones left out.
+ * @returns The text, or undefined when the model wrote none.
+ */
+function joinTexts(texts: readonly string[]): string | undefined {
+    return texts.length === 0 ? undefined : texts.join("\n");
+}
+
 /** Event emitter callback type */
 export type AiEventEmitter = (event: AiEvent) => void;
 
@@ -292,58 +326,78 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // Transition to streaming state
         this.statusManager.startStreaming();
 
-        // Call the LLM
-        const response = await this.provider.generate(messages, tools, { signal: aborted });
+        // Every tool result goes back to the model, which then calls more tools or answers. A
+        // model that looks before it acts -- findNodes, then zoomToNodes on what it found -- gets
+        // to act; asked only once, it would stop after looking and the person would get nothing.
+        const results: CommandResult[] = [];
+        const texts: string[] = [];
 
-        logger.debug("Response", {
-            text: response.text || "(no text)",
-            toolCalls: response.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments })),
-        });
+        for (let turn = 1; ; turn++) {
+            const response = await this.provider.generate(messages, tools, { signal: aborted });
 
-        // Append any text response and emit stream chunk event
-        if (response.text) {
-            this.statusManager.appendStreamedText(response.text);
-            this.emitAiEvent({
-                type: "ai-stream-chunk",
-                text: response.text,
-                accumulated: response.text,
+            logger.debug("Response", {
+                turn,
+                text: response.text || "(no text)",
+                toolCalls: response.toolCalls.map((tc) => ({ name: tc.name, arguments: tc.arguments })),
+            });
+
+            // Append any text response and emit stream chunk event
+            if (response.text) {
+                texts.push(response.text);
+                this.statusManager.appendStreamedText(response.text);
+                this.emitAiEvent({
+                    type: "ai-stream-chunk",
+                    text: response.text,
+                    accumulated: texts.join("\n"),
+                });
+            }
+
+            if (response.toolCalls.length === 0) {
+                break;
+            }
+
+            // Transition to executing state
+            this.statusManager.startExecuting();
+
+            const step = await this.executeToolCalls(response.toolCalls, tx, aborted);
+            results.push(...step.results);
+
+            if (step.threw) {
+                throw new MessageRolledBack(this.combineResults(results, joinTexts(texts)));
+            }
+
+            if (turn === MAX_MODEL_TURNS) {
+                logger.debug("Stopped asking the model", { turns: turn });
+                break;
+            }
+
+            messages.push({ role: "assistant", content: response.text, toolCalls: response.toolCalls });
+            response.toolCalls.forEach((toolCall, index) => {
+                messages.push({
+                    role: "tool",
+                    toolCallId: toolCall.id,
+                    content: toolResultContent(step.results.at(index)),
+                });
             });
         }
 
-        // If no tool calls, return text response
-        if (response.toolCalls.length === 0) {
-            return {
-                success: true,
-                message: response.text || "No response from AI",
-                llmText: response.text,
-            };
-        }
-
-        // Transition to executing state
-        this.statusManager.startExecuting();
-
-        // Execute tool calls
-        return this.executeToolCalls(response.toolCalls, tx, aborted, response.text);
+        return this.combineResults(results, joinTexts(texts));
     }
 
     /**
-     * Execute a list of tool calls.
+     * Execute one turn's tool calls, in order, stopping at the first that fails.
      * @param toolCalls - Tool calls to execute
      * @param tx - The message's transaction
      * @param signal - Fires when the message is cancelled
-     * @param llmText - Text response from LLM (if any)
-     * @returns Combined execution result
-     * @throws MessageRolledBack when a tool threw, so the message's transaction rolls back.
+     * @returns The result of each tool that ran, and whether one threw, which rolls the message back.
      */
     private async executeToolCalls(
         toolCalls: ToolCall[],
         tx: TransactionScope,
         signal: AbortSignal,
-        llmText?: string,
-    ): Promise<ExecutionResult> {
+    ): Promise<{ results: CommandResult[]; threw: boolean }> {
         const results: CommandResult[] = [];
         let threw = false;
-
         for (const toolCall of toolCalls) {
             // Cancelled, or undone while the message was going: no further tool runs.
             signal.throwIfAborted();
@@ -406,13 +460,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
             }
         }
 
-        // Combine results
-        const combined = this.combineResults(results, llmText);
-        if (threw) {
-            throw new MessageRolledBack(combined);
-        }
-
-        return combined;
+        return { results, threw };
     }
 
     /**
@@ -489,7 +537,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         if (results.length === 0) {
             return {
                 success: true,
-                message: llmText ?? "No commands executed",
+                message: llmText ?? "No response from AI",
                 llmText,
             };
         }

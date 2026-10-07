@@ -12,7 +12,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
@@ -73,11 +73,10 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             const result = await harness.testPrompt("Show the graph from above");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "setCameraPosition");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "setCameraPosition");
 
             // Verify preset is topView or similar
-            const { preset } = result.toolParams;
+            const { preset } = call.arguments;
             assert.ok(isValidCameraPreset(preset, "topView"), `Expected topView preset but got '${String(preset)}'`);
         });
 
@@ -85,11 +84,10 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             const result = await harness.testPrompt("View from the side");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "setCameraPosition");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "setCameraPosition");
 
             // Verify preset is sideView or similar
-            const { preset } = result.toolParams;
+            const { preset } = call.arguments;
             assert.ok(isValidCameraPreset(preset, "sideView"), `Expected sideView preset but got '${String(preset)}'`);
         });
 
@@ -98,14 +96,11 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             // This could be either setCameraPosition with fitToGraph preset OR zoomToNodes
-            assert.ok(
-                result.toolName === "setCameraPosition" || result.toolName === "zoomToNodes",
-                `Expected setCameraPosition or zoomToNodes but got '${result.toolName}'`,
-            );
+            const call = assertCalled(result, ["setCameraPosition", "zoomToNodes"]);
 
             // If setCameraPosition, verify preset is fitToGraph
-            if (result.toolName === "setCameraPosition" && result.toolParams) {
-                const { preset } = result.toolParams;
+            if (call.name === "setCameraPosition") {
+                const { preset } = call.arguments;
                 assert.ok(
                     isValidCameraPreset(preset, "fitToGraph"),
                     `Expected fitToGraph preset but got '${String(preset)}'`,
@@ -120,10 +115,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             // This could be either zoomToNodes OR setCameraPosition with fitToGraph
-            assert.ok(
-                result.toolName === "zoomToNodes" || result.toolName === "setCameraPosition",
-                `Expected zoomToNodes or setCameraPosition but got '${result.toolName}'`,
-            );
+            assertCalled(result, ["zoomToNodes", "setCameraPosition"]);
         });
 
         it("calls zoomToNodes for 'Focus on server nodes'", async () => {
@@ -131,15 +123,10 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
             // This should specifically call zoomToNodes since it's filtering by selector
-            assert.strictEqual(
-                result.toolName,
-                "zoomToNodes",
-                `Expected zoomToNodes for selector-based focus but got '${result.toolName}'`,
-            );
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "zoomToNodes");
 
             // Verify selector targets server type
-            const selector = result.toolParams.selector as string | undefined;
+            const selector = call.arguments.selector as string | undefined;
             if (selector && selector.length > 0) {
                 assert.ok(
                     selector.includes("server") || selector.includes("type"),
@@ -154,7 +141,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             const result = await harness.testPrompt("Move camera to front view");
 
             assert.ok(result.toolWasCalled, "Expected setCameraPosition to be called");
-            assert.strictEqual(result.toolName, "setCameraPosition");
+            assertCalled(result, "setCameraPosition");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
@@ -165,7 +152,7 @@ describe.skipIf(skipIfNoApiKey())("Camera Commands LLM Regression", () => {
             const result = await harness.testPrompt("Zoom in on the database nodes");
 
             assert.ok(result.toolWasCalled, "Expected zoomToNodes to be called");
-            assert.strictEqual(result.toolName, "zoomToNodes");
+            assertCalled(result, "zoomToNodes");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");

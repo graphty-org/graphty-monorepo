@@ -12,7 +12,7 @@
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { assertCalled, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
 /**
@@ -85,7 +85,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             const result = await harness.testPrompt("What algorithms are available?");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "listAlgorithms");
+            assertCalled(result, "listAlgorithms");
             // listAlgorithms may or may not have parameters (namespace is optional)
             // The command should work with an empty params object
         });
@@ -94,8 +94,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             const result = await harness.testPrompt("List graphty algorithms");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "listAlgorithms");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            assertCalled(result, "listAlgorithms");
 
             // The LLM should recognize 'graphty' as a namespace
             // It might pass namespace: "graphty" or leave it empty
@@ -108,18 +107,17 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             const result = await harness.testPrompt("Calculate the degree of each node");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "runAlgorithm");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "runAlgorithm");
 
             // Verify algorithm type is degree (or a synonym)
             assert.ok(
-                isValidAlgorithmType(result.toolParams.type, "degree"),
-                `Expected algorithm type 'degree' but got '${String(result.toolParams.type)}'`,
+                isValidAlgorithmType(call.arguments.type, "degree"),
+                `Expected algorithm type 'degree' but got '${String(call.arguments.type)}'`,
             );
 
             // Namespace should typically be 'graphty'
-            if (result.toolParams.namespace) {
-                assert.ok(typeof result.toolParams.namespace === "string", "Namespace should be a string");
+            if (call.arguments.namespace) {
+                assert.ok(typeof call.arguments.namespace === "string", "Namespace should be a string");
             }
         });
 
@@ -127,13 +125,12 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             const result = await harness.testPrompt("Run pagerank");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "runAlgorithm");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "runAlgorithm");
 
             // Verify algorithm type is pagerank
             assert.ok(
-                isValidAlgorithmType(result.toolParams.type, "pagerank"),
-                `Expected algorithm type 'pagerank' but got '${String(result.toolParams.type)}'`,
+                isValidAlgorithmType(call.arguments.type, "pagerank"),
+                `Expected algorithm type 'pagerank' but got '${String(call.arguments.type)}'`,
             );
         });
 
@@ -141,13 +138,12 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             const result = await harness.testPrompt("Run the connected components algorithm on this graph");
 
             assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            assert.strictEqual(result.toolName, "runAlgorithm");
-            assert.ok(result.toolParams, "Expected tool parameters");
+            const call = assertCalled(result, "runAlgorithm");
 
             // Verify algorithm type is connected-components or similar
             assert.ok(
-                isValidAlgorithmType(result.toolParams.type, "connected-components"),
-                `Expected algorithm type related to 'connected-components' but got '${String(result.toolParams.type)}'`,
+                isValidAlgorithmType(call.arguments.type, "connected-components"),
+                `Expected algorithm type related to 'connected-components' but got '${String(call.arguments.type)}'`,
             );
         });
     });
@@ -157,7 +153,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             const result = await harness.testPrompt("Show me all available graph analysis algorithms");
 
             assert.ok(result.toolWasCalled, "Expected listAlgorithms to be called");
-            assert.strictEqual(result.toolName, "listAlgorithms");
+            assertCalled(result, "listAlgorithms");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");
@@ -168,7 +164,7 @@ describe.skipIf(skipIfNoApiKey())("Algorithm Commands LLM Regression", () => {
             const result = await harness.testPrompt("Analyze the graph using degree centrality");
 
             assert.ok(result.toolWasCalled, "Expected runAlgorithm to be called");
-            assert.strictEqual(result.toolName, "runAlgorithm");
+            assertCalled(result, "runAlgorithm");
 
             // Command result should exist
             assert.ok(result.commandResult, "Expected command result");

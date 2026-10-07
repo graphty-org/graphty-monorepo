@@ -3,7 +3,7 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
 import React from "react";
 
-import { isSizeBlock, overflowLine, paintWords, sectionTitle, swatchName } from "./legendWords";
+import { isSizeBlock, overflowLine, paintWords, sectionTitle, swatchName, swatchText } from "./legendWords";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -32,8 +32,10 @@ function rowName(session: GraphSession, block: LegendBlock): string {
  * @returns the ramp row
  */
 function Ramp({ block, title }: Readonly<{ block: LegendBlock; title: string }>): React.JSX.Element {
-    const first = block.swatches.at(0)?.label ?? "";
-    const last = block.swatches.at(-1)?.label ?? "";
+    const firstSwatch = block.swatches.at(0);
+    const lastSwatch = block.swatches.at(-1);
+    const first = firstSwatch === undefined ? "" : swatchText(block, firstSwatch);
+    const last = lastSwatch === undefined ? "" : swatchText(block, lastSwatch);
     if (isSizeBlock(block)) {
         return <RampRow label={title} min={first} max={last} variant="size" />;
     }
@@ -55,15 +57,16 @@ function Ramp({ block, title }: Readonly<{ block: LegendBlock; title: string }>)
  * it, when the element can say.
  * @param props - Component props
  * @param props.block - the block
+ * @param props.layerName - the name of the layer behind the block, for a fixed-value row
  * @returns the rows
  */
-function List({ block }: Readonly<{ block: LegendBlock }>): React.JSX.Element {
+function List({ block, layerName }: Readonly<{ block: LegendBlock; layerName?: string }>): React.JSX.Element {
     return (
         <>
             {block.swatches.map((swatch, index) => (
                 <DataRow
-                    key={`${String(index)}-${swatch.label}`}
-                    name={swatchName(swatch)}
+                    key={`${String(index)}-${swatchText(block, swatch, layerName)}`}
+                    name={swatchName(block, swatch, layerName)}
                     value={paintWords(swatch) ?? swatch.count}
                     icon={swatch.color === undefined ? undefined : <ColorSwatch color={swatch.color} size={12} />}
                 />
@@ -82,8 +85,7 @@ function List({ block }: Readonly<{ block: LegendBlock }>): React.JSX.Element {
  * from the data, the row that wins on top. Each section is titled "<Property>: <row>".
  *
  * Not drawn yet: the sentence saying what a higher value means and the bound size range, which
- * the element does not publish (#912); and the element's departures, which it publishes only as
- * English sentences (#867), while the app writes every word a reader sees.
+ * the element does not publish (#912); and the element's departures (`block.facts`).
  * @param props - Component props
  * @param props.blocks - the element's legend blocks
  * @param props.session - the session
@@ -107,7 +109,11 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                             <Text size="xs" fw={500}>
                                 {title}
                             </Text>
-                            {continuous ? <Ramp block={block} title={title} /> : <List block={block} />}
+                            {continuous ? (
+                                <Ramp block={block} title={title} />
+                            ) : (
+                                <List block={block} layerName={session.styles.get(block.layerId)?.name} />
+                            )}
                         </fieldset>
                     );
                 })}

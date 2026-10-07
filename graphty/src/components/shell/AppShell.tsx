@@ -104,6 +104,7 @@ import {
     type SelectionDelta,
     type SelectionStatistics,
     type TransactionScope,
+    type XrCapability,
 } from "@graphty/graphty-element/session";
 import { Box, Button, Group, Modal, Text } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -113,6 +114,7 @@ import { CAT_SOCIAL_NETWORK, CAT_SOCIAL_NETWORK_NAME } from "../../data/sampleGr
 import { SAMPLE_MANIFEST, type SampleRecord, sampleSizeString } from "../../data/sampleManifest";
 import { useAiKeyStorage } from "../../hooks/useAiKeyStorage";
 import { useAiManager } from "../../hooks/useAiManager";
+import { xrEntryFailureWords } from "../../workspace/inspector/words";
 import type { ChatMessage } from "../ai/AiMessageBubble";
 import { FeedbackModal } from "../FeedbackModal";
 import type { GraphtyHandle, SelectionChangedDetail, StylesChangedDetail } from "../Graphty";
@@ -238,7 +240,7 @@ import { CanvasToolbar, type CanvasToolbarComponentProps } from "./toolbar/Canva
 import { historyRows, undoVerb } from "./topbar/historyRows";
 import { TopBar } from "./topbar/TopBar";
 import { useSessionHistory } from "./topbar/useSessionHistory";
-import type { ActivityId, CanvasViewMode, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
+import type { ActivityId, CanvasDimension, PrimaryActivityId, SelectionKind, ShellStateAxis } from "./types";
 import { useShell } from "./useShell";
 import { useShellKeyBindings } from "./useShellKeyBindings";
 
@@ -334,6 +336,14 @@ const OPEN_DATA_ACTION = "Open Data";
 
 /** The DOM event graphty-element mirrors every acceleration transition onto. */
 const CAPABILITIES_CHANGE_EVENT = "graphty-capabilities-change";
+
+/** The element's XR facts before its session exists: both modes still being checked. */
+const XR_PROBING: XrCapability = {
+    vr: false,
+    ar: false,
+    reasons: { vr: "probing", ar: "probing" },
+    active: null,
+};
 
 /** The device-lost toast's link: it says where it goes, because there is no mapping line to scroll to. */
 const OPEN_SETTINGS_ACTION = "Open Settings";
@@ -1074,7 +1084,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /* What a selection of more than one element adds up to, from the element's own
        `selection.statistics()`; null when one element or none is selected. */
     const [selectionStatistics, setSelectionStatistics] = useState<SelectionStatistics | null>(null);
-    const [viewMode, setViewMode] = useState<CanvasViewMode>("3d");
+    const [viewMode, setViewMode] = useState<CanvasDimension>("3d");
     const [layoutType, setLayoutType] = useState<string>(DEFAULT_LAYOUT);
     const [layoutConfig, setLayoutConfig] = useState<Record<string, unknown>>({});
     const [selectedNode, setSelectedNode] = useState<{
@@ -1091,8 +1101,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
      */
     const [pins, setPins] = useState<{ readonly pinned: ReadonlySet<string | number> } | null>(null);
     const layerCounter = useRef(1);
-    /* Why graphty-element refused the last new style layer, in its own words, or null. */
-    const [styleRefusal, setStyleRefusal] = useState<string | null>(null);
+    /* Why graphty-element refused the last new style layer or immersive entry, in words, or null. */
+    const [refusal, setRefusal] = useState<string | null>(null);
     const firstLoadDone = useRef(false);
     /** graphty-element's sentence for why this load got fewer degree labels than its budget. */
     const [labelShortfall, setLabelShortfall] = useState<string | null>(null);
@@ -1214,7 +1224,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     );
     const [drawerMaximised, setDrawerMaximised] = useState(false);
     const [drawerTab, setDrawerTab] = useState<DataDrawerTab>("nodes");
-    const [xrSupport, setXrSupport] = useState({ vr: false, ar: false });
+    /* The element's XR facts; until its session exists both modes read as still being checked. */
+    const [xr, setXr] = useState<XrCapability>(XR_PROBING);
 
     useEffect(() => {
         if (!persist) {
@@ -1638,24 +1649,19 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         };
     }, []);
 
+    /* VR and AR availability, why not, and which one is presenting: the element's device facts,
+       re-read on every change it publishes (including a headset ending the session itself). */
     useEffect(() => {
-        if (typeof navigator === "undefined" || navigator.xr === undefined) {
-            return;
+        if (session === null) {
+            return undefined;
         }
 
-        const probe = async (): Promise<void> => {
-            const [vr, ar] = await Promise.all([
-                navigator.xr?.isSessionSupported("immersive-vr").catch(() => false) ?? false,
-                navigator.xr?.isSessionSupported("immersive-ar").catch(() => false) ?? false,
-            ]);
+        setXr(session.capabilities.xr);
 
-            // Only a change is a render: in a browser that reports neither, this
-            // leaves the first state alone rather than re-rendering the whole shell.
-            setXrSupport((current) => (current.vr === vr && current.ar === ar ? current : { vr, ar }));
-        };
-
-        void probe();
-    }, []);
+        return session.on("capabilities:changed", ({ capabilities }) => {
+            setXr(capabilities.xr);
+        });
+    }, [session]);
 
     /* ---------------------------------------------------------------------- */
     /* Data loading                                                            */
@@ -2590,7 +2596,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 () => undefined,
                 (error: unknown) => {
                     console.error("[shell] the element refused the new layer:", error);
-                    setStyleRefusal(error instanceof Error ? error.message : String(error));
+                    setRefusal(error instanceof Error ? error.message : String(error));
                 },
             );
     }, []);
@@ -3236,13 +3242,31 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const viewSide = useCallback(() => {
         graphViewPreset(graphtyRef.current?.element ?? null, "sideView");
     }, []);
-    /* 2D or 3D, one undoable step. */
-    const changeViewMode = useCallback((mode: CanvasViewMode) => {
-        setViewMode(mode);
-        graphtyRef.current?.session?.layout.setDimension(mode).catch((error: unknown) => {
-            console.error("[shell] the element refused the dimension:", error);
-        });
+    /* Enter VR or AR (from 2D the element switches to 3D in the same step), or leave it with null. */
+    const setImmersive = useCallback(async (mode: "vr" | "ar" | null): Promise<void> => {
+        try {
+            await graphtyRef.current?.session?.execute({ op: "view.immersive", mode });
+        } catch (error) {
+            if (mode === null) {
+                console.error("[shell] the element could not leave the immersive session:", error);
+            } else {
+                setRefusal(xrEntryFailureWords(mode, isGraphtyError(error) ? error.code : undefined));
+            }
+        }
     }, []);
+    /* 2D or 3D, one undoable step; picking either while immersive leaves the session first. */
+    const changeViewMode = useCallback(
+        (mode: CanvasDimension) => {
+            setViewMode(mode);
+            const leave = xr.active === null ? Promise.resolve() : setImmersive(null);
+            void leave
+                .then(() => graphtyRef.current?.session?.layout.setDimension(mode))
+                .catch((error: unknown) => {
+                    console.error("[shell] the element refused the dimension:", error);
+                });
+        },
+        [setImmersive, xr.active],
+    );
     const toggleViewMode = useCallback(() => {
         changeViewMode(viewMode === "3d" ? "2d" : "3d");
     }, [changeViewMode, viewMode]);
@@ -4483,13 +4507,13 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             };
         }
 
-        if (styleRefusal !== null) {
+        if (refusal !== null) {
             const dismiss = (): void => {
-                setStyleRefusal(null);
+                setRefusal(null);
             };
 
             return {
-                message: styleRefusal,
+                message: refusal,
                 severity: "error",
                 actionLabel: DISMISS_ACTION,
                 onDetails: dismiss,
@@ -4509,7 +4533,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                 openFullPanelOverlay("settings", "performance");
             },
         };
-    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, styleRefusal]);
+    }, [acceleration, loadFailure, openFullPanelOverlay, openPanelAt, refusal]);
 
     /* ---------------------------------------------------------------------- */
     /* The command palette's rows: the full-text twin of every icon control    */
@@ -5163,7 +5187,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         <PopoutRegion id="canvas">
                             <CanvasRegion {...canvasProps}>
                                 <CanvasToolbarSlot
-                                    viewMode={viewMode}
+                                    viewMode={xr.active ?? viewMode}
                                     onViewModeChange={changeViewMode}
                                     zoomToSelectionEnabled={selectedNode !== null}
                                     onZoomOut={zoomOut}
@@ -5180,8 +5204,7 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                        cannot report three different legends. */
                                         legendAvailable: legendIsAvailable,
                                         toolbarShown: canvasLayout.toolbar,
-                                        vrSupported: xrSupport.vr,
-                                        arSupported: xrSupport.ar,
+                                        xr,
                                         visibleNodeCount,
                                         visibleEdgeCount,
                                         onResetView: resetView,
@@ -5193,8 +5216,9 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                                             setViewsMenuOpen(false);
                                         },
                                         onToggleLegend: toggleLegend,
-                                        onEnterVr: () => undefined,
-                                        onEnterAr: () => undefined,
+                                        onEnterVr: () => void setImmersive("vr"),
+                                        onEnterAr: () => void setImmersive("ar"),
+                                        onExitXr: () => void setImmersive(null),
                                     }}
                                 />
                             </CanvasRegion>

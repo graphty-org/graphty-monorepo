@@ -24,14 +24,14 @@ import { UnstyledButton } from "@mantine/core";
 import React, { useRef } from "react";
 
 import type { CanvasToolbarProfile } from "../constants";
-import type { CanvasViewMode } from "../types";
+import type { CanvasDimension, CanvasViewMode } from "../types";
 import { SEGMENT_FONT_SIZE, SEGMENT_FONT_WEIGHT } from "./toolbarMetrics";
 
 /**
  * The two halves, in drawn order. 2D is first: the pair reads as a ladder of
  * dimension, and 5 toggles between them (build spec 04 section 10).
  */
-const VIEW_MODES: readonly { readonly value: CanvasViewMode; readonly label: string }[] = [
+const VIEW_MODES: readonly { readonly value: CanvasDimension; readonly label: string }[] = [
     { value: "2d", label: "2D" },
     { value: "3d", label: "3D" },
 ];
@@ -59,12 +59,12 @@ export const VIEW_MODE_GROUP_LABEL = "View mode";
  * @public
  */
 export interface ViewModeSegmentProps {
-    /** The mode currently drawn checked. */
+    /** The mode currently drawn checked. VR or AR checks the 3D half and names it VR or AR. */
     readonly value: CanvasViewMode;
     /** The size profile in force. */
     readonly profile: CanvasToolbarProfile;
     /** Called with the mode the reader chose. */
-    readonly onChange: (mode: CanvasViewMode) => void;
+    readonly onChange: (mode: CanvasDimension) => void;
 }
 
 /**
@@ -76,6 +76,7 @@ export function ViewModeSegment(props: ViewModeSegmentProps): React.JSX.Element 
     const { value, profile, onChange } = props;
     const groupRef = useRef<HTMLDivElement>(null);
     const halfHeight = profile.itemSize - profile.segmentedInnerPadding * 2;
+    const dimension: CanvasDimension = value === "2d" ? "2d" : "3d";
 
     const move = (event: React.KeyboardEvent<HTMLDivElement>): void => {
         const delta = ARROW_DELTAS[event.key];
@@ -89,7 +90,7 @@ export function ViewModeSegment(props: ViewModeSegmentProps): React.JSX.Element 
         event.preventDefault();
         event.stopPropagation();
 
-        const index = VIEW_MODES.findIndex((mode) => mode.value === value);
+        const index = VIEW_MODES.findIndex((mode) => mode.value === dimension);
         const next = VIEW_MODES[(index + delta + VIEW_MODES.length) % VIEW_MODES.length];
 
         onChange(next.value);
@@ -119,7 +120,7 @@ export function ViewModeSegment(props: ViewModeSegmentProps): React.JSX.Element 
             }}
         >
             {VIEW_MODES.map((mode) => {
-                const checked = mode.value === value;
+                const checked = mode.value === dimension;
 
                 return (
                     <UnstyledButton
@@ -146,7 +147,7 @@ export function ViewModeSegment(props: ViewModeSegmentProps): React.JSX.Element 
                             boxSizing: "border-box",
                         }}
                     >
-                        {mode.label}
+                        {checked && (value === "vr" || value === "ar") ? value.toUpperCase() : mode.label}
                     </UnstyledButton>
                 );
             })}

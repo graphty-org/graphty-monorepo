@@ -24,6 +24,13 @@ describe("ViewModeSegment", () => {
             expect(screen.getByRole("radio", { name: "2D" })).toHaveAttribute("aria-checked", "false");
         });
 
+        it("names the checked 3D half VR while the element presents VR", () => {
+            render(<ViewModeSegment value="vr" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />);
+
+            expect(screen.getAllByRole("radio").map((radio) => radio.textContent)).toEqual(["2D", "VR"]);
+            expect(screen.getByRole("radio", { name: "VR" })).toHaveAttribute("aria-checked", "true");
+        });
+
         it("gives the group one tab stop, on the checked half", () => {
             render(<ViewModeSegment value="2d" profile={CANVAS_TOOLBAR_DESKTOP} onChange={vi.fn()} />);
 

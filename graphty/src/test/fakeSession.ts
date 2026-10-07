@@ -901,7 +901,10 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
         styles,
         /* What a host reads before the element has spoken; a board that wants another state
            dispatches the event. */
-        capabilities: { acceleration: { state: "probing" } },
+        capabilities: {
+            acceleration: { state: "probing" },
+            xr: { vr: false, ar: false, reasons: { vr: "no-webxr", ar: "no-webxr" }, active: null },
+        },
         /* A load and a clear are one step each, as the element's are; this stand-in holds no
            records of its own, so what they change is what the board's own importer does. */
         data: {

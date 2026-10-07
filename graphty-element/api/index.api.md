@@ -4370,7 +4370,12 @@ export interface WorkerCapability {
 
 // @public
 export interface XrCapability {
+    readonly active: "vr" | "ar" | null;
     readonly ar: boolean;
+    readonly reasons: {
+        readonly vr: XrUnavailableReason | null;
+        readonly ar: XrUnavailableReason | null;
+    };
     readonly vr: boolean;
 }
 
@@ -4414,6 +4419,9 @@ export interface XRUIConfig {
     showAvailabilityWarning: boolean;
     unavailableMessageDuration: number;
 }
+
+// @public
+export type XrUnavailableReason = "no-webxr" | "insecure-context" | "unsupported" | "webgpu-renderer" | "disabled" | "probing";
 
 // @public
 export const YLORBR_COLORS: readonly ["#ef7818", "#d85a09", "#b84203", "#8e3104", "#662506"];

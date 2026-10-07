@@ -6,60 +6,69 @@ Guide to VR and AR immersive experiences.
 
 Graphty supports WebXR for immersive graph exploration. View your graphs in virtual reality (VR) or augmented reality (AR) using compatible headsets and browsers.
 
-## Checking Support
+## Is VR or AR Available?
 
-Before enabling XR modes, check browser and device support:
+`element.session.capabilities.xr` says which immersive modes this device can enter, and why not
+when it cannot. Read it; never probe `navigator.xr` yourself. The element asks the browser once,
+after its first frame, and `capabilities:changed` fires when the answer arrives, when a headset is
+plugged in or out, and when a session starts or ends.
 
 ```typescript
-// Check VR support
-const vrSupported = await graph.isVRSupported();
-console.log("VR supported:", vrSupported);
-
-// Check AR support
-const arSupported = await graph.isARSupported();
-console.log("AR supported:", arSupported);
+const { xr } = element.session.capabilities;
+xr.vr; // true when VR can be entered
+xr.ar; // true when AR can be entered
+xr.reasons.vr; // null, or why not: "no-webxr" | "insecure-context" | "unsupported"
+//                                   | "webgpu-renderer" | "disabled" | "probing"
+xr.active; // "vr" | "ar" | null: the session presenting now
 ```
 
-## Entering VR Mode
+`"probing"` lasts until the browser answers, at most 1.5 seconds; a browser that does not answer
+in time reads `"unsupported"`. `"disabled"` means `xr.enabled` (or `xr.vr.enabled` /
+`xr.ar.enabled`) is `false`. XR is on by default and allocates nothing until a session is entered.
 
-### Via HTML Attribute
+## A Mode Switcher
+
+Enter a mode with the `view.immersive` command; `mode: null` leaves it. From 2D it switches to 3D
+first, in the same undo step. A refused entry rejects, and is also reported as an `error` event
+with `context: "xr"`.
 
 ```html
-<graphty-element view-mode="vr"></graphty-element>
+<select id="mode">
+    <option value="3d">3D</option>
+    <option value="vr">VR</option>
+    <option value="ar">AR</option>
+</select>
+<graphty-element></graphty-element>
+
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const element = document.querySelector("graphty-element");
+    const select = document.getElementById("mode");
+
+    function render({ xr }) {
+        for (const mode of ["vr", "ar"]) {
+            const option = select.querySelector(`[value="${mode}"]`);
+            option.disabled = !xr[mode];
+            option.title = xr.reasons[mode] ?? "";
+        }
+        select.value = xr.active ?? "3d";
+    }
+
+    render(element.session.capabilities);
+    element.session.on("capabilities:changed", ({ capabilities }) => render(capabilities));
+    select.onchange = () => {
+        const mode = select.value === "3d" ? null : select.value;
+        element.session.execute({ op: "view.immersive", mode }).catch(() => {
+            render(element.session.capabilities);
+        });
+    };
+</script>
 ```
 
-### Via JavaScript
-
-```typescript
-// Check support first
-const vrSupported = await graph.isVRSupported();
-
-if (vrSupported) {
-    graph.setViewMode("vr");
-} else {
-    console.log("VR is not supported on this device");
-}
-```
-
-## Entering AR Mode
-
-### Via HTML Attribute
-
-```html
-<graphty-element view-mode="ar"></graphty-element>
-```
-
-### Via JavaScript
-
-```typescript
-const arSupported = await graph.isARSupported();
-
-if (arSupported) {
-    graph.setViewMode("ar");
-} else {
-    console.log("AR is not supported on this device");
-}
-```
+`element.setViewMode("vr")` does the same, and `graph.isVRSupported()` / `graph.isARSupported()`
+read the same fact. The element can also draw its own VR / AR buttons on the canvas; they are off
+unless you ask for them with `element.xr = { ui: { enabled: true } }`.
 
 ## XR Configuration
 
@@ -98,38 +107,6 @@ await graph.exitXR();
 
 // Or set view mode explicitly
 graph.setViewMode("3d");
-```
-
-## VR/AR Button
-
-Create a button to enter XR:
-
-```html
-<button id="vr-button" disabled>Enter VR</button>
-<graphty-element></graphty-element>
-
-<script type="module">
-    import "@graphty/graphty-element";
-
-    const button = document.getElementById("vr-button");
-    const element = document.querySelector("graphty-element");
-
-    // Wait for element to be ready
-    await customElements.whenDefined("graphty-element");
-    const graph = element.graph;
-
-    // Check VR support
-    const vrSupported = await graph.isVRSupported();
-
-    if (vrSupported) {
-        button.disabled = false;
-        button.onclick = () => {
-            graph.setViewMode("vr");
-        };
-    } else {
-        button.textContent = "VR Not Supported";
-    }
-</script>
 ```
 
 ## Browser Compatibility

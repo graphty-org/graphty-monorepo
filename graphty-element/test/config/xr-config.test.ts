@@ -61,7 +61,7 @@ describe("XR Configuration Schema", () => {
             const parsed = xrConfigSchema.parse(config);
 
             assert.equal(parsed.enabled, true);
-            assert.equal(parsed.ui.enabled, true);
+            assert.equal(parsed.ui.enabled, false);
             assert.equal(parsed.ui.position, "bottom-right");
             assert.equal(parsed.ui.unavailableMessageDuration, 5000);
             assert.equal(parsed.ui.showAvailabilityWarning, false);
@@ -200,7 +200,7 @@ describe("XR Configuration Schema", () => {
             const config = { ui: {} };
             const parsed = xrConfigSchema.parse(config);
 
-            assert.equal(parsed.ui.enabled, true);
+            assert.equal(parsed.ui.enabled, false);
             assert.equal(parsed.ui.position, "bottom-right");
             assert.equal(parsed.ui.unavailableMessageDuration, 5000);
             assert.equal(parsed.ui.showAvailabilityWarning, false);

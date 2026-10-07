@@ -20,6 +20,7 @@ import type {
     AccelerationCapabilities,
     AccelerationPolicy,
     AccelerationStatus,
+    Capabilities,
     GraphAccelerator,
 } from "../acceleration";
 // EdgeId comes from the ELEMENT's catalogue rather than from graph-format, which is the one line
@@ -1395,8 +1396,12 @@ export interface SessionEventMap {
      * looking at an old picture that reads as an answer.
      */
     "style:problem": StyleProblem;
-    /** Every acceleration transition; the document is the one `capabilities` returns. */
-    "capabilities:changed": { readonly capabilities: AccelerationCapabilities };
+    /**
+     * Every acceleration transition, and every change to what VR and AR can do: the probe
+     * settling, a WebXR device change, entering or leaving a session (including the headset
+     * ending it), an XR configuration change. The document is the one `capabilities` returns.
+     */
+    "capabilities:changed": { readonly capabilities: Pick<Capabilities, "acceleration" | "xr"> };
     /**
      * The history changed: a step was recorded, merged, undone, redone, restored, evicted or
      * cleared, or the pending work (and so what the next undo will do) changed. Fires
@@ -1923,8 +1928,12 @@ export interface GraphSession {
     readonly catalog: SessionCatalogApi;
     /** The settings as they are now, and `set` to change the project ones. */
     readonly config: SessionConfig;
-    /** What this machine can do, measured rather than guessed at by the consumer. */
-    readonly capabilities: AccelerationCapabilities;
+    /**
+     * What this machine can do, measured rather than guessed at by the consumer: acceleration,
+     * and which immersive modes can be entered (with the reason when one cannot) and which one
+     * is presenting. A session that draws nothing reports VR and AR as `"unsupported"`.
+     */
+    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     /**
      * What the consumer asks of the hardware: use an accelerator when there is one, never look,
      * or refuse to run without one.

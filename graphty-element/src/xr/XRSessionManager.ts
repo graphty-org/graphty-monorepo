@@ -1,4 +1,10 @@
-import type { Camera, Scene, WebXRDefaultExperience, WebXRDefaultExperienceOptions } from "@babylonjs/core";
+import {
+    type Camera,
+    type Scene,
+    type WebXRDefaultExperience,
+    type WebXRDefaultExperienceOptions,
+    WebXRState,
+} from "@babylonjs/core";
 
 import { GraphtyLogger, type Logger } from "../logging";
 
@@ -55,6 +61,9 @@ export class XRSessionManager {
     private _config: XRSessionConfig;
     private xrHelper: WebXRDefaultExperience | null = null;
     private activeMode: "immersive-vr" | "immersive-ar" | null = null;
+
+    /** Called when a session ends without `exitXR`: the headset or the browser ended it. */
+    public onSessionEnded: (() => void) | null = null;
 
     /**
      * Creates a new XRSessionManager instance
@@ -181,6 +190,7 @@ export class XRSessionManager {
             }
 
             this.activeMode = "immersive-vr";
+            this.watchSessionEnd();
         } catch (error) {
             console.error("🎮 [XRSessionManager] Failed to enter VR:", error);
             this.xrHelper = null;
@@ -246,6 +256,7 @@ export class XRSessionManager {
             }
 
             this.activeMode = "immersive-ar";
+            this.watchSessionEnd();
         } catch (error) {
             console.error("🎮 [XRSessionManager] Failed to enter AR:", error);
             this.xrHelper = null;
@@ -259,21 +270,42 @@ export class XRSessionManager {
      * @returns Promise that resolves when session is exited
      */
     public async exitXR(): Promise<void> {
-        if (!this.activeMode || !this.xrHelper) {
+        if (!this.xrHelper) {
             return; // No active session to exit
         }
 
         try {
-            await this.xrHelper.baseExperience.exitXRAsync();
+            // A session the headset already ended has nothing left to exit, only to release.
+            if (this.activeMode !== null) {
+                this.activeMode = null;
+                await this.xrHelper.baseExperience.exitXRAsync();
+            }
+
             this.xrHelper.dispose();
             this.xrHelper = null;
-            this.activeMode = null;
         } catch (error) {
             // Clean up even if exit fails
             this.xrHelper = null;
             this.activeMode = null;
             throw new Error(`Failed to exit XR mode: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    /**
+     * Hear the session end on its own -- the headset's menu, the browser -- and report it once,
+     * outside Babylon's notification, so the listener may release the helper.
+     */
+    private watchSessionEnd(): void {
+        this.xrHelper?.baseExperience.onStateChangedObservable.add((state) => {
+            if (state !== WebXRState.NOT_IN_XR || this.activeMode === null) {
+                return;
+            }
+
+            this.activeMode = null;
+            queueMicrotask(() => {
+                this.onSessionEnded?.();
+            });
+        });
     }
 
     /**

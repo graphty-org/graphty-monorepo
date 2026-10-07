@@ -266,3 +266,187 @@ describe("VR with hand tracking on and emulated hands", () => {
         TEST_TIMEOUT,
     );
 });
+
+/**
+ * Attach an element with the default XR configuration and wait for its graph to hold nodes.
+ * @param created - an element already created and not yet attached, or none to create one
+ * @returns the element's graph
+ */
+async function mountDefaultGraph(created?: HTMLElementTagNameMap["graphty-element"]): Promise<Graph> {
+    element = created ?? document.createElement("graphty-element");
+    element.style.width = "400px";
+    element.style.height = "300px";
+    element.style.display = "block";
+    element.layout = "circular";
+    document.body.append(element);
+    element.nodeData = NODES;
+    element.edgeData = EDGES;
+    await operationQueueOf(element.graph).waitForCompletion();
+    await vi.waitFor(() => {
+        assert.isAbove([...element.graph.getNodes()].length, 0, "the graph never loaded its nodes");
+    }, WAIT);
+
+    return element.graph;
+}
+
+describe("session.capabilities.xr", () => {
+    test("says there is no WebXR when the browser has none", async () => {
+        iwer.uninstall();
+        Object.defineProperty(navigator, "xr", { value: undefined, configurable: true });
+
+        await mountDefaultGraph();
+
+        assert.deepEqual(element.session.capabilities.xr, {
+            vr: false,
+            ar: false,
+            reasons: { vr: "no-webxr", ar: "no-webxr" },
+            active: null,
+        });
+        assert.isFalse(await element.graph.isVRSupported(), "isVRSupported reads the same fact");
+    });
+
+    test("asks the browser after the first frame, never from the getter, and announces the answer", async () => {
+        const { xr } = navigator;
+        assert.exists(xr);
+        let asked = 0;
+        const original = xr.isSessionSupported.bind(xr);
+        xr.isSessionSupported = (mode: XRSessionMode) => {
+            asked++;
+            return original(mode);
+        };
+
+        element = document.createElement("graphty-element");
+        const seen: (typeof element.session.capabilities)[] = [];
+        element.session.on("capabilities:changed", ({ capabilities }) => {
+            seen.push(capabilities);
+        });
+        assert.strictEqual(element.session.capabilities.xr.reasons.vr, "probing");
+        assert.strictEqual(asked, 0, "reading session.capabilities asked the browser");
+
+        await mountDefaultGraph(element);
+        await vi.waitFor(() => {
+            assert.isTrue(element.session.capabilities.xr.vr, "VR never became available");
+        }, WAIT);
+
+        assert.isAbove(asked, 0);
+        assert.isTrue(
+            seen.some((capabilities) => capabilities.xr.vr && capabilities.xr.reasons.vr === null),
+            "capabilities:changed never carried the answer",
+        );
+        assert.isTrue(element.session.capabilities.xr.ar);
+        assert.isNull(element.session.capabilities.xr.active);
+    });
+
+    test("answers unsupported when the browser never answers, within 1500 ms", async () => {
+        const { xr } = navigator;
+        assert.exists(xr);
+        let askedAt = 0;
+        xr.isSessionSupported = () => {
+            askedAt ||= performance.now();
+            return new Promise<boolean>(() => undefined);
+        };
+
+        await mountDefaultGraph();
+        let settledAt = 0;
+        element.session.on("capabilities:changed", ({ capabilities }) => {
+            if (capabilities.xr.reasons.vr === "unsupported") {
+                settledAt ||= performance.now();
+            }
+        });
+        await vi.waitFor(() => {
+            assert.strictEqual(element.session.capabilities.xr.reasons.vr, "unsupported");
+        }, WAIT);
+
+        assert.isAbove(askedAt, 0, "the browser was never asked");
+        assert.isAtMost(settledAt - askedAt, 1500 + 250, "the probe was not bounded");
+        assert.deepEqual(element.session.capabilities.xr.reasons, { vr: "unsupported", ar: "unsupported" });
+    });
+
+    test("allocates nothing for XR and draws no buttons until a session is entered", async () => {
+        const graph = await mountDefaultGraph();
+        await vi.waitFor(() => {
+            assert.isTrue(element.session.capabilities.xr.vr);
+        }, WAIT);
+
+        assert.exists(graph.getXRSessionManager(), "XR is on by default");
+        assert.isNull(graph.getXRSessionManager()?.getXRHelper() ?? null, "a WebXR helper was built");
+        assert.notExists(graph.scene.metadata?.xrHelper, "the scene holds a WebXR helper");
+        assert.isFalse(
+            graph.scene.cameras.some((camera) => camera.getClassName() === "WebXRCamera"),
+            "the scene holds an XR camera",
+        );
+        assert.isNull(xrControl("[data-xr-mode]"), "the canvas has an XR button by default");
+        assert.isNull(xrControl(".xr-button-overlay"), "the canvas has an XR overlay by default");
+    });
+
+    test(
+        "view.immersive from 2D switches to 3D in the same step, and one undo returns to 2D",
+        async () => {
+            const graph = await mountDefaultGraph();
+            await element.session.execute({ op: "view.dimension", dimension: "2d" });
+            assert.strictEqual(graph.getViewMode(), "2d");
+
+            await element.session.execute({ op: "view.immersive", mode: "vr" });
+            assert.strictEqual(graph.getViewMode(), "vr");
+            assert.strictEqual(element.session.capabilities.xr.active, "vr");
+            assert.strictEqual(element.session.history.steps.at(-1)?.label, "Switched to 3D for VR");
+
+            await element.session.undo();
+            await vi.waitFor(() => {
+                assert.isTrue(iwer.sessions[0]?.ended, "undo did not end the session");
+            }, WAIT);
+            assert.strictEqual(graph.getViewMode(), "2d");
+            assert.isNull(element.session.capabilities.xr.active);
+        },
+        TEST_TIMEOUT,
+    );
+
+    test(
+        "announces the headset ending the session itself",
+        async () => {
+            const graph = await mountDefaultGraph();
+            await element.session.execute({ op: "view.immersive", mode: "vr" });
+            const [record] = iwer.sessions;
+            const actives: ("vr" | "ar" | null)[] = [];
+            element.session.on("capabilities:changed", ({ capabilities }) => {
+                actives.push(capabilities.xr.active);
+            });
+
+            await record.session.end();
+
+            await vi.waitFor(() => {
+                assert.include(actives, null, "capabilities:changed never said the session ended");
+            }, WAIT);
+            assert.isNull(element.session.capabilities.xr.active);
+            assert.isNull(graph.getXRSessionManager()?.getActiveMode() ?? null);
+            await vi.waitFor(() => {
+                assert.strictEqual(graph.getViewMode(), "3d");
+            }, WAIT);
+        },
+        TEST_TIMEOUT,
+    );
+
+    test("reports a refused entry as graph-error, without alert()", async () => {
+        const { xr } = navigator;
+        assert.exists(xr);
+        xr.requestSession = () => Promise.reject(new Error("the runtime refused"));
+        const alert = vi.spyOn(window, "alert").mockImplementation(() => undefined);
+        await mountDefaultGraph();
+        const contexts: string[] = [];
+        element.on("error", (event) => {
+            contexts.push((event as { context?: string }).context ?? "");
+        });
+
+        let rejected = false;
+        try {
+            await element.session.execute({ op: "view.immersive", mode: "vr" });
+        } catch {
+            rejected = true;
+        }
+
+        assert.isTrue(rejected);
+        assert.include(contexts, "xr");
+        assert.strictEqual(alert.mock.calls.length, 0);
+        alert.mockRestore();
+    });
+});

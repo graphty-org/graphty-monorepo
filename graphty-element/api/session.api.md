@@ -722,7 +722,7 @@ export interface GraphSession {
     acceleration: AccelerationPolicy;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
-    readonly capabilities: AccelerationCapabilities;
+    readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     readonly catalog: SessionCatalogApi;
     readonly config: SessionConfig;
     readonly data: SessionDataApi;
@@ -2960,7 +2960,7 @@ export type SessionDataConfig = Readonly<z.output<typeof DataConfig>>;
 // @public
 export interface SessionEventMap {
     "capabilities:changed": {
-        readonly capabilities: AccelerationCapabilities;
+        readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
@@ -3540,9 +3540,17 @@ export interface WorkerCapability {
 
 // @public
 export interface XrCapability {
+    readonly active: "vr" | "ar" | null;
     readonly ar: boolean;
+    readonly reasons: {
+        readonly vr: XrUnavailableReason | null;
+        readonly ar: XrUnavailableReason | null;
+    };
     readonly vr: boolean;
 }
+
+// @public
+export type XrUnavailableReason = "no-webxr" | "insecure-context" | "unsupported" | "webgpu-renderer" | "disabled" | "probing";
 
 // (No @packageDocumentation comment for this package)
 

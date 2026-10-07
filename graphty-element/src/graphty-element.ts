@@ -3,9 +3,9 @@ import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 
 import {
-    type AccelerationCapabilities,
     type AccelerationController,
     type AccelerationPolicy,
+    type Capabilities,
     isAccelerationPolicy,
 } from "./acceleration";
 import { layoutIdForEngine } from "./catalog/layouts";
@@ -4162,24 +4162,25 @@ export class Graphty extends LitElement {
     /**
      * The acceleration controller, which is the Graph's -- the element does not build one.
      *
-     * Every transition it publishes is mirrored as a `graphty-capabilities-change` DOM event,
-     * so a page with a tag and six lines of script can show whether the GPU is in use, say why
-     * it is not, and update itself when a device is lost -- without importing a module or
-     * naming a single GPU type. The mirror carries the controller's own capability document, the
-     * same object `element.session.capabilities` returns, so the two channels cannot disagree.
+     * Every transition the session publishes (acceleration and XR) is mirrored as a
+     * `graphty-capabilities-change` DOM event, so a page with a tag and six lines of script can
+     * show whether the GPU is in use, whether VR can be entered, say why not, and update itself
+     * when a device is lost -- without importing a module or naming a single GPU type. The
+     * mirror carries the same object `element.session.capabilities` returns, so the two channels
+     * cannot disagree.
      * @returns The controller.
      */
     #ensureAcceleration(): AccelerationController {
         const controller = this.#graph.acceleration;
 
         if (!this.#capabilitiesMirrored) {
-            controller.onChange(() => {
+            this.#graph.getSession().on("capabilities:changed", ({ capabilities }) => {
                 // The status carries the policy, so a policy written through
                 // `element.session.acceleration` lands here too, and the attribute reflects it.
                 this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
-                        detail: { capabilities: controller.capabilities },
+                        detail: { capabilities },
                         bubbles: true,
                         composed: true,
                     }),
@@ -4250,7 +4251,9 @@ declare global {
         }>;
         "graphty-note-change": CustomEvent<Pick<NoteChange, "id" | "change" | "fields" | "cause">>;
         "graphty-project-status": CustomEvent<ProjectStatus>;
-        "graphty-capabilities-change": CustomEvent<{ readonly capabilities: AccelerationCapabilities }>;
+        "graphty-capabilities-change": CustomEvent<{
+            readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
+        }>;
         "graphty-node-click": CustomEvent<NodeEventDetail>;
         "graphty-node-hover": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;

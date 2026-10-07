@@ -25,6 +25,7 @@ export type {
     Limits,
     WorkerCapability,
     XrCapability,
+    XrUnavailableReason,
 } from "./types";
 export {
     ACCELERATION_MIN_NODES_DEFAULT,

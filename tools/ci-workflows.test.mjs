@@ -1655,6 +1655,23 @@ describe("the commit and push hooks", () => {
         assert.match(r.stdout, /stopped at the first failure: one/);
         assert.doesNotMatch(r.stdout, /SECOND/);
     });
+
+    it("pre-push runs knip and the published-dependency check on a push that affects no package", () => {
+        // CI's Build job always runs them, and a push of root files only (tools/, knip.config.ts,
+        // package.json) is one nx calls unaffected: PR #1345 passed the gate and failed knip in CI.
+        const prepush = repoFile("tools/prepush.sh");
+        const at = (s) => {
+            const i = prepush.indexOf(s);
+            assert.ok(i > 0, `${s} is in tools/prepush.sh`);
+            return i;
+        };
+        const firstExit = prepush.search(/\n\s*exit "\$FAILED"/);
+        for (const step of ["Knip (dead code detection)", "Knip (production dependencies)", "Published dependencies"]) {
+            assert.ok(at(`run_step "${step}"`) < firstExit, `${step} runs before the no-affected-package exit`);
+        }
+        const unaffected = prepush.slice(prepush.lastIndexOf('if [ -z "$PROJECT_LIST" ]; then', firstExit), firstExit);
+        assert.match(unaffected, /run_step "Published dependencies" "pnpm run check:published-deps"\n/);
+    });
 });
 
 describe("tests that run git", () => {

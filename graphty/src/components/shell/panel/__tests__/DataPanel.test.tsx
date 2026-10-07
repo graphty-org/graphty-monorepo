@@ -175,6 +175,42 @@ describe("DataPanel", () => {
             expect(screen.getByRole("group", { name: "Skipped rows" })).toHaveTextContent(/1\D284\D000/);
         });
 
+        it("draws a summary with no size as a single field, not a compound", () => {
+            const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+            render(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <DataPanel
+                        stateAxis="loaded"
+                        onLoad={acceptingLoad()}
+                        loadedSummary={{ format: "JSON node-link" }}
+                    />
+                </ShellProvider>,
+            );
+
+            expect(screen.getByRole("textbox", { name: "What the file is" })).toHaveValue("JSON node-link");
+            expect(screen.queryByTestId("compound-row")).not.toBeInTheDocument();
+            expect(warn.mock.calls.flat().join(" ")).not.toContain("CompoundRow");
+            warn.mockRestore();
+        });
+
+        it("draws a summary with a size as a compound of its values", () => {
+            render(
+                <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
+                    <DataPanel
+                        stateAxis="loaded"
+                        onLoad={acceptingLoad()}
+                        loadedSummary={{ format: "JSON node-link", size: "84 KB" }}
+                    />
+                </ShellProvider>,
+            );
+
+            const values = screen.getAllByTestId("compound-segment-value").map((value) => value.textContent);
+
+            expect(screen.getByTestId("compound-row")).toBeInTheDocument();
+            expect(values).toEqual(["JSON node-link", "84 KB"]);
+        });
+
         it("offers the Import options gear on Loaded data", () => {
             renderPanel("loaded");
 

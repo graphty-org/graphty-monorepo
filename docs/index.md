@@ -26,6 +26,10 @@ features:
       details: Graph layout algorithms. Force-directed, geometric, hierarchical, and spectral layouts in 2D/3D.
       link: /layout/api/generated/
       linkText: API Reference
+    - title: cytoscape-extensions
+      details: Every graphty layout and algorithm, graph generators, sample datasets and file import and export as Cytoscape.js extensions, with WebGPU acceleration.
+      link: /cytoscape-extensions/
+      linkText: Documentation
     - title: graph-io
       details: Read and write 13 graph file formats (GraphML, GEXF, GML, DOT, Pajek, CSV, JSON, Neo4j, Cytoscape and more), streaming, with a report of anything a file could not keep.
       link: /graph-io/

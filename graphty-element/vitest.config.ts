@@ -41,6 +41,7 @@ import { ciJunitReporter } from "../vitest.ci-junit.mjs";
  */
 const BABYLON_SIDE_EFFECTS = [
     "@babylonjs/core/Meshes/instancedMesh",
+    "@babylonjs/core/Meshes/thinInstanceMesh",
     "@babylonjs/core/Culling/ray",
     "@babylonjs/core/Animations/animatable",
 ];

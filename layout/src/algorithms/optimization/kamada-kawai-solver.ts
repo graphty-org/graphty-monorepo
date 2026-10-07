@@ -130,7 +130,7 @@ export function _kamadaKawaiCostfn(
     let cost = 0;
 
     // Add mean position penalty term
-    const sumPos: number[] = Array(dim).fill(0);
+    const sumPos: number[] = new Array(dim).fill(0);
     for (let i = 0; i < nNodes; i++) {
         for (let d = 0; d < dim; d++) {
             sumPos[d] += positions[i][d];

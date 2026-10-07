@@ -1,12 +1,13 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
 import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { useCommandKeys } from "./keys/useCommandKeys";
+import { ReportDialog } from "./privacy/ReportDialog";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
@@ -53,6 +54,19 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
+    // A project opened from the start screen loads its sample or file once its element is up.
+    useEffect(() => {
+        const { opening } = store.get();
+        const { session } = element;
+        if (opening === null || session === null) {
+            return;
+        }
+        store.set({ opening: null });
+        opening.load(session).catch((error: unknown) => {
+            const reason = error instanceof Error ? error.message : String(error);
+            store.set({ notice: { message: `${opening.name} could not be opened. ${reason}` } });
+        });
+    }, [element, store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
 
     return (
@@ -61,6 +75,7 @@ export function Workspace({
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />
+            <ReportDialog />
             <ProjectDialogs />
         </WorkspaceContext.Provider>
     );

@@ -398,17 +398,6 @@ export interface CanvasRegionProps {
     readonly docks: CanvasDockState;
     /** Which overlays are shown. */
     readonly overlays: CanvasOverlayVisibility;
-    /**
-     * Tapping the canvas below 1280 px closes an open overlay. Tapping the canvas
-     * TOOLBAR is not tapping the canvas, even though the toolbar is drawn inside the
-     * canvas element (spec 01 section 7 item 5).
-     *
-     * This region reports every tap that was not on its own chrome; whether the tap
-     * SELECTED something -- which design 5.2 also carves out, since the tap that fills
-     * the inspector must not dismiss it -- is known only to the shell, so that decision
-     * lives in the shell's handler and this contract is unchanged by it.
-     */
-    readonly onCanvasTap?: () => void;
     /** The graphty-element wrapper and any additional overlay content. */
     readonly children?: ReactNode;
 }

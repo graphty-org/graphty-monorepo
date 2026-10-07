@@ -24,7 +24,7 @@ import { NullEngine, type Scene as BabylonScene, Scene, Vector3 } from "@babylon
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import type { NodeStyleConfig } from "../../src/config";
 import { WRITABLE_LANE } from "../../src/data/lane";
 import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
@@ -164,9 +164,15 @@ function createHarness(): Harness {
  * @returns The created node
  */
 function addNode(harness: Harness, id: string, pinOnDrag = true): Node {
-    const node = new Node(harness.context, id, NODE_PAINT, { id } as unknown as AdHocData, {
-        pinOnDrag,
-    });
+    const node = new Node(
+        harness.context,
+        id,
+        NODE_PAINT,
+        { id },
+        {
+            pinOnDrag,
+        },
+    );
     // THE ROW IS THE POINT. A pin lives in the position array at the node's index, so a node that
     // never reached the graph builder has nowhere to record one -- which is a real state, asserted
     // separately below, and not the state a pin test should be run in.
@@ -202,9 +208,15 @@ describe("Node.index and the pin lifecycle", () => {
 
     it("gives a fresh Node an INVALID_INDEX index, and refuses to pin one that has no row", () => {
         harness = createHarness();
-        const node = new Node(harness.context, "src", NODE_PAINT, { id: "src" } as unknown as AdHocData, {
-            pinOnDrag: true,
-        });
+        const node = new Node(
+            harness.context,
+            "src",
+            NODE_PAINT,
+            { id: "src" },
+            {
+                pinOnDrag: true,
+            },
+        );
 
         assert.strictEqual(node.index, INVALID_INDEX, "index is INVALID_INDEX until the node reaches the builder");
         assert.strictEqual(node.isPinned(), false, "a node is not pinned until the user pins it");

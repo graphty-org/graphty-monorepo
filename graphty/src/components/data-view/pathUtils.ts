@@ -114,8 +114,7 @@ export function getValueAtPath(data: object, keyPath: keyPathNode[]): unknown {
             return undefined;
         }
 
-        const key = typeof segment === "number" ? segment : segment;
-        current = (current as Record<string | number, unknown>)[key];
+        current = (current as Record<string | number, unknown>)[segment];
     }
 
     return current;

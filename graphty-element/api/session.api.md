@@ -1607,6 +1607,7 @@ export type Normalization = "max" | "min-max" | "none";
 export interface Note {
     readonly author?: string;
     readonly cites?: readonly NoteCite[];
+    readonly done?: string;
     readonly edited?: string;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
@@ -1620,7 +1621,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -1655,6 +1656,7 @@ export interface NoteInput {
 export interface NoteListOptions {
     readonly author?: string;
     readonly cites?: ResultId;
+    readonly done?: boolean;
     readonly missing?: boolean;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
@@ -1671,6 +1673,7 @@ export interface NotePatch {
     readonly cites?: readonly {
         readonly result: ResultId;
     }[];
+    readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
     readonly targets?: readonly NoteTargetInput[];
@@ -2812,6 +2815,18 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
         readonly threshold: number;
     };
 }
+/**
+* Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
+* way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
+* bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
+* banded continuous field a value exactly on the last bar's upper edge comes too.
+*/
+| {
+    readonly range: ResultRef & {
+        readonly min?: number;
+        readonly max?: number;
+    };
+}
 /** The edges whose endpoints are both selected. Names no nodes. */
 | {
     readonly edgesBetween: true;
@@ -3441,6 +3456,7 @@ export interface TopRanking {
         readonly count: number;
     } | null;
     readonly reason: string | null;
+    readonly threshold: number | null;
 }
 
 // @public

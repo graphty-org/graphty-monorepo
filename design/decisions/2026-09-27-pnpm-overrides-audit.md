@@ -1,6 +1,6 @@
 # Fifteen pnpm overrides survive the audit, and why each one stays
 
-Date: 2026-09-27
+Date: 2026-09-27 (overrides re-audited against a fresh lockfile on 2026-10-06; see the last section)
 Changes: `pnpm-workspace.yaml` (`overrides`, `minimumReleaseAge`, `catalog`), the root
 `package.json` (its `pnpm.overrides` block is gone), `pnpm-lock.yaml`.
 
@@ -102,3 +102,42 @@ release, so no override can fix it. Its only path is `@sonar/scan > node-forge`:
 scanner the pre-push gate runs against the owner's own server, which never verifies a signature from
 outside. It is listed in the root package.json's `pnpm.auditConfig.ignoreGhsas`. Remove the entry
 when node-forge publishes a fix, and add an override floor here instead.
+
+## 2026-10-06: the lockfile is resolved from scratch, and seven overrides go
+
+pnpm-lock.yaml was deleted and resolved from nothing (issue #526). By then the list had grown to
+eighteen entries: the brace-expansion floor rose to 5.0.11, and axios, uuid, `@vitest/mocker` and a
+higher ip-address floor were added for later advisories. Each entry was then tested on its own:
+the workspace's manifests were resolved fresh without it, with no lockfile and no node_modules,
+and `pnpm audit` was compared with the audit of the full list. An entry stayed only if dropping it
+brought an advisory back.
+
+Removed, because a fresh resolution already reaches a patched version without them: `adm-zip`,
+`koa`, `ws`, `undici@>=7.0.0 <7.29.1`, `serialize-javascript`, `qs` and `tmp`. Their parents were
+locked old, not pinned.
+
+Kept, eleven, each because a parent still pins or asks for a vulnerable version:
+
+| Override                                       | Held back by                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------- |
+| `brace-expansion@>=4.0.0 <5.0.11` -> `^5.0.11` | `nx` 22.7.12 pins 5.0.8                                                         |
+| `smol-toml@<1.7.1` -> `^1.7.1`                 | `nx` 22.7.12 pins 1.6.1                                                         |
+| `axios@<1.20.0` -> `^1.20.0`                   | `nx` 22.7.12 resolves 1.18.1                                                    |
+| `lodash@<4.18.0` -> `^4.18.0`                  | `commitizen` resolves 4.17.23                                                   |
+| `minimatch@>=10.0.0 <10.2.3` -> `^10.2.3`      | compact-mantine's `@microsoft/api-extractor` pins 10.0.3                        |
+| `ajv@>=7.0.0-alpha.0 <8.18.0` -> `^8.18.0`     | the same `api-extractor` -> `@microsoft/tsdoc-config` (8.13)                    |
+| `ip-address@<10.7.1` -> `^10.7.1`              | graphty-element's `@jsonhero/json-infer-types` pins 8.1                         |
+| `uuid@<11.1.1` -> `^11.1.1`                    | the same `@jsonhero` chain (8.3) and compact-mantine's Storybook 8 addons (9.0) |
+| `@vitest/mocker@>=2.1.0 <4.1.11` -> `^4.1.11`  | `storybook` 9.1.20 pins 3.2.4                                                   |
+| `undici@<6.28.0` -> `^6.28.0`                  | graphty-element's `@ai-sdk/provider-utils` 2.x pins 5.29                        |
+| `vite@<6.4.3` -> `^6.4.3`                      | `vitepress` 1.x depends on vite 5                                               |
+
+With them, `pnpm audit` reports one moderate and one low advisory, both without a patched
+release: `sprintf-js` (GHSA-hp3w-g68c-fv3c, through `api-extractor` -> `argparse`, on master
+before this change too) and `elliptic` (through `encrypt-storage`); plus the two ignored ones
+above. The fresh resolution also clears the `smol-toml` 1.6.1 that `knip` had pulled in.
+
+The fresh resolution moves Babylon.js 8.43.0 to 8.56.2, React 19.2.3 to 19.3.0, Mantine 8.3.10 to
+8.3.18, Lit 3.3.2 to 3.3.3, IWER 2.1.1 to 2.5.0 and typescript-eslint 8.50.1 to 8.71.0. Playwright
+stays on 1.57.0 for everything that launches a browser in tests and captures, because
+visual-review pins it exactly; only graphty-element's direct `@playwright/test` moves to 1.63.

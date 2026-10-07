@@ -19,6 +19,7 @@ import {
     type Target,
     writeLine,
 } from "./row";
+import { focusLineNext } from "./useFocusLine";
 import { cellOfLocation, labelStatement, locationOfCell, positionWord } from "./words";
 
 /** Props for LabelSection. */
@@ -110,7 +111,12 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
         const proposal = propose(session, choice, channel);
         if (proposal.ok) {
             setEmpty(false);
-            writeLine(session, row, target, channel, { binding: proposal.binding }).catch(fail);
+            // The list closes and the line is redrawn bound; focus goes to the line, not the body.
+            focusLineNext(channel, true);
+            writeLine(session, row, target, channel, { binding: proposal.binding }).catch(() => {
+                focusLineNext(null);
+                fail();
+            });
         }
     };
     const blocked = blockedReason(line, empty);
@@ -256,6 +262,7 @@ function LabelLine({
     return (
         <FieldRow
             data-line={channel}
+            data-bound={line?.binding === undefined ? undefined : true}
             trailing={
                 <Tooltip label="Remove label line">
                     <ActionIcon variant="subtle" size="sm" aria-label="Remove label line" onClick={remove}>

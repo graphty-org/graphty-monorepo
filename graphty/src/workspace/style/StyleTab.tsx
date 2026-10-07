@@ -10,6 +10,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSection } from "./LabelSection";
 import { everythingRow, lineOf, rowLayers, startingValue, type Target, writeLine } from "./row";
 import { SetLine } from "./SetLine";
+import { focusLineNext, useFocusLine } from "./useFocusLine";
 import { useStyleVersion } from "./useStyleVersion";
 import { channelWord, isLineChannel, SECTIONS, type StyleSection } from "./words";
 
@@ -110,6 +111,7 @@ function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: reado
     const sets = (target: Target): boolean =>
         rowLayers(session, row, target).some((l) => !l.locked && (l.set !== undefined || l.encode !== undefined));
     const [side, setSide] = useState<Target>(() => (!sets("node") && sets("edge") ? "edge" : "node"));
+    const scope = useFocusLine<HTMLDivElement>();
     const layers = rowLayers(session, row, side);
     const colors = documentColors(session);
     const sideLabel = (target: Target, words: string): React.JSX.Element =>
@@ -123,7 +125,7 @@ function RowStyle({ session, row }: Readonly<{ session: GraphSession; row: reado
         );
 
     return (
-        <Stack gap={8} p={8} data-testid="style-tab">
+        <Stack ref={scope} gap={8} p={8} data-testid="style-tab">
             <SegmentedControl
                 size="xs"
                 aria-label="Paints"
@@ -190,7 +192,10 @@ function Section({
     });
     const unset = channels.filter((d) => lineOf(layers, d.channel) === undefined);
     const add = (descriptor: ChannelDescriptor): void => {
+        // The pick can remove "+" itself, so focus goes to the new line rather than back to it.
+        focusLineNext(descriptor.channel);
         writeLine(session, row, target, descriptor.channel, { value: startingValue(descriptor) }).catch(() => {
+            focusLineNext(null);
             store.set({ notice: { message: `${channelWord(descriptor.channel)} could not be added` } });
         });
     };
@@ -213,7 +218,7 @@ function Section({
         );
     } else if (unset.length > 0) {
         plus = (
-            <Menu position="bottom-end">
+            <Menu position="bottom-end" returnFocus={false}>
                 <Menu.Target>
                     <Tooltip label={addLabel}>
                         <ActionIcon variant="subtle" size="sm" aria-label={addLabel}>

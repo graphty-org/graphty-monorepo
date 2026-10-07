@@ -436,6 +436,79 @@ describe("labels from an attribute (task T10) on the real element", () => {
     );
 });
 
+// A pick that adds or binds a line closes the menu it came from and can remove that menu's own
+// trigger; focus must land on the new line, never fall to the page body (WCAG 2.4.3).
+describe("focus after a pick on the real element", () => {
+    beforeAll(async () => {
+        await page.viewport(1366, 768);
+    });
+
+    /**
+     * Waits until keyboard focus is on a control of the line for a channel.
+     * @param channel - the line's channel.
+     */
+    async function focusIsOnLine(channel: string): Promise<void> {
+        await waitFor(() => {
+            const active = document.activeElement;
+            assert.notEqual(
+                active,
+                document.body,
+                `focus fell to the page body, not the ${channel} line; line drawn: ${String(document.querySelector(`[data-line="${channel}"]`) !== null)}`,
+            );
+            assert.isNotNull(active?.closest(`[data-line="${channel}"]`), `focus is on the ${channel} line`);
+        });
+    }
+
+    it(
+        "a + pick, a single +, a Size by attribute pick and a label pick each focus the line they made",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+
+            // A single "+": the button goes away with the one property it added.
+            await userEvent.click(within(tab).getByRole("button", { name: "Add Tooltip" }));
+            await focusIsOnLine("node.tooltip");
+            assert.isNull(within(styleTab()).queryByRole("button", { name: "Add Tooltip" }));
+
+            // A "+" menu pick.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to Effects" }));
+            const [item] = (await screen.findAllByRole("menuitem")).filter(
+                (el) => el.getAttribute("data-disabled") === null,
+            );
+            const effect = item.textContent ?? "";
+            await userEvent.click(item);
+            await waitFor(() => {
+                const active = document.activeElement;
+                const line = active?.closest("[data-line]");
+                assert.isNotNull(line, `focus is on the new ${effect} line, not ${String(active?.tagName)}`);
+                assert.isNotNull(line?.closest('[data-section="effects"]'));
+            });
+
+            // The base Size line, sized by an attribute.
+            // Size by attribute: the bind icon is gone once the line is bound; focus is on its pill.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Size by attribute" }));
+            const list = await screen.findByRole("dialog", { name: "From data" });
+            await userEvent.click(within(list).getByRole("option", { name: "code" }));
+            await waitFor(() => {
+                const size = readerLayers(session)[0]?.encode?.["node.size"];
+                assert.isDefined(size);
+            });
+            await focusIsOnLine("node.size");
+            assert.isNull(within(styleTab()).queryByRole("button", { name: "Size by attribute" }));
+
+            // The label's attribute pick.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label line" }));
+            const names = await screen.findByRole("dialog", { name: "From data" });
+            await userEvent.click(within(names).getByRole("option", { name: "name" }));
+            await waitFor(() => {
+                assert.isDefined(readerLayers(session)[0]?.encode?.["node.label"]);
+            });
+            await focusIsOnLine("node.label");
+        },
+        TIMEOUT_MS * 2,
+    );
+});
+
 describe("editing lines on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);

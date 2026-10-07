@@ -20,6 +20,7 @@ import {
     startingValue,
     writeLine,
 } from "./row";
+import { focusLineNext } from "./useFocusLine";
 import { bindLabel, bindsAtRest, channelWord, enumWords, paletteWord } from "./words";
 
 /** Props for SetLine. */
@@ -73,6 +74,7 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
     const { channel, target } = descriptor;
     const name = channelWord(channel);
     const fail = (): void => {
+        focusLineNext(null);
         store.set({ notice: { message: `${name} could not be changed` } });
     };
     const write = (next: { value: ChannelValue } | { binding: DataBinding }): void => {
@@ -124,6 +126,8 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
                         channel={channel}
                         onPick={(choice) => {
                             setBinding(false);
+                            // The bind removes this icon; focus goes to the bound line instead.
+                            focusLineNext(channel, true);
                             bind(choice);
                         }}
                         onClose={() => {
@@ -139,6 +143,7 @@ export function SetLine({ descriptor, line, row, documentColors }: Readonly<SetL
     return (
         <FieldRow
             data-line={channel}
+            data-bound={line.binding === undefined ? undefined : true}
             trailing={
                 line.layer.locked ? null : (
                     <Tooltip label={`Remove ${name}`}>

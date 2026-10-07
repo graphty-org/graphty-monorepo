@@ -310,21 +310,24 @@ describe("indexed.PriorityDeltaPageRank", () => {
         expect(new PriorityDeltaPageRank(s).computeWithPriority().length).toBe(0);
     });
 
+    // One test per fixture, so no single test carries the whole list's work. deltaThreshold is 1e-16, not 0: at 0 a
+    // popped duplicate whose delta is already spent still re-queues every out-neighbour, so the heap holds about 2
+    // million entries on the larger fixtures, against 300 thousand here, for the same answer to 1e-15.
     for (const weighted of [false, true]) {
-        it(`converges to pageRank (weighted: ${String(weighted)})`, () => {
-            for (const { name, graph } of fixtures()) {
+        for (const { name, graph } of fixtures()) {
+            it(`converges to pageRank on ${name} (weighted: ${String(weighted)})`, () => {
                 const s = snapshotOf(graph);
                 const expected = pageRank(s, { weighted, tolerance: 1e-14, maxIterations: 10_000 }).scores;
                 const actual = new PriorityDeltaPageRank(s, { weights: exactArcWeights(s) }).computeWithPriority({
                     weighted,
                     tolerance: 1e-14,
-                    deltaThreshold: 0,
+                    deltaThreshold: 1e-16,
                     maxIterations: 10_000_000,
                 });
                 for (let i = 0; i < s.nodeCount; i++) {
-                    expect(actual[i], `${name}, node ${String(i)}`).toBeCloseTo(expected[i], 9);
+                    expect(actual[i], `node ${String(i)}`).toBeCloseTo(expected[i], 9);
                 }
-            }
-        });
+            });
+        }
     }
 });

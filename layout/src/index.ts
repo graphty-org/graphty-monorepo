@@ -4,10 +4,10 @@
  */
 
 // Re-export all types
-export * from "./types";
+export * from "./types/index.js";
 
 // Conversions between layout results, PositionMap and the scene position column
-export * from "./positions";
+export * from "./positions.js";
 
 // The layouts: each takes a GraphSnapshot and an options object and returns a LayoutResult. Explicit rather than
 // export *, so CommonLayoutOptions is the layouts' own and not the simulations' type of the same name.
@@ -40,10 +40,10 @@ export {
     spectral,
     spiral,
     type SpiralLayoutOptions,
-} from "./indexed";
+} from "./indexed/index.js";
 
 // Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
-export * from "./simulation";
+export * from "./simulation/index.js";
 
 // The machine-readable catalog of the layouts and simulations above.
 export {
@@ -52,4 +52,4 @@ export {
     type LayoutName,
     LAYOUTS,
     type LayoutWeightUse,
-} from "./catalog";
+} from "./catalog.js";

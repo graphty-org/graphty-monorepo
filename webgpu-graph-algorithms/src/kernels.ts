@@ -478,7 +478,7 @@ export const FRONTIER_COUNTERS: UniformBlock = UniformBlock.define(
  * `FrontierParams` (uniform, 80 B; P8-T4): the params block every P8 kernel except the three compact / dedupe
  * primitives and `bf-relax` binds -- `role` @0 (the finalize role), `wg` @4 (the consumers' workgroup size),
  * `alpha` @8, `beta` @12 (Beamer's thresholds, P8-T8), `fusedMax` @16, `edgeCapacity` @20, `maxDepth` @24, `n` @28,
- * `mode` @32 (BFS: 0 auto, 1 top-down only; `sssp-pred`: the PD-27 key rule), `cutoffBits` @36, `arcBase` @40,
+ * `mode` @32 (BFS: 0 auto, 1 top-down only, 2 every growing level bottom-up; `sssp-pred`: the PD-27 key rule), `cutoffBits` @36, `arcBase` @40,
  * `arcEnd` @44 (the bound arc window), `predKind` @48 (0 arc, 1 node), `bitsBase` @52, `source` @56, `stride` @60
  * (a grid-stride plan's stride), `firstOfSubmit` @64 (the boundary's index inside its submit, clamped to 1: both
  * the unvisited-count and the unvisited-degree-sum subtraction run at >= 1, issue #391), `iteration` @68 (an
@@ -1375,17 +1375,16 @@ const BFS_BITSET_BUILD: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-unvisited-flags` (design 8.4; P8-T8, PD-18): the unvisited set's producer, once per submit -- grid-striding over the vertices, counting the unclaimed ones and their OUT-degree sum into words 5 and 6 and flagging those with a non-zero IN-degree (word 7, what the sweep iterates) for `compact`; 5 storage bindings (the `outDegree` and `inDegree` VIEWS rather than the graph group, `depth` read-only, `flags`, the counters block); `needs: ["subgroups"]` for the three `wg_reduce_u32` calls (a twin kernel). */
+/** `bfs-unvisited-flags` (design 8.4; P8-T8, PD-18): the unvisited set's producer, once per submit -- grid-striding over the vertices, counting the unclaimed ones and their IN-degree sum (issue #1358: the arcs a bottom-up sweep can read) into words 5 and 6 and flagging those with a non-zero IN-degree (word 7, what the sweep iterates) for `compact`; 4 storage bindings (the `inDegree` VIEW rather than the graph group, `depth` read-only, `flags`, the counters block); `needs: ["subgroups"]` for the three `wg_reduce_u32` calls (a twin kernel). */
 const BFS_UNVISITED_FLAGS: KernelEntry = {
     id: "bfs-unvisited-flags",
     body: bfsUnvisitedFlagsWgsl,
     entryPoint: "bfs_unvisited_flags",
     bindings: [
-        decl(1, 0, "outDegree", "storage-ro", "array<u32>"),
-        decl(1, 1, "inDegree", "storage-ro", "array<u32>"),
-        decl(1, 2, "depth", "storage-ro", "array<u32>"),
-        decl(1, 3, "flags", "storage", "array<u32>"),
-        decl(1, 4, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 0, "inDegree", "storage-ro", "array<u32>"),
+        decl(1, 1, "depth", "storage-ro", "array<u32>"),
+        decl(1, 2, "flags", "storage", "array<u32>"),
+        decl(1, 3, "counters", "storage", "array<atomic<u32>>"),
         decl(2, 0, "P", "uniform", "FrontierParams"),
     ],
     overrideDecls: [],
@@ -1395,7 +1394,7 @@ const BFS_UNVISITED_FLAGS: KernelEntry = {
     phase: "P8",
 };
 
-/** `bfs-next-degree` (design 8.4; issue #391): Beamer's m_f measured exactly -- once per level, after the claim kernels, grid-striding over the output vertex queue and summing the `outDegree` view over the vertices the level claimed into word 25, one `atomicAdd` per workgroup; 3 storage bindings (`frontier` read-only, the `outDegree` VIEW, the counters block); `needs: ["subgroups"]` for the `wg_reduce_u32` call (a twin kernel). */
+/** `bfs-next-degree` (design 8.4; issues #391 and #1358): Beamer's m_f measured exactly -- once per level, after the claim kernels, grid-striding over the output vertex queue and summing the `outDegree` view over the vertices the level claimed into word 25, one `atomicAdd` per workgroup, and subtracting their `inDegree` sum from word 6 (`unvisitedDegreeSum`), one `atomicSub` per workgroup; 4 storage bindings (`frontier` read-only, the `outDegree` and `inDegree` VIEWS, the counters block); `needs: ["subgroups"]` for the `wg_reduce_u32` calls (a twin kernel). */
 const BFS_NEXT_DEGREE: KernelEntry = {
     id: "bfs-next-degree",
     body: bfsNextDegreeWgsl,
@@ -1404,6 +1403,7 @@ const BFS_NEXT_DEGREE: KernelEntry = {
         decl(1, 0, "frontier", "storage-ro", "array<u32>"),
         decl(1, 1, "outDegree", "storage-ro", "array<u32>"),
         decl(1, 2, "counters", "storage", "array<atomic<u32>>"),
+        decl(1, 3, "inDegree", "storage-ro", "array<u32>"),
         decl(2, 0, "P", "uniform", "FrontierParams"),
     ],
     overrideDecls: [],

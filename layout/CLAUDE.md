@@ -38,7 +38,7 @@ npm run coverage         # Run with coverage
 npm run coverage:preview # Serve coverage report (start it through servherd with PORT={{port}})
 
 # Linting
-npm run lint             # TypeScript type checking
+npm run lint             # ESLint, tsc, and the nodenext consumer check (needs build:all first)
 
 # Documentation
 npm run docs:dev         # Start docs dev server
@@ -256,4 +256,8 @@ block is not marked `<!-- doc-check -->` just before it. Keep each block self-co
 
 - **Main entry**: `dist/layout.js` (bundled ES module)
 - **Types**: `dist/layout.d.ts`
+- Every relative import in `src/` carries `.js` (`./types/index.js`, not `./types`). `tsconfig.json` checks under
+  `moduleResolution: nodenext`, which enforces it, and `npm run typecheck:consumer` compiles
+  `test/consumer/nodenext.ts` against the built `dist/` the way a Node ESM consumer does. Without the extensions
+  the published typings fail to resolve under nodenext (issue #958)
 - Always run `npm run build:all` before publishing

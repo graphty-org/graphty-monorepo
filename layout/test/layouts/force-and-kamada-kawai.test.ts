@@ -157,6 +157,21 @@ describe("kamadaKawai", () => {
         assert.deepEqual(Array.from(layout.kamadaKawai(grid(1, 1), { center: [2, 3] }).positions), [2, 3]);
     });
 
+    it("rejects a dist with no finite distance between two different nodes", () => {
+        const s = grid(2, 2);
+        const noEdges = new Float64Array(16).fill(Number.POSITIVE_INFINITY);
+        for (let i = 0; i < 4; i++) {
+            noEdges[i * 4 + i] = 0;
+        }
+        assert.throws(() => layout.kamadaKawai(s, { dist: noEdges }), RangeError, /graph without edges/);
+        assert.throws(() => layout.kamadaKawai(s, { dist: new Float32Array(16).fill(Number.NaN) }), RangeError);
+        // one finite pair is enough, and a single node needs no pair at all
+        const onePair = noEdges.slice();
+        onePair[1] = 1;
+        assert.equal(layout.kamadaKawai(s, { dist: onePair }).positions.length, 8);
+        assert.deepEqual(Array.from(layout.kamadaKawai(grid(1, 1), { dist: new Float64Array([0]) }).positions), [0, 0]);
+    });
+
     it("gives an unreachable pair, computed or a non-finite dist entry, the ideal distance 1e6", () => {
         // 0-1 an edge, 2 isolated: an ideal distance other than 1e6 changes how far 2 sits from the pair
         const s = weighted(3, [[0, 1, 1]]);

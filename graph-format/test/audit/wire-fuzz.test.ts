@@ -441,6 +441,24 @@ function segmentsOf(bytes: Uint8Array): Segment[] {
     return out;
 }
 
+/**
+ * Group items by the manifest member owning their dotted path: "core", "ids", or one column
+ * ("nodeColumns.7", "extensions.0.columns.2"). The per-reference suites run one test per group, so
+ * that no single test decodes thousands of containers: the work per test stays small however busy
+ * the machine is, and every mutation still runs.
+ */
+function byOwner<T>(items: readonly T[], pathOf: (item: T) => string): Map<string, T[]> {
+    const groups = new Map<string, T[]>();
+    for (const item of items) {
+        const path = pathOf(item);
+        const owner = (/^(?:extensions\.\d+\.)?\w+\.\d+|^\w+/.exec(path) as RegExpExecArray)[0];
+        const group = groups.get(owner) ?? [];
+        group.push(item);
+        groups.set(owner, group);
+    }
+    return groups;
+}
+
 /** The object at a dotted path, or undefined when any step is missing. */
 function walkTo(manifest: Record<string, unknown>, path: string): Record<string, unknown> | undefined {
     let node: unknown = manifest;
@@ -546,32 +564,46 @@ describe("wire fuzz: byte-level corruption of the GSNP container", () => {
                 expect(unexplained(anomalies)).toBe("");
             });
 
-            it("random byte flips in every region segment yield a fully valid snapshot or a documented error", () => {
-                const anomalies: Anomaly[] = [];
-                const rand = prng(0x5678 + bytes.byteLength);
-                for (const segment of segments) {
-                    const length = segment.end - segment.start;
-                    if (length === 0) {
-                        continue;
-                    }
-                    const trials = Math.min(length * 2, 32);
-                    for (let i = 0; i < trials; i++) {
-                        const inner = Math.floor(rand() * length);
-                        const offset = regionStart + segment.start + inner;
-                        const mutated =
-                            i % 4 === 0
-                                ? setByte(bytes, offset, i % 8 === 0 ? 0xff : 0)
-                                : flipBit(bytes, offset, Math.floor(rand() * 8));
+            // One seeded sequence of flips over the whole region, drawn here so that splitting it
+            // into one test per owner below leaves every flip exactly as it was.
+            interface RegionFlip {
+                readonly path: string;
+                readonly inner: number;
+                readonly mutate: () => Uint8Array;
+            }
+            const regionFlips: RegionFlip[] = [];
+            const rand = prng(0x5678 + bytes.byteLength);
+            for (const segment of segments) {
+                const length = segment.end - segment.start;
+                const trials = Math.min(length * 2, 32);
+                for (let i = 0; i < trials; i++) {
+                    const inner = Math.floor(rand() * length);
+                    const offset = regionStart + segment.start + inner;
+                    const set = i % 4 === 0;
+                    const value = i % 8 === 0 ? 0xff : 0;
+                    const bit = set ? 0 : Math.floor(rand() * 8);
+                    regionFlips.push({
+                        path: segment.path,
+                        inner,
+                        mutate: () => (set ? setByte(bytes, offset, value) : flipBit(bytes, offset, bit)),
+                    });
+                }
+            }
+            for (const [owner, flips] of byOwner(regionFlips, (f) => f.path)) {
+                it(`random byte flips in the region segments of ${owner} yield a fully valid snapshot or a documented error`, () => {
+                    const anomalies: Anomaly[] = [];
+                    for (const flip of flips) {
+                        const mutated = flip.mutate();
                         judgeAll(
                             (level) => fromBytes(mutated, { validate: level }),
                             golden.name,
-                            `region ${segment.path} byte ${inner}`,
+                            `region ${flip.path} byte ${flip.inner}`,
                             anomalies,
                         );
                     }
-                }
-                expect(unexplained(anomalies)).toBe("");
-            });
+                    expect(unexplained(anomalies)).toBe("");
+                });
+            }
 
             it("truncation at every section boundary is refused with a documented code", () => {
                 const anomalies: Anomaly[] = [];
@@ -622,66 +654,68 @@ describe("wire fuzz: byte-level corruption of the GSNP container", () => {
                 expect(unexplained(anomalies)).toBe("");
             });
 
-            it("lies in every buffer reference are refused or yield a valid snapshot", () => {
-                const anomalies: Anomaly[] = [];
-                const refs: FoundRef[] = [];
-                collectRefs(splitContainer(bytes).manifest, "", refs);
-                const targets = golden.columns
-                    ? refs
-                    : refs.filter((r) => r.path.startsWith("core") || r.path.startsWith("ids"));
-                const numericLies: readonly [string, (v: number) => unknown][] = [
-                    ["zero", () => 0],
-                    ["one", () => 1],
-                    ["minus one", () => -1],
-                    ["plus one", (v) => v + 1],
-                    ["plus four", (v) => v + 4],
-                    ["minus four", (v) => v - 4],
-                    ["fraction", (v) => v + 0.5],
-                    ["2^32", () => 4294967296],
-                    ["2^53", () => 9007199254740992],
-                    ["MAX_COUNT", () => MAX_COUNT],
-                    ["string", (v) => String(v)],
-                    ["null", () => null],
-                    ["array", () => []],
-                ];
-                for (const { path } of targets) {
-                    for (const field of ["buffer", "byteOffset", "byteLength", "length"]) {
-                        for (const [lieName, lie] of numericLies) {
+            const refs: FoundRef[] = [];
+            collectRefs(splitContainer(bytes).manifest, "", refs);
+            const lieTargets = golden.columns
+                ? refs
+                : refs.filter((r) => r.path.startsWith("core") || r.path.startsWith("ids"));
+            for (const [owner, targets] of byOwner(lieTargets, (r) => r.path)) {
+                it(`lies in every buffer reference of ${owner} are refused or yield a valid snapshot`, () => {
+                    const anomalies: Anomaly[] = [];
+                    const numericLies: readonly [string, (v: number) => unknown][] = [
+                        ["zero", () => 0],
+                        ["one", () => 1],
+                        ["minus one", () => -1],
+                        ["plus one", (v) => v + 1],
+                        ["plus four", (v) => v + 4],
+                        ["minus four", (v) => v - 4],
+                        ["fraction", (v) => v + 0.5],
+                        ["2^32", () => 4294967296],
+                        ["2^53", () => 9007199254740992],
+                        ["MAX_COUNT", () => MAX_COUNT],
+                        ["string", (v) => String(v)],
+                        ["null", () => null],
+                        ["array", () => []],
+                    ];
+                    for (const { path } of targets) {
+                        for (const field of ["buffer", "byteOffset", "byteLength", "length"]) {
+                            for (const [lieName, lie] of numericLies) {
+                                const mutated = withManifest(bytes, (m) => {
+                                    const target = at(m, path);
+                                    target[field] = lie(target[field] as number);
+                                });
+                                judgeAll(
+                                    (level) => fromBytes(mutated, { validate: level }),
+                                    golden.name,
+                                    `${path}.${field} := ${lieName}`,
+                                    anomalies,
+                                );
+                            }
+                        }
+                        for (const dtype of ["u32", "i32", "f32", "f64", "u8", "utf8", "f16", "bool", 7, null]) {
                             const mutated = withManifest(bytes, (m) => {
-                                const target = at(m, path);
-                                target[field] = lie(target[field] as number);
+                                at(m, path).dtype = dtype;
                             });
                             judgeAll(
                                 (level) => fromBytes(mutated, { validate: level }),
                                 golden.name,
-                                `${path}.${field} := ${lieName}`,
+                                `${path}.dtype := ${String(dtype)}`,
                                 anomalies,
                             );
                         }
-                    }
-                    for (const dtype of ["u32", "i32", "f32", "f64", "u8", "utf8", "f16", "bool", 7, null]) {
-                        const mutated = withManifest(bytes, (m) => {
-                            at(m, path).dtype = dtype;
+                        const dropped = withManifest(bytes, (m) => {
+                            setPath(m, path, null);
                         });
                         judgeAll(
-                            (level) => fromBytes(mutated, { validate: level }),
+                            (level) => fromBytes(dropped, { validate: level }),
                             golden.name,
-                            `${path}.dtype := ${String(dtype)}`,
+                            `${path} := null`,
                             anomalies,
                         );
                     }
-                    const dropped = withManifest(bytes, (m) => {
-                        setPath(m, path, null);
-                    });
-                    judgeAll(
-                        (level) => fromBytes(dropped, { validate: level }),
-                        golden.name,
-                        `${path} := null`,
-                        anomalies,
-                    );
-                }
-                expect(unexplained(anomalies)).toBe("");
-            });
+                    expect(unexplained(anomalies)).toBe("");
+                });
+            }
 
             it("lies about counts, flags, directedness, versions, arena, ids and top-level members are refused or harmless", () => {
                 const anomalies: Anomaly[] = [];
@@ -827,125 +861,140 @@ describe("wire fuzz: byte-level corruption of the GSNP container", () => {
                 expect(unexplained(anomalies)).toBe("");
             });
 
-            it("unknown dtypes, column metadata lies, slot lies and view lies are refused, skipped or harmless", () => {
-                const anomalies: Anomaly[] = [];
-                const columnPaths = golden.columns ? columnPathsOf(splitContainer(bytes).manifest) : [];
-                const metaLies: readonly [string, Record<string, unknown>][] = [
-                    ["dtype f16", { dtype: "f16" }],
-                    ["dtype list", { dtype: "list" }],
-                    ["dtype json", { dtype: "json" }],
-                    ["dtype u8", { dtype: "u8" }],
-                    ["dtype bool", { dtype: "bool" }],
-                    ["dtype string", { dtype: "string" }],
-                    ["dtype dict", { dtype: "dict" }],
-                    ["dtype f64", { dtype: "f64" }],
-                    ["dtype 3", { dtype: 3 }],
-                    ["itemDtype i64", { itemDtype: "i64" }],
-                    ["itemDtype list", { itemDtype: "list" }],
-                    ["itemDtype u32", { itemDtype: "u32" }],
-                    ["components 0", { components: 0 }],
-                    ["components 17", { components: 17 }],
-                    ["components 2", { components: 2 }],
-                    ["components 1.5", { components: 1.5 }],
-                    ["components string", { components: "3" }],
-                    ["itemComponents 3", { itemComponents: 3 }],
-                    ["refersTo graph", { refersTo: "graph" }],
-                    ["refersTo node", { refersTo: "node" }],
-                    ["refersTo edge", { refersTo: "edge" }],
-                    ["nullable false", { nullable: false }],
-                    ["nullable string", { nullable: "no" }],
-                    ["mutable true", { mutable: true }],
-                    ["mutable string", { mutable: "yes" }],
-                    ["role 3", { role: 3 }],
-                    ["role id", { role: "id" }],
-                    ["role weight", { role: "weight" }],
-                    ["role position", { role: "position" }],
-                    ["unique true", { unique: true }],
-                    ["name empty", { name: "" }],
-                    ["name number", { name: 7 }],
-                    ["name duplicate", { name: "pos" }],
-                    ["name proto", { name: "__proto__" }],
-                    ["default object", { default: { a: 1 } }],
-                    ["default tag", { default: { $num: "Infinity" } }],
-                    ["default bad tag", { default: { $num: "huge" } }],
-                    ["default string", { default: "x" }],
-                    ["fill string", { fill: "x" }],
-                    ["fill tag NaN", { fill: { $num: "NaN" } }],
-                    ["fill array", { fill: [1] }],
-                    ["fill null", { fill: null }],
-                    ["options non-array", { options: "x" }],
-                    ["options numbers", { options: [1, 2] }],
-                    ["origin string", { origin: "gexf" }],
-                    ["origin bad field", { origin: { format: 7 } }],
-                    ["extra array", { extra: [1] }],
-                    ["extra proto", { extra: JSON.parse('{"__proto__": {"polluted": true}}') as unknown }],
-                    ["extra constructor", { extra: { constructor: { prototype: {} } } }],
-                    ["domain edge", { domain: "edge" }],
-                    ["dynamic 1", { dynamic: 1 }],
-                ];
-                for (const path of columnPaths) {
-                    for (const [lieName, lie] of metaLies) {
-                        const mutated = withManifest(bytes, (m) => {
-                            for (const key of Object.keys(lie)) {
-                                setPath(m, `${path}.meta.${key}`, lie[key]);
-                            }
-                        });
-                        const policies = lieName.includes("dtype")
-                            ? (["error", "skip"] as const)
-                            : (["error"] as const);
-                        for (const unknownColumns of policies) {
-                            judgeAll(
-                                (level) => fromBytes(mutated, { validate: level, unknownColumns }),
-                                golden.name,
-                                `${path}.meta ${lieName} (${unknownColumns})`,
-                                anomalies,
-                            );
-                        }
-                    }
-                    const countLies: readonly [string, unknown][] = [
-                        ["nullCount -1", -1],
-                        ["nullCount +1", 1],
-                        ["nullCount huge", 1e9],
-                        ["nullCount string", "0"],
-                        ["nullCount missing", undefined],
+            const columnPaths = golden.columns ? columnPathsOf(splitContainer(bytes).manifest) : [];
+            for (const [owner, paths] of byOwner(columnPaths, (path) => path)) {
+                it(`unknown dtypes, column metadata lies and slot lies in ${owner} are refused, skipped or harmless`, () => {
+                    const anomalies: Anomaly[] = [];
+                    const metaLies: readonly [string, Record<string, unknown>][] = [
+                        ["dtype f16", { dtype: "f16" }],
+                        ["dtype list", { dtype: "list" }],
+                        ["dtype json", { dtype: "json" }],
+                        ["dtype u8", { dtype: "u8" }],
+                        ["dtype bool", { dtype: "bool" }],
+                        ["dtype string", { dtype: "string" }],
+                        ["dtype dict", { dtype: "dict" }],
+                        ["dtype f64", { dtype: "f64" }],
+                        ["dtype 3", { dtype: 3 }],
+                        ["itemDtype i64", { itemDtype: "i64" }],
+                        ["itemDtype list", { itemDtype: "list" }],
+                        ["itemDtype u32", { itemDtype: "u32" }],
+                        ["components 0", { components: 0 }],
+                        ["components 17", { components: 17 }],
+                        ["components 2", { components: 2 }],
+                        ["components 1.5", { components: 1.5 }],
+                        ["components string", { components: "3" }],
+                        ["itemComponents 3", { itemComponents: 3 }],
+                        ["refersTo graph", { refersTo: "graph" }],
+                        ["refersTo node", { refersTo: "node" }],
+                        ["refersTo edge", { refersTo: "edge" }],
+                        ["nullable false", { nullable: false }],
+                        ["nullable string", { nullable: "no" }],
+                        ["mutable true", { mutable: true }],
+                        ["mutable string", { mutable: "yes" }],
+                        ["role 3", { role: 3 }],
+                        ["role id", { role: "id" }],
+                        ["role weight", { role: "weight" }],
+                        ["role position", { role: "position" }],
+                        ["unique true", { unique: true }],
+                        ["name empty", { name: "" }],
+                        ["name number", { name: 7 }],
+                        ["name duplicate", { name: "pos" }],
+                        ["name proto", { name: "__proto__" }],
+                        ["default object", { default: { a: 1 } }],
+                        ["default tag", { default: { $num: "Infinity" } }],
+                        ["default bad tag", { default: { $num: "huge" } }],
+                        ["default string", { default: "x" }],
+                        ["fill string", { fill: "x" }],
+                        ["fill tag NaN", { fill: { $num: "NaN" } }],
+                        ["fill array", { fill: [1] }],
+                        ["fill null", { fill: null }],
+                        ["options non-array", { options: "x" }],
+                        ["options numbers", { options: [1, 2] }],
+                        ["origin string", { origin: "gexf" }],
+                        ["origin bad field", { origin: { format: 7 } }],
+                        ["extra array", { extra: [1] }],
+                        ["extra proto", { extra: JSON.parse('{"__proto__": {"polluted": true}}') as unknown }],
+                        ["extra constructor", { extra: { constructor: { prototype: {} } } }],
+                        ["domain edge", { domain: "edge" }],
+                        ["dynamic 1", { dynamic: 1 }],
                     ];
-                    for (const [lieName, lie] of countLies) {
-                        const mutated = withManifest(bytes, (m) => {
-                            at(m, path).nullCount = lie;
-                        });
-                        judgeAll(
-                            (level) => fromBytes(mutated, { validate: level }),
-                            golden.name,
-                            `${path} ${lieName}`,
-                            anomalies,
-                        );
-                    }
-                    for (const slot of ["data", "validity", "dictionary", "strings", "offsets", "child", "jsonText"]) {
-                        const slotLies: readonly [string, (rowPtr: Record<string, unknown>) => unknown][] = [
-                            ["null", () => null],
-                            ["object", () => ({})],
-                            ["rowPtr ref", (rowPtr) => rowPtr],
-                            [
-                                "utf8 pair of rowPtr",
-                                (rowPtr) => ({
-                                    offsets: rowPtr,
-                                    utf8: { ...rowPtr, dtype: "utf8", length: rowPtr.byteLength },
-                                }),
-                            ],
-                        ];
-                        for (const [lieName, lie] of slotLies) {
+                    for (const path of paths) {
+                        for (const [lieName, lie] of metaLies) {
                             const mutated = withManifest(bytes, (m) => {
-                                at(m, path)[slot] = lie({ ...at(m, "core.rowPtr") });
+                                for (const key of Object.keys(lie)) {
+                                    setPath(m, `${path}.meta.${key}`, lie[key]);
+                                }
+                            });
+                            const policies = lieName.includes("dtype")
+                                ? (["error", "skip"] as const)
+                                : (["error"] as const);
+                            for (const unknownColumns of policies) {
+                                judgeAll(
+                                    (level) => fromBytes(mutated, { validate: level, unknownColumns }),
+                                    golden.name,
+                                    `${path}.meta ${lieName} (${unknownColumns})`,
+                                    anomalies,
+                                );
+                            }
+                        }
+                        const countLies: readonly [string, unknown][] = [
+                            ["nullCount -1", -1],
+                            ["nullCount +1", 1],
+                            ["nullCount huge", 1e9],
+                            ["nullCount string", "0"],
+                            ["nullCount missing", undefined],
+                        ];
+                        for (const [lieName, lie] of countLies) {
+                            const mutated = withManifest(bytes, (m) => {
+                                at(m, path).nullCount = lie;
                             });
                             judgeAll(
                                 (level) => fromBytes(mutated, { validate: level }),
                                 golden.name,
-                                `${path}.${slot} := ${lieName}`,
+                                `${path} ${lieName}`,
                                 anomalies,
                             );
                         }
+                        for (const slot of [
+                            "data",
+                            "validity",
+                            "dictionary",
+                            "strings",
+                            "offsets",
+                            "child",
+                            "jsonText",
+                        ]) {
+                            const slotLies: readonly [string, (rowPtr: Record<string, unknown>) => unknown][] = [
+                                ["null", () => null],
+                                ["object", () => ({})],
+                                ["rowPtr ref", (rowPtr) => rowPtr],
+                                [
+                                    "utf8 pair of rowPtr",
+                                    (rowPtr) => ({
+                                        offsets: rowPtr,
+                                        utf8: { ...rowPtr, dtype: "utf8", length: rowPtr.byteLength },
+                                    }),
+                                ],
+                            ];
+                            for (const [lieName, lie] of slotLies) {
+                                const mutated = withManifest(bytes, (m) => {
+                                    at(m, path)[slot] = lie({ ...at(m, "core.rowPtr") });
+                                });
+                                judgeAll(
+                                    (level) => fromBytes(mutated, { validate: level }),
+                                    golden.name,
+                                    `${path}.${slot} := ${lieName}`,
+                                    anomalies,
+                                );
+                            }
+                        }
                     }
-                }
+                    expect(unexplained(anomalies)).toBe("");
+                });
+            }
+
+            it("view lies are refused or harmless", () => {
+                const anomalies: Anomaly[] = [];
                 const viewLies: readonly unknown[] = [
                     { unknownView: { data: "x" } },
                     { unknownView: {} },
@@ -1040,17 +1089,18 @@ describe("wire fuzz: byte-level corruption of the GSNP container", () => {
 
 describe("wire fuzz: in-memory wire form (fromWire)", () => {
     for (const golden of GOLDENS) {
-        it(`${golden.name}: structuredClone round trip, poisoned manifest values and poisoned buffers`, () => {
+        describe(golden.name, () => {
             const original = golden.make();
             const wire = original.toWire();
-            const cloned = structuredClone(wire);
-            for (const level of LEVELS) {
-                const back = fromWire(cloned, { validate: level });
-                expectSnapshotsEqual(original, back);
-                back.validate({ level: "full" });
-                expect(back.contentHash()).toBe(original.contentHash());
-            }
-            const anomalies: Anomaly[] = [];
+            it("structuredClone round trip at every level", () => {
+                const cloned = structuredClone(wire);
+                for (const level of LEVELS) {
+                    const back = fromWire(cloned, { validate: level });
+                    expectSnapshotsEqual(original, back);
+                    back.validate({ level: "full" });
+                    expect(back.contentHash()).toBe(original.contentHash());
+                }
+            });
             const poison: readonly [string, unknown][] = [
                 ["NaN", Number.NaN],
                 ["Infinity", Infinity],
@@ -1103,62 +1153,71 @@ describe("wire fuzz: in-memory wire form (fromWire)", () => {
                     refFields.map((f) => `${r.path}.${f}`),
                 ),
             ];
-            for (const path of scalarPaths) {
-                for (const [poisonName, value] of poison) {
-                    const mutated = structuredClone(wire);
-                    setPath(mutated.manifest as unknown as Record<string, unknown>, path, value);
+            for (const [owner, paths] of byOwner(scalarPaths, (path) => path)) {
+                it(`poisoned manifest values in ${owner} are refused or harmless`, () => {
+                    const anomalies: Anomaly[] = [];
+                    for (const path of paths) {
+                        for (const [poisonName, value] of poison) {
+                            const mutated = structuredClone(wire);
+                            setPath(mutated.manifest as unknown as Record<string, unknown>, path, value);
+                            judgeAll(
+                                (level) => fromWire(mutated, { validate: level }),
+                                golden.name,
+                                `fromWire ${path} := ${poisonName}`,
+                                anomalies,
+                            );
+                        }
+                    }
+                    expect(unexplained(anomalies)).toBe("");
+                });
+            }
+            it("poisoned buffers and malformed wire shapes are refused or harmless", () => {
+                const anomalies: Anomaly[] = [];
+                const detached = new ArrayBuffer(64);
+                structuredClone(detached, { transfer: [detached] });
+                const bufferPoison: readonly [string, unknown][] = [
+                    ["Uint8Array", new Uint8Array(64)],
+                    ["SharedArrayBuffer", new SharedArrayBuffer(64)],
+                    ["null", null],
+                    ["number", 3],
+                    ["detached", detached],
+                    ["short", new ArrayBuffer(3)],
+                    ["empty", new ArrayBuffer(0)],
+                ];
+                for (const [poisonName, value] of bufferPoison) {
+                    for (let i = 0; i < wire.buffers.length; i++) {
+                        const mutated = structuredClone(wire);
+                        (mutated.buffers as unknown[])[i] = value;
+                        judgeAll(
+                            (level) => fromWire(mutated, { validate: level }),
+                            golden.name,
+                            `fromWire buffers[${i}] := ${poisonName}`,
+                            anomalies,
+                        );
+                    }
+                }
+                const shapes: readonly [string, unknown][] = [
+                    ["null", null],
+                    ["array", []],
+                    ["manifest only", { manifest: wire.manifest }],
+                    ["buffers only", { buffers: wire.buffers }],
+                    ["buffers object", { manifest: wire.manifest, buffers: {} }],
+                    ["manifest string", { manifest: "x", buffers: [] }],
+                    ["class instance", new Map([["manifest", wire.manifest]])],
+                    ["extra buffers", { manifest: wire.manifest, buffers: [...wire.buffers, new ArrayBuffer(8)] }],
+                    ["fewer buffers", { manifest: wire.manifest, buffers: wire.buffers.slice(0, -1) }],
+                    ["reversed buffers", { manifest: wire.manifest, buffers: [...wire.buffers].reverse() }],
+                ];
+                for (const [shapeName, shape] of shapes) {
                     judgeAll(
-                        (level) => fromWire(mutated, { validate: level }),
+                        (level) => fromWire(shape as WireSnapshot, { validate: level }),
                         golden.name,
-                        `fromWire ${path} := ${poisonName}`,
+                        `fromWire(${shapeName})`,
                         anomalies,
                     );
                 }
-            }
-            const detached = new ArrayBuffer(64);
-            structuredClone(detached, { transfer: [detached] });
-            const bufferPoison: readonly [string, unknown][] = [
-                ["Uint8Array", new Uint8Array(64)],
-                ["SharedArrayBuffer", new SharedArrayBuffer(64)],
-                ["null", null],
-                ["number", 3],
-                ["detached", detached],
-                ["short", new ArrayBuffer(3)],
-                ["empty", new ArrayBuffer(0)],
-            ];
-            for (const [poisonName, value] of bufferPoison) {
-                for (let i = 0; i < wire.buffers.length; i++) {
-                    const mutated = structuredClone(wire);
-                    (mutated.buffers as unknown[])[i] = value;
-                    judgeAll(
-                        (level) => fromWire(mutated, { validate: level }),
-                        golden.name,
-                        `fromWire buffers[${i}] := ${poisonName}`,
-                        anomalies,
-                    );
-                }
-            }
-            const shapes: readonly [string, unknown][] = [
-                ["null", null],
-                ["array", []],
-                ["manifest only", { manifest: wire.manifest }],
-                ["buffers only", { buffers: wire.buffers }],
-                ["buffers object", { manifest: wire.manifest, buffers: {} }],
-                ["manifest string", { manifest: "x", buffers: [] }],
-                ["class instance", new Map([["manifest", wire.manifest]])],
-                ["extra buffers", { manifest: wire.manifest, buffers: [...wire.buffers, new ArrayBuffer(8)] }],
-                ["fewer buffers", { manifest: wire.manifest, buffers: wire.buffers.slice(0, -1) }],
-                ["reversed buffers", { manifest: wire.manifest, buffers: [...wire.buffers].reverse() }],
-            ];
-            for (const [shapeName, shape] of shapes) {
-                judgeAll(
-                    (level) => fromWire(shape as WireSnapshot, { validate: level }),
-                    golden.name,
-                    `fromWire(${shapeName})`,
-                    anomalies,
-                );
-            }
-            expect(unexplained(anomalies)).toBe("");
+                expect(unexplained(anomalies)).toBe("");
+            });
         });
     }
 });

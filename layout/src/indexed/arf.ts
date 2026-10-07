@@ -1,9 +1,9 @@
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
-import { type LayoutResult, rescaleInPlace } from "../positions";
-import { seedPositions } from "../simulation/seed";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { layoutDim, startColumn } from "./start";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { seedPositions } from "../simulation/seed.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { layoutDim, startColumn } from "./start.js";
 
 /** Options of indexed.arf. */
 export interface ArfOptions {

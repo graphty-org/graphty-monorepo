@@ -13,7 +13,7 @@ import { breadthFirstSearch } from "../../src/algorithms/bfs.js";
 import { connectedComponents } from "../../src/algorithms/components.js";
 import { pageRank } from "../../src/algorithms/pagerank.js";
 import { sssp } from "../../src/algorithms/sssp.js";
-import { BEAMER_BETA, MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
+import { BEAMER_ALPHA, BEAMER_BETA, MAX_LEVELS_PER_SUBMIT } from "../../src/constants.js";
 import { edgeConvention, scoreError, vertexConvention } from "../helpers/centrality-check.js";
 import { type EdgeSpec, KARATE_EDGES, snapshotOf, xorshift } from "../helpers/graphs.js";
 import { expectAllClose, expectBitwiseEqual } from "../helpers/matchers.js";
@@ -69,15 +69,16 @@ describe("PageRank, connected components, BFS, sssp and betweenness in the brows
         expectOrderGroupedByLevel(result);
         // issue #391: m_f is the out-degree sum of the frontier the boundary is ABOUT to expand, so karate switches
         // once -- at the boundary that rotates in vertex 0's 16 neighbours, whose 69 out-arcs clear
-        // alpha = floor(156 / 34) = 4 against the 71 arcs still unvisited -- and never switches back. The host
+        // max(17 unvisited vertices, floor(71 unvisited in-arcs / BEAMER_ALPHA 2)) = 35 -- and never switches back. The host
         // replay of Beamer's rule over the oracle's levels is the same check test/algorithms/bfs.test.ts makes.
-        const { sizes, degreeSums } = levelStatsOf(karate, expected.depth);
+        const { sizes, degreeSums, inDegreeSums } = levelStatsOf(karate, expected.depth);
         const boundaries = expectedDirections(
             sizes,
             degreeSums,
+            inDegreeSums,
             karate.nodeCount,
             karate.arcCount,
-            Math.max(1, Math.floor(karate.arcCount / karate.nodeCount)), // the driver's default alpha
+            BEAMER_ALPHA, // the driver's default alpha
             BEAMER_BETA,
             MAX_LEVELS_PER_SUBMIT,
         );

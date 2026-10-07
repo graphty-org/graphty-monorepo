@@ -22,9 +22,9 @@ element.edgeData = [{ source: "a", target: "b" }];
 ```
 
 Assigning either property REPLACES what it describes. A node missing from a new `nodeData` array
-is removed along with the edges attached to it; a node that is still there keeps its position and,
-for now, its OLD data -- a changed field on a retained node is not applied. `edgeData` replaces
-edge records outright. To add to the graph instead, call `addNodes` and `addEdges`.
+is removed along with the edges attached to it; a node that is still there keeps its position and
+its edges and takes the record it was just given, so a changed field is applied and a style that
+reads it repaints. The whole assignment is one undo step. `edgeData` replaces edge records outright. To add to the graph instead, call `addNodes` and `addEdges`.
 
 ## Loading from URL
 
@@ -750,8 +750,8 @@ for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
 
 ```typescript
 const result = await element.exportGraph("gexf");
-for (const note of result.lossNotes) {
-    console.warn(`${note.code}: ${note.message}`);
+for (const loss of result.losses) {
+    console.warn(loss.code, loss.params.columns, loss.params.count); // your app words each code
 }
 const text = await result.text(); // or iterate result.bytes for a large file
 ```
@@ -763,9 +763,30 @@ edge width and node shape each element is drawn with. Edge weights are the weigh
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
 reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
-colours in GraphML, node attributes in an edge-list CSV -- is listed in `lossNotes`, one note per
-kind of omission, naming the column. A value an algorithm did not measure is left absent, never
-written as zero. The element's own edge ids and internal columns are not written.
+colours in GraphML, node attributes in an edge-list CSV -- is listed in `losses`, one per kind of
+omission, about the table or file actually written: exporting the CSV node table lists no edge or
+graph loss. A value an algorithm did not measure is left absent, never written as zero. The
+element's own edge ids and internal columns are not written.
+
+Each loss is a coded fact, `{ code, params: { columns, count } }`, and graphty-element writes no
+words for it:
+
+- `code` is an `ExportLossCode`: one of the codes in graph-io's loss tables for the format written
+  (`LOSS`, which every format shares, and `CSV_LOSS`, `GRAPHML_LOSS`, `GEXF_LOSS` and the rest,
+  each code documented there), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
+  loaded column under the reserved `graphty.` root), `W_GRAPHTY_NOTES` (notes, which no format
+  holds as notes), `W_GRAPHTY_TRUNCATED` (note text cut to 64 KB), `W_GRAPHTY_CSV_NEUTRALIZED`
+  (cells a spreadsheet would run as a formula, prefixed with an apostrophe),
+  `W_WEIGHT_NOT_NUMERIC` (edge weights that are not numbers) and `W_RESULT_FIELD_DROPPED` (an
+  algorithm result no column could hold). A code starting `E_` means the writer refuses the graph
+  under these options, and `text()` rejects. A writer registered with `registerFormatWriter`
+  reports its own codes.
+- `columns` names every column the loss is about: one, several (every graph attribute a format has
+  no place for), or none (self-loops).
+- `count` is how many nodes, edges, values or columns are affected, or `null` when not counted.
+
+`lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
+release.
 
 | Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
 | ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

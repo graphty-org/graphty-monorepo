@@ -60,11 +60,12 @@ const css = `
    menu or tooltip appear, without observing the whole page. */
 @keyframes cm-overlay-mount { from { outline-offset: 0; } to { outline-offset: 0; } }
 .cm-menu { animation: cm-overlay-mount 1ms; }
-/* A tooltip's mount hook also keeps it hidden for its first frame. animationstart fires one frame
-   after the element appears, so without this a focus-opened tooltip would paint once before
-   overlayBehavior.ts holds it for the cold delay. */
-@keyframes cm-tooltip-mount { from { visibility: hidden; } to { visibility: hidden; } }
+/* A tooltip stays hidden until overlayBehavior.ts has seen its mount and decided whether to hold
+   it (data-cm-seen). The 1 ms animation can end a frame before animationstart is dispatched, so
+   hiding it only for the animation let a focus-opened tooltip show once before it was held. */
+@keyframes cm-tooltip-mount { from { outline-offset: 0; } to { outline-offset: 0; } }
 .cm-tooltip { animation: cm-tooltip-mount 1ms; }
+.cm-tooltip:not([data-cm-seen]) { visibility: hidden; }
 
 /* A submenu is rendered inside its parent's dropdown, so the foundation's "children are dark"
    rule reaches it and would resolve its shadow dark in the light app. Its shadow follows the

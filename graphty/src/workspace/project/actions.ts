@@ -10,6 +10,7 @@
 import { browserProjects, type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
 
 import type { CommandContext } from "../commands/registry";
+import { openDataPage } from "../data-page/request";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
 import { entryForHandle, forgetRecent, type RecentProject, refreshStored, rememberRecent } from "./recent";
@@ -341,7 +342,8 @@ function withoutExtension(fileName: string): string {
  * Opens a file in the session through graphty-element's one intake verb, `project.open`. A
  * project file replaces the project (refused over unsaved changes until the reader says Discard);
  * the header takes the project's name, and Save writes the browser-kept project it came from
- * again. A data file loads as a new project's graph, or is added to an open project.
+ * again. A data file loads as a new project's graph, or opens the Data page to add it to an open
+ * project.
  * @param ctx - the command context, with the project's session.
  * @param session - the session.
  * @param pending - the file and where it came from.
@@ -358,8 +360,15 @@ async function openInSession(
     const { file, handle, recentId, storedId, fresh = false } = pending;
     try {
         const report = await session.project.open(file, { discard, fileName: file.name });
+        if (report.opened === "graph" && !fresh) {
+            // A data file added to an open project goes through the Data page, where its roles
+            // and weight are chosen like any other load; the page reads the file itself.
+            report.draft?.dispose();
+            openDataPage(workspace, { intent: "add", files: [file] });
+            return true;
+        }
         if (report.opened === "graph") {
-            await report.draft?.load({ mode: fresh ? "replace" : "merge" });
+            await report.draft?.load({ mode: "replace" });
         }
         if (report.opened !== "project") {
             if (!fresh) {
@@ -400,7 +409,7 @@ async function openInSession(
 /**
  * Opens a project or data file (Open project or file..., a dropped file, Recent projects): inside
  * an open project a project file opens in its place (asking first over unsaved changes) and a
- * data file is added; from the start screen it opens a project whose element reads the file once
+ * data file opens the Data page to be added; from the start screen it opens a project whose element reads the file once
  * it is up.
  * @param ctx - the command context.
  * @param file - the file.

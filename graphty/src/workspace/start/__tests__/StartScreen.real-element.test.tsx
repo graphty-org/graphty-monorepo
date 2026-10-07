@@ -241,7 +241,7 @@ describe("Open project or file... and a dropped file, on the real element", () =
     );
 
     it(
-        "adds a data file to the open project, and asks before a project file replaces unsaved changes",
+        "adds a data file to the open project through the Data page, and asks before a project file replaces unsaved changes",
         async () => {
             const project = await lesMiserablesProjectFile();
             const store = createWorkspaceStore();
@@ -255,15 +255,29 @@ describe("Open project or file... and a dropped file, on the real element", () =
                 { timeout: TIMEOUT_MS },
             );
 
+            // A table file goes through the Data page, where its roles and weight are chosen.
             chooseNextFile(new File(["source,target\nx1,x2\nx2,x3\n"], "extra.csv", { type: "text/csv" }));
             await userEvent.keyboard("{Control>}o{/Control}");
+            await screen.findByRole("heading", { name: /^Add to / }, { timeout: TIMEOUT_MS });
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            assert.equal(session.data.statistics().nodeCount, 15);
+            // x1, x2 and x3 are in no node row and not in the graph: Add makes them.
+            const report = await screen.findByRole("region", { name: "Match report" }, { timeout: TIMEOUT_MS });
+            await userEvent.click(await within(report).findByText("Add", {}, { timeout: TIMEOUT_MS }));
+            const load = await screen.findByRole("button", { name: "Load" });
             await waitFor(
                 () => {
-                    assert.equal(store.get().notice?.message, "Added extra.csv to this project");
+                    assert.isFalse(load.hasAttribute("disabled") || load.getAttribute("data-disabled") === "true");
                 },
                 { timeout: TIMEOUT_MS },
             );
-            assert.equal(session.data.statistics().nodeCount, 18);
+            await userEvent.click(load);
+            await waitFor(
+                () => {
+                    assert.equal(session.data.statistics().nodeCount, 18);
+                },
+                { timeout: TIMEOUT_MS },
+            );
             assert.isTrue(session.project.dirty);
 
             chooseNextFile(project);

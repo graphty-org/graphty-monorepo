@@ -6,6 +6,7 @@ import {
     DataRow,
     PANEL_GRID,
     PANEL_INK,
+    PanelField,
 } from "@graphty/compact-mantine";
 import { Box, Button, Group, Modal, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";
@@ -128,6 +129,25 @@ function loadedSummarySegments(summary: LoadedDataSummary): CompoundSegment[] {
     }
 
     return segments;
+}
+
+/**
+ * The "What the file is" row. Two or three values are one thing and draw as a compound;
+ * a lone value -- a sample, a URL or a paste has no file size -- is a field, because a
+ * compound row holds two or three values and nothing else.
+ * @param props - the component props.
+ * @param props.summary - what the loaded file is.
+ * @returns the row.
+ */
+function LoadedSummaryRow({ summary }: Readonly<{ summary: LoadedDataSummary }>): React.JSX.Element {
+    const label = summary.title ?? LOADED_SUMMARY_LABEL;
+    const segments = loadedSummarySegments(summary);
+
+    if (segments.length === 1) {
+        return <PanelField label={label} kind="text" readOnly value={summary.format} width={PANEL_GRID.BODY} />;
+    }
+
+    return <CompoundRow label={label} segments={segments} width={PANEL_GRID.BODY} />;
 }
 
 /**
@@ -502,13 +522,7 @@ export function DataPanel(props: DataPanelProps): React.JSX.Element {
                         />
                     }
                 >
-                    {loadedSummary === undefined ? null : (
-                        <CompoundRow
-                            label={loadedSummary.title ?? LOADED_SUMMARY_LABEL}
-                            segments={loadedSummarySegments(loadedSummary)}
-                            width={PANEL_GRID.BODY}
-                        />
-                    )}
+                    {loadedSummary === undefined ? null : <LoadedSummaryRow summary={loadedSummary} />}
 
                     {loadedFacts.map((fact) => (
                         <Box key={fact.id} title={fact.title}>

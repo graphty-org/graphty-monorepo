@@ -533,6 +533,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     proposeEncoding: READ,
     settled: READ,
     explain: READ,
+    agreement: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
@@ -722,6 +723,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isRunning: READ,
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
+            nodeScreenPosition: READ,
             screenToWorld: READ,
             elementAt: READ,
             setData: calls(
@@ -914,6 +916,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startInputRecording: INPUT,
             stopInputRecording: INPUT,
             worldToScreen: READ,
+            nodeScreenPosition: READ,
             screenToWorld: READ,
             elementAt: READ,
             getCameraController: READ,

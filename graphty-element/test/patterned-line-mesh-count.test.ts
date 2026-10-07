@@ -3,7 +3,7 @@ import { assert, beforeEach, describe, test } from "vitest";
 
 import { FilledArrowRenderer } from "../src/meshes/FilledArrowRenderer";
 import { discreteMeshCount, discreteMeshOffsets, patternElementPeriod } from "../src/meshes/PatternedLineMesh";
-import { PatternedLineRenderer, type PatternType } from "../src/meshes/PatternedLineRenderer";
+import { PatternedLineRenderer } from "../src/meshes/PatternedLineRenderer";
 
 /**
  * The patterned-line element count, and who decides it.
@@ -164,7 +164,7 @@ describe("patterned line element count", () => {
             const before = FilledArrowRenderer.getActiveMaterialCount();
 
             const line = PatternedLineRenderer.create(
-                "dot" as PatternType,
+                "dot",
                 new Vector3(0, 0, 0),
                 new Vector3(0, 0, 5),
                 8,

@@ -1042,7 +1042,7 @@ export function abortable<T>(promise: Promise<T>, signal: AbortSignal | null): P
             try {
                 throwIfAborted(signal);
             } catch (err) {
-                reject(err as Error);
+                reject(err);
             }
         };
         signal.addEventListener("abort", onAbort, { once: true });
@@ -1053,7 +1053,7 @@ export function abortable<T>(promise: Promise<T>, signal: AbortSignal | null): P
             },
             (err: unknown) => {
                 signal.removeEventListener("abort", onAbort);
-                reject(err as Error);
+                reject(err);
             },
         );
     });

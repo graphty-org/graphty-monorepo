@@ -135,6 +135,9 @@ async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSess
 
 /**
  * Save as through the keys: the dialog opens with the project's name selected; typing replaces it.
+ * Returns once the dialog has gone, which is when Save as is done: the element clears `dirty`
+ * before the app has recorded the file in Recent projects and closed the dialog, and while the
+ * dialog is open it keeps the keys (F2 does nothing).
  * @param name - the name to save under.
  */
 async function saveAs(name: string): Promise<void> {
@@ -146,6 +149,12 @@ async function saveAs(name: string): Promise<void> {
     });
     assert.equal(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0), "Florentine families");
     await userEvent.keyboard(`${name}{Enter}`);
+    await waitFor(
+        () => {
+            assert.isNull(screen.queryByRole("dialog"));
+        },
+        { timeout: TIMEOUT_MS },
+    );
 }
 
 /**

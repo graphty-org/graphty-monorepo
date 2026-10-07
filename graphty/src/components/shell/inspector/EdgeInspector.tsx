@@ -56,6 +56,8 @@ export interface EdgeInspectorProps {
     readonly onAddNote: (text: string) => void;
     /** Deletes a note. */
     readonly onDeleteNote: (noteId: string) => void;
+    /** Marks a note done, or not done. */
+    readonly onSetNoteDone: (noteId: string, done: boolean) => void;
     /** Selects one of the endpoints. */
     readonly onSelectEndpoint: (nodeId: string) => void;
     /** Runs one verb of the actions block. */
@@ -82,6 +84,7 @@ export function EdgeInspector(props: EdgeInspectorProps): React.JSX.Element {
         notes,
         onAddNote,
         onDeleteNote,
+        onSetNoteDone,
         onSelectEndpoint,
         onAction,
     } = props;
@@ -183,6 +186,7 @@ export function EdgeInspector(props: EdgeInspectorProps): React.JSX.Element {
                 notes={notes}
                 onAddNote={onAddNote}
                 onDeleteNote={onDeleteNote}
+                onSetNoteDone={onSetNoteDone}
             />
 
             <InspectorActions label="Actions" actions={actions} moreActions={moreActions} />

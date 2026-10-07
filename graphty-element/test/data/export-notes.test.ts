@@ -14,7 +14,7 @@ import type { DataSource } from "../../src/data/DataSource";
 import { exportSession } from "../../src/data/export";
 import { GEXFDataSource } from "../../src/data/GEXFDataSource";
 import { GraphMLDataSource } from "../../src/data/GraphMLDataSource";
-import { edgeBetween, type EdgeRow, type Harness, makeSession, type NodeRow } from "../session/helpers";
+import { edgeBetween, type Harness, makeSession, type NodeRow } from "../session/helpers";
 import { notesHarness } from "../session/notes/harness";
 
 const COUNT = "graphty.notes.count";
@@ -183,7 +183,7 @@ describe("notes in exports", () => {
                 assert.strictEqual(edge?.[TEXT], "about the edge");
 
                 const reopened = makeSession();
-                reopened.add(back.nodes as unknown as NodeRow[], back.edges as unknown as EdgeRow[]);
+                reopened.add(back.nodes as unknown as NodeRow[], back.edges);
                 assert.lengthOf(reopened.session.notes.list(), 0, "a column never becomes a note");
                 const again = exportSession(reopened.session, format, { notes: true });
                 assert.notInclude(await again.text(), "graphty.notes", "a loaded graphty. column is never exported");

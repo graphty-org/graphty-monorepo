@@ -105,9 +105,12 @@ echo "Checking relative links, anchors and repository links in $(wc -l < "$INPUT
 "$LYCHEE" "${ARGS[@]}" --files-from "$INPUTS" || FAILED=1
 
 # 2. Everything else under github.com/graphty-org (issues, workflows, the other repositories)
+#    A 5xx means GitHub could not render the page (an Actions run URL answers 502 intermittently),
+#    not that the link is dead: a dead link answers 404 or 410. So 500..=599 is accepted here.
 if [ $OFFLINE -eq 0 ]; then
     echo "Checking github.com/graphty-org links"
-    "$LYCHEE" --include '^https://github\.com/graphty-org/' --exclude '.*' \
+    "$LYCHEE" --accept '100..=103,200..=299,500..=599' \
+        --include '^https://github\.com/graphty-org/' --exclude '.*' \
         --remap "$REPO_REMAP" --files-from "$INPUTS" || FAILED=1
 fi
 

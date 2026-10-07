@@ -116,8 +116,7 @@ export const Hidden: Story = {
 
 /**
  * Louvain over PageRank: a run row with its groups open, each with its color and size
- * (`#/graph-place/louvain-open`). Until graphty-element #906 is fixed the group rows draw no color,
- * so a capture of this story shows that defect and is not the expected look.
+ * (`#/graph-place/louvain-open`).
  */
 export const LouvainOpen: Story = {
     args: { initialState: OPEN },

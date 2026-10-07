@@ -1,9 +1,10 @@
 /**
  * The `group-by-key-row` kernel body (design 8.6; the per-row group-by-key): for every listed row `v`, the arcs of
  * the row are grouped by the key of their target (`keyIn[colIdx[a]]`), the weights are summed per key, and the key
- * with the largest sum wins, ties going to the LOWEST key -- which makes the answer independent of the order the arcs
- * are visited in, and so bitwise reproducible. `bestKey[v]` gets the key (`INVALID_INDEX` for an empty row) and
- * `bestScore[v]` the summed weight.
+ * with the largest sum wins. A tie goes to the row's OWN key (`keyIn[v]`) when it is among the tied keys -- label
+ * propagation keeps a label that ties for the lead -- and otherwise to the LOWEST key. Either way the order is strict,
+ * which makes the answer independent of the order the arcs are visited in, and so bitwise reproducible. `bestKey[v]`
+ * gets the key (`INVALID_INDEX` for an empty row) and `bestScore[v]` the summed weight.
  *
  * The sums are u32 fixed point, because WGSL has no float atomic: every weight is scaled by `2^s`, a power of two
  * chosen from the exponents of the row's largest weight and of its degree alone so that `maxWeight x degree x 2^s`
@@ -46,7 +47,9 @@ fn quantize(w: f32, scale: f32) -> u32 {                           // nearest in
     let i = u32(x);
     return select(i, i + 1u, x - f32(i) >= 0.5);
 }
-fn better(sum: u32, key: u32, bestSum: u32, bestKey0: u32) -> bool { return sum > bestSum || (sum == bestSum && key < bestKey0); }
+fn better(sum: u32, key: u32, bestSum: u32, bestKey0: u32, own: u32) -> bool {  // the larger sum; on a tie own key, then lowest
+    return sum > bestSum || (sum == bestSum && bestKey0 != own && (key == own || key < bestKey0));
+}
 
 fn row_thread(v: u32) {
     let lo = rowPtr[v];
@@ -54,6 +57,7 @@ fn row_thread(v: u32) {
     var maxW = 0.0;
     for (var a = lo; a < hi; a = a + 1u) { maxW = max(maxW, weight_of(a)); }
     let scale = scale_of(maxW, hi - lo);
+    let own = keyIn[v];
     var bk = INVALID_INDEX;
     var bs = 0u;
     for (var a = lo; a < hi; a = a + 1u) {
@@ -63,7 +67,7 @@ fn row_thread(v: u32) {
         if (seen) { continue; }                                    // this key was summed at its first arc
         var sum = 0u;
         for (var b = a; b < hi; b = b + 1u) { if (keyIn[colIdx[b]] == k) { sum = sum + quantize(weight_of(b), scale); } }
-        if (better(sum, k, bs, bk)) { bk = k; bs = sum; }
+        if (better(sum, k, bs, bk, own)) { bk = k; bs = sum; }
     }
     bestKey[v] = bk;
     bestScore[v] = f32(bs) * inverse_of(scale);
@@ -106,20 +110,21 @@ fn row_hash(g: u32, lid: u32) {
     }
     if (exhausted) { atomicStore(&hashRegion[0], 1u); }
     storageBarrier();
+    let own = keyIn[v];
     var bk = INVALID_INDEX;
     var bs = 0u;
     for (var j = lid; j < cap; j = j + WG) {
         let k = atomicLoad(&hashRegion[base + 2u * j]);
         if (k != INVALID_INDEX) {
             let sum = atomicLoad(&hashRegion[base + 2u * j + 1u]);
-            if (better(sum, k, bs, bk)) { bk = k; bs = sum; }
+            if (better(sum, k, bs, bk, own)) { bk = k; bs = sum; }
         }
     }
     shKey[lid] = bk;
     shSum[lid] = bs;
     workgroupBarrier();
     for (var s = WG / 2u; s > 0u; s = s / 2u) {
-        if (lid < s && better(shSum[lid + s], shKey[lid + s], shSum[lid], shKey[lid])) {
+        if (lid < s && better(shSum[lid + s], shKey[lid + s], shSum[lid], shKey[lid], own)) {
             shKey[lid] = shKey[lid + s];
             shSum[lid] = shSum[lid + s];
         }

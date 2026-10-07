@@ -427,7 +427,7 @@ function LabelStyleRows(props: LabelStyleRowsProps): React.JSX.Element {
         const next: LabelStyle = { ...style, ...patch };
         const kept = Object.entries(next).filter(([, value]) => value !== undefined);
 
-        onWrite(channel, kept.length === 0 ? undefined : (Object.fromEntries(kept) as LabelStyle));
+        onWrite(channel, kept.length === 0 ? undefined : Object.fromEntries(kept));
     };
 
     return (

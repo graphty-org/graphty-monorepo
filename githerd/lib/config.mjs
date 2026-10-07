@@ -39,6 +39,9 @@ export const DEFAULTS = Object.freeze({
     // How many open pull requests failing the same key, while master is green, make it one shared
     // cause with one job instead of a job per pull request (shared.mjs).
     sharedFailurePrs: 3,
+    // Fast-forward the main checkout's default branch after each move of its head on GitHub
+    // (main-checkout.mjs). A local write: in dry-run it is a would-do line.
+    updateMainCheckout: true,
     ownerGate: null,
     labels: { types: [], priorities: [], efforts: [] },
     protectedPaths: DEFAULT_PROTECTED,
@@ -112,7 +115,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  * @typedef {{
  *   repo: string, mode: "paused" | "dry-run" | "acting", pollSeconds: number, servherdCommand: string[],
  *   lanes: Record<string, Lane>, release: { commitPattern: string } | null,
- *   requiredChecks: string[], sharedFailurePrs: number,
+ *   requiredChecks: string[], sharedFailurePrs: number, updateMainCheckout: boolean,
  *   ownerGate: { steps: string[], rejectMarker: string | null,
  *     reviewServer: { name: string, command: string[] } | null } | null,
  *   labels: { types: string[], priorities: string[], efforts: string[] },
@@ -402,6 +405,10 @@ export function normalizeConfig(input) {
         release,
         requiredChecks: opt("requiredChecks", strings),
         sharedFailurePrs: opt("sharedFailurePrs", (v, k) => number(v, k, { min: 2, max: 100 })),
+        updateMainCheckout: opt("updateMainCheckout", (v, k) => {
+            if (typeof v !== "boolean") fail(`${k} must be true or false`);
+            return v;
+        }),
         ownerGate: ownerGate(raw.ownerGate),
         labels: /** @type {any} */ (labels),
         protectedPaths: withDefaults(raw.protectedPaths, DEFAULT_PROTECTED, "protectedPaths"),

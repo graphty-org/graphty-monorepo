@@ -85,6 +85,7 @@ import { groupModes } from "./board-text.mjs";
 import { stuckJobs, writeHeartbeat } from "./heartbeat.mjs";
 import { createConfigGate, openConfigRevert } from "./config-adopt.mjs";
 import { effectiveMode, MODELS } from "./config.mjs";
+import { updateMainCheckout } from "./main-checkout.mjs";
 import { createGitHub, GitHubError, notSent } from "./github.mjs";
 import { answerHook, staleSpooled, writeNews } from "./hook.mjs";
 import { pollIssues } from "./issues.mjs";
@@ -736,6 +737,8 @@ export async function startDaemon({
     let mergify;
     /** Whether the advisory checks (advisory.mjs) were read at the default branch's last fetch. */
     let advisoryRead = false;
+    /** Whether the main checkout is due a fast-forward (main-checkout.mjs): at start, and after each head move. */
+    let mainCheckoutDue = true;
     let busy = false;
     /** @type {string | null} */
     let loopTickAt = null;
@@ -2260,12 +2263,31 @@ export async function startDaemon({
             const configFatal = await readConfig();
             if (configFatal) enterFatal(configFatal);
         }
+        if (moved) mainCheckoutDue = true;
+        if (mainCheckoutDue && config.updateMainCheckout) await followMainCheckout(branch, fetchedNow);
         if (mergify === undefined) mergify = await readMergify(branch);
         if (!advisoryRead) {
             state.advisory = readAdvisory(await showMaster(branch, REGISTRY_FILE), await showMaster(branch, CI_FILE));
             advisoryRead = true;
         }
         await followRefs(gh, branch, fetchedNow);
+    }
+
+    /**
+     * Fast-forwards the main checkout to the default branch when that is safe (main-checkout.mjs),
+     * and puts the outcome on the board. A local write, so outside acting mode it is a would-do
+     * line. A failed fetch leaves it due for the next poll; any other outcome waits for the next
+     * head move.
+     * @param {string} branch the default branch
+     * @param {boolean} fetched whether `origin/<branch>` was fetched this poll
+     */
+    async function followMainCheckout(branch, fetched) {
+        const r = await updateMainCheckout(runGit, branch, { fetched, acting: mode() === "acting" });
+        if (r.outcome !== "fetch-failed") mainCheckoutDue = false;
+        state.master.mainCheckout = { at: now().toISOString(), text: r.text };
+        if (r.outcome === "would-update") {
+            void ledger({ kind: "would-do", group: "main-checkout", op: `git merge --ff-only origin/${branch}` });
+        } else if (r.outcome === "updated") say("info", r.text);
     }
 
     /**

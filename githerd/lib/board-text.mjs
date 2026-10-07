@@ -162,6 +162,8 @@ const RENDER = {
         }
         const short = (/** @type {string | null} */ s) => s?.slice(0, 8) ?? "none";
         lines.push(`  green commit ${short(v.lanes.greenSha)}; CI-green commit ${short(v.lanes.ciGreenSha)}`);
+        const main = v.state?.master?.mainCheckout;
+        if (main) lines.push(`  ${main.text} (${when(main.at)} UTC)`);
         return lines;
     },
 

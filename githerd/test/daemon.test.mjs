@@ -880,8 +880,9 @@ describe("the poll loop", () => {
             // no parent re-test: that waits for Claude's code verdict
             ["incidents", "POST actions/jobs/900/rerun", "red-head-rerun", "ci / Build / "],
         ]);
-        // git ran with no prompt, only to fetch the default branch when its head moved and to read
-        // its .mergify.yml and advisory checks after each fetch and once per start
+        // git ran with no prompt, only to fetch the default branch when its head moved, to read
+        // its .mergify.yml and advisory checks after each fetch and once per start, and to ask
+        // which branch the main checkout is on (main-checkout.mjs)
         expect(gitCalls.filter((a) => a[0] === "fetch")).toEqual([
             ["fetch", "origin", "master"],
             ["fetch", "origin", "master"],
@@ -890,9 +891,56 @@ describe("the poll loop", () => {
         const shown = [".mergify.yml", "tools/ci-advisory-checks.json", ".github/workflows/ci.yml"];
         expect(
             gitCalls
-                .filter((a) => a[0] !== "fetch")
+                .filter((a) => a[0] !== "fetch" && a[0] !== "symbolic-ref")
                 .every((a) => shown.map((f) => `show origin/master:${f}`).includes(a.join(" "))),
         ).toBe(true);
+    });
+
+    describe("the main checkout", () => {
+        /**
+         * git as a main checkout on master, clean, one commit behind origin/master.
+         * @param {string[]} args the arguments
+         * @returns {Promise<{code: number, stdout: string, stderr: string}>} the result
+         */
+        const behind = async (args) => {
+            gitCalls.push(args);
+            const sha = { HEAD: A, "origin/master": B }[args[1]] ?? "";
+            const stdout = { "symbolic-ref": "master\n", "rev-parse": sha }[args[0]] ?? "";
+            return { code: 0, stdout, stderr: "" };
+        };
+        const merges = () => gitCalls.filter((a) => a[0] === "merge");
+
+        it("is fast-forwarded at start and after each head move, while acting", async () => {
+            writeConfig({ mode: "acting" });
+            const daemon = await start({ git: behind });
+            await poll(daemon);
+            expect(merges()).toEqual([["merge", "--ff-only", "-q", "origin/master"]]);
+            expect(daemon.state.master.mainCheckout.text).toBe(`main checkout updated to ${B.slice(0, 8)}`);
+            await poll(daemon);
+            expect(merges()).toHaveLength(1);
+            scene.head = B;
+            await poll(daemon);
+            expect(merges()).toHaveLength(2);
+        });
+
+        it("in dry-run records a would-do line and does not merge", async () => {
+            const daemon = await start({ git: behind });
+            await poll(daemon);
+            expect(merges()).toEqual([]);
+            expect(daemon.state.master.mainCheckout.text).toBe(
+                `main checkout would be fast-forwarded to ${B.slice(0, 8)}`,
+            );
+            const wouldDo = (await readLedger(join(dir, ".githerd"))).filter((e) => e.group === "main-checkout");
+            expect(wouldDo.map((e) => [e.kind, e.op])).toEqual([["would-do", "git merge --ff-only origin/master"]]);
+        });
+
+        it("is left alone when the config switches it off", async () => {
+            writeConfig({ mode: "acting", updateMainCheckout: false });
+            const daemon = await start({ git: behind });
+            await poll(daemon);
+            expect(gitCalls.filter((a) => a[0] === "symbolic-ref" || a[0] === "merge")).toEqual([]);
+            expect(daemon.state.master.mainCheckout).toBeUndefined();
+        });
     });
 
     it("writes the heartbeat each poll it is due and a stopped line on a clean stop, as would-dos in dry-run", async () => {

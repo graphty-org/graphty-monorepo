@@ -30,6 +30,9 @@ const STYLE_ATTRIBUTE = "data-compact-mantine";
 /** The attribute on `<html>` that switches the AA token block on. */
 const CONTRAST_ATTRIBUTE = "data-cm-contrast";
 
+/** The attribute on `<html>` that makes the accent tokens follow the theme's primaryColor. */
+const ACCENT_ATTRIBUTE = "data-cm-accent";
+
 /**
  * The whole stylesheet, for SSR or a shadow root. With `highContrast` the AA tokens are also
  * applied unconditionally, so the result needs no `data-cm-contrast` attribute.
@@ -68,5 +71,21 @@ export function ensureCompactStyles(options: CompactThemeOptions = {}): void {
     const root = document.documentElement;
     if (root.getAttribute(CONTRAST_ATTRIBUTE) !== mode) {
         root.setAttribute(CONTRAST_ATTRIBUTE, mode);
+    }
+}
+
+/**
+ * Make the accent tokens follow the theme's `primaryColor`: set `data-cm-accent` on
+ * `<html>` when it is not this package's own `brand`, and remove it when it is, so the default
+ * accent is Figma's exactly. Does nothing without a DOM.
+ *
+ * ponytail: one accent attribute per document, like the contrast one; the last theme rendered
+ * wins.
+ * @param primaryColor - the theme's primaryColor
+ */
+export function followPrimaryColor(primaryColor: string): void {
+    const custom = primaryColor !== "brand";
+    if (typeof document !== "undefined" && document.documentElement.hasAttribute(ACCENT_ATTRIBUTE) !== custom) {
+        document.documentElement.toggleAttribute(ACCENT_ATTRIBUTE, custom);
     }
 }

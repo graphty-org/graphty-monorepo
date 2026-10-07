@@ -10,14 +10,22 @@
  * was created (`FilledArrowRenderer`), so the default arrowheads made a batched load quadratic
  * too.
  *
- * Both facts are counts, so they hold on any machine however busy it is: a load paints the whole
- * graph a couple of times, not once per element, and the scene-wide walks Babylon's material dirty
- * mechanism makes grow with the edge count, not with its square. A stopwatch ratio between two
- * load sizes used to stand in for the second; two loads timed one after the other measure whatever
- * else the machine was doing in between.
+ * Both are checked with counts, so they hold on any machine however busy it is. A load paints the
+ * whole graph a couple of times, not once per element. And the work a load does whose cost is the
+ * size of the scene rather than the size of one element grows with the edge count, not with its
+ * square: the meshes Babylon's material dirty walks visit, the `scene.meshes` entries a mesh
+ * removal searches, the child-list entries re-parenting searches, the entries a scene lookup by
+ * name or id walks, and the observers an observer removal searches. One of those per element over
+ * a scene that grows with the elements is a quadratic load.
+ *
+ * A stopwatch ratio between two load sizes used to stand in for the second check. It caught any
+ * per-element cost that grows with the scene, counted or not; the count catches only the kinds
+ * above. Work that is not a Babylon scene-list search (the element's own code looping over every
+ * element once per element) is not counted here, and is pinned by the tests of that code. The
+ * stopwatch measured whatever else the machine was doing between the two loads.
  */
 
-import { Material } from "@babylonjs/core";
+import { Material, Node as BabylonNode, Observable, Scene, StandardMaterial } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { Graph } from "../../src/Graph";
@@ -121,68 +129,227 @@ describe("a load", () => {
     });
 });
 
-/**
- * Count the meshes Babylon's material dirty walks visit from now on. Every material setter that
- * can change shader defines walks every submesh of every mesh in the scene unless the material's
- * dirty mechanism is blocked; one walk per element over a scene that grows with the elements is a
- * load quadratic in its size (issue #388).
- * @returns A function answering the count so far, and one that stops counting.
- */
-function countDirtyWalks(): { visits: () => number; stop: () => void } {
-    type Walker = { _markAllSubMeshesAsDirty: (this: Material, func: unknown) => void };
-    const proto = Material.prototype as unknown as Walker;
-    const original = proto._markAllSubMeshesAsDirty;
-    let visits = 0;
+/** The kinds of work whose cost is the size of the scene, not the size of one element. */
+type WorkKind = "dirty walks" | "scene mesh removals" | "re-parenting" | "scene lookups" | "observer removals";
 
-    proto._markAllSubMeshesAsDirty = function walk(this: Material, func: unknown): void {
+/** What a scene-work counter answers. */
+interface SceneWork {
+    /** Elements visited so far, per kind. */
+    byKind: () => Record<WorkKind, number>;
+    /** Put every hooked method back. */
+    stop: () => void;
+}
+
+/**
+ * How far a linear search of a list goes to find an item.
+ * @param list - The list searched.
+ * @param item - What it looks for.
+ * @returns The position after the item, or the whole list when it is not there.
+ */
+function scanned(list: readonly unknown[], item: unknown): number {
+    const at = list.indexOf(item);
+    return at === -1 ? list.length : at + 1;
+}
+
+/**
+ * Count, from now on, every visit Babylon makes to an element of a scene-wide list on behalf of one
+ * element. Each of these costs the size of the scene, so doing one per element while a load grows
+ * the scene makes that load quadratic in its size:
+ * - a material dirty walk, which visits every mesh in the scene unless the material's (or the
+ *   scene's) dirty mechanism is blocked (issue #388);
+ * - `scene.removeMesh`, which finds the mesh in `scene.meshes` with `indexOf` (issue #543);
+ * - re-parenting, which finds the node in its old parent's child list with `indexOf`;
+ * - a scene lookup by name or id, which walks `scene.meshes`, `scene.transformNodes` or
+ *   `scene.materials`;
+ * - removing an observer, which finds it in the observable's list with `indexOf`.
+ * The hooks sit on the prototypes, so they see every scene, mesh, material and observable built
+ * from the same `@babylonjs/core` the test imports. The test checks the element's scene is one of
+ * them.
+ * @returns The counter.
+ */
+function countSceneWork(): SceneWork {
+    const counts: Record<WorkKind, number> = {
+        "dirty walks": 0,
+        "scene mesh removals": 0,
+        "re-parenting": 0,
+        "scene lookups": 0,
+        "observer removals": 0,
+    };
+    const restores: (() => void)[] = [];
+
+    /**
+     * Replace one method on a prototype with a version that counts first.
+     * @param proto - The prototype.
+     * @param name - The method.
+     * @param count - Adds the cost of one call to `counts`, given `this`, the arguments and the result.
+     */
+    function hook(proto: object, name: string, count: (self: never, args: unknown[], result: unknown) => void): void {
+        const target = proto as Record<string, (...args: unknown[]) => unknown>;
+        const original = target[name];
+        assert.isFunction(original, `Babylon still has ${name}`);
+        target[name] = function counted(this: never, ...args: unknown[]): unknown {
+            const result = original.apply(this, args);
+            count(this, args, result);
+            return result;
+        };
+        restores.push(() => {
+            target[name] = original;
+        });
+    }
+
+    // The walk is counted before it runs, so it is counted only when it really walks.
+    const walker = Material.prototype as unknown as Record<string, (this: Material, func: unknown) => void>;
+    const originalWalk = walker._markAllSubMeshesAsDirty;
+    assert.isFunction(originalWalk, "Babylon still has Material._markAllSubMeshesAsDirty");
+    walker._markAllSubMeshesAsDirty = function walk(this: Material, func: unknown): void {
         const scene = this.getScene();
         if (!scene.blockMaterialDirtyMechanism && !this.blockDirtyMechanism) {
-            visits += scene.meshes.length;
+            counts["dirty walks"] += scene.meshes.length;
         }
 
-        original.call(this, func);
+        originalWalk.call(this, func);
     };
+    restores.push(() => {
+        walker._markAllSubMeshesAsDirty = originalWalk;
+    });
+
+    // removeMesh answers the index it found the mesh at, or -1 after searching the whole list.
+    hook(Scene.prototype, "removeMesh", (self: Scene, _args, index) => {
+        counts["scene mesh removals"] += (index as number) === -1 ? self.meshes.length + 1 : (index as number) + 1;
+    });
+
+    for (const [name, list] of [
+        ["getMeshByName", (scene: Scene) => scene.meshes],
+        ["getMeshById", (scene: Scene) => scene.meshes],
+        ["getTransformNodeByName", (scene: Scene) => scene.transformNodes],
+        ["getTransformNodeById", (scene: Scene) => scene.transformNodes],
+        ["getMaterialByName", (scene: Scene) => scene.materials],
+        ["getMaterialById", (scene: Scene) => scene.materials],
+    ] as const) {
+        hook(Scene.prototype, name, (self: Scene, _args, found) => {
+            counts["scene lookups"] += scanned(list(self), found);
+        });
+    }
+
+    // Counted before it runs: the old parent's list is the one searched.
+    const parent = Object.getOwnPropertyDescriptor(BabylonNode.prototype, "parent");
+    const originalSet = parent?.set;
+    if (!parent || !originalSet) {
+        assert.fail("Babylon still has a Node.parent setter");
+    }
+
+    Object.defineProperty(BabylonNode.prototype, "parent", {
+        ...parent,
+        set(this: BabylonNode, next: BabylonNode | null) {
+            const previous = this.parent;
+            if (previous && previous !== next) {
+                counts["re-parenting"] += scanned(previous.getChildren(), this);
+            }
+
+            originalSet.call(this, next);
+        },
+    });
+    restores.push(() => {
+        Object.defineProperty(BabylonNode.prototype, "parent", parent);
+    });
+
+    // Counted before it runs: a deferred removal leaves the observer listed until a later turn.
+    const observable = Observable.prototype as unknown as Record<
+        string,
+        (this: Observable<unknown>, o: unknown) => boolean
+    >;
+    const originalRemove = observable.remove;
+    assert.isFunction(originalRemove, "Babylon still has Observable.remove");
+    observable.remove = function remove(this: Observable<unknown>, observer: unknown): boolean {
+        if (observer) {
+            counts["observer removals"] += scanned(this.observers, observer);
+        }
+
+        return originalRemove.call(this, observer);
+    };
+    restores.push(() => {
+        observable.remove = originalRemove;
+    });
 
     return {
-        visits: () => visits,
+        byKind: () => ({ ...counts }),
         stop: () => {
-            proto._markAllSubMeshesAsDirty = original;
+            for (const restore of restores.reverse()) {
+                restore();
+            }
         },
     };
 }
 
+/**
+ * Show a per-kind count for a failure message.
+ * @param counts - The counts.
+ * @returns One line.
+ */
+function describeWork(counts: Record<WorkKind, number>): string {
+    return Object.entries(counts)
+        .map(([kind, count]) => `${kind} ${String(count)}`)
+        .join(", ");
+}
+
 describe("the scene-wide work of a load", () => {
     /**
-     * Count the dirty-walk visits of one load of a fresh graph, from setData to the first finished
-     * frame.
+     * Count the scene-wide visits of one load of a fresh graph, from setData to the first finished
+     * frame, and check the counter can see the element's scene at all.
      * @param edgeCount - How many edges to load.
-     * @returns The meshes the walks visited.
+     * @returns The visits per kind.
      */
-    async function walkedByLoad(edgeCount: number): Promise<number> {
+    async function workOfLoad(edgeCount: number): Promise<Record<WorkKind, number>> {
         const graph = await createTestGraph();
-        const walks = countDirtyWalks();
+        const work = countSceneWork();
 
         try {
             await graph.setLayout("fixed");
             graph.setData(graphOf(edgeCount));
             await graph.waitForStableFrame({ timeoutMs: 120000 });
+            const counted = work.byKind();
 
-            return walks.visits();
+            // The hooks are on the classes the element built its scene from, not on a second copy
+            // of Babylon that would leave every count at 0.
+            const scene = graph.getScene();
+            assert.instanceOf(scene, Scene, "the element's scene comes from the Babylon the test hooked");
+            const nodeMaterial = graph.getDataManager().nodes.values().next().value?.mesh.material;
+            assert.instanceOf(nodeMaterial, Material, "the element's materials come from the Babylon the test hooked");
+
+            // Positive control: a material whose dirty mechanism is not blocked walks every mesh in
+            // the scene once, and the counter sees exactly that.
+            const control = new StandardMaterial("dirty-walk-control", scene);
+            try {
+                const before = work.byKind()["dirty walks"];
+                control.markAsDirty(Material.MiscDirtyFlag);
+                assert.strictEqual(
+                    work.byKind()["dirty walks"] - before,
+                    scene.meshes.length,
+                    "an unblocked material's dirty walk is counted, one visit per mesh in the scene",
+                );
+            } finally {
+                control.dispose();
+            }
+
+            return counted;
         } finally {
-            walks.stop();
+            work.stop();
             cleanupTestGraph(graph);
         }
     }
 
     it("grows roughly linearly with the edge count between 500 and 2000 edges, default arrowheads on", async () => {
-        const small = await walkedByLoad(500);
-        const large = await walkedByLoad(2000);
+        const small = await workOfLoad(500);
+        const large = await workOfLoad(2000);
+        const total = (counts: Record<WorkKind, number>): number =>
+            Object.values(counts).reduce((sum, count) => sum + count, 0);
+        const message =
+            `a 500-edge load visited ${String(total(small))} scene-list entries (${describeWork(small)}) and a ` +
+            `2000-edge load ${String(total(large))} (${describeWork(large)}). Linear is 4 times as many.`;
 
-        assert.isAtMost(
-            large,
-            MAX_LOAD_RATIO * Math.max(small, 1),
-            `the dirty walks of a 500-edge load visited ${String(small)} meshes and of a 2000-edge load ` +
-                `${String(large)}. Linear is 4 times as many.`,
-        );
+        // A load does some scene-wide work, so a 0 here means the counter saw nothing, not that the
+        // load is cheap.
+        assert.isAbove(total(small), 0, message);
+        assert.isAtMost(total(large), MAX_LOAD_RATIO * total(small), message);
     }, 300000);
 });

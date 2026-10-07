@@ -498,6 +498,17 @@ describe("ci.yml", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
     });
 
+    it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
+        const steps = job(ci, "performance")
+            .split(/\n {12}- /)
+            .slice(1);
+        const first = steps.findIndex((step) => /vitest run --project=bench/.test(step));
+        assert.ok(first > 0, "the performance job runs the graphty-element benchmarks");
+        for (const step of steps.slice(first)) {
+            assert.match(step, /\n\s+if: \$\{\{ !cancelled\(\) \}\}\n/, `this step runs after a failure:\n${step}`);
+        }
+    });
+
     it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {
         const build = job(ci, "build");
         // the plan: a push tests nothing (affected is empty, so the matrix is empty) and is marked light

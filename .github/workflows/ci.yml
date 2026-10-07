@@ -1045,12 +1045,17 @@ jobs:
               working-directory: graphty-element
               run: pnpm exec vitest run --project=bench
 
+            # A failed benchmark above must not cost the browser numbers, so the browser set-up
+            # runs whatever came before it.
             - uses: ./.github/actions/drop-microsoft-apt-source
+              if: ${{ !cancelled() }}
 
             - name: Install Playwright system packages
+              if: ${{ !cancelled() }}
               uses: ./.github/actions/playwright-system-deps
 
             - name: Install Playwright browsers
+              if: ${{ !cancelled() }}
               run: pnpm exec playwright install chromium
 
             - name: Run the graphty-element browser timing benchmarks

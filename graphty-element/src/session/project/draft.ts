@@ -357,11 +357,23 @@ interface OpenDraft {
     rows: RowPatch | null;
     closed: boolean;
     /**
-     * Every change to `entries` since the first checkpoint, oldest first; null until one is taken.
-     * A checkpoint is a position in it, so taking one costs nothing however many keys the draft
-     * holds, and a transaction of ten thousand members is not quadratic in its own writes.
+     * What each key held before its first change after each checkpoint, oldest first; null until
+     * the first checkpoint is taken. A checkpoint is a position in it, so taking one costs nothing
+     * however many keys the draft holds, and a transaction of ten thousand members is not
+     * quadratic in its own writes. A revert needs only the first record of each key after its
+     * position, so a key gets one record per checkpoint at most, not one per write.
+     *
+     * Memory: the journal lives as long as the draft, because a checkpoint has no release and an
+     * earlier checkpoint's revert may still need any record. It holds one value per key per
+     * checkpoint the key was written after. A transaction whose every member rewrites a slice
+     * kept as one value (`styles`, a `visibility` field) keeps every member's prior of it until
+     * the transaction closes; snapshot checkpoints held each only while that member ran.
      */
     journal: JournalRecord[] | null;
+    /** The journal's length when the latest checkpoint was taken. */
+    mark: number;
+    /** Where in the journal each key was last recorded. */
+    recorded: Map<string, number>;
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -431,10 +443,20 @@ export function createProjectStore(
      * @param id - The key, as `slice/key`.
      */
     const journal = (draft: OpenDraft, id: string): void => {
-        if (draft.journal !== null) {
-            const entry = draft.entries.get(id);
-            draft.journal.push({ id, had: entry !== undefined, next: entry?.next });
+        if (draft.journal === null) {
+            return;
         }
+
+        // Recorded since the latest checkpoint: that record is already the first after every
+        // checkpoint, since every one of them was taken at or before the latest.
+        const last = draft.recorded.get(id);
+        if (last !== undefined && last >= draft.mark) {
+            return;
+        }
+
+        const entry = draft.entries.get(id);
+        draft.recorded.set(id, draft.journal.length);
+        draft.journal.push({ id, had: entry !== undefined, next: entry?.next });
     };
 
     const write = (draft: OpenDraft, slice: ValueSlice, key: string, value: unknown): void => {
@@ -496,7 +518,15 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false, journal: null };
+            const draft: OpenDraft = {
+                entries: new Map(),
+                log: [],
+                rows: null,
+                closed: false,
+                journal: null,
+                mark: 0,
+                recorded: new Map(),
+            };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -556,6 +586,7 @@ export function createProjectStore(
                     draft.journal ??= [];
                     const records = draft.journal;
                     const mark = records.length;
+                    draft.mark = mark;
                     const logged = draft.log.length;
 
                     return () => {

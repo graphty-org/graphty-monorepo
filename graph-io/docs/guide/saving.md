@@ -30,7 +30,10 @@ not record the options that shaped it:
   weights come back as a plain edge attribute.
 
 Each note has a `code`, a `message`, the attribute `column` it is about (or `null`), and a `count`
-of the nodes, edges or values affected (or `null`). The same code can appear more than once, once
+of the nodes, edges or values affected (or `null`). A note about several columns at once -- the
+graph attributes a format has no place for, the node columns a CSV edge table leaves for the node
+table -- names every one in `columns`. The notes are about the table written: a CSV node table
+(`table: "nodes"`) lists no edge or graph loss. The same code can appear more than once, once
 per column: a Cytoscape session saved as GraphML gets one `W_JSON_UNSUPPORTED` for each column that
 holds nested values. Print `column` with the code to tell them apart, as the example does.
 

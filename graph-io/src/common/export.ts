@@ -321,7 +321,7 @@ export interface CheckExtras {
     /**
      * The tables the export writes, of "node", "edge" and "graph"; a gap in a table it does not
      * write is not a loss of this export and gets no note. Default all three. A CSV node table is
-     * ["node"]: its notes are about node ids and node columns only.
+     * `["node"]`, so its notes are about node ids and node columns only.
      */
     readonly tables?: readonly ("node" | "edge" | "graph")[] | undefined;
     /**

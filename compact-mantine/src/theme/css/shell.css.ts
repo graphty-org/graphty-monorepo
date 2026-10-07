@@ -746,8 +746,9 @@ const css = `
     line-height: 24px;
     color: var(--cm-text-tertiary);
 }
+/* Drawn above the (empty) list rather than inside it, so it adds the list's own 4px 8px inset. */
 .cm-qa-empty {
-    padding: 8px 16px;
+    padding: 12px 24px 0;
     ${cmFont("body")}
     color: var(--cm-text-secondary);
 }

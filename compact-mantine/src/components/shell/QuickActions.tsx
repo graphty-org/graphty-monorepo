@@ -72,7 +72,8 @@ export interface QuickActionsProps {
     filter?: (action: QuickAction, query: string) => boolean;
     /**
      * Rendered in a 32 tall row between the search field and the list, 8px in from the panel
-     * edge: Figma's scope tabs (`<Tabs>` with the theme's pill tabs), for example.
+     * edge: Figma's scope tabs (`<Tabs>` with the theme's pill tabs), for example. Scope tabs
+     * have no panels of their own: give each `aria-controls={listId}`.
      */
     header?: React.ReactNode;
     /**
@@ -82,6 +83,11 @@ export interface QuickActionsProps {
      * own clear button in this place instead, as Figma does.
      */
     searchAction?: React.ReactNode;
+    /**
+     * The id of the result list. A control in `header` that changes what the list shows, such as
+     * scope tabs, names it in `aria-controls`. Generated when left out.
+     */
+    listId?: string;
     /** Accessible name of the dialog. Defaults to the "Quick actions" label. */
     "aria-label"?: string;
     /** Placeholder of the search field. Defaults to the "Search actions" label. */
@@ -141,6 +147,7 @@ function defaultFilter(action: QuickAction, query: string): boolean {
  * @param props.filter - Which actions match the search
  * @param props.header - Rendered between the search field and the list
  * @param props.searchAction - A trailing action at the right end of the search field
+ * @param props.listId - The id of the result list, for a header control to name in `aria-controls`
  * @param props.truncate - Cut a long name at the end or in the middle
  * @param props.placeholder - Placeholder of the search field
  * @param props.width - Panel width
@@ -158,6 +165,7 @@ export function QuickActions({
     filter = defaultFilter,
     header,
     searchAction,
+    listId: listIdProp,
     truncate = "end",
     placeholder,
     width = 529,
@@ -169,6 +177,7 @@ export function QuickActions({
     useShellStyles();
     const labels = useLabels();
     const id = useId();
+    const listId = listIdProp ?? `${id}-list`;
     const input = useRef<HTMLInputElement>(null);
     const [search, setSearch] = useUncontrolled({
         value: query,
@@ -247,7 +256,7 @@ export function QuickActions({
                     role="combobox"
                     aria-label={placeholder ?? labels.searchActions}
                     aria-expanded="true"
-                    aria-controls={`${id}-list`}
+                    aria-controls={listId}
                     aria-autocomplete="list"
                     aria-activedescendant={current === undefined ? undefined : optionId(current)}
                     placeholder={placeholder ?? labels.searchActions}
@@ -277,8 +286,13 @@ export function QuickActions({
                 ) : null}
             </div>
             {header ? <div className="cm-qa-header">{header}</div> : null}
-            <div className="cm-qa-list" id={`${id}-list`} role="listbox" aria-label={name}>
-                {sections.length === 0 ? <div className="cm-qa-empty">{labels.noResults}</div> : null}
+            {/* Above the listbox, not in it: a listbox may hold only options and groups. */}
+            {sections.length === 0 ? (
+                <div className="cm-qa-empty" role="status">
+                    {labels.noResults}
+                </div>
+            ) : null}
+            <div className="cm-qa-list" id={listId} role="listbox" aria-label={name}>
                 {sections.map(([section, list]) => (
                     <div className="cm-qa-group" role="group" aria-label={section || undefined} key={section}>
                         {section ? (

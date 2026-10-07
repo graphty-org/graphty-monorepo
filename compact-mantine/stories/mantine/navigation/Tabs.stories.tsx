@@ -80,6 +80,20 @@ export const Default: Story = {
 };
 
 /**
+ * An empty panel for each tab. A selected tab names its panel in `aria-controls`, so a tab list
+ * drawn without its panels points at nothing (axe: aria-valid-attr-value).
+ * @param values - the tabs' values
+ * @returns the panels
+ */
+function panels(...values: string[]): React.JSX.Element[] {
+    return values.map((value) => (
+        <Tabs.Panel key={value} value={value}>
+            {null}
+        </Tabs.Panel>
+    ));
+}
+
+/**
  * The pill tabs at rest, with hover on an unselected tab (forced with `data-cm-state`), keyboard
  * focus and a disabled tab; the vertical row tabs; and the underline variant. Light and dark side
  * by side. Keyboard focus is on the marked tab list.
@@ -97,6 +111,7 @@ export const States: Story = {
                             <Tabs.Tab value="design">Design</Tabs.Tab>
                             <Tabs.Tab value="prototype">Prototype</Tabs.Tab>
                         </Tabs.List>
+                        {panels("design", "prototype")}
                     </Tabs>,
                 ],
                 [
@@ -108,6 +123,7 @@ export const States: Story = {
                                 Prototype
                             </Tabs.Tab>
                         </Tabs.List>
+                        {panels("design", "prototype")}
                     </Tabs>,
                 ],
                 [
@@ -118,6 +134,7 @@ export const States: Story = {
                                 <Tabs.Tab value="design">Design</Tabs.Tab>
                                 <Tabs.Tab value="prototype">Prototype</Tabs.Tab>
                             </Tabs.List>
+                            {panels("design", "prototype")}
                         </Tabs>
                     </div>,
                 ],
@@ -130,6 +147,7 @@ export const States: Story = {
                                 Libraries
                             </Tabs.Tab>
                         </Tabs.List>
+                        {panels("custom", "libraries")}
                     </Tabs>,
                 ],
                 [
@@ -139,6 +157,7 @@ export const States: Story = {
                             <Tabs.Tab value="all">All libraries</Tabs.Tab>
                             <Tabs.Tab value="team">Team</Tabs.Tab>
                         </Tabs.List>
+                        {panels("all", "team")}
                     </Tabs>,
                 ],
                 [
@@ -148,6 +167,7 @@ export const States: Story = {
                             <Tabs.Tab value="design">Design</Tabs.Tab>
                             <Tabs.Tab value="prototype">Prototype</Tabs.Tab>
                         </Tabs.List>
+                        {panels("design", "prototype")}
                     </Tabs>,
                 ],
             ]}

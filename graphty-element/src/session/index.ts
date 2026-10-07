@@ -10,6 +10,8 @@
  * enforces it.
  */
 
+export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
+export { browserProjects } from "./browserProjects";
 export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
 export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";

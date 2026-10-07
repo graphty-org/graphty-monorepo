@@ -157,6 +157,23 @@ export type Binding = {
 export type BindingOverflow = "other" | "shape" | "extend";
 
 // @public
+export interface BrowserProjects {
+    get(id: string): Promise<File | undefined>;
+    list(): Promise<StoredProject[]>;
+    persisted(): Promise<boolean>;
+    remove(id: string): Promise<void>;
+    save(session: GraphSession, options?: BrowserProjectSaveOptions): Promise<StoredProject>;
+}
+
+// @public
+export const browserProjects: BrowserProjects;
+
+// @public
+export interface BrowserProjectSaveOptions {
+    readonly id?: string;
+}
+
+// @public
 export interface Capabilities {
     readonly acceleration: AccelerationStatus;
     readonly calibration: CalibrationRecord | null;
@@ -3268,6 +3285,15 @@ export interface StartOptions extends RunOptions {
 
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
+
+// @public
+export interface StoredProject {
+    readonly edges: number;
+    readonly id: string;
+    readonly name: string | null;
+    readonly nodes: number;
+    readonly savedAt: number;
+}
 
 // @public
 export interface StyleChange {

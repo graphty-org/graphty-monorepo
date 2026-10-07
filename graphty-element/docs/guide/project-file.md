@@ -160,6 +160,37 @@ const handle = await window.showSaveFilePicker({
 
 Both come from `@graphty/graphty-element/session`, which loads in Node, and from the main entry.
 
+## Keeping projects in the browser
+
+Where there is no file system to save to -- a tablet, a kiosk -- keep projects in the browser's
+own storage (IndexedDB) with `browserProjects`:
+
+```typescript
+import { browserProjects } from "@graphty/graphty-element/session";
+
+const stored = await browserProjects.save(element.session); // { id, name, savedAt, nodes, edges }
+const file = await browserProjects.get(stored.id);
+if (file) await element.session.project.open(file, { discard: true });
+```
+
+- **`save(session, { id })`** stores the whole project, exactly as `project.save()` writes it.
+  `dirty` clears only once the browser has committed the write, so a failed write leaves the
+  project dirty. Pass the `id` of a stored project to replace it; without one, every save is a new
+  entry.
+- **`list()`** returns every stored project, newest first, as `{ id, name, savedAt, nodes, edges }`:
+  `savedAt` is milliseconds since the epoch and `name` is null for an unnamed project. It never
+  reads a project's contents, so it stays quick however large the projects are.
+- **`get(id)`** returns the project as a `File` named by `projectFileName`, ready for
+  `project.open`, or `undefined` when nothing is stored under that id. **`remove(id)`** deletes one.
+- **`persisted()`** resolves true when the browser has promised to keep this site's storage, and
+  false when it has not or cannot say. Browsers may clear storage that is not kept -- Safari does
+  after seven days without a visit -- so when it is false, tell your reader to save a copy of any
+  project they need with `downloadProject`. The first `save` asks the browser to keep the storage.
+
+Every method except `persisted` rejects with a `GraphtyError`: `E_UNSUPPORTED` when the browser
+has no usable IndexedDB (and always in Node), and `E_TOO_LARGE` from `save` when the site's
+storage is full. The projects live in the database `graphty-projects`, one per origin.
+
 ## The name and unsaved changes
 
 ```typescript

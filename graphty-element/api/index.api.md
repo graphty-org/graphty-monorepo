@@ -2056,7 +2056,7 @@ export class Graphty extends LitElement {
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
-    render(): Element;
+    render(): unknown;
     get renderer(): RendererRequest;
     set renderer(value: RendererRequest);
     get rendererStatus(): RendererStatus | null;
@@ -2119,6 +2119,7 @@ export class Graphty extends LitElement {
     setRunning(running: boolean): void;
     setViewMode(mode: ViewMode): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
+    static shadowRootOptions: ShadowRootInit;
     shutdown(): void;
     get startingCameraDistance(): number | undefined;
     set startingCameraDistance(value: number | undefined);
@@ -4096,13 +4097,13 @@ export interface ScreenshotOptions {
     // (undocumented)
     height?: number;
     legend?: readonly ScreenshotLegendSection[];
-    showSelection?: boolean;
     // (undocumented)
     multiplier?: number;
     // (undocumented)
     preset?: "print" | "web-share" | "thumbnail" | "documentation";
     // (undocumented)
     quality?: number;
+    showSelection?: boolean;
     // (undocumented)
     strictAspectRatio?: boolean;
     // (undocumented)

@@ -4,6 +4,28 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-07 -- Focusing the element focuses its drawing (`delegatesFocus`)
+
+**What.** `<graphty-element>`'s shadow root is now opened with `delegatesFocus: true`, so
+`element.focus()` puts keyboard focus on the canvas inside it, and a dialog or menu that returns
+focus to the element (as Mantine's do, to whatever had focus when they opened) lands on the
+drawing. The API report gains `static shadowRootOptions: ShadowRootInit` on `Graphty`. With it,
+`render()` now returns nothing instead of the graph container (`render(): unknown`, was
+`render(): Element`): the container is already in the shadow root from `connectedCallback`, and
+returning it made Lit move it on the first update, which took focus off the canvas when a page
+focused the drawing as it mounted the element.
+
+**Why.** The drawing stopped taking focus on its own (the canvas has no `autofocus`), so a page
+must be able to hand focus to it after a graph opens, and a dialog opened from the drawing must be
+able to give focus back. Without this, both dropped focus to the page body (WCAG 2.4.3): the host
+has no tab stop of its own, so focusing it did nothing. A consumer cannot reach the canvas without
+reaching into the shadow root.
+
+**Alternatives.** A public `focusDrawing()` method (a second way to say `focus()`). Making the
+host itself focusable with `tabindex` (two tab stops for one drawing, and the host is not what
+takes keys). Leaving `render()` as it was and asking pages to wait for `updateComplete` before
+focusing (every consumer would have to know about Lit's first update).
+
 ## 2026-10-07 -- A 2D camera's `zoom` is documented as relative to a half-width of 5 units
 
 **What.** `CameraState.zoom` (2D) now has a doc comment: zoom 1 shows 5 world units either side

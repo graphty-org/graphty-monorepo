@@ -1,5 +1,5 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
-import { css, LitElement } from "lit";
+import { css, LitElement, nothing } from "lit";
 import { property } from "lit/decorators.js";
 
 import {
@@ -112,6 +112,12 @@ export class Graphty extends LitElement {
             outline-offset: -2px;
         }
     `;
+
+    /**
+     * Focusing the host focuses the canvas inside it, so a page can hand keyboard focus to the
+     * drawing with `element.focus()`, and a dialog opened from the drawing returns focus to it.
+     */
+    static override shadowRootOptions: ShadowRootInit = { ...LitElement.shadowRootOptions, delegatesFocus: true };
 
     /**
      * The host's standard `aria-label` is also watched, so it names the canvas that takes keyboard
@@ -662,11 +668,14 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Renders the graph container element.
-     * @returns The graph container element
+     * Renders nothing: the graph container is placed in the shadow root by `connectedCallback`,
+     * before the first update. Returning it here made Lit move it on that update, and moving a
+     * node takes focus off whatever inside it had focus, so a page that focused the drawing as it
+     * mounted the element lost that focus to the page.
+     * @returns Nothing.
      */
-    render(): Element {
-        return this.#element;
+    render(): unknown {
+        return nothing;
     }
 
     /**

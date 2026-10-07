@@ -671,6 +671,24 @@ describe("syncJobs: issues", () => {
         expect(state.jobs["issue-1"].state).toBe("queued");
     });
 
+    it("counts the Decision comment posted just before a deferral as part of it, and ends it on a later change", () => {
+        const state = base();
+        issue(state, 1205, LABELED);
+        expect(sync(state).created).toEqual(["issue-1205"]);
+        move(state.jobs["issue-1205"], "cancelled", NOW, { reason: "deferred: declined" });
+        // githerd last polled the issue at 10:00; the session commented at 10:05, then deferred at 10:06.
+        state.deferred = {
+            1205: { reason: "declined", revision: "2026-10-07T10:00:00Z", at: "2026-10-07T10:06:00.000Z" },
+        };
+        state.issues.byNumber[1205].updatedAt = "2026-10-07T10:05:00Z";
+        expect(sync(state).created).toEqual([]);
+        expect(state.deferred[1205]).toBeDefined();
+        // Someone comments after the deferral: it ends.
+        state.issues.byNumber[1205].updatedAt = "2026-10-07T10:30:00Z";
+        expect(sync(state).created).toEqual(["issue-1205"]);
+        expect(state.deferred).toEqual({});
+    });
+
     it("offers an issue a master commit or a merged pull request already names as a verify job", () => {
         const state = base();
         issue(state, 906, LABELED);

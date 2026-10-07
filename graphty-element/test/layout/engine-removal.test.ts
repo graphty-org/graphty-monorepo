@@ -14,7 +14,7 @@
  * The nodes and edges are the bare shape a layout engine uses -- a real `Node` builds a Babylon
  * mesh in its constructor, and none of this has anything to do with a mesh.
  */
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
@@ -139,5 +139,55 @@ describe("a layout engine gives back a node the graph has removed", () => {
             simulation.removeEdge(edge(a, stranger));
         });
         assert.deepStrictEqual([...simulation.nodes], [a]);
+    });
+
+    it("keeps the order of what it still holds, and puts a node added back at the end", () => {
+        const [a, b, c, d] = ["a", "b", "c", "d"].map((id, i) => node(id, i));
+        const layout = new CircularLayout({});
+        layoutEngineInternals.addNodes(layout, [a, b, c, d]);
+
+        layout.removeNode(b);
+        layout.removeNode(d);
+        assert.deepStrictEqual([...layout.nodes], [a, c]);
+
+        layout.removeNode(a);
+        layoutEngineInternals.addNode(layout, a);
+        assert.deepStrictEqual([...layout.nodes], [c, a]);
+    });
+
+    it("tears a whole graph down in work linear in its size (issue #1373)", () => {
+        // Each removal used to find the node with indexOf and splice it out, moving the rest of
+        // the list: n removals in insertion order cost n^2/2 moves, 8.6 s at 100,000 nodes. Counted
+        // as membership tests rather than timed, so machine load cannot move the result.
+        const n = 2000;
+        const nodes = Array.from({ length: n }, (_, i) => node(`n${i}`, i));
+        const edges = nodes.slice(1).map((dst, i) => edge(nodes[i], dst));
+        const layout = new CircularLayout({});
+        layoutEngineInternals.addNodes(layout, nodes);
+        layoutEngineInternals.addEdges(layout, edges);
+
+        const indexOf = vi.spyOn(Array.prototype, "indexOf");
+        const splice = vi.spyOn(Array.prototype, "splice");
+        const has = vi.spyOn(Set.prototype, "has");
+        try {
+            for (const e of edges) {
+                layoutEngineInternals.removeEdge(layout, e);
+            }
+
+            for (const v of nodes) {
+                layoutEngineInternals.removeNode(layout, v);
+            }
+
+            const held = [...layout.nodes].length + [...layout.edges].length;
+            const searches = indexOf.mock.calls.length + splice.mock.calls.length;
+            const tests = has.mock.calls.length;
+            vi.restoreAllMocks();
+
+            assert.strictEqual(held, 0, "the engine holds nothing");
+            assert.strictEqual(searches, 0, "no search per element");
+            assert.isAtMost(tests, 2 * n, "one membership test per element held");
+        } finally {
+            vi.restoreAllMocks();
+        }
     });
 });

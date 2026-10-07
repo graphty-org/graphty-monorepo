@@ -141,9 +141,10 @@ async function headIsPushed(rec, pushed, io) {
 }
 
 /**
- * The done-condition of a pull request githerd no longer polls as open: it merged into the default
+ * The done-condition of a pull request githerd does not poll as open: it merged into the default
  * branch, and an issue job's names the issue. A pull request that merged before githerd saw it
- * open is the job done, not a missing one.
+ * open is the job done, not a missing one. One opened since the last poll is CI pending, not a
+ * refusal: the poll (newest-updated first) picks it up and the claim is decided from its record.
  * @param {number} number the pull request
  * @param {View} view what the check reads
  * @param {number | null} issue the issue it must reference
@@ -152,6 +153,8 @@ async function headIsPushed(rec, pushed, io) {
 async function mergedAnswer(number, view, issue) {
     const pull = await view.io.pull(number);
     const branch = view.state.master?.branch ?? "master";
+    const ownRepo = pull?.head?.repo?.full_name === pull?.base?.repo?.full_name;
+    if (pull?.state === "open" && pull.head?.sha && ownRepo) return { ciPending: pull.head.sha };
     if (!pull?.merged || pull.base?.ref !== branch) {
         return { missing: [`#${number} is not an open pull request githerd has polled, nor merged into ${branch}`] };
     }

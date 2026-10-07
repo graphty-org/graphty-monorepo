@@ -128,13 +128,31 @@ const FALSE_CLAIMS = [
     ],
     ["defect naming no commit", "pr", "7", {}, { defects: [{ summary: "x", commit: OTHER }] }, {}, {}, "not on GitHub"],
     [
-        "pr not polled",
+        "pr closed unmerged",
         "pr",
         "8",
         {},
         {},
         {},
-        { pull: async () => ({ state: "open", merged: false }) },
+        { pull: async () => ({ state: "closed", merged: false, base: { ref: "master" } }) },
+        "not an open pull request",
+    ],
+    ["pr that does not exist", "pr", "8", {}, {}, {}, { pull: async () => null }, "not an open pull request"],
+    [
+        "open pr from another repository",
+        "pr",
+        "8",
+        {},
+        {},
+        {},
+        {
+            pull: async () => ({
+                state: "open",
+                merged: false,
+                base: { ref: "master", repo: { full_name: "o/r" } },
+                head: { sha: HEAD, repo: { full_name: "fork/r" } },
+            }),
+        },
         "not an open pull request",
     ],
     [
@@ -644,6 +662,26 @@ describe("githerdDone", () => {
         );
         expect(job.state).toBe("queued");
         expect(job.attempts).toHaveLength(1);
+    });
+
+    it("waits, without a refusal, on an open pull request opened since githerd last polled (#1421)", async () => {
+        const s = state();
+        const job = (s.jobs["issue-416"] = working("issue", "416"));
+        const open = {
+            state: "open",
+            merged: false,
+            body: "Fixes #416",
+            base: { ref: "master", repo: { full_name: "o/r" } },
+            head: { sha: HEAD, repo: { full_name: "o/r" } },
+        };
+        const { ctx } = setup(s, fakeIo({ pull: async () => open }));
+        const r = JSON.parse((await githerdDone(ctx, job, report({ pr: 1421 }), "w1")).text);
+        expect(r.missing[0]).toContain("checks still running");
+        expect(r.attempts).toContain("this is not a refusal");
+        expect([job.state, job.verifyFailures]).toEqual(["waiting", 0]);
+        // The next poll has it, and decides the claim from the polled record.
+        s.prs[1421] = pr({ references: [416] });
+        expect(await pollVerifying(s, ctx)).toEqual([{ job: job.id, action: "done" }]);
     });
 
     it("refuses a job that is not working", async () => {

@@ -5981,7 +5981,9 @@ export class Graph implements GraphContext {
      *
      * Every built-in format can be written, and so can any format a writer was registered for
      * with `registerFormatWriter`. A Neo4j admin-import file is `exportGraph("csv", { variant:
-     * "neo4j" })`.
+     * "neo4j" })`; a format's `exportVariants` list each such kind of file with the options that
+     * make it. `exportGraph("graphty")` writes the project file without marking the project saved;
+     * it is built as one string and read back by `session.project.open`.
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
      * and the element's `notes`.

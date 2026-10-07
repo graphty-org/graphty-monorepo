@@ -9,13 +9,21 @@
  * Every built-in format but CX version 1, Cytoscape sessions and OBO can be written:
  * `exportGraph(format)` hands the graph to the graph-io exporter of that format. A Neo4j
  * admin-import file is written as `csv` with `{ variant: "neo4j" }`, the same name the CSV reader
- * recognises it under. XGMML and CX2 are written with the graph's structure and attribute columns,
+ * recognises it under; `exportVariants` lists each such kind of file with the options that fix it.
+ * "graphty" is the project file: it can be written but not imported (`session.project.open` reads
+ * it). XGMML and CX2 are written with the graph's structure and attribute columns,
  * never its style layers.
  */
 
 import type { CSVVariant } from "../data/CSVDataSource";
 import { registeredFormatDescriptors } from "./formatRegistry";
-import type { FormatDescriptor, KNOWN_FORMAT_IDS, OptionDescriptor } from "./types";
+import {
+    type FormatDescriptor,
+    type FormatExportVariant,
+    type KNOWN_FORMAT_IDS,
+    type OptionDescriptor,
+    PROJECT_FILE,
+} from "./types";
 import { catalogFormatDescriptors, COMMON_WRITER_OPTIONS } from "./writerRegistry";
 
 /** A built-in format name no registered data source reads. */
@@ -207,16 +215,21 @@ const oboOptions: readonly OptionDescriptor[] = [
     },
 ];
 
-/**
- * Choices for an option, each value its own label.
- * @param values - The values.
- * @returns The choices.
- */
-function choices(...values: string[]): { value: string; label: string }[] {
-    return values.map((value) => ({ value, label: value }));
-}
+/** The JSON graph shapes the writer produces, each with the name the shape is known by. */
+const JSON_DIALECTS = [
+    { value: "node-link", label: "Node-link JSON (NetworkX)" },
+    { value: "cytoscape", label: "Cytoscape.js JSON" },
+    { value: "jgf", label: "JSON Graph Format" },
+    { value: "graphology", label: "graphology JSON" },
+    { value: "vis", label: "vis.js JSON" },
+    { value: "d3", label: "d3 JSON" },
+    { value: "obographs", label: "OBO Graphs JSON" },
+] as const;
 
-/** What `exportGraph` accepts per built-in format, beside the common options. */
+/**
+ * What `exportGraph` accepts per built-in format, beside the common options. Every option but the
+ * CSV table and the Neo4j tables is `advanced`: a picker can leave it folded away.
+ */
 const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
     json: [
         {
@@ -224,15 +237,17 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
             plainName: "JSON Shape",
             technicalName: "dialect",
             type: "enum",
-            values: choices("node-link", "d3", "jgf", "cytoscape", "graphology", "vis", "obographs"),
+            values: JSON_DIALECTS,
+            advanced: true,
             description: "Which JSON graph shape to write. Left unset, the shape the file was read in, else node-link.",
         },
-        { name: "indent", plainName: "Indent", technicalName: "indent", type: "integer", min: 0 },
+        { name: "indent", plainName: "Indent", technicalName: "indent", type: "integer", min: 0, advanced: true },
         {
             name: "ontologyIri",
             plainName: "Ontology IRI",
             technicalName: "ontologyIri",
             type: "string",
+            advanced: true,
             description: "OBO Graphs only: the IRI an id without a prefix is written under, as <ontologyIri>#<id>.",
         },
     ],
@@ -246,6 +261,7 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
                 { value: "generic", label: "Generic" },
                 { value: "neo4j", label: "Neo4j Export" },
             ],
+            advanced: true,
             description: "A Neo4j admin-import file, or a plain table (the default).",
         },
         {
@@ -253,8 +269,12 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
             plainName: "Header Names",
             technicalName: "dialect",
             type: "enum",
-            values: choices("generic", "gephi"),
+            values: [
+                { value: "generic", label: "source, target, weight" },
+                { value: "gephi", label: "Gephi (Source, Target, Type, Weight)" },
+            ],
             default: "generic",
+            advanced: true,
             description: "source,target,weight headers, or Gephi's Source,Target,Type,Weight.",
         },
         {
@@ -262,10 +282,20 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
             plainName: "Table",
             technicalName: "table",
             type: "enum",
-            values: choices("edges", "nodes", "adjacency"),
+            values: [
+                { value: "edges", label: "Edges" },
+                { value: "nodes", label: "Nodes" },
+                { value: "adjacency", label: "Adjacency List" },
+            ],
             description: "Which table to write. Left unset, the edge table.",
         },
-        { name: "delimiter", plainName: "Column Separator", technicalName: "delimiter", type: "string" },
+        {
+            name: "delimiter",
+            plainName: "Column Separator",
+            technicalName: "delimiter",
+            type: "string",
+            advanced: true,
+        },
         {
             name: "newline",
             plainName: "Line Ending",
@@ -275,14 +305,16 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
                 { value: "\n", label: "LF" },
                 { value: "\r\n", label: "CRLF" },
             ],
+            advanced: true,
         },
-        { name: "header", plainName: "Header Row", technicalName: "header", type: "boolean" },
+        { name: "header", plainName: "Header Row", technicalName: "header", type: "boolean", advanced: true },
         {
             name: "neutraliseFormulas",
-            plainName: "Neutralise Formulas",
+            plainName: "Neutralize Formulas",
             technicalName: "neutraliseFormulas",
             type: "boolean",
             default: true,
+            advanced: true,
             description:
                 "Prefix a text cell that starts with =, +, -, @, a tab or a carriage return with an " +
                 "apostrophe, so a spreadsheet does not run it as a formula. Numbers are never touched. " +
@@ -290,13 +322,17 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
         },
     ],
     graphml: [
-        { name: "pretty", plainName: "Indent", technicalName: "pretty", type: "boolean" },
+        { name: "pretty", plainName: "Indent", technicalName: "pretty", type: "boolean", advanced: true },
         {
             name: "edgedefault",
             plainName: "Default Edge Direction",
             technicalName: "edgedefault",
             type: "enum",
-            values: choices("directed", "undirected"),
+            values: [
+                { value: "directed", label: "Directed" },
+                { value: "undirected", label: "Undirected" },
+            ],
+            advanced: true,
         },
     ],
     gexf: [
@@ -305,31 +341,48 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
             plainName: "GEXF Version",
             technicalName: "version",
             type: "enum",
-            values: choices("1.2", "1.3"),
+            values: [
+                { value: "1.2", label: "GEXF 1.2" },
+                { value: "1.3", label: "GEXF 1.3" },
+            ],
+            advanced: true,
         },
     ],
     gml: [
-        { name: "weightKey", plainName: "Weight Key", technicalName: "weightKey", type: "string" },
+        { name: "weightKey", plainName: "Weight Key", technicalName: "weightKey", type: "string", advanced: true },
         {
             name: "sanitizeKeys",
             plainName: "Unwritable Keys",
             technicalName: "sanitizeKeys",
             type: "enum",
-            values: choices("error", "mangle"),
+            values: [
+                { value: "error", label: "Refuse the export" },
+                { value: "mangle", label: "Rewrite them" },
+            ],
+            advanced: true,
         },
     ],
     dot: [
-        { name: "indent", plainName: "Indent", technicalName: "indent", type: "string" },
-        { name: "name", plainName: "Graph Name", technicalName: "name", type: "string" },
-        { name: "strict", plainName: "Strict Graph", technicalName: "strict", type: "boolean" },
+        { name: "indent", plainName: "Indent", technicalName: "indent", type: "string", advanced: true },
+        { name: "name", plainName: "Graph Name", technicalName: "name", type: "string", advanced: true },
+        { name: "strict", plainName: "Strict Graph", technicalName: "strict", type: "boolean", advanced: true },
     ],
-    pajek: [{ name: "networkHeader", plainName: "Network Header", technicalName: "networkHeader", type: "boolean" }],
+    pajek: [
+        {
+            name: "networkHeader",
+            plainName: "Network Header",
+            technicalName: "networkHeader",
+            type: "boolean",
+            advanced: true,
+        },
+    ],
     xgmml: [
         {
             name: "cytoscapeEscapes",
             plainName: "Cytoscape Escapes",
             technicalName: "cytoscapeEscapes",
             type: "boolean",
+            advanced: true,
             description: String.raw`Write a line break or a tab in a text value as Cytoscape's \n or \t.`,
         },
     ],
@@ -344,6 +397,7 @@ const writerOptions: Readonly<Record<string, readonly OptionDescriptor[]>> = {
                 { value: "error", label: "Refuse" },
             ],
             default: "mangle",
+            advanced: true,
             description:
                 "CX2 node ids are integers. Renumber other ids and keep each original in a " +
                 "graphty:originalId attribute that reading the file back restores, or refuse the export.",
@@ -362,19 +416,34 @@ export const NEO4J_WRITER_OPTIONS: readonly OptionDescriptor[] = [
         plainName: "Tables",
         technicalName: "part",
         type: "enum",
-        values: choices("all", "nodes", "relationships"),
+        values: [
+            { value: "all", label: "Nodes and Relationships" },
+            { value: "nodes", label: "Nodes" },
+            { value: "relationships", label: "Relationships" },
+        ],
     },
-    { name: "delimiter", plainName: "Column Separator", technicalName: "delimiter", type: "string" },
+    { name: "delimiter", plainName: "Column Separator", technicalName: "delimiter", type: "string", advanced: true },
     {
         name: "arrayDelimiter",
         plainName: "List Separator",
         technicalName: "arrayDelimiter",
         type: "enum",
-        values: choices(";", ",", "|"),
+        values: [
+            { value: ";", label: "Semicolon" },
+            { value: ",", label: "Comma" },
+            { value: "|", label: "Pipe" },
+        ],
+        advanced: true,
     },
-    { name: "quote", plainName: "Quote Character", technicalName: "quote", type: "string" },
-    { name: "weightColumn", plainName: "Weight Property", technicalName: "weightColumn", type: "string" },
-    { name: "idColumn", plainName: "Id Property", technicalName: "idColumn", type: "string" },
+    { name: "quote", plainName: "Quote Character", technicalName: "quote", type: "string", advanced: true },
+    {
+        name: "weightColumn",
+        plainName: "Weight Property",
+        technicalName: "weightColumn",
+        type: "string",
+        advanced: true,
+    },
+    { name: "idColumn", plainName: "Id Property", technicalName: "idColumn", type: "string", advanced: true },
     ...writerOptions.csv.filter((option) => option.name === "neutraliseFormulas"),
     ...COMMON_WRITER_OPTIONS,
 ];
@@ -388,6 +457,54 @@ function writerOptionsOf(id: string): readonly OptionDescriptor[] {
     return [...(writerOptions[id] ?? []), ...COMMON_WRITER_OPTIONS];
 }
 
+/**
+ * Options without some names.
+ * @param options - The options.
+ * @param names - The names to leave out.
+ * @returns The rest, in order.
+ */
+function without(options: readonly OptionDescriptor[], ...names: string[]): readonly OptionDescriptor[] {
+    return options.filter((option) => !names.includes(option.name));
+}
+
+/** One variant per JSON shape: no shape picker, and the Ontology IRI only where it applies. */
+const JSON_VARIANTS: readonly FormatExportVariant[] = JSON_DIALECTS.map(({ value, label }) => ({
+    id: value,
+    plainName: label,
+    extensions: [".json"],
+    mimeTypes: ["application/json"],
+    preset: { dialect: value },
+    options: without(writerOptionsOf("json"), "dialect", ...(value === "obographs" ? [] : ["ontologyIri"])),
+}));
+
+/** The plain table, Gephi's and Neo4j's admin-import files. */
+const CSV_VARIANTS: readonly FormatExportVariant[] = [
+    {
+        id: "csv",
+        plainName: "CSV",
+        extensions: [".csv"],
+        mimeTypes: ["text/csv"],
+        preset: { dialect: "generic" },
+        options: without(writerOptionsOf("csv"), "variant", "dialect"),
+    },
+    {
+        id: "gephi",
+        plainName: "Gephi CSV",
+        extensions: [".csv"],
+        mimeTypes: ["text/csv"],
+        preset: { dialect: "gephi" },
+        options: without(writerOptionsOf("csv"), "variant", "dialect"),
+    },
+    {
+        id: "neo4j",
+        plainName: "Neo4j CSV",
+        extensions: [".csv"],
+        mimeTypes: ["text/csv"],
+        preset: { variant: "neo4j" },
+        options: without(NEO4J_WRITER_OPTIONS, "variant"),
+    },
+];
+
 /** Every file format the element can read or write. */
 export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
     {
@@ -399,6 +516,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: [...jsonOptions, ...endpointOptions],
         writerOptions: writerOptionsOf("json"),
+        exportVariants: JSON_VARIANTS,
     },
     {
         id: "csv",
@@ -409,6 +527,7 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canExport: true,
         options: [...csvOptions, ...endpointOptions],
         writerOptions: writerOptionsOf("csv"),
+        exportVariants: CSV_VARIANTS,
     },
     {
         id: "graphml",
@@ -512,6 +631,19 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[] = [
         canImport: true,
         canExport: false,
         options: oboOptions,
+    },
+    {
+        id: "graphty",
+        plainName: "Graphty JSON",
+        extensions: [PROJECT_FILE.extension],
+        mimeTypes: [PROJECT_FILE.mediaType],
+        canImport: false,
+        canExport: true,
+        options: [],
+        writerOptions: [],
+        description:
+            "The whole project: graph, styles, results, layout and notes. Written by exportGraph and " +
+            "read back by session.project.open, not by session.data.import.",
     },
 ];
 

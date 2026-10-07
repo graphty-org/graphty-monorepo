@@ -41,6 +41,7 @@ export type {
     FieldDescriptor,
     FieldInterpretation,
     FormatDescriptor,
+    FormatExportVariant,
     FormatId,
     FunctionDescriptor,
     GraphtyErrorCode,

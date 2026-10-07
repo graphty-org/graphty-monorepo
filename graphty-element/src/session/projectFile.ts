@@ -13,7 +13,15 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point reaches it.
  */
 
-import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
+import {
+    type EdgeId,
+    type FieldDescriptor,
+    type NodeId,
+    PROJECT_FILE,
+    type ResultShape,
+    type RunId,
+    type SetDefinitionInput,
+} from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import type { Dispatcher } from "./project/Dispatcher";
@@ -1194,23 +1202,7 @@ function rowsOf<Key, Id extends NodeId>(
     return out;
 }
 
-/**
- * How a project file is named and typed: what `element.downloadProject()` gives the file, and
- * what to hand a save picker (`showSaveFilePicker`'s `suggestedName` and `accept`) or a server.
- * @example
- * ```typescript
- * const handle = await showSaveFilePicker({
- *     suggestedName: projectFileName(session.project.name),
- *     types: [{ accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] } }],
- * });
- * ```
- */
-export const PROJECT_FILE = Object.freeze({
-    /** The file name's ending, with its leading dot. */
-    extension: ".graphty.json",
-    /** The file's media type. */
-    mediaType: "application/vnd.graphty+json",
-} as const);
+export { PROJECT_FILE };
 
 /**
  * The file name the element gives a project: `<name>.graphty.json`, or `project.graphty.json`

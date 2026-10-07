@@ -2803,7 +2803,8 @@ export class Graphty extends LitElement {
      * colours and sizes, wherever the format has a place for them. `lossNotes` lists everything
      * the format could not hold.
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
-     *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
+     *     "json", "csv", "gml", "dot", "pajek", "graphty" for the project file, or a registered
+     *     writer's id)
      * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
      *     admin-import file; `{ notes: true }` adds the `graphty.notes.count` and
      *     `graphty.notes.text` columns (notes are left out by default, and reported as

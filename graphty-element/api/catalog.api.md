@@ -357,6 +357,8 @@ export interface FormatDescriptor {
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
+    description?: string;
+    exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
     // (undocumented)
@@ -371,6 +373,19 @@ export interface FormatDescriptor {
 
 // @public
 export function formatDescriptor(id: string): FormatDescriptor | undefined;
+
+// @public
+export interface FormatExportVariant {
+    // (undocumented)
+    extensions: readonly string[];
+    id: string;
+    // (undocumented)
+    mimeTypes: readonly string[];
+    options: readonly OptionDescriptor[];
+    // (undocumented)
+    plainName: string;
+    preset: Readonly<Record<string, unknown>>;
+}
 
 // @public
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
@@ -769,7 +784,7 @@ export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
 
 // @public
-export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo"];
+export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
 
 // @public
 export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];

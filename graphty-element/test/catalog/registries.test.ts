@@ -262,7 +262,10 @@ describe("format catalogue", () => {
     });
 
     it("describes no format the element cannot read", () => {
-        const ids = FORMAT_DESCRIPTORS.map((descriptor) => String(descriptor.id));
+        // The project file is written, never imported: project.open reads it.
+        const ids = FORMAT_DESCRIPTORS.filter((descriptor) => descriptor.canImport).map((descriptor) =>
+            String(descriptor.id),
+        );
 
         assert.deepEqual(
             ids.filter((id) => !registeredFormats.includes(id)),
@@ -284,8 +287,11 @@ describe("format catalogue", () => {
         );
     });
 
-    it("reports that every built-in format can be read, and all but CX, sessions and OBO written", () => {
-        assert.isTrue(FORMAT_DESCRIPTORS.every((descriptor) => descriptor.canImport));
+    it("reports that every built-in format but the project file can be read, and all but CX, sessions and OBO written", () => {
+        assert.deepEqual(
+            FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canImport).map((descriptor) => descriptor.id),
+            ["graphty"],
+        );
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canExport).map((descriptor) => descriptor.id),
             ["cx", "cys", "obo"],

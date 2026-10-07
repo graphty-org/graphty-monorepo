@@ -819,7 +819,7 @@ export abstract class DataSource {
             );
         }
 
-        if (FORMAT_DESCRIPTORS.some((descriptor) => descriptor.id === type)) {
+        if (FORMAT_DESCRIPTORS.some((descriptor) => descriptor.id === type && descriptor.canImport)) {
             if (dataSourceRegistry.hasOwn(type)) {
                 throw new GraphtyError({
                     code: "E_DUPLICATE_PLUGIN",

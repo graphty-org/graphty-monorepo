@@ -167,6 +167,22 @@ function heldJob(state, id, session, client) {
 }
 
 /**
+ * A held job's unread news, now marked read; for an issue job, its holder has read the issue's
+ * current revision too (merge decision line 8).
+ * @param {any} state the daemon state
+ * @param {any} job the job
+ * @returns {string[]} the news
+ */
+function readNews(state, job) {
+    const news = job.news.filter((/** @type {any} */ n) => !n.acked).map((/** @type {any} */ n) => n.text);
+    for (const n of job.news) n.acked = true;
+    if (job.kind === "issue") {
+        job.acknowledgedRevision = state.issues?.byNumber?.[String(job.target).slice(1)]?.updatedAt ?? null;
+    }
+    return news;
+}
+
+/**
  * The claim snapshot now (design 8.2).
  * @param {SessionToolContext} ctx the context
  * @returns {{version: number, inFlight: any[], ownerSessions: any[]}} the snapshot
@@ -200,12 +216,7 @@ export function sessionToolSet(ctx) {
                 const job = state.jobs?.[client.job];
                 if (!job) throw new Error(`no job ${client.job} for this worker`);
                 if (!startedFor(job, client)) throw new Error(STALE(client.job));
-                const news = job.news.filter((/** @type {any} */ n) => !n.acked).map((/** @type {any} */ n) => n.text);
-                for (const n of job.news) n.acked = true;
-                // The worker read its issue's current revision (merge decision line 8).
-                if (job.kind === "issue") {
-                    job.acknowledgedRevision = state.issues?.byNumber?.[String(job.target).slice(1)]?.updatedAt ?? null;
-                }
+                const news = readNews(state, job);
                 if (job.holder?.session === session) job.steeredAt = null;
                 await ctx.commit({ kind: "next", job: job.id, session, news: news.length });
                 const instructions =
@@ -222,6 +233,11 @@ export function sessionToolSet(ctx) {
                 .map((/** @type {any} */ j) => ({ job: j.id, reason: jobInUse(state, j, { ...ctx, session }) }))
                 .filter((u) => u.reason);
             const yours = held.filter((u) => u.reason?.startsWith("yours:"));
+            // The jobs this session claimed itself: their news is its to read, or githerd_push refuses them.
+            const claimed = Object.values(state.jobs ?? {}).filter(
+                (/** @type {any} */ j) => session && j.holder?.session === session && !board.TERMINAL.includes(j.state),
+            );
+            for (const j of claimed) yours.push({ job: j.id, reason: `yours: you hold ${j.id} (${j.state})` });
             const inUse = held.filter((u) => !yours.includes(u));
             const offered = queued.filter((/** @type {any} */ j) => !held.some((u) => u.job === j.id));
             // What githerd told this session, such as a worker's push that overlaps its files (8.2).
@@ -230,6 +246,12 @@ export function sessionToolSet(ctx) {
                 .filter((/** @type {any} */ n) => !n.acked)
                 .map((/** @type {any} */ n) => n.text);
             for (const n of record?.news ?? []) n.acked = true;
+            for (const j of claimed) {
+                const read = readNews(state, j);
+                if (!read.length) continue;
+                news.push(...read.map((t) => `${j.id}: ${t}`));
+                await ctx.commit({ kind: "next", job: j.id, session, news: read.length });
+            }
             return JSON.stringify({
                 job: null,
                 offered,

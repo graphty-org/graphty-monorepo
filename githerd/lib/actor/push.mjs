@@ -269,7 +269,8 @@ export function createPushQueue({
             return `no claim: this session does not hold ${id}; claim it with githerd_claim first`;
         }
         if (job.state !== "working") return `${id} is ${job.state}, not working`;
-        if (job.news.some((/** @type {any} */ n) => !n.acked)) return "unacknowledged news: read your news first";
+        if (job.news.some((/** @type {any} */ n) => !n.acked))
+            return "unacknowledged news: read your news first (call githerd_next)";
         const blocked = credentialBlocked();
         if (blocked) return `credential blocked: ${blocked}`;
         if (branch === defaultBranch) return `wrong branch: never the default branch ${defaultBranch}`;

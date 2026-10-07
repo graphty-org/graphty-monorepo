@@ -244,6 +244,36 @@ describe("sessionToolSet", () => {
         );
     });
 
+    it("gives an owner session the news of the jobs it claimed once, so their pushes are not refused", async () => {
+        const queued = newJob({ kind: "issue", target: "#9", id: "issue-9" }, NOW);
+        queued.news.push({ at: "x", text: "job issue-8 ended; judge again", acked: false });
+        const state = { jobs: { "issue-9": queued }, issues: { byNumber: { 9: { updatedAt: "t1" } } } };
+        const { ctx } = setup(state);
+        const owner = { session: "o1" };
+        const offer = JSON.parse((await call(ctx, "githerd_next", {}, owner)).text);
+        const claim = {
+            job: "issue-9",
+            snapshotVersion: offer.snapshot.version,
+            overlap: { decision: "independent", reason: "alone" },
+            plan: "fix it",
+        };
+        expect(JSON.parse((await call(ctx, "githerd_claim", claim, owner)).text).ok).toBe(true);
+        // What the daemon's poll adds to an issue job its holder has not read at this revision.
+        queued.news.push({ at: "y", text: "issue #9 changed; read it again with githerd_read", acked: false });
+        // The push gate's news check (lib/actor/push.mjs) refuses the job now.
+        const unread = () => queued.news.some((/** @type {any} */ n) => !n.acked);
+        expect(unread()).toBe(true);
+        const next = JSON.parse((await call(ctx, "githerd_next", {}, owner)).text);
+        expect(next.news).toEqual([
+            "issue-9: job issue-8 ended; judge again",
+            "issue-9: issue #9 changed; read it again with githerd_read",
+        ]);
+        expect(next.yours).toEqual([{ job: "issue-9", reason: "yours: you hold issue-9 (working)" }]);
+        expect(unread()).toBe(false);
+        expect(queued.acknowledgedRevision).toBe("t1");
+        expect(JSON.parse((await call(ctx, "githerd_next", {}, owner)).text).news).toEqual([]);
+    });
+
     it("claims a verdict job by its normalized id and by an id saved before ids were normalized", async () => {
         const KEY = "CI / Build / Security audit";
         const verdictJob = (/** @type {string} */ id) =>
@@ -467,7 +497,10 @@ describe("sessionToolSet", () => {
         };
         expect(JSON.parse((await call(ctx, "githerd_claim", claim, me)).text).ok).toBe(true);
         const seen = JSON.parse((await call(ctx, "githerd_next", {}, me)).text);
-        expect(seen.yours).toEqual([{ job: "title-9", reason: "yours: you claimed pr-9" }]);
+        expect(seen.yours).toEqual([
+            { job: "title-9", reason: "yours: you claimed pr-9" },
+            { job: "pr-9", reason: "yours: you hold pr-9 (working)" },
+        ]);
         expect(seen.inUse).toEqual([]);
         expect(seen.offered).toEqual([]);
     });

@@ -1,3 +1,39 @@
+## 3.17.0 (2026-10-07)
+
+### 🚀 Features
+
+- **graphty-element:** give every history step a coded fact ([#869](https://github.com/graphty-org/graphty-monorepo/issues/869))
+- **graphty-element:** name a legend field's run result by catalog ids ([90d90bb46](https://github.com/graphty-org/graphty-monorepo/commit/90d90bb46))
+- **graphty-element:** neutral legend facts and per-layer style counts ([#867](https://github.com/graphty-org/graphty-monorepo/issues/867), [#790](https://github.com/graphty-org/graphty-monorepo/issues/790))
+- **graphty-element:** add styles.agreement for several elements ([#810](https://github.com/graphty-org/graphty-monorepo/issues/810))
+- **graphty-element:** element.labelOf(id) returns a node's label as drawn ([#799](https://github.com/graphty-org/graphty-monorepo/issues/799))
+- **graphty-element:** report where a node is drawn on screen ([#797](https://github.com/graphty-org/graphty-monorepo/issues/797))
+- **graphty-element:** add session.journal and journal:appended ([#1230](https://github.com/graphty-org/graphty-monorepo/issues/1230), [#145](https://github.com/graphty-org/graphty-monorepo/issues/145))
+
+### 🩹 Fixes
+
+- **graphty-element:** twelve layout engines honor scalingFactor ([#1323](https://github.com/graphty-org/graphty-monorepo/pull/1323))
+- **graphty-element:** setNodes reads added nodes with the idPath it was given ([#1168](https://github.com/graphty-org/graphty-monorepo/pull/1168))
+- **graphty-element:** put every node on the plane when switching to 2D under any layout ([#1341](https://github.com/graphty-org/graphty-monorepo/issues/1341))
+- **graphty-element:** drop unnecessary type assertion and reformat for prettier 3.9.9 ([dd32105d6](https://github.com/graphty-org/graphty-monorepo/commit/dd32105d6))
+- **graphty-element:** a mid grey for the overflow group ([#505050](https://github.com/graphty-org/graphty-monorepo/issues/505050), [#686868](https://github.com/graphty-org/graphty-monorepo/issues/686868), [#230](https://github.com/graphty-org/graphty-monorepo/issues/230))
+- **graphty-element:** waitForStableFrame waits for a declutter switch to take effect ([c57e93c07](https://github.com/graphty-org/graphty-monorepo/commit/c57e93c07))
+- **graphty-element:** journal a transaction only when it records ([#145](https://github.com/graphty-org/graphty-monorepo/issues/145))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.37
+- Updated @graphty/remote-logger to 2.0.9
+- Updated graph-samples to 0.1.23
+- Updated graph-format to 1.3.8
+- Updated algorithms to 3.3.8
+- Updated graph-io to 0.3.28
+- Updated layout to 2.2.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.16.0 (2026-10-07)
 
 ### 🚀 Features

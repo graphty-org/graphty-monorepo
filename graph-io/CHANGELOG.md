@@ -1,3 +1,19 @@
+## 0.3.28 (2026-10-07)
+
+### 🩹 Fixes
+
+- **graph-io:** write a GML or DOT label column under label, as the notes say ([#1360](https://github.com/graphty-org/graphty-monorepo/issues/1360), [#1396](https://github.com/graphty-org/graphty-monorepo/issues/1396))
+- **graph-io:** the CX2 export no longer reports the edge label as renamed ([#962](https://github.com/graphty-org/graphty-monorepo/issues/962))
+- **graph-io:** do not detect text with control characters as CSV ([#964](https://github.com/graphty-org/graphty-monorepo/issues/964))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.27 (2026-10-07)
 
 ### 🧱 Updated Dependencies

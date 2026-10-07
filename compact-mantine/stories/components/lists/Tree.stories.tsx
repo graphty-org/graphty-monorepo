@@ -1,4 +1,4 @@
-import { Group, Kbd, Stack, Table, Text } from "@mantine/core";
+import { Group, Kbd, Menu, Stack, Table, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import React, { useState } from "react";
@@ -618,30 +618,99 @@ export const Dragging: Story = {
     ),
     play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
-        const hover = (tree: string, source: string, target: string, fraction: number): void => {
+        // A mouse press on the source, moved over the target and held there (no release). Each
+        // tree gets its own pointer, so both drags stay under way.
+        const hover = (tree: string, source: string, target: string, fraction: number, pointerId: number): void => {
             const scope = within(canvas.getByRole("tree", { name: tree }));
-            const data = new DataTransfer();
-            scope
-                .getByRole("treeitem", { name: source })
-                .dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
-            const row = scope.getByRole("treeitem", { name: target });
-            const box = row.getBoundingClientRect();
-            row.dispatchEvent(
-                new DragEvent("dragover", {
-                    bubbles: true,
-                    cancelable: true,
-                    dataTransfer: data,
-                    clientY: box.top + box.height * fraction,
-                }),
-            );
+            const send = (el: Element, type: string, x: number, y: number): void => {
+                el.dispatchEvent(
+                    new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId, pointerType: "mouse" }),
+                );
+            };
+            const from = scope.getByRole("treeitem", { name: source });
+            const start = from.getBoundingClientRect();
+            send(from, "pointerdown", start.left + 40, start.top + 16);
+            send(from, "pointermove", start.left + 40, start.top + 24);
+            const box = scope.getByRole("treeitem", { name: target }).getBoundingClientRect();
+            send(from, "pointermove", box.left + 40, box.top + box.height * fraction);
         };
-        hover("Into", "Sticky note", "Card", 0.5);
-        hover("Between", "Sticky note", "Background", 0.1);
+        hover("Into", "Sticky note", "Card", 0.5, 11);
+        hover("Between", "Sticky note", "Background", 0.1, 12);
         await expect(
             await within(canvas.getByRole("tree", { name: "Into" })).findByTestId("tree-drop-box"),
         ).toBeVisible();
         await expect(
             await within(canvas.getByRole("tree", { name: "Between" })).findByTestId("tree-drop-line"),
         ).toBeVisible();
+    },
+};
+
+const TOUCH_LAYERS: TreeNodeData[] = [
+    { id: "selection", name: "Selection", movable: false },
+    { id: "degree", name: "Degree color" },
+    { id: "labels", name: "Node labels" },
+    { id: "pagerank", name: "PageRank size" },
+    { id: "base", name: "Everything", movable: false },
+];
+
+/**
+ * Touch and the row menu: hold a row half a second and its menu opens (as do a right-click,
+ * Shift+F10 and the ContextMenu key); keep holding and move, and the menu closes as the row lifts
+ * into a drag. A quick swipe scrolls instead. "Selection" and "Everything" are not `movable`, and
+ * `canDrop` keeps every drop between them. On a touch screen the eyes stay visible without hover.
+ */
+export const TouchAndRowMenu: Story = {
+    render: function Render() {
+        const [layers, setLayers] = useState<TreeNodeData[]>(TOUCH_LAYERS);
+        const [hidden, setHidden] = useState<string[]>([]);
+        const last = layers.length - 1;
+        const move = (id: string, by: number): void => {
+            const index = layers.findIndex((n) => n.id === id) + by;
+            if (index > 0 && index < last) {
+                setLayers((list) => moveTreeItem(list, { id, parentId: null, index }));
+            }
+        };
+        return (
+            <Panel>
+                <Tree
+                    items={layers.map((n) => ({
+                        ...n,
+                        dimmed: hidden.includes(n.id),
+                        actions: (
+                            <LayerToggle
+                                kind="eye"
+                                on={hidden.includes(n.id)}
+                                onChange={(on) => {
+                                    setHidden((ids) => (on ? [...ids, n.id] : ids.filter((x) => x !== n.id)));
+                                }}
+                            />
+                        ),
+                    }))}
+                    label="Style layers"
+                    multiselect={false}
+                    defaultSelected={["degree"]}
+                    canDrop={(m) => m.parentId === null && m.index > 0 && m.index < last}
+                    onMove={(m) => setLayers((list) => moveTreeItem(list, m))}
+                    rowMenu={(node) =>
+                        node.movable === false ? null : (
+                            <>
+                                <Menu.Item onClick={() => move(node.id, -1)}>Move up</Menu.Item>
+                                <Menu.Item onClick={() => move(node.id, 1)}>Move down</Menu.Item>
+                                <Menu.Item onClick={() => setLayers((list) => list.filter((n) => n.id !== node.id))}>
+                                    Delete
+                                </Menu.Item>
+                            </>
+                        )
+                    }
+                />
+            </Panel>
+        );
+    },
+    play: async ({ canvasElement }) => {
+        const tree = within(within(canvasElement).getByRole("tree", { name: "Style layers" }));
+        tree.getByRole("treeitem", { name: "Node labels" }).focus();
+        await userEvent.keyboard("{Shift>}{F10}{/Shift}");
+        await expect(await within(document.body).findByRole("menuitem", { name: "Delete" })).toBeVisible();
+        await userEvent.keyboard("{Escape}");
     },
 };

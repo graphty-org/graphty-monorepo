@@ -71,6 +71,24 @@ async function renderTree(
 
 const row = (name: string): HTMLElement => screen.getByRole("treeitem", { name });
 
+/**
+ * Press a row with the mouse and move it (past the 4px start) to a point, without releasing.
+ * @param source - the row pressed
+ * @param x - client x to move to
+ * @param y - client y to move to
+ */
+function pressAndMove(source: HTMLElement, x: number, y: number): void {
+    const start = source.getBoundingClientRect();
+    const send = (type: string, px: number, py: number): void => {
+        source.dispatchEvent(
+            new PointerEvent(type, { bubbles: true, clientX: px, clientY: py, pointerId: 3, pointerType: "mouse" }),
+        );
+    };
+    send("pointerdown", start.left + 50, start.top + 16);
+    send("pointermove", start.left + 50, start.top + 24);
+    send("pointermove", x, y);
+}
+
 describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
     it("top-level row: 32 x 240, glyph at x 16, name at x 40, 11/32 600, primary glyph", async () => {
         await renderTree({});
@@ -298,18 +316,8 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const tree = await renderTree({ onMove: () => undefined, defaultExpanded: [] });
         const source = row("other");
         const target = row("cross-area-index");
-        const data = new DataTransfer();
-        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
         const box = target.getBoundingClientRect();
-        target.dispatchEvent(
-            new DragEvent("dragover", {
-                bubbles: true,
-                cancelable: true,
-                dataTransfer: data,
-                clientY: box.top + 16,
-                clientX: box.left + 50,
-            }),
-        );
+        pressAndMove(source, box.left + 50, box.top + 16);
         const drop = await within(tree).findByTestId("tree-drop-box");
         expectMeasured(drop, {
             ...figmaSpec(figBox, ["height", "borderTopWidth", "borderTopColor", "borderStyle", "borderRadius"]),
@@ -322,18 +330,8 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const tree = await renderTree({ onMove: () => undefined });
         const source = row("other");
         const target = row("ci-inner-frame");
-        const data = new DataTransfer();
-        source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: data }));
         const box = target.getBoundingClientRect();
-        target.dispatchEvent(
-            new DragEvent("dragover", {
-                bubbles: true,
-                cancelable: true,
-                dataTransfer: data,
-                clientY: box.top + 2,
-                clientX: box.left + 50,
-            }),
-        );
+        pressAndMove(source, box.left + 50, box.top + 2);
         const line = await within(tree).findByTestId("tree-drop-line");
         expectMeasured(
             line,

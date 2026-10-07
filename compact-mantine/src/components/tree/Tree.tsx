@@ -1,10 +1,12 @@
 import { useUncontrolled } from "@mantine/hooks";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import React, { forwardRef, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { PANEL_GRID } from "../../constants/panel";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
+import { ContextMenu } from "../overlays/ContextMenu";
+import { joinPress } from "../pressGesture";
 import { EllipsizedName } from "../rows/EllipsizedName";
 import { InlineRename } from "./InlineRename";
 import {
@@ -25,6 +27,27 @@ const VIRTUALIZE_AT = 200;
 const TYPEAHEAD_MS = 500;
 /** How many rows to draw beyond the visible ones when virtualized. */
 const OVERSCAN = 10;
+/** How far a mouse or pen must move with the button down before a row lifts, in px. */
+const DRAG_START_PX = 4;
+/** How close to the scroller's top or bottom edge a drag scrolls it, in px. */
+const AUTOSCROLL_EDGE = 24;
+/** The fastest edge scroll, in px per frame. */
+const AUTOSCROLL_MAX = 12;
+
+/**
+ * The element that scrolls the tree: the nearest ancestor that scrolls vertically.
+ * @param from - the tree's root
+ * @returns the scroller, or null when only the page scrolls
+ */
+function scrollerOf(from: HTMLElement): HTMLElement | null {
+    for (let el: HTMLElement | null = from; el !== null; el = el.parentElement) {
+        const { overflowY } = getComputedStyle(el);
+        if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) {
+            return el;
+        }
+    }
+    return null;
+}
 
 /**
  * Props for the TreeItem component: one row of a layer tree.
@@ -182,9 +205,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                     {swatch}
                 </span>
             )}
-            {nameSlot ?? (
-<EllipsizedName className="cm-tree-name" name={name} />
-            )}
+            {nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} />}
             {hasCount && (
                 <span className="cm-tree-count" id={countId} data-testid="tree-count">
                     {count}
@@ -265,6 +286,18 @@ export interface TreeProps {
      * eye, Delete to delete the row.
      */
     onRowKeyDown?: (id: string, event: React.KeyboardEvent<HTMLDivElement>) => void;
+    /**
+     * Where an item may land. Called with each move a drag or Alt+Arrow would report; a `false`
+     * means no drop there (no drop line, no `onMove`). Pair it with `TreeNodeData.movable` for
+     * items that never move at all.
+     */
+    canDrop?: (move: TreeMove) => boolean;
+    /**
+     * The row's context menu: its `Menu.Item` rows (see ContextMenu), or null for a row with
+     * none. It opens on a right-click, Shift+F10 or the ContextMenu key, and a touch held still
+     * for half a second, always for the row it happened on.
+     */
+    rowMenu?: (node: TreeNodeData) => React.ReactNode;
 }
 
 /**
@@ -281,7 +314,9 @@ export interface TreeProps {
  * Alt+ArrowDown move the focused item one place among its siblings. `onRowKeyDown` sees every
  * key first and can claim one with `preventDefault()`.
  * Pointer: click selects (Shift range, Control / Command toggle); the caret opens one row;
- * double-click renames; drag a row to move it.
+ * double-click renames; drag a row to move it (a mouse or pen after 4px of movement, a finger
+ * after holding the row half a second; a quicker swipe scrolls). Escape cancels a drag, and the
+ * list scrolls when a drag nears its edge.
  * @param props - Component props
  * @param props.items - The items or pages
  * @param props.label - The accessible name
@@ -298,6 +333,8 @@ export interface TreeProps {
  * @param props.height - The scrolling height when virtualized
  * @param props.renameLabel - The rename field's accessible name
  * @param props.onRowKeyDown - Called first for a key pressed on a focused row; preventDefault claims it
+ * @param props.canDrop - Where an item may land
+ * @param props.rowMenu - The row's context menu
  * @returns The tree
  * @example
  * A row with a swatch, a count, a running line and its state in words, and a row shortcut.
@@ -329,6 +366,8 @@ export function Tree({
     height = 480,
     renameLabel = "Layer name",
     onRowKeyDown,
+    canDrop,
+    rowMenu,
 }: TreeProps): React.JSX.Element {
     useCompactStyles();
     const [selection, setSelection] = useUncontrolled<readonly string[]>({
@@ -356,8 +395,25 @@ export function Tree({
     const [focusedId, setFocusedId] = useState<string | null>(null);
     const [renaming, setRenaming] = useState<string | null>(null);
     const [drop, setDrop] = useState<TreeDrop | null>(null);
+    const [draggingId, setDraggingId] = useState<string | null>(null);
+    const [menuNode, setMenuNode] = useState<TreeNodeData | null>(null);
     const anchor = useRef<string | null>(null);
-    const dragId = useRef<string | null>(null);
+    // The press that may become a drag. Its listeners live on the document from pointerdown to
+    // pointerup; `started` turns true once the row has lifted.
+    const drag = useRef<{
+        id: string;
+        pointerId: number;
+        row: HTMLElement;
+        x: number;
+        y: number;
+        started: boolean;
+        stop: () => void;
+    } | null>(null);
+    const dropRef = useRef<TreeDrop | null>(null);
+    const suppressClick = useRef(false);
+    // The latest rows and rules, for the document listeners a drag installs.
+    const latest = useRef({ rows, canDrop, onMove });
+    latest.current = { rows, canDrop, onMove };
     const pendingFocus = useRef(false);
     const typeahead = useRef({ text: "", at: 0 });
     const rootRef = useRef<HTMLDivElement>(null);
@@ -450,8 +506,9 @@ export function Tree({
         if (onMove && event.altKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
             event.preventDefault();
             const to = row.posInSet - 1 + (event.key === "ArrowUp" ? -1 : 1);
-            if (to >= 0 && to < row.setSize) {
-                onMove({ id: row.node.id, parentId: row.parentId, index: to });
+            const move = { id: row.node.id, parentId: row.parentId, index: to };
+            if (to >= 0 && to < row.setSize && row.node.movable !== false && (canDrop?.(move) ?? true)) {
+                onMove(move);
                 moveFocus(row.node.id);
             }
             return;
@@ -527,9 +584,139 @@ export function Tree({
         }
     };
 
-    const endDrag = (): void => {
-        dragId.current = null;
-        setDrop(null);
+    const showDrop = (next: TreeDrop | null): void => {
+        if (JSON.stringify(next) !== JSON.stringify(dropRef.current)) {
+            dropRef.current = next;
+            setDrop(next);
+        }
+    };
+
+    // The drop under a point: the row there, and how far down it the point is.
+    const dropAt = (id: string, x: number, y: number): TreeDrop | null => {
+        const el = document.elementFromPoint(x, y)?.closest<HTMLElement>(".cm-tree-row[data-index]");
+        if (!el || !rootRef.current?.contains(el)) {
+            return null;
+        }
+        const box = el.getBoundingClientRect();
+        const { rows: now, canDrop: rule } = latest.current;
+        return computeDrop(now, id, Number(el.dataset.index), (y - box.top) / box.height, rule);
+    };
+
+    // Stops a drag that is under way when the tree unmounts.
+    useEffect(() => () => drag.current?.stop(), []);
+
+    // A press on a movable row: it may become a drag. A mouse or pen lifts the row after
+    // DRAG_START_PX of movement; a finger only once the press has been held (pressGesture), so a
+    // quick swipe still scrolls.
+    const startPress = (id: string, event: React.PointerEvent<HTMLDivElement>): void => {
+        suppressClick.current = false;
+        drag.current?.stop();
+        const touch = event.pointerType === "touch";
+        const row = event.currentTarget;
+        const { pointerId } = event;
+        let frame = 0;
+        const state = {
+            id,
+            pointerId,
+            row,
+            x: event.clientX,
+            y: event.clientY,
+            started: false,
+            stop: (): void => {
+                document.removeEventListener("pointermove", move, true);
+                document.removeEventListener("pointerup", up, true);
+                document.removeEventListener("pointercancel", cancel, true);
+                document.removeEventListener("keydown", key, true);
+                cancelAnimationFrame(frame);
+                if (drag.current === state) {
+                    drag.current = null;
+                }
+                showDrop(null);
+                setDraggingId(null);
+            },
+        };
+        // Scroll the list while a drag holds the pointer near its top or bottom edge.
+        const autoScroll = (): void => {
+            const root = rootRef.current;
+            const scroller = root && scrollerOf(root);
+            if (scroller) {
+                const box = scroller.getBoundingClientRect();
+                const above = box.top + AUTOSCROLL_EDGE - state.y;
+                const below = state.y - (box.bottom - AUTOSCROLL_EDGE);
+                const by = above > 0 ? -above : Math.max(below, 0);
+                if (by !== 0) {
+                    scroller.scrollTop += Math.sign(by) * Math.min(AUTOSCROLL_MAX, Math.abs(by) / 2);
+                    showDrop(dropAt(id, state.x, state.y));
+                }
+            }
+            frame = requestAnimationFrame(autoScroll);
+        };
+        const begin = (x: number, y: number): void => {
+            state.started = true;
+            state.x = x;
+            state.y = y;
+            try {
+                row.setPointerCapture(pointerId);
+            } catch {
+                // The pointer is already gone (a synthetic or ended press); the document listeners
+                // still see every move.
+            }
+            setDraggingId(id);
+            showDrop(dropAt(id, x, y));
+            frame = requestAnimationFrame(autoScroll);
+        };
+        const move = (e: PointerEvent): void => {
+            if (e.pointerId !== pointerId) {
+                return;
+            }
+            if (!state.started) {
+                if (!touch && Math.hypot(e.clientX - state.x, e.clientY - state.y) > DRAG_START_PX) {
+                    begin(e.clientX, e.clientY);
+                }
+                return;
+            }
+            state.x = e.clientX;
+            state.y = e.clientY;
+            showDrop(dropAt(id, e.clientX, e.clientY));
+        };
+        const up = (e: PointerEvent): void => {
+            if (e.pointerId !== pointerId) {
+                return;
+            }
+            const done = state.started ? dropRef.current : null;
+            // A mouse fires a click on the row after the button is released; it is the drag's.
+            suppressClick.current = state.started;
+            state.stop();
+            if (done) {
+                latest.current.onMove?.(done.move);
+            }
+        };
+        const cancel = (e: PointerEvent): void => {
+            if (e.pointerId === pointerId) {
+                state.stop();
+            }
+        };
+        const key = (e: KeyboardEvent): void => {
+            if (e.key === "Escape" && state.started) {
+                e.preventDefault();
+                e.stopPropagation();
+                state.stop();
+            }
+        };
+        drag.current = state;
+        document.addEventListener("pointermove", move, true);
+        document.addEventListener("pointerup", up, true);
+        document.addEventListener("pointercancel", cancel, true);
+        document.addEventListener("keydown", key, true);
+        if (touch) {
+            joinPress(event.nativeEvent, {
+                onLift: (e) => {
+                    if (drag.current === state) {
+                        begin(e.clientX, e.clientY);
+                    }
+                },
+            });
+        }
     };
 
     const renderRow = (row: FlatTreeRow, i: number, style?: React.CSSProperties): React.JSX.Element => {
@@ -562,7 +749,7 @@ export function Tree({
                 setSize={row.setSize}
                 tabIndex={id === tabId ? 0 : -1}
                 style={style}
-                draggable={onMove !== undefined && !isRenaming}
+                data-dragging={draggingId === id ? "" : undefined}
                 nameSlot={
                     isRenaming ? (
                         <InlineRename
@@ -589,6 +776,10 @@ export function Tree({
                     setExpanded(id, !row.expanded);
                 }}
                 onClick={(event) => {
+                    if (suppressClick.current) {
+                        suppressClick.current = false;
+                        return;
+                    }
                     setFocusedId(id);
                     select(id, modeOf(event), event);
                 }}
@@ -597,33 +788,20 @@ export function Tree({
                         setRenaming(id);
                     }
                 }}
-                onDragStart={(event) => {
-                    dragId.current = id;
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData("text/plain", row.node.name);
-                }}
-                onDragOver={(event) => {
-                    if (dragId.current === null) {
-                        return;
-                    }
-                    const box = event.currentTarget.getBoundingClientRect();
-                    const next = computeDrop(rows, dragId.current, i, (event.clientY - box.top) / box.height);
-                    if (next) {
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = "move";
-                    }
-                    if (JSON.stringify(next) !== JSON.stringify(drop)) {
-                        setDrop(next);
+                onPointerDown={(event) => {
+                    const onControl = (event.target as Element).closest(
+                        ".cm-tree-caret, .cm-tree-actions, input, textarea",
+                    );
+                    if (
+                        onMove !== undefined &&
+                        !isRenaming &&
+                        row.node.movable !== false &&
+                        event.button === 0 &&
+                        onControl === null
+                    ) {
+                        startPress(id, event);
                     }
                 }}
-                onDrop={(event) => {
-                    event.preventDefault();
-                    if (drop) {
-                        onMove?.(drop.move);
-                    }
-                    endDrag();
-                }}
-                onDragEnd={endDrag}
             />
         );
     };
@@ -656,7 +834,15 @@ export function Tree({
     }
 
     const pitch = PANEL_GRID.DATA_PITCH;
-    return (
+    const menuFor = (target: EventTarget): TreeNodeData | undefined => {
+        const id = (target as Element).closest<HTMLElement>(".cm-tree-row[data-id]")?.dataset.id;
+        return id === undefined ? undefined : rows[indexOf.get(id) ?? -1]?.node;
+    };
+    const hasMenu = (node: TreeNodeData | undefined): node is TreeNodeData => {
+        const content = node && rowMenu?.(node);
+        return content !== undefined && content !== null && content !== false;
+    };
+    const tree = (
         <div
             ref={rootRef}
             role="tree"
@@ -674,10 +860,28 @@ export function Tree({
                     moveFocus(tabId);
                 }
             }}
-            onKeyDown={handleKeyDown}
-            onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                    setDrop(null);
+            onKeyDown={(event) => {
+                if (rowMenu && ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu")) {
+                    const node = tabId === null ? undefined : rows[indexOf.get(tabId) ?? -1]?.node;
+                    if (hasMenu(node)) {
+                        setMenuNode(node);
+                    } else {
+                        // No commands for this row: the menu stays closed.
+                        event.preventDefault();
+                    }
+                    return;
+                }
+                handleKeyDown(event);
+            }}
+            onContextMenu={(event) => {
+                if (!rowMenu) {
+                    return;
+                }
+                const node = menuFor(event.target);
+                if (hasMenu(node)) {
+                    setMenuNode(node);
+                } else {
+                    event.preventDefault();
                 }
             }}
         >
@@ -704,4 +908,5 @@ export function Tree({
             </div>
         </div>
     );
+    return rowMenu ? <ContextMenu target={tree}>{menuNode ? rowMenu(menuNode) : null}</ContextMenu> : tree;
 }

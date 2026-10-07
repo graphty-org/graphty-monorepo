@@ -290,6 +290,11 @@ if affected graphty-element; then
     # (CLAUDE.md, "Public API review"). Needs the build above.
     run_step "Public API report (graphty-element)" "pnpm run check:api-report"
 fi
+# The same for each part of cytoscape-extensions as a browser application bundles it
+# (cytoscape-extensions/size-budgets.json). Needs the build above. About 5 seconds.
+if affected cytoscape-extensions; then
+    run_step "Bundle size (cytoscape-extensions)" "pnpm --filter @graphty/cytoscape-extensions run size"
+fi
 
 # Screenshots, in the background while the tests run: tools/visual-preview.sh --head fetches master,
 # then captures the Storybooks this push affects on the commit being pushed merged into origin/master,

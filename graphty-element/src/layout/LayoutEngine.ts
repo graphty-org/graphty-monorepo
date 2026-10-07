@@ -1242,12 +1242,12 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     }
 
     static type: string;
-    #nodes: Node[] = [];
-    #edges: Edge[] = [];
+    readonly #nodes: Node[] = [];
+    readonly #edges: Edge[] = [];
     /** Nodes removed since the list was last read; see {@link StaticLayoutEngine.removeNode}. */
-    #goneNodes = new Set<Node>();
+    readonly #goneNodes = new Set<Node>();
     /** Edges removed since the list was last read. */
-    #goneEdges = new Set<Edge>();
+    readonly #goneEdges = new Set<Edge>();
     stale = true;
     /** What an engine that does not read the protected `graph` computed, keyed by node id, in layout units. */
     positions: Record<string | number, number[]> = {};

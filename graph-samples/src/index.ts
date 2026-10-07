@@ -7,6 +7,7 @@
 
 export { type DatasetMeta } from "./datasets/build.js";
 export { DATASETS } from "./datasets/catalog.js";
+export { DATASET_NAMES } from "./datasets/names.js";
 export { DEFAULT_DATASET_BASE_URL, fetchDataset, type FetchDatasetOptions } from "./datasets/remote.js";
 export { type ElementData, toElementData } from "./element.js";
 export { type SampleGraph } from "./types.js";

@@ -896,6 +896,51 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(jobInUse(state, state.jobs["pr-710"], { now: at("12:30") })).toBeNull();
     });
 
+    it("asks the stuck question once; after a claim it sends the status question, never the release threat", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" });
+        for (const hm of ["12:15", "12:30", "12:45"]) {
+            expect(await statusStep(state, opts(f, { now: at(hm) }))).toMatchObject([{ kind: "status-asked" }]);
+            markMine(state, 710, { session: "s2", name: "graphty-14", at: at(hm).toISOString(), by: "tool" });
+        }
+        expect(f.sent.map(([, text]) => text)).toEqual([
+            QUESTION,
+            ...Array(3).fill(
+                "githerd: status check on #710 (stuck: required check failing: All Checks Pass), which this session " +
+                    "claimed. Still working on it? Answer with githerd_mine pr 710; `githerd disown 710` releases it. " +
+                    "Still unanswered when githerd asks again in 15 minutes, it goes to other sessions.",
+            ),
+        ]);
+        // A new head ends the episode: a new stuck reason there is a new question.
+        state.prs[710].headSha = "b".repeat(40);
+        await statusStep(state, opts(f, { now: at("12:46") }));
+        await statusStep(state, opts(f, { now: at("13:01") }));
+        expect(f.sent.at(-1)?.[1]).toBe(QUESTION);
+    });
+
+    it("does not ask about a claimed pull request while a push of its branch is in the push queue", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "tool" });
+        await statusStep(state, opts(f, { now: at("12:15") }));
+        // The fix is a merge waiting its turn: no question, and the silence it causes releases nothing.
+        state.pushTickets = [{ branch: null, cwd: "/repo/.worktrees/feat-x/githerd", session: "s2" }];
+        state.prActivity = { 710: { present: { s2: ".worktrees/feat-x" }, pushed: {} } };
+        expect(await statusStep(state, opts(f, { now: at("12:30") }))).toEqual([]);
+        state.pushTickets = [{ branch: "feat/cytoscape-adapter", cwd: "/elsewhere", session: "s2" }];
+        state.prActivity = {};
+        expect(await statusStep(state, opts(f, { now: at("13:30") }))).toEqual([]);
+        expect(f.sent).toHaveLength(2);
+        expect(prInUse(state, 710, { now: at("13:30") })).toBe("session graphty-14 owns it (it said so)");
+        // The push ended and the head did not move: asked the status question again, not released.
+        state.pushTickets = [];
+        expect(await statusStep(state, opts(f, { now: at("13:31") }))).toMatchObject([{ kind: "status-asked" }]);
+        expect(f.sent.at(-1)?.[1]).toMatch(/^githerd: status check on #710/);
+    });
+
     it("asks an owner whose shell sits in the branch's worktree, and releases it on silence", async () => {
         const f = fake();
         const state = owned();

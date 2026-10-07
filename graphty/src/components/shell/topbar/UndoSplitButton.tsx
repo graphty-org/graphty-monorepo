@@ -16,12 +16,11 @@
  * (spec 02 section 2.5).
  */
 
-import { PANEL_INK } from "@graphty/compact-mantine";
-import React, { useCallback, useEffect, useRef } from "react";
+import { ContextMenu, PANEL_INK } from "@graphty/compact-mantine";
+import React from "react";
 
 import { TopBarIconButton } from "./topBarControls";
 import {
-    LONG_PRESS_MS,
     SPLIT_BUTTON_HEIGHT,
     SPLIT_CARET_GLYPH_SIZE,
     SPLIT_CARET_WIDTH,
@@ -64,47 +63,13 @@ export interface UndoSplitButtonProps {
 export function UndoSplitButton(props: UndoSplitButtonProps): React.JSX.Element {
     const { canUndo, caretRef, groupRef, historyOpen = false, onOpenHistory, onUndo, undoLabel } = props;
 
-    const longPressTimer = useRef<number | null>(null);
-    const longPressFired = useRef(false);
-
-    const cancelLongPress = useCallback(() => {
-        if (longPressTimer.current !== null) {
-            window.clearTimeout(longPressTimer.current);
-            longPressTimer.current = null;
-        }
-    }, []);
-
-    useEffect(() => cancelLongPress, [cancelLongPress]);
-
-    const startLongPress = useCallback(() => {
-        cancelLongPress();
-        longPressFired.current = false;
-        longPressTimer.current = window.setTimeout(() => {
-            longPressTimer.current = null;
-            longPressFired.current = true;
-            onOpenHistory();
-        }, LONG_PRESS_MS);
-    }, [cancelLongPress, onOpenHistory]);
-
-    const handleUndoClick = useCallback(() => {
-        // A long-press has already opened History; the click that ends it is part of
-        // the press and must not also undo a step.
-        if (longPressFired.current) {
-            longPressFired.current = false;
-            return;
-        }
-
-        onUndo();
-    }, [onUndo]);
-
-    const handleContextMenu = useCallback(
-        (event: React.MouseEvent<HTMLButtonElement>) => {
-            event.preventDefault();
-            cancelLongPress();
-            onOpenHistory();
-        },
-        [cancelLongPress, onOpenHistory],
-    );
+    // History is the main half's context menu: a right-click, a touch held still (ContextMenu
+    // times it, and swallows the click that ends it, so the hold does not also undo) or
+    // Shift+F10 / the ContextMenu key opens it instead of ContextMenu's own rows.
+    const openHistory = (event: React.SyntheticEvent): void => {
+        event.preventDefault();
+        onOpenHistory();
+    };
 
     return (
         <div
@@ -117,20 +82,27 @@ export function UndoSplitButton(props: UndoSplitButtonProps): React.JSX.Element 
                 boxSizing: "border-box",
             }}
         >
-            <TopBarIconButton
-                title={undoTitle(canUndo, undefined, undoLabel)}
-                accessibleName={undoAccessibleName(canUndo)}
-                glyph="undo"
-                width={SPLIT_MAIN_WIDTH}
-                radius={`${TOP_BAR_ICON_RADIUS}px 0 0 ${TOP_BAR_ICON_RADIUS}px`}
-                disabled={!canUndo}
-                onClick={handleUndoClick}
-                onContextMenu={handleContextMenu}
-                onPointerDown={startLongPress}
-                onPointerUp={cancelLongPress}
-                onPointerLeave={cancelLongPress}
-                onPointerCancel={cancelLongPress}
-            />
+            <ContextMenu
+                target={
+                    <TopBarIconButton
+                        title={undoTitle(canUndo, undefined, undoLabel)}
+                        accessibleName={undoAccessibleName(canUndo)}
+                        glyph="undo"
+                        width={SPLIT_MAIN_WIDTH}
+                        radius={`${TOP_BAR_ICON_RADIUS}px 0 0 ${TOP_BAR_ICON_RADIUS}px`}
+                        disabled={!canUndo}
+                        onClick={onUndo}
+                        onContextMenu={openHistory}
+                        onKeyDown={(event) => {
+                            if ((event.shiftKey && event.key === "F10") || event.key === "ContextMenu") {
+                                openHistory(event);
+                            }
+                        }}
+                    />
+                }
+            >
+                {null}
+            </ContextMenu>
             <div
                 aria-hidden="true"
                 style={{

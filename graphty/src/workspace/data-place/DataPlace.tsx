@@ -1,6 +1,6 @@
 import "./data-place.css";
 
-import { ContextMenu, ControlSection, SearchInput, Tree, type TreeNodeData } from "@graphty/compact-mantine";
+import { ControlSection, SearchInput, Tree, type TreeNodeData } from "@graphty/compact-mantine";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import {
@@ -142,36 +142,6 @@ function attributeItem(row: AttributeRow): TreeNodeData {
 }
 
 /**
- * The id of the tree row an event landed on.
- * @param event - a context-menu or key event inside a Tree.
- * @returns the row's id, or null.
- */
-function rowIdOf(event: React.SyntheticEvent): string | null {
-    return (event.target as Element).closest<HTMLElement>("[data-id]")?.dataset.id ?? null;
-}
-
-/**
- * Whether a row has a menu: a source, a node attribute (Add label line), or an edge attribute
- * once the table dock is built (Show in table). A subhead has none.
- * @param id - the row's id, or null off any row.
- * @param tableBuilt - whether the table dock is built.
- * @returns true when the row has at least one item.
- */
-function hasMenu(id: string | null, tableBuilt: boolean): boolean {
-    const column = id === null ? null : columnOf(id);
-    return id?.startsWith("source") === true || column?.kind === "node" || (column !== null && tableBuilt);
-}
-
-/**
- * Whether a key opens a context menu (Shift+F10 or the menu key).
- * @param event - the key event.
- * @returns true for a menu key.
- */
-function isMenuKey(event: React.KeyboardEvent): boolean {
-    return (event.shiftKey && event.key === "F10") || event.key === "ContextMenu";
-}
-
-/**
  * The Attributes tree: a Nodes and an Edges subhead, each drawn only when it has a row.
  * @param session - the element's session, or null.
  * @param needle - the find text, or "" for every attribute.
@@ -210,12 +180,87 @@ function labelRefusalFor(
 }
 
 /**
+ * The Data place's row menu, for Tree's rowMenu: Edit source on a source; on an attribute, Add
+ * label line (a node attribute) and Show in table (once the table dock is built). Other rows
+ * (the Nodes and Edges subheads) have none.
+ * @returns the rowMenu function.
+ */
+function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
+    const { session, store } = useWorkspace();
+    const tableBuilt = useCommand("table.toggle") !== null;
+    return (node) => {
+        if (node.id.startsWith("source")) {
+            return (
+                <Menu.Item
+                    onClick={() => {
+                        store.set({ page: "data-page" });
+                    }}
+                >
+                    Edit source...
+                </Menu.Item>
+            );
+        }
+        const column = columnOf(node.id);
+        const labelSpec = column?.kind === "node" ? { column, channel: "node.label" as const } : null;
+        if (column === null || (labelSpec === null && !tableBuilt)) {
+            return null;
+        }
+        const labelRefusal = labelSpec === null || session === null ? null : labelRefusalFor(session, labelSpec);
+        /**
+         * Add label line (T10, the attribute menu's door): a new row on top whose label is bound
+         * to the attribute. It lands selected, so the inspector shows it; a refusal is one Problem
+         * notice.
+         * @param spec - the column and the label channel.
+         */
+        const addLabelLine = (spec: NonNullable<typeof labelSpec>): void => {
+            session?.styles.encode(spec).then(
+                (layer) => {
+                    store.set({ inspected: { kind: "layer-row", id: layer.id } });
+                },
+                () => {
+                    store.set({
+                        notice: {
+                            message: `Could not add a label line from "${spec.column.name}". Pick another attribute.`,
+                        },
+                    });
+                },
+            );
+        };
+        return (
+            <>
+                {labelSpec === null ? null : (
+                    <Menu.Item
+                        disabled={labelRefusal !== null}
+                        onClick={() => {
+                            addLabelLine(labelSpec);
+                        }}
+                    >
+                        <ItemLabel label="Add label line" reason={labelRefusal} />
+                    </Menu.Item>
+                )}
+                {tableBuilt ? (
+                    <Menu.Item
+                        onClick={() => {
+                            // Opens the dock; bringing the column into view is the Table dock's.
+                            store.set({ dockOpen: true });
+                        }}
+                    >
+                        Show in table
+                    </Menu.Item>
+                ) : null}
+            </>
+        );
+    };
+}
+
+/**
  * The Attributes section: the find box once there are many, and the Nodes and Edges tree. Picking
  * an attribute opens it in the inspector.
  * @returns The section
  */
 function AttributesSection(): React.JSX.Element {
     const { session, store } = useWorkspace();
+    const rowMenu = useRowMenu();
     const inspected = useWorkspaceState((state) => state.inspected);
     const [filter, setFilter] = useState("");
     const findShown = (session?.data.attributes().length ?? 0) > FIND_PAST;
@@ -250,6 +295,7 @@ function AttributesSection(): React.JSX.Element {
                     defaultExpanded={["nodes", "edges"]}
                     multiselect={false}
                     selected={selectedAttribute}
+                    rowMenu={rowMenu}
                     onSelect={(ids) => {
                         const id = ids.at(-1);
                         const column = id === undefined ? null : columnOf(id);
@@ -278,38 +324,15 @@ export function DataPlace(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useProjectVersion(session);
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");
-    const tableBuilt = useCommand("table.toggle") !== null;
     const addCommands = [useCommand(ADD_SOURCE[0]), useCommand(ADD_SOURCE[1]), useCommand(ADD_SOURCE[2])].filter(
         (door) => door !== null,
     );
-    const [menuFor, setMenuFor] = useState<string | null>(null);
 
     const sources = session === null ? [] : sourceRows(session.data.source(), session.data.lastImport());
 
+    const rowMenu = useRowMenu();
     const editSource = (): void => {
         store.set({ page: "data-page" });
-    };
-    const menuColumn = menuFor === null ? null : columnOf(menuFor);
-    const labelSpec = menuColumn?.kind === "node" ? { column: menuColumn, channel: "node.label" as const } : null;
-    const labelRefusal = labelSpec === null || session === null ? null : labelRefusalFor(session, labelSpec);
-    /**
-     * Add label line (T10, the attribute menu's door): a new row on top whose label is bound to
-     * the attribute. It lands selected, so the inspector shows it; a refusal is one Problem notice.
-     * @param spec - the column and the label channel.
-     */
-    const addLabelLine = (spec: NonNullable<typeof labelSpec>): void => {
-        session?.styles.encode(spec).then(
-            (layer) => {
-                store.set({ inspected: { kind: "layer-row", id: layer.id } });
-            },
-            () => {
-                store.set({
-                    notice: {
-                        message: `Could not add a label line from "${spec.column.name}". Pick another attribute.`,
-                    },
-                });
-            },
-        );
     };
 
     const plus =
@@ -335,68 +358,20 @@ export function DataPlace(): React.JSX.Element {
     return (
         <section className="dp" aria-label="Data place">
             <h2 className="dp-title">{graphName}</h2>
-            <ContextMenu
-                target={
-                    // The trees' rows are the controls; compact-mantine's Tree has no per-row menu
-                    // hook, so this container catches their context-menu click and its keyboard
-                    // equivalent (Shift+F10, the menu key) as they bubble up.
-                    <div // NOSONAR(S6848): delegates bubbled context-menu events from the focusable tree rows
-                        onContextMenu={(event) => {
-                            const id = rowIdOf(event);
-                            setMenuFor(id);
-                            if (!hasMenu(id, tableBuilt)) {
-                                // Opens nothing, and keeps the browser's own menu away too.
-                                event.preventDefault();
-                            }
-                        }}
-                        onKeyDown={(event) => {
-                            const id = rowIdOf(event);
-                            setMenuFor(id);
-                            if (isMenuKey(event) && !hasMenu(id, tableBuilt)) {
-                                event.preventDefault();
-                            }
-                        }}
-                    >
-                        <ControlSection label="Sources" actions={plus} empty={sources.length === 0}>
-                            {sources.length === 0 ? null : (
-                                <Tree
-                                    label="Sources"
-                                    items={sources.map(sourceItem)}
-                                    defaultExpanded={["source"]}
-                                    multiselect={false}
-                                    selected={[]}
-                                    onSelect={editSource}
-                                />
-                            )}
-                        </ControlSection>
-                        <AttributesSection />
-                    </div>
-                }
-            >
-                {menuFor?.startsWith("source") === true ? (
-                    <Menu.Item onClick={editSource}>Edit source...</Menu.Item>
-                ) : null}
-                {labelSpec === null ? null : (
-                    <Menu.Item
-                        disabled={labelRefusal !== null}
-                        onClick={() => {
-                            addLabelLine(labelSpec);
-                        }}
-                    >
-                        <ItemLabel label="Add label line" reason={labelRefusal} />
-                    </Menu.Item>
+            <ControlSection label="Sources" actions={plus} empty={sources.length === 0}>
+                {sources.length === 0 ? null : (
+                    <Tree
+                        label="Sources"
+                        items={sources.map(sourceItem)}
+                        defaultExpanded={["source"]}
+                        multiselect={false}
+                        selected={[]}
+                        onSelect={editSource}
+                        rowMenu={rowMenu}
+                    />
                 )}
-                {menuColumn !== null && tableBuilt ? (
-                    <Menu.Item
-                        onClick={() => {
-                            // Opens the dock; bringing the column into view is the Table dock's.
-                            store.set({ dockOpen: true });
-                        }}
-                    >
-                        Show in table
-                    </Menu.Item>
-                ) : null}
-            </ContextMenu>
+            </ControlSection>
+            <AttributesSection />
         </section>
     );
 }

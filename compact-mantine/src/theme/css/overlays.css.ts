@@ -293,19 +293,21 @@ const css = `
     padding: 8px 16px;
     ${cmFont("body")}
 }
-/* ModalFooter: 40 tall across the modal's full width (it cancels the body's 8px 16px padding,
-   leaving Figma's 8px between the last field and the footer),
-   a 1px top divider, buttons end-aligned 8px apart. */
+/* ModalFooter: 48 tall across the modal's full width (it cancels the body's 8px 16px padding,
+   leaving Figma's 8px between the last field and the footer), a 1px top divider, buttons
+   end-aligned 8px apart, 16px in from both sides and 12px above and below 24px buttons.
+   A deliberate departure from Figma's 40px footer with an 8px end inset (design/figma-spec.md
+   8.5): that put the last button 8px from the edge inside a 13px corner, too tight for touch. */
 .cm-modal-footer {
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
     box-sizing: border-box;
-    height: 40px;
+    height: 48px;
     margin: 8px -16px -8px;
     padding-block: 0;
-    padding-inline: 16px 8px;
+    padding-inline: 16px;
     box-shadow: inset 0 1px 0 var(--cm-border);
 }
 

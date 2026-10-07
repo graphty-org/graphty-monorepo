@@ -916,19 +916,18 @@ describe.skipIf(!available)("8.5 modal", () => {
             expect(box(field).top - box(bar).bottom).toBeCloseTo(8, 0);
             const bottom = part(content, ".cm-modal-footer");
             expect(box(bottom).top - box(field).bottom).toBeCloseTo(8, 0);
+            // The footer departs from Figma's 40px / 8px desktop footer for touch (figma-spec.md 8.5):
+            // 48 tall with 16px on both sides. The divider still matches.
             expectMeasured(bottom, {
-                ...figmaSpec(footer, [
-                    "height",
-                    "paddingLeft",
-                    "paddingRight",
-                    ...(scheme === "light" ? ["boxShadow"] : []),
-                ]),
+                ...figmaSpec(footer, ["paddingLeft", ...(scheme === "light" ? ["boxShadow"] : [])]),
+                height: 48,
+                paddingRight: "16px",
                 width: frame.box[2],
             });
             expect(box(content).bottom - box(bottom).bottom).toBeCloseTo(0, 0);
             const buttons = bottom.querySelectorAll("button");
             expect(box(buttons[1]).left - box(buttons[0]).right).toBeCloseTo(8, 0);
-            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(8, 0);
+            expect(box(bottom).right - box(buttons[1]).right).toBeCloseTo(16, 0);
             // centered, a transparent overlay that blocks the page by default, focus in the first field
             const overlay = document.querySelector(".mantine-Modal-overlay");
             expect(overlay).not.toBeNull();

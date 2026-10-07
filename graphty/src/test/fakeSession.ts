@@ -231,7 +231,12 @@ function fakeRunResult(): RunResult {
             suggestedScale: "linear",
             binning: "per-value",
         }),
-        top: (_field: string, n: number) => ({ entries: ranking.slice(0, n), leftOut: null, reason: null }),
+        top: (_field: string, n: number) => ({
+            entries: ranking.slice(0, n),
+            leftOut: null,
+            reason: null,
+            threshold: n < ranking.length ? ranking[n].value : null,
+        }),
         graph: {},
         band: () => undefined,
     } as unknown as RunResult;

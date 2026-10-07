@@ -94,7 +94,8 @@ group is painted only when ALL of it fits inside `n`. So a top-10 layer never pa
 ten elements, but it can paint fewer -- and it paints none on a graph whose highest value is
 shared by more than ten elements (every node of a ring has the same degree). To find out why, ask
 the run: `result.top(field, n)` returns the same elements, plus `leftOut` (the tie group that did
-not fit) and `reason` (a sentence saying so). A `{ top }` selection target
+not fit), `reason` (a sentence saying so) and `threshold` (the `above` value that selects exactly
+the same elements). A `{ top }` selection target
 (`session.selection.apply({ top: { run, field, n } })`) uses the same rule, so a layer and a
 selection never disagree about which elements are the top `n`.
 

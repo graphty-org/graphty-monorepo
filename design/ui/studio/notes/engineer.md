@@ -268,6 +268,11 @@ acceptance test. "The studio worktree" is
   In a probe, Ctrl+O no longer opens the chooser on the start screen: click "Open project or
   file...". Builds by others clean `dist/` mid-test ("Cannot find package
   @graphty/graph-io/dot"): wait, never debug it. A `pgrep -f "nx.js run"` wait never ends here.
+  (2026-10-07, later) NEVER stage in the shared index: another agent's commit swept my staged
+  files into theirs, and my stage script overwrote their staged blob (recovered from
+  `git fsck --unreachable`). Commit with a private index instead: `GIT_INDEX_FILE=<tmp> git
+  read-tree HEAD`, stage there, commit, then point the shared index's entries for my files at the
+  new HEAD blobs where they still equal the old HEAD's (else others' commits revert my hunks).
 
 - **(2026-10-07) A run's caveats in a test: return a plain object.** A `Run` is thenable, so an
   async helper that `return run` hands back the RunResult (no `caveats`). Return

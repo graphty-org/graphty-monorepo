@@ -46,6 +46,9 @@ describe("types/ai", () => {
             // The module uses type assertions to access these, so check via the correct accessor
             expect((mod as unknown as { ApiKeyManager: unknown }).ApiKeyManager).toBeDefined();
             expect((mod as unknown as { createAiManager: unknown }).createAiManager).toBeDefined();
+            // The mock above, not the real AI layer: the real one loads ~190 modules and once took
+            // longer than the test timeout under load (issue #493).
+            expect(vi.isMockFunction(mod.createProvider)).toBe(true);
         });
 
         it("caches the loaded module", async () => {

@@ -1,8 +1,8 @@
+import { EMPTY_SUM, hashNodeId, membershipDigestOf, memberSum } from "../../../src/catalog/sets/hash";
 import type { AlgorithmDescriptor, EdgeId, NodeId, RunId, Scope } from "../../../src/catalog/types";
 import type { ResultSummary, RunResult } from "../../../src/session/results/types";
 import {
     type Caveats,
-    computeScopeDigest,
     type EngineVersions,
     type ResolvedScope,
     type RunExecutionContext,
@@ -191,7 +191,11 @@ export class FakeGraph {
         edges: new Set(this.edges),
         nodeCount: this.nodes.size,
         edgeCount: this.edges.size,
-        digest: computeScopeDigest(spec, this.nodes, this.edges),
+        // The rule production uses (`digestOf` in src/session/sets/resolve.ts): the members only.
+        digest: membershipDigestOf(
+            { count: this.nodes.size, sum: memberSum(Array.from(this.nodes, hashNodeId)) },
+            { count: this.edges.size, sum: EMPTY_SUM },
+        ),
         spec,
         resolvedAt: new Date().toISOString(),
     });

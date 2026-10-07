@@ -357,21 +357,21 @@ describe("Radio - All CSS Values (Browser)", () => {
 
 // ============================================================================
 // RangeSlider - Comprehensive Tests
-// Note: RangeSlider uses .mantine-Slider-* class names (shared with Slider)
+// Mantine names RangeSlider's static classes .mantine-RangeSlider-* from 8.3.18 (.mantine-Slider-*
+// before), so these find the parts by the cm-slider-* classes the theme gives both sliders.
 // ============================================================================
 describe("RangeSlider - All CSS Values (Browser)", () => {
     describe("with default size (sm)", () => {
         describe("root CSS variables", () => {
             it("--slider-size is 8px", () => {
                 const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
-                // RangeSlider uses Slider class names
-                const root = container.querySelector(".mantine-Slider-root");
+                const root = container.querySelector(".cm-slider");
                 expect(getCssVar(root, "--slider-size")).toBe("8px");
             });
 
             it("--slider-thumb-size is 12px", () => {
                 const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
-                const root = container.querySelector(".mantine-Slider-root");
+                const root = container.querySelector(".cm-slider");
                 expect(getCssVar(root, "--slider-thumb-size")).toBe("12px");
             });
         });
@@ -379,7 +379,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
         describe("track computed styles", () => {
             it("height is 8px", () => {
                 const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
-                const track = container.querySelector(".mantine-Slider-track");
+                const track = container.querySelector(".cm-slider-track");
                 const style = track ? getComputedStyle(track) : null;
                 expect(style?.height).toBe("8px");
             });
@@ -388,14 +388,14 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
         describe("thumb computed styles", () => {
             it("width is 12px", () => {
                 const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
-                const thumb = container.querySelector(".mantine-Slider-thumb");
+                const thumb = container.querySelector(".cm-slider-thumb");
                 const style = thumb ? getComputedStyle(thumb) : null;
                 expect(style?.width).toBe("12px");
             });
 
             it("height is 12px", () => {
                 const { container } = renderWithTheme(<RangeSlider defaultValue={[20, 80]} />);
-                const thumb = container.querySelector(".mantine-Slider-thumb");
+                const thumb = container.querySelector(".cm-slider-thumb");
                 const style = thumb ? getComputedStyle(thumb) : null;
                 expect(style?.height).toBe("12px");
             });
@@ -412,7 +412,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
                         ]}
                     />,
                 );
-                const markLabel = container.querySelector(".mantine-Slider-markLabel");
+                const markLabel = container.querySelector(".cm-slider-mark-label");
                 const style = markLabel ? getComputedStyle(markLabel) : null;
                 expect(style?.fontSize).toBe("9px");
             });
@@ -427,7 +427,7 @@ describe("RangeSlider - All CSS Values (Browser)", () => {
                         ]}
                     />,
                 );
-                const markLabel = container.querySelector(".mantine-Slider-markLabel");
+                const markLabel = container.querySelector(".cm-slider-mark-label");
                 const style = markLabel ? getComputedStyle(markLabel) : null;
                 expect(style?.marginTop).toBe("2px");
             });

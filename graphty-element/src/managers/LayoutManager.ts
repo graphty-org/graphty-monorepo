@@ -1217,6 +1217,7 @@ export class LayoutManager implements Manager {
                 // accelerator reads -- only through this call, and an engine that never made it
                 // rendered perfectly while leaving every node unplaced.
                 engine.publishPositions();
+                this.putOnPlane(engine);
 
                 // STARTED, NOT RESUMED, so a simulation its pre-steps settled is not reheated. The
                 // frame loop stops a settled layout, and when one of its frames landed while the
@@ -1535,6 +1536,21 @@ export class LayoutManager implements Manager {
         }
 
         engine.loadArrangement();
+        this.putOnPlane(engine);
+    }
+
+    /**
+     * Under a 2D engine, move every placed node with a Z onto the Z = 0 plane, keeping its X and Y.
+     *
+     * THE ENGINE IS NOT TRUSTED TO DO IT. An engine that computes a 2D arrangement publishes Z = 0
+     * on its own, but one that echoes the stored coordinates back -- `fixed` keeps every placed row
+     * exactly as it found it, whatever `dim` it was built with, and a third party's engine may do
+     * the same -- carries a 3D Z straight into 2D. The camera hides it; the node's edges, flat
+     * quads as long as the 3D distance, do not. Run after anything that can put a Z into the array
+     * under a 2D engine: a build (its first publish) and a restore (`loadArrangement`).
+     * @param engine - The current engine.
+     */
+    private putOnPlane(engine: LayoutEngine): void {
         if (this.engineDimension !== 2) {
             return;
         }

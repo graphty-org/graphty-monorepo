@@ -85,7 +85,10 @@ export interface ColorPickerPanelProps {
      * Reports `#RRGGBBAA` (upper case) when `withAlpha`, `#RRGGBB` otherwise.
      */
     onChange: (value: string) => void;
-    /** Called once when a drag in the field or a slider settles, with the settled color. */
+    /**
+     * Called once when a change settles, with the settled color: on release of a drag in the
+     * field or a slider, and once per arrow key, typed commit, swatch or eyedropper pick.
+     */
     onChangeEnd?: (value: string) => void;
     /**
      * Offer opacity: the opacity slider and box.
@@ -317,7 +320,8 @@ export function ColorPickerPanel({
     };
 
     /**
-     * Report an exact color string (a swatch or the eyedropper), not rounded through HSV.
+     * Report an exact color string (a swatch or the eyedropper), not rounded through HSV, as one
+     * settled change: onChange and then onChangeEnd, both with the same string.
      * @param color - a hex or hexa color
      */
     const emitExact = (color: string): void => {
@@ -328,7 +332,9 @@ export function ColorPickerPanel({
         const parsed = parseColor(withAlpha ? hexa : hexa.slice(0, 7));
         setHsva(parsed);
         hsvaRef.current = parsed;
-        onChange(report(withAlpha ? hexa : `${hexa.slice(0, 7)}FF`));
+        const reported = report(withAlpha ? hexa : `${hexa.slice(0, 7)}FF`);
+        onChange(reported);
+        onChangeEnd?.(reported);
     };
 
     const settle = (): void => {

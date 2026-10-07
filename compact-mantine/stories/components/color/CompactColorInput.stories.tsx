@@ -1,6 +1,6 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, within } from "@storybook/test";
 import { useState } from "react";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
@@ -225,6 +225,31 @@ export const PickerOpen: Story = {
         await userEvent.click(opacity);
         await userEvent.keyboard("{ArrowDown}");
         await expect(opacity).toHaveValue("99");
+    },
+};
+
+/**
+ * The picker offers the swatches you pass -- here three colors already used in a document --
+ * instead of the built-in set. Drag in the picker's field and watch the Actions panel: `onChange`
+ * logs every move, `onChangeEnd` logs once, on release. A swatch pick or a typed hex logs each
+ * once.
+ */
+export const SwatchesAndChangeEnd: Story = {
+    parameters: OPEN_OVERLAY,
+    args: {
+        label: "Fill",
+        defaultColor: "#3373E5",
+        swatches: ["#E8590C", "#2F9E44", "#7048E8CC"],
+        onChange: fn(),
+        onChangeEnd: fn(),
+    },
+    play: async ({ args, canvasElement }) => {
+        const canvas = within(canvasElement);
+        await userEvent.click(canvas.getByRole("button", { name: /swatch/i }));
+        const dialog = within(await canvas.findByRole("dialog"));
+        await userEvent.click(dialog.getByRole("button", { name: "#2F9E44" }));
+        await expect(args.onChangeEnd).toHaveBeenCalledTimes(1);
+        await expect(args.onChangeEnd).toHaveBeenCalledWith("#2F9E44", 100);
     },
 };
 

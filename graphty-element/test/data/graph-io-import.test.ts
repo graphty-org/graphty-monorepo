@@ -182,7 +182,13 @@ describe("the graph-io import helper", () => {
         aggregateErrors(imported.report, errors);
 
         assert.deepEqual(errors.getErrors(), [
-            { message: "a skipped element", category: "validation-error", line: 7, field: "q" },
+            {
+                message: "a skipped element",
+                category: "validation-error",
+                line: 7,
+                field: "q",
+                params: { issue: "E_TEST", element: "q" },
+            },
         ]);
     });
 

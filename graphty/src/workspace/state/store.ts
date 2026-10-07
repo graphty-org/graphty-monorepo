@@ -8,13 +8,13 @@
  */
 
 import type { ViewInsets } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, NoteTargetInput } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
 
 /** A left-panel place on the rail (tier1-design.md section 2.2). */
-type Place = "graph" | "data";
+type Place = "graph" | "data" | "notes";
 
 /** What takes the area right of the rail: the panels, or the Data page (section 2.10). */
 type Page = "panels" | "data-page";
@@ -89,6 +89,11 @@ export interface WorkspaceState {
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
     /**
+     * The note being written in the Notes place: what it is about, fixed when its door opened
+     * it, and the text so far, kept until it is saved or cleared. Null when no editor is open.
+     */
+    readonly noteDraft: { readonly targets: readonly NoteTargetInput[]; readonly text: string } | null;
+    /**
      * The one polite status line for the core path: a load finished with its size, a run
      * started, a run finished. Each replaces the last.
      */
@@ -127,6 +132,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,
+    noteDraft: null,
     announcement: "",
     opening: null,
 };

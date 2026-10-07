@@ -6,10 +6,10 @@ import type { InspectedKindId } from "./inspected";
  * no "..." (Selection, Everything, a group row).
  */
 export const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
-    graph: ["layout.rerun", "layout.reshuffle"],
-    node: ["selection.neighborhood", "view.frame-selection"],
-    edge: ["selection.endpoints", "view.frame-selection"],
-    several: ["selection.neighborhood", "view.frame-selection"],
+    graph: ["layout.rerun", "layout.reshuffle", "notes.add"],
+    node: ["selection.neighborhood", "view.frame-selection", "notes.add"],
+    edge: ["selection.endpoints", "view.frame-selection", "notes.add"],
+    several: ["selection.neighborhood", "view.frame-selection", "notes.add"],
     neighborhood: ["selection.grow-neighborhood", "view.frame-selection"],
     "measure-row": ["row.move-up", "row.move-down", "row.delete"],
     "run-row": ["row.move-up", "row.move-down", "row.delete"],

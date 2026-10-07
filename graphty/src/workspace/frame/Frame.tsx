@@ -11,6 +11,7 @@ import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
 import { GraphPlace } from "../graph-place/GraphPlace";
 import { Inspector } from "../inspector/Inspector";
+import { NotesPlace } from "../notes/NotesPlace";
 import { DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
@@ -20,6 +21,9 @@ import { focusIsLost } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { Rail } from "./Rail";
+
+/** What each rail place draws in the left panel. */
+const PLACES = { graph: <GraphPlace />, data: <DataPlace />, notes: <NotesPlace /> } as const;
 
 /** Props for Frame. */
 interface FrameProps {
@@ -56,6 +60,10 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
         }
         surfaces.current = now;
     }, [panels, dockOpen, element]);
+    // A note being written is about this project's graph: another project drops it.
+    useEffect(() => {
+        store.set({ noteDraft: null });
+    }, [projectId, store]);
 
     return (
         <div className="ws-app">
@@ -71,7 +79,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             >
                 <Rail />
                 <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
-                    <div className="ws-panel-body">{place === "graph" ? <GraphPlace /> : <DataPlace />}</div>
+                    <div className="ws-panel-body">{PLACES[place]}</div>
                     <ResizeHandle
                         edge="end"
                         label="Resize left panel"

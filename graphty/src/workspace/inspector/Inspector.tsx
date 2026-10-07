@@ -9,6 +9,7 @@ import { AttributeMenuItems } from "../data-place/MenuItems";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { LayoutGroup } from "../layout/LayoutForm";
+import { notesAbout } from "../notes/words";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { GroupStyle, SelectionRowStyle, SelectionStyle, StyleTab } from "../style/StyleTab";
@@ -20,7 +21,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { edgeName, groupName, KIND_WORDS, runDate } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, runDate } from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -131,6 +132,8 @@ export function Inspector(): React.JSX.Element {
         attribute === undefined ? null : { kind: attribute.kind, name: attribute.name },
     );
     const KindIcon = KIND_GLYPHS[kindId];
+    // How many notes are about this, as a link to the Notes place; the text stays there.
+    const notes = notesAbout(session, resolved);
 
     let content: React.ReactNode;
     if ("only" in body) {
@@ -188,6 +191,17 @@ export function Inspector(): React.JSX.Element {
                         ) : (
                             <Anchor component="button" size="xs" onClick={header.from.open}>
                                 {header.from.words}
+                            </Anchor>
+                        )}
+                        {notes > 0 && (
+                            <Anchor
+                                component="button"
+                                size="xs"
+                                onClick={() => {
+                                    runCommand("place.notes");
+                                }}
+                            >
+                                {count(notes, "note")}
                             </Anchor>
                         )}
                         {menu.length + attributeActions.length > 0 && (

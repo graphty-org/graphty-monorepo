@@ -21,7 +21,16 @@ import type { WorkspaceStore } from "../state/store";
  * Where Quick actions lists a command (tier1-design.md section 2.3: "grouped by its home").
  */
 type CommandGroup =
-    "Go to" | "Graph tree" | "Analyze" | "Data" | "View" | "Layout" | "Selection" | "Project" | "Settings and help";
+    | "Go to"
+    | "Graph tree"
+    | "Analyze"
+    | "Data"
+    | "Notes"
+    | "View"
+    | "Layout"
+    | "Selection"
+    | "Project"
+    | "Settings and help";
 
 /** What a command's `run` and `disabled` read. */
 export interface CommandContext {

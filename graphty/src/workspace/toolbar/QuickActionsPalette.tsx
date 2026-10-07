@@ -10,6 +10,7 @@ const GROUP_ORDER = [
     "Graph tree",
     "Analyze",
     "Data",
+    "Notes",
     "View",
     "Layout",
     "Selection",

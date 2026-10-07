@@ -18,10 +18,13 @@ import { useControlAnnotation } from "../utils/control-annotation";
 // not replace it. What ToggleRow *does* replace is a bare checkbox row with
 // nothing underneath it, and the documentation below says so.
 //
-// It is not built out of ToggleRow either, for one concrete reason: the
-// checkbox has to carry aria-expanded and aria-controls to say that it opens
-// something, and ToggleRow forwards neither to its input. Both components
-// therefore render Mantine's own Checkbox, which is the shared primitive.
+// It is not built out of ToggleRow either. ToggleRow now forwards
+// aria-expanded and aria-controls, but its row is a different drawing: it
+// always reserves the 24px trailing slot, grows the control to push that slot
+// to the row's end, and spaces a bound marker 8px from the word where this
+// component spaces it 4px. Building this component from ToggleRow would move
+// every panel that uses it, so both render Mantine's own Checkbox, which is
+// the shared primitive.
 
 /**
  * The 4px this library puts between the parts of one control: here, between

@@ -183,7 +183,7 @@ describe("a layer written to a graph that is already drawn", () => {
         ["a node's glow", "node", { "node.glow": "#ff00ff" }],
     ] as const) {
         it(`changes the frame: ${what}`, async () => {
-            const { onWriting, afterRemoving } = await paintsOnALiveGraph(target, set as StaticStyle);
+            const { onWriting, afterRemoving } = await paintsOnALiveGraph(target, set);
 
             assert.isAbove(
                 onWriting,

@@ -1189,7 +1189,7 @@ function fittingScopes(
         if (estimate.available && estimate.seconds <= cap) {
             fitting.push(
                 Object.freeze({
-                    scope: "largest-component" as Scope,
+                    scope: "largest-component",
                     label: "The largest connected piece",
                     nodes: largestSize,
                     edges,

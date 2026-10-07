@@ -22,6 +22,7 @@ import {
     ensureFocusModality,
     ensureListboxKeyboard,
     FieldCaret,
+    listboxComboboxProps,
     overTriggerComboboxProps,
     renderListboxOption,
 } from "../../components/inputs/listbox";
@@ -319,6 +320,13 @@ export const inputComponentExtensions = {
     }),
 
     // Mantine's combobox targets omit aria-expanded unless asked; every themed target states it.
+    // What every field's list falls back to for a key its caller's comboboxProps leaves out:
+    // Mantine replaces a field's whole comboboxProps default with the caller's object, and only
+    // the Combobox underneath merges key by key (listboxComboboxProps).
+    Combobox: Combobox.extend({
+        defaultProps: { ...listboxComboboxProps() },
+    }),
+
     ComboboxTarget: Combobox.Target.extend({
         defaultProps: { withExpandedAttribute: true },
     }),

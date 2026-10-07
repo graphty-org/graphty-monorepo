@@ -160,6 +160,41 @@ describe("removing rows as steps", () => {
         session.dispose();
     });
 
+    it("removals in a run with nothing read between, in no row order, undo and redo one at a time", async () => {
+        const { session } = await chain(10);
+        const orders: unknown[][] = [nodeOrder(session)];
+        const edgeOrders: string[][] = [edgeOrder(session)];
+        // Removed back to back, so each is taken out of a graph the one before has not been
+        // frozen out of yet; then read once per state on the way back down and up again.
+        await session.data.removeNodes(["v6"]);
+        await session.data.removeNodes(["v2", "v8"]);
+        await session.data.removeEdges(["3"]);
+        await session.data.removeNodes(["v0"]);
+        const after = nodeOrder(session);
+        const edgesAfter = edgeOrder(session);
+        assert.deepEqual(after, ["v1", "v3", "v4", "v5", "v7", "v9"]);
+        assert.deepEqual(edgesAfter, ["v4>v5#4@5"]);
+
+        for (let undo = 0; undo < 4; undo++) {
+            await session.undo();
+            orders.push(nodeOrder(session));
+            edgeOrders.push(edgeOrder(session));
+        }
+
+        assert.deepEqual(orders.at(-1), orders[0], "every node back in its row");
+        assert.deepEqual(edgeOrders.at(-1), edgeOrders[0], "every edge back in its row");
+        assert.deepEqual(orders[3], ["v0", "v1", "v2", "v3", "v4", "v5", "v7", "v8", "v9"]);
+        assert.deepEqual(edgeOrders[2], ["v0>v1#0@1", "v3>v4#3@4", "v4>v5#4@5"]);
+
+        for (let redo = 0; redo < 4; redo++) {
+            await session.redo();
+        }
+
+        assert.deepEqual(nodeOrder(session), after);
+        assert.deepEqual(edgeOrder(session), edgesAfter);
+        session.dispose();
+    });
+
     it("undoing an add after undoing a removal, in one move, finds the rows the removal put back", async () => {
         const session = await fixtureSession();
         const edges = edgeOrder(session);

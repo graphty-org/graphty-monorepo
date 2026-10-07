@@ -1942,8 +1942,16 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // ties go to the HIGHEST key: plausible, reproducible and wrong -- the tie rows catch it
             name: "tie-to-highest",
-            find: "return sum > bestSum || (sum == bestSum && key < bestKey0);",
-            replace: "return sum > bestSum || (sum == bestSum && key > bestKey0 && bestKey0 != INVALID_INDEX);",
+            find: "(key == own || key < bestKey0)",
+            replace: "(key == own || (key > bestKey0 && bestKey0 != INVALID_INDEX))",
+            minFactor: 10,
+            test: GROUP_TEST,
+        },
+        {
+            // the row's own key no longer wins a tie: label propagation would leave a label that ties for the lead
+            name: "own-key-not-first",
+            find: "bestKey0 != own && (key == own || key < bestKey0)",
+            replace: "key < bestKey0",
             minFactor: 10,
             test: GROUP_TEST,
         },

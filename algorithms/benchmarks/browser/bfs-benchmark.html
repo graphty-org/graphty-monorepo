@@ -371,7 +371,7 @@
                     suite
                         .on("cycle", function (event) {
                             const benchmark = event.target;
-                            const size = parseInt(benchmark.name.match(/BFS (\d+) vertices/)[1]);
+                            const size = Number.parseInt(benchmark.name.match(/BFS (\d+) vertices/)[1]);
                             const testData = testGraphs.get(`sparse-${size}`);
 
                             const result = {

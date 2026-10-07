@@ -179,7 +179,6 @@ export interface CatalogApi {
     logSinks(): readonly LogSinkDescriptor[];
     // (undocumented)
     metrics(): readonly MetricAvailability[];
-    // @deprecated
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
     // (undocumented)
     palettes(): readonly PaletteDescriptor[];
@@ -263,7 +262,7 @@ export const DEPRECATED_ALGORITHMS: readonly ["all-paths"];
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 
 // @public
-export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate" | "optionsFor";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
 
 // @public
 export function detectFormat(input: DetectionInput): FormatId | null;

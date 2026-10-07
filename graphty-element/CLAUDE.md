@@ -454,7 +454,8 @@ rather than inferred because every agent involved in it complied with every inst
 
 - Storybook auto-reloads on changes (no manual rebuild needed)
 - Check `servherd_list` for a running Storybook before starting a new instance
-- All story data URLs must be fully qualified (non-local) for Chromatic compatibility
+- Stories never fetch data from the network. A dataset or image lives in this repository and is
+  imported through `stories/datasets.ts` (a Vite `?url` import made absolute against the page)
 - Visual regression via Chromatic, captured at the viewport pinned in `.storybook/preview.ts`
 - Only the owner accepts Chromatic changes. No agent, script or project setting accepts a
   snapshot, on a pull request or on master; an agent explains a diff and waits. See

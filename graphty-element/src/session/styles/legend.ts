@@ -365,7 +365,7 @@ function humanisePath(path: Path): FieldWords {
     const segments = path.split(".");
     const last = segments[segments.length - 1] ?? path;
     const words = last
-        .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+        .replaceAll(/([a-z\d])([A-Z])/g, "$1 $2")
         .split(/[\s_-]+/u)
         .filter((word) => word !== "");
     const plainName = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");

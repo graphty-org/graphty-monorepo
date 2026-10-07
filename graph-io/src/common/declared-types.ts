@@ -324,7 +324,7 @@ export function parseDecimalText(text: string, kind: ValueKind = "double"): numb
         case "-Infinity":
             return -Infinity;
         case "NaN":
-            return NaN;
+            return Number.NaN;
         default:
             throw typeError(text, kind);
     }
@@ -367,7 +367,7 @@ export function parsePointText(text: string): Readonly<Record<string, number | s
         const key = part
             .slice(0, colon)
             .trim()
-            .replace(/^["']|["']$/g, "");
+            .replaceAll(/(?:^["'])|(?:["']$)/g, "");
         const raw = part.slice(colon + 1).trim();
         if (key.length === 0) {
             throw typeError(text, "point");

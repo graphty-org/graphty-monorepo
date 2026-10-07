@@ -7,7 +7,7 @@
 import type { GraphSession, Layer, LegendBlock } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { findRow, paintRows } from "../rows";
+import { findRow, isMovable, layerAbove, paintRows } from "../rows";
 
 /** A run as `runs.list()` hands it, with only the fields the rows read. */
 interface RunStub {
@@ -221,5 +221,49 @@ describe("paintRows", () => {
         assert.equal(findRow(rows, "a")?.problem, "No edges");
         assert.equal(findRow(rows, "b")?.state, "partial");
         assert.equal(findRow(rows, "c")?.state, "canceled");
+    });
+});
+
+describe("moving a row", () => {
+    // Selection, Louvain (running, no layer), Degree (two layers), mine, PageRank, Everything.
+    const rows = paintRows(
+        sessionOf({
+            layers: [
+                ...BASE,
+                layer("pr-color", runSource("pagerank")),
+                layer("mine", { by: "user" }),
+                layer("deg-size", runSource("degree")),
+                layer("deg-color", runSource("degree")),
+            ],
+            runs: [
+                { id: "pagerank", label: "PageRank", status: "succeeded", shape: "node-metric", record: {} },
+                { id: "degree", label: "Degree", status: "succeeded", shape: "node-metric", record: {} },
+                { id: "louvain", label: "Louvain", status: "running", shape: "community", record: {} },
+            ],
+        }),
+    );
+
+    it("moves only rows that paint, never Selection, Everything or a run with no layer", () => {
+        assert.deepEqual(
+            rows.filter(isMovable).map((r) => r.name),
+            ["Degree", "mine", "PageRank"],
+        );
+    });
+
+    it("puts a row below the bottom layer of the nearest painting row above the drop", () => {
+        // PageRank dropped between Selection and Louvain: nothing above paints, so the top.
+        assert.isNull(layerAbove(rows, "pagerank", null, 1));
+        // Between Louvain and Degree: still nothing above paints.
+        assert.isNull(layerAbove(rows, "pagerank", null, 2));
+        // Between Degree and mine: below Degree's bottom layer.
+        assert.equal(layerAbove(rows, "pagerank", null, 3), "deg-size");
+        // Degree dropped between PageRank and Everything: below PageRank.
+        assert.equal(layerAbove(rows, "degree", null, 4), "pr-color");
+    });
+
+    it("refuses a drop above Selection, below Everything or inside a row", () => {
+        assert.isUndefined(layerAbove(rows, "pagerank", null, 0));
+        assert.isUndefined(layerAbove(rows, "pagerank", null, 5));
+        assert.isUndefined(layerAbove(rows, "pagerank", "degree", 0));
     });
 });

@@ -68,6 +68,15 @@ function treeRows(): string[] {
         .map((row) => row.getAttribute("aria-label") ?? "");
 }
 
+/**
+ * A menu's command names, without their keys and reasons.
+ * @param items - the menu items.
+ * @returns the names.
+ */
+function menuLabels(items: HTMLElement[]): string[] {
+    return items.map((item) => /^(Rename|Move up|Move down|Delete)/.exec(item.textContent)?.[0] ?? "");
+}
+
 describe("the Graph place on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -246,12 +255,7 @@ describe("the Graph place on the real element", () => {
             // The row's own menu holds the same command.
             await realInput.click(screen.getByRole("treeitem", { name: run.label }), { button: "right" });
             const menu = await screen.findByRole("menu");
-            assert.deepEqual(
-                within(menu)
-                    .getAllByRole("menuitem")
-                    .map((item) => item.textContent),
-                ["DeleteDelete"],
-            );
+            assert.deepEqual(menuLabels(within(menu).getAllByRole("menuitem")), ["Move up", "Move down", "Delete"]);
             await userEvent.keyboard("{Escape}");
 
             // A layer row adds Rename, which opens its name in place.
@@ -264,10 +268,12 @@ describe("the Graph place on the real element", () => {
             const mine = await screen.findByRole("treeitem", { name: "Mine" });
             await userEvent.click(mine);
             await userEvent.click(screen.getByRole("button", { name: "Layer actions" }));
-            assert.deepEqual(
-                (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
-                ["RenameF2", "DeleteDelete"],
-            );
+            assert.deepEqual(menuLabels(await screen.findAllByRole("menuitem")), [
+                "Rename",
+                "Move up",
+                "Move down",
+                "Delete",
+            ]);
             await userEvent.click(screen.getByRole("menuitem", { name: /^Rename/ }));
             // The field takes focus with the name selected, so typing replaces it.
             const field = await screen.findByRole("textbox", { name: "Layer name" });
@@ -279,6 +285,60 @@ describe("the Graph place on the real element", () => {
                 assert.equal(session.styles.get(layer.id)?.name, "Hubs");
             });
             assert.isNull(store.get().renamingRow);
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "moves a run row as one undo step from its menu and Alt+Arrow, never past Selection or Everything",
+        async () => {
+            const { session } = await openGraph();
+            await session.runs.start("degree");
+            await session.runs.start("pagerank");
+            const [degree, pagerank] = session.runs.list();
+            // The runs whose layers paint, top first.
+            const paintOrder = (): string[] =>
+                [
+                    ...new Set(
+                        session.styles
+                            .list()
+                            .flatMap((layer) => (layer.source.by === "run" ? [layer.source.runId] : [])),
+                    ),
+                ].reverse();
+            await waitFor(() => {
+                assert.deepEqual(treeRows(), ["Selection", pagerank.label, degree.label, "Everything"]);
+            });
+            assert.deepEqual(paintOrder(), [pagerank.id, degree.id]);
+
+            // The top row's menu: Move up is disabled with its reason; Move down moves it.
+            const steps = session.history.position;
+            await realInput.click(screen.getByRole("treeitem", { name: pagerank.label }), { button: "right" });
+            const up = await screen.findByRole("menuitem", { name: /^Move up/ });
+            assert.equal(up.getAttribute("aria-disabled"), "true");
+            assert.include(up.textContent, "Already at the top");
+            await userEvent.click(screen.getByRole("menuitem", { name: /^Move down/ }));
+            await waitFor(() => {
+                assert.deepEqual(paintOrder(), [degree.id, pagerank.id]);
+            });
+            assert.equal(session.history.position, steps + 1, "one move is one undo step");
+            await waitFor(() => {
+                assert.deepEqual(treeRows(), ["Selection", degree.label, pagerank.label, "Everything"]);
+            });
+            await session.undo();
+            await waitFor(() => {
+                assert.deepEqual(paintOrder(), [pagerank.id, degree.id]);
+            });
+
+            // Alt+ArrowDown on the focused row moves it; at the bottom it stays above Everything.
+            await userEvent.click(screen.getByRole("treeitem", { name: pagerank.label }));
+            await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+            await waitFor(() => {
+                assert.deepEqual(paintOrder(), [degree.id, pagerank.id]);
+            });
+            const settled = session.history.position;
+            await userEvent.keyboard("{Alt>}{ArrowDown}{/Alt}");
+            assert.equal(session.history.position, settled, "nothing moves below Everything");
+            assert.deepEqual(treeRows(), ["Selection", degree.label, pagerank.label, "Everything"]);
         },
         TIMEOUT_MS * 2,
     );

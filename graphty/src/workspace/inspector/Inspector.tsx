@@ -29,9 +29,9 @@ const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
     edge: ["view.frame-selection"],
     several: ["view.frame-selection"],
     neighborhood: ["view.frame-selection"],
-    "measure-row": ["row.delete"],
-    "run-row": ["row.delete"],
-    "layer-row": ["row.rename", "row.delete"],
+    "measure-row": ["row.move-up", "row.move-down", "row.delete"],
+    "run-row": ["row.move-up", "row.move-down", "row.delete"],
+    "layer-row": ["row.rename", "row.move-up", "row.move-down", "row.delete"],
 };
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */

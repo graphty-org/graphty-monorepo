@@ -2,13 +2,13 @@ import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mant
 import { Loader, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
-import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { CommandMenuItem } from "../frame/menus";
+import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { setRowHidden } from "./actions";
+import { moveRow, setRowHidden } from "./actions";
 import { ROW_COMMANDS } from "./commands";
-import { findRow, type PaintRow } from "./rows";
+import { findRow, isMovable, layerAbove, type PaintRow } from "./rows";
 
 /** A group run with more groups than this opens collapsed (tier1-design.md section 2.5). */
 const OPEN_UP_TO = 12;
@@ -108,8 +108,9 @@ interface PaintTreeProps {
  * wins. Selection is pinned at the top and Everything at the bottom. A row reads, left to right:
  * disclosure, kind slot, swatch, name, then its count where graphty-element publishes one, and
  * its eye. Clicking a row shows it in the inspector; Space toggles its eye. Its commands
- * (ROW_COMMANDS: Rename, Delete) open from its context menu -- right-click, Shift+F10, a touch
- * held still -- and run from their keys on the focused row.
+ * (ROW_COMMANDS: Rename, Move up, Move down, Delete) open from its context menu -- right-click,
+ * Shift+F10, a touch held still -- and run from their keys on the focused row. A run, measure or
+ * layer row drags to another place between Selection and Everything; nothing drops inside a row.
  * @param props - Component props
  * @param props.rows - The rows
  * @returns The tree
@@ -148,6 +149,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
             description: stateWords(row),
             children: row.children?.map(toItem),
             actions: eye,
+            movable: isMovable(row),
         };
     };
 
@@ -169,7 +171,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
                 key={command.id}
                 label={command.label}
                 shortcut={command.rowKeys[0]}
-                reason={command.disabled(row)}
+                reason={command.disabled(row, rows)}
                 onRun={() => {
                     void command.run(workspace, row);
                 }}
@@ -192,7 +194,7 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         );
         if (command !== undefined) {
             event.preventDefault();
-            if (command.disabled(row) === null) {
+            if (command.disabled(row, rows) === null) {
                 void command.run(workspace, row);
             }
         }
@@ -214,9 +216,15 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
             }}
             expanded={expanded}
             onExpandedChange={(ids) => {
-                setOpened(
-                    new Map(rows.filter((r) => r.children !== undefined).map((r) => [r.id, ids.includes(r.id)])),
-                );
+                setOpened(new Map(rows.filter((r) => r.children !== undefined).map((r) => [r.id, ids.includes(r.id)])));
+            }}
+            canDrop={(move) => layerAbove(rows, move.id, move.parentId, move.index) !== undefined}
+            onMove={(move) => {
+                const row = findRow(rows, move.id);
+                const before = layerAbove(rows, move.id, move.parentId, move.index);
+                if (session !== null && row !== undefined && before !== undefined) {
+                    void moveRow(session, store, row, before);
+                }
             }}
             rowMenu={rowMenu}
             onRowKeyDown={onRowKeyDown}

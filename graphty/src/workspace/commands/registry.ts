@@ -151,7 +151,7 @@ export const EXPECTED_COMMAND_IDS: Readonly<Record<string, readonly string[]>> =
     ],
     analyze: ["analyze.open"],
     layout: ["layout.open", "layout.rerun", "layout.reshuffle"],
-    "graph-place": ["find.focus", "row.rename", "row.delete"],
+    "graph-place": ["find.focus", "row.rename", "row.move-up", "row.move-down", "row.delete"],
     style: ["style.add-label-line"],
     table: ["table.toggle"],
     export: ["file.export"],

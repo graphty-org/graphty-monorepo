@@ -1,3 +1,4 @@
+import type { LayerId } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 
 import type { Notice, WorkspaceStore } from "../state/store";
@@ -61,4 +62,37 @@ export async function deleteRow(session: GraphSession, store: WorkspaceStore, ro
         }
     });
     store.set({ inspected: null, notice });
+}
+
+/**
+ * Moves a run, measure or layer row to sit immediately below `before` in the style stack (null:
+ * the top), as one undoable step: a run's layers move as one block (runs.move), a layer row's
+ * one layer through styles.move. A move that would leave the row where it is does nothing; one
+ * the element refuses says why in a notice.
+ * @param session - the element's session.
+ * @param store - the chrome store, for the notice.
+ * @param row - the row.
+ * @param before - the layer to sit below, or null for the top.
+ */
+export async function moveRow(
+    session: GraphSession,
+    store: WorkspaceStore,
+    row: PaintRow,
+    before: LayerId | null,
+): Promise<void> {
+    const stack = session.styles.list().map((layer) => layer.id);
+    const top = Math.max(...row.layerIds.map((id) => stack.indexOf(id)));
+    if (row.layerIds.length === 0 || (stack[top + 1] ?? null) === before) {
+        return;
+    }
+    try {
+        if (row.kind === "layer-row") {
+            await session.styles.move(row.id, before);
+        } else if (row.runId !== undefined) {
+            await session.runs.move(row.runId, before);
+        }
+    } catch (error) {
+        const why = error instanceof Error ? ` ${error.message}` : "";
+        store.set({ notice: { message: `Could not move ${row.name}.${why}`, error: true } });
+    }
 }

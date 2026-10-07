@@ -193,3 +193,41 @@ export function findRow(rows: readonly PaintRow[], id: string): PaintRow | undef
     }
     return undefined;
 }
+
+/**
+ * Whether a row can be dragged or moved: a run, measure or layer row that paints. Selection,
+ * Everything, a group row and a run with no layer yet never move.
+ * @param row - the row.
+ * @returns true when it moves.
+ */
+export function isMovable(row: PaintRow): boolean {
+    return row.layerIds.length > 0 && row.kind !== "group-row";
+}
+
+/**
+ * Where a row would sit in the style stack if it were the top-level row at `index`, counted
+ * with it taken out (the tree's move): below the bottom layer of the nearest row above it that
+ * paints, or at the top (null) when none does. Undefined for a place it cannot go: inside
+ * another row, above Selection or below Everything.
+ * @param rows - the rows, top first.
+ * @param id - the moving row.
+ * @param parentId - the row it would land in, null for the top level.
+ * @param index - its place among the top-level rows without it.
+ * @returns the layer it would sit below, null for the top, or undefined.
+ */
+export function layerAbove(
+    rows: readonly PaintRow[],
+    id: string,
+    parentId: string | null,
+    index: number,
+): LayerId | null | undefined {
+    const others = rows.filter((row) => row.id !== id);
+    if (parentId !== null || others.length === rows.length || index < 1 || index > others.length - 1) {
+        return undefined;
+    }
+    const above = others
+        .slice(0, index)
+        .reverse()
+        .find((row) => row.layerIds.length > 0);
+    return above?.layerIds[0] ?? null;
+}

@@ -1,13 +1,13 @@
 import { expandEdges, type F32, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 
-import { _kamadaKawaiSolve } from "../algorithms/optimization";
-import { type LayoutResult, rescaleInPlace } from "../positions";
-import { resolveWeights } from "../simulation/inputs";
-import { seedPositions } from "../simulation/seed";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import type { CommonLayoutOptions } from "../simulation/types";
-import { np } from "../utils/numpy";
-import { layoutDim } from "./start";
+import { _kamadaKawaiSolve } from "../algorithms/optimization/index.js";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { resolveWeights } from "../simulation/inputs.js";
+import { seedPositions } from "../simulation/seed.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import type { CommonLayoutOptions } from "../simulation/types.js";
+import { np } from "../utils/numpy.js";
+import { layoutDim } from "./start.js";
 
 /** The ideal distance of a pair with no path between them, as networkx fills its matrix. */
 const UNREACHABLE = 1e6;

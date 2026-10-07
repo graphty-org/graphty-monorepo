@@ -500,6 +500,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             Object.freeze({
                 id: id as HistoryStep["id"],
                 label,
+                // A transaction's fact is worded as its own label, so the pop-out prints `label`.
+                fact: Object.freeze({ code: "transaction", params: Object.freeze({ label }) }),
                 at: new Date().toISOString(),
                 ops: [op],
                 slices,

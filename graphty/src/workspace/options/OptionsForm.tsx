@@ -4,6 +4,8 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Button, Checkbox, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import React, { useState } from "react";
 
+import { type Meaning, weightName } from "../analyze/words";
+
 /** What the app calls one option, and each of its choices. */
 interface OptionLabel {
     readonly label: string;
@@ -25,6 +27,11 @@ interface OptionsFormProps {
     canUseSelectedNode?: boolean;
     /** More controls at the end of the Advanced fold (a layout's Seed and Reshuffle). */
     advanced?: React.ReactNode;
+    /**
+     * The meaning of weight the algorithm reads (`descriptor.weightMeaning`): when set, its
+     * `weight` option is drawn as the Weight line, listing the loaded weight first.
+     */
+    weightReads?: Meaning;
 }
 
 /** The option types the form draws a control for; the rest keep their defaults. */
@@ -109,6 +116,73 @@ function AttributeField({
     );
 }
 
+/** The Weight line's value for "the loaded weight": the option left absent. */
+const LOADED = "\u0000loaded";
+
+/**
+ * The Weight line (tier2-design.md section 5): the loaded weight first, then None, then the
+ * graph's other number edge columns, each with the meaning this run would read it as. Absent
+ * reads the loaded weight, null none, a column name overrides it for this run.
+ * @param props - Component props
+ * @param props.session - The element's session
+ * @param props.value - The value set
+ * @param props.label - The app's words for it
+ * @param props.reads - The meaning the algorithm reads
+ * @param props.onChange - Called with the new value
+ * @returns The select
+ */
+function WeightField({
+    session,
+    value,
+    label,
+    reads,
+    onChange,
+}: Readonly<{
+    session: GraphSession;
+    value: unknown;
+    label: string;
+    reads: WeightMeaningRead;
+    onChange: (v: unknown) => void;
+}>): React.JSX.Element {
+    const loaded = session.data.loadedWeight();
+    const data =
+        loaded === null ? [] : [{ value: LOADED, label: weightName(loaded.attribute, loaded.meaning, "loaded") }];
+    data.push({ value: "", label: "None" });
+    for (const column of session.data.attributes()) {
+        if (
+            column.kind === "edge" &&
+            (column.type === "number" || column.type === "integer") &&
+            column.name !== loaded?.attribute
+        ) {
+            data.push({ value: column.name, label: weightName(column.plainName, reads) });
+        }
+    }
+    let shown = typeof value === "string" ? value : "";
+    if (value === undefined || (loaded !== null && value === loaded.attribute)) {
+        shown = loaded === null ? "" : LOADED;
+    }
+    return (
+        <Select
+            size="xs"
+            label={label}
+            value={shown}
+            data={data}
+            allowDeselect={false}
+            comboboxProps={{ withinPortal: false }}
+            onChange={(picked) => {
+                if (picked === LOADED) {
+                    onChange(undefined);
+                } else {
+                    onChange(picked === "" ? null : picked);
+                }
+            }}
+        />
+    );
+}
+
+/** A meaning an algorithm reads. */
+type WeightMeaningRead = NonNullable<Meaning>;
+
 /**
  * One option, drawn from the element's option descriptor.
  * @param props - Component props
@@ -118,6 +192,7 @@ function AttributeField({
  * @param props.onChange - Called with the option's name and new value
  * @param props.words - The app's words for an option
  * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
+ * @param props.weightReads - The meaning of weight the algorithm reads, or null
  * @returns The control, or nothing for an option the form does not draw
  */
 function OptionField({
@@ -127,6 +202,7 @@ function OptionField({
     onChange,
     words,
     canUseSelectedNode = false,
+    weightReads = null,
 }: Readonly<FieldProps>): React.JSX.Element | null {
     const { label, choice } = words(option);
     const set = (v: unknown): void => {
@@ -192,6 +268,9 @@ function OptionField({
         }
         case "attribute":
         case "partition":
+            if (weightReads !== null && option.name === "weight" && option.on === "edge") {
+                return <WeightField session={session} value={value} label={label} reads={weightReads} onChange={set} />;
+            }
             return <AttributeField session={session} option={option} value={value} label={label} onChange={set} />;
         case "node-id": {
             const selected = session.selection.nodes.at(0);
@@ -234,6 +313,7 @@ function OptionField({
  * @param props.onChange - Called with an option's name and its new value
  * @param props.words - The app's words for an option
  * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
+ * @param props.weightReads - The meaning of weight the algorithm reads, or null
  * @param props.advanced - More controls at the end of the Advanced fold
  * @returns The fields
  */

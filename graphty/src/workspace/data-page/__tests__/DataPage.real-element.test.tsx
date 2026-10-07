@@ -237,7 +237,7 @@ describe("the Data page on the real element", () => {
             assert.isNull(screen.queryByRole("alert"));
             assert.isNull(loadButton().getAttribute("aria-disabled"));
             assert.notEqual(document.activeElement, loadButton(), "an edit back to ready leaves focus where it is");
-            assert.isNotNull(screen.getByText(/^Every edge counts 1/));
+            assert.isNotNull(screen.getByText("Weight: none (each edge counts 1)"));
 
             await pick("trips", "Weight");
             await screen.findByText("Weight: trips");
@@ -338,6 +338,49 @@ describe("the Data page on the real element", () => {
             await userEvent.keyboard("{Escape}");
             assert.equal(store.get().page, "panels");
             assert.equal(store.get().project?.name, "Ring");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "says what a CSV's weight means under Higher means, and the graph inspector reads it back",
+        async () => {
+            const { session } = await openFromEmptyApp();
+            await chooseFiles(new File(["from,to,emails\np01,p02,14\np02,p03,9\n"], "messages.csv"));
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            await pick("emails", "Weight");
+
+            const higher = await screen.findByRole("radiogroup", { name: "Higher means" }, { timeout: TIMEOUT_MS });
+            // Unset until the reader chooses: nothing checked, and the gloss for an unset weight.
+            assert.lengthOf(
+                within(higher)
+                    .getAllByRole("radio")
+                    .filter((radio) => (radio as HTMLInputElement).checked),
+                0,
+            );
+            await userEvent.click(within(higher).getByText("Closer"));
+            await screen.findByText("larger = closer");
+
+            await userEvent.click(loadButton());
+            await waitFor(
+                () => {
+                    assert.deepEqual(session.data.loadedWeight(), { attribute: "emails", meaning: "strength" });
+                },
+                { timeout: TIMEOUT_MS },
+            );
+            await screen.findByText("Loaded weight", {}, { timeout: TIMEOUT_MS });
+            assert.isNotNull(screen.getByText("emails (closer)"));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "says an edge table with no weight counts each edge 1",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File(["source,target\na,b\nb,c\n"], "plain.csv"));
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            assert.isNull(screen.queryByRole("radiogroup", { name: "Higher means" }));
         },
         TIMEOUT_MS * 2,
     );

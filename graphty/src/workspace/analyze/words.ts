@@ -9,7 +9,7 @@
  */
 
 import type { AlgorithmDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
-import type { GraphSession, Run } from "@graphty/graphty-element/session";
+import type { Caveats, GraphSession, Run, WeightMeaning } from "@graphty/graphty-element/session";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -373,4 +373,88 @@ export function optionWords(
         choice: (value) =>
             words?.choices?.[value] ?? option.values?.find((choice) => choice.value === value)?.label ?? value,
     };
+}
+
+/** A weight meaning as the element names it, or null when nobody chose one. */
+export type Meaning = WeightMeaning["meaning"] | null;
+
+/** What each meaning reads as on screen (tier2-design.md section 5); the element's "strength" is "closer". */
+const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
+    strength: "closer",
+    distance: "farther",
+    capacity: "capacity",
+};
+
+/** The glossary's gloss of each meaning (glossary section 11), and of a weight with none. */
+const MEANING_GLOSS: Readonly<Record<WeightMeaning["meaning"] | "unset", string>> = {
+    strength: "larger = closer",
+    distance: "smaller = closer",
+    capacity: "how much can flow",
+    unset: "paths ignore it; PageRank and communities read it as larger = closer",
+};
+
+/**
+ * A meaning's word.
+ * @param meaning - the meaning.
+ * @returns "closer", "farther", "capacity", or null when none was chosen.
+ */
+export function meaningWord(meaning: Meaning): string | null {
+    return meaning === null ? null : MEANING_WORDS[meaning];
+}
+
+/**
+ * A meaning's gloss.
+ * @param meaning - the meaning.
+ * @returns "larger = closer", ...
+ */
+export function meaningGloss(meaning: Meaning): string {
+    return MEANING_GLOSS[meaning ?? "unset"];
+}
+
+/**
+ * A weight column and its meaning.
+ * @param attribute - the column.
+ * @param meaning - its meaning.
+ * @param extra - more words inside the brackets, such as "loaded".
+ * @returns "emails (closer)", "emails (closer, loaded)", "emails" for no meaning and no extra.
+ */
+export function weightName(attribute: string, meaning: Meaning, extra?: string): string {
+    const inside = [meaningWord(meaning), extra].filter((word): word is string => word !== null && word !== undefined);
+    return inside.length === 0 ? attribute : `${attribute} (${inside.join(", ")})`;
+}
+
+/** Why a weight of another meaning was left unread, by the meaning the analysis reads. */
+const NEEDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
+    distance: "a path needs a distance",
+    strength: "this analysis reads closer",
+    capacity: "a flow needs a capacity",
+};
+
+/**
+ * Whether a coded fact's value is a meaning the app has words for.
+ * @param value - the value.
+ * @returns true for "strength", "distance" or "capacity".
+ */
+function isMeaning(value: unknown): value is WeightMeaning["meaning"] {
+    return typeof value === "string" && Object.hasOwn(MEANING_WORDS, value);
+}
+
+/**
+ * What a run read as its weight, from its caveats (tier2-design.md section 5, "Made with").
+ * @param caveats - the run's caveats.
+ * @returns "emails (closer)", "none (each edge counts 1)", or "not read -- emails means closer,
+ *     and a path needs a distance".
+ */
+export function weightReadWords(caveats: Pick<Caveats, "weight" | "weightSkipped">): string {
+    const skipped = caveats.weightSkipped;
+    if (skipped !== undefined) {
+        const { attribute, meaning, reads } = skipped.params;
+        const column = String(attribute);
+        const has = isMeaning(meaning)
+            ? `${column} means ${MEANING_WORDS[meaning]}`
+            : `${column} has no meaning chosen`;
+        return `not read -- ${has}, and ${isMeaning(reads) ? NEEDS[reads] : "this analysis reads another kind"}`;
+    }
+    const read = caveats.weight;
+    return read === null || read === undefined ? "none (each edge counts 1)" : weightName(read.attribute, read.meaning);
 }

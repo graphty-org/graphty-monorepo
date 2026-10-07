@@ -30,6 +30,7 @@ import {
 } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { meaningGloss } from "../analyze/words";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -38,11 +39,12 @@ import {
     kindChanged,
     type PageChoices,
     type PageRole,
-    roleOf,
     ROLES_BY_KIND,
     rowsAreOf,
     setRole,
     setRowsAre,
+    setWeightMeaning,
+    weightHolder,
 } from "./choices";
 import { takeDataPageRequest } from "./request";
 import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
@@ -76,6 +78,13 @@ const OPEN_OVERLAY = '[role="menu"], [role="dialog"], [role="listbox"]';
 function overlayOpen(): boolean {
     return [...document.querySelectorAll(OPEN_OVERLAY)].some((overlay) => overlay.checkVisibility());
 }
+
+/** The Higher means choices, and the element's meaning each writes (tier2-design.md section 5). */
+const HIGHER_MEANS = [
+    { value: "strength", label: "Closer" },
+    { value: "distance", label: "Farther" },
+    { value: "capacity", label: "Capacity" },
+] as const;
 
 /** The Direction menu's values and what each writes to `LoadChoices.directed`. */
 const DIRECTIONS = { auto: "auto", directed: true, undirected: false } as const;
@@ -624,19 +633,40 @@ function TableView({ page, draft, table }: PartProps & { draft: LoadDraft; table
  * @returns The line
  */
 function WeightLine({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
-    const weight = table.columns.find((column) => roleOf(draft, table, column.name, page.choices) === "weight");
-    if (weight !== undefined) {
-        const auto = page.choices.tables[table.id]?.roles[weight.name] === undefined;
-        return (
+    const weight = weightHolder(draft, table, page.choices);
+    if (weight === undefined) {
+        // The design offers one number column as the weight ("value is a number: use it as the
+        // weight?"). Which column is a judgment the element makes, and it names none yet (#926).
+        return <Text size="xs">Weight: none (each edge counts 1)</Text>;
+    }
+    const auto = page.choices.tables[table.id]?.roles[weight] === undefined;
+    const meaning = page.choices.tables[table.id]?.weightMeaning ?? null;
+    return (
+        <Stack gap={2}>
             <Text size="xs">
-                Weight: {weight.name}
+                Weight: {weight}
                 {auto ? <span className="dp-auto">auto</span> : null}
             </Text>
-        );
-    }
-    // The design offers one number column as the weight ("value is a number: use it as the
-    // weight?"). Which column is a judgment the element makes, and it names none yet (#926).
-    return <Text size="xs">Every edge counts 1. To weigh edges, give a number column the Weight role.</Text>;
+            <Input.Wrapper
+                label="Higher means"
+                description={meaningGloss(meaning)}
+                inputWrapperOrder={["label", "input", "description"]}
+                size="xs"
+            >
+                <SegmentedControl
+                    size="xs"
+                    value={meaning ?? ""}
+                    data={[...HIGHER_MEANS]}
+                    onChange={(value) => {
+                        const picked = HIGHER_MEANS.find((each) => each.value === value);
+                        if (picked !== undefined) {
+                            page.setChoices(setWeightMeaning(table, picked.value, page.choices));
+                        }
+                    }}
+                />
+            </Input.Wrapper>
+        </Stack>
+    );
 }
 
 /**

@@ -9,22 +9,13 @@ import {
 import { Button, Group, Stack, Text } from "@mantine/core";
 import type React from "react";
 
-import { optionWords, runName, wordsFor } from "../analyze/words";
+import { optionWords, runName, weightReadWords, wordsFor } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import {
-    count,
-    formatNumber,
-    groupName,
-    queuedWords,
-    rankedName,
-    routeWords,
-    runDate,
-    runFailureWords,
-} from "./words";
+import { count, formatNumber, groupName, queuedWords, rankedName, routeWords, runDate, runFailureWords } from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -134,8 +125,16 @@ function MadeWith({
 
     return (
         <ControlSection label="Made with" defaultOpened>
-            <DataRow stat name="Analysis" value={descriptor === undefined ? run.algorithm : wordsFor(descriptor).name} />
+            <DataRow
+                stat
+                name="Analysis"
+                value={descriptor === undefined ? run.algorithm : wordsFor(descriptor).name}
+            />
             {date !== null && <DataRow stat name="Ran" value={date} />}
+            {run.status === "succeeded" && (descriptor?.weightMeaning ?? null) !== null && (
+                // A sentence, not a stat row: "not read -- ..." is too long for a row's value.
+                <Text size="xs" px="md">{`Weight: ${weightReadWords(run.caveats)}`}</Text>
+            )}
             {session !== null && descriptor !== undefined && (
                 <Stack gap={8} px="md">
                     <OptionsForm
@@ -143,6 +142,7 @@ function MadeWith({
                         options={descriptor.options}
                         values={settings}
                         words={(option) => optionWords(run.algorithm, option)}
+                        weightReads={descriptor.weightMeaning ?? null}
                         canUseSelectedNode
                         onChange={(name, value) => {
                             onDraft({ ...draft, [name]: value });

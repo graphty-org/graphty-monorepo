@@ -2,7 +2,19 @@ import { BUILT_IN_ALGORITHMS, RESULT_SHAPES } from "@graphty/graphty-element/cat
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { costLine, groupAlgorithms, HEADINGS, isSlow, matches, optionWords, runName, wordsFor } from "../words";
+import {
+    costLine,
+    groupAlgorithms,
+    HEADINGS,
+    isSlow,
+    matches,
+    meaningGloss,
+    optionWords,
+    runName,
+    weightName,
+    weightReadWords,
+    wordsFor,
+} from "../words";
 
 describe("the Analyze popover's words", () => {
     it("puts every result shape the element declares under exactly one heading", () => {
@@ -102,5 +114,31 @@ describe("the Analyze popover's words", () => {
         );
         assert.equal(runName(session, { algorithm: "pagerank", label: "My ranking" }), "My ranking");
         assert.equal(runName(session, { algorithm: "plugin-x", label: "Plugin X run" }), "Plugin X run");
+    });
+
+    it("words the weight a run read, the one it skipped, and none, never as a strength", () => {
+        assert.equal(weightReadWords({ weight: { attribute: "emails", meaning: "strength" } }), "emails (closer)");
+        assert.equal(weightReadWords({ weight: null }), "none (each edge counts 1)");
+        const skipped = weightReadWords({
+            weight: null,
+            weightSkipped: {
+                code: "weight.meaning-mismatch",
+                params: { attribute: "emails", meaning: "strength", reads: "distance" },
+            },
+        });
+        assert.equal(skipped, "not read -- emails means closer, and a path needs a distance");
+        const unset = weightReadWords({
+            weight: null,
+            weightSkipped: {
+                code: "weight.meaning-mismatch",
+                params: { attribute: "w", meaning: null, reads: "distance" },
+            },
+        });
+        assert.equal(unset, "not read -- w has no meaning chosen, and a path needs a distance");
+        assert.equal(weightName("weight", "distance", "loaded"), "weight (farther, loaded)");
+        assert.equal(meaningGloss("strength"), "larger = closer");
+        for (const text of [skipped, unset, weightName("x", "capacity"), meaningGloss(null)]) {
+            assert.notMatch(text, /strength|stronger/i);
+        }
     });
 });

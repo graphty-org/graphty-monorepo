@@ -16,6 +16,8 @@ interface TableEdits {
     readonly rowsAre?: "nodes" | "edges";
     /** The role the reader gave each column, by column name. */
     readonly roles: Readonly<Record<string, PageRole>>;
+    /** What the weight means, once the reader chose; unset until then (tier2-design.md section 5). */
+    readonly weightMeaning?: NonNullable<TableMapping["weightMeaning"]>;
 }
 
 /** Every choice on the page. */
@@ -136,6 +138,33 @@ export function setRole(
 }
 
 /**
+ * The column holding a table's Weight role now, if any.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param choices - the page's choices.
+ * @returns the column's name, or undefined.
+ */
+export function weightHolder(draft: LoadDraft, table: DraftTable, choices: PageChoices): string | undefined {
+    return table.columns.find((column) => roleOf(draft, table, column.name, choices) === "weight")?.name;
+}
+
+/**
+ * Says what a table's weight means.
+ * @param table - the table.
+ * @param meaning - the meaning.
+ * @param choices - the page's choices.
+ * @returns the new choices.
+ */
+export function setWeightMeaning(
+    table: DraftTable,
+    meaning: NonNullable<TableMapping["weightMeaning"]>,
+    choices: PageChoices,
+): PageChoices {
+    const edits = choices.tables[table.id] ?? { roles: {} };
+    return { ...choices, tables: { ...choices.tables, [table.id]: { ...edits, weightMeaning: meaning } } };
+}
+
+/**
  * Changes what a table's rows become, dropping its role edits (they were for the other kind).
  * @param draft - the draft.
  * @param table - the table.
@@ -177,8 +206,16 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
             mapping[role] = null;
         }
     }
-    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0;
-    return changed ? { ...(edits.rowsAre === undefined ? {} : { rowsAre: edits.rowsAre }), ...mapping } : undefined;
+    const meaning =
+        edits.weightMeaning !== undefined && kind === "edges" && weightHolder(draft, table, choices) !== undefined;
+    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning;
+    return changed
+        ? {
+              ...(edits.rowsAre === undefined ? {} : { rowsAre: edits.rowsAre }),
+              ...mapping,
+              ...(meaning ? { weightMeaning: edits.weightMeaning } : {}),
+          }
+        : undefined;
 }
 
 /**

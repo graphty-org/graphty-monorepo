@@ -3,6 +3,7 @@ import type { ScopeInput } from "@graphty/graphty-element/session";
 import { Badge, Group, Stack, Text } from "@mantine/core";
 import type React from "react";
 
+import { weightName } from "../analyze/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { count, directionWords, formatNumber, measurementWord } from "./words";
 
@@ -28,12 +29,16 @@ export function Overview(): React.JSX.Element | null {
         void session.selection.apply({ scope });
     };
     const [low, high] = statistics.degreeRange;
+    const weight = session.data.loadedWeight();
 
     return (
         <ControlSection label="Overview" defaultOpened>
             <DataRow stat name="Nodes" value={statistics.nodeCount} />
             <DataRow stat name="Edges" value={statistics.edgeCount} />
             <DataRow stat name="Direction" value={directionWords(statistics)} />
+            {weight !== null && (
+                <DataRow stat name="Loaded weight" value={weightName(weight.attribute, weight.meaning)} />
+            )}
             <DataRow stat name="Density" value={formatNumber(statistics.density)} />
             <DataRow stat name="Components" value={statistics.components.count} />
             {statistics.components.count > 1 && (

@@ -87,4 +87,43 @@ describe("the options form", () => {
 
         assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
     });
+
+    it("draws a weighted algorithm's Weight line: the loaded weight first, then None, then other columns", async () => {
+        const made = createGraphSession();
+        session = made;
+        await made.data.import(
+            { type: "csv", config: { data: "from,to,emails,cost\np01,p02,14,2\np02,p03,9,4\n" } },
+            {
+                mapping: {
+                    rowsAre: "edges",
+                    source: "from",
+                    target: "to",
+                    weight: "emails",
+                    weightMeaning: "strength",
+                },
+            },
+        );
+        const descriptor = made.catalog.algorithms().find((d) => d.key === "shortest-path");
+        if (descriptor === undefined) {
+            throw new Error("no shortest-path");
+        }
+        const changes: unknown[] = [];
+        render(
+            <OptionsForm
+                session={made}
+                options={descriptor.options}
+                values={{}}
+                words={(option) => optionWords("shortest-path", option)}
+                weightReads={descriptor.weightMeaning ?? null}
+                onChange={(_name, value) => changes.push(value)}
+            />,
+        );
+        const select = screen.getByRole("combobox", { name: "Weight" });
+        assert.equal((select as HTMLInputElement).value, "emails (closer, loaded)");
+        await userEvent.click(select);
+        const options = screen.getAllByRole("option").map((option) => option.textContent);
+        assert.deepEqual(options, ["emails (closer, loaded)", "None", "cost (farther)"]);
+        await userEvent.click(screen.getByRole("option", { name: "None" }));
+        assert.deepEqual(changes, [null]);
+    });
 });

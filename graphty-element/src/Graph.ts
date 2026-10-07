@@ -121,6 +121,7 @@ import { Node } from "./Node";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
 import type { DataMutation } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
@@ -135,7 +136,12 @@ import {
     setsNotifierOfSession,
 } from "./session/GraphSession";
 import type { SessionCommand } from "./session/planning";
-import { cancelReasonOf, type DispatchFunction, queueScheduler } from "./session/project/Dispatcher";
+import {
+    cancelReasonOf,
+    type DispatchFunction,
+    queueScheduler,
+    type TransactionOptions as DispatcherTransactionOptions,
+} from "./session/project/Dispatcher";
 import { deepFreeze } from "./session/project/draft";
 import { EDGES_ADDED, NODES_ADDED } from "./session/project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./session/project/state";
@@ -1149,15 +1155,19 @@ export class Graph implements GraphContext {
 
         // One step: every run the template starts is recorded in it, and a run that fails leaves
         // the others recorded.
-        await dispatcherOf(this.session).transaction("Ran the template's algorithms", async (tx) => {
-            for (const entry of algorithms) {
-                try {
-                    await this.runOnLoad(entry, (command, options) => tx.dispatch(command, options));
-                } catch (error) {
-                    errors.push(error instanceof Error ? error : new Error(String(error)));
+        await dispatcherOf(this.session).transaction(
+            "Ran the template's algorithms",
+            async (tx) => {
+                for (const entry of algorithms) {
+                    try {
+                        await this.runOnLoad(entry, (command, options) => tx.dispatch(command, options));
+                    } catch (error) {
+                        errors.push(error instanceof Error ? error : new Error(String(error)));
+                    }
                 }
-            }
-        });
+            },
+            TEMPLATE_RUNS,
+        );
 
         if (errors.length > 0) {
             const summaryError = new Error(
@@ -1676,6 +1686,7 @@ export class Graph implements GraphContext {
                     ? {
                           op: "batch",
                           label: "Changed the layout behaviour",
+                          fact: { code: "layout.behavior", params: { layout: setLayout.id } },
                           steps: [{ op: "config.set", values: { layoutBehavior: project } }, setLayout],
                       }
                     : setLayout;
@@ -2630,29 +2641,36 @@ export class Graph implements GraphContext {
         // transaction's body is synchronous and each style command writes as it is dispatched,
         // so what it applied is known before this returns.
         const applied = dispatcherOf(this.session)
-            .transaction("Applied suggested styles", (tx) => {
-                for (const key of keys) {
-                    for (const suggestion of this.getSuggestedStyles(key)) {
-                        // Fire and forget with the refusal reported, for the reason the auto-apply
-                        // policy gives: a caller must not have to await the picture in order to
-                        // have started the work, and a refusal that reached nobody is what this
-                        // whole system replaces.
-                        tx.dispatch(suggestionCommand(suggestion)).then(undefined, report);
-                        const { run } = suggestion.spec;
-                        if (typeof run === "string") {
-                            painted.push(run);
-                        } else {
-                            painted.push("runId" in run ? run.runId : run.id);
+            .transaction(
+                "Applied suggested styles",
+                (tx) => {
+                    for (const key of keys) {
+                        for (const suggestion of this.getSuggestedStyles(key)) {
+                            // Fire and forget with the refusal reported, for the reason the auto-apply
+                            // policy gives: a caller must not have to await the picture in order to
+                            // have started the work, and a refusal that reached nobody is what this
+                            // whole system replaces.
+                            tx.dispatch(suggestionCommand(suggestion)).then(undefined, report);
+                            const { run } = suggestion.spec;
+                            if (typeof run === "string") {
+                                painted.push(run);
+                            } else {
+                                painted.push("runId" in run ? run.runId : run.id);
+                            }
                         }
                     }
-                }
 
-                if (painted.length > 0) {
-                    this.#stackSuggestionsInOrder(painted, (id) => {
-                        tx.dispatch({ op: "style.patch", action: "move", id, before: null }).then(undefined, report);
-                    });
-                }
-            })
+                    if (painted.length > 0) {
+                        this.#stackSuggestionsInOrder(painted, (id) => {
+                            tx.dispatch({ op: "style.patch", action: "move", id, before: null }).then(
+                                undefined,
+                                report,
+                            );
+                        });
+                    }
+                },
+                { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
+            )
             .then(undefined, report);
         // Kept, so `waitForStableFrame()` and `waitForSettled()` wait for the layers to land.
         // Chained, so a second call does not replace the first one's promise.
@@ -2938,7 +2956,7 @@ export class Graph implements GraphContext {
      * a throw rolls all of it back. A call on this graph itself while `fn` runs is a step of its
      * own, and logs a warning naming the `tx` verb to use instead.
      * @param fn - The changes, made through `tx`.
-     * @param label - The step's label.
+     * @param label - The step's label; its fact's `label` param (null when not given).
      * @returns Once the step is recorded and drawn.
      * @since 3.0.0
      * @example
@@ -2950,16 +2968,16 @@ export class Graph implements GraphContext {
      * });
      * ```
      */
-    async batchOperations(
-        fn: (tx: TransactionScope) => Promise<void> | void,
-        label = "Batch of changes",
-    ): Promise<void> {
+    async batchOperations(fn: (tx: TransactionScope) => Promise<void> | void, label?: string): Promise<void> {
         if (this.openBatches++ === 0) {
             this.warnOutsideBatch();
         }
 
         try {
-            await this.session.transaction(label, (tx) => fn(tx));
+            const named: DispatcherTransactionOptions = {
+                fact: { code: "transaction", params: { label: label ?? null } },
+            };
+            await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
         } finally {
             if (--this.openBatches === 0) {
                 for (const verb of Object.keys(BATCH_VERBS)) {
@@ -3669,10 +3687,14 @@ export class Graph implements GraphContext {
 
         try {
             if (this.dimension() === "2d") {
-                await dispatcher.transaction(`Switched to 3D for ${mode.toUpperCase()}`, async (tx) => {
-                    await tx.dispatch({ op: "view.dimension", dimension: "3d" });
-                    await tx.dispatch({ op: "view.immersive", mode });
-                });
+                await dispatcher.transaction(
+                    `Switched to 3D for ${mode.toUpperCase()}`,
+                    async (tx) => {
+                        await tx.dispatch({ op: "view.dimension", dimension: "3d" });
+                        await tx.dispatch({ op: "view.immersive", mode });
+                    },
+                    { fact: { code: "view.immersive", params: { mode } } },
+                );
             } else {
                 await dispatcher.dispatch({ op: "view.immersive", mode });
             }
@@ -6046,6 +6068,7 @@ export class Graph implements GraphContext {
         this.applyData({
             op: "batch",
             label: "Set the graph data",
+            fact: { code: "data.set", params: {} },
             steps: steps.map((mutation) => ({ op: "data.apply", mutation })),
         }).catch((e: unknown) => {
             // Disposing the graph cancels the step while it is pending; that is teardown, not a

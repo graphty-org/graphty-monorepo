@@ -4,8 +4,8 @@ name: Release
 # sections 10 and 11). Master runs no tests (owner decision, 2026-10-06): the merge queue tests each batch's
 # combined tree, and this train tests the exact commit it releases.
 #
-# 1. Every 6 hours (00:00, 06:00, 12:00 and 18:00 UTC), or at once when the owner dispatches it (the ad hoc
-#    release), the pick job takes master's newest commit -- unless the previous release is still pending:
+# 1. At 00:00, 06:00, 12:00 and 18:00 UTC, or at once when the owner dispatches it (the ad hoc release), the
+#    pick job takes master's newest commit -- unless the previous release is still pending:
 #    a release/train-* pull request is open, a "Release held" issue is open (a fix is in progress; a dispatch
 #    runs anyway), the last release's publish has not tagged it yet, or nothing releasable changed since the
 #    last release. A held release restarts itself: after every push to master whose build (ci.yml) passes,
@@ -30,13 +30,23 @@ name: Release
 # Nothing here pushes to master: the version commit reaches master only by the pull request. The file keeps its
 # name because npm's trusted-publisher entry for every package names it.
 #
+# The scheduled attempts are started by an external scheduler (cron-job.org), not by GitHub's cron: GitHub
+# creates this repository's scheduled runs hours late or not at all (owner decision, 2026-10-07). At 00:00, 06:00,
+# 12:00 and 18:00 UTC it dispatches this workflow with scheduled=true:
+#   POST https://api.github.com/repos/graphty-org/graphty-monorepo/actions/workflows/release.yml/dispatches
+#   {"ref":"master","inputs":{"scheduled":"true"}}   (answers HTTP 204)
+# Such a run behaves exactly like a scheduled train attempt; a person can still dispatch it by hand.
+#
 # Ad hoc release: `gh workflow run release.yml --ref master`, optionally `-f packages=graph-format,graph-io` (nx
 # project names) to release only those; every other project is held for that run, on top of release-hold.json.
 on:
-    schedule:
-        - cron: "0 0,6,12,18 * * *"
     workflow_dispatch:
         inputs:
+            scheduled:
+                description: "Set by the release scheduler: behave like a scheduled train attempt (skip while a train PR or a held issue is open, or when nothing is releasable)"
+                required: false
+                default: false
+                type: boolean
             packages:
                 description: "Release only these nx projects (comma separated). Empty: every package with releasable commits."
                 required: false
@@ -63,6 +73,12 @@ concurrency:
     group: ${{ github.event_name == 'push' && format('release-push-{0}', github.run_id) || 'release-train' }}
     cancel-in-progress: false
 
+# What started this run, as the jobs branch on it: "schedule" for a train attempt the release scheduler dispatched
+# (scheduled=true), otherwise the event's name ("workflow_dispatch" for a person's ad hoc release, "workflow_run"
+# for a restart, "push").
+env:
+    TRIGGER: ${{ github.event_name == 'workflow_dispatch' && inputs.scheduled && 'schedule' || github.event_name }}
+
 jobs:
     # The candidate is master's newest commit. Every reason not to try is an event that has not happened yet
     # (owner rule: a state ends on the event that settles it, never on a count of hours).
@@ -80,7 +96,7 @@ jobs:
             release: ${{ steps.releasable.outputs.release || 'false' }}
             sha: ${{ steps.pending.outputs.sha }}
         steps:
-            # The commit this run was started on (master's head when it was scheduled or dispatched; the pushed
+            # The commit this run was started on (master's head when it was dispatched; the pushed
             # commit whose build passed for a restart), so the run's commit, Coveralls' commit and the tested
             # commit are one and the same.
             - uses: actions/checkout@v4
@@ -91,7 +107,6 @@ jobs:
             - name: Skip while the previous release is pending
               id: pending
               env:
-                  EVENT: ${{ github.event_name }}
                   CANDIDATE: ${{ github.event.workflow_run.head_sha || github.sha }}
               run: |
                   set -euo pipefail
@@ -99,7 +114,7 @@ jobs:
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
                   # A master push restarts only a held release; with nothing held it touches nothing.
                   held=$(tools/release-held.sh find)
-                  if [ -z "$held" ] && [ "$EVENT" = workflow_run ]; then
+                  if [ -z "$held" ] && [ "$TRIGGER" = workflow_run ]; then
                       skip "no release is held; a master push restarts only a held release"
                   fi
                   # An open release pull request is pending until it merges. One that can no longer merge is
@@ -125,10 +140,10 @@ jobs:
                               "Replaced: this release pull request ${state}. ${run_url} cuts a new one from master's newest commit." ;;
                       esac
                   done
-                  # A held release waits for its fix: the schedule skips. The next master push whose build passed
-                  # restarts it (workflow_run), and an ad hoc dispatch runs anyway; the issue closes when a train
-                  # (or a re-run publish) passes.
-                  if [ -n "$held" ] && [ "$EVENT" = schedule ]; then
+                  # A held release waits for its fix: a scheduled attempt skips. The next master push whose build
+                  # passed restarts it (workflow_run), and an ad hoc dispatch runs anyway; the issue closes when a
+                  # train (or a re-run publish) passes.
+                  if [ -n "$held" ] && [ "$TRIGGER" = schedule ]; then
                       skip "the release is held (issue #${held}); the next master push whose build passes restarts it"
                   fi
                   # The newest version commit, and whether its publish run has tagged it yet. Until it has, nx
@@ -311,7 +326,6 @@ jobs:
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha }}
-            EVENT: ${{ github.event_name }}
             CI_RESULT: ${{ needs.ci.result }}
             T4_RESULT: ${{ needs.t4.result }}
             HOSTS_RESULT: ${{ needs.hosts.result }}
@@ -356,7 +370,7 @@ jobs:
                   title="Release held: ${what} failed on ${SHA:0:7}"
                   {
                       echo "The release train failed on ${SHA} (${what}): ${run_url}"
-                      [ "$EVENT" != workflow_run ] || echo "This was a restarted release: a master push whose build passed restarted the held release, and it failed again."
+                      [ "$TRIGGER" != workflow_run ] || echo "This was a restarted release: a master push whose build passed restarted the held release, and it failed again."
                       echo
                       echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open. The release restarts itself on the next push to master whose build passes, so the fix's pull request should name this issue without closing it (\`Refs #<this issue>\`, not \`Fixes #<this issue>\`): its merge restarts the release on its commit. A train that passes releases everything at once and closes this issue; one that fails again comments here."
                       if [ "$T4_RESULT" = failure ]; then
@@ -475,8 +489,8 @@ jobs:
                   git push origin "${COMMIT}:refs/heads/${branch}"
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
                   kind=scheduled
-                  [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || kind="ad hoc"
-                  [ "$GITHUB_EVENT_NAME" != workflow_run ] || kind="restarted"
+                  [ "$TRIGGER" != workflow_dispatch ] || kind="ad hoc"
+                  [ "$TRIGGER" != workflow_run ] || kind="restarted"
                   {
                       echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on it in ${run_url}."
                       [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."
@@ -649,7 +663,7 @@ jobs:
 
             # A failed publish leaves master versioned but untagged, and every later train skips until the tags
             # exist, so it is reported like a held train: one "Release held: publish failed" issue, which also
-            # stops the schedule. Re-running the failed jobs of this run publishes what is missing and closes it.
+            # stops the scheduled trains. Re-running the failed jobs of this run publishes what is missing and closes it.
             - name: Report a failed publish
               if: ${{ failure() }}
               run: |

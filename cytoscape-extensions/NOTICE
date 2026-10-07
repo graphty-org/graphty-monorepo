@@ -1,0 +1,10 @@
+@graphty/cytoscape-extensions
+Copyright (c) 2024 Adam Powers. The code is under the MIT License (see LICENSE).
+
+cy.graphtyDataset() loads sample datasets from the @graphty/graph-samples package (or, for the large
+ones, from https://graphty.app/data/graph-samples/v1/). This package contains none of that data,
+and the datasets are not under its MIT License: each has its own source, citation and license, as
+far as it is known, listed in the NOTICE file of @graphty/graph-samples
+(https://github.com/graphty-org/graphty-monorepo/blob/master/graph-samples/NOTICE) and in that
+package's DATASETS metadata. Several are licensed only "for scientific use" or have no clear
+license; check a dataset's entry before redistributing it.

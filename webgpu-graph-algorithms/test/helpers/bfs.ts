@@ -19,8 +19,9 @@
  * oracle (the only checks that see an inverted growing test); the 500-node path from its MIDDLE and the hub-clique
  * fixture (source 0, hubs 1 and 2, a clique on 3..255) forced bottom-up (`alpha U32_MAX, beta 0`: every growing
  * boundary switches and nothing switches back), which is what exercises `bfs-bottom-up` and `bfs-bitset-build`,
- * with the clique's `arcsScanned` allowed ONE extra read per bottom-up claim (each clique row's first in-neighbour
- * is hub 1, so the early exit reads exactly one arc per claim; without it every 254-arc row is read whole); the
+ * with the clique's `arcsScanned` pinned to EXACTLY one read per bottom-up claim (each clique row's first in-neighbour
+ * is hub 1, so the early exit reads exactly one arc per claim; without it every 254-arc row is read whole, and a
+ * sweep that stops counting the winning read reports 0; issue #472); the
  * directed path's unvisited words (the in-degree of vertex 0 is 0 where its out-degree is 1, which is what catches
  * an in-degree summed for an out-degree); and the one-workgroup `pred` words (the stride mutation survives every
  * traversal below the dispatch cap).
@@ -402,7 +403,7 @@ async function directionReports(
  * `bfs-unvisited-flags` and the frontier selector (spec 11.9 item 1): the 30 x 30 grid from its corner and the
  * 500-node path from its last index under each forced path, the choice counters of rmat14 at the default threshold,
  * rmat14's direction and unvisited words under the default rule at both cadences, the path from its middle and the
- * hub-clique fixture forced bottom-up (the clique's `arcsScanned` allowed one extra read per claim), the directed
+ * hub-clique fixture forced bottom-up (the clique's `arcsScanned` exactly one read per claim), the directed
  * path's unvisited words, and the one-workgroup predecessor pass, all bitwise against the oracle and the host rules.
  * @param ctx - the context
  * @returns the report
@@ -427,7 +428,8 @@ export async function bfsReport(ctx: GpuContext): Promise<CheckReport> {
     reports.push(...(await directionReports(ctx, "rmat14/auto-cadence-1", rmat, 0, { levelsPerSubmit: 1 })).reports);
     ctx.release(rmat);
     // P8-T8 Step 6: the early exit's witness -- one read per bottom-up claim on the hub-clique fixture, each claim
-    // allowed one extra read (arcsScanned <= 2 x claimed); maxDepth 4 bounds a mutant that re-claims stale entries
+    // pinned from both sides (arcsScanned == claimed: fewer means the winning read went uncounted, issue #472);
+    // maxDepth 4 bounds a mutant that re-claims stale entries
     const clique = snapshotOf(hubCliqueEdges(), { label: "bfs-report-hub-clique" });
     const cliqueRun = await directionReports(ctx, "hub-clique/bottom-up", clique, 0, FORCED_BOTTOM_UP, 4);
     reports.push(...cliqueRun.reports);
@@ -440,7 +442,7 @@ export async function bfsReport(ctx: GpuContext): Promise<CheckReport> {
             0,
         );
         reports.push({
-            worst: ratioOf(Math.max(0, Number(cliqueRun.last.arcsScanned) - claimed), claimed),
+            worst: ratioOf(Math.abs(Number(cliqueRun.last.arcsScanned) - claimed), claimed),
             worstLabel: `hub-clique/bottom-up.arcsScanned (${Number(cliqueRun.last.arcsScanned)} reads for ${claimed} claims)`,
             samples: 1,
         });

@@ -45,8 +45,11 @@ The new step, "SonarQube (changed lines)", is `tools/sonar-gate.mjs`, run by `to
    and would judge code that is not being pushed. If nothing is left (a docs-only push), the
    step passes without contacting the server.
 2. **Check the server and the setup** (section "When the gate cannot run").
-3. **Scan them into `graphty-monorepo-local`.** Run the scanner with `sonar.inclusions` set to
-   that list (source and test files both) and `sonar.working.directory` set to
+3. **Scan them into `graphty-monorepo-local`.** Run the scanner with `sonar.sources` and
+   `sonar.tests` set to that list's files themselves (never `.` narrowed by `sonar.inclusions`:
+   given a directory, the scanner walks the whole tree and stats every entry before any
+   exclusion applies, so a test-output file a test shard deletes during the walk fails the scan)
+   and `sonar.working.directory` set to
    `<git common dir>/sonar/<worktree name>/`, outside the worktree, so the scan's files never
    meet knip, the link check or a `git status`. SonarJS still builds the TypeScript program from
    each package's tsconfig, so type-aware rules see the rest of the code as context.

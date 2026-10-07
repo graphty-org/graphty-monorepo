@@ -124,17 +124,38 @@ describe("View Mode Transitions", () => {
         assert.closeTo(node1.mesh.position.z, 5, 0.01, "Node Z should be 5 before transition");
     });
 
-    // EXPECTED TO FAIL until https://github.com/graphty-org/graphty-monorepo/issues/1341 is
-    // fixed: under the fixed layout a node placed off the Z = 0 plane keeps its Z in 2D. Remove
-    // `.fails` when this starts passing. The test above guards the 3D half on its own, because a
-    // failure anywhere in this one counts as the expected failure.
-    test.fails("3D -> 2D flattens Z coordinates", async () => {
+    test("3D -> 2D flattens Z coordinates", async () => {
         const node1 = await liftNode1();
 
         await graph.setViewMode("2d");
         await graph.waitForStableFrame();
 
         assert.closeTo(node1.mesh.position.z, 0, 0.01, "Node Z should be flattened to 0 in 2D mode");
+    });
+
+    test("3D -> 2D -> 3D keeps the node on the plane, and undoing the 2D switch gives its Z back", async () => {
+        // The Z a 2D switch flattens is kept in history only, as it is for a pinned node: a switch
+        // back to 3D lays the graph out again, and under `fixed` that keeps the flattened row.
+        // Undo is what returns the arrangement the reader had before the switch.
+        const node1 = await liftNode1();
+
+        await graph.setViewMode("2d");
+        await graph.waitForStableFrame();
+        assert.closeTo(node1.mesh.position.z, 0, 0.01, "flattened in 2D");
+
+        await graph.setViewMode("3d");
+        await graph.waitForStableFrame();
+        assert.closeTo(node1.mesh.position.z, 0, 0.01, "a switch back to 3D does not invent a Z");
+
+        await graph.getSession().undo();
+        await graph.waitForStableFrame();
+        assert.equal(graph.getViewMode(), "2d", "the first undo returns to 2D");
+        assert.closeTo(node1.mesh.position.z, 0, 0.01, "still on the plane in 2D");
+
+        await graph.getSession().undo();
+        await graph.waitForStableFrame();
+        assert.equal(graph.getViewMode(), "3d", "the second undo returns to 3D");
+        assert.closeTo(node1.mesh.position.z, 5, 0.01, "with the Z the node had before the 2D switch");
     });
 
     test("camera type changes correctly with view mode", async () => {

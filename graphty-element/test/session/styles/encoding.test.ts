@@ -142,7 +142,7 @@ describe("a value with no place on the scale", () => {
         const prepared = prepare("node.color", { by: "x", scale: "log" }, [0, -4, 1, 10, 100]);
 
         assert.strictEqual(prepared.counts.notPlottable, 2);
-        assert.include(prepared.departures, "2 not plottable on a log scale");
+        assert.deepInclude(prepared.facts, { code: "legend.not-plottable", params: { count: 2, scale: "log" } });
     });
 
     it("is never NaN and never clamped to the domain floor", () => {
@@ -175,7 +175,7 @@ describe("a value with no place on the scale", () => {
         assert.isUndefined(prepared.paint(0));
         assert.isUndefined(prepared.paint(-1));
         assert.strictEqual(prepared.counts.notPlottable, 3);
-        assert.include(prepared.departures, "no value is plottable on a log scale");
+        assert.deepInclude(prepared.facts, { code: "legend.none-plottable", params: { scale: "log" } });
     });
 });
 
@@ -214,7 +214,7 @@ describe("an element the run never measured", () => {
         const prepared = prepare("node.color", { by: "results.betweenness.value" }, [0.1, 0.9], { unmeasured: 312 });
 
         assert.strictEqual(prepared.counts.unmeasured, 312);
-        assert.include(prepared.departures, "not measured (312)");
+        assert.deepInclude(prepared.facts, { code: "legend.not-measured", params: { count: 312 } });
     });
 
     it("is not painted on a channel that carries words either", () => {
@@ -243,7 +243,7 @@ describe("the domain", () => {
 
         assert.deepEqual(prepared.domain, [2, 98]);
         assert.strictEqual(prepared.counts.clamped, 4);
-        assert.include(prepared.departures, "clamped at p2/p98");
+        assert.deepInclude(prepared.facts, { code: "legend.clamped", params: { from: 2, to: 98 } });
     });
 
     it("refuses to be set twice, because a domain and a clamp cannot both win", () => {
@@ -290,7 +290,10 @@ describe("the domain", () => {
     });
 
     it("says so when the column measured nothing", () => {
-        assert.include(prepare("node.size", { by: "x" }, []).departures, "nothing measured");
+        assert.deepInclude(prepare("node.size", { by: "x" }, []).facts, {
+            code: "legend.nothing-measured",
+            params: {},
+        });
     });
 });
 
@@ -406,7 +409,7 @@ describe("the palette's capacity", () => {
         assert.strictEqual(prepared.counts.other, 1);
         assert.strictEqual(hex(prepared.paint("i")), "#cccccc");
         assert.notStrictEqual(hex(prepared.paint("a")), "#cccccc");
-        assert.include(prepared.departures, '1 lumped into "other"');
+        assert.deepInclude(prepared.facts, { code: "legend.lumped", params: { count: 1 } });
     });
 
     it("applies to a channel that carries one of a fixed list, for the same reason", () => {
@@ -638,7 +641,7 @@ describe("reading a value the way the scales read it", () => {
         assert.deepEqual(prepared.domain, [3, 5]);
         assert.strictEqual(prepared.counts.seen, 5);
         assert.strictEqual(prepared.counts.unreadable, 3);
-        assert.include(prepared.departures, "3 carry no value the scale can read");
+        assert.deepInclude(prepared.facts, { code: "legend.unreadable", params: { count: 3 } });
     });
 
     it("keys a per-value override by the name the ordinal scale looks the value up under", () => {
@@ -939,7 +942,10 @@ describe("what encode() refuses", () => {
 
         assert.deepEqual(layer.selector, { match: "has", path: "results.cut.side" });
         assert.strictEqual(bindingOf(layer, "node.color").scale, "ordinal");
-        assert.strictEqual(codeOf(() => plan({ run: "cut", channel: "edge.color" })), "E_BAD_COMMAND");
+        assert.strictEqual(
+            codeOf(() => plan({ run: "cut", channel: "edge.color" })),
+            "E_BAD_COMMAND",
+        );
     });
 
     it("refuses a result with nothing per element on it", () => {

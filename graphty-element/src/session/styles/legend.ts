@@ -13,9 +13,10 @@
  * percentiles, a logarithmic scale with 312 zeros it cannot plot, a run that measured 300 nodes
  * of 50,000 -- each of those makes the picture say something narrower than "this is the data",
  * and a legend that prints the ramp without printing the narrowing is the thing that turns a
- * reasonable choice into a false claim. {@link LegendBlock.departures} carries them as finished
- * sentences, most of them straight off the prepared binding, which counted them while it was
- * settling the domain and therefore pays nothing extra to report them.
+ * reasonable choice into a false claim. {@link LegendBlock.facts} carries them as coded facts
+ * (`{ code, params }`) for the application to word, most of them straight off the prepared
+ * binding, which counted them while it was settling the domain and therefore pays nothing extra
+ * to report them.
  *
  * ONE DEPARTURE IS THIS FILE'S OWN. A layer lower in the stack can be painted over by a layer
  * above it that writes the same channel over EVERY element, and a block describing colours no
@@ -26,20 +27,21 @@
  * BOTTOM FIRST. A second reading order for the same stack is how an off-by-one gets in, and a
  * consumer that wants the winning layer first reverses a list it already draws bottom first.
  *
- * WHERE THE WORDS COME FROM, and why none of them are written here:
+ * THE WORDS ARE THE APPLICATION'S. A block names its field by path, its scale by id and each row
+ * by its value, and every departure is a code with its numbers and names as parameters. The
+ * English fields that remain (`label`, `plainName`, the scale's `label`, `departures`) are
+ * deprecated and kept only until the next major:
  *
- * - A scale's words are its catalogue entry's `plainName`, so the legend and the scale picker
- *   never disagree about what "sqrt" is called. A second dialect invented here would be a second
- *   thing to keep in step with the catalogue, and it would lose.
- * - A field's words come from whoever holds the session's attributes and run fields, through
- *   {@link LegendSources.field}. Absent, the path's last segment is humanised, which is a
- *   fallback and says so rather than pretending a plain name was found.
+ * - A scale's deprecated words are its catalogue entry's `plainName`.
+ * - A field's deprecated words come from whoever holds the session's attributes and run fields,
+ *   through {@link LegendSources.field}. Absent, the path's last segment is humanised.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
 import type { Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
 import { groupName, RESULT_ROOT } from "../results/types";
+import type { CodedFact } from "../shared";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 import type { SelectorTarget } from "./predicate";
@@ -53,11 +55,17 @@ import type { ScaleRegistry } from "./scales";
  * One row of a legend: a value, and what the picture paints for it.
  *
  * `value` is the DATA value -- the category, or a number on the domain -- and `color`, `size` and
- * `paints` are what the encoding turns it into. `label` is that same value in the words a reader
- * sees, worked out once here so that two consumers do not format the same number two ways.
+ * `paints` are what the encoding turns it into. Word a row from its facts: `value`, `extent`,
+ * `rank`, and `role` with `count`.
  */
 export interface LegendSwatch {
-    /** The value in the words a reader sees. */
+    /**
+     * The value in English words.
+     * @deprecated Word the row yourself from its facts: `value` (and `extent` for a row covering a
+     *   range of numbers), `rank` for a run's group, `role: "other"` with `count` for the folded
+     *   bucket, and the layer's own `name` (from `styles.get(layerId)`) for a fixed value. Removed
+     *   in the next major.
+     */
     readonly label: string;
     /**
      * The value itself, for a consumer that wants to filter or select by it -- spelled as the data
@@ -65,6 +73,17 @@ export interface LegendSwatch {
      * `sizes` table and its per-node values, never the string `"0"`.
      */
     readonly value: unknown;
+    /**
+     * The lowest and highest values this row stands for, on a row of an encoding that cuts a
+     * numeric domain into groups (`value` is `extent.min`). Absent on any other row.
+     * @since 3.16.0
+     */
+    readonly extent?: {
+        /** The lowest value painted like this row. */
+        readonly min: number;
+        /** The highest value painted like this row. */
+        readonly max: number;
+    };
     /**
      * The group's place by size, from 1 for the largest, on a block that colours a run's groups
      * (`results.<run>.group`): the same `rank` the run summary's group carries, so a list of
@@ -145,20 +164,27 @@ export interface LegendBlock {
     readonly runId?: RunId;
     /** What shape of legend a consumer draws: a ramp, a list of colours, a single chip. */
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
-    /** The field the encoding reads, in both plain and technical words. */
+    /** The field the encoding reads. `path` is the id to word it by. */
     readonly field?: {
-        /** The name a reader sees. */
+        /**
+         * The field's name in English.
+         * @deprecated Word the field yourself from `path` (for example by looking it up in
+         *   `session.data.attributes()` or the run's fields). Removed in the next major.
+         */
         readonly plainName: string;
         /** The name the literature and the data use. */
         readonly technicalName: string;
         /** The column path itself. */
         readonly path: Path;
     };
-    /** The scale, by name and in words. */
+    /** The scale the values pass through. */
     readonly scale?: {
-        /** The scale's name, which is what a binding spells. */
+        /** The scale's id, which is what a binding spells (`"linear"`, `"log"`, `"sqrt"`, ...). */
         readonly kind: string;
-        /** The same scale in words, from the scale catalogue. */
+        /**
+         * The same scale in English words, from the scale catalogue.
+         * @deprecated Word the scale yourself from `kind`. Removed in the next major.
+         */
         readonly label: string;
     };
     /** The extent values were read against, and how it was narrowed. */
@@ -210,16 +236,56 @@ export interface LegendBlock {
     readonly swatches: readonly LegendSwatch[];
     /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
-        /** How many rows were left out. */
+        /** How many rows were left out of `swatches`, as a number. */
         readonly hidden: number;
     };
     /**
-     * What this encoding does that the picture alone does not admit to.
-     *
-     * Finished sentences, printed unedited. Empty when the encoding has nothing to confess.
+     * What this encoding does that the picture alone does not admit to, one fact per departure, in
+     * the order a legend reads them. Empty when the encoding has nothing to confess.
+     * @since 3.16.0
+     */
+    readonly facts: readonly LegendFact[];
+    /**
+     * The same departures as English sentences.
+     * @deprecated Word {@link LegendBlock.facts} yourself. Removed in the next major.
      */
     readonly departures: readonly string[];
 }
+
+/**
+ * What a legend fact says. Each code carries these `params`:
+ *
+ * - `legend.clamped` -- the extent was cut at percentiles: `{ from, to }`, the two percentiles
+ *   (for example `2` and `98`).
+ * - `legend.not-plottable` -- some values have no place on the scale and are not painted:
+ *   `{ count, scale }`, how many, and the scale's id (a zero under `"log"`, for instance).
+ * - `legend.none-plottable` -- no value has a place on the scale: `{ scale }`.
+ * - `legend.no-value-in-domain` -- the binding's explicit domain has no place on its scale:
+ *   `{ min, max }`, the domain as written.
+ * - `legend.nothing-measured` -- the column held no value to read: `{}`.
+ * - `legend.unreadable` -- values the scale cannot read (text under a numeric scale): `{ count }`.
+ * - `legend.lumped` -- values folded into the `"other"` row: `{ count }`, how many elements.
+ * - `legend.not-measured` -- elements in scope the run measured nothing for: `{ count }`.
+ * - `legend.painted-over` -- a layer above paints the same channel over every element this one
+ *   reaches, so none of this block is visible: `{ layerId, name }`, that layer's id and name.
+ * @since 3.16.0
+ */
+export type LegendFactCode =
+    | "legend.clamped"
+    | "legend.not-plottable"
+    | "legend.none-plottable"
+    | "legend.no-value-in-domain"
+    | "legend.nothing-measured"
+    | "legend.unreadable"
+    | "legend.lumped"
+    | "legend.not-measured"
+    | "legend.painted-over";
+
+/**
+ * One departure of a legend block, as a code and the values it is about.
+ * @since 3.16.0
+ */
+export type LegendFact = CodedFact<LegendFactCode>;
 
 /** The words one field goes by. */
 export interface FieldWords {
@@ -588,6 +654,7 @@ function groupSwatches(prepared: PreparedBinding, domain: readonly [number, numb
     return sweepRuns(prepared, domain).map((run) => ({
         label: run.from === run.to ? formatNumber(run.from) : `${formatNumber(run.from)} - ${formatNumber(run.to)}`,
         value: run.from,
+        extent: { min: run.from, max: run.to },
         ...swatchPaint(run.painted),
     }));
 }
@@ -725,9 +792,9 @@ function domainOf(prepared: PreparedBinding, rule: Extract<Binding, { by: Path }
  * @param at - Where the block's layer sits in it.
  * @param channel - The channel the block describes.
  * @param sources - Where the cover test for a narrower selector comes from.
- * @returns The name of the layer that covers it, or null when nothing does.
+ * @returns The layer that covers it, or null when nothing does.
  */
-function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sources: LegendSources): string | null {
+function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sources: LegendSources): Layer | null {
     const mine = layers[at];
 
     for (let above = at + 1; above < layers.length; above++) {
@@ -739,7 +806,7 @@ function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sourc
         }
 
         if (layer.selector.match === "everything" || sources.covers?.(layer, mine) === true) {
-            return layer.name;
+            return layer;
         }
     }
 
@@ -752,21 +819,43 @@ function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sourc
  * @param layers - The stack, bottom first.
  * @param at - Where the block's layer sits in it.
  * @param sources - Where the cover test for a narrower selector comes from.
- * @returns The sentences, in the order a legend prints them.
+ * @returns The facts, in the order a legend reads them.
  */
-function departuresOf(
+function factsOf(
     prepared: PreparedBinding,
     layers: readonly Layer[],
     at: number,
     sources: LegendSources,
-): readonly string[] {
+): readonly LegendFact[] {
     const covering = coveredBy(layers, at, prepared.channel, sources);
 
     if (covering === null) {
-        return prepared.departures;
+        return prepared.facts;
     }
 
-    return [...prepared.departures, `painted over by "${covering}"`];
+    return [...prepared.facts, { code: "legend.painted-over", params: { layerId: covering.id, name: covering.name } }];
+}
+
+/** The English sentence the deprecated {@link LegendBlock.departures} carries for each code. */
+const SENTENCES: Readonly<Record<LegendFactCode, (text: (name: string) => string) => string>> = {
+    "legend.clamped": (text) => `clamped at p${text("from")}/p${text("to")}`,
+    "legend.not-plottable": (text) => `${text("count")} not plottable on a ${text("scale")} scale`,
+    "legend.none-plottable": (text) => `no value is plottable on a ${text("scale")} scale`,
+    "legend.no-value-in-domain": (text) => `no value has a place between ${text("min")} and ${text("max")}`,
+    "legend.nothing-measured": () => "nothing measured",
+    "legend.unreadable": (text) => `${text("count")} carry no value the scale can read`,
+    "legend.lumped": (text) => `${text("count")} lumped into "other"`,
+    "legend.not-measured": (text) => `not measured (${text("count")})`,
+    "legend.painted-over": (text) => `painted over by "${text("name")}"`,
+};
+
+/**
+ * The English sentence the deprecated {@link LegendBlock.departures} carries for one fact.
+ * @param fact - The fact.
+ * @returns The sentence.
+ */
+function departureSentence(fact: LegendFact): string {
+    return SENTENCES[fact.code]((name) => String(fact.params[name]));
 }
 
 /**
@@ -884,6 +973,7 @@ function buildBlock(
     const kind = kindOf(prepared, layer);
     const reading = readingOf(prepared, kind);
     const { range } = prepared;
+    const facts = factsOf(prepared, layers, at, sources);
 
     return {
         channel,
@@ -902,7 +992,8 @@ function buildBlock(
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
         swatches: Object.freeze(swatches),
         ...(hidden === 0 ? {} : { overflow: { hidden } }),
-        departures: Object.freeze([...departuresOf(prepared, layers, at, sources)]),
+        facts: Object.freeze([...facts]),
+        departures: Object.freeze(facts.map(departureSentence)),
     };
 }
 

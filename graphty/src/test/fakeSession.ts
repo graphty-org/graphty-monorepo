@@ -888,6 +888,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                             { label: "low", value: 0, color: "#440154" },
                             { label: "high", value: 1, color: "#FDE725" },
                         ],
+                        facts: [],
                         departures: [],
                     };
                 }),

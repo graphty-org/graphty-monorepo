@@ -16,6 +16,7 @@ function block(overrides: Partial<LegendBlock> = {}): LegendBlock {
         layerId: "layer-1",
         kind: "sequential",
         swatches: [],
+        facts: [],
         departures: [],
         ...overrides,
     };
@@ -172,8 +173,14 @@ describe("legendChannelOf", () => {
 describe("legendChannels", () => {
     it("reads the stack top first, so the layer a reader sees wins its block", () => {
         const channels = legendChannels([
-            block({ layerId: "under", field: { plainName: "Groups", technicalName: "group", path: "results.a.group" } }),
-            block({ layerId: "over", field: { plainName: "Bridges", technicalName: "betweenness", path: "results.b.value" } }),
+            block({
+                layerId: "under",
+                field: { plainName: "Groups", technicalName: "group", path: "results.a.group" },
+            }),
+            block({
+                layerId: "over",
+                field: { plainName: "Bridges", technicalName: "betweenness", path: "results.b.value" },
+            }),
         ]);
 
         expect(channels).toHaveLength(1);

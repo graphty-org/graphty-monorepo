@@ -14,6 +14,7 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         layerId: "layer-1",
         kind: "sequential",
         swatches: [],
+        facts: [],
         departures: [],
         ...over,
     };

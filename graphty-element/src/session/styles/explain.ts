@@ -142,6 +142,40 @@ export interface StyleAgreement {
     readonly channels: readonly ChannelAgreement[];
 }
 
+/**
+ * How many elements one layer covers, and on how many it decides each channel it writes.
+ *
+ * Counts only, never ids, so it stays small at any graph size.
+ * @since 3.16.0
+ */
+export interface StyleCounts {
+    /**
+     * How many elements the layer's selector selects, whether or not the layer is shown. A hidden
+     * layer still matches its elements; it decides none of them.
+     */
+    readonly matched: number;
+    /**
+     * For each channel the layer writes, on how many of the matched elements it is the layer the
+     * picture shows: the topmost layer that painted that channel there, worked out by the same walk
+     * as `explain` and `agreement`. Every channel the layer writes has a key, 0 when a layer above
+     * paints over all of it or the layer is hidden.
+     */
+    readonly painted: Readonly<Partial<Record<Channel, number>>>;
+    /** How many matched elements carry no value (absent or null) for a field the layer reads. */
+    readonly noValue: number;
+    /**
+     * How many matched elements carry a value the layer's scale has no place for, such as a zero
+     * or a negative number under a logarithmic scale, or a number outside an explicit domain the
+     * scale does not clamp.
+     */
+    readonly outsideScale: number;
+    /**
+     * Changes whenever these counts may have changed: on every `style:changed`, and on every change
+     * to the data or the run results the layers read. Equal revisions mean equal counts.
+     */
+    readonly revision: string;
+}
+
 /** The elements an agreement is read over, as dense indices. */
 export interface AgreementElements {
     /** The nodes. */
@@ -600,6 +634,83 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
 }
 
 /**
+ * Count what one layer covers and where it wins.
+ *
+ * ONE PASS over the elements of the layer's kind. Each matched element is read through the same
+ * walk {@link explainStyle} takes, so "this layer decides the colour of 77 nodes" agrees with an
+ * explanation of each of those 77.
+ * @param layerId - The layer.
+ * @param elements - Every node and edge in the session, as dense indices.
+ * @param sources - The stack, the prepared encodings and the element columns.
+ * @param revision - What the caller says the counts are a reading of.
+ * @returns The counts.
+ * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+ */
+export function styleCounts(
+    layerId: LayerId,
+    elements: AgreementElements,
+    sources: ExplainSources,
+    revision: string,
+): StyleCounts {
+    const { layer, selector } = requireLayer(layerId, sources);
+    const own = sources.encoding(layerId);
+    const painted: Partial<Record<Channel, number>> = {};
+    for (const channel of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
+        if (isChannel(channel)) {
+            painted[channel] = 0;
+        }
+    }
+
+    const stack = prepareStack(sources);
+    const columns = columnsFor(sources.elements, layer.target);
+    const winners = new Map<Channel, LayerId>();
+    let matched = 0;
+    let noValue = 0;
+    let outsideScale = 0;
+
+    for (const index of layer.target === "node" ? elements.nodes : elements.edges) {
+        if (selector.test !== null && !selector.test(index)) {
+            continue;
+        }
+
+        matched++;
+        let missing = false;
+        let outside = false;
+        for (const prepared of own) {
+            if (prepared.path === null) {
+                continue;
+            }
+
+            const value = columns.value(index, prepared.path);
+            if (value === undefined || value === null) {
+                missing = true;
+            } else if (prepared.paintIgnoringHidden(value) === undefined) {
+                outside = true;
+            }
+        }
+
+        noValue += missing ? 1 : 0;
+        outsideScale += outside ? 1 : 0;
+
+        if (!layer.enabled) {
+            continue;
+        }
+
+        winners.clear();
+        paintOne(stack, { target: layer.target, index }, columns, (winner, prepared) => {
+            winners.set(prepared.channel, winner.id);
+        });
+        for (const [channel, winner] of winners) {
+            if (winner === layerId) {
+                painted[channel] = (painted[channel] ?? 0) + 1;
+            }
+        }
+    }
+
+    return { matched, painted: Object.freeze(painted), noValue, outsideScale, revision };
+}
+
+/**
  * The layers that paint nothing because this session answers none of what they read.
  *
  * NOT A FAILURE, and that is why it is reported rather than thrown: a layer naming a run that has
@@ -727,10 +838,10 @@ function read(path: Path, target: ExplainTarget, sources: ExplainSources): unkno
  * Find one layer in the stack.
  * @param layerId - The layer.
  * @param sources - Where the stack is read.
- * @returns The layer.
+ * @returns The layer with its compiled selector.
  * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
  */
-function requireLayer(layerId: LayerId, sources: ExplainSources): Layer {
+function requireLayer(layerId: LayerId, sources: ExplainSources): CompiledLayer {
     const stack = sources.stack();
     const found = stack.find((entry) => entry.layer.id === layerId);
 
@@ -744,7 +855,7 @@ function requireLayer(layerId: LayerId, sources: ExplainSources): Layer {
         });
     }
 
-    return found.layer;
+    return found;
 }
 
 /**
@@ -771,7 +882,7 @@ export function resolveToStatic(
     sources: ExplainSources,
     at?: ExplainTarget,
 ): StaticResolution {
-    const layer = requireLayer(layerId, sources);
+    const { layer } = requireLayer(layerId, sources);
 
     if (layer.locked) {
         throw new GraphtyError({

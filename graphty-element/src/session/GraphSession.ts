@@ -2496,6 +2496,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        inputRevision: () => inputs.tick.value,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));

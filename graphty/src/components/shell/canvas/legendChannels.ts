@@ -100,8 +100,8 @@ export interface LegendNames {
 }
 
 /**
- * The legend's names out of one session: a column's plain name from `data.attributes()`, a run
- * result's from the catalogue entry of the algorithm that produced it.
+ * The legend's names out of one session: a run result's plain name from the catalogue entry the
+ * block's `field.result` names, a column's from `data.attributes()` by its path.
  * @param session - the session.
  * @returns the names.
  * @public
@@ -109,22 +109,20 @@ export interface LegendNames {
 export function legendNamesOf(session: Pick<GraphSession, "data" | "styles">): LegendNames {
     return {
         field: (block) => {
-            const path = block.field?.path;
-            if (path === undefined) {
+            const { field } = block;
+            if (field === undefined) {
                 return undefined;
             }
-            const layer = session.styles.get(block.layerId);
-            const attribute = session.data
-                .attributes()
-                .find((candidate) => candidate.path === path && candidate.kind === layer?.target);
-            if (attribute !== undefined) {
-                return attribute.plainName;
+            const { result } = field;
+            if (result !== undefined) {
+                return BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === result.algorithm)?.fields.find(
+                    (candidate) => candidate.name === result.field,
+                )?.plainName;
             }
-            const algorithm = layer?.source.by === "run" ? layer.source.algorithm : undefined;
-            const last = lastSegment(path);
-            return BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === algorithm)?.fields.find(
-                (field) => field.kind === layer?.target && lastSegment(field.path) === last,
-            )?.plainName;
+            const target = session.styles.get(block.layerId)?.target;
+            return session.data
+                .attributes()
+                .find((attribute) => attribute.path === field.path && attribute.kind === target)?.plainName;
         },
         layer: (layerId) => session.styles.get(layerId)?.name,
     };

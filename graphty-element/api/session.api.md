@@ -619,8 +619,15 @@ export interface FieldInterpretation {
 }
 
 // @public
+export interface FieldResult {
+    readonly algorithm: AlgorithmKey;
+    readonly field: string;
+}
+
+// @public
 export interface FieldWords {
     readonly plainName: string;
+    readonly result?: FieldResult;
     readonly technicalName: string;
 }
 
@@ -1463,6 +1470,7 @@ export interface LegendBlock {
         readonly plainName: string;
         readonly technicalName: string;
         readonly path: Path;
+        readonly result?: FieldResult;
     };
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
     readonly layerId: LayerId;

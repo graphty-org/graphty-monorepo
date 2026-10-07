@@ -39,7 +39,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
+import type { AlgorithmKey, Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
 import { groupName, RESULT_ROOT } from "../results/types";
 import type { CodedFact } from "../shared";
 import type { EncodedValue, PreparedBinding } from "./encoding";
@@ -174,8 +174,15 @@ export interface LegendBlock {
         readonly plainName: string;
         /** The name the literature and the data use. */
         readonly technicalName: string;
-        /** The column path itself. */
+        /** The column path itself. For a data column it is the `path` of its entry in `session.data.attributes()`. */
         readonly path: Path;
+        /**
+         * For a field a run published: the algorithm's catalog key and the field's `name` among
+         * that algorithm's `fields`, so the field is found in the catalog by id. Absent for a data
+         * column, and for a path no run in the session publishes.
+         * @since 3.16.0
+         */
+        readonly result?: FieldResult;
     };
     /** The scale the values pass through. */
     readonly scale?: {
@@ -287,12 +294,28 @@ export type LegendFactCode =
  */
 export type LegendFact = CodedFact<LegendFactCode>;
 
+/**
+ * Which run field a legend field is: the algorithm's catalog key and the field's `name`.
+ * @since 3.16.0
+ */
+export interface FieldResult {
+    /** The catalog key of the algorithm that published it, as `BUILT_IN_ALGORITHMS` spells it. */
+    readonly algorithm: AlgorithmKey;
+    /** The field's `name` in that algorithm's `fields`. */
+    readonly field: string;
+}
+
 /** The words one field goes by. */
 export interface FieldWords {
     /** The name a reader sees. */
     readonly plainName: string;
     /** The name the literature and the data use. */
     readonly technicalName: string;
+    /**
+     * Which run field it is, when a run published it.
+     * @since 3.16.0
+     */
+    readonly result?: FieldResult;
 }
 
 /**

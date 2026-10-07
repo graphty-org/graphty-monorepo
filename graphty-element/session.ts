@@ -444,6 +444,7 @@ export type {
     EncodingSpec,
     EncodingSuggestion,
     ExplainTarget,
+    FieldResult,
     FieldWords,
     HighlightSpec,
     HighlightSuggestion,

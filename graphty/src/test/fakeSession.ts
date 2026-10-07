@@ -872,6 +872,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 .map((layer): LegendBlock => {
                     const runId = layer.source.by === "run" ? layer.source.runId : undefined;
                     const algorithm = layer.source.by === "run" ? layer.source.algorithm : undefined;
+                    const fieldName = algorithm === "louvain" ? "group" : "value";
                     const words = ENCODING_FIELDS[algorithm ?? ""] ?? {
                         plainName: layer.name,
                         technicalName: layer.name,
@@ -884,7 +885,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                         kind: algorithm === "louvain" ? "categorical" : "sequential",
                         field: {
                             ...words,
-                            path: `results.${runId ?? ""}.${algorithm === "louvain" ? "group" : "value"}`,
+                            path: `results.${runId ?? ""}.${fieldName}`,
+                            ...(algorithm === undefined ? {} : { result: { algorithm, field: fieldName } }),
                         },
                         scale: { kind: "linear", label: "Even Steps" },
                         swatches: [

@@ -887,6 +887,21 @@ describe("the legend's facts are codes and values, worded by the application", (
         assert.deepInclude(block.facts, { code: "legend.not-plottable", params: { count: 1, scale: "log" } });
     });
 
+    it("names the run field a block reads by algorithm key and field name, and nothing for a data column", () => {
+        const fixture = harness([betweennessColor()]);
+        const blocks = buildLegend({
+            ...fixture.legend,
+            field: (): FieldWords => ({
+                plainName: "Bridging",
+                technicalName: "betweenness",
+                result: { algorithm: "betweenness", field: "value" },
+            }),
+        });
+
+        assert.deepEqual(blocks[0].field?.result, { algorithm: "betweenness", field: "value" });
+        assert.isUndefined(onlyBlock([betweennessColor()]).field?.result);
+    });
+
     it("names the explicit domain a scale cannot place", () => {
         const block = onlyBlock([
             betweennessColor({

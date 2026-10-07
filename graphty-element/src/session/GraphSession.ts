@@ -1561,7 +1561,11 @@ function fieldWordsOf(
         for (const run of runs.list()) {
             for (const field of run.fields) {
                 if (bindResultPath(field.path, run.id) === path && field.kind === target) {
-                    return { plainName: field.plainName, technicalName: field.technicalName };
+                    return {
+                        plainName: field.plainName,
+                        technicalName: field.technicalName,
+                        result: { algorithm: run.algorithm, field: field.name },
+                    };
                 }
             }
         }

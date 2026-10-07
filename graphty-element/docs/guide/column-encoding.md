@@ -183,7 +183,10 @@ for (const block of session.styles.legend()) {
 
 A legend block carries no sentences. Name things from these fields:
 
-- the field by `block.field.path` (the column or result path the layer reads),
+- the field by `block.field.path`: for a data column, the `path` of its entry in
+  `session.data.attributes()`; for a run's result, `block.field.result` also gives
+  `{ algorithm, field }`, the algorithm's key in `BUILT_IN_ALGORITHMS` and the field's `name` in
+  that entry's `fields`, where the catalog's `plainName` is,
 - the scale by `block.scale.kind` (its id: `"linear"`, `"log"`, `"sqrt"`, ...),
 - each row by its `value`; a row of a stepped numeric scale also has `extent: { min, max }`, a
   run's group has its `rank`, and the folded bucket has `role: "other"` and `count`,

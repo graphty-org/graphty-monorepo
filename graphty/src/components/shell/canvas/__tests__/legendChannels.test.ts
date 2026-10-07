@@ -1,9 +1,9 @@
-import type { LegendBlock } from "@graphty/graphty-element/session";
+import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
 import { defaultNodeHex } from "../../../../utils/channelControls";
 import { CANVAS_METRICS } from "../canvasLayout";
-import { legendChannelOf, legendChannels } from "../legendChannels";
+import { legendChannelOf, legendChannels, legendNamesOf } from "../legendChannels";
 
 /**
  * One legend block, as the element derives one from a prepared binding.
@@ -208,5 +208,38 @@ describe("legendChannels", () => {
 
     it("answers an empty list when nothing is encoded", () => {
         expect(legendChannels([])).toEqual([]);
+    });
+});
+
+describe("legendNamesOf", () => {
+    const session = {
+        data: { attributes: () => [{ kind: "node", name: "score", path: "data.score", plainName: "Score" }] },
+        styles: { get: () => ({ target: "node" }) },
+    } as unknown as Pick<GraphSession, "data" | "styles">;
+    const names = legendNamesOf(session);
+
+    it("names a run's field from the catalogue entry its result names", () => {
+        const named = block({
+            field: {
+                plainName: "x",
+                technicalName: "x",
+                path: "results.r1.inDegree",
+                result: { algorithm: "degree", field: "inDegree" },
+            },
+        });
+
+        expect(names.field?.(named)).toBe("Incoming connections");
+    });
+
+    it("names a data column from the session's attributes by its path", () => {
+        const named = block({ field: { plainName: "x", technicalName: "x", path: "data.score" } });
+
+        expect(names.field?.(named)).toBe("Score");
+    });
+
+    it("has no name for a field nothing in the session or the catalogue names", () => {
+        const named = block({ field: { plainName: "x", technicalName: "x", path: "data.other" } });
+
+        expect(names.field?.(named)).toBeUndefined();
     });
 });

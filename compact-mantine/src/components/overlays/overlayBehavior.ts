@@ -43,12 +43,12 @@ let warmUntil = 0;
  * @returns true when one is visible
  */
 function anotherTooltipVisible(except?: Element): boolean {
-    return Array.from(document.querySelectorAll(".cm-tooltip")).some(
+    return Array.from(document.querySelectorAll<HTMLElement>(".cm-tooltip")).some(
         (tooltip) =>
             tooltip !== except &&
-            tooltip.hasAttribute("data-cm-seen") &&
-            !tooltip.hasAttribute("data-cm-held") &&
-            !tooltip.hasAttribute("data-cm-dismissed"),
+            tooltip.dataset.cmSeen !== undefined &&
+            tooltip.dataset.cmHeld === undefined &&
+            tooltip.dataset.cmDismissed === undefined,
     );
 }
 
@@ -99,12 +99,12 @@ function mustHold(tooltip: HTMLElement): boolean {
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
     if (mustHold(tooltip)) {
-        tooltip.setAttribute("data-cm-held", "");
-        window.setTimeout(() => {
-            tooltip.removeAttribute("data-cm-held");
+        tooltip.dataset.cmHeld = "";
+        globalThis.setTimeout(() => {
+            delete tooltip.dataset.cmHeld;
         }, TOOLTIP_OPEN_DELAY);
     }
-    tooltip.setAttribute("data-cm-seen", "");
+    tooltip.dataset.cmSeen = "";
 }
 
 function menuRows(menu: Element): HTMLElement[] {

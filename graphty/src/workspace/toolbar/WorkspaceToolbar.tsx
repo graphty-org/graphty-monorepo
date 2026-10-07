@@ -54,25 +54,8 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
 });
 
 /**
- * The selection bar (tier1-design.md 2.3), directly above the toolbar while a node is selected.
- * Tier 1 holds one verb, Neighborhood.
- * @returns The bar, or nothing with no node selected
- */
-function SelectionBar(): React.JSX.Element | null {
-    const { session } = useWorkspace();
-    if (session === null || session.selection.nodes.length === 0) {
-        return null;
-    }
-    return (
-        <Toolbar aria-label="Selection" className="ws-selection-bar">
-            <CommandTool command="selection.neighborhood" icon={<GLYPHS.neighborhood size={20} />} />
-        </Toolbar>
-    );
-}
-
-/**
  * The canvas toolbar (tier1-design.md 2.3): Analyze | Layout, View, Legend | Quick actions, at the
- * canvas's bottom center, with the selection bar above it. Analyze, Layout and Quick actions open
+ * canvas's bottom center; a selection never changes it. Analyze, Layout and Quick actions open
  * popovers above it and View opens its flyout; each holds the store's one `dialog` slot, so only
  * one is open at a time and Esc or a click outside closes it. A popover's body is mounted only
  * while it is open, so each opening starts fresh (Analyze on its list, the filter empty).
@@ -118,8 +101,7 @@ export function WorkspaceToolbar(): React.JSX.Element {
     const dimension = session?.layout.dimension ?? "3d";
 
     return (
-        <div className="ws-toolbar-stack">
-            <SelectionBar />
+        <>
             <Toolbar aria-label="Canvas tools">
                 <Popover {...popoverProps("analyze")} closeOnEscape={false} width={380}>
                     <Popover.Target>
@@ -184,6 +166,6 @@ export function WorkspaceToolbar(): React.JSX.Element {
             <VisuallyHidden role="status" aria-live="polite">
                 {announcement}
             </VisuallyHidden>
-        </div>
+        </>
     );
 }

@@ -1,11 +1,3 @@
-/* The selection bar sits directly above the toolbar, centered on it. */
-.ws-toolbar-stack {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-}
-
 .ws-analyze-list {
     max-height: 420px;
     overflow-y: auto;

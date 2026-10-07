@@ -1,4 +1,4 @@
-import { ControlSection, DataRow, DataRowHeader } from "@graphty/compact-mantine";
+import { ControlSection, DataRow, DataRowHeader, PANEL_GRID, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, NodeId, SelectionAttributeStatistics } from "@graphty/graphty-element/session";
 import { Button, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -87,7 +87,7 @@ function fileAttributes(
  * @returns The tab
  */
 export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+    const { session, store, run: runCommand } = useWorkspace();
     const degree = useRef<HTMLDivElement>(null);
     const summary = useRef<HTMLDivElement>(null);
     useEffect(() => {
@@ -141,8 +141,9 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                         <DataRow
                             name="Degree"
                             value={connections}
+                            trailing={<UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />}
                             onClick={() => {
-                                void openNeighborhood(session, store, id);
+                                runCommand("selection.neighborhood");
                             }}
                         />
                     </div>
@@ -164,21 +165,6 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
             )}
         </>
     );
-}
-
-/**
- * Selects a node's neighborhood and lists it.
- * @param session - the session.
- * @param store - the workspace store.
- * @param id - the node at the center.
- */
-async function openNeighborhood(
-    session: GraphSession,
-    store: ReturnType<typeof useWorkspace>["store"],
-    id: NodeId,
-): Promise<void> {
-    await session.selection.apply({ neighborsOf: [id] });
-    store.set({ inspected: { kind: "neighborhood", id: nodeKey(id) } });
 }
 
 /**

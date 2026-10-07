@@ -1,7 +1,7 @@
 /**
  * The tier 1 tasks this package delivers, each walked from the empty app on the REAL
  * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the View
- * flyout and the selection bar. Every assertion reads what the element reports, never pixels.
+ * flyout and a node's neighborhood. Every assertion reads what the element reports, never pixels.
  *
  * Opening the sample goes through the element's own import by URL, as the Start screen package
  * will; until that package lands its sample cards are not drawn, so the walk calls the same door.
@@ -220,7 +220,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
     );
 
     it(
-        "switches to 2D with 5, and selects a node's neighbors from the selection bar",
+        "switches to 2D with 5, and opens a node's neighborhood from its Degree row, then grows it",
         async () => {
             const session = await openKarate();
 
@@ -233,11 +233,25 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
             const node = session.data.nodes()[0].id;
             await session.selection.apply({ nodes: [node] });
-            const bar = await screen.findByRole("toolbar", { name: "Selection" });
-            await userEvent.click(within(bar).getByRole("button", { name: "Neighborhood" }));
+            // A selection changes nothing about the toolbar: no bar appears above it.
+            const values = await screen.findByRole("group", { name: "Summary values" });
+            assert.isNull(screen.queryByRole("toolbar", { name: "Selection" }));
+
+            await userEvent.click(within(values).getByRole("button", { name: /Degree/ }));
+            let neighborhood = 0;
             await waitFor(() => {
-                assert.isAbove(session.selection.nodes.length, 1);
+                neighborhood = session.selection.nodes.length;
+                assert.isAbove(neighborhood, 1);
                 // The inspector shows the node's neighborhood, not a plain selection.
+                assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
+            });
+
+            // Grow by one hop, from the neighborhood's "...", walks one step further and keeps
+            // the neighborhood open.
+            await userEvent.click(screen.getByRole("button", { name: "Neighborhood actions" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: /Grow by one hop/ }));
+            await waitFor(() => {
+                assert.isAbove(session.selection.nodes.length, neighborhood);
                 assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
             });
         },

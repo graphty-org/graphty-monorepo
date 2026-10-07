@@ -105,6 +105,7 @@ describe("the canvas toolbar", () => {
             "view.toggle-dimension",
             "quick-actions.open",
             "selection.neighborhood",
+            "selection.grow-neighborhood",
         ]) {
             assert.isDefined(registry.built(id), id);
         }

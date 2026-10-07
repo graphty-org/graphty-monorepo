@@ -24,7 +24,7 @@ const STANDARD_VIEWS = [
 
 /**
  * The Toolbar package's commands (tier1-design.md 2.3): the View flyout and what it holds, the
- * legend switch, Quick actions and the selection bar's Neighborhood.
+ * legend switch, Quick actions, and Neighborhood and Grow by one hop for the selection.
  *
  * The camera moves (Fit, Frame selection, the standard views, zoom) are view state, so they go
  * through the element's camera methods and record no step; Switch to 2D or 3D is a project change
@@ -137,6 +137,24 @@ export const registration = defineRegistration({
                 if (centers.length === 1) {
                     workspace.set({ inspected: { kind: "neighborhood", id: nodeKey(centers[0]) } });
                 }
+            },
+        },
+        {
+            id: "selection.grow-neighborhood",
+            label: "Grow by one hop",
+            group: "Selection",
+            disabled: ({ session, workspace }) =>
+                noNodeSelected(session) ??
+                (workspace.get().inspected?.kind === "neighborhood" ? null : "Open a neighborhood first"),
+            run: async ({ session, workspace }) => {
+                const { inspected } = workspace.get();
+                if (session === null || inspected?.kind !== "neighborhood") {
+                    return;
+                }
+                await session.selection.apply({ neighborsOf: session.selection.nodes });
+                // The selection change closes the open row; the grown selection is still the
+                // same center's neighborhood.
+                workspace.set({ inspected });
             },
         },
     ],

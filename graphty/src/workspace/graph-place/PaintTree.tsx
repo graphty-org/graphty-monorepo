@@ -4,6 +4,7 @@ import React, { useState } from "react";
 
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
+import { staleWords } from "../inspector/words";
 import { matchesKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { moveRow, setRowHidden } from "./actions";
@@ -17,6 +18,7 @@ const OPEN_UP_TO = 12;
 const STATE_WORDS = {
     running: "Running",
     partial: "Stopped early: the values are partial",
+    stale: "Out of date",
     failed: "Failed",
     canceled: "Canceled",
 } as const;
@@ -29,6 +31,9 @@ const STATE_WORDS = {
 function stateWords(row: PaintRow): string | undefined {
     if (row.state === "ready") {
         return undefined;
+    }
+    if (row.state === "stale" && row.stale !== undefined) {
+        return staleWords(row.stale);
     }
     return row.state === "failed" ? (row.problem ?? STATE_WORDS.failed) : STATE_WORDS[row.state];
 }
@@ -51,6 +56,12 @@ function kindSlot(row: PaintRow): React.ReactNode {
             return (
                 <Tooltip label={STATE_WORDS.partial}>
                     <GLYPHS.warning size={14} />
+                </Tooltip>
+            );
+        case "stale":
+            return (
+                <Tooltip label={stateWords(row)}>
+                    <GLYPHS.outOfDate size={14} />
                 </Tooltip>
             );
         case "failed":
@@ -141,6 +152,8 @@ export function PaintTree({ rows }: PaintTreeProps): React.JSX.Element {
         return {
             id: row.id,
             name: row.name,
+            // The mark is a glyph; its words go in the accessible name (tier2-design.md section 7).
+            ...(row.state === "stale" ? { label: `${row.name}, out of date` } : {}),
             icon: kindSlot(row),
             dimmed: row.hidden,
             strong: row.kind === "selection-row" || row.kind === "everything-row" ? false : undefined,

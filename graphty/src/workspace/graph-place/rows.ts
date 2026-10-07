@@ -5,7 +5,7 @@
  */
 
 import type { Channel, LayerId, RunId } from "@graphty/graphty-element/catalog";
-import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
+import { type GraphSession, RESULT_SHAPE_CONTRACTS, type StaleReason } from "@graphty/graphty-element/session";
 
 import { runName } from "../analyze/words";
 import { colorBlockOf, EVERYTHING_KEY, groupHidden, runColorOf } from "../style/row";
@@ -14,7 +14,7 @@ import { colorBlockOf, EVERYTHING_KEY, groupHidden, runColorOf } from "../style/
 export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";
 
 /** What the kind slot shows besides the kind's icon. */
-type RowState = "ready" | "running" | "partial" | "failed" | "canceled";
+type RowState = "ready" | "running" | "partial" | "stale" | "failed" | "canceled";
 
 /** One row of the paint tree. */
 export interface PaintRow {
@@ -26,6 +26,8 @@ export interface PaintRow {
     readonly kind: RowKind;
     readonly name: string;
     readonly state: RowState;
+    /** Why an out-of-date run is out of date: `run.stale.reason`. */
+    readonly stale?: StaleReason;
     /** Why a failed run failed: graphty-element's message. */
     readonly problem?: string;
     /** The swatch: one color, or the stops of a ramp; absent when the row paints nothing yet. */
@@ -72,7 +74,8 @@ export function paintRows(session: GraphSession): PaintRow[] {
         const base = {
             id: run.id,
             name: runName(session, run),
-            state: stateOf(run.status, run.partial),
+            state: run.status === "succeeded" && run.stale !== null ? "stale" : stateOf(run.status, run.partial),
+            stale: run.stale?.reason,
             problem: run.error?.message,
             layerIds: owned.map((layer) => layer.id),
             hidden,

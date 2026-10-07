@@ -44,7 +44,7 @@ export function openSample(workspace: WorkspaceStore, sample: StartSample): void
  * Asks the browser for one file.
  * @returns the file, or undefined when the reader cancels.
  */
-function pickFile(): Promise<File | undefined> {
+export function pickFile(): Promise<File | undefined> {
     return new Promise((resolve) => {
         const input = document.createElement("input");
         input.type = "file";

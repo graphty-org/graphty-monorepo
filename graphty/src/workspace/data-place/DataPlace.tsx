@@ -5,8 +5,9 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { editSource } from "../data-page/request";
+import { canReplace, editSource, replaceSource } from "../data-page/request";
 import { GLYPHS } from "../glyphs";
+import { pickFile } from "../start/open";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
 import { FiltersSection } from "./Filters";
@@ -133,7 +134,8 @@ function attributeTree(session: GraphSession | null, needle: string): TreeNodeDa
 
 /**
  * The Data place's row menu, for Tree's rowMenu: Edit source on a source (and on its tables),
- * which opens the Data page on that load's own files and roles; on an attribute, the
+ * which opens the Data page on that load's own files and roles, and Replace with file... when
+ * the graph has one source of one table (tier2-design.md section 7); on an attribute, the
  * attribute's verbs (the same as its inspector's "..."). Other rows (the Nodes and Edges
  * subheads) have none.
  * @returns the rowMenu function.
@@ -145,14 +147,30 @@ function useRowMenu(): (node: TreeNodeData) => React.ReactNode {
         if (node.id.startsWith("source")) {
             // Row ids are `source:<load>` and `source:<load>:<table>`.
             const index = Number(node.id.split(":")[1]);
+            const sources = session?.data.sources() ?? [];
             return (
-                <Menu.Item
-                    onClick={() => {
-                        editSource(store, session?.data.sources()[index]);
-                    }}
-                >
-                    Edit source...
-                </Menu.Item>
+                <>
+                    <Menu.Item
+                        onClick={() => {
+                            editSource(store, sources[index]);
+                        }}
+                    >
+                        Edit source...
+                    </Menu.Item>
+                    {canReplace(sources) && (
+                        <Menu.Item
+                            onClick={() => {
+                                void pickFile().then((file) => {
+                                    if (file !== undefined) {
+                                        replaceSource(store, sources[0], file);
+                                    }
+                                });
+                            }}
+                        >
+                            Replace with file...
+                        </Menu.Item>
+                    )}
+                </>
             );
         }
         const actions = actionsOf(columnOf(node.id));

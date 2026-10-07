@@ -29,6 +29,7 @@ import {
     FolderOpen,
     Group,
     Hash,
+    History,
     Layers,
     Link2,
     List,
@@ -122,6 +123,8 @@ export const GLYPHS = {
     empty: CircleDashed,
     ready: CircleCheck,
     warning: TriangleAlert,
+    // A result computed on data that has changed since.
+    outOfDate: History,
     failed: CircleAlert,
     canceled: CircleSlash,
     private: Lock,

@@ -48,6 +48,34 @@ export function plural(value: number, noun: string): string {
     return `${count(value)} ${noun}${value === 1 ? "" : "s"}`;
 }
 
+/** A graph's size, as `data.statistics()` or a load report counts it. */
+interface Size {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/**
+ * What a replacing load changes (tier2-design.md section 7).
+ * @param was - the graph now.
+ * @param now - what the load would make.
+ * @returns "Was 20 nodes, 60 edges; now 22, 74".
+ */
+export function replaceWords(was: Size, now: Size): string {
+    return `Was ${plural(was.nodes, "node")}, ${plural(was.edges, "edge")}; now ${count(now.nodes)}, ${count(now.edges)}`;
+}
+
+/**
+ * The status line after a replacing load.
+ * @param name - the source that was replaced.
+ * @param now - the graph after the load.
+ * @param outOfDate - how many runs went out of date.
+ * @returns "friends.csv replaced: 22 nodes, 74 edges. 3 rows out of date".
+ */
+export function replacedWords(name: string, now: Size, outOfDate: number): string {
+    const size = `${name} replaced: ${plural(now.nodes, "node")}, ${plural(now.edges, "edge")}.`;
+    return outOfDate === 0 ? size : `${size} ${plural(outOfDate, "row")} out of date`;
+}
+
 /**
  * A file's name without its extension: what a new graph is called until the reader renames it.
  * @param name - the file name.

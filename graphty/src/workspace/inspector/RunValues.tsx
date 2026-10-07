@@ -15,7 +15,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
 import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
-import { count, formatNumber, groupName, queuedWords, rankedName, routeWords, runDate, runFailureWords } from "./words";
+import { count, formatNumber, groupName, queuedWords, rankedName, routeWords, runDate, runFailureWords, staleWords } from "./words";
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
@@ -78,6 +78,20 @@ export function RunStateBar({
                     Revert
                 </Button>
             </>
+        );
+    } else if (run.status === "succeeded" && run.stale !== null) {
+        // Nothing reruns by itself (tier2-design.md section 7): the reader starts it, here.
+        const { scopeSpec } = run.stale;
+        words = staleWords(run.stale.reason);
+        buttons = (
+            <Button
+                size="compact-xs"
+                onClick={() => {
+                    session?.runs.start(run.algorithm, run.params, { as: run.id, scope: scopeSpec });
+                }}
+            >
+                Rerun
+            </Button>
         );
     } else {
         return null;

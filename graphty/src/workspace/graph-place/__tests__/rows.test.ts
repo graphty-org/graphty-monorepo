@@ -16,6 +16,7 @@ interface RunStub {
     status: string;
     shape: string;
     partial?: boolean;
+    stale?: { reason: "data-changed" | "scope-changed" } | null;
     error?: { message: string };
     record: { summary?: { measured?: number; groups?: { group: string | number; size: number; rank?: number }[] } };
     result?: { graph: Record<string, unknown> };
@@ -50,7 +51,8 @@ function sessionOf(parts: {
     return {
         styles: { list: () => parts.layers, legend: () => parts.legend ?? [] },
         runs: {
-            list: () => parts.runs,
+            // A run is current (`stale: null`) unless the stub says otherwise.
+            list: () => parts.runs.map((run) => ({ stale: null, ...run })),
             bindings: (id: string) =>
                 parts.layers.filter((l) => l.source.by === "run" && l.source.runId === id).map((l) => l.id),
         },
@@ -258,6 +260,22 @@ describe("paintRows", () => {
         assert.equal(findRow(rows, "a")?.problem, "No edges");
         assert.equal(findRow(rows, "b")?.state, "partial");
         assert.equal(findRow(rows, "c")?.state, "canceled");
+    });
+
+    it("marks a finished run the element calls out of date, with its reason", () => {
+        const stale = { reason: "data-changed" as const };
+        const rows = paintRows(
+            sessionOf({
+                layers: BASE,
+                runs: [
+                    { id: "a", label: "A", status: "succeeded", shape: "node-metric", stale, record: {} },
+                    { id: "b", label: "B", status: "succeeded", shape: "node-metric", record: {} },
+                ],
+            }),
+        );
+        assert.equal(findRow(rows, "a")?.state, "stale");
+        assert.equal(findRow(rows, "a")?.stale, "data-changed");
+        assert.equal(findRow(rows, "b")?.state, "ready");
     });
 });
 

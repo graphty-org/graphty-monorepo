@@ -176,12 +176,12 @@ describe("the Data place on the real element", () => {
             assert.deepEqual(store.get().inspected, { kind: "attribute", id: "data.born" });
 
             const menu = await menuOf(within(tree("Sources")).getByRole("treeitem", { name: "les-miserables.gml" }));
-            // Rename waits for the element (#894).
+            // Rename waits for the element (#894). One load of one file can be replaced.
             assert.deepEqual(
                 within(menu)
                     .getAllByRole("menuitem")
                     .map((item) => item.textContent),
-                ["Edit source..."],
+                ["Edit source...", "Replace with file..."],
             );
             await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit source..." }));
             assert.equal(store.get().page, "data-page");

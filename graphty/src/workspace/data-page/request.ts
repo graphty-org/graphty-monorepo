@@ -16,9 +16,10 @@ export interface DataPageRequest {
      * `"new"` opens the data as a new graph ("Open as a new graph") and Cancel returns to the start
      * screen; `"add"` adds it to the open project ("Add to <project>") and Cancel returns to the
      * panels. Inside a project the page never opens a new graph (section 2.10), so `"new"` with a
-     * project open is read as `"add"`.
+     * project open is read as `"add"`. `"replace"` loads the file in place of the graph's one
+     * source ("Replace: <file>", tier2-design.md section 7): runs, styles and notes stay.
      */
-    readonly intent: "new" | "add";
+    readonly intent: "new" | "add" | "replace";
     /** Files the reader already chose or dropped: one, or a node table and an edge table. */
     readonly files?: readonly File[];
     /** The roles and the rest the reader chose last time, when the page reopens a load (Edit source...). */
@@ -64,6 +65,28 @@ export function editSource(store: WorkspaceStore, loaded: LoadedSource | undefin
     openDataPage(store, { intent: "add", ...input });
 }
 
+/**
+ * Whether Replace with file... is offered: only on a graph made by one load of one table, since
+ * replacing one source among several needs per-source rows the element does not track.
+ * @param sources - `data.sources()`.
+ * @returns true when the graph's one source can be replaced.
+ */
+export function canReplace(sources: readonly LoadedSource[]): boolean {
+    return sources.length === 1 && sources[0].tables.length <= 1;
+}
+
+/**
+ * Opens the Data page to replace the graph's one source with a file the reader already chose,
+ * with the roles that source loaded with when this page loaded it.
+ * @param store - the workspace store.
+ * @param loaded - the source being replaced, `data.sources()[0]`.
+ * @param file - the new file.
+ */
+export function replaceSource(store: WorkspaceStore, loaded: LoadedSource, file: File): void {
+    const choices = inputs.get(loaded)?.choices;
+    openDataPage(store, { intent: "replace", files: [file], ...(choices === undefined ? {} : { choices }) });
+}
+
 /** One request per store, read once by the page that opens on it. */
 const requests = new WeakMap<WorkspaceStore, DataPageRequest>();
 
@@ -75,7 +98,8 @@ const requests = new WeakMap<WorkspaceStore, DataPageRequest>();
  * @param request - what the door hands over.
  */
 export function openDataPage(store: WorkspaceStore, request: DataPageRequest): void {
-    requests.set(store, store.get().project === null ? request : { ...request, intent: "add" });
+    const intent = store.get().project === null || request.intent === "replace" ? request.intent : "add";
+    requests.set(store, { ...request, intent });
     store.set((state) => ({
         project: state.project ?? { name: "Untitled", id: newProjectId(state) },
         page: "data-page",

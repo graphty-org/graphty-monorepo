@@ -8,7 +8,7 @@ import {
     SegmentedControl,
     StyleSelect,
 } from "@graphty/compact-mantine";
-import type { DraftRow, DraftTable, LoadDraft, LoadReport } from "@graphty/graphty-element/session";
+import type { DraftRow, DraftTable, LoadDraft, LoadReport, TableMapping } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Alert,
@@ -56,6 +56,8 @@ import {
     READABLE_FORMATS,
     type Refusal,
     refusalFor,
+    replacedWords,
+    replaceWords,
     roleWords,
     SEPARATORS,
     tooLargeRefusal,
@@ -126,10 +128,31 @@ export function DataPage(): React.JSX.Element {
         }
     }, []);
 
-    const title = request.intent === "add" ? `Add to ${projectName}` : "Open as a new graph";
+    const replacing = request.intent === "replace";
+    // What the graph held before a replacing load, for its before-and-after line and status line.
+    const [was] = useState(() => {
+        if (session === null || !replacing) {
+            return null;
+        }
+        const { nodeCount, edgeCount } = session.data.statistics();
+        return {
+            nodes: nodeCount,
+            edges: edgeCount,
+            name: session.data.sources()[0]?.name ?? "The data",
+            meaning: session.data.loadedWeight()?.meaning ?? null,
+        };
+    });
+    useCarriedMeaning(page, was?.meaning ?? null);
+
+    const titles = {
+        new: "Open as a new graph",
+        add: `Add to ${projectName}`,
+        replace: `Replace: ${page.source === null ? "" : sourceName(page.source)}`,
+    };
+    const title = titles[request.intent];
 
     const cancel = useCallback((): void => {
-        store.set(request.intent === "add" ? { page: "panels" } : { project: null, page: "panels" });
+        store.set(request.intent === "new" ? { project: null, page: "panels" } : { page: "panels" });
     }, [store, request]);
 
     // Esc returns to where the reader came from, wherever focus is on the page, unless a menu,
@@ -156,6 +179,14 @@ export function DataPage(): React.JSX.Element {
         }
         if (session !== null && source?.kind === "files") {
             rememberLoad(session, { files: source.files, choices: page.choices });
+        }
+        if (session !== null && was !== null) {
+            // Nothing reruns by itself: the status line says how many runs now need it.
+            const { nodeCount, edgeCount } = session.data.statistics();
+            const outOfDate = session.runs.list().filter((run) => run.status === "succeeded" && run.stale !== null);
+            store.set({
+                announcement: replacedWords(was.name, { nodes: nodeCount, edges: edgeCount }, outOfDate.length),
+            });
         }
         // A loaded new graph is named after its file; inside a project nothing is renamed.
         store.set((state) => ({
@@ -233,6 +264,11 @@ export function DataPage(): React.JSX.Element {
                     <Title order={1} size="h4">
                         {title}
                     </Title>
+                    {was === null || page.report === null ? null : (
+                        <Text size="sm" data-testid="replace-report">
+                            {replaceWords(was, page.report.counts)}
+                        </Text>
+                    )}
                 </header>
                 <div className="dp-body">
                     <TablesList
@@ -262,6 +298,30 @@ export function DataPage(): React.JSX.Element {
         </PopoutManager>
     );
 }
+
+/**
+ * Carries the replaced load's weight meaning onto the new file's weight column, once per draft,
+ * when the reader's carried choices do not already say it (tier2-design.md section 7).
+ * @param page - the page state.
+ * @param meaning - what the graph's weight meant before the replace, or null.
+ */
+function useCarriedMeaning(page: LoadDraftState, meaning: LoadedMeaning): void {
+    const done = useRef<LoadDraft | null>(null);
+    const { draft, choices, setChoices } = page;
+    useEffect(() => {
+        if (meaning === null || draft === null || done.current === draft) {
+            return;
+        }
+        done.current = draft;
+        const table = draft.tables.find((each) => weightHolder(draft, each, choices) !== undefined);
+        if (table !== undefined && choices.tables[table.id]?.weightMeaning === undefined) {
+            setChoices(setWeightMeaning(table, meaning, choices));
+        }
+    }, [meaning, draft, choices, setChoices]);
+}
+
+/** A loaded weight's meaning, or null. */
+type LoadedMeaning = NonNullable<TableMapping["weightMeaning"]> | null;
 
 /** Props shared by the page's parts. */
 interface PartProps {

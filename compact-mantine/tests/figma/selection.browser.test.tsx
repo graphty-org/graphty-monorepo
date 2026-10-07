@@ -400,7 +400,10 @@ describe.skipIf(!available)("SegmentedControl, panel (5.2)", () => {
         );
         const [first, second] = container.querySelectorAll<HTMLElement>(".cm-sc-label");
         expectMeasured(first, figmaSpec(face, ["width", "height", "backgroundColor", "borderRadius", "boxShadow"]));
-        expectMeasured(second, { color: inkOff.style.fill, backgroundColor: "#00000000", boxShadow: "none" });
+        // Figma's unchecked ink is 50% black; a label can be a word, so it takes the secondary
+        // text color, raised to reach 4.5:1 on the track
+        expect(inkOff.style.fill).toBe("rgba(0, 0, 0, 0.5)");
+        expectMeasured(second, { color: "#0000008c", backgroundColor: "#00000000", boxShadow: "none" });
     });
 
     it("184 wide with four options shares 46 each", async () => {

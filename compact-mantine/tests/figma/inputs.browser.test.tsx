@@ -989,7 +989,7 @@ describe.skipIf(!available)("6.3 combo input", () => {
         const { container } = await renderFigma(
             <ComboInput label="Width" defaultValue="Hug" suffix="Hug" divided options={[{ value: "Hug" }]} />,
         );
-        expectMeasured(part(container, ".cm-combo-suffix"), { color: "#00000080", fontSize: "11px" });
+        expectMeasured(part(container, ".cm-combo-suffix"), { color: "#0000008c", fontSize: "11px" });
         expectMeasured(part(container, ".cm-combo-chevron"), {
             width: 25,
             borderLeftWidth: "1px",

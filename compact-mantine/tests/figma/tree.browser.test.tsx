@@ -610,7 +610,7 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
             { x: 16, fontSize: "11px", lineHeight: "32px", fontWeight: "450", color: "#000000e5" },
             { origin: rows[0] },
         );
-        expectMeasured(part(rows[0], ".cm-data-row-value"), { color: "#00000080" });
+        expectMeasured(part(rows[0], ".cm-data-row-value"), { color: "#0000008c" });
     });
 
     it("pill: rest none, hover #f5f5f5, selected #e5f4ff, inset 4 8 4 12, radius 5", async () => {
@@ -656,7 +656,7 @@ describe.skipIf(!(await figmaAvailable()))("DataRow, DataRowHeader and RankChip"
             fontSize: "11px",
             lineHeight: "16px",
             fontWeight: "550",
-            color: "#00000080",
+            color: "#0000008c",
         });
         expectMeasured(screen.getByTestId("data-row-header-label"), { color: "#000000e5" });
         const caret = part(screen.getByTestId("data-row-header-sort-glyph"), "svg path").getBoundingClientRect();

@@ -848,7 +848,7 @@ describe.skipIf(!available)("8.4 light popover", () => {
             const bubble = await waitFor(() => document.querySelector<HTMLElement>('[role="dialog"]'));
             expectMeasured(bubble, { width: 240, borderRadius: "13px", borderTopWidth: "0px" });
             expectMeasured(part(bubble, ".cm-info-bubble"), {
-                color: scheme === "light" ? "#00000080" : "#ffffffb2",
+                color: scheme === "light" ? "#0000008c" : "#ffffffb2",
                 fontSize: "11px",
                 lineHeight: "16px",
                 fontWeight: "450",

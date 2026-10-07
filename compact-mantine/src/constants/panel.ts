@@ -92,7 +92,7 @@ export const PANEL_GRID = {
 export const PANEL_INK = {
     /** primary text: a field's value, a row's name (#000000e5 / #fff) */
     VALUE: "var(--cm-text)",
-    /** secondary text: glyph labels, unit suffixes, legends (#00000080 / #ffffffb2) */
+    /** secondary text: glyph labels, unit suffixes, legends (#0000008c / #ffffffb2) */
     CHROME: "var(--cm-text-secondary)",
     /** reading prose (secondary text) */
     PROSE: "var(--cm-text-secondary)",

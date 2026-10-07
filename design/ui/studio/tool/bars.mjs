@@ -5,8 +5,10 @@
 //   bar 9: the app's own words on screen at rest (Les Miserables loaded, nothing selected,
 //          1440 x 900), data values, node names, numbers and the drawing left out
 //
-//   node bars.mjs <out dir> [--dist <build dir>]
+//   node bars.mjs <out dir> [--dist <build dir>] [--scheme dark|light]
 //
+// --scheme picks the app's color scheme (the reader's saved choice); dark, the app's default,
+// when left out.
 // Writes <out dir>/bars.json (every violation with its nodes, every counted word) and prints a
 // summary; exit 1 when either bar fails. Runs its own browser inside a shared browser slot. Pass a
 // copy of graphty/dist with --dist to measure a build that a rebuild must not replace mid-run.
@@ -34,6 +36,12 @@ const di = args.indexOf("--dist");
 const dist = resolve(di > 0 ? args[di + 1] : join(repo, "graphty/dist"));
 if (!out || !existsSync(join(dist, "index.html"))) {
     console.error("usage: bars.mjs <out dir> [--dist <build dir>]  (the build dir holds index.html)");
+    process.exit(2);
+}
+const si = args.indexOf("--scheme");
+const scheme = si > 0 ? args[si + 1] : "dark";
+if (scheme !== "dark" && scheme !== "light") {
+    console.error("--scheme takes dark or light");
     process.exit(2);
 }
 const TAGS = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
@@ -69,6 +77,8 @@ const browser = await chromium.launch();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fresh = async () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+    // Mantine's color scheme manager reads the reader's saved choice from this key
+    await context.addInitScript((s) => localStorage.setItem("mantine-color-scheme-value", s), scheme);
     const page = await context.newPage();
     await page.goto(origin + "/?next", { waitUntil: "networkidle" });
     await page.waitForSelector("main, [role=main]");
@@ -223,10 +233,10 @@ const missed = log.filter((l) => l.startsWith("MISS"));
 await mkdir(out, { recursive: true });
 await writeFile(
     join(out, "bars.json"),
-    JSON.stringify({ build, measured: new Date().toISOString(), tags: TAGS, screens, wordsAtRest: rest }, null, 1) +
+    JSON.stringify({ build, scheme, measured: new Date().toISOString(), tags: TAGS, screens, wordsAtRest: rest }, null, 1) +
         "\n",
 );
-console.log(`build ${build}`);
+console.log(`build ${build}, ${scheme} scheme`);
 console.log(log.join("\n"));
 console.log("\nbar 8 (axe), per screen: serious or critical / all violations");
 for (const [name, vs] of Object.entries(screens))

@@ -120,6 +120,13 @@ const atRest = (page) =>
         for (let t = walk.nextNode(); t; t = walk.nextNode()) {
             const p = t.parentElement;
             if (!p || p.closest("script, style, graphty-element, [role=tooltip]") || !p.checkVisibility()) continue;
+            // text a screen reader hears but nobody sees (a visually hidden status line) is not on screen
+            let clipped = false;
+            for (let a = p; a && !clipped; a = a.parentElement) {
+                const ar = a.getBoundingClientRect();
+                clipped = getComputedStyle(a).overflow !== "visible" && (ar.width <= 1 || ar.height <= 1);
+            }
+            if (clipped) continue;
             const r = document.createRange();
             r.selectNodeContents(t);
             const b = r.getBoundingClientRect();

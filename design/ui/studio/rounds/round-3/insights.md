@@ -1,0 +1,170 @@
+# Round 3 insights: the tier 1 study on the real graphty app
+
+Written 2026-10-07 from `scores.md` after two independent skeptics tried to refute every bar,
+comparison and confirmed problem against the grades, transcripts, scripted reproductions
+(`repro/<session>/`), exported pictures and the study tool's code. Rules applied:
+
+- An item both skeptics drop is dropped. An item one skeptic drops is weakened.
+- Where both weaken, the item takes the lower severity they agree on.
+- Where one skeptic weakens and the other keeps, the weakening stands unless the keeping skeptic
+  gives evidence that answers the weakening reason. Where it does, the item keeps its rating and
+  the reason is written beside it.
+
+**Read every item with these caveats.**
+
+- All participants are one model playing different personas. "Seen in N sessions" counts one
+  shared guess N times; a finding is solid when it has a scripted reproduction or a cause in code.
+  A failure is strong evidence, a pass is weak.
+- Ease ratings are that model's own, uncalibrated. Grader-judged measures (SD share, wrong turns,
+  pauses) can drift between rounds, and the study tool changed between rounds 2 and 3 (`real.mjs`
+  now reports the highlighted option, has a `--read` mode and no longer counts a label and its
+  control as an ambiguous match). Round-to-round changes in those measures are partly the
+  measuring, not the app.
+- Screen-reader speech was never tested. The screen-reader persona is graded from what the tool
+  prints. Its `--read` mode prints whole regions, more than a real screen reader offers, and its
+  `watchLive` marks any live region first seen with text as "unconfirmed" by its own rule. A
+  finding that rests on either is the tool's guess.
+- The graders were told in advance to watch for a 3D size misreading on the running club, naming
+  Ava and Farah (`plan.md` line 246, `notes/redteam.md`). That primes every grade on bar 3.
+
+## The bars after the skeptic check
+
+| # | Bar | Scores said | After | Why |
+|---|---|---|---|---|
+| 1 | Each task's success rate; each half >= 75% | Holds | **Holds, weak** | Every task meets its bar; with r3-s01 regraded (bar 6) tier 1 is 53 of 53 valid. Passes by one model are weak evidence. |
+| 2 | First-time personas >= 80% | Holds, 35 of 35 | **Holds, weak** | A ceiling result from simulated personas. |
+| 3 | No confirmed severity-4 problem | Fails | **Holds** | Both skeptics: the 3D size misdrawing is real but severity 3 (problem 1 below). One valid participant (r3-s08) named the wrong person, outside the graded question, which she answered right; the two values differ by 2.8% (0.06608 against 0.06423, about 3.0 against 2.83 on "Size 1 to 3"), a gap no reader can rank by eye in any rendering; every participant asked who matters most (T7) read the Values list and named Farah first; graders were primed. The exported picture does not name anyone; its key gives a range, not a ranking. r3-s06's Fantine and Marius differ by 2% and drop out as support. |
+| 4 | No silent commit on a success path | Holds | **Holds** | Unchallenged. |
+| 5 | No count or key sentence that disagrees with the drawing | Fails | **Holds** | One skeptic drops it, the other finds the failure not shown; both agree. Every grader who checked wrote "Counts that disagree with the drawing: none" (r3-s03, s04, s05, s07, s08). "Chloe" is drawn and readable in front of Farah's dot, so "0 hidden" is true. "77 labels" follows "Show all labels", which switches off overlap hiding on request. The collisions stay as problem 7 at severity 2. |
+| 6 | No confirmed false "done" | Fails (r3-s01, build-decided) | **Holds** | Both skeptics drop the F. The "Whole graph" picture is drawn from another angle (problem 9) but carries every node, every size, every name and the full key; nothing in it misleads. "Same arrangement as the final screen" is a checklist line a screen-reader user could not check, and the grader wrote that no listed code names it. r3-s01 regrades SD (she asked a sighted person whether the key was in the picture). |
+| 7 | Keyboard: the screen-reader persona on every task; the keyboard-only persona on T10, T12, T15 | Fails | **Fails on missing data only** | Screen reader 7 of 7 after the regrade, with T6 credited to the tool's `--read` mode rather than the app. Keyboard only 2 of 2 measured; its T15 (r3-s10) is void, so the bar cannot be shown to hold. |
+| 8 | Automated accessibility check | Fails | **Fails** | Both skeptics recompute `#8c8c8c` on `#2c2c2c` at 4.15:1 on 9 px non-disabled text (start lines, Recent projects). |
+| 9 | App words at rest <= 50 | Holds, 41 | **Holds** | Unchallenged. |
+
+## Verified insights, most important first
+
+1. **The round's two headline failures came from reading the study's rules literally, not from
+   what a reader would conclude.** A picture checklist line made a truthful, complete export a
+   false "done", and one participant's remark on a near tie became a severity 4. With both
+   corrected, the only bars still failing are contrast (bar 8, a measured defect) and an
+   unmeasured keyboard-only session (bar 7). This is a lesson for the final report: a severity 4
+   must show a wrong conclusion a reader would act on, and the grade must rest on what the
+   participant could perceive.
+2. **Bound size is drawn wrong in 3D, and nothing in the app keeps a reader from comparing sizes
+   in perspective.** In `repro/r3-s09/run/downloads/friends_current-view.png` Ava's dot is about
+   140 px across and Farah's about 120 px, the reverse of their values. Smaller name type on
+   Farah, Eli and Dev fits nodes farther from the camera, but no one ran a 2D or orthographic
+   comparison, so perspective is the likely cause, not a traced one. Known since the pilots; it
+   matters now because size carries a result.
+3. **Names on every dot is now a quick task.** The "Show all labels" switch beside the hidden
+   count: every name reached 8 of 8, path steps 3.5x to 1.5x, measured on the route it changed.
+   This is the round's cleanest credit. The remaining wrong turn (the graph's own Style tab) is
+   untouched by it.
+4. **Keyboard focus is the round's real accessibility regression.** Taking focus away from the
+   drawing on load fixed one problem and made another: after a sample opens by keyboard, or after
+   "No thanks" on the usage card, the button that held focus unmounts and focus falls to the page
+   (`focus: nothing (the page itself)` in the r3-s14, s18, s39 logs). Escape from the shortcuts
+   dialog does the same (r3-s39). Every focus change needs a "where does focus go instead" check.
+5. **The exported picture is still where quality drops.** Names (and at 4x the whole drawing) are
+   soft while the key is sharp; the key covers the Pazzi node from the first run; a "Whole graph"
+   export turns the drawing; a selection made before export is drawn into it. Each is a separate
+   graphty-element defect, and three are reproduced by script.
+6. **Grouping layouts work once groups exist, but nothing leads there.** Both participants who ran
+   a community analysis got Rings by group and Columns by group with groups preselected; 3 of 5
+   met the grayed items with no pointer to a community run. T11 still passed 5 of 5, at the
+   lowest ease of any task (4.00) and 3.5x the path. Only 2 sessions support the working route.
+7. **Spectral does what spectral does.** On Les Miserables the eigenvectors concentrate on two
+   peripheral chains, so the fit frames every node while the rest clumps (`repro/r3-s31/run/06.png`,
+   clump at the top); eigenvector sign ambiguity explains the mirroring on each apply. The defect
+   is the description promising that "densely connected groups land near each other", not the
+   layout package.
+8. **The other credited changes hold, narrowly.** Size "+" opens its list (credited for the list
+   only; finding Size behind "+" is unchanged). The menu dialog keeps focus (r3-s01 exported by
+   keyboard; r3-s47 saved and reopened). Load and run are announced (live-region text in the
+   logs). "No silent commit in 56 sessions" and "every exported picture carried a key" stand.
+9. **What does not count as improvement.** Mean ease 4.98 to 5.28, SD share 35 to 11 of 52, wrong
+   turns median 1 to 0 and run-name pauses 17 to 0 are all weakened: uncalibrated ratings or
+   grader measures taken with a changed tool. Report them as the pattern, never as "above target"
+   or "credited". Zero pauses may mean the participant stopped saying them aloud.
+
+## Confirmed problems after the skeptic check, most severe first
+
+Severity 0-4 (Nielsen). "Weakened" keeps the problem but lowers or narrows it.
+
+| # | Sev | Problem | Verdict | Evidence | Where the fix belongs |
+|---|---|---|---|---|---|
+| 1 | 3 | Size bound to a result is drawn larger for a nearer node in the default 3D view; a near tie reverses (Ava drawn about 140 px, Farah about 120 px) | Weakened from 4 (both); cause inferred, not traced; graders primed | `repro/r3-s09/run/downloads/friends_current-view.png`; r3-s08 | to trace first (2D or orthographic comparison): graphty-element (camera or size rendering) |
+| 2 | 3 | Focus falls to the page after a sample opens by keyboard and after "No thanks" on the usage card; the activated button unmounts | Kept (both); 2 is defensible, since the next Tab restarts at the top and every keyboard participant succeeded | reproduced r3-s14, s18, s20, s22, s26, s39 | app |
+| 3 | 3 | Escape from the keyboard shortcuts dialog opened from the drawing leaves focus on the page | Kept (both) | r3-s39 reproduced | app or compact-mantine |
+| 4 | 3 | Names in the exported picture are soft while the key is sharp; at "For print, 4x" the whole drawing is soft, as an upscale of the screen | Kept (both); the 4x clause rests on one file (r3-s05, 3612 x 3440), not reproduced at 4x, but matches round 2's code finding that 4x scales the canvas instead of re-rendering | `repro/r3-s02`, `s06`, `s09` downloads; r3-s05 file | graphty-element (render at the target size) |
+| 5 | 3 | The key box covers a node from the first run (Pazzi, completely; half of Blacheville's name) and the camera does not refit | Kept (both); one event per dataset | r3-s27 repro: hit test at (531,84) is node "Pazzi" before the run, a `div` after | graphty-element (legend placement or fit inset; new element API, owner decision) |
+| 6 | 2 | Rings by group and Columns by group are grayed with "Needs a node attribute to group by" and nothing points to a community run | Weakened from 3 (one skeptic: T11 passed 5 of 5; a missed shortcut, not a blocker) | r3-s31-s35 | app (words) |
+| 7 | 2 | Names collide where dots sit close or are enlarged (Valjean's on his dot's top edge; Chloe over Farah's dot) | Weakened from 3 (both); "the label offset ignores dot size" not shown (Myriel's offset about 34 px, Valjean's about 50 px); count is true; does not happen in the 4x export | `repro/r3-s06`, `repro/r3-s09` | graphty-element (label placement) |
+| 8 | 2 | Spectral on Les Miserables frames two pendant chains and clumps the rest; mirrored on each apply; its description promises groups land together | Weakened from 3 (both); the algorithm working as designed. The repro's "bottom of the canvas" is wrong: the clump is at the top | `repro/r3-s31/run/06.png`, `repro/r3-s32/run/08.png` | app (description words, or whether to offer it here) |
+| 9 | 2 | Export View "Whole graph" draws the 3D drawing from another angle, bottom quarter empty; "Current view" matches the screen | Weakened from 3 (both); the picture is complete and truthful | `repro/r3-s01/run/downloads/` (both files) | graphty-element (export camera) |
+| 10 | 2 | A node selected before export keeps its selection ring in the picture; the dialog has no choice to leave it out | Weakened from 3: only r3-s02 reaches an export; r3-s24 and s27 are the on-screen highlight. Showing the selection may be intended | `repro/r3-s02` | graphty-element (export without selection state) and app (the choice) |
+| 11 | 2 | Size has no line of its own; it sits behind "+" beside Shape | Kept; 16 of 17 is one model's shared guess | r3-s02-s09, s23-s30 | app |
+| 12 | 2 | The graph's own Style tab is opened first; nothing points to "Everything", where Label lives | Kept; same caveat | r3-s11-s18 | app |
+| 13 | 2 | A run or group row opens on Style; the ranked list and members are on Values | Kept; same caveat | 9 sessions | app |
+| 14 | 2 | The label attribute list shows no sample value | Kept; same caveat | 9 sessions | app |
+| 15 | 2 | The hidden-name count and "Show all labels" are small gray text | Kept; same caveat | 6 sessions | app |
+| 16 | 2 | Overview direction row overflows ("Undirected, from the file: directed 0" past the edge); "Edges per ..." truncated | Kept (both) | `repro/r3-s32/run/04.png`; reproduced s37, s38, s54 | app |
+| 17 | 2 | Layout refusals in element English ("G is not planar", `results.louvain.group`), "with 'dim: 2'", "Louvain" called "Communities" | Kept (both) | text on screen | app (words from the element's codes) |
+| 18 | 2 | Export Data opens on Graphty JSON, CSV on Edges; a nine-bullet warning in program terms | Kept (both) | r3-s48, s49, s56 | app (words, defaults) |
+| 19 | 2 | The Export dialog never says the key is in the picture; the preview is too small to check | Kept (both) | 8 sessions | app (words) |
+| 20 | 2 | "Saved in this browser": the warning that the browser can clear it shows only later on the start page | Kept (both) | r3-s45, s46, s47 | app (words) |
+| 21 | 2 | "Save local copy..." downloads with no message, no live text, no place named | Kept (both) | r3-s47 log | app |
+| 22 | 2 | No headings once a graph is open | Kept (both); from the accessibility tree, not speech | r3-s18 `--read` lists one h2 on the start page | app |
+| 23 | 2 | The Values distribution chart reads as twenty unnamed rows | Kept (both); tree-based | r3-s26 repro | app |
+| 24 | 2 | Choosing an outline row, binding a size and picking a Find result produce no live text | Kept: one skeptic weakened it as inferred, but the repro logs show no live-region text at all, so nothing could be spoken; speech itself not tested | r3-s01, s14, s20, s26 reproduced | app |
+| 25 | 2 | A refusal is placed in two separate, non-nested assertive alert regions | Kept: one skeptic weakened it as tool output; the two regions are visible in the DOM in two runs, and any screen reader speaks both | r3-s52 reproduced twice | app |
+| 26 | 2 | Disabled Redo has no focus ring when it takes focus (WCAG 2.4.7) | Narrowed: a disabled control in the Tab order can be deliberate (`aria-disabled`); the missing ring is the defect | r3-s18, s22 reproduced | app or compact-mantine |
+| 27 | 2 | Quick actions: no "No results" for a search with no match; "Add label line" disabled with no reason | Kept (both) | r3-s14 repro | app |
+| 28 | 2 | A typed layout value is not taken until Enter; "Applied" stays grayed while -4 sits in the field | Narrowed: whether leaving the field commits it was never tested | r3-s35 repro | app |
+| 29 | 2 | Betweenness "Sample size" and normalization unexplained | Kept (both) | 4 sessions | app (words) |
+| 30 | 2 | Small low-contrast helper text | Kept (both); bar 8's measurement | preflight axe | compact-mantine (dark ramp) |
+| 31 | 2 | Clicking a group row opens its color, not its members | Kept (both) | r3-s50, s51 | app |
+| 32 | 2 | Analyze opens on rankings; grouping methods are found only by typing | Kept (both) | r3-s50, s51 | app |
+| 33 | 1 | Hovering a dot shows nothing; no names by default | Weakened from 2: no hover tooltip is confirmed (r3-s27 repro, `tooltip: null`); the rest is a default-design preference | 13 sessions | app (default choices) |
+| 34 | 1 | The orange-to-brown ramp after a run barely separates nodes | Weakened from 2: mostly opinion; the values themselves are close | 12 sessions | app (the run's suggested style) |
+| 35 | 1 | "Components 1" unexplained; "Degree N" does not say it counts connections | Weakened from 2: wording opinion | 11 sessions | app (words) |
+| 36 | 1 | Toolbar View reads "3D" after a 2D layout | Weakened from 2: the chip truthfully reports the camera mode; two controls sharing the words is the problem | r3-s35 reproduced | app (words) |
+| 37 | 1 | Undo after a layout does not refit the view | Weakened from 2: a defensible camera policy | r3-s32, s33 reproduced | graphty-element (fit), if changed |
+| 38 | 1 | The Data > Sources file row takes focus but a click or Enter opens nothing, while its child rows open a table | Weakened from 2: inert, not broken; the inconsistency is the defect | r3-s53 repro | app |
+| 39 | 1 | Find box named "Find" beside the placeholder "Find nodes, edges, values" | Weakened: the WCAG 2.5.3 claim is dropped (a placeholder is not a label, and the name is its first word, so speech input works); wording at most | r3-s19, s21, s56 | app (words) |
+| 40 | 1 | A who-knows-whom list loads as directed with no word on it | Kept: a defensible default; the missing word is the issue | r3-s53, s55, s56 | app (words) |
+| 41 | 1 | All other severity 1 rows in `scores.md` (raw scores on the key; Analyze list as method names; three PageRank sizes; tiny stacked names with every name on; "Selection 18"; three save items; reopened run row loses its count; hairline edges; gravity shown as -1.2000000476837158, reproduced) | Kept as listed | see `scores.md` | as listed there |
+
+## Not shown
+
+- **Live regions that already hold their text "likely never spoken"** (scored severity 2). Both
+  skeptics: `watchLive` in `real.mjs` decides "unconfirmed" by its own rule; real behavior varies
+  and was never tested.
+- **The cause of problem 1** (perspective). Plausible, not traced.
+- **That the 4x preset fails to sharpen**, by script at 4x. One file shows it; round 2's code
+  reading explains it.
+
+## Dropped
+
+- **Bar 6's false "done" and r3-s01's F.** Both skeptics. The session is SD.
+- **Bar 5's count defect.** Both skeptics found it not shown; the graders had ruled it out.
+- **r3-s06 as support for the size misreading.** Both skeptics: a 2% difference eyeballed.
+- **"Above target for the first time" and "credited" for the run-name pauses** as statements of
+  improvement. Kept only as the pattern.
+- **WCAG 2.5.3 on the Find box.** The wording remains at severity 1.
+
+## What the final report should carry from this round
+
+- **A severity 4 needs a wrong conclusion a reader would act on, from what the participant could
+  perceive**, not a grader checklist line or a remark outside the graded question.
+- **Do not prime graders with the outcome to look for.** Name the risk to the scorer, not to the
+  grader, or record the priming beside the finding.
+- **Trace problem 1 before fixing it**: one 2D or orthographic export of the running club settles
+  whether perspective is the cause.
+- **Fix focus after a load and after the usage card first** among keyboard problems; it is the one
+  regression this round's changes caused.
+- **The remaining questions are beyond simulated participants**: whether size in 3D misleads real
+  readers, what a real screen reader speaks, and the keyboard-only whole first session. Real users
+  next (graphty.app with opt-in usage data, 5 to 8 analysts, a real screen-reader user).
+
+See `scores.md` for the per-task table and every problem's sessions.

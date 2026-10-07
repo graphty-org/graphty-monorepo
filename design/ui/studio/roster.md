@@ -1,4 +1,4 @@
-# Study participants (rounds 1 and 2)
+# Study participants (rounds 1 to 3)
 
 Simulated participants: each session is a fresh agent playing one persona, with no memory of
 any other session, so one persona can take several tasks. Persona files are composites built
@@ -118,4 +118,40 @@ thinner round 8 files of the same names for Dev, Grace and Ruth in `P/`, and no 
 Morgan runs only in the tool's screen-reader mode (`--sr`), which refuses pointer steps; Sam uses
 keys only. Bar 7's pairs: Morgan on the Les Miserables halves of T15, T10, T12 and T9 and on T5, T6
 and T14; Sam on the other halves of T15, T10 and T12.
+
+## Who takes which task in round 3
+
+56 sessions (`rounds/round-3/plan.md` has the run order and starts). First-time participants are
+listed first in each row. Each first-time persona takes the whole first session, names and bigger
+dots once each (one dataset half of each), so no first-time persona meets T15 twice; the smaller
+tasks go to personas who have not taken them before, where one is left.
+
+| Task | n | Participants |
+|---|---|---|
+| T15 A whole first session, Les Miserables | 6 | Elena, Dev, Grace; Morgan, Mara, Alex |
+| T15 A whole first session, own file | 4 | Tom, Nadia, Ruth; Sam |
+| T10 Names on every dot, Les Miserables | 4 | Elena, Tom, Dev; Morgan |
+| T10 Names on every dot, College football | 4 | Nadia, Grace, Ruth; Sam |
+| T9 Bigger dots, Les Miserables | 4 | Grace, Elena, Nadia; Morgan |
+| T9 Bigger dots, Florentine | 4 | Ruth, Dev, Tom; Jordan |
+| T12 One character and his ties, Les Miserables | 2 | Ruth; Morgan |
+| T12 One family and its marriages, Florentine | 2 | Grace; Sam |
+| T11 Untangle the drawing | 5 | Nadia, Dev, Ruth; Dana, Mara |
+| T6 What did I get? | 5 | Elena, Tom, Nadia; Morgan, Alex |
+| T7 Who matters most, running club | 4 | Elena, Tom, Grace; Jordan |
+| T14 Stop for the day and come back | 3 | Ruth, Grace; Morgan |
+| T13 A picture and the numbers | 2 | Dev; Alex |
+| T8 Circles of characters | 2 | Nadia; Dana |
+| T5 A file that will not read | 1 | Morgan |
+| T3 Your own list of ties | 1 | Elena |
+| T2 Something to try it on | 1 | Dev |
+| T16 First look (measured, not graded) | 2 | Tom, Ruth |
+| **Total** | **56** | first-time 37 (66%) |
+
+Sessions per persona: Elena 6, Tom 6, Nadia 6, Dev 6, Grace 6, Ruth 7, Morgan 7, Sam 3, Alex 3,
+Jordan 2, Dana 2, Mara 2.
+
+As in round 2, every session record gives the persona file's full path, Morgan runs only in the
+tool's screen-reader mode and Sam uses keys only. Bar 7's pairs: Morgan on the Les Miserables
+halves of T15, T10, T9 and T12 and on T6, T14 and T5; Sam on the other halves of T15, T10 and T12.
 

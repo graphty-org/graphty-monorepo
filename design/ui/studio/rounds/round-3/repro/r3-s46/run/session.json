@@ -1,0 +1,25 @@
+{
+ "commit": "f108a235091e81cd23687ecc4c0b2370490a6498",
+ "uncommittedChanges": false,
+ "buildStamp": "b7590f8de22b graphty@0.8.53",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "started": "2026-10-07T12:06:04.841Z",
+ "setup": [
+  "--click No thanks",
+  "--click Open the Les Miserables sample",
+  "--click Everything",
+  "--click role=tab:Style",
+  "--click Add label line",
+  "--click role=option:name",
+  "--key Escape",
+  "--key Shift+A",
+  "--type PageRank",
+  "--click PageRank",
+  "--click Run"
+ ]
+}

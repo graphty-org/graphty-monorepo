@@ -10,49 +10,31 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-07 -- Round 3 build is b7590f8de (graphty 0.8.53). Re-pilots of T6, T7, T9, T10, T11,
-  T12, T13, T15, T16 all reach their end state with no blocker. Landed and walked: Show all
-  labels (a checkbox, not a switch), Size "+" opens its picker, runs named by method everywhere,
-  group layouts enabled after Louvain ("Group by: Communities" preselected), Enter opens the only
-  Analyze entry, no Size key row for a constant. The "not yet walked" marks in `answers.md` for
-  T7, T9, T10, T11, T15 can now be cleared from these pilots (`rounds/r2/pilot/*/pilot.md`).
-- 2026-10-07 -- Before launch, still owed on the served build: the screen-reader walks (none of
-  the pilots ran `--sr`), the menu-to-dialog focus re-run of `repro/r2-s07`, the key-covered-layer
-  repro (r2-s56), 2D Fit, the canvas name and ring, and axe plus words-at-rest baselines. Preflight
-  lists each decided change as built or not built; the run rename slipped once this way.
-- 2026-10-07 -- Answer-key fixes from the pilots: call the names control a "checkbox"; T7's round 3
-  path keeps the Values-tab step (7 commands); T11 accept Rings and Columns by group, expect
-  "helped" opinions to differ (concentric rings barely separate); Two columns refused on six groups
-  is correct.
-- 2026-10-07 -- Tool `ambiguous` prints are now false on labeled controls ("Show all labels",
-  "Format", "Table", "PageRank"): a label and its input count as two. Graders must not count them
-  as wrong turns; fix `real.mjs` to merge a label with its control before round 3, or tell graders.
-- 2026-10-07 -- New risks the pilots surfaced, to watch, not pre-score: 3D perspective makes a
-  smaller-ranked dot look bigger (friends: Ava drawn bigger than Farah, #1) -- a possible silent
-  `meaning-wrong` on T9/T15; selection recenters the camera so nodes go under the toolbar; key card
-  still hides a node (Florentine top-left, Pazzi); element English refusal reasons ("G is not
-  planar", "results.louvain.group") and graph-io CSV warnings; Everything's Style shows base
-  Color/Size the drawing does not show; Overview "directed 0" overflow; equal-bar histograms.
-- 2026-10-07 -- Round 3 scoring: T10 success unchanged (count read) plus "every name reached"
-  apart; T9 chain-link after closing the list is SD; T11 a greyed group layout after a community
-  run is now a build regression, F `dead-end` build-decided; either run word still names the
-  measure; record name pauses (17 in round 2). Compare ease with round 2 only (same scale).
-- 2026-10-07 -- What round 3 must show to count the fixes: T10 wrong turns down from about 5,
-  T9/T15 sizing named as a cost in fewer than 18 of 18, T11 ease up from 3.33. One change per
-  problem was kept so each can be attributed; credit a change only on the route it changed.
-- 2026-10-07 -- Pilots are walks of the success path by me, not participants: they prove the route
-  exists, not that a first-time user finds it (T11's group route needs Analyze first, unprompted).
-- 2026-10-07 -- Screen-reader findings stay "not shown" until the tool follows
-  `aria-activedescendant`, has a reading mode, and marks pre-filled live regions unconfirmed
-  (decided tool change). Bars 3 and 7 really need a real screen-reader user.
-- 2026-10-07 -- Bars after round 2: 1, 2, 4, 6 hold; 3 not shown to fail (menu focus sev 3); 5
-  fails on the stale key alone; 7 fails weakly on r2-s07; 8, 9 never run.
-- 2026-10-07 -- Count deterministic events once per dataset (fixed seed: Pazzi, Blacheville and
-  Farah/Chloe overlaps every load). Owner: the element imposes no seed; the app passes one.
-- 2026-10-06 -- All participants are one model: N alike is not independent. Solid = `run.sh`
-  repro or a cause in code. Failure strong, pass weak. Check the count is false, the step is on
-  the path, the session valid, the evidence not the tool's.
-- 2026-10-06 -- Stop rule: if round 3 does not move the core four over round 2, go to real users.
+- 2026-10-07 -- Round 3 after the skeptic check (`rounds/round-3/insights.md`): bars 1-6 and 9
+  hold; 7 fails only on missing data (keyboard-only T15 void; screen reader 7 of 7); 8 fails on
+  contrast (#8c8c8c on #2c2c2c, 4.15:1). Tier 1 53 of 53 valid. No confirmed severity 4.
+- 2026-10-07 -- My scoring over-read two headlines: a near-tie remark outside the graded question
+  scored as sev 4 (bar 3), and a truthful export failed on a checklist line (bar 6). Rule now: a
+  sev 4 needs a wrong conclusion a reader would act on, from what the participant could perceive.
+- 2026-10-07 -- Do not override a grader without new evidence (bar 5: graders wrote "none"; I
+  raised it to a failure). And never name the expected outcome to graders: the perspective watch
+  item primed them.
+- 2026-10-07 -- Top open problems (sev 3): 3D size misdrawn on a near tie (cause untraced: run one
+  2D/orthographic export first); focus to the page after a sample opens or "No thanks" (the one
+  regression this round caused); Escape from shortcuts dialog; soft export names (4x is an
+  upscale); key box covers Pazzi.
+- 2026-10-07 -- Cleanest credit: the names switch (T10 every name 8 of 8, 3.5x to 1.5x). Ease,
+  SD share, wrong turns and pause counts are pattern only: one model, graders and tool changed.
+- 2026-10-07 -- Spectral clumping is the algorithm, not a bug: the fix is its description.
+- 2026-10-07 -- Tool facts for every SR finding: `--read` prints more than a screen reader;
+  `watchLive` "unconfirmed" is its own guess; SR_STATES lacks `aria-current` and toolbar
+  container. Absence of live text in a log is observed; "never spoken" is not.
+- 2026-10-07 -- Round 3 was the last round. Next: the final report, recommending real users
+  (graphty.app with opt-in usage data, 5-8 analysts, a real screen-reader user).
+- 2026-10-07 -- Every focus change needs a "where does focus go instead" check.
+- 2026-10-06 -- All participants are one model: N alike is not independent. Solid = a scripted
+  repro or a cause in code. Failure strong, pass weak. Check the count is false, the step is on the
+  path, the session valid, the evidence not the tool's. Count deterministic events once per dataset.
 
 ## Priorities and values
 
@@ -93,6 +75,46 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-07 (researcher, round 3 skeptic verdicts) -- Applied two skeptics' verdicts
+  (`rounds/round-3/insights.md`). Rule added for split verdicts: one skeptic's weakening stands
+  unless the other gives evidence answering its reason (kept: no live text on outline/size/Find,
+  two DOM alert regions; lowered: selection ring 2 since only r3-s02 exported, group-layout
+  pointer 2 since T11 5 of 5, hover/ramp/wording to 1). Bar 3 holds (both: sev 3; 2.8% tie,
+  outside the graded question, primed graders, T7 named Farah from Values). Bar 5 holds (graders
+  ruled "none"; Chloe drawn in front of Farah). Bar 6 holds, r3-s01 SD (both dropped the F).
+  Spectral moved to words. "Live regions already holding text" to not shown. Rejected: keeping
+  bar 3 failing because "the picture names the wrong person" -- the picture's key names nobody.
+
+- 2026-10-07 (researcher, round 3 scoring) -- Scored on valid sessions with the void shown
+  "as graded" beside it (r3-s10 S, r3-s55 measured). Counted for bar 3 the 3D size misreading
+  (reproduced drawing, r3-s08 wrong answer, r3-s06 and void r3-s10 alike) with the strict reading
+  written beside it; reason: the exported picture names the wrong person for every reader, which
+  is the severity-4 outcome. Counted bar 6 for r3-s01 (build-decided, cause reproduced), not
+  `truth-on-screen`. Bar 5: only the label count (the export selection ring stays out, as the
+  round 2 skeptics held). Bar 4: none. Credited each change only on its route; "not tested" for
+  2D Fit, the painted-over key layer and the chevron (pointer users clicked the word). Sizing
+  share counted on 17 valid sizing sessions. Path lengths from the key's round 3 numbers (T10 5,
+  T9 8, T7 7, T15 18), with T10 also on round 2's 4 for comparison. Rejected: crediting the
+  autofocus removal (it created a severity 3); treating T11's 4.00 as below the floor.
+
+- 2026-10-07 (researcher, round 3 plan and preflight) -- Sized round 3 at 56: full size for the
+  tasks whose path changed most or whose round 2 numbers missed a target (T15 10, T10 8, T9 8, T11
+  5) and for the one task below its bar by the scores (T6 5, though the skeptics held its failure
+  not shown); regression checks at 4 for T12 (2 and 2; 8 of 8 in round 2, one small fix) and T7 B;
+  the rest at 1 to 3 so every tier 1 task is seen. Reasons: the full rule needs about 70; the
+  round's questions (names checkbox, Size list, group layouts, reading mode) sit on T10, T9, T15,
+  T11, T6. Rejected: T12 at full size (spends 4 sessions re-measuring a 0.9x, 8 of 8 task);
+  dropping T3, T2, T5 (the criteria allow it, but the brief is to see every tier 1 task, and T5 is
+  Morgan's bar 7 task). Personas: no first-time persona meets T15 twice; first-time 66%, at most 7
+  each, because the four studio persona files still lack a skeptic review.
+- 2026-10-07 (researcher, round 3 preflight) -- Fixed the study, not the app: `bars.mjs` skips
+  clipped text (else bar 9 rose 42 to 46 on hidden words and would have failed a correct fix),
+  `real.mjs` merges a label with its control, `ranks.mjs` exports the nodes CSV it meant to read
+  (round 2's read no groups and the key cited a pilot instead). Served the round from a frozen copy
+  of the build so a mid-round rebuild cannot change the app under a session. Did not touch the
+  contrast color: it is a product fix the studio has not decided; flagged as the one known bar
+  failure.
+
 - 2026-10-07 (researcher, round 2 close) -- Took from round 2's decisions: twelve changes, one per
   problem, in the owning package (compact-mantine menu focus; element key, 2D Fit, group options,
   canvas name; app announcements, Size picker, run names, Show all labels; tool SR mode; key).
@@ -122,18 +144,11 @@ reasons, in short:
   covered by the per-dataset rule. Rejected: rewording T10 (would stamp a pass on a gap); walking
   the routes now (the build does not have them; a walk of the old build proves nothing).
 
-- 2026-10-07 (researcher, round 3 critique) -- Proposed seven fixes for round 3 and held the
-  rest (see Top of mind). Reasons: each fixes a reproduced defect on the core path or a bar, and
-  each is one place. The names switch is app-only because the element already exposes the
-  declutter option; the app only writes element config (allowed). Challenged in the insights:
-  T10 rewording (keep the goal), T11 inflation (the prompt exposes the defect), the stale key as a
-  key bug (it is a missing "effective layer" fact). Held: Force spring cloud (cause untraced; a
-  blind fix risks a second bug), 4x print (sev 3 but no task failed), sizing chain beyond a
-  visible word on the bind control (one change per problem, so round 3 can attribute ease).
-  Rejected: changing the layout seed to move the key off Pazzi and Blacheville (owner decision;
-  moves the overlap, does not fix it).
-- 2026-10-07 (researcher, round 2 skeptic note) -- Superseded in part: "do not ask for what the
-  build cannot do" now reads "do not reword a real goal to fit the build; grade the gap".
+- 2026-10-07 (researcher, round 3 critique, folded) -- Proposed seven fixes, each a reproduced
+  defect in one place; held the Force spring cloud (untraced), 4x print (no task failed), more
+  sizing changes (one change per problem, so ease can be attributed); rejected moving the key by a
+  new seed (owner's call; moves the overlap). Superseded skeptic note: "do not reword a real goal to
+  fit the build; grade the gap".
 
 - 2026-10-07 (researcher, round 2 skeptic verdicts) -- Applied two skeptics' verdicts
   (`rounds/round-2/insights.md`). Dropped (both): the Analyze/attribute filter "announces no
@@ -148,17 +163,9 @@ reasons, in short:
   tiny names, hover, 3D perspective to 1. Alternative rejected: keeping bar 3 failing on the
   strength of sev 4 being "defensible" (Control+E stranded) -- the deciding give-up is confounded.
 
-- 2026-10-07 (researcher, round 2 scoring) -- Counted for bar 5: the label count that treats a
-  name under a dot as shown (false, not just confusing: the count says 0 hidden while a name is
-  unreadable), the selection color in the exported picture (a color not on its own key), and the
-  stale key (met in T16, which has no graded path; counted and flagged, bar 5 fails without it).
-  Not counted: "Selection 18" beside "17 connections" (both true); the hidden count moving with
-  zoom (live, not shown false). Not counted for bar 4: a new Size line at a fixed 1 (adding a line
-  is not a listed commit). Sev 4 only for the menu-dialog focus: the screen-reader persona left
-  there and it is reproduced twice. His T6 give-up stays sev 3 with a tool caveat (no browse mode).
-  Run-name rename raised to sev 2 (17 sessions, graders' rating). Evidence: `rounds/round-2/scores.md`.
-- 2026-10-07 (researcher, round 2 scoring) -- Steps-to-path computed on pointer sessions only;
-  keyboard steps listed raw (no keyboard path length for most tasks).
+- 2026-10-07 (researcher, round 2 scoring, folded) -- Bar 5 counted the label count, the export
+  selection color and the stale key (the skeptics later moved the selection ring out). Sev 4 only
+  for the menu-dialog focus. Steps-to-path on pointer sessions only. Evidence: round 2 scores.
 
 - 2026-10-06 (researcher, round 2 plan) -- 56 sessions: core four full (T15 10, T10/T12/T9 4+4),
   every other tier 1 task at 1-3 with all-must-pass, T2 once, T16 twice; the 7 round 1 voids
@@ -195,6 +202,28 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-07 (round 3 skeptic check) -- Worked: skeptics measuring the exported picture (dot
+  diameters, label offsets, crops) and checking which sessions actually reached an export; this
+  caught two overcounts (selection ring, r3-s06). Did not work: my scoring treated a grader
+  checklist line and a pre-announced watch item as evidence.
+
+- 2026-10-07 (round 3 scoring) -- Worked: the graders' JSON tally plus greps of `grade.md`
+  for fixed record lines ("Every name reached", "Sizing record"/"size list", "Community run made",
+  "Activation", "Usage card", "Run name") and the transcripts' rating line; one row per session in
+  `tmp/researcher/r3-score.py` with asserts on 56/54/53. Ease regex caught "1 of 77" as "1 of 7"
+  in three transcripts: match the "7 (very easy)" line, then by hand. Did not work: trusting the
+  tally's grade alone -- r3-s10's S hid a void, r3-s49 a non-voiding tool fault; read every
+  grade's Void line.
+
+- 2026-10-07 (round 3 preflight) -- Worked: re-using the round 2 scripts as r3 copies (walk,
+  keypaths, ranks, wording dump and check), with a deep focus reader that enters shadow roots and
+  prints the highlighted option; 14 of 14 keyboard paths and every walk in about 20 minutes on 2-4
+  browsers. Worked: re-measuring the previous build with the corrected bars script, so the "never
+  goes up" comparison is like for like. Worked: looking at every check screenshot (2D Fit, the
+  legend, the chevron, the canvas ring) instead of trusting exit codes. Did not work: guessing Tab
+  counts in a `--sr` real.mjs session (one Enter landed on "New from data..."); count focus lines
+  first, or use the keypaths harness's tabTo.
 
 - 2026-10-07 (re-pilots) -- Worked: piloting every task, not just changed ones, on the exact
   build stamp; each pilot named defects by kind (element, app, tool, key). It caught the checkbox
@@ -291,4 +320,5 @@ reasons, in short:
 - Earlier rounds: `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/`.
 - Tier 1 spec: `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/`.
 - Scripts: `design/ui/studio/tmp/researcher/` (`r1-score.py`, `r1-ease.py`, `scan.py`,
-  `full_at.py`, `sessions.py`).
+  `full_at.py`, `sessions.py`); round 3 preflight: `tmp/researcher/r3/` (`walk.sh`, `keypaths.mjs`,
+  `ranks.mjs`, `wording-dump.mjs`, `wording-check.py`, `edit-answers.py`).

@@ -80,8 +80,8 @@ are not run in tier 1 rounds (see `criteria.md`, "Round plan").
     rows, not on the export path.
   - "carry", "point", "reached", "drawn", "away" are words of the Analyze list's method
     descriptions; no task's target is a method found by those words.
-- Words the planned round 3 build adds (checked 2026-10-07 against the prompts; to be re-run with
-  the wording check on the served round 3 build at preflight). No prompt changes:
+- Words the round 3 build adds (checked 2026-10-07 against the prompts, then by the wording check
+  on the served round 3 build, below). No prompt changes:
   - The "Show all labels" switch is a target in T10 and T15 only. Neither prompt says "show",
     "all" or "labels" (T10 asks for "every character's name", kept on purpose: it is the real goal,
     and rewording it to fit the build would hide a gap). T10 B's `label` (the attribute) shares a
@@ -91,6 +91,17 @@ are not run in tier 1 rounds (see `criteria.md`, "Round plan").
     only lure.
   - Runs named by method ("PageRank", "Louvain") and the Size list opening at once add no word a
     prompt uses. No prompt says "picker", "method" or a method's name.
+- The wording check of 2026-10-07 for round 3 (`tmp/researcher/r3/wording-check.py` over 51
+  screens of build b7590f8de, the screens now including the Size list, "Show all labels" and the
+  group layouts; it catches a planted echo) found three words not shared before, all kept:
+  - "finish" (T15: "finish with a picture file") is the hidden status line's "PageRank finished",
+    which a screen reader hears and nobody sees. It names no control and comes after the step.
+  - "fix" (T5: "what to tell your coworker to fix") matches "Fixed size" in the Size list by its
+    stem only; T5 never reaches the Style tab.
+  - "exactly" (T5: "know exactly what to tell") is in graphty-element's refusal of "Two columns"
+    in the Layout list; T5 never reaches Layout.
+  "Show all labels" shares "show" with T9 (found, and kept as above); "all" is a function word
+  the check skips (T3 and T14 use it, kept as above). T10 and T15 say neither.
 
 ## The tasks
 

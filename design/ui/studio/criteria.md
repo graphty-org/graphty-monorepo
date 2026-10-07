@@ -266,3 +266,18 @@ changes a bar or an answer; each removes a way the study, not the app, decided a
 - 2026-10-07 -- Preflight item 10: every change carried into the round is listed as built or not
   built, checked on the served build. Reason: a run named by its method was decided after round 1
   and reached round 2 unbuilt without anyone noticing.
+- 2026-10-07 -- **Round 3 runs 56 sessions** (the studio's cap per round; the rule above would
+  need about 70). No bar changes. Full size where a task is below its bar or carries a round 3
+  question: T15 at 10 (6 Les Miserables, 4 own file), T10 and T9 at 4 and 4 (their paths changed
+  most: the names checkbox, the Size list), T11 at 5 (two fixes, ease 3.33 below the 4.0 floor),
+  T6 at 5 (1 of 2 in round 2, the failure build-decided). Regression checks at 4: T12 (2 and 2;
+  every round 2 session passed, one fix touched it) and T7 on the running club. Below 4 although a
+  fix touched them, as in round 2: T14 at 3, T13 and T8 at 2. T5, T3 and T2 (paths untouched) and
+  T16 run once or twice, so every tier 1 task is seen. As before, a task below its full size passes
+  bar 1 only if every session succeeds, and a two-dataset task run at 2 and 2 needs 2 of 2 per
+  half. Allocation: `roster.md`; scoring: `rounds/round-3/plan.md`.
+- 2026-10-07 -- **Bar 9's script now follows the counting rule as written** ("visible words"):
+  `tool/bars.mjs` skips text inside a box clipped to 1 pixel or less, which nobody sees (the
+  hidden status line a screen reader reads, and the Overview's "Direction" label, clipped to
+  nothing by the row beside it). Re-measured with the same script, round 2's build and round 3's
+  both count 41 words at rest (round 2's recorded 42 included the clipped label). No bar changes.

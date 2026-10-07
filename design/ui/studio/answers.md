@@ -38,16 +38,21 @@ below was walked again on round 2's build, commit 4a7a1a7fb, and reached its suc
 (`rounds/round-2/pilot/<task>/`, script `tmp/researcher/r2/walk.sh`); where the build changed a
 path, the round 2 path is given and the round 1 path is kept for grading round 1.
 
-**Round 3 routes (recorded 2026-10-07, before the round 3 build exists).** Four planned changes
-alter routes: a run is named by its method everywhere ("PageRank", not "Influence"); Size "+"
-opens its from-data list at once, as Label "+" does; a "Show all labels" switch beside the hidden
-count turns the overlap rule off; the group layouts accept a community result after a community
-run. The round 3 entries below (marked **Round 3**) are written from the change list
-(`rounds/round-2/decisions.md`) and the source, not walked. Preflight walks every one on the
-served round 3 build and corrects control names, step counts and reference values before any
-session; a route the walk cannot reach is struck, and a planned change that did not land is
-graded by the round 2 entry. Where a route changed, the entry gives the round 2 scoring and the
-round 3 scoring side by side. No bar changes.
+**Round 3 routes (walked 2026-10-07 on round 3's build, b7590f8de).** Four changes alter routes:
+a run is named by its method everywhere ("PageRank", not "Influence"; "Louvain", not
+"Communities"); Size "+" opens its from-data list at once, as Label "+" does; a "Show all labels"
+checkbox beside the hidden count turns the overlap rule off; the group layouts accept a community
+result after a community run. Every round 3 entry below (marked **Round 3**) was walked on the
+build: T6, T7, T9, T10, T11, T12, T13, T15 and T16 in `rounds/r2/pilot/<task>/`, and T2, T3, T5,
+T8, T14 and the T7 B setup in `rounds/round-3/preflight/<task>/` (script
+`tmp/researcher/r3/walk.sh`); every one reached its end state. Where a route changed, the entry
+gives the round 2 scoring and the round 3 scoring side by side. No bar changes.
+
+**Tool prints on round 3.** The tool no longer prints `ambiguous` for a label and the control it
+labels ("Show all labels", "Format", "Table"): it counts them as one control (fixed 2026-10-07). It
+still prints `ambiguous` for "PageRank" when the run row and a node's "Summary values" group are
+both on screen, and for "Group 1" (the row, the legend entry, the outline button). Neither is a
+participant's wrong turn.
 
 **Picking an Analyze method.** In success paths the method is picked with `--click "<method>"`
 after typing its name. Keyboard paths use `--key Enter` on the only match, which opens its form
@@ -80,8 +85,8 @@ and, for the own file, a `real.mjs` session (`tmp/researcher/kb-T15B/`). Common 
 - *Sizes:* select the result's row (Influence); Style tab; Tab to "Add to Shape" (6), Enter; Enter
   on "Size" (focus falls to the body); Tab to "Size by attribute" (22), Enter; Enter on
   "Influence". Focus falls to the body; the legend reads "Size: Influence". No live announcement.
-  Round 3 (planned, re-record at preflight): Enter on "Size" opens the list with focus in it; type
-  or arrow to "PageRank", Enter; the legend reads "Size: PageRank". No "Size by attribute" step.
+  Round 3 (walked): Enter on "Size" opens the list with focus in it; Down arrow to "PageRank",
+  Enter; the legend reads "Size: PageRank". No "Size by attribute" step.
 - *Image:* Control+e; Tab to "Export" (9), Enter. The live region reads "Exported
   <file>.png".
 
@@ -127,6 +132,12 @@ Recorded by the UX Researcher's scripted runs on the build (`tmp/researcher/rank
 commit under test changes before a session, these are re-recorded first (`criteria.md`,
 preflight 4). The key records what the build computes, not what a textbook would.
 
+**Re-recorded for round 3.** `tmp/researcher/r3/ranks.mjs` (output `r3/ranks.out`) ran every
+ranking below on round 3's build (b7590f8de, 2026-10-07): every top three and value is identical,
+and each run row is named by its method ("PageRank", "Degree", ...). Louvain gave 6 groups, sizes
+20, 17, 11, 11, 10, 8, modularity 0.5556 on 3 of 3 fresh loads, with the same 20 members of Group 1
+read from the exported nodes CSV each time.
+
 **Re-recorded for round 2.** `tmp/researcher/r2/ranks.mjs` (output `r2/ranks.out`) ran every
 ranking below on commit 4a7a1a7fb: every top three and value is identical. Louvain gave the same 6
 groups, sizes and modularity on 3 of 3 fresh loads, and the exported nodes CSV lists the same 20
@@ -161,10 +172,10 @@ a top three that includes a tie is right in either order of the tied names.
 | Les Miserables | HITS ("Hubs and authorities") top 3 | Gavroche 0.3178, Valjean 0.2676, Enjolras 0.2672 |
 | Les Miserables | Core depth, How tightly knit, How far from everything else | Top 10 empty or tied; these do not measure how much the network depends on a node (see T7) |
 | Les Miserables | Louvain ("Communities") | 6 groups, sizes 20, 17, 11, 11, 10, 8; modularity 0.5556; identical on 3 of 3 fresh loads. Group 1 (20): Bamatabois, Brevet, Champmathieu, Chenildieu, Cochepaille, Fauchelevent, Gervais, Gribier, Isabeau, Judge, Labarre, Marguerite, MlleBaptistine, MmeDeR, MmeMagloire, MotherInnocent, Scaufflaire, Valjean, Woman1, Woman2. The Members list shows the first 10 only |
-| Les Miserables | label line statement at 1440 x 900 | "77 labels, 7 hidden to avoid overlap" with sizes unchanged; "77 labels, 6 hidden to avoid overlap" once sized by Influence (T15). Round 3 (planned, re-record at preflight): the statement shortens to "77 labels, 7 hidden"; with "Show all labels" on it reads "77 labels" and every name is drawn |
+| Les Miserables | label line statement at 1440 x 900 | "77 labels, 7 hidden to avoid overlap" with sizes unchanged; "77 labels, 6 hidden to avoid overlap" once sized by Influence (T15). Round 3 (recorded): "77 labels, 7 hidden", "77 labels, 6 hidden" once sized; with "Show all labels" checked it reads "77 labels" and every name is drawn |
 | Les Miserables | Javert's degree and neighbors | 17 (list under T12) |
 | College football | teams, games, name attribute | 115, 613; `label` (also `value`, the conference) |
-| College football | label line statement at 1440 x 900 | "115 labels, 14 hidden to avoid overlap"; round 3 (planned): "115 labels, 14 hidden", and "115 labels" with "Show all labels" on |
+| College football | label line statement at 1440 x 900 | "115 labels, 14 hidden to avoid overlap"; round 3 (recorded): "115 labels, 14 hidden", and "115 labels" with "Show all labels" checked |
 | Florentine families | families, marriages, attributes | 15, 20; `id` and `name` |
 | Florentine families | the Medici's marriages | 6: Acciaiuoli, Albizzi, Barbadori, Ridolfi, Salviati, Tornabuoni ("Medici's 6 connections") |
 | Florentine families | PageRank ("Influence") | Medici 0.1458, Guadagni 0.0984, Strozzi 0.0881; range 0.03066 to 0.1458 |
@@ -182,7 +193,7 @@ a top three that includes a tie is right in either order of the tied names.
 | friends.csv | Eigenvector ("Influence by association") | Ava 1, Ivan 0.6709, Chloe 0.4502 |
 | friends.csv | Katz ("Influence at a distance") | Ava 1, Ivan 0.7025, Theo 0.3871 |
 | friends.csv | HITS ("Hubs and authorities") | Ava 0.48, Ivan 0.3792, Theo 0.3338 |
-| friends.csv | label line statement at 1440 x 900, bound to `id`, sized | "20 labels, 0 hidden to avoid overlap" |
+| friends.csv | label line statement at 1440 x 900, bound to `id`, sized | "20 labels, 0 hidden to avoid overlap"; round 3: "20 labels, 0 hidden" (unsized: "20 labels, 1 hidden", Chloe) |
 
 ## The picture checklist (T13 and T15)
 
@@ -219,7 +230,9 @@ An exported image passes when all of these hold against the final screenshot:
   Privacy" after answering the card counts as checked on screen. When a sample is opened before
   the card is answered, that line never shows; the "Local only" chip's tooltip ("Nothing is sent.
   Opens Settings > Privacy") and Settings > Privacy then count as checked on screen.
-- **Keyboard path:** not walked (T2 is not run in round 1).
+- **Keyboard path (20 keys, round 3's build):** card; Tab to "Open the Les Miserables sample"
+  (6), Enter; the live region reads "Les Miserables: 77 nodes, 254 edges". Focus then falls to the
+  page body (the drawing no longer takes focus on load).
 
 ## T3. Your own list of ties
 
@@ -266,7 +279,11 @@ An exported image passes when all of these hold against the final screenshot:
   `--click "Data"` (the rail) for Attributes, or the table (Shift+T).
 - **Partial:** SD with 3 of 4 right and the fourth honestly unknown. F: 2 or fewer, or a confident
   wrong answer about reachability.
-- **Keyboard path (35 keys):** card; open (Values > Overview shows Nodes 77, Edges 254,
+- **Round 3, screen reader:** the tool now has `--read`, which reads the region around focus as a
+  screen reader's browse mode does, so the Overview's plain-text counts can be heard without being
+  focusable. Grade the screen-reader session on what `--read` and the focus lines offered; the load
+  is announced ("Les Miserables: 77 nodes, 254 edges").
+- **Keyboard path (35 keys; 28 on round 3's build):** card; open (Values > Overview shows Nodes 77, Edges 254,
   Components 1); Tab to the rail's "Graph" (13), Down arrow to "Data", Enter: Attributes list `id`,
   `name` and `shared_chapters`.
 
@@ -282,8 +299,10 @@ An exported image passes when all of these hold against the final screenshot:
   PageRank`; `--click "PageRank"`; `--click "Run"`; `--click "Influence"` (select the run row);
   read Top 10 on its Values. On round 2's build the row opens on its Style tab, so add
   `--click "role=tab:Values"` before reading (walked: `rounds/round-2/pilot/T7-A/`, `T7-B/`).
-- **Round 3 path (7, not yet walked):** the same, with `--click "PageRank"` in place of `--click
-  "Influence"` to select the run row. Scoring unchanged (either word names the measure).
+- **Round 3 path (7, walked: `rounds/r2/pilot/T7/`):** round 2's path including the Values step:
+  `--click "PageRank"` (the run row, opening on Style) in place of `--click "Influence"`, then
+  `--click "role=tab:Values"` and read the Top 10. Scoring unchanged (either word names the
+  measure).
 - **Keyboard path:** open; rank; select the Influence row; its Values show the Top 10 (on round
   2's build, Tab to the Values tab first). (No keyboard participant takes T7.)
 - **Measures that do not answer the question:** Core depth, How tightly knit and How far from
@@ -306,6 +325,9 @@ An exported image passes when all of these hold against the final screenshot:
   Members need `--click "role=tab:Values"` after each row (9 steps; walked:
   `rounds/round-2/pilot/T8/`). A participant who reads a Style tab and goes looking for the
   members is on the path, not on a wrong turn.
+- **Round 3 path (9, walked: `rounds/round-3/preflight/T8/`):** the same, with `--click "Louvain"`
+  for the run row ("Louvain 6"); Values shows Summary and Sizes; `--click "Group 1"` and its Values
+  show "Size 20", "Made by Louvain" and Members (first 10).
 - **Partial:** SD if fewer than three members are named while the count and size are right.
   F: count or size wrong, a named member not in the largest group, `not-run`.
 
@@ -323,11 +345,13 @@ An exported image passes when all of these hold against the final screenshot:
   reads "1 to 3", the legend gains "Size: Influence" (walked on both builds; round 2:
   `rounds/round-2/pilot/T9-A/`, `T9-B/`). Round 2's Size field draws no "Open list" arrow before
   it is bound.
-- **Round 3 path (about 8 steps, 10 commands, not yet walked):** open the sample; rank; `--click
+- **Round 3 path (8 steps, 10 commands; walked: `rounds/r2/pilot/T9/`):** open the sample; rank; `--click
   "PageRank"` (the run row, opening on Style); `--click "Add to Shape"`; `--click "Size"` (the
   from-data list opens at once, with "Fixed size" first); `--click "role=option:PageRank"`. End
   state: Size reads "1 to 3", the legend reads "Size: PageRank". The chain-link icon ("Size by
-  attribute") stays as the way back to the list after a fixed size was chosen.
+  attribute") stays as the way back to the list after a fixed size was chosen (walked: Escape on
+  the list leaves a fixed "1", no Size entry in the key; the chain-link reopens the list). Enter on
+  the only Analyze match now opens its form, so `--key Enter` may replace `--click "PageRank"`.
 - **Round 2 and round 3 scoring.** Round 2: a new Size line arrived as a fixed "1"; stopping there
   was `stopped-at-toggle` (or `false-done` if the participant said the sizes changed), and finding
   the chain-link was the success path, S with no other detour. Round 3: the same end state and the
@@ -343,7 +367,8 @@ An exported image passes when all of these hold against the final screenshot:
   or if the sizes are bound but the participant cannot say what sizes or colors mean. F codes:
   `false-done` (only the automatic color changed), `stopped-at-toggle`, `wrong-row`,
   `meaning-wrong`.
-- **Keyboard path (80 keys on Les Miserables):** card; open; rank; sizes. Florentine families is
+- **Keyboard path (80 keys on Les Miserables; round 3: 57 on Les Miserables, 60 on Florentine
+  families, `tmp/researcher/r3/keypaths.out`):** card; open; rank; sizes. Florentine families is
   the same with its own sample. **Screen-reader check:** the legend's "Size: Influence" with its
   range (0.003299 to 0.07543) as text ("Size: PageRank" on round 3); the Size line's value "1 to 3". Nothing is announced when
   the size binds; record that against bar 8, not against Morgan.
@@ -365,8 +390,8 @@ An exported image passes when all of these hold against the final screenshot:
   football with a fail on Les Miserables is a wording echo (`label` the attribute, "Add label
   line" the control), not a pass. On round 3 the attribute also shares a word with "Show all
   labels"; the same rule covers it.
-- **Round 3 route to every name (5, not yet walked):** the round 2 path, then `--click "Show all
-  labels"` (the switch beside the count). End state: the statement reads "77 labels" ("115 labels")
+- **Round 3 route to every name (5, walked: `rounds/r2/pilot/T10/`):** the round 2 path, then
+  `--click "Show all labels"` (a checkbox beside the count; the round 2 notes called it a switch). End state: the statement reads "77 labels" ("115 labels")
   with no hidden part, and every name is drawn. Names may overlap one another where dots are close;
   that is the switch working, not a defect against the task.
 - **Round 2 and round 3 scoring.** The success definition does not change: a label line bound to
@@ -387,9 +412,9 @@ An exported image passes when all of these hold against the final screenshot:
 - **Keyboard path (54 keys on Les Miserables, 56 on College football):** card; open; names (type
   `name` or `label`). **Screen-reader check:** the live region's "77 labels, 7 hidden to avoid
   overlap" ("115 labels, 14 hidden to avoid overlap" on College football), also the line's text
-  "Abc name" in the Style tab. Round 3 (planned, re-record at preflight): "77 labels, 7 hidden",
-  then Tab to the switch and Space; the switch must announce its checked state, and the statement
-  must read "77 labels". If the change to the statement is not announced, record it against bar 8,
+  "Abc name" in the Style tab. Round 3 (walked by keys, 53 keys on Les Miserables, 55 on College
+  football): the live region reads "77 labels, 7 hidden"; Tab to "Show all labels" (3), Space:
+  focus `checkbox "Show all labels"` checked, and the live region reads "77 labels". If the change to the statement is not announced, record it against bar 8,
   not against Morgan.
 
 ## T11. Untangle the drawing
@@ -415,13 +440,18 @@ An exported image passes when all of these hold against the final screenshot:
   finding (the line is graphty-element's own English shown as is). On the round 1 build there is
   no line (a silent no-op, a build defect); a participant who stops there is graded as before and
   the session marked build-decided.
-- **Group layouts after a community run (round 3, not yet walked).** Trying a group layout after
+- **Group layouts after a community run (round 3, walked: `rounds/r2/pilot/T11/groups/`).** Trying a group layout after
   a community run is the right model for "clusters easier to tell apart". Path (about 8): open the
   sample; `--key Shift+A`; `--type Louvain`; `--click "Louvain"`; `--click "Run"`; `--click
   "Layout"`; `--click "Rings by group"` (or "Columns by group"); the form opens grouped by the
   Louvain result; `--click "Apply"`. End state: positions change and the groups sit apart.
-  "Two columns" needs exactly two groups and may stay refused on Louvain's six; reading that
-  refusal is correct, as with No crossings.
+  "Two columns" needs exactly two groups and stays refused on Louvain's six, with graphty-element's
+  own sentence 'the layout "bipartite" needs exactly two groups, and "results.louvain.group" names
+  6'; reading that refusal is correct, as with No crossings. On the walk the forms opened with
+  "Group by: Communities" already chosen. Accept Rings by group and Columns by group alike as the
+  group route; expect "did it help" to differ between them (concentric rings barely separate the
+  groups; columns do). Columns by group draws its columns out of the key's order (Group 6, 1, 5, 3,
+  4, 2 left to right); a participant who matches columns to the key by color has read it right.
 - **Round 2 and round 3 scoring.** The success definition does not change (a different layout
   applied, positions changed; "helped" is an opinion).
   - Round 2: the group layouts stayed greyed with "Needs a node attribute to group by" even after
@@ -467,6 +497,11 @@ An exported image passes when all of these hold against the final screenshot:
 - **Round 2's Degree row carries a chevron** ("Degree 17 >"), a cue round 1's build did not have.
   Record which route each participant took (Degree row, G, the context menu, dots one at a time)
   so the two changes can be told apart.
+- **Round 3:** the chevron is part of the row's button: a click on it opens "Javert's 17
+  connections" (walked: `rounds/round-3/preflight/C-chevron2/06.png`). Record whether the
+  participant clicked the chevron or the word; both are the Degree route. Selecting a node
+  recenters the camera, so the lowest nodes can sit under the toolbar; no neighbor in either
+  answer is hidden by it.
 - **Partial:** SD if neighbors were read from the Edges table or by clicking around the drawing.
   F codes: `ids-not-names`, a count with no names behind it, names from memory (the screenshot
   never listed them), `never-found`.
@@ -496,7 +531,10 @@ An exported image passes when all of these hold against the final screenshot:
   numbers without the computed column. The image is checked with the picture checklist. This task
   runs only after the image legend fix (graphty-element issue #133) passes this path.
 - **Screen-reader check:** the live region's "Exported les-miserables_current-view.png" (and the
-  CSV's name for the data file). (No keyboard participant takes T13 in round 1.)
+  CSV's name for the data file).
+- **Round 3 (walked: `rounds/r2/pilot/T13/`):** the same 9 steps; the key reads "Color: Louvain"
+  with Group 1 to Group 6, and the run row is "Louvain". The tool no longer prints `ambiguous` on
+  "Format" and "Table". (No keyboard participant takes T13 in round 1.)
 
 ## T14. Stop for the day and come back
 
@@ -539,6 +577,11 @@ An exported image passes when all of these hold against the final screenshot:
   (focus falls to the page body); Tab to the project under Recent projects (5, a grid cell
   "<name> In this browser - 77 nodes - ..."), Enter (live region "Opened <name>"; focus falls to
   the page body). Check as above.
+- **Round 3 (walked: `rounds/round-3/preflight/T14/`; keys 97, `tmp/researcher/r3/keypaths.out`):**
+  the same path; the setup now ends with a "PageRank" row, names drawn and "77 labels, 7 hidden".
+  After the reopen the row reads "PageRank" (still with no count) and the live region says
+  "Opened <name>" and then "PageRank finished" again (a run restored, not re-run: not `lost-state`,
+  and not a new run).
 
 ## T15. A whole first session
 
@@ -552,11 +595,21 @@ An exported image passes when all of these hold against the final screenshot:
 - **Meaning:** "Influence" or "PageRank" names the sizes and colors (see "On-screen names of
   runs").
 - **Path (about 18):** T2's step; T7's run; T9's size steps; T10's label steps; T13's image steps.
-- **Round 3 (not yet walked):** the same steps with T7's, T9's and T10's round 3 entries (about 17:
+- **Round 3 (walked: `rounds/r2/pilot/T15/`; 15 commands on A with "Show all labels", 13 on B):**
+  the same steps with T7's, T9's and T10's round 3 entries (about 17:
   the size step loses "Size by attribute"). Step 3 is scored as T9's round 3 entry; step 4 needs
   names drawn, not every name, so "Show all labels" is not required on either round; record
   whether it was used. With it on, the picture checklist's "the names drawn on screen are drawn
-  in the image" means every name. The screen-reader check reads "Size: PageRank".
+  in the image" means every name. The screen-reader check reads "Size: PageRank". Round 3 keys
+  (walked): 105 on Les Miserables, 103 on the own file, which is now walked whole by keys; the live
+  region says "PageRank added, running", then "PageRank finished", "77 labels, 6 hidden" ("20
+  labels, 0 hidden" on the own file) and "Exported <file>.png". Main menu > Export... now keeps
+  focus in the dialog (Escape returns it to "Main menu"; 51 keys from the start to the image by the
+  menu route).
+- **Watch on B (not pre-scored):** in the default 3D view Ava's dot (#2) is drawn larger than
+  Farah's (#1, partly behind Chloe's), because nearer dots look bigger. A participant who names Ava
+  as the top person from dot size alone is `meaning-wrong` on that claim; record it and whether the
+  screen's values were read.
 - **Partial:** report the number of the five steps reached for every session. SD allows the order
   to differ and detours. F codes: any of the above; the commonest expected are `false-done` on the
   size step (the automatic color taken for the size), `stopped-at-toggle` on names,

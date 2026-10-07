@@ -820,10 +820,12 @@ async function find(page, raw, out) {
                         .filter((m) => m.checkVisibility())
                         .pop();
                     if (modal && !modal.contains(e) && !e.closest("[role=listbox],[role=menu]")) return ["behind"];
-                    const c =
+                    const hit =
                         e.closest(
                             "button,a[href],input,select,textarea,label,tr,[tabindex],[role=button],[role=link],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=tab],[role=treeitem],[role=switch],[role=option],[role=row],[role=checkbox],[role=radio],[role=combobox]",
                         ) || e;
+                    // a label and the control it labels are one control to a person
+                    const c = hit.tagName === "LABEL" && hit.control ? hit.control : hit;
                     c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
                     const said = (c.getAttribute("aria-label") || c.innerText || c.value || "")
                         .trim()

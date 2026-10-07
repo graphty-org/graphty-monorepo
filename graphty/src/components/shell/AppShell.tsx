@@ -2779,8 +2779,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                helper cycles past that and group 9 would have been painted like group 1.
 
                Every other run's layers stay: layers stack, and the reader decides which one is
-               on top. A re-served run keeps its place; when a layer above hides its colours,
-               the legend says so ("painted over by"). */
+               on top. A re-served run keeps its place; when a layer above hides its colours
+               on every node, the legend leaves its block out. */
             const { runId } = stats;
 
             const block = runColourBlock(session, runId);

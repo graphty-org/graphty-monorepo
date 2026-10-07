@@ -17,10 +17,11 @@
  * sentences, most of them straight off the prepared binding, which counted them while it was
  * settling the domain and therefore pays nothing extra to report them.
  *
- * ONE DEPARTURE IS THIS FILE'S OWN. A layer lower in the stack can be painted over by a layer
- * above it that writes the same channel over EVERY element, and a block describing colours no
- * reader can see is exactly the false claim the rest of the list exists to prevent. The stack is
- * right here, so it is checked and said.
+ * A COVERED BLOCK IS LEFT OUT. A layer lower in the stack can be painted over by a layer above
+ * it that writes the same channel over EVERY element the lower one reaches, and a block
+ * describing colours no reader can see is exactly the false claim the rest of the list exists to
+ * prevent. The stack is right here, so it is checked, and the block is not built. A layer covered
+ * on only some of its elements keeps its block: some of its paint is still on screen.
  *
  * WHAT THE BLOCKS ARE IN: the same order {@link import("./StylesApi").StylesApi.list} returns,
  * BOTTOM FIRST. A second reading order for the same stack is how an off-by-one gets in, and a
@@ -719,8 +720,8 @@ function domainOf(prepared: PreparedBinding, rule: Extract<Binding, { by: Path }
  * `{match:"everything"}` covers without asking about any element. Any other selector covers only
  * when {@link LegendSources.covers} can show it selects every element this layer does -- which is
  * how one run's colours are found hidden under another run's, since both are scoped
- * `{match:"has"}` to what their run measured. Claiming a cover nobody checked would put a
- * departure on a block that is perfectly visible.
+ * `{match:"has"}` to what their run measured. Claiming a cover nobody checked would drop a block
+ * that is perfectly visible.
  * @param layers - The stack, bottom first.
  * @param at - Where the block's layer sits in it.
  * @param channel - The channel the block describes.
@@ -744,29 +745,6 @@ function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sourc
     }
 
     return null;
-}
-
-/**
- * Everything a reader has to be told about one encoding.
- * @param prepared - The prepared binding, which counted most of them while settling its domain.
- * @param layers - The stack, bottom first.
- * @param at - Where the block's layer sits in it.
- * @param sources - Where the cover test for a narrower selector comes from.
- * @returns The sentences, in the order a legend prints them.
- */
-function departuresOf(
-    prepared: PreparedBinding,
-    layers: readonly Layer[],
-    at: number,
-    sources: LegendSources,
-): readonly string[] {
-    const covering = coveredBy(layers, at, prepared.channel, sources);
-
-    if (covering === null) {
-        return prepared.departures;
-    }
-
-    return [...prepared.departures, `painted over by "${covering}"`];
 }
 
 /**
@@ -859,18 +837,10 @@ function readingOf(prepared: PreparedBinding, kind: LegendBlock["kind"]): Legend
  * Build one block.
  * @param layer - The layer it describes.
  * @param prepared - One encoding the layer prepared, which names the channel it paints.
- * @param layers - The stack, bottom first, for the layers that paint over this one.
- * @param at - Where the layer sits in the stack.
  * @param sources - Where the scale's and the field's words come from.
  * @returns The block.
  */
-function buildBlock(
-    layer: Layer,
-    prepared: PreparedBinding,
-    layers: readonly Layer[],
-    at: number,
-    sources: LegendSources,
-): LegendBlock {
+function buildBlock(layer: Layer, prepared: PreparedBinding, sources: LegendSources): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
     const all = allSwatches(prepared, layer, sources);
@@ -902,7 +872,7 @@ function buildBlock(
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
         swatches: Object.freeze(swatches),
         ...(hidden === 0 ? {} : { overflow: { hidden } }),
-        departures: Object.freeze([...departuresOf(prepared, layers, at, sources)]),
+        departures: Object.freeze([...prepared.departures]),
     };
 }
 
@@ -922,7 +892,8 @@ function buildBlock(
  * A consumer that wants the defaults too reads `styles.list()`, which has them.
  *
  * A DISABLED LAYER IS NOT IN IT EITHER, because it paints nothing, and a legend row for paint
- * nobody can see is the false claim this whole file is arranged against.
+ * nobody can see is the false claim this whole file is arranged against. For the same reason a
+ * channel a layer above paints on every element this layer reaches has no block.
  * @param sources - The stack, the prepared encodings, the scales and the field names.
  * @returns The blocks, BOTTOM FIRST -- the same order `styles.list()` returns.
  */
@@ -938,7 +909,9 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
         }
 
         for (const prepared of sources.encoding(layer.id)) {
-            blocks.push(buildBlock(layer, prepared, layers, at, sources));
+            if (coveredBy(layers, at, prepared.channel, sources) === null) {
+                blocks.push(buildBlock(layer, prepared, sources));
+            }
         }
     }
 

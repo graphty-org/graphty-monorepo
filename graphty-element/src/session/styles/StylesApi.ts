@@ -396,7 +396,9 @@ export interface StylesApi {
      * SYNCHRONOUS, and it measures nothing: every figure in it was worked out when the bindings
      * were prepared. It therefore exists headlessly, in a Node test, and at any export scale.
      * @returns One block per channel a layer paints from the data, BOTTOM FIRST -- the same order
-     *     {@link StylesApi.list} returns. Empty when nothing is bound to paint.
+     *     {@link StylesApi.list} returns. A channel that a layer above paints on every element the
+     *     lower layer reaches has no block, since none of its paint is on screen. Empty when
+     *     nothing is bound to paint.
      */
     legend(): readonly LegendBlock[];
     /**

@@ -116,3 +116,36 @@ arrows and answers "no".
 
 **Open points for the owner.** Whether `explain()` and the layer list should name the arrowhead a
 directed graph draws (today they do not list it, since no layer writes it).
+
+## 2026-10-07 -- The legend leaves out a layer painted over on every element it reaches
+
+**What.** `styles.legend()` in graphty-element no longer returns a block for a channel that a
+higher, enabled layer of the same target paints on every element the lower layer reaches. Before,
+it returned the block and added the English sentence `painted over by "<layer name>"` to its
+`departures`. That sentence is gone. A layer covered on only some of its elements keeps its block,
+as before. No exported name or type changes; this is a change in what the existing call returns.
+
+Example: run Degree, then Louvain, on a graph where both measure every node. Both runs' suggested
+layers color nodes, and the Louvain layer is on top, so every node shows its group color. The
+legend used to list "Connections" (with the departure) and "Communities"; it now lists only
+"Communities". The exported picture's key follows, since it is drawn from `legend()`.
+
+**Why.** The key and the exported image kept a "Color: Connections" ramp that no node showed. The
+element already detected the cover, but reported it only as an English sentence; the graphty app
+(correctly) prints none of the element's English, so the reader saw a false key. A legend row for
+paint nobody can see is the false claim the legend exists to prevent, and leaving it out needs no
+new API.
+
+**Alternatives considered.**
+
+- A neutral field on the block, such as `coveredBy: LayerId`, and every consumer filters. New
+  public API, and every consumer has to know to filter or it shows a false key; the one consumer
+  today would always drop the block anyway.
+- Keep the English departure and have the app parse it. Breaks the rule that the element returns
+  neutral facts, and an app that parses element English is a workaround.
+- Build the key in the app from the live stack. Graph logic in the app; every other consumer would
+  repeat it.
+
+**Open points for the owner.** A consumer that wants to list hidden layers (for example, a layer
+panel that greys a covered layer) now reads `styles.list()` and has no cover fact for it. If that is
+needed, a neutral cover fact can be added later without undoing this.

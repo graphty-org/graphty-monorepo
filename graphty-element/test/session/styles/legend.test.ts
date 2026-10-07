@@ -300,7 +300,7 @@ describe("the departures are what stop a legend implying something the picture d
         assert.include(block.departures, "1 not plottable on a log scale");
     });
 
-    it("says when a layer above paints the same channel over everything", () => {
+    it("leaves out a block when a layer above paints the same channel over everything", () => {
         const blocks = buildLegend(
             harness([
                 betweennessColor(),
@@ -313,11 +313,13 @@ describe("the departures are what stop a legend implying something the picture d
             ]).legend,
         );
 
-        assert.include(blocks[0].departures, 'painted over by "Washout"');
-        assert.deepEqual(blocks[1].departures, []);
+        assert.lengthOf(blocks, 1, "the covered block is gone");
+        assert.deepEqual(blocks[0].departures, []);
+        assert.strictEqual(blocks[0].channel, "node.color");
+        assert.isUndefined(blocks[0].runId, "the block left is the washout's, not the run's");
     });
 
-    it("says nothing about a layer above that paints the same channel over only some elements", () => {
+    it("keeps a block when a layer above paints the same channel over only some elements", () => {
         const blocks = buildLegend(
             harness([
                 betweennessColor(),

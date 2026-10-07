@@ -1499,6 +1499,14 @@ export interface LoadDraft {
 }
 
 // @public
+export interface LoadError {
+    readonly code: string;
+    readonly field?: string;
+    readonly line?: number;
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+// @public
 export type LoadMapping = TableMapping | {
     readonly tables: Readonly<Record<string, TableMapping>>;
 };
@@ -1515,6 +1523,7 @@ export interface LoadReport extends ImportReport {
         readonly rows: number;
         readonly ids: readonly (string | number)[];
     };
+    readonly errors: readonly LoadError[];
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
@@ -2815,6 +2824,18 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
         readonly threshold: number;
     };
 }
+/**
+* Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
+* way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
+* bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
+* banded continuous field a value exactly on the last bar's upper edge comes too.
+*/
+| {
+    readonly range: ResultRef & {
+        readonly min?: number;
+        readonly max?: number;
+    };
+}
 /** The edges whose endpoints are both selected. Names no nodes. */
 | {
     readonly edgesBetween: true;
@@ -3444,6 +3465,7 @@ export interface TopRanking {
         readonly count: number;
     } | null;
     readonly reason: string | null;
+    readonly threshold: number | null;
 }
 
 // @public

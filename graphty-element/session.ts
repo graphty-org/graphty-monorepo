@@ -150,7 +150,7 @@ export { createGraphSession } from "./src/session";
  * `data-loaded` and `data-loading-complete`.
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
 
 // ---------------------------------------------------------------------------------------------
 // The node coordinates

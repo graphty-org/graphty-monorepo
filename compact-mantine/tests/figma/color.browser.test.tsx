@@ -250,6 +250,27 @@ describe.skipIf(!(await figmaAvailable()))("color package against Figma", () => 
         expect(onOpacityChange.mock.calls[0][0]).toBe(expected);
     });
 
+    it("a finger dragged on the % scrubs it, rather than landing on the text box beside it", async () => {
+        const onOpacityChange = vi.fn();
+        const { container } = await renderFigma(
+            <PopoutManager>
+                <CompactColorInput
+                    color="#3373E5"
+                    opacity={50}
+                    defaultColor="#000000"
+                    onOpacityChange={onOpacityChange}
+                />
+            </PopoutManager>,
+        );
+        container.querySelector(".cm-paint-suffix")?.setAttribute("data-testid", "touch-scrub");
+        await commands.touchDrag("[data-testid='touch-scrub']", -40);
+        await vi.waitFor(() => {
+            expect(onOpacityChange).toHaveBeenCalledTimes(1);
+        });
+        // The test frame may be scaled, so the exact pixels-to-percent ratio is not asserted here.
+        expect(onOpacityChange.mock.calls[0][0]).toBeLessThan(50);
+    });
+
     describe.each([
         ["light", "ii/colour-picker-solid"],
         ["dark", "dt/dark-color-picker"],

@@ -1,14 +1,13 @@
-import { PANEL_GRID, PANEL_INK } from "@graphty/compact-mantine";
+import { PANEL_GRID, PANEL_INK, ResizeHandle } from "@graphty/compact-mantine";
 import { Box } from "@mantine/core";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
-import { CANVAS_POPOUT_Z_INDEX } from "../constants";
+import { ACTIVITY_PANEL_MAX_WIDTH, ACTIVITY_PANEL_MIN_WIDTH, CANVAS_POPOUT_Z_INDEX } from "../constants";
 import { RAIL_GLYPHS } from "../rail/railGlyphs";
 import type { ActivityId, ActivityPanelProps, PanelOverflowItem } from "../types";
 import { useShell } from "../useShell";
 import { PanelHeader } from "./PanelHeader";
 import { PanelHeaderSlotProvider } from "./panelHeaderSlot";
-import { PanelResizeHandle } from "./PanelResizeHandle";
 import { type PanelSectionScope, PanelSectionScopeContext } from "./panelSectionScope";
 
 /**
@@ -160,7 +159,8 @@ export function ActivityPanel(props: ActivityPanelProps): React.JSX.Element {
                     boxSizing: "border-box",
                     background: PANEL_INK.PANEL,
                     borderInlineEnd: `1px solid ${PANEL_INK.BORDER}`,
-                    overflow: "hidden",
+                    // No clip here: the content box below scrolls, and a clip would cut the
+                    // resize handle, which straddles this edge, down to its inner half.
                 }}
             >
                 <PanelHeader
@@ -193,7 +193,17 @@ export function ActivityPanel(props: ActivityPanelProps): React.JSX.Element {
                     <PanelHeaderSlotProvider node={headerActionsNode}>{children}</PanelHeaderSlotProvider>
                 </Box>
 
-                {resizable && <PanelResizeHandle width={width} onWidthChange={onWidthChange} />}
+                {resizable && (
+                    // The store clamps what this asks for, so the canvas keeps its minimum.
+                    <ResizeHandle
+                        edge="end"
+                        value={width}
+                        min={ACTIVITY_PANEL_MIN_WIDTH}
+                        max={ACTIVITY_PANEL_MAX_WIDTH}
+                        onChange={onWidthChange}
+                        label="Resize the panel"
+                    />
+                )}
             </Box>
         </PanelSectionScopeContext.Provider>
     );

@@ -249,8 +249,30 @@ describe("ActivityPanel", () => {
             const handle = screen.getByRole("separator", { name: "Resize the panel" });
             const consumed = !fireEvent.keyDown(handle, { key: "ArrowRight" });
 
-            expect(onWidthChange).toHaveBeenCalledWith(ACTIVITY_PANEL_WIDTH_DEFAULT + 8);
+            expect(onWidthChange).toHaveBeenCalledWith(ACTIVITY_PANEL_WIDTH_DEFAULT + 1);
             expect(consumed).toBe(true);
+        });
+
+        it("turns text selection off for the length of a drag", () => {
+            renderInShell(
+                <ActivityPanel
+                    activity="explore"
+                    width={ACTIVITY_PANEL_WIDTH_DEFAULT}
+                    presentation="docked"
+                    title="Explore"
+                    onWidthChange={vi.fn()}
+                >
+                    <div />
+                </ActivityPanel>,
+            );
+
+            const handle = screen.getByRole("separator", { name: "Resize the panel" });
+            fireEvent.pointerDown(handle, { button: 0, pointerId: 1, clientX: 10 });
+            expect(document.documentElement.style.userSelect).toBe("none");
+            expect(fireEvent(document.body, new Event("selectstart", { bubbles: true, cancelable: true }))).toBe(false);
+
+            fireEvent.pointerUp(window, { pointerId: 1 });
+            expect(document.documentElement.style.userSelect).toBe("");
         });
 
         it("reports the bounds the drag may ask for", () => {

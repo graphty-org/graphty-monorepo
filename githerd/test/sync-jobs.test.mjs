@@ -299,6 +299,31 @@ describe("syncJobs: pull requests", () => {
         expect(jobText(state.jobs["pr-706"])).not.toContain("HELD:");
     });
 
+    it("acts on github-actions' critical revert and red-master issue: a stale revert gets a job to verify and close it", () => {
+        const state = base();
+        state.trust.bots = ["github-actions[bot]"];
+        const revert = {
+            author: "github-actions[bot]",
+            title: "revert: pull request #1118, master CI red at e339bf6",
+            labels: ["priority:critical"],
+            required: { "All Checks Pass": "SUCCESS" },
+        };
+        failingPr(state, 1203, revert);
+        issue(state, 1124, ["bug", "priority:critical", "effort:low"], {
+            author: "github-actions[bot]",
+            text: "Red master: CI failed on 7edecd1\n",
+        });
+        expect(sync(state).created).toEqual(expect.arrayContaining(["pr-1203", "issue-1124"]));
+        expect(state.jobs["pr-1203"].reason).toMatch(/^stale revert: master is green again/);
+        // While master is still red the revert is live: no stale job.
+        const live = base();
+        live.trust.bots = ["github-actions[bot]"];
+        live.master.verdict = "red";
+        failingPr(live, 1203, revert);
+        sync(live);
+        expect(live.jobs["pr-1203"]).toBeUndefined();
+    });
+
     it("never makes a job from the release train's pull request, failing or conflicting", () => {
         const state = base();
         const train = { author: "github-actions", headRef: "release/train-1", title: "chore(release): publish" };

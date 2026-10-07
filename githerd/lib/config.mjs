@@ -42,6 +42,11 @@ export const DEFAULTS = Object.freeze({
     // Fast-forward the main checkout's default branch after each move of its head on GitHub
     // (main-checkout.mjs). A local write: in dry-run it is a would-do line.
     updateMainCheckout: true,
+    // The repository's own automation, trusted as the owner (board.byOwner): github-actions[bot]
+    // can only author with this repository's GITHUB_TOKEN, so its pull requests, issues and
+    // comments are this repository's workflows'; Mergify acts for the owner on his merge queue.
+    // Only `[bot]` accounts: a person's login can never be added.
+    trustedBots: ["github-actions[bot]", "mergify[bot]"],
     ownerGate: null,
     labels: { types: [], priorities: [], efforts: [] },
     protectedPaths: DEFAULT_PROTECTED,
@@ -92,7 +97,8 @@ const FORBIDDEN = {
     removeProtectedPaths: "a repository's lists add to the default protected paths; they cannot remove them",
     reverts:
         "reverts belong to actions.incidents: a revert is vetoed on the incident issue, so it never runs without it",
-    trustedAuthors: "githerd trusts only the account gh is logged in as, resolved at start; there is no list to add to",
+    trustedAuthors:
+        "githerd trusts the account gh is logged in as and the repository's own bots (trustedBots); a person cannot be added",
     revert: "reverts belong to actions.incidents: a revert is vetoed on the incident issue, so it never runs without it",
 };
 
@@ -115,7 +121,7 @@ export const MODELS = ["claude-opus-5-5", "claude-fable-5"];
  * @typedef {{
  *   repo: string, mode: "paused" | "dry-run" | "acting", pollSeconds: number, servherdCommand: string[],
  *   lanes: Record<string, Lane>, release: { commitPattern: string } | null,
- *   requiredChecks: string[], sharedFailurePrs: number, updateMainCheckout: boolean,
+ *   requiredChecks: string[], sharedFailurePrs: number, updateMainCheckout: boolean, trustedBots: string[],
  *   ownerGate: { steps: string[], rejectMarker: string | null,
  *     reviewServer: { name: string, command: string[] } | null } | null,
  *   labels: { types: string[], priorities: string[], efforts: string[] },
@@ -408,6 +414,11 @@ export function normalizeConfig(input) {
         updateMainCheckout: opt("updateMainCheckout", (v, k) => {
             if (typeof v !== "boolean") fail(`${k} must be true or false`);
             return v;
+        }),
+        trustedBots: opt("trustedBots", (v, k) => {
+            const bots = strings(v, k);
+            if (bots.some((b) => !b.endsWith("[bot]"))) fail(`${k} must name only bot accounts (login[bot])`);
+            return bots;
         }),
         ownerGate: ownerGate(raw.ownerGate),
         labels: /** @type {any} */ (labels),

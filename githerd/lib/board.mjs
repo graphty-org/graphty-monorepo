@@ -141,17 +141,27 @@ export function resolveDerived(state, stillHolds, now) {
 }
 
 /**
- * Whether `who` is the account gh is logged in as (`state.trust.login`), the only author whose
- * issues, pull requests and comments githerd acts on or shows a run. Always false while the login
- * is unresolved, so a missing author can never match a missing login.
+ * Whether `who` is trusted as the owner: the account gh is logged in as (`state.trust.login`), or
+ * one of the repository's own bots (`state.trust.bots`, the config's `trustedBots`, each a
+ * `login[bot]` no person can hold). Only their issues, pull requests and comments githerd acts on
+ * or shows a run. Always false while the login is unresolved, so a missing author can never match
+ * a missing login.
  * @param {any} state the daemon state
- * @param {string | null | undefined} who a GitHub login
- * @returns {boolean} true for the owner
+ * @param {string | null | undefined} who a GitHub login, a bot's in its `[bot]` form
+ * @returns {boolean} true for the owner or a trusted bot
  */
 export function byOwner(state, who) {
     const login = state.trust?.login;
-    return typeof login === "string" && login !== "" && who === login;
+    if (typeof login !== "string" || login === "" || !who) return false;
+    return who === login || (state.trust.bots ?? []).includes(who);
 }
+
+/**
+ * A bot's login in REST's `[bot]` form, which GraphQL leaves off.
+ * @param {string} login the bot's login, either form
+ * @returns {string} `login[bot]`
+ */
+export const botLogin = (login) => (login.endsWith("[bot]") ? login : `${login}[bot]`);
 
 /** The marks of the watchdog workflow's comments (tools/githerd-watchdog.mjs). */
 const WATCHDOG_MARK = /<!-- (?:watchdog|master-clock):/;

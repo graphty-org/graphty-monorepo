@@ -21,6 +21,19 @@ import { byOwner, TERMINAL } from "./board.mjs";
 export const CRITICAL = "priority:critical";
 /** The titles of the issues master-guard opens for a red master lane. */
 const GUARD_TITLE = /^(Red master: CI failed on [0-9a-f]{7,40}|.+ lane red on master)$/;
+/** The titles of master-guard's revert pull requests (tools/master-guard.mjs `revertTitle`). */
+const REVERT_TITLE = /^revert: .*master CI red\b/;
+
+/**
+ * Whether a pull request is master-guard's revert of a red master commit, and master is green
+ * again: the failure it reverts for no longer fails, so it must not merge; a job verifies and
+ * closes it.
+ * @param {string | null | undefined} title the pull request's title
+ * @param {string | null | undefined} verdict master's verdict now
+ * @returns {boolean} it is a stale revert
+ */
+export const staleRevert = (title, verdict) => verdict === "green" && REVERT_TITLE.test(title ?? "");
+
 /** The write group of the label. */
 const GROUP = "master-fix";
 

@@ -78,6 +78,17 @@ describe("githerd/merge decision", () => {
         expect(mergeDecision(pr(train), ctx()).description).toBe(held);
     });
 
+    it("line 1: trusts the repository's own bots; line 2 holds master-guard's revert once master is green", () => {
+        const revert = { author: "github-actions[bot]", title: "revert: pull request #1118, master CI red at e339bf6" };
+        const red = ctx({ bots: ["github-actions[bot]"], masterVerdict: "red" });
+        expect(mergeDecision(pr(revert), red).state).toBe("success");
+        expect(mergeDecision(pr({ ...revert, author: "someone" }), red).line).toBe(1);
+        expect(mergeDecision(pr(revert), { ...red, masterVerdict: "green" })).toMatchObject({
+            line: 2,
+            description: "held: master is green again, so this revert is stale",
+        });
+    });
+
     describe("line 2: holds", () => {
         it("a red CI lane holds every pull request but its incident's fix", () => {
             const red = ctx({ redLanes: [{ workflow: "CI", since: SINCE, fixPrs: [701] }] });

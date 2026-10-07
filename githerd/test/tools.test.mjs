@@ -339,6 +339,7 @@ describe("githerd_status", () => {
         );
         expect(json(state, { section: "issues" }).trust).toEqual({
             login: "apowers313",
+            bots: [],
             error: null,
             skippedIssues: 1,
             skippedPrs: 1,

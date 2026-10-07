@@ -23,6 +23,7 @@ import { execFileSync } from "node:child_process";
 import { advisoryFailure, advisoryWords, utcDay } from "./advisory.mjs";
 import { balanceRefusal, classify } from "./classify.mjs";
 import { failureKey, isSummaryJob } from "./lanes.mjs";
+import { staleRevert } from "./master-fix.mjs";
 
 /**
  * @typedef {import("./config.mjs").Config} Config
@@ -768,12 +769,12 @@ const DESCRIPTION_MAX = 140;
  * @typedef {{
  *   login: string | null, redLanes: RedLane[], releaseRunning?: boolean, freezeMerges?: boolean,
  *   heldPackages?: string[], starvation?: string | null, approvedMajors?: string[],
- *   releasePattern?: string | null,
+ *   releasePattern?: string | null, bots?: string[], masterVerdict?: string | null,
  * }} MergeContext the repository-wide facts: the owner's login, the code-red gating lanes, whether
  *   the release job (not its gate job) is running, the `freeze-merges` policy, the packages the
  *   owner's `hold-package` policies hold, the starvation hold's
  *   reason when one applies (4.7), the projects whose major bump the owner approved as a group, and
- *   the config's `release.commitPattern`
+ *   the config's `release.commitPattern`, the repository's trusted bots and master's verdict
  * @typedef {{state: "success" | "failure" | "pending", description: string, line: number | null}}
  *   MergeStatus the `githerd/merge` commit status and the decision line that failed (null otherwise)
  * @typedef {string} LineResult `PASS`, `WAIT`, or the failure's reason ("held: ...")
@@ -856,6 +857,7 @@ function noHold(pr, ctx) {
     const held = heldPackage(pr, ctx.heldPackages ?? []);
     if (held !== PASS && held !== WAIT) return held;
     if (ctx.starvation) return `held: starvation hold (${ctx.starvation})`;
+    if (staleRevert(pr.title, ctx.masterVerdict)) return "held: master is green again, so this revert is stale";
     return lane === WAIT || release === null || held === WAIT ? WAIT : PASS;
 }
 
@@ -923,22 +925,23 @@ function releaseSafe(pr, ctx) {
 export function isReleaseTrain(pr, pattern) {
     return (
         Boolean(pattern) &&
-        pr.author === "github-actions" &&
+        ["github-actions", "github-actions[bot]"].includes(pr.author ?? "") &&
         (pr.headRef ?? "").startsWith("release/train-") &&
         new RegExp(/** @type {string} */ (pattern)).test(pr.title)
     );
 }
 
 /**
- * Line 1: the author is the owner, or it is the release train's pull request; undecided until the
- * owner's login is known.
+ * Line 1: the author is the owner or one of the repository's trusted bots, or it is the release
+ * train's pull request; undecided until the owner's login is known.
  * @param {MergeFacts} pr the pull request
  * @param {MergeContext} ctx the repository facts
  * @returns {LineResult} the result
  */
 function ownerAuthored(pr, ctx) {
     if (!ctx.login) return WAIT;
-    if (pr.author === ctx.login || isReleaseTrain(pr, ctx.releasePattern)) return PASS;
+    if (pr.author === ctx.login || (ctx.bots ?? []).includes(pr.author ?? "")) return PASS;
+    if (isReleaseTrain(pr, ctx.releasePattern)) return PASS;
     return `held: the author ${pr.author ?? "(unknown)"} is not the owner`;
 }
 

@@ -17,6 +17,7 @@
  */
 
 import { byOwner, TERMINAL } from "./board.mjs";
+import { staleRevert } from "./master-fix.mjs";
 import { orderPosition } from "./owner.mjs";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -171,6 +172,8 @@ export function prWork(number, rec, state) {
     const wait = ownerWait(number, rec, state);
     // A merge hold is not a work hold: a held PR that is broken still gets fixed (mergeHeld).
     if (wait && wait !== HELD_FOR_MAJOR) return null;
+    if (staleRevert(rec.title, state.master?.verdict))
+        return "stale revert: master is green again; verify the failure it reverts for is gone and close it";
     // GitHub's answer of this poll, read again every poll: it clears as soon as GitHub says so.
     const github = rec.mergeState ?? rec.mergeable ?? "CONFLICTING";
     const base = rec.stackedOn ? `its base #${rec.stackedOn}` : (rec.baseRef ?? "its base");

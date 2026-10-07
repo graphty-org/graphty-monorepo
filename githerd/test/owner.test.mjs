@@ -12,6 +12,7 @@ import {
     recordOwner,
     resumeAnswered,
     STEERED_RECORD_MS,
+    untrustedCriticals,
 } from "../lib/owner.mjs";
 
 const T0 = Date.parse("2026-10-05T17:00:00Z");
@@ -466,5 +467,43 @@ describe("controlCommand", () => {
             "released issue-7; githerd continues it",
         );
         expect(job.state).toBe("working");
+    });
+});
+
+describe("untrustedCriticals", () => {
+    it("raises one item per critical outside githerd's trust, pages once, and ends it when the item closes", () => {
+        const state = /** @type {any} */ ({
+            trust: { login: "owner", bots: ["github-actions[bot]"] },
+            issues: {
+                byNumber: {
+                    9: { state: "open", author: "stranger", labels: ["priority:critical"] },
+                    10: { state: "open", author: "github-actions[bot]", labels: ["priority:critical"] },
+                    11: { state: "open", author: "stranger", labels: ["priority:high"] },
+                },
+            },
+            prs: { 12: { author: "forker", labels: ["priority:critical"] } },
+        });
+        untrustedCriticals(state, at(0));
+        expect(Object.keys(state.ownerItems).sort()).toEqual([
+            "untrusted-critical:issue:9",
+            "untrusted-critical:pr:12",
+        ]);
+        expect(state.ownerItems["untrusted-critical:issue:9"]).toMatchObject({
+            target: "issue:9",
+            question: "critical #9 by stranger is outside githerd's trust; decide or close",
+        });
+        const raised = state.ownerItems["untrusted-critical:issue:9"].raisedAt;
+        untrustedCriticals(state, at(MIN));
+        expect(state.ownerItems["untrusted-critical:issue:9"].raisedAt).toBe(raised);
+        // An answered item is not raised again; a closed issue and a relabeled pull request end theirs.
+        state.ownerItems["untrusted-critical:pr:12"].endedAt = at(MIN).toISOString();
+        state.ownerItems["untrusted-critical:pr:12"].endedBy = "comment";
+        state.issues.byNumber[9].state = "closed";
+        untrustedCriticals(state, at(2 * MIN));
+        expect(state.ownerItems["untrusted-critical:issue:9"].endedBy).toBe("cleared");
+        expect(state.ownerItems["untrusted-critical:pr:12"].endedBy).toBe("comment");
+        state.prs[12].labels = [];
+        untrustedCriticals(state, at(3 * MIN));
+        expect(state.ownerItems["untrusted-critical:pr:12"].endedBy).toBe("comment");
     });
 });

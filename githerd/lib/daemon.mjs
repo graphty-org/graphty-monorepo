@@ -132,7 +132,14 @@ import {
     readDependencies,
 } from "./merge-status.mjs";
 import { createNotifier, endItem, notePresence, ownerItemsPoll, presentDays, raiseItem } from "./notify.mjs";
-import { activePolicies, CONTROL_OPS, controlCommand, ownerCommand, resumeAnswered } from "./owner.mjs";
+import {
+    activePolicies,
+    CONTROL_OPS,
+    controlCommand,
+    ownerCommand,
+    resumeAnswered,
+    untrustedCriticals,
+} from "./owner.mjs";
 import { containerStart, identify, liveTickets } from "./proc.mjs";
 import {
     inferOwners,
@@ -290,7 +297,7 @@ const PRS_QUERY = `query($owner: String!, $name: String!) {
         autoMergeRequest { enabledAt }
         labels(first: 20) { nodes { name } }
         closingIssuesReferences(first: 10) { nodes { number } }
-        author { login }
+        author { login __typename }
         timelineItems(last: 1, itemTypes: [READY_FOR_REVIEW_EVENT]) { nodes {
           ... on ReadyForReviewEvent { createdAt } } }
         commits(last: 1) { nodes { commit {
@@ -1750,6 +1757,7 @@ export async function startDaemon({
      */
     async function resolveLogin(gh, iso, derived) {
         const trust = state.trust;
+        trust.bots = config?.trustedBots ?? [];
         try {
             const login = await gh.login();
             if (login !== trust.login) say("info", `trusted author: ${login}, the account gh is logged in as`);
@@ -1828,6 +1836,9 @@ export async function startDaemon({
         m.branch = prList.repository.defaultBranchRef.name;
         const branch = m.branch ?? "master";
         const nodes = prList.repository.pullRequests.nodes;
+        // GraphQL names a bot `github-actions`, REST `github-actions[bot]`: one form, the one no
+        // person can hold, for every trust check (board.byOwner).
+        for (const n of nodes) if (n.author?.__typename === "Bot") n.author.login = board.botLogin(n.author.login);
         // Each step past the pull request list runs on its own: one that throws is recorded and the
         // rest still run, so one bad item never stops the whole poll.
         /** @type {string[]} the steps that threw, with their errors */
@@ -1889,6 +1900,7 @@ export async function startDaemon({
         if (state.trust.login) {
             await run("jobs", () => jobsFromFacts(t));
             await run("owners", () => askOwners(t));
+            untrustedCriticals(state, t);
         }
         await run("reference", () => referenceWork());
         await workerPass();
@@ -2483,6 +2495,8 @@ export async function startDaemon({
             heldPackages: activePolicies(state, "hold-package").map((/** @type {any} */ p) => String(p.value)),
             starvation: starvation(),
             releasePattern: config.release?.commitPattern ?? null,
+            bots: state.trust.bots ?? [],
+            masterVerdict: m.verdict ?? null,
         };
         const posted = await postMergeStatuses({ github: gh, repo: config.repo, branch, prs, ctx, record: gate });
         for (const error of posted.errors) void ledger({ kind: "error", where: "githerd/merge", error });

@@ -149,6 +149,12 @@ describe("normalizeConfig", () => {
         expect(Object.keys(with_({}))).not.toContain("trustedAuthors");
     });
 
+    it("trusts the repository's own bots by default, and only bot accounts can be listed", () => {
+        expect(with_({}).trustedBots).toEqual(["github-actions[bot]", "mergify[bot]"]);
+        expect(with_({ trustedBots: [] }).trustedBots).toEqual([]);
+        expect(() => with_({ trustedBots: ["someone"] })).toThrow(/trustedBots must name only bot accounts/);
+    });
+
     it("lets reverts happen only through actions.incidents", () => {
         expect(with_({ actions: { incidents: true } }).actions.incidents).toBe(true);
         expect(() => with_({ revert: true })).toThrow(/revert is forbidden.*incident issue/);

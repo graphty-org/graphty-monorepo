@@ -16,7 +16,8 @@
  *   off, the condition clearing), so the daemon calls it after each owner-item poll.
  */
 
-import { move } from "./board.mjs";
+import { byOwner, move } from "./board.mjs";
+import { CRITICAL } from "./master-fix.mjs";
 import { deferItem, endItem, isNotYet, itemText, notePresence, raiseItem } from "./notify.mjs";
 
 /**
@@ -113,6 +114,37 @@ export function resumeAnswered(state, now) {
         resumed.push({ job: job.id, session: job.holder?.session ?? job.sessions?.at(-1) ?? null });
     }
     return resumed;
+}
+
+/**
+ * One owner item per open issue or pull request labeled `priority:critical` whose author githerd
+ * does not trust (`byOwner`): githerd will not act on it, so it is never skipped in silence. Raised,
+ * and paged, once; ended when the issue or pull request closes, loses the label or its author
+ * becomes trusted. One the owner answered is not raised again; one that ended by itself is, if the
+ * label comes back. The caller runs it only with the owner's login resolved.
+ * @param {any} state the daemon state, mutated
+ * @param {Date} now the current time
+ */
+export function untrustedCriticals(state, now) {
+    /** @type {Map<string, {target: string, n: string, author: string | null}>} */
+    const live = new Map();
+    const scan = (/** @type {string} */ kind, /** @type {Record<string, any>} */ records, listOpen = false) => {
+        for (const [n, r] of Object.entries(records ?? {})) {
+            if ((listOpen || r.state === "open") && !byOwner(state, r.author) && (r.labels ?? []).includes(CRITICAL))
+                live.set(`untrusted-critical:${kind}:${n}`, { target: `${kind}:${n}`, n, author: r.author ?? null });
+        }
+    };
+    scan("issue", state.issues?.byNumber);
+    // state.prs holds only the open pull requests.
+    scan("pr", state.prs, true);
+    for (const [id, item] of Object.entries(state.ownerItems ?? {}))
+        if (item.kind === "untrusted-critical" && !live.has(id)) endItem(state, id, "cleared", now);
+    for (const [id, x] of live) {
+        const old = state.ownerItems?.[id];
+        if (old && old.endedBy !== "cleared") continue;
+        const question = `critical #${x.n} by ${x.author ?? "(unknown)"} is outside githerd's trust; decide or close`;
+        raiseItem(state, { id, kind: "untrusted-critical", question, target: x.target }, now);
+    }
 }
 
 /**

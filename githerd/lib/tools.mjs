@@ -273,6 +273,7 @@ export function statusData(state, ctx, { section = "all", pr } = {}) {
         // What githerd leaves alone because someone other than the owner wrote it.
         out.trust = {
             login: state.trust?.login ?? null,
+            bots: state.trust?.bots ?? [],
             error: state.trust?.error ?? null,
             skippedIssues: issues.filter((i) => !owned(i.author)).length,
             skippedPrs: Object.values(state.prs ?? {}).filter((p) => !owned(p.author)).length,
@@ -517,7 +518,10 @@ function apiLine(api) {
  */
 function trustLine(t) {
     const why = t.error ? ` (${t.error})` : "";
-    const who = t.login ? `acting only on ${t.login}'s issues and PRs` : `login unresolved, no workers start${why}`;
+    const bots = t.bots?.length ? ` and ${t.bots.join(", ")}` : "";
+    const who = t.login
+        ? `acting only on ${t.login}'s${bots} issues and PRs`
+        : `login unresolved, no workers start${why}`;
     return `TRUST: ${who}; skipped ${t.skippedIssues} open issues and ${t.skippedPrs} PRs by other authors; hid ${t.hiddenComments} comments by other authors from workers`;
 }
 

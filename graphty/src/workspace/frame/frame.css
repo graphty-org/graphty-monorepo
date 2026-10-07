@@ -110,6 +110,7 @@
 .ws-canvas-overlays {
     position: absolute;
     inset: 0;
+    z-index: 2;
     pointer-events: none;
 }
 
@@ -134,8 +135,12 @@
     z-index: 5;
 }
 
+/* The side panels' resize handles reach 12px into this area under a coarse pointer (4px with a
+   mouse). The overlays and the dock sit above them (z-index 2 over the handles' 1), so a handle
+   takes only empty canvas and never a control at the area's edge, such as the dock's Close. */
 .ws-dock {
     position: relative;
+    z-index: 2;
     min-height: 0;
     border-top: 1px solid var(--cm-border);
 }

@@ -13,6 +13,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
+import { page } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { Workspace } from "../../Workspace";
@@ -78,6 +79,16 @@ describe("the table dock", () => {
             await userEvent.keyboard("{Shift>}T{/Shift}");
             const dock = await screen.findByRole("region", { name: "Table" });
             await within(dock).findByText("12 nodes");
+
+            // In a narrow dock (a tablet held upright) the tabs keep one row; the count and the
+            // Columns label give way first, and only then do the tabs scroll sideways.
+            const { innerWidth, innerHeight } = window;
+            await page.viewport(820, 1180);
+            const [nodesTab, edgesTab] = within(dock).getAllByRole("tab");
+            const nodesBox = nodesTab?.getBoundingClientRect();
+            const edgesBox = edgesTab?.getBoundingClientRect();
+            assert.strictEqual(edgesBox?.top, nodesBox?.top, "the tabs share one row");
+            await page.viewport(innerWidth, innerHeight);
             assert.equal(within(dock).getByRole("tab", { name: "Nodes" }).getAttribute("aria-selected"), "true");
 
             // A run's result is a column, headed by the run's name; the element sorts it.

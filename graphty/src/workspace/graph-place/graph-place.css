@@ -75,3 +75,7 @@
     color: var(--cm-text-secondary);
     font-size: 11px;
 }
+
+.ws-graph-footer-glyph {
+    vertical-align: -2px;
+}

@@ -3,6 +3,7 @@ import "./graph-place.css";
 import { Text, Tooltip } from "@mantine/core";
 import React, { useMemo } from "react";
 
+import { GLYPHS } from "../glyphs";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { FindBox } from "./FindBox";
 import { PaintTree } from "./PaintTree";
@@ -12,7 +13,8 @@ import { useSessionVersion } from "./useSessionVersion";
 /**
  * The footer line's one message: with no graph, "Add data to start"; with a graph and nothing
  * run, "Analyze in the toolbar (Shift+A) to add results here". It is a hint, not a second Analyze
- * control: it names the toolbar's Analyze button, the one control of that name.
+ * control: it names the toolbar's Analyze button, the one control of that name, and draws its
+ * glyph, since a touch reader sees only the icon and gets no tooltip or key.
  * @param props - Component props
  * @param props.hasGraph - Whether the element holds a node
  * @param props.hasRuns - Whether anything has been run
@@ -27,7 +29,12 @@ function Footer({ hasGraph, hasRuns }: Readonly<{ hasGraph: boolean; hasRuns: bo
         return null;
     }
     const key = analyze?.command.keys?.[0] ?? "Shift+A";
-    return <Text className="ws-graph-footer">Analyze in the toolbar ({key}) to add results here</Text>;
+    return (
+        <Text className="ws-graph-footer">
+            Analyze <GLYPHS.analyze size={12} aria-hidden className="ws-graph-footer-glyph" /> in the toolbar ({key}) to
+            add results here
+        </Text>
+    );
 }
 
 /**

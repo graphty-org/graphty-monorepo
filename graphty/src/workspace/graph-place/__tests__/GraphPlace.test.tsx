@@ -90,8 +90,10 @@ describe("the Graph place", () => {
         renderPlace(await sessionWithGraph());
 
         const footer = screen.getByText(/to add results here/);
-        assert.equal(footer.textContent, "Analyze in the toolbar (Shift+A) to add results here");
+        assert.equal(footer.textContent?.replace(/\s+/g, " "), "Analyze in the toolbar (Shift+A) to add results here");
         assert.isNull(within(footer).queryByRole("button"));
+        // The toolbar button's glyph, for a touch reader who sees no tooltip and has no key.
+        assert.isNotNull(footer.querySelector("svg[aria-hidden='true']"));
     });
 
     it("lists matches while typing and selects nothing until a pick", async () => {

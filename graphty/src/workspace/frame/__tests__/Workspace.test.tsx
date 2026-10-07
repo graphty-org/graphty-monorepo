@@ -128,6 +128,21 @@ describe("the workspace frame", () => {
         await page.viewport(innerWidth, innerHeight);
     });
 
+    it("keeps the table dock above the side panels' resize handles where a handle reaches into it", async () => {
+        const { innerWidth, innerHeight } = window;
+        await page.viewport(820, 1180);
+        renderWorkspace({ ...OPEN, dockOpen: true });
+
+        const dock = screen.getByRole("region", { name: "Table" });
+        const box = dock.getBoundingClientRect();
+        const y = box.top + box.height / 2;
+        // 1px inside the dock from each side, under the overhang of the neighboring panel's handle.
+        for (const x of [box.left + 1, box.right - 1]) {
+            assert.isTrue(dock.contains(document.elementFromPoint(x, y)), `dock at ${String(x)},${String(y)}`);
+        }
+        await page.viewport(innerWidth, innerHeight);
+    });
+
     it("lists built commands in the main menu and leaves stubs out", async () => {
         renderWorkspace(OPEN);
 

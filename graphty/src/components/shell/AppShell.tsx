@@ -86,7 +86,7 @@ import {
     PopoutRegion,
     usePopoutManager,
 } from "@graphty/compact-mantine";
-import type { ScreenshotOptions } from "@graphty/graphty-element";
+import type { FindHit, FindOptions, ScreenshotOptions } from "@graphty/graphty-element";
 import type { MetricAvailability } from "@graphty/graphty-element/catalog";
 import {
     type AccelerationPolicy,
@@ -3265,6 +3265,27 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     const zoomToSelection = useCallback(() => {
         graphZoomToSelection(graphtyRef.current?.element ?? null);
     }, []);
+    /* The palette's node and edge rows: the element finds them, and choosing one selects it the
+       way a click on the canvas does; a node is also framed. */
+    const paletteFind = useCallback(
+        (text: string, options: FindOptions) => graphtyRef.current?.session?.find(text, options) ?? null,
+        [],
+    );
+    const pickPaletteElement = useCallback((hit: FindHit) => {
+        const handle = graphtyRef.current;
+        const session = handle?.session ?? null;
+
+        if (session === null) {
+            return;
+        }
+
+        session.selection
+            .apply(hit.target)
+            .then(() => (hit.kind === "node" ? handle?.element?.zoomToNodes(hit.id) : undefined))
+            .catch((error: unknown) => {
+                console.error("[shell] the element could not select the palette's pick:", error);
+            });
+    }, []);
     const resetView = useCallback(() => {
         graphResetView(graphtyRef.current?.element ?? null);
     }, []);
@@ -5451,6 +5472,8 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
                         setPaletteOpen(false);
                     }}
                     items={paletteItems}
+                    find={paletteFind}
+                    onPickElement={pickPaletteElement}
                 />
 
                 <FeedbackModal

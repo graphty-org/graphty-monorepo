@@ -110,6 +110,9 @@ const touchDrag: BrowserCommand<[selector: string, dx: number]> = async (ctx, se
         });
     }
     await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    // Touch emulation outlives this session and turns `(hover: none)` on for every later test
+    // file, which shows hover-only controls (the tree's lock and eye) at rest.
+    await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
     await cdp.detach();
 };
 

@@ -11,7 +11,13 @@ import { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { Graph } from "../Graph";
 import { Node } from "../Node";
-import { type AlgoLegacyCommand, legacyFacade, LegacyWrites, openLegacyScope } from "../session/commands/algo";
+import {
+    type AlgoLegacyCommand,
+    legacyFacade,
+    LegacyWrites,
+    openLegacyScope,
+    TEMPLATE_RUNS,
+} from "../session/commands/algo";
 import { dispatcherOf } from "../session/GraphSession";
 import type { UndoableContext } from "../session/project/Dispatcher";
 import { createRunResult, resultPath, type RunResult } from "../session/results";
@@ -235,26 +241,30 @@ export class AlgorithmManager implements Manager {
     async runAlgorithmsFromTemplate(algorithms: string[]): Promise<void> {
         const errors: Error[] = [];
 
-        await dispatcherOf(this.graph.getSession()).transaction("Ran the template's algorithms", async (tx) => {
-            for (const algName of algorithms) {
-                try {
-                    const trimmedName = algName.trim();
-                    const [namespace, type] = trimmedName.split(":");
-                    if (!namespace || !type) {
-                        throw new Error(
-                            `invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`,
-                        );
-                    }
+        await dispatcherOf(this.graph.getSession()).transaction(
+            "Ran the template's algorithms",
+            async (tx) => {
+                for (const algName of algorithms) {
+                    try {
+                        const trimmedName = algName.trim();
+                        const [namespace, type] = trimmedName.split(":");
+                        if (!namespace || !type) {
+                            throw new Error(
+                                `invalid algorithm name format: ${trimmedName}. Expected format: namespace:type`,
+                            );
+                        }
 
-                    await this.dispatchLegacy(
-                        { op: "algo.legacy", namespace: namespace.trim(), type: type.trim() },
-                        (command) => tx.dispatch(command),
-                    );
-                } catch (error) {
-                    errors.push(error instanceof Error ? error : new Error(String(error)));
+                        await this.dispatchLegacy(
+                            { op: "algo.legacy", namespace: namespace.trim(), type: type.trim() },
+                            (command) => tx.dispatch(command),
+                        );
+                    } catch (error) {
+                        errors.push(error instanceof Error ? error : new Error(String(error)));
+                    }
                 }
-            }
-        });
+            },
+            TEMPLATE_RUNS,
+        );
 
         // If there were any errors, throw a summary error
         if (errors.length > 0) {

@@ -1,9 +1,9 @@
-import type { LegendBlock } from "@graphty/graphty-element/session";
+import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
 import { describe, expect, it } from "vitest";
 
 import { defaultNodeHex } from "../../../../utils/channelControls";
 import { CANVAS_METRICS } from "../canvasLayout";
-import { legendChannelOf, legendChannels } from "../legendChannels";
+import { legendChannelOf, legendChannels, legendNamesOf } from "../legendChannels";
 
 /**
  * One legend block, as the element derives one from a prepared binding.
@@ -16,6 +16,7 @@ function block(overrides: Partial<LegendBlock> = {}): LegendBlock {
         layerId: "layer-1",
         kind: "sequential",
         swatches: [],
+        facts: [],
         departures: [],
         ...overrides,
     };
@@ -26,20 +27,29 @@ describe("legendChannelOf", () => {
         expect(legendChannelOf(block({ channel: "node.wireframe" }))).toBeNull();
     });
 
-    it("names the channel, the field and the scale from the element's own words", () => {
+    it("names the channel, the field and the scale in the app's words", () => {
         const channel = legendChannelOf(
             block({
                 field: { plainName: "Connections", technicalName: "degree", path: "results.r1.value" },
                 scale: { kind: "linear", label: "linear" },
                 swatches: [{ label: "1", value: 1, color: "#440154" }],
             }),
+            { field: (named) => (named.field?.path === "results.r1.value" ? "Connections" : undefined) },
         );
 
         expect(channel?.channelLabel).toBe("Color");
         expect(channel?.attribute).toBe("Connections");
         expect(channel?.technicalName).toBe("degree");
-        expect(channel?.scaleLine).toBe("linear");
+        expect(channel?.scaleLine).toBe("Even Steps");
         expect(channel?.scaleShort).toBe("linear");
+    });
+
+    it("names a field the session cannot name by the path's last segment in title case", () => {
+        const channel = legendChannelOf(
+            block({ field: { plainName: "x", technicalName: "x", path: "results.r1.inDegree" } }),
+        );
+
+        expect(channel?.attribute).toBe("In Degree");
     });
 
     it("draws a ramp as three stops, the middle one naming itself as the midpoint", () => {
@@ -158,10 +168,10 @@ describe("legendChannelOf", () => {
         expect(channel?.other).toBeUndefined();
     });
 
-    it("prints the element's departures unedited", () => {
-        const channel = legendChannelOf(block({ departures: ["Not measured (12 nodes)"] }));
+    it("words the element's departure facts", () => {
+        const channel = legendChannelOf(block({ facts: [{ code: "legend.not-measured", params: { count: 12 } }] }));
 
-        expect(channel?.departures).toEqual(["Not measured (12 nodes)"]);
+        expect(channel?.departures).toEqual(["not measured (12)"]);
     });
 
     it("omits departures entirely when the encoding has nothing to confess", () => {
@@ -183,7 +193,7 @@ describe("legendChannels", () => {
         ]);
 
         expect(channels).toHaveLength(1);
-        expect(channels[0].attribute).toBe("Bridges");
+        expect(channels[0].attribute).toBe("Value");
     });
 
     it("keeps one block per canvas channel and drops the rest", () => {
@@ -198,5 +208,38 @@ describe("legendChannels", () => {
 
     it("answers an empty list when nothing is encoded", () => {
         expect(legendChannels([])).toEqual([]);
+    });
+});
+
+describe("legendNamesOf", () => {
+    const session = {
+        data: { attributes: () => [{ kind: "node", name: "score", path: "data.score", plainName: "Score" }] },
+        styles: { get: () => ({ target: "node" }) },
+    } as unknown as Pick<GraphSession, "data" | "styles">;
+    const names = legendNamesOf(session);
+
+    it("names a run's field from the catalogue entry its result names", () => {
+        const named = block({
+            field: {
+                plainName: "x",
+                technicalName: "x",
+                path: "results.r1.inDegree",
+                result: { algorithm: "degree", field: "inDegree" },
+            },
+        });
+
+        expect(names.field?.(named)).toBe("Incoming connections");
+    });
+
+    it("names a data column from the session's attributes by its path", () => {
+        const named = block({ field: { plainName: "x", technicalName: "x", path: "data.score" } });
+
+        expect(names.field?.(named)).toBe("Score");
+    });
+
+    it("has no name for a field nothing in the session or the catalogue names", () => {
+        const named = block({ field: { plainName: "x", technicalName: "x", path: "data.other" } });
+
+        expect(names.field?.(named)).toBeUndefined();
     });
 });

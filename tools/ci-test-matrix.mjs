@@ -105,6 +105,22 @@ export const SHARDS = [
         "test-command": "pnpm exec nx run graph-samples:coverage",
         "needs-browser": false,
     },
+    // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist
+    {
+        shard: "cytoscape-extensions",
+        package: "cytoscape-extensions",
+        "test-command": "pnpm exec nx run cytoscape-extensions:coverage",
+        "needs-browser": false,
+    },
+    // cytoscape-extensions against the oldest Cytoscape its peer range admits (3.31.0, the first that ships its own
+    // typings) and the newest 3.x on npm at the time of the run, so a new Cytoscape release that breaks the extension
+    // turns this red. Runtime tests and the consumer type check both follow the version under test.
+    {
+        shard: "cytoscape-extensions-cytoscape-versions",
+        package: "cytoscape-extensions",
+        "test-command": "cytoscape-extensions/scripts/test-cytoscape-versions.sh 3.31.0 3",
+        "needs-browser": false,
+    },
     // algorithms - two shards (default and browser separated to avoid worker timeout)
     // Each shard outputs to coverage/ directory; CI artifacts are named coverage-algorithms-{default,browser}
     {
@@ -211,7 +227,15 @@ export const SHARDS = [
  * the groups a full run asked for 22 test runners at once; with them it asks for 13.
  */
 export const GROUPS = {
-    "small-node": ["graph-format", "graph-io", "graph-samples", "layout", "algorithms-default"],
+    "small-node": [
+        "graph-format",
+        "graph-io",
+        "graph-samples",
+        "cytoscape-extensions",
+        "cytoscape-extensions-cytoscape-versions",
+        "layout",
+        "algorithms-default",
+    ],
     "small-browser": [
         "algorithms-browser",
         "remote-logger",

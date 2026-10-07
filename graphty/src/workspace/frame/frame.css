@@ -69,7 +69,17 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    overflow: hidden;
+}
+
+/* The panel's content scrolls here, not on the aside: an aside that clipped would cut its own
+   resize handle, which straddles the panel edge (24px wide under a coarse pointer), down to the
+   half inside the panel. */
+.ws-panel-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden auto;
 }
 
 .ws-left {

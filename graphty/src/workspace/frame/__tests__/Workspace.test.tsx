@@ -5,6 +5,7 @@
  */
 import userEvent from "@testing-library/user-event";
 import { afterEach, assert, describe, it, vi } from "vitest";
+import { page } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
@@ -96,6 +97,35 @@ describe("the workspace frame", () => {
         assert.isNotNull(
             within(screen.getByRole("region", { name: "Table" })).getByRole("button", { name: "Close table" }),
         );
+    });
+
+    it("lets each panel's resize handle be hit on both sides of the panel edge", async () => {
+        const { innerWidth, innerHeight } = window;
+        await page.viewport(1180, 820);
+        renderWorkspace({ ...OPEN, dockOpen: true });
+
+        for (const name of ["Resize left panel", "Resize inspector", "Resize table"]) {
+            const handle = screen.getByRole("separator", { name });
+            const box = handle.getBoundingClientRect();
+            const vertical = handle.getAttribute("aria-orientation") === "vertical";
+            const x = box.left + box.width / 2;
+            const y = box.top + box.height / 2;
+            // 1px in from each outer side of the handle: one side lies inside the panel, the
+            // other outside it, where a clipping panel would cut the handle off.
+            const points = vertical
+                ? [
+                      [box.left + 1, y],
+                      [box.right - 1, y],
+                  ]
+                : [
+                      [x, box.top + 1],
+                      [x, box.bottom - 1],
+                  ];
+            for (const [px, py] of points) {
+                assert.strictEqual(document.elementFromPoint(px, py), handle, `${name} at ${String(px)},${String(py)}`);
+            }
+        }
+        await page.viewport(innerWidth, innerHeight);
     });
 
     it("lists built commands in the main menu and leaves stubs out", async () => {

@@ -60,7 +60,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
             >
                 <Rail />
                 <aside className="ws-left" aria-label="Left panel" hidden={!panels}>
-                    {place === "graph" ? <GraphPlace /> : <DataPlace />}
+                    <div className="ws-panel-body">{place === "graph" ? <GraphPlace /> : <DataPlace />}</div>
                     <ResizeHandle
                         edge="end"
                         label="Resize left panel"
@@ -104,7 +104,9 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     ) : null}
                 </main>
                 <aside className="ws-right" aria-label="Inspector" hidden={!panels}>
-                    <Inspector />
+                    <div className="ws-panel-body">
+                        <Inspector />
+                    </div>
                     <ResizeHandle
                         edge="start"
                         label="Resize inspector"

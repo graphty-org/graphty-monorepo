@@ -555,15 +555,18 @@ function relandJobs(state, now, add) {
 
 /**
  * Ends the deferrals whose issue changed. A deferral holds while the issue's revision is the one it
- * was made at; a new comment, edit or label change ends it, and the issue's ended job no longer
- * keeps it out.
+ * was made at, or no later than the deferral itself; a new comment, edit or label change after it
+ * ends it, and the issue's ended job no longer keeps it out.
  * @param {any} state the daemon state, changed in place
  * @returns {Record<string, any>} the deferrals that hold, by issue
  */
 function endChangedDeferrals(state) {
     const deferred = state.deferred ?? {};
     for (const [n, d] of Object.entries(deferred)) {
-        if (state.issues?.byNumber?.[n]?.updatedAt === d.revision) continue;
+        // Changes made up to the deferral are part of it: the Decision comment a session posts just
+        // before deferring lands after githerd's last poll, so the polled revision alone is older.
+        const at = state.issues?.byNumber?.[n]?.updatedAt;
+        if (at === d.revision || (at && d.at && Date.parse(at) <= Date.parse(d.at))) continue;
         delete deferred[n];
         if (TERMINAL.includes(state.jobs[`issue-${n}`]?.state)) delete state.jobs[`issue-${n}`];
     }

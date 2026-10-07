@@ -477,6 +477,7 @@ export interface DataLoadingError {
     field?: string;
     line?: number;
     message: string;
+    params?: Readonly<Record<string, unknown>>;
 }
 
 // @public (undocumented)

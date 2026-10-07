@@ -20,6 +20,9 @@ import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
 import { EVERYTHING_KEY } from "../row";
 
+/** A pause in a slow drag: longer than any debounce, so each move could be its own write. */
+const PAUSE_MS = 300;
+
 /** A hang guard for the element coming up and painting, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
 
@@ -100,6 +103,18 @@ function readerLayers(session: GraphSession): ReturnType<GraphSession["styles"][
     return session.styles.list().filter((l) => l.source.by !== "element");
 }
 
+/**
+ * What a Color line's paint field shows: its hex and its opacity.
+ * @param container - where the line is.
+ * @returns the hex and the opacity text, as "#6366F1 100%".
+ */
+function paintShown(container: HTMLElement): string {
+    const field = within(container).getByRole("group", { name: "Color" });
+    const hex = within(field).getByRole<HTMLInputElement>("textbox", { name: "Color hex value" });
+    const opacity = within(field).getByRole<HTMLInputElement>("textbox", { name: "Opacity" });
+    return `#${hex.value} ${opacity.value}%`;
+}
+
 describe("the Style tab on the real element", () => {
     // The design's frame. At the runner's default width the inspector has no room.
     beforeAll(async () => {
@@ -112,7 +127,8 @@ describe("the Style tab on the real element", () => {
             await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
             const fill = within(tab).getByRole("group", { name: "Fill" });
-            assert.isNotNull(within(fill).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+            // Figma's paint field, whole: the hex and the opacity, nothing cut off.
+            assert.equal(paintShown(fill), "#6366F1 100%");
             // The app's own words: the shape line is Shape.
             assert.isNotNull(
                 within(within(tab).getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Shape / }),
@@ -232,7 +248,7 @@ describe("the Style tab on the real element", () => {
             store.set({ inspected: { kind: "everything-row", id: "everything" } });
             await waitFor(() => {
                 assert.isNull(within(styleTab()).queryByRole("button", { name: /Detach Color/ }));
-                assert.isNotNull(within(styleTab()).getByRole("button", { name: /^Color #6366F1 100%$/ }));
+                assert.equal(paintShown(styleTab()), "#6366F1 100%");
             });
         },
         TIMEOUT_MS * 2,
@@ -472,7 +488,11 @@ describe("editing lines on the real element", () => {
         async () => {
             const { session } = await openWithGraph();
             const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-            await userEvent.click(within(tab).getByRole("button", { name: /^Color #/ }));
+            await userEvent.click(
+                within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
+                    name: "Color swatch",
+                }),
+            );
             const hex = await screen.findByTestId("color-picker-value");
             await userEvent.clear(hex);
             await userEvent.type(hex, "FF0000{Enter}");
@@ -490,6 +510,42 @@ describe("editing lines on the real element", () => {
                 assert.isString(mine(session, "node.shape"));
             });
             assert.isNotNull(within(styleTab()).getByRole("button", { name: `Shape ${shape}` }));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "a drag across the Color picker is one undo step",
+        async () => {
+            const { session } = await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            await userEvent.click(
+                within(within(tab).getByRole("group", { name: "Color" })).getByRole("button", {
+                    name: "Color swatch",
+                }),
+            );
+            const field = await screen.findByTestId("color-picker-saturation");
+            const before = session.history.steps.length;
+            const box = field.getBoundingClientRect();
+            const at = (fx: number, fy: number): MouseEventInit => ({
+                bubbles: true,
+                clientX: box.left + box.width * fx,
+                clientY: box.top + box.height * fy,
+            });
+            field.dispatchEvent(new MouseEvent("mousedown", at(0.2, 0.2)));
+            // A slow drag: the reader pauses between moves, as a finger does.
+            for (const f of [0.3, 0.5, 0.7, 0.9]) {
+                document.dispatchEvent(new MouseEvent("mousemove", at(f, f)));
+                await new Promise((done) => setTimeout(done, PAUSE_MS));
+            }
+            document.dispatchEvent(new MouseEvent("mouseup", at(0.9, 0.9)));
+            await waitFor(() => {
+                const written = mine(session, "node.color");
+                assert.isString(written);
+                assert.notMatch(String(written), /^#6366F1/i);
+            });
+            await session.styles.settled();
+            assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
         },
         TIMEOUT_MS * 2,
     );

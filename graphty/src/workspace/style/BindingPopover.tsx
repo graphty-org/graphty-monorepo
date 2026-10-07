@@ -330,7 +330,8 @@ function NoValue({
                 label="Value"
                 color={typeof given === "string" ? given : undefined}
                 defaultColor={String(start)}
-                onColorChange={(color) => {
+                // Once per gesture, so a drag in the picker is one undo step.
+                onChangeEnd={(color) => {
                     patch({ missing: { value: color ?? start } });
                 }}
             />

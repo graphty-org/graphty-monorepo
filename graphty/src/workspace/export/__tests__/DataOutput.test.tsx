@@ -7,6 +7,7 @@ import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Tabs } from "@mantine/core";
 import userEvent from "@testing-library/user-event";
+import React from "react";
 import { assert, describe, it, vi } from "vitest";
 
 import { render, screen, waitFor } from "../../../test/test-utils";
@@ -14,7 +15,7 @@ import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "../../state/WorkspaceContext";
-import { DEFAULT_DATA, formatRows } from "../choices";
+import { type DataChoices, DEFAULT_DATA, formatRows } from "../choices";
 import { DataOutput } from "../DataOutput";
 
 const TABLE = {
@@ -26,6 +27,15 @@ const TABLE = {
         { value: "edges", label: "Edges" },
         { value: "nodes", label: "Nodes" },
     ],
+} as const;
+
+const DELIMITER = {
+    name: "delimiter",
+    plainName: "Column Separator",
+    technicalName: "delimiter",
+    type: "string",
+    default: ",",
+    advanced: true,
 } as const;
 
 const FORMATS = [
@@ -63,7 +73,7 @@ const FORMATS = [
                 extensions: [".csv"],
                 mimeTypes: ["text/csv"],
                 preset: { dialect: "gephi" },
-                options: [TABLE],
+                options: [TABLE, DELIMITER],
             },
         ],
     },
@@ -101,10 +111,22 @@ async function* manyLines(): AsyncIterable<Uint8Array> {
 }
 
 /**
+ * The Data output keeping its own edits, as the dialog does.
+ * @param props - Component props
+ * @param props.first - the choices it opens on
+ * @returns the output
+ */
+function Stateful({ first }: Readonly<{ first: DataChoices }>): React.JSX.Element {
+    const [choices, setChoices] = React.useState(first);
+    return <DataOutput choices={choices} onChange={setChoices} onCancel={vi.fn()} onDone={vi.fn()} />;
+}
+
+/**
  * Renders the Data output over a stand-in element.
  * @param element - the element's export doors.
+ * @param first - the choices it opens on; edits are kept.
  */
-function renderData(element: Partial<GraphtyElement>): void {
+function renderData(element: Partial<GraphtyElement>, first: DataChoices = DEFAULT_DATA): void {
     const session = { catalog: { formats: () => FORMATS } } as unknown as GraphSession;
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 } });
     const value = makeWorkspaceValue(
@@ -116,7 +138,7 @@ function renderData(element: Partial<GraphtyElement>): void {
     render(
         <WorkspaceContext.Provider value={value}>
             <Tabs value="data">
-                <DataOutput choices={DEFAULT_DATA} onChange={vi.fn()} onCancel={vi.fn()} onDone={vi.fn()} />
+                <Stateful first={first} />
             </Tabs>
         </WorkspaceContext.Provider>,
     );
@@ -132,7 +154,9 @@ describe("the Data output", () => {
 
     it("previews the first six lines from the first chunks, never the whole text", async () => {
         const text = vi.fn(() => Promise.reject(new Error("read the whole file")));
-        const exportGraph = vi.fn(() => Promise.resolve({ format: "graphty", lossNotes: [], text, bytes: manyLines() }));
+        const exportGraph = vi.fn(() =>
+            Promise.resolve({ format: "graphty", lossNotes: [], text, bytes: manyLines() }),
+        );
         renderData({ exportGraph } as unknown as Partial<GraphtyElement>);
 
         const preview = screen.getByLabelText("Preview of the exported data");
@@ -155,5 +179,34 @@ describe("the Data output", () => {
         assert.include(alert.textContent, "The file was not written");
         assert.include(alert.textContent, "Something went wrong (E_X).");
         assert.notInclude(alert.textContent, "boom");
+    });
+
+    it("keeps the advanced options behind a closed fold and previews with what the reader sets", async () => {
+        const exportGraph = vi.fn(() =>
+            Promise.resolve({ format: "csv", lossNotes: [], text: vi.fn(), bytes: manyLines() }),
+        );
+        renderData({ exportGraph } as unknown as Partial<GraphtyElement>, {
+            format: "csv",
+            variant: "gephi",
+            values: {},
+        });
+
+        assert.isNull(screen.queryByLabelText("Column Separator"));
+        await userEvent.click(screen.getByRole("button", { name: /Advanced/ }));
+        const separator = screen.getByLabelText("Column Separator");
+        assert.equal((separator as HTMLInputElement).placeholder, ",");
+        await userEvent.type(separator, ";");
+        await waitFor(() => {
+            assert.deepEqual(exportGraph.mock.calls.at(-1), [
+                "csv",
+                { dialect: "gephi", delimiter: ";", table: "edges" },
+            ] as unknown as []);
+        });
+    });
+
+    it("draws no Advanced fold for a row with no options", () => {
+        const exportGraph = vi.fn(() => new Promise(() => undefined));
+        renderData({ exportGraph } as unknown as Partial<GraphtyElement>);
+        assert.isNull(screen.queryByRole("button", { name: /Advanced/ }));
     });
 });

@@ -94,3 +94,8 @@
 .ws-export-body .ws-export-tabs[data-orientation] {
     display: contents;
 }
+
+/* The Advanced fold takes its own full row under the key options. */
+.ws-export-fields > [data-testid="control-sub-group"] {
+    grid-column: 1 / -1;
+}

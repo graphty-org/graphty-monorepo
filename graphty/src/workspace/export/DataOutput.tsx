@@ -1,15 +1,16 @@
 import { ModalFooter } from "@graphty/compact-mantine";
+import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { projectFileName } from "@graphty/graphty-element/session";
 import { Alert, Button, Select, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type DataChoices,
     failureWords,
     fileName,
     formatRows,
-    keyOptions,
     previewOf,
     SAVED_LOCALLY,
     writerOptions,
@@ -30,6 +31,18 @@ const SUMMARIES: Readonly<Record<string, string>> = {
     edges: "One row per edge, with every edge attribute and computed value",
 };
 
+/**
+ * A writer option's words: the element's plain name and its choices' labels.
+ * @param option - the option.
+ * @returns the label and the choice words.
+ */
+function optionWords(option: OptionDescriptor): { label: string; choice: (value: string) => string } {
+    return {
+        label: option.plainName,
+        choice: (value) => option.values?.find((entry) => entry.value === value)?.label ?? value,
+    };
+}
+
 /** A failure and the step it stopped. */
 interface Failure {
     readonly title: string;
@@ -38,9 +51,9 @@ interface Failure {
 
 /**
  * The Data output: one Format row per file type graphty-element writes (Graphty JSON first), the
- * row's key options (a CSV's table), what the format cannot hold (the export's loss notes), and a
- * preview of the file's first lines. Every run's results are columns headed by their result path,
- * so a readable run id reads as a readable header.
+ * row's key options (a CSV's table) and the rest behind an Advanced fold, what the format cannot
+ * hold (the export's loss notes), and a preview of the file's first lines. Every run's results
+ * are columns headed by their result path, so a readable run id reads as a readable header.
  * @param props - Component props
  * @param props.choices - The data choices
  * @param props.onChange - Called with new choices
@@ -58,7 +71,6 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const rows = formatRows(session?.catalog.formats() ?? []);
     const rowId = choices.variant === undefined ? choices.format : `${choices.format}/${choices.variant}`;
     const row = rows.find((entry) => entry.id === rowId);
-    const keys = row === undefined ? [] : keyOptions(row);
     const options = row === undefined ? {} : writerOptions(row, choices.values);
     const optionsKey = JSON.stringify(options);
     // Before the catalog is in, the choices' own table names the summary.
@@ -141,18 +153,19 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                             }
                         }}
                     />
-                    {keys.map((option) => (
-                        <Select
-                            key={option.name}
-                            label={option.plainName}
-                            data={(option.values ?? []).map(({ value, label }) => ({ value, label }))}
-                            value={String(options[option.name])}
-                            allowDeselect={false}
-                            onChange={(value) => {
-                                onChange({ ...choices, values: { ...choices.values, [option.name]: value } });
+                    {row === undefined || session === null ? null : (
+                        <OptionsForm
+                            // A new row starts with its Advanced fold closed.
+                            key={row.id}
+                            session={session}
+                            options={row.options}
+                            values={options}
+                            words={optionWords}
+                            onChange={(option, value) => {
+                                onChange({ ...choices, values: { ...choices.values, [option]: value } });
                             }}
                         />
-                    ))}
+                    )}
                 </div>
                 {failure === null ? null : (
                     <Alert color="red" title={failure.title} role="alert">
@@ -160,7 +173,11 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     </Alert>
                 )}
                 {failure === null && preview !== null && preview.notes.length > 0 ? (
-                    <Alert color="yellow" role="note" title={`${row?.plainName ?? choices.format} cannot hold everything`}>
+                    <Alert
+                        color="yellow"
+                        role="note"
+                        title={`${row?.plainName ?? choices.format} cannot hold everything`}
+                    >
                         <ul className="ws-export-notes">
                             {preview.notes.map((note) => (
                                 <li key={note}>{note}</li>

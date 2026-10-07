@@ -1,7 +1,7 @@
 import { ControlSubGroup, StyleNumberInput } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
-import { Button, Checkbox, Group, Select, Stack, Text } from "@mantine/core";
+import { Button, Checkbox, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import React, { useState } from "react";
 
 /** What the app calls one option, and each of its choices. */
@@ -31,6 +31,7 @@ const DRAWN = new Set<OptionDescriptor["type"]>([
     "integer",
     "enum",
     "boolean",
+    "string",
     "attribute",
     "partition",
     "node-id",
@@ -166,6 +167,22 @@ function OptionField({
                     }}
                 />
             );
+        case "string": {
+            return (
+                <TextInput
+                    size="xs"
+                    label={label}
+                    value={typeof value === "string" ? value : ""}
+                    // The default shows until the reader types; a field refilled on clear could not be retyped.
+                    placeholder={typeof option.default === "string" ? option.default : undefined}
+                    onChange={(event) => {
+                        // Cleared is unset: the element's own default applies.
+                        const text = event.currentTarget.value;
+                        set(text === "" ? undefined : text);
+                    }}
+                />
+            );
+        }
         case "attribute":
         case "partition":
             return <AttributeField session={session} option={option} value={value} label={label} onChange={set} />;

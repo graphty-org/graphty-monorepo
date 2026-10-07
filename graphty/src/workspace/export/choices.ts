@@ -98,17 +98,26 @@ export function keyOptions(row: FormatRow): readonly OptionDescriptor[] {
 }
 
 /**
- * The writer options for a row: its preset, then each key option's value (the first choice when
- * none is set).
+ * The writer options for a row: its preset, each key option's value (the first choice when none
+ * is set), then every other option of the row the reader set; the rest stay the element's
+ * defaults.
  * @param row - the row.
  * @param values - the choices' values.
  * @returns the options for `exportGraph` / `downloadGraph`.
  */
 export function writerOptions(row: FormatRow, values: DataChoices["values"]): Record<string, unknown> {
-    const chosen = Object.fromEntries(
-        keyOptions(row).map((option) => [option.name, values[option.name] ?? option.default ?? option.values?.[0]?.value]),
+    const set = Object.fromEntries(
+        row.options
+            .filter((option) => values[option.name] !== undefined)
+            .map((option) => [option.name, values[option.name]]),
     );
-    return { ...row.preset, ...chosen };
+    const chosen = Object.fromEntries(
+        keyOptions(row).map((option) => [
+            option.name,
+            values[option.name] ?? option.default ?? option.values?.[0]?.value,
+        ]),
+    );
+    return { ...row.preset, ...set, ...chosen };
 }
 
 /** The preview stops at this many lines or this many characters, whichever comes first. */

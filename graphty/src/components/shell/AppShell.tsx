@@ -217,6 +217,7 @@ import { AiPanel } from "./panel/AiPanel";
 import { AnalyzePanel, type AnalyzeResultCard } from "./panel/AnalyzePanel";
 import { DataPanel, type LoadedDataSummary } from "./panel/DataPanel";
 import { ExplorePanel, type ExploreSearchScope } from "./panel/ExplorePanel";
+import { readLayerRowFacts } from "./panel/layerRowFacts";
 import { PresentPanel } from "./panel/PresentPanel";
 import { SettingsOverlay } from "./panel/SettingsOverlay";
 import type { LayerItem } from "./panel/StyleLayerList";
@@ -1053,7 +1054,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
        publishes `data-added` per chunk, and a decision taken on the first one is taken
        over a partial graph. */
     const [loadCompletions, setLoadCompletions] = useState(0);
-    const [layers, setLayers] = useState<readonly LayerItem[]>([]);
+    /* The whole stack, the element's own locked layers included: the layer list draws them. */
+    const [styleStack, setStyleStack] = useState<readonly LayerItem[]>([]);
+    /* The reader's layers: everything else in the shell reads only these. */
+    const layers = useMemo(() => styleStack.filter((layer) => !layer.locked), [styleStack]);
     const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
     /* The Explore search field and the set it runs over.
        They are held HERE, beside `selectedLayerId` and the canvas layout's
@@ -2461,18 +2465,26 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
     /**
      * The stack, as the element publishes it after every edit.
      *
-     * The element's OWN layers are dropped on the way in. They are the floor every picture is
-     * painted on -- the node and edge appearance before anything else is asked for -- they are
-     * locked against removal, editing and reordering, and a list that drew them would offer a
-     * reader three controls that all refuse. `locked` is exactly `source.by === "element"`,
-     * which replaces identifying them BY NAME from a list of two strings: the shell used to do
-     * that, and its own comment admitted a reader who called their layer "default" lost the
-     * suppression.
+     * The element's OWN layers are kept, but only the layer list reads them: they are the floor
+     * every picture is painted on, and the list draws them at the bottom with their delete and
+     * hide disabled and the reason in the title (StylePanel.dc.html's Base layer row). Every
+     * other reader of the stack takes {@link layers}, which leaves them out. `locked` is exactly
+     * `source.by === "element"`, which replaces identifying them BY NAME.
      * @param detail - what the element published.
      */
     const handleStylesChange = useCallback((detail: StylesChangedDetail) => {
-        setLayers(detail.layers.filter((layer) => !layer.locked));
+        setStyleStack(detail.layers);
     }, []);
+
+    /* Each row's match count and paint colour, read from the element whenever the stack or the
+       data (`graphRecords`) changes; nothing is drawn before the first load. */
+    const layerFacts = useMemo(() => {
+        const styles = session?.styles;
+
+        // ponytail: a run that changes what a selector matches without a style change shows the
+        // old count until the next one; key on the counts' `revision` if that ever shows.
+        return styles === undefined || graphRecords === null ? undefined : readLayerRowFacts(styles, styleStack);
+    }, [session, styleStack, graphRecords]);
 
     /**
      * Applies a patch to one layer, by id.
@@ -2523,6 +2535,37 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             () => undefined,
             (error: unknown) => {
                 console.error("[shell] the element refused to fix the channel's value:", error);
+            },
+        );
+    }, []);
+
+    /**
+     * Shows or hides one layer through the element's `enabled` flag.
+     * @param layerId - the layer.
+     * @param enabled - whether it paints.
+     */
+    const setLayerEnabled = useCallback(
+        (layerId: string, enabled: boolean) => {
+            updateLayer(layerId, { enabled });
+        },
+        [updateLayer],
+    );
+
+    /**
+     * Deletes one layer through the element, which refuses its own locked layers.
+     * @param layerId - the layer.
+     */
+    const deleteLayer = useCallback((layerId: string) => {
+        const session = graphtyRef.current?.session ?? null;
+
+        if (session === null) {
+            return;
+        }
+
+        void session.styles.remove(layerId).then(
+            () => undefined,
+            (error: unknown) => {
+                console.error("[shell] the element refused to delete the layer:", error);
             },
         );
     }, []);
@@ -3771,11 +3814,14 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
             case "style":
                 return (
                     <StylePanel
-                        layers={[...layers]}
+                        layers={[...styleStack]}
                         selectedLayerId={selectedLayerId}
                         onLayersChange={handleLayersChange}
                         onLayerSelect={setSelectedLayerId}
                         onAddLayer={handleAddLayer}
+                        onLayerEnabledChange={setLayerEnabled}
+                        onLayerDelete={deleteLayer}
+                        layerFacts={layerFacts}
                         layoutPicks={LAYOUT_PICKS}
                         layout={layoutType}
                         layoutConfig={layoutConfig}
@@ -3872,7 +3918,10 @@ function ShellFrame(props: { readonly persist: boolean }): React.JSX.Element {
         handleApplyLayout,
         handleLayersChange,
         handleLoad,
-        layers,
+        layerFacts,
+        setLayerEnabled,
+        deleteLayer,
+        styleStack,
         layoutConfig,
         layoutType,
         loadedSummary,

@@ -181,9 +181,6 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             // This feature doesn't exist - should handle gracefully
             // Either explain it's not available or try closest match
             assert.ok(result.llmText !== null || result.toolWasCalled, "Expected some response (text or tool attempt)");
-
-            // Should not throw an error
-            assert.ok(result.error === undefined, "Expected no error to be thrown");
         });
 
         it("handles empty-ish prompts gracefully", async () => {
@@ -191,17 +188,13 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
 
             // A minimal/unclear prompt should still get a response
             assert.ok(result.llmText !== null || result.toolWasCalled, "Expected some response");
-            assert.ok(result.error === undefined, "Expected no error");
         });
 
         it("handles prompts with only special characters", async () => {
             const result = await harness.testPrompt("??? !!! ###");
 
             // Should handle gracefully without crashing
-            assert.ok(
-                result.llmText !== null || result.toolWasCalled || result.error === undefined,
-                "Expected graceful handling",
-            );
+            assert.ok(result.llmText !== null || result.toolWasCalled, "Expected graceful handling");
         });
     });
 

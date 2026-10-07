@@ -155,7 +155,6 @@ describe("LlmRegressionTestHarness", () => {
                 llmText: "Some response text",
                 latencyMs: 1500,
                 tokenUsage: { prompt: 100, completion: 50 },
-                error: undefined,
             };
 
             assert.strictEqual(mockResult.prompt, "test prompt");

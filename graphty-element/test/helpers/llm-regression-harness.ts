@@ -9,31 +9,15 @@
 import { Color3 } from "@babylonjs/core";
 
 import { AiController } from "../../src/ai/AiController";
-import {
-    captureScreenshot,
-    captureVideo,
-    clearStyles,
-    CommandRegistry,
-    describeProperty,
-    findAndStyleEdges,
-    findAndStyleNodes,
-    findNodes,
-    listAlgorithms,
-    queryGraph,
-    runAlgorithm,
-    sampleData,
-    setCameraPosition,
-    setDimension,
-    setImmersiveMode,
-    setLayout,
-    zoomToNodes,
-} from "../../src/ai/commands";
+import { CommandRegistry } from "../../src/ai/commands";
+import { BUILTIN_COMMANDS } from "../../src/ai/commands/builtin";
 import type { CommandResult } from "../../src/ai/commands/types";
 import type { ToolCall } from "../../src/ai/providers/types";
 import { VercelAiProvider } from "../../src/ai/providers/VercelAiProvider";
+import { SchemaManager } from "../../src/ai/schema";
 import type { Graph } from "../../src/Graph";
 import { getLlmRegressionModel, getOpenAiApiKey } from "./llm-regression-env";
-import { createMockGraphWithCustomData } from "./mock-graph-custom-data";
+import { createMockGraphContext } from "./mock-graph-context";
 
 /**
  * Test graph fixture interface
@@ -63,8 +47,6 @@ export interface LlmRegressionResult {
     latencyMs: number;
     /** Token usage from the LLM response */
     tokenUsage?: { prompt: number; completion: number };
-    /** Error that occurred during execution */
-    error?: Error;
 }
 
 /**
@@ -133,6 +115,9 @@ class ToolCallCapturingProvider extends VercelAiProvider {
         tools: Parameters<VercelAiProvider["generate"]>[1],
         options?: Parameters<VercelAiProvider["generate"]>[2],
     ): ReturnType<VercelAiProvider["generate"]> {
+        // Counted per test file and printed by setup.ts, so a run reports what it cost.
+        const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
+        counter.__LLM_REGRESSION_API_CALLS__ = (counter.__LLM_REGRESSION_API_CALLS__ ?? 0) + 1;
         const result = await super.generate(messages, tools, options);
 
         // Capture tool calls
@@ -199,97 +184,43 @@ export class LlmRegressionTestHarness {
         // Create graph from fixture or default
         const graph = LlmRegressionTestHarness.createGraphFromFixture(options.graphData);
 
-        // Create command registry with all commands
-        const registry = new CommandRegistry();
-        LlmRegressionTestHarness.registerAllCommands(registry);
+        // What AiManager hands the model, built the way AiManager builds it: its built-in
+        // commands and the schema summary it adds to the system prompt. AiManager itself is not
+        // used because it loads the browser-only key store, and this project runs in Node.
+        const commandRegistry = new CommandRegistry();
+        for (const command of BUILTIN_COMMANDS) {
+            commandRegistry.register(command);
+        }
 
-        // Create controller
-        const controller = new AiController({
-            provider,
-            commandRegistry: registry,
-            graph,
-        });
+        const schemaManager = new SchemaManager(graph);
+        schemaManager.extract();
+        const controller = new AiController({ provider, commandRegistry, graph, schemaManager });
 
         return Promise.resolve(new LlmRegressionTestHarness(controller, provider, graph));
     }
 
     /**
-     * Create a mock graph from a test fixture.
+     * Create a mock graph from a test fixture. It is the mock every AI command test uses, so the
+     * commands the model picks run against a real session, style stack, layout and camera
+     * rather than failing on a graph that has none.
      */
     private static createGraphFromFixture(fixture?: TestGraphFixture): Graph {
+        // The AI unit tests' mock graph: it has the session the controller runs each message in.
         if (!fixture) {
-            // Create a simple default graph
-            return createMockGraphWithCustomData({
+            return createMockGraphContext({
                 nodeCount: 5,
                 edgeCount: 4,
-                nodeDataGenerator: (i) => ({
-                    type: i % 2 === 0 ? "server" : "database",
-                    name: `node-${i}`,
-                    status: "online",
-                }),
-                edgeDataGenerator: () => ({
-                    weight: 1.0,
-                }),
+                nodeData: (i) => ({ type: i % 2 === 0 ? "server" : "database", name: `node-${i}`, status: "online" }),
+                edgeData: () => ({ weight: 1.0 }),
             });
         }
 
-        // Create graph from fixture
-        const nodeCount = fixture.nodes.length;
-        const edgeCount = fixture.edges.length;
-
-        return createMockGraphWithCustomData({
-            nodeCount,
-            edgeCount,
-            nodeDataGenerator: (i) => {
-                if (i < fixture.nodes.length) {
-                    return fixture.nodes[i].data;
-                }
-
-                return {};
-            },
-            edgeDataGenerator: (i) => {
-                if (i < fixture.edges.length) {
-                    return fixture.edges[i].data;
-                }
-
-                return {};
-            },
+        return createMockGraphContext({
+            nodeCount: fixture.nodes.length,
+            edgeCount: fixture.edges.length,
+            nodeData: (i) => fixture.nodes[i].data,
+            edgeData: (i) => fixture.edges[i].data,
         });
-    }
-
-    /**
-     * Register all available commands in the registry.
-     */
-    private static registerAllCommands(registry: CommandRegistry): void {
-        // Query commands
-        registry.register(queryGraph);
-        registry.register(findNodes);
-        registry.register(sampleData);
-        registry.register(describeProperty);
-
-        // Style commands
-        registry.register(findAndStyleNodes);
-        registry.register(findAndStyleEdges);
-        registry.register(clearStyles);
-
-        // Layout commands
-        registry.register(setLayout);
-        registry.register(setDimension);
-
-        // Camera commands
-        registry.register(setCameraPosition);
-        registry.register(zoomToNodes);
-
-        // Algorithm commands
-        registry.register(listAlgorithms);
-        registry.register(runAlgorithm);
-
-        // Mode commands
-        registry.register(setImmersiveMode);
-
-        // Capture commands
-        registry.register(captureScreenshot);
-        registry.register(captureVideo);
     }
 
     /**
@@ -311,101 +242,55 @@ export class LlmRegressionTestHarness {
         const maxRetries = retryOptions?.maxRetries ?? DEFAULT_RETRY_OPTIONS.maxRetries;
         const retryDelayMs = retryOptions?.retryDelayMs ?? DEFAULT_RETRY_OPTIONS.retryDelayMs;
         const shouldRetry = retryOptions?.retryOn ?? this.defaultRetryCondition;
-
-        let lastError: Error | undefined;
-        let attempts = 0;
         const startTime = Date.now();
 
-        while (attempts <= maxRetries) {
-            // Clear any previously captured data for each attempt
+        for (let attempt = 0; ; attempt++) {
             this.provider.clearCaptured();
+            const executionResult = await this.controller.execute(prompt);
 
-            let error: Error | undefined;
-            let commandResult: CommandResult | null = null;
+            // The controller never throws: a message that failed outside its tools -- the API
+            // refused the request, or the graph could not open the message's transaction --
+            // comes back as an unsuccessful result and is kept as the controller's last error.
+            // A test reading only `toolWasCalled` would see "no tool was called" and nothing
+            // else, so such a failure throws here with its real cause. A tool that failed is
+            // NOT this: it is part of what the model did, and stays in `commandResult`.
+            const failure = this.controller.getLastError();
+            if (failure) {
+                if (attempt < maxRetries && shouldRetry(failure)) {
+                    await this.delay(retryDelayMs);
+                    continue;
+                }
 
-            try {
-                const executionResult = await this.controller.execute(prompt);
-                commandResult = {
+                throw new Error(`LLM regression request failed before any tool ran: ${failure.message}`, {
+                    cause: failure,
+                });
+            }
+
+            const toolCalls = this.provider.capturedToolCalls;
+            const firstToolCall = toolCalls.length > 0 ? toolCalls[0] : null;
+            const result: LlmRegressionResult = {
+                prompt,
+                toolWasCalled: toolCalls.length > 0,
+                toolName: firstToolCall?.name ?? null,
+                toolParams: firstToolCall?.arguments ?? null,
+                commandResult: {
                     success: executionResult.success,
                     message: executionResult.message,
                     data: executionResult.data,
                     affectedNodes: executionResult.affectedNodes,
                     affectedEdges: executionResult.affectedEdges,
-                };
+                },
+                llmText: executionResult.message,
+                latencyMs: Date.now() - startTime,
+                tokenUsage: this.provider.capturedTokenUsage,
+            };
 
-                // Success - build and return result
-                const latencyMs = Date.now() - startTime;
-                const toolCalls = this.provider.capturedToolCalls;
-                const firstToolCall = toolCalls.length > 0 ? toolCalls[0] : null;
-
-                const result: LlmRegressionResult = {
-                    prompt,
-                    toolWasCalled: toolCalls.length > 0,
-                    toolName: firstToolCall?.name ?? null,
-                    toolParams: firstToolCall?.arguments ?? null,
-                    commandResult,
-                    llmText: commandResult.message,
-                    latencyMs,
-                    tokenUsage: this.provider.capturedTokenUsage,
-                    error: undefined,
-                };
-
-                // Validate expectations if provided
-                if (expectations) {
-                    this.validateExpectations(result, expectations);
-                }
-
-                return result;
-            } catch (e) {
-                error = e instanceof Error ? e : new Error(String(e));
-                lastError = error;
-
-                // Check if we should retry
-                if (attempts < maxRetries && shouldRetry(error)) {
-                    attempts++;
-                    // Wait before retrying
-                    await this.delay(retryDelayMs);
-                    continue;
-                }
-
-                // No more retries - return result with error
-                const latencyMs = Date.now() - startTime;
-                const toolCalls = this.provider.capturedToolCalls;
-                const firstToolCall = toolCalls.length > 0 ? toolCalls[0] : null;
-
-                const result: LlmRegressionResult = {
-                    prompt,
-                    toolWasCalled: toolCalls.length > 0,
-                    toolName: firstToolCall?.name ?? null,
-                    toolParams: firstToolCall?.arguments ?? null,
-                    commandResult: null,
-                    llmText: null,
-                    latencyMs,
-                    tokenUsage: this.provider.capturedTokenUsage,
-                    error,
-                };
-
-                // Validate expectations if provided (may throw)
-                if (expectations) {
-                    this.validateExpectations(result, expectations);
-                }
-
-                return result;
+            if (expectations) {
+                this.validateExpectations(result, expectations);
             }
-        }
 
-        // This shouldn't be reached, but TypeScript needs it
-        const latencyMs = Date.now() - startTime;
-        return {
-            prompt,
-            toolWasCalled: false,
-            toolName: null,
-            toolParams: null,
-            commandResult: null,
-            llmText: null,
-            latencyMs,
-            error: lastError,
-        };
+            return result;
+        }
     }
 
     /**

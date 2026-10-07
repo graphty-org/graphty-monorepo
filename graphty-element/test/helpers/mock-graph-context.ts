@@ -31,6 +31,13 @@ export interface MockGraphContextOptions {
     layoutType?: string;
     /** Whether the graph is in 2D mode */
     twoD?: boolean;
+    /**
+     * A node's own fields, in place of the default `label` and nested `data.type`. The record a
+     * command reads and the row a selector reads both come from it, so they always agree.
+     */
+    nodeData?: (index: number) => Record<string, unknown>;
+    /** An edge's own fields, in place of the default `weight`. */
+    edgeData?: (index: number) => Record<string, unknown>;
 }
 
 /**
@@ -68,6 +75,15 @@ function getNodeType(index: number): string {
 }
 
 /**
+ * A record's own fields as the row a selector reads: each one under `data.`.
+ * @param fields - The record's fields.
+ * @returns The row.
+ */
+function rowOf(fields: Record<string, unknown>): Readonly<Record<Path, unknown>> {
+    return Object.fromEntries(Object.entries(fields).map(([key, value]) => [`data.${key}`, value]));
+}
+
+/**
  * Create a mock graph context for testing AI functionality.
  * This creates a minimal mock that satisfies the Graph interface for AI commands.
  *
@@ -75,7 +91,7 @@ function getNodeType(index: number): string {
  * @returns A mock graph context
  */
 export function createMockGraphContext(options: MockGraphContextOptions = {}): Graph {
-    const { nodeCount = 10, edgeCount = 15, layoutType = "ngraph", twoD = false } = options;
+    const { nodeCount = 10, edgeCount = 15, layoutType = "ngraph", twoD = false, nodeData, edgeData } = options;
 
     // Create mock nodes
     // Data structure uses {data: {type: ...}} format to match JMESPath selectors like "data.type == 'server'"
@@ -84,13 +100,15 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         const id = `node-${i}`;
         mockNodes.set(id, {
             id,
-            data: {
-                id,
-                label: `Node ${i}`,
-                data: {
-                    type: getNodeType(i),
-                },
-            },
+            data: nodeData
+                ? { id, ...nodeData(i) }
+                : {
+                      id,
+                      label: `Node ${i}`,
+                      data: {
+                          type: getNodeType(i),
+                      },
+                  },
         });
     }
 
@@ -106,7 +124,7 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
             id,
             srcId: nodeIds[srcIdx],
             dstId: nodeIds[dstIdx],
-            data: { id, weight: Math.random() },
+            data: edgeData ? { id, ...edgeData(i) } : { id, weight: Math.random() },
         });
     }
 
@@ -183,14 +201,18 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // record's own fields live under `data.`, so a layer selects on `data.type`.
     const nodeRows: Readonly<Record<Path, unknown>>[] = [];
     for (let i = 0; i < nodeCount; i++) {
-        nodeRows.push({ "data.id": `node-${i}`, "data.label": `Node ${i}`, "data.type": getNodeType(i) });
+        nodeRows.push(
+            nodeData
+                ? rowOf({ id: `node-${i}`, ...nodeData(i) })
+                : { "data.id": `node-${i}`, "data.label": `Node ${i}`, "data.type": getNodeType(i) },
+        );
     }
 
     const edgeRows: Readonly<Record<Path, unknown>>[] = [];
     for (let i = 0; i < edgeCount; i++) {
         // Fixed rather than random, so a selector that compares against a weight selects the
         // same edges on every run.
-        edgeRows.push({ "data.id": `edge-${i}`, "data.weight": (i % 10) / 10 });
+        edgeRows.push(edgeData ? rowOf({ id: `edge-${i}`, ...edgeData(i) }) : { "data.id": `edge-${i}`, "data.weight": (i % 10) / 10 });
     }
 
     const selectorSource: SelectorSource = {

@@ -71,7 +71,6 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
 
             assert.ok(result.toolWasCalled, "Expected tool to be called");
             assert.strictEqual(result.toolName, "queryGraph");
-            assert.ok(!result.error, "Expected no error");
         });
 
         it("includes retry options in complex prompts", async () => {
@@ -84,7 +83,6 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
 
             // Should complete successfully
             assert.ok(result, "Expected a result");
-            assert.ok(!result.error, "Expected no error");
         });
     });
 
@@ -109,20 +107,22 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
             // If there was a rate limit, the retry logic would have handled it
         });
 
-        it("provides error information when all retries exhausted", async () => {
-            // This test verifies that when retries are exhausted,
-            // error information is properly captured in the result.
-            // Normal API calls should succeed, so we just verify the structure.
-            const result = await harness.testPrompt("Run pagerank algorithm", undefined, {
-                maxRetries: 1,
-                retryDelayMs: 100,
+        it("throws the API's own error when the request fails", async () => {
+            // A request the API refuses must fail the test with its real cause, not surface as
+            // "no tool was called". A model that does not exist is refused before any tokens are
+            // spent, so this costs nothing.
+            const broken = await LlmRegressionTestHarness.create({
+                graphData: serverNetworkFixture,
+                model: "graphty-no-such-model",
             });
-
-            // Verify the result structure includes error field capability
-            assert.ok("error" in result, "Result should have error field");
-            // Normal operation should not have an error
-            if (result.error) {
-                assert.ok(result.error instanceof Error);
+            try {
+                await broken.testPrompt("Run pagerank algorithm", undefined, { maxRetries: 0 });
+                assert.fail("Expected the failed request to throw");
+            } catch (error) {
+                assert.ok(error instanceof Error);
+                assert.match(error.message, /request failed before any tool ran: .*graphty-no-such-model/);
+            } finally {
+                broken.dispose();
             }
         });
     });

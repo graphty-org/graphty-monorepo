@@ -519,7 +519,7 @@ CI, and Mergify queues only ready pull requests.
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. On a push to master only the Build job runs; the summaries pass when it does |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request), CI completed on a master push (restarts a held release) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
@@ -566,12 +566,16 @@ publishing from the builds of the run that tested it. An attempt does nothing wh
 release is pending: a release pull request is open (one that conflicts with master, has a failed
 check or left the merge queue is closed and re-cut from the newest commit; one labelled `hold`
 waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
-changed. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
+changed. A held release restarts itself: after every push to master whose build passes, while a
+"Release held" issue is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
+attempt on that pushed commit at once; with no held issue it does nothing, and the schedule keeps
+skipping while the issue is open. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
 publish run's failed jobs publishes what is missing and closes it. A
 red lane holds the whole release: no pull request, nothing published, and one `Release held: <what>
 failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that githerd picks up. Its
-fix pull request should say `Fixes #<issue>`, so the merge closes it and the next attempt runs; a
-passing train also closes it. Never edit or push to a release branch, and never close one
+fix pull request should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the
+fix's merge restarts the release. A passing train closes it; a restart that fails again comments on
+it. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never

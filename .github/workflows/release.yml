@@ -8,7 +8,8 @@ name: Release
 #    release), the pick job takes master's newest commit -- unless the previous release is still pending:
 #    a release/train-* pull request is open, a "Release held" issue is open (a fix is in progress; a dispatch
 #    runs anyway), the last release's publish has not tagged it yet, or nothing releasable changed since the
-#    last release. A release pull request that can no longer merge (it conflicts with master, a check on it
+#    last release. A held release restarts itself: after every push to master whose build (ci.yml) passes,
+#    while a "Release held" issue is open, the pick job takes that pushed commit at once, through the same path. A release pull request that can no longer merge (it conflicts with master, a check on it
 #    failed, or it left the merge queue) is closed and replaced by this attempt.
 # 2. On that commit, in parallel: the FULL CI suite (ci.yml called on it, every shard of every package, which
 #    also makes the builds this release ships), the paid NVIDIA T4 lane (gpu.yml), the host matrix (hosts.yml,
@@ -42,10 +43,20 @@ on:
     push:
         branches:
             - master
+    # A held release restarts on the next master push whose build passed (owner decision, 2026-10-06). The pick
+    # job does nothing when no release is held, or when the build failed.
+    workflow_run:
+        workflows: ["CI"]
+        types:
+            - completed
+        branches:
+            - master
 
 # One train at a time across all its jobs: a second train waits for the first, which has opened its pull request
-# (or held the release) by then, so the second skips and never pays for a second T4 run on the same commit. A
-# push run (the publish job) gets a group of its own and never waits for a train.
+# (or held the release) by then, so the second skips and never pays for a second T4 run on the same commit. Two
+# master pushes in a row therefore never start two trains: the restart after the second push waits for the first
+# train, then finds its release pull request or its held issue. A push run (the publish job) gets a group of its
+# own and never waits for a train.
 concurrency:
     group: ${{ github.event_name == 'push' && format('release-push-{0}', github.run_id) || 'release-train' }}
     cancel-in-progress: false
@@ -55,7 +66,7 @@ jobs:
     # (owner rule: a state ends on the event that settles it, never on a count of hours).
     pick:
         name: Pick the release candidate
-        if: ${{ github.event_name != 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ github.event_name != 'push' && github.ref == 'refs/heads/master' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
         runs-on: ubuntu-24.04
         permissions:
             contents: write # delete the branch of a release pull request that conflicts with master
@@ -67,20 +78,28 @@ jobs:
             release: ${{ steps.releasable.outputs.release || 'false' }}
             sha: ${{ steps.pending.outputs.sha }}
         steps:
-            # The commit this run was started on (master's head when it was scheduled or dispatched), so the
-            # run's own commit, Coveralls' commit and the tested commit are one and the same.
+            # The commit this run was started on (master's head when it was scheduled or dispatched; the pushed
+            # commit whose build passed for a restart), so the run's commit, Coveralls' commit and the tested
+            # commit are one and the same.
             - uses: actions/checkout@v4
               with:
+                  ref: ${{ github.event.workflow_run.head_sha || github.sha }}
                   fetch-depth: 0
 
             - name: Skip while the previous release is pending
               id: pending
               env:
                   EVENT: ${{ github.event_name }}
+                  CANDIDATE: ${{ github.event.workflow_run.head_sha || github.sha }}
               run: |
                   set -euo pipefail
                   skip() { echo "::notice::$1"; echo "pending=true" >> "$GITHUB_OUTPUT"; exit 0; }
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # A master push restarts only a held release; with nothing held it touches nothing.
+                  held=$(tools/release-held.sh find)
+                  if [ -z "$held" ] && [ "$EVENT" = workflow_run ]; then
+                      skip "no release is held; a master push restarts only a held release"
+                  fi
                   # An open release pull request is pending until it merges. One that can no longer merge is
                   # closed and replaced by a new one from the newest commit: it conflicts with master, a check on
                   # its head failed, or it left the merge queue (Mergify's queue check finished without merging
@@ -104,12 +123,11 @@ jobs:
                               "Replaced: this release pull request ${state}. ${run_url} cuts a new one from master's newest commit." ;;
                       esac
                   done
-                  # A held release waits for its fix: the issue closes when the fix merges ("Fixes #n") or when
-                  # a later train (or a re-run publish) passes. An ad hoc dispatch runs anyway; that is how a fix
-                  # is tried at once.
-                  held=$(tools/release-held.sh find)
-                  if [ -n "$held" ] && [ "$EVENT" != workflow_dispatch ]; then
-                      skip "the release is held (issue #${held}); a fix is in progress"
+                  # A held release waits for its fix: the schedule skips. The next master push whose build passed
+                  # restarts it (workflow_run), and an ad hoc dispatch runs anyway; the issue closes when a train
+                  # (or a re-run publish) passes.
+                  if [ -n "$held" ] && [ "$EVENT" = schedule ]; then
+                      skip "the release is held (issue #${held}); the next master push whose build passes restarts it"
                   fi
                   # The newest version commit, and whether its publish run has tagged it yet. Until it has, nx
                   # would version from the previous tags and release the same versions a second time.
@@ -118,7 +136,7 @@ jobs:
                       git rev-parse -q --verify "refs/tags/${project}@${version}" >/dev/null ||
                           skip "the last release (${last}) has no tag ${project}@${version} yet; its publish run must finish first"
                   done < <(git log -1 --format=%b "$last" | sed -n 's/^- project: \([^ ]*\) \([^ ]*\)$/\1 \2/p')
-                  { echo "pending=false"; echo "sha=${GITHUB_SHA}"; } >> "$GITHUB_OUTPUT"
+                  { echo "pending=false"; echo "sha=${CANDIDATE}"; } >> "$GITHUB_OUTPUT"
 
             - uses: pnpm/action-setup@v4
               if: ${{ steps.pending.outputs.pending == 'false' }}
@@ -246,6 +264,7 @@ jobs:
         env:
             GH_TOKEN: ${{ github.token }}
             SHA: ${{ needs.pick.outputs.sha }}
+            EVENT: ${{ github.event_name }}
             CI_RESULT: ${{ needs.ci.result }}
             T4_RESULT: ${{ needs.t4.result }}
             HOSTS_RESULT: ${{ needs.hosts.result }}
@@ -288,8 +307,9 @@ jobs:
                   title="Release held: ${what} failed on ${SHA:0:7}"
                   {
                       echo "The release train failed on ${SHA} (${what}): ${run_url}"
+                      [ "$EVENT" != workflow_run ] || echo "This was a restarted release: a master push whose build passed restarted the held release, and it failed again."
                       echo
-                      echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open: the fix's pull request should say \`Fixes #<this issue>\`, so its merge closes this issue and the next train (00:00, 06:00, 12:00 or 18:00 UTC, or \`gh workflow run release.yml --ref master\` at once) tests master again. A train that passes releases everything at once and closes this issue."
+                      echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open. The release restarts itself on the next push to master whose build passes, so the fix's pull request should name this issue without closing it (\`Refs #<this issue>\`, not \`Fixes #<this issue>\`): its merge restarts the release on its commit. A train that passes releases everything at once and closes this issue; one that fails again comments here."
                       if [ "$T4_RESULT" = failure ]; then
                           echo
                           echo "If the T4 job was refused or lost its runner (machine.dev: insufficient balance, concurrent runner limit, \"received a shutdown signal\", \"lost communication\"; such a job has no log below), there is no code to fix: it is an owner item. Restore the machine.dev capacity, then \`gh workflow run release.yml --ref master\` retries at once (a dispatch runs despite this issue), or close this issue and the next scheduled train retries."
@@ -407,6 +427,7 @@ jobs:
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
                   kind=scheduled
                   [ "$GITHUB_EVENT_NAME" != workflow_dispatch ] || kind="ad hoc"
+                  [ "$GITHUB_EVENT_NAME" != workflow_run ] || kind="restarted"
                   {
                       echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts and the security audit passed on it in ${run_url}."
                       [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."

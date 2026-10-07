@@ -73,6 +73,7 @@ import {
     type NodeShapeValue,
     toColorValue,
 } from "./channels";
+import type { LegendFact } from "./legend";
 import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
     BUILT_IN_SCALES,
@@ -175,11 +176,11 @@ export interface PreparedBinding {
     /** What the column held. */
     readonly counts: BindingCounts;
     /**
-     * What a reader has to be told about this encoding, in sentences a legend prints unedited.
+     * What a reader has to be told about this encoding, as coded facts the legend hands over.
      *
      * Empty when the encoding has nothing to confess.
      */
-    readonly departures: readonly string[];
+    readonly facts: readonly LegendFact[];
     /**
      * The channel value for one element.
      * @param value - What the element carries for the bound path, including the absent value of
@@ -517,7 +518,7 @@ interface SettledDomain {
     /** How many numbers fell outside a domain a percentile clamp narrowed. */
     readonly clamped: number;
     /** What a reader has to be told about how the extent was chosen. */
-    readonly departures: readonly string[];
+    readonly facts: readonly LegendFact[];
 }
 
 /** The scale's options while a domain is being settled, minus the domain itself. */
@@ -572,7 +573,7 @@ function assertClamp(clamp: readonly [number, number]): void {
  * @param facts - What the column held.
  * @param map - The scale.
  * @param base - The scale's other options.
- * @param scale - The scale's name, for the sentences a legend prints.
+ * @param scale - The scale's name, for the facts a legend reports.
  * @returns The domain, the counts it excluded, and what to tell a reader.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` when a domain and a clamp both claim to set
  *   the extent, or when a clamp is not a pair of percentiles.
@@ -601,9 +602,9 @@ function settleDomain(
             domain: explicit,
             notPlottable: places ? 0 : facts.sorted.length,
             clamped: 0,
-            departures: places
+            facts: places
                 ? []
-                : [`no value has a place between ${String(explicit[0])} and ${String(explicit[1])}`],
+                : [{ code: "legend.no-value-in-domain", params: { min: explicit[0], max: explicit[1] } }],
         };
     }
 
@@ -613,25 +614,30 @@ function settleDomain(
 /**
  * Work out an extent from the column itself.
  * @param clamp - The percentiles to cut the extent at, when the binding declared them.
- * @param facts - What the column held.
+ * @param column - What the column held.
  * @param map - The scale.
  * @param base - The scale's other options.
- * @param scale - The scale's name, for the sentences a legend prints.
+ * @param scale - The scale's name, for the facts a legend reports.
  * @returns The domain, the counts it excluded, and what to tell a reader.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` when the clamp is not a pair of percentiles.
  */
 function settleAutomaticDomain(
     clamp: RuleBinding["clamp"],
-    facts: ColumnFacts,
+    column: ColumnFacts,
     map: ScaleFn,
     base: DomainlessContext,
     scale: string,
 ): SettledDomain {
-    const { sorted } = facts;
-    const departures: string[] = [];
+    const { sorted } = column;
+    const facts: LegendFact[] = [];
 
     if (sorted.length === 0) {
-        return { domain: [0, 1], notPlottable: 0, clamped: 0, departures: ["nothing measured"] };
+        return {
+            domain: [0, 1],
+            notPlottable: 0,
+            clamped: 0,
+            facts: [{ code: "legend.nothing-measured", params: {} }],
+        };
     }
 
     let low = sorted[0];
@@ -643,23 +649,23 @@ function settleAutomaticDomain(
         low = percentileValue(sorted, clamp[0]);
         high = percentileValue(sorted, clamp[1]);
         clamped = sorted.filter((value) => value < low || value > high).length;
-        departures.push(`clamped at p${String(clamp[0])}/p${String(clamp[1])}`);
+        facts.push({ code: "legend.clamped", params: { from: clamp[0], to: clamp[1] } });
     }
 
     if (placesDomain(map, base, [low, high])) {
-        return { domain: [low, high], notPlottable: 0, clamped, departures };
+        return { domain: [low, high], notPlottable: 0, clamped, facts };
     }
 
     const floor = smallestPositive(sorted);
     if (floor !== null && floor <= high && placesDomain(map, base, [floor, high])) {
-        departures.push(`${String(facts.nonPositive)} not plottable on a ${scale} scale`);
+        facts.push({ code: "legend.not-plottable", params: { count: column.nonPositive, scale } });
 
-        return { domain: [floor, high], notPlottable: facts.nonPositive, clamped, departures };
+        return { domain: [floor, high], notPlottable: column.nonPositive, clamped, facts };
     }
 
-    departures.push(`no value is plottable on a ${scale} scale`);
+    facts.push({ code: "legend.none-plottable", params: { scale } });
 
-    return { domain: [low, high], notPlottable: sorted.length, clamped, departures };
+    return { domain: [low, high], notPlottable: sorted.length, clamped, facts };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -947,7 +953,7 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         hidden: new Set(),
         groups: 0,
         counts: NO_COUNTS,
-        departures: [],
+        facts: [],
         paint: (): EncodedValue => value,
         paintIgnoringHidden: (): EncodedValue => value,
     };
@@ -1376,26 +1382,26 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
 }
 
 /**
- * The departures that come from the counts rather than from settling the domain.
+ * The facts that come from the counts rather than from settling the domain.
  * @param counts - What the column held.
- * @returns The sentences, in the order a legend reads them.
+ * @returns The facts, in the order a legend reads them.
  */
-function countDepartures(counts: BindingCounts): readonly string[] {
-    const departures: string[] = [];
+function countFacts(counts: BindingCounts): readonly LegendFact[] {
+    const facts: LegendFact[] = [];
 
     if (counts.unreadable > 0) {
-        departures.push(`${String(counts.unreadable)} carry no value the scale can read`);
+        facts.push({ code: "legend.unreadable", params: { count: counts.unreadable } });
     }
 
     if (counts.other > 0) {
-        departures.push(`${String(counts.other)} lumped into "other"`);
+        facts.push({ code: "legend.lumped", params: { count: counts.other } });
     }
 
     if (counts.unmeasured > 0) {
-        departures.push(`not measured (${String(counts.unmeasured)})`);
+        facts.push({ code: "legend.not-measured", params: { count: counts.unmeasured } });
     }
 
-    return departures;
+    return facts;
 }
 
 /**
@@ -1436,7 +1442,7 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         groups: painter.groups,
         ...(painter.range === undefined ? {} : { range: painter.range }),
         counts,
-        departures: Object.freeze([...parts.settled.departures, ...countDepartures(counts)]),
+        facts: Object.freeze([...parts.settled.facts, ...countFacts(counts)]),
         paint:
             hidden.size === 0
                 ? painter.paint
@@ -1500,7 +1506,7 @@ function prepareRule(
     };
     const settled = numeric
         ? settleDomain(binding, facts, map, base, scale)
-        : { domain: [0, 1] as [number, number], notPlottable: 0, clamped: 0, departures: [] };
+        : { domain: [0, 1] as [number, number], notPlottable: 0, clamped: 0, facts: [] };
 
     return assemble(descriptor, binding, {
         scale,

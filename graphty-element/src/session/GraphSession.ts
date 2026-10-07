@@ -20,6 +20,7 @@ import {
     type AccelerationPolicy,
     type GraphAccelerator,
 } from "../acceleration";
+import { sessionColumns } from "../algorithms/input/columns";
 import type { CameraState } from "../camera/types";
 import { arrangedDimension } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
@@ -2574,14 +2575,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }),
     );
 
-    const planning = planningContext(
-        runsOptions,
-        data,
-        (spec: Scope) => scope.resolveNow(spec),
-        defaultScope,
-        acceleration.controller,
-        () => keptSets.list(),
-    );
+    // A layout's availability also reads the graph, the values its grouping names, and the tick
+    // that says neither has changed since the last estimate.
+    const planning: PlanningContext = {
+        ...planningContext(
+            runsOptions,
+            data,
+            (spec: Scope) => scope.resolveNow(spec),
+            defaultScope,
+            acceleration.controller,
+            () => keptSets.list(),
+        ),
+        inputTick: () => inputs.tick.value,
+        snapshot,
+        nodeValues: (path) =>
+            sessionColumns(session, [], {}, "layout").read(snapshot(), path, "node", String)?.values ?? null,
+    };
 
     const session = new Session({
         store: store.store,

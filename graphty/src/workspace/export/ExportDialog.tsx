@@ -1,12 +1,18 @@
 import "./export.css";
 
-import { Modal, Tabs } from "@mantine/core";
+import { PageList } from "@graphty/compact-mantine";
+import { Modal } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type DataChoices, DEFAULT_DATA, DEFAULT_IMAGE, type ImageChoices } from "./choices";
 import { DataOutput } from "./DataOutput";
 import { ImageOutput } from "./ImageOutput";
+
+const OUTPUTS = [
+    { id: "image", name: "Image" },
+    { id: "data", name: "Data" },
+] as const;
 
 /**
  * The one Export dialog (tier1-design.md section T13): Image (a picture of the drawing, through
@@ -49,27 +55,27 @@ export function ExportDialog(): React.JSX.Element {
     };
 
     return (
-        <Modal opened={opened} onClose={close} title="Export" size={760} classNames={{ body: "ws-export-body" }}>
-            {/* Tabs, so each kind of export is heard by its own name; each output is its own panel. */}
-            <Tabs
-                className="ws-export-tabs"
-                orientation="vertical"
-                value={output}
-                onChange={(id) => {
+        <Modal
+            opened={opened}
+            onClose={close}
+            title="Export"
+            size="lg"
+            classNames={{ body: "ws-dialog-columns ws-export-body" }}
+        >
+            <PageList
+                label="What to export"
+                items={OUTPUTS}
+                current={output}
+                onCurrentChange={(id) => {
                     setOutput(id === "data" ? "data" : "image");
                 }}
-            >
-                <Tabs.List className="ws-export-list" aria-label="What to export">
-                    <Tabs.Tab value="image">Image</Tabs.Tab>
-                    <Tabs.Tab value="data">Data</Tabs.Tab>
-                </Tabs.List>
-                {opened && output === "image" ? (
-                    <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />
-                ) : null}
-                {opened && output === "data" ? (
-                    <DataOutput choices={data} onChange={setData} onCancel={close} onDone={done} />
-                ) : null}
-            </Tabs>
+            />
+            {opened && output === "image" ? (
+                <ImageOutput choices={image} onChange={setImage} onCancel={close} onDone={done} />
+            ) : null}
+            {opened && output === "data" ? (
+                <DataOutput choices={data} onChange={setData} onCancel={close} onDone={done} />
+            ) : null}
         </Modal>
     );
 }

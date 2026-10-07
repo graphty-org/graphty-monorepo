@@ -1,7 +1,7 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
 import type { ScreenshotErrorCode, ScreenshotLegendSection } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Alert, Button, Input, Loader, Select, Tabs, Text } from "@mantine/core";
+import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { imageLegend, rowName } from "../canvas/legendWords";
@@ -226,7 +226,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
 
     return (
         <>
-            <Tabs.Panel value="image" className="ws-export-main">
+            <section className="ws-export-main" aria-label="Image">
                 <div>
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Image
@@ -323,7 +323,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                         <img src={preview} alt={`Preview of ${name}`} />
                     )}
                 </div>
-            </Tabs.Panel>
+            </section>
             <ModalFooter className="ws-export-footer">
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {busy ? (

@@ -1,7 +1,7 @@
 import { ModalFooter } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { projectFileName } from "@graphty/graphty-element/session";
-import { Alert, Button, Select, Tabs, Text } from "@mantine/core";
+import { Alert, Button, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { OptionsForm } from "../options/OptionsForm";
@@ -131,7 +131,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
 
     return (
         <>
-            <Tabs.Panel value="data" className="ws-export-main">
+            <section className="ws-export-main" aria-label="Data">
                 <div>
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Data
@@ -192,7 +192,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 >
                     {preview?.lines ?? "Writing the preview..."}
                 </pre>
-            </Tabs.Panel>
+            </section>
             <ModalFooter className="ws-export-footer">
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {SAVED_LOCALLY}

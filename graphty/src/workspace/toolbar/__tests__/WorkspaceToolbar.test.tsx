@@ -92,7 +92,7 @@ describe("the canvas toolbar", () => {
 
         await userEvent.click(screen.getByRole("button", { name: "Quick actions" }));
         await userEvent.click(await screen.findByRole("option", { name: /Keyboard shortcuts/ }));
-        assert.isNotNull(await screen.findByRole("region", { name: "Keyboard shortcuts" }));
+        assert.isNotNull(await screen.findByRole("dialog", { name: "Keyboard shortcuts" }));
         assert.isNull(screen.queryByRole("listbox"));
     });
 

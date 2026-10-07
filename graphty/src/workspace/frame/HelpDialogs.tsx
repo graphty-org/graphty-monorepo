@@ -1,6 +1,6 @@
-import { ModalFooter, ShortcutSheet } from "@graphty/compact-mantine";
-import { Button, Modal, Stack, Text } from "@mantine/core";
-import type React from "react";
+import { ModalFooter, PageList } from "@graphty/compact-mantine";
+import { Button, Kbd, Modal, Stack, Text, Title } from "@mantine/core";
+import React, { useState } from "react";
 
 import { formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -33,13 +33,14 @@ function AboutDialog(): React.JSX.Element {
 }
 
 /**
- * Keyboard shortcuts: every built command that has a key, by its Quick actions home, on
- * compact-mantine's sheet docked at the window's foot.
- * @returns The sheet while the workspace dialog is "shortcuts", else nothing
+ * Keyboard shortcuts: every built command that has a key, in a centered two-column dialog like
+ * Settings -- "All" plus one entry per command group on the left, that group's rows on the right.
+ * @returns The dialog, open while the workspace dialog is "shortcuts"
  */
-function ShortcutsDialog(): React.JSX.Element | null {
+function ShortcutsDialog(): React.JSX.Element {
     const { store, registry } = useWorkspace();
     const opened = useWorkspaceState((state) => state.dialog === "shortcuts");
+    const [current, setCurrent] = useState("all");
     const close = (): void => {
         store.set({ dialog: null });
     };
@@ -52,21 +53,41 @@ function ShortcutsDialog(): React.JSX.Element | null {
             groups.set(command.group, rows);
         }
     }
-    if (!opened) {
-        return null;
-    }
+    const shown = current === "all" ? [...groups] : [...groups].filter(([group]) => group === current);
+    const title = current === "all" ? "All" : current;
     return (
-        <ShortcutSheet
-            className="ws-shortcut-sheet"
-            onClose={close}
-            tabs={[
-                {
-                    value: "all",
-                    label: "All",
-                    groups: [...groups].map(([title, shortcuts]) => ({ title, shortcuts })),
-                },
-            ]}
-        />
+        <Modal opened={opened} onClose={close} title="Keyboard shortcuts" size="lg">
+            <div className="ws-dialog-columns">
+                <PageList
+                    label="Shortcut groups"
+                    items={[{ id: "all", name: "All" }, ...[...groups.keys()].map((group) => ({ id: group, name: group }))]}
+                    current={current}
+                    onCurrentChange={setCurrent}
+                />
+                <section className="ws-dialog-page ws-shortcuts" aria-label={title}>
+                    {shown.map(([group, rows]) => (
+                        <div key={group}>
+                            <Title order={2} size="sm" mb={4}>
+                                {group}
+                            </Title>
+                            {rows.map((row, i) => (
+                                <div className="ws-shortcut-row" key={i}>
+                                    <Text size="sm">{row.label}</Text>
+                                    <span>
+                                        {row.keys.map((key, k) => (
+                                            <Kbd key={k}>{key}</Kbd>
+                                        ))}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </section>
+            </div>
+            <ModalFooter>
+                <Button onClick={close}>Done</Button>
+            </ModalFooter>
+        </Modal>
     );
 }
 

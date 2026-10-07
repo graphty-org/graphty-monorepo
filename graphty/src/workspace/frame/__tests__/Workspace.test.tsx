@@ -189,7 +189,7 @@ describe("the workspace frame", () => {
         renderWorkspace(OPEN, [...REGISTRATIONS, LATER]);
 
         await userEvent.keyboard("?");
-        const sheet = await screen.findByRole("region", { name: "Keyboard shortcuts" });
+        const sheet = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
         // The project's Rename, and a style row's Rename and Delete, which act on the focused row.
         assert.lengthOf(within(sheet).getAllByText("Rename"), 2);
         assert.lengthOf(within(sheet).getAllByText("F2"), 2);
@@ -198,11 +198,37 @@ describe("the workspace frame", () => {
         assert.isNull(within(sheet).queryByText("Later tool"));
     });
 
+    it("shows the keyboard shortcuts in a centered dialog, one group at a time, scrolling only up and down", async () => {
+        renderWorkspace(OPEN, [...REGISTRATIONS, LATER]);
+
+        await userEvent.keyboard("?");
+        const dialog = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+        const groups = within(dialog).getByRole("grid", { name: "Shortcut groups" });
+        const names = within(groups)
+            .getAllByRole("gridcell")
+            .map((cell) => cell.textContent);
+        assert.strictEqual(names[0], "All");
+        assert.includeMembers(names, ["Project", "Selection"]);
+
+        await userEvent.click(within(groups).getByRole("gridcell", { name: "Project" }));
+        const shown = within(dialog).getByRole("region", { name: "Project" });
+        assert.deepEqual(
+            within(shown)
+                .getAllByRole("heading")
+                .map((heading) => heading.textContent),
+            ["Project"],
+        );
+        assert.strictEqual(shown.scrollWidth, shown.clientWidth);
+
+        await userEvent.keyboard("{Escape}");
+        assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
+    });
+
     it("ignores single-key shortcuts when the reader switched them off", async () => {
         renderWorkspace({ ...OPEN, singleKeyShortcuts: false });
 
         await userEvent.keyboard("?");
-        assert.isNull(screen.queryByRole("region", { name: "Keyboard shortcuts" }));
+        assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
         // F2 is not a character key, so it still renames.
         await userEvent.keyboard("{F2}");
         assert.isNotNull(screen.getByRole("textbox", { name: "Project name" }));
@@ -213,7 +239,7 @@ describe("the workspace frame", () => {
 
         await userEvent.keyboard("{F2}");
         await userEvent.type(screen.getByRole("textbox", { name: "Project name" }), "?");
-        assert.isNull(screen.queryByRole("region", { name: "Keyboard shortcuts" }));
+        assert.isNull(screen.queryByRole("dialog", { name: "Keyboard shortcuts" }));
     });
 
     it("shows the build stamp in Help > About", async () => {

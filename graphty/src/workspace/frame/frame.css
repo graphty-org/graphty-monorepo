@@ -137,12 +137,49 @@
     overflow: auto;
 }
 
-.ws-shortcut-sheet {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 300;
+/* The two-column dialog (Settings, Keyboard shortcuts, Export; Modal size "lg"): a page list
+   on the left, the chosen page on the right, one column below 720px. One fixed height, so every
+   two-column dialog is the same size and switching pages never resizes it; with the header and
+   the footer the dialog is 640 tall. dvh, since iPad Safari's 100vh is taller than what it shows. */
+.ws-dialog-columns {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 16px;
+    height: min(536px, calc(100dvh - 184px));
+}
+
+/* The page scrolls up and down only. */
+.ws-dialog-page {
+    min-height: 0;
+    overflow: hidden auto;
+}
+
+@media (max-width: 720px) {
+    .ws-dialog-columns {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+    }
+}
+
+.ws-shortcuts {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ws-shortcut-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 28px;
+}
+
+.ws-shortcut-row > span {
+    display: flex;
+    flex: none;
+    gap: 4px;
 }
 
 /* The regions above set a display, which would otherwise outrank the hidden attribute. */

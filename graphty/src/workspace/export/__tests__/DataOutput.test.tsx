@@ -5,7 +5,6 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Tabs } from "@mantine/core";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { assert, describe, it, vi } from "vitest";
@@ -137,9 +136,7 @@ function renderData(element: Partial<GraphtyElement>, first: DataChoices = DEFAU
     );
     render(
         <WorkspaceContext.Provider value={value}>
-            <Tabs value="data">
-                <Stateful first={first} />
-            </Tabs>
+            <Stateful first={first} />
         </WorkspaceContext.Provider>,
     );
 }

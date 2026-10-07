@@ -229,9 +229,15 @@ describe("documentation code samples", () => {
             noEmit: true,
             composite: false,
             incremental: false,
+            // No ambient @types packages: left unset, every @types package in the workspace's node_modules joins the
+            // program (three.js alone is 248 files, two thirds of what is parsed), and neither a sample nor src/ uses
+            // one. A sample that leans on Node globals fails here, as it would for a browser reader.
+            types: [],
         });
-        const errors = ts
-            .getPreEmitDiagnostics(program)
+        // Diagnostics of the sample files only: asking for the whole program's would also type-check every file of
+        // src/ the samples import, which `npm run lint` already does, and that is half of the checker's work.
+        const errors = files
+            .flatMap((f) => ts.getPreEmitDiagnostics(program, program.getSourceFile(f)))
             .filter((d) => d.file === undefined || d.file.fileName.startsWith(OUT))
             .map((d) => `${d.file?.fileName ?? "(options)"}: ${ts.flattenDiagnosticMessageText(d.messageText, "\n")}`);
         assert.deepEqual(errors, []);

@@ -289,6 +289,17 @@ export function DataPlace(): React.JSX.Element {
     const editSource = (): void => {
         store.set({ page: "data-page" });
     };
+    /**
+     * A click on a table shows it in the table dock; a file row only expands to its tables.
+     * @param ids - the clicked row's id, last.
+     */
+    const showSource = (ids: readonly string[]): void => {
+        const id = ids.at(-1);
+        const row = sources.flatMap((source) => [source, ...(source.children ?? [])]).find((r) => r.id === id);
+        if (tableBuilt && (row?.kind === "nodes" || row?.kind === "edges")) {
+            store.set({ dockOpen: true, tableOn: row.kind });
+        }
+    };
     const menuColumn = menuFor === null ? null : columnOf(menuFor);
     const labelSpec = menuColumn?.kind === "node" ? { column: menuColumn, channel: "node.label" as const } : null;
     const labelRefusal = labelSpec === null || session === null ? null : labelRefusalFor(session, labelSpec);
@@ -365,7 +376,7 @@ export function DataPlace(): React.JSX.Element {
                                     defaultExpanded={["source"]}
                                     multiselect={false}
                                     selected={[]}
-                                    onSelect={editSource}
+                                    onSelect={showSource}
                                 />
                             )}
                         </ControlSection>

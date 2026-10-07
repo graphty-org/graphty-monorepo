@@ -398,7 +398,9 @@ function bodyOf(
                   { only: <GroupValues run={run} group={resolved.group} version={version} /> };
         case "everything-row":
             return { style: <StyleTab />, values: <EverythingValues /> };
+        // The selection's look is not a style layer, so the row shows what the selection holds.
         case "selection-row":
+            return { only: <SeveralValues version={version} /> };
         case "layer-row":
             return { only: <StyleTab /> };
         default:

@@ -55,6 +55,11 @@ export interface WorkspaceState {
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
+    /**
+     * A request to show the table dock on its Nodes or Edges tab (a Sources table's click); the
+     * dock takes it once and clears it.
+     */
+    readonly tableOn: "nodes" | "edges" | null;
     /** The one legend switch (round 7): the canvas card and Export read it. */
     readonly legendShown: boolean;
     /**
@@ -90,6 +95,7 @@ const INITIAL: WorkspaceState = {
     rightWidth: PANEL_MIN,
     dockHeight: 240,
     dockOpen: false,
+    tableOn: null,
     legendShown: true,
     exportOn: "image",
     singleKeyShortcuts: true,

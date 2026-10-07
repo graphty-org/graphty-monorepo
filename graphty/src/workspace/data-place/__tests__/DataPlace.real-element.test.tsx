@@ -190,6 +190,30 @@ describe("the Data place on the real element", () => {
     );
 
     it(
+        "shows a clicked source table in the table dock on its tab, never the Data page",
+        async () => {
+            const { session, store } = await openDataPlace(TABLE_BUILT);
+            await importGraphFile(session);
+
+            await userEvent.click(await screen.findByRole("treeitem", { name: "Edge table" }));
+            assert.equal(store.get().page, "panels");
+            assert.isTrue(store.get().dockOpen);
+            await waitFor(() => {
+                const edges = screen.getByRole("tab", { name: "Edges" });
+                assert.equal(edges.getAttribute("aria-selected"), "true");
+            });
+
+            await userEvent.click(within(tree("Sources")).getByRole("treeitem", { name: "Node table" }));
+            await waitFor(() => {
+                const nodes = screen.getByRole("tab", { name: "Nodes" });
+                assert.equal(nodes.getAttribute("aria-selected"), "true");
+            });
+            assert.equal(store.get().page, "panels");
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "Add label line binds a new layer's node label to the attribute and selects it, as one undoable step",
         async () => {
             const { session, store } = await openDataPlace();

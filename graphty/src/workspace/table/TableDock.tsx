@@ -257,6 +257,14 @@ export function TableDock(): React.JSX.Element {
     useEffect(() => {
         ARRANGEMENTS.set(store, arrangement);
     }, [store, arrangement]);
+    // A Sources table's click asks for its tab: take the request once.
+    const tableOn = useWorkspaceState((state) => state.tableOn);
+    useEffect(() => {
+        if (tableOn !== null) {
+            setArrangement((now) => ({ ...now, tab: tableOn }));
+            store.set({ tableOn: null });
+        }
+    }, [store, tableOn]);
     const { tab, views, members } = arrangement;
     const arrange = (change: Partial<Arrangement>): void => {
         setArrangement((now) => ({ ...now, ...change }));

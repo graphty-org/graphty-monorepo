@@ -235,6 +235,20 @@ describe("the inspector", () => {
         });
     });
 
+    it("shows the selection's Summary when the Selection row is opened", async () => {
+        const { session: on, store } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
+        });
+        act(() => {
+            store.set({ inspected: { kind: "selection-row" } });
+        });
+
+        const nodes = await screen.findByRole("group", { name: "Nodes" });
+        assert.include(nodes.textContent, "3");
+        assert.isNotNull(screen.getByRole("group", { name: "Edges among them" }));
+    });
+
     it("gives no two reachable controls the same accessible name", async () => {
         const { session: on } = await renderInspector();
         for (const select of [

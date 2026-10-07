@@ -38,8 +38,9 @@ acceptance test. "The studio worktree" is
    `viewInsets` (CSS px per side), honored by every fit; the app's LegendCard reports its box.
    Open: the toolbar is reserved only while the card takes the top; "Current view" exports rely
    on the screen's insets; a reader's own camera is refit when the card resizes (autoFrame on).
-6. (2026-10-07) Still deferred, with reasons in round 2 decisions: 4x print re-render
-   (`ScreenshotCapture.ts` scales; labels also soft at 2x), name behind a dot counted as shown, Force re-apply cloud (untraced -- trace before round 3 launches and
+6. (2026-10-07) Exports at 2x/4x are now drawn at that size, not stretched (6783ba895). A
+   new pixel-sized mesh must read `engine.getRenderWidth()` inside the render and honor
+   `CustomLineRenderer.setPixelScale`, or it shrinks in a 4x export. Still deferred: name behind a dot counted as shown, Force re-apply cloud (untraced -- trace before round 3 launches and
    file an element issue with the cause, do not hold the round), refusal parity for "New from
    data...".
 7. (2026-10-07) Small open defects from the re-pilots (not on a measured path, safe after round
@@ -128,25 +129,28 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
-- (2026-10-07) **"Whole graph" export keeps the on-screen angle (6f1cf692b, element + app; owner
-  door, hold + needs-decision).** `fitToGraph` declares `keepAngle` (boolean, default false): in 3D
-  it keeps the current direction and pivot rotation (roll too) and only moves target and
-  distance; the distance puts every corner of the bounds box, padded 10 percent off the view axis,
-  inside the narrower field of view. `ScreenshotOptions.camera` takes `{ preset, params }` and
-  `ScreenshotCapture` passes params to `resolveCameraPreset`. App: `cameraOf()` in
-  `export/choices.ts` asks for it on "Whole graph". Rejected: a new view id (second name for one
-  rule), changing the default (moves saved pictures), app-side camera math (workaround). Proof:
-  `test/cameras/fit-to-graph-keep-angle.test.ts` (angles kept, every corner inside at aspect
-  16/9 and 0.5, old numbers to the digit; fails on the old files with `E_UNKNOWN_OPTION`);
-  `screenshot-camera-override.test.ts` keepAngle test fails when params are dropped;
-  `tmp/r3fix-export-whole-graph-angle/s2/downloads/` (same turn as "Current view", every node
-  in, canvas camera unchanged after). Ceiling: framing the axis-aligned box, not the nodes,
-  leaves about 20 percent margin per side on Les Miserables; tighter needs node positions in
-  `CameraViewInput` (new API). Tried first: the box's bounding sphere -- same picture, so the box
-  is the limit. Not checked: interaction with the view insets that landed after (fa260f20d).
-  Lesson: shared files were edited by three agents at once (builtins.ts, ScreenshotCapture.ts,
-  api reports, these notes); stage by writing HEAD plus my hunks with `git hash-object -w` and
-  `git update-index --cacheinfo`, never `git add` on a shared file.
+- (2026-10-07) **A capture of another size is drawn at that size (6783ba895, element only, no
+  API change).** Cause: Babylon's `CreateScreenshotAsync` copies the canvas (device pixels) and
+  `drawImage`-scales it to the requested size, so "For print, 4x" was the canvas stretched (no
+  browser clamp; `precision` was being fed the JPEG quality, shrinking JPEGs). Now a size other
+  than the canvas with the canvas's shape goes through `CreateScreenshotUsingRenderTargetAsync`
+  (MSAA 4 when the engine antialiases); a different shape keeps the old fitted copy (ponytail:
+  sharp letterboxing not built). Label textures did NOT need re-rendering: they are drawn at
+  48 px per line, which covers a 4x export of a normal view (measured 10-90% glyph rise 1 px at
+  1x and at 4x). What did break: line width is in pixels (`resolution` uniform), so 4x edges came
+  out a quarter as thick; `CustomLineRenderer.setPixelScale(scene, k)` divides the resolution for
+  the capture and resets in `finally`. Proof: `test/browser/screenshot/screenshot-sharp-names.test.ts`
+  (rise 6 px stretched vs 1 px; edge 5 px at both sizes without the line scale vs 15-25 wanted);
+  app `tmp/r3fix-export-sharp-names-4x/run/` (Florentine, name on every node, Show all labels,
+  For print 4x: `medici-1to1.png`, rise 1 px). The study browser renders labels in a serif
+  fallback font; that is the tool, not the export.
+
+- (2026-10-07) **"Whole graph" export keeps the on-screen angle (6f1cf692b, owner door).**
+  `fitToGraph` `keepAngle` (default false) keeps direction and roll, fits every padded corner of
+  the bounds box; `ScreenshotOptions.camera` takes `{ preset, params }`; app `cameraOf()` asks for
+  it. Rejected: a new view id, a new default, app camera math. Proof:
+  `test/cameras/fit-to-graph-keep-angle.test.ts`, `tmp/r3fix-export-whole-graph-angle/`. Ceiling:
+  boxing, not nodes, leaves ~20% margin; tighter needs node positions in `CameraViewInput`.
 
 - (2026-10-07) **Export leaves the selection ring out (4c087d8bc, element + app; owner door).**
   `ScreenshotOptions.showSelection` (default true); `false` disables every enabled
@@ -163,25 +167,12 @@ acceptance test. "The studio worktree" is
   08 preview no ring, downloads/florentine_current-view.png no ring, 09 still ringed and
   "Selection 1"). `owner-decisions.md` entry; PR needs hold + needs-decision.
 
-- (2026-10-07) **The key never covers a node: view insets (fa260f20d, element + app, owner
-  door).** Element: `viewInsets` property (`setViewInsets`/`getViewInsets` on Graph,
-  `CameraViewInput.insets` in device px, `ViewInsets` type from root and `./extend`). One helper,
-  `camera/insets.ts freeArea()`, gives the free share and its NDC center; the 2D controller and
-  `fitToGraph` size and pan into it; the orbit controller does a LENS SHIFT (camera offset in the
-  pivot frame by `-free.x * tanX * distance`, applied in `updateCameraPosition`), so the graph
-  still turns about its own center, and its fit solves d >= |x/tanX - c z| / share - z per corner
-  (no insets = old numbers to the digit). Rejected: moving the pivot (graph swings when turned),
-  a frozen off-axis projection matrix (picking and resize), symmetric shrink (wastes the free
-  side). A framed capture (`camera: { preset }`) uses ONLY the key it draws as the inset
-  (`legendBox()` in `drawLegend.ts`), not the screen's: the first try took max(screen, key) and
-  "Whole graph" exports had a 240 px empty band from the app's card that is not in the picture.
-  App: `LegendCard` `useReservedMargin` (ResizeObserver on card and canvas; left of a tall card,
-  above a wide one by smaller share, + toolbar height at the bottom when above, since a top-only
-  inset pushed Les Mis's pink group under the toolbar); store `viewInsets`, written on the tag in
-  `ElementHost`. Proof: `test/browser/camera/view-insets.test.ts` (4 of 5 fail with insets
-  ignored), `screenshot-legend.test.ts` last test, `CanvasOverlays.test.tsx` inset test;
-  `tmp/r3fix-key-view-insets/` r3-s27 rerun (Pazzi drawn below the card, `florentine/06.png`
-  clicks Pazzi at 569,157), `lesmis/02.png` and both exports in `*/downloads/`.
+- (2026-10-07) **The key never covers a node: view insets (fa260f20d, owner door).** Element
+  `viewInsets` (`setViewInsets`/`getViewInsets`, `CameraViewInput.insets`, device px);
+  `camera/insets.ts freeArea()`; 2D and `fitToGraph` size into the free area, orbit uses a lens
+  shift so the graph still turns about its center. A framed capture insets by the key it draws
+  (`legendBox()`), not the screen's. App `LegendCard` `useReservedMargin`. Proof:
+  `test/browser/camera/view-insets.test.ts`, `tmp/r3fix-key-view-insets/`.
 
 - (2026-10-07) **Show all labels (b7590f8de, app only).** Checkbox beside the label count in
   `LabelSection.tsx` ("N labels, M hidden"); store `allLabelsShown` (reader preference, not saved);
@@ -205,13 +196,6 @@ acceptance test. "The studio worktree" is
   writes the fixed 1, then opens its own bind list with "Fixed size" first. Rejected a separate
   picker (second bind route) and component state (lost on remount). Re-record T9's answer key.
 
-- (2026-10-07) Study tool: focus lines name the highlighted option (`aria-activedescendant`),
-  `--read` is browse mode, a pre-filled live region ends `-- unconfirmed`, `REAL_DIST` serves a
-  build copy; `tool/bars.mjs` measures the a11y and word bars. Proof: `--prove` 33/33.
-
-- (2026-10-07) 2D Fit: fixed the view's unit (5 / half-width), not the camera's; see Top of mind 9.
-  Lessons: test framing with a graph taller than the canvas too; trace the app's actual call first.
-
 - (2026-10-07) Load and run announced on one status line (store `announcement`, toolbar polite
   region); `StateCard` lost `role="status"`. Gaps: no line at load start; repeated text is not
   re-announced.
@@ -224,9 +208,6 @@ acceptance test. "The studio worktree" is
   English `painted over by` departure deleted). Rejected a `coveredBy` field and the app parsing
   the sentence. Lesson: when the element "already detects" something, check whether it says so
   only in words -- that is the neutrality defect and often the whole bug.
-
-- (2026-10-07) Rounds 1-2: round 2 passed 52 of 54 (both failures screen reader); round 1
-  decisions in `rounds/round-1/decisions.md`.
 
 - (2026-10-06) Focus after a Style pick moves to the new line's first control (e82708488). Study
   runner: idle sessions close after 15 minutes, `--end` after every attempt. Focus rings for
@@ -269,8 +250,6 @@ acceptance test. "The studio worktree" is
 - **(2026-10-06) Screen-reader mode in `real.mjs`: worked** (CDP AX tree on the deep
   `activeElement`; init-script MutationObserver for live regions).
 
-- **(2026-10-06) Mouse wheel zooms the 3D orbit camera: worked** (d9e5cc8dc): a canvas `wheel`
-  listener in `OrbitInputController`, one notch = 10% of the distance.
 - **(2026-10-06) Open: the live Selection row is blank after the neighbor route**
   (`tmp/check-r1-summary-cleanup/06-08.png`); renders in a headless test. Suspect `useAsyncValue`
   reset on every session version bump; not traced.
@@ -279,8 +258,6 @@ acceptance test. "The studio worktree" is
   shared files with `tmp/r3fix-key-view-insets/stage_blob.py <file> <regex>` (HEAD + only the
   -U0 hunks matching; `git apply --cached --unidiff-zero` of a subset fails on line offsets).
 
-- **(2026-10-06) Worked, small:** empty summary rows, ComboInput arrow, undirected arrowheads,
-  dead-end clicks (b11881bb2, b7bc18953, cae3dca4d); proofs under `tmp/check-r1-*`.
 - **(2026-10-06) A "missing route" was a routing bug: worked.** The Neighborhood command never set `inspected: neighborhood`; routing it through `openNeighborhood` fixed it (8f4891b7c). Lesson: before designing a new affordance for a hard task, check whether an existing door reaches the wrong screen.
 
 - 2026-10-06 -- Analyze keyboard pick as the ARIA combobox pattern (focus stays in the filter,
@@ -296,6 +273,9 @@ acceptance test. "The studio worktree" is
   `NODE_OPTIONS=--max-old-space-size=8192 npx vite build` in graphty (env knob, not a code change);
   another agent's half-done TS edit can also fail `nx run graphty:build` -- copy a good build to
   your session folder and use `REAL_DIST`.
+- (2026-10-07) **`nx run graphty:build` can die of heap (4 GB) and leave `graphty/dist`
+  half-empty, which breaks the shared :9366 server: rebuild at once with
+  `NODE_OPTIONS=--max-old-space-size=8192`.** (2026-10-07 again on this run.)
 - (2026-10-07) **Nx can restore a partial element dist.** `nx run graphty-element:build` said
   "from cache" yet `dist/` had no `.d.ts`, so `npm run api:report` failed; `npm run build` in
   graphty-element fixed it. Vitest browser runs go through `with-browser.sh` too. The Bash safety

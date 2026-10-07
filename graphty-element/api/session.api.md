@@ -619,8 +619,15 @@ export interface FieldInterpretation {
 }
 
 // @public
+export interface FieldResult {
+    readonly algorithm: AlgorithmKey;
+    readonly field: string;
+}
+
+// @public
 export interface FieldWords {
     readonly plainName: string;
+    readonly result?: FieldResult;
     readonly technicalName: string;
 }
 
@@ -1452,6 +1459,7 @@ export interface LayoutRecommendationOptions {
 // @public
 export interface LegendBlock {
     readonly channel: Channel;
+    // @deprecated
     readonly departures: readonly string[];
     readonly domain?: {
         readonly min: number;
@@ -1462,10 +1470,12 @@ export interface LegendBlock {
             readonly to: string;
         };
     };
+    readonly facts: readonly LegendFact[];
     readonly field?: {
         readonly plainName: string;
         readonly technicalName: string;
         readonly path: Path;
+        readonly result?: FieldResult;
     };
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
     readonly layerId: LayerId;
@@ -1490,6 +1500,12 @@ export interface LegendBlock {
 }
 
 // @public
+export type LegendFact = CodedFact<LegendFactCode>;
+
+// @public
+export type LegendFactCode = "legend.clamped" | "legend.not-plottable" | "legend.none-plottable" | "legend.no-value-in-domain" | "legend.nothing-measured" | "legend.unreadable" | "legend.lumped" | "legend.not-measured" | "legend.painted-over";
+
+// @public
 export interface LegendReading {
     readonly code: "legend.higher";
     readonly params: {
@@ -1503,7 +1519,12 @@ export interface LegendReading {
 export interface LegendSwatch {
     readonly color?: string;
     readonly count?: number;
+    readonly extent?: {
+        readonly min: number;
+        readonly max: number;
+    };
     readonly hidden?: true;
+    // @deprecated
     readonly label: string;
     readonly paints?: unknown;
     readonly rank?: number;
@@ -3372,6 +3393,15 @@ export interface StyleContribution {
 }
 
 // @public
+export interface StyleCounts {
+    readonly matched: number;
+    readonly noValue: number;
+    readonly outsideScale: number;
+    readonly painted: Readonly<Partial<Record<Channel, number>>>;
+    readonly revision: string;
+}
+
+// @public
 export interface StyleDocument {
     // (undocumented)
     layers: readonly LayerSpec[];
@@ -3399,6 +3429,7 @@ export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
     agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
+    counts(id: LayerId): StyleCounts;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;

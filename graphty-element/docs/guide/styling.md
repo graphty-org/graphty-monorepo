@@ -443,7 +443,10 @@ element.layout = "ngraph";
 element.session.styles.list(); // every layer, bottom first
 element.session.styles.legend(); // what a reader needs to interpret the picture
 element.session.styles.explain({ node: "alice" }); // why this node looks like this
+element.session.styles.counts(layerId); // how many elements one layer covers and wins
 ```
+
+See [Counting What a Layer Paints](./layer-counts) for `counts()`.
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.

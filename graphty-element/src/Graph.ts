@@ -58,7 +58,7 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -118,6 +118,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
+import { pickNodeId } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -3419,10 +3420,8 @@ export class Graph implements GraphContext {
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     // This was a click - check if we hit anything
-                    const pickResult = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
-
-                    // If we didn't hit anything or hit something without a nodeId, deselect
-                    if (!pickResult.hit || !pickResult.pickedMesh?.metadata?.nodeId) {
+                    // If we didn't hit a node, deselect
+                    if (pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY) === undefined) {
                         this.selectionManager.deselect();
                     }
                 }
@@ -4139,6 +4138,18 @@ export class Graph implements GraphContext {
         }
 
         return null;
+    }
+
+    /**
+     * The node under a point on the element, as a click there would see it.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "node", id }`, or `null` when no node is there.
+     */
+    elementAt(point: { x: number; y: number }): ElementAtResult | null {
+        const id = pickNodeId(this.scene, point.x, point.y);
+        return id === undefined ? null : { kind: "node", id };
     }
 
     /**

@@ -725,6 +725,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             worldToScreen: READ,
             nodeScreenPosition: READ,
             screenToWorld: READ,
+            elementAt: READ,
             setData: calls(
                 [{ nodes: [{ id: "d1" }], edges: [] }],
                 batchOf("Set the graph data", addNodes({ id: "d1" })),
@@ -917,6 +918,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             worldToScreen: READ,
             nodeScreenPosition: READ,
             screenToWorld: READ,
+            elementAt: READ,
             getCameraController: READ,
             getNodeMesh: READ,
             waitForSettled: READ,

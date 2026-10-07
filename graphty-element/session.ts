@@ -435,6 +435,7 @@ export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
 export type {
     ChannelAgreement,
     ChannelExplanation,
+    ChannelRefusalCode,
     ChannelShare,
     ColumnEncodingSpec,
     ElementLayerSpec,
@@ -470,6 +471,7 @@ export type {
     TemplateOptions,
     TemplateReport,
     UnboundLayer,
+    UnboundLayerCode,
     ValidationResult,
 } from "./src/session/styles";
 export { quotePath } from "./src/session/styles";

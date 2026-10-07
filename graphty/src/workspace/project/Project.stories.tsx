@@ -100,7 +100,7 @@ export const RecentMissing: Story = {
     play: async ({ canvasElement }) => {
         const row = await new Promise<HTMLElement>((resolve) => {
             const find = (): void => {
-                const found = [...canvasElement.querySelectorAll<HTMLElement>(".ws-recent-open")].find((button) =>
+                const found = [...canvasElement.querySelectorAll<HTMLElement>(".cm-page-cell")].find((button) =>
                     button.textContent?.startsWith("Les Miserables, my copy"),
                 );
                 if (found === undefined) {

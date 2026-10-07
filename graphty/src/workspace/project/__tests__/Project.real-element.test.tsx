@@ -212,7 +212,7 @@ describe("T14: save and reopen, on the real element", () => {
 
                 await closeFromMenu("Florentine, my copy");
                 assert.isNull(store.get().project);
-                const recent = await screen.findByRole("button", { name: /^Florentine, my copy/ });
+                const recent = await screen.findByRole("gridcell", { name: /^Florentine, my copy/ });
                 assert.isNotNull(within(recent).getByText("15 nodes"));
 
                 await userEvent.click(recent);
@@ -292,7 +292,7 @@ describe("T14: save and reopen, on the real element", () => {
                 );
 
                 await closeFromMenu("Florentine");
-                const recent = await screen.findByRole("button", { name: /^Florentine/ });
+                const recent = await screen.findByRole("gridcell", { name: /^Florentine/ });
                 assert.isNotNull(within(recent).getByText(/ - Locate\.\.\.$/));
 
                 // Locate... asks for the file: the reader picks the download.

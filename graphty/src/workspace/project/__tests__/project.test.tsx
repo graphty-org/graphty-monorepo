@@ -71,9 +71,10 @@ describe("the Project package", () => {
         await rememberRecent({ id: "b", name: "Les Miserables", nodes: 77, at: 2 });
         render(<Workspace />);
 
-        const rows = await screen.findAllByRole("button", { name: /^(Older|Les Miserables)/ });
+        const list = await screen.findByRole("grid", { name: "Recent projects" });
+        const rows = within(list).getAllByRole("gridcell", { name: /^(Older|Les Miserables)/ });
         assert.deepEqual(
-            rows.map((row) => row.querySelector("span")?.textContent),
+            rows.map((row) => row.querySelector(".cm-page-name")?.textContent),
             ["Les Miserables", "Older"],
         );
         assert.isNotNull(within(rows[0]).getByText("77 nodes"));
@@ -83,7 +84,7 @@ describe("the Project package", () => {
         await userEvent.click(screen.getByRole("button", { name: "More for Older" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Remove from list" }));
         await waitFor(() => {
-            assert.isNull(screen.queryByRole("button", { name: /^Older/ }));
+            assert.isNull(screen.queryByRole("gridcell", { name: /^Older/ }));
         });
     });
 

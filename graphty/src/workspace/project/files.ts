@@ -4,14 +4,12 @@
  * Save downloads a copy and reopening asks for the file. Nothing here reads what is in a file.
  */
 
-/**
- * The file type a project is saved as, for the save picker. Temporary copy of what
- * graphty-element's `downloadProject` uses, which the element does not export (#919); import it
- * from the element and delete this once it does.
- */
+import { PROJECT_FILE, projectFileName } from "@graphty/graphty-element/session";
+
+/** The file type a project is saved as, for the pickers: graphty-element's project file. */
 const PROJECT_TYPE = {
     description: "graphty project",
-    accept: { "application/vnd.graphty+json": [".json"] },
+    accept: { [PROJECT_FILE.mediaType]: [PROJECT_FILE.extension] },
 } as const;
 
 /** The parts of the File System Access API this file uses, which TypeScript's DOM library lacks. */
@@ -43,16 +41,6 @@ function pickers(): FileAccessWindow {
  */
 export function keepsFileHandles(): boolean {
     return typeof pickers().showSaveFilePicker === "function";
-}
-
-/**
- * The file name a project is saved under, suggested by the save picker. Temporary copy of
- * `downloadProject`'s naming rule (#919); use the element's once it exports one.
- * @param name - the project's name.
- * @returns `<name>.graphty.json`.
- */
-function projectFileName(name: string): string {
-    return `${name}.graphty.json`;
 }
 
 /**

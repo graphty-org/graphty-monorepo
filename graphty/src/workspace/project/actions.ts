@@ -35,7 +35,16 @@ interface ProjectFileState {
      */
     writeFailed: boolean;
     /** A file to open in the project's element once it comes up (opened from the start screen). */
-    pending: { file: File; handle?: FileSystemFileHandle; recentId?: string } | null;
+    pending: PendingFile | null;
+}
+
+/** A file waiting to open: its handle and Recent projects entry, and whether its project is new. */
+interface PendingFile {
+    file: File;
+    handle?: FileSystemFileHandle;
+    recentId?: string;
+    /** Opened from the start screen: a data file loads as the new project, not into one. */
+    fresh?: boolean;
 }
 
 const states = new WeakMap<WorkspaceStore, ProjectFileState>();
@@ -72,8 +81,8 @@ function fileState(store: WorkspaceStore): ProjectFileState {
 export function problemSentence(fileName: string, error: unknown): string {
     const code = isGraphtyError(error) ? error.code : undefined;
     switch (code) {
-        case "E_PARSE_FAILED":
         case "E_UNKNOWN_FORMAT":
+            return `${fileName} is not a file graphty can open.`;
         case "E_BAD_DOCUMENT":
             return `${fileName} is not a graphty project file.`;
         case "E_UNSUPPORTED_VERSION":
@@ -85,6 +94,24 @@ export function problemSentence(fileName: string, error: unknown): string {
         default:
             return `${fileName} could not be opened.`;
     }
+}
+
+/**
+ * Why a file did not open or add, in the app's words. graphty-element refuses a file it could not
+ * read whole with `E_PARSE_FAILED` and the line it broke at; nothing of it is kept.
+ * @param fileName - the file's name.
+ * @param error - what the element threw.
+ * @param verb - "opened" or "added".
+ * @returns the notice's sentence.
+ */
+export function notReadSentence(fileName: string, error: unknown, verb: "opened" | "added"): string {
+    if (isGraphtyError(error) && error.code === "E_PARSE_FAILED") {
+        const line = error.details?.line;
+        const where = typeof line === "number" ? ` near line ${String(line)}` : "";
+        return `${fileName} could not be ${verb}: the file is incomplete or damaged${where}, so nothing was read. Ask for the file again.`;
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    return `${fileName} could not be ${verb}. ${reason}`;
 }
 
 /**
@@ -297,9 +324,20 @@ export function closeProject(ctx: CommandContext): void {
 }
 
 /**
- * Opens a project file in the session: refused over unsaved changes until the reader says
- * Discard. The header takes the project's name, and Save writes the same file again where the
- * browser keeps its handle.
+ * A file's name without its extension: the name of a project opened from a data file, which the
+ * file itself does not name.
+ * @param fileName - the file's name.
+ * @returns the name.
+ */
+function withoutExtension(fileName: string): string {
+    return fileName.replace(/\.[^.]*$/, "") || fileName;
+}
+
+/**
+ * Opens a file in the session through graphty-element's one intake verb, `project.open`. A
+ * project file replaces the project (refused over unsaved changes until the reader says Discard);
+ * the header takes the project's name, and Save writes the same file again where the browser
+ * keeps its handle. A data file loads as a new project's graph, or is added to an open project.
  * @param ctx - the command context, with the project's session.
  * @param session - the session.
  * @param pending - the file, its handle and its Recent projects entry.
@@ -309,11 +347,11 @@ export function closeProject(ctx: CommandContext): void {
 async function openInSession(
     ctx: CommandContext,
     session: GraphSession,
-    pending: NonNullable<ProjectFileState["pending"]>,
+    pending: PendingFile,
     discard: boolean,
 ): Promise<boolean> {
     const { workspace } = ctx;
-    const { file, handle, recentId } = pending;
+    const { file, handle, recentId, fresh = false } = pending;
     if (!discard && fileState(workspace).writeFailed) {
         askToDiscard(workspace, async () => {
             await openInSession(ctx, session, pending, true);
@@ -322,8 +360,13 @@ async function openInSession(
     }
     try {
         const report = await session.project.open(file, { discard, fileName: file.name });
+        if (report.opened === "graph") {
+            await report.draft?.load({ mode: fresh ? "replace" : "merge" });
+        }
         if (report.opened !== "project") {
-            workspace.set({ notice: { message: `Added ${file.name} to this project` } });
+            if (!fresh) {
+                workspace.set({ notice: { message: `Added ${file.name} to this project` } });
+            }
             return true;
         }
         const name = report.name ?? headerName(workspace);
@@ -346,21 +389,27 @@ async function openInSession(
             });
             return true;
         }
-        workspace.set({ notice: { message: problemSentence(file.name, error), error: true } });
+        const message =
+            isGraphtyError(error) && error.code === "E_PARSE_FAILED"
+                ? notReadSentence(withoutExtension(file.name), error, fresh ? "opened" : "added")
+                : problemSentence(file.name, error);
+        workspace.set({ notice: { message, error: true } });
         return false;
     }
     return true;
 }
 
 /**
- * Opens a project file: inside an open project it opens in its place (asking first over unsaved
- * changes); from the start screen it opens a project whose element reads the file once it is up.
+ * Opens a project or data file (Open project or file..., a dropped file, Recent projects): inside
+ * an open project a project file opens in its place (asking first over unsaved changes) and a
+ * data file is added; from the start screen it opens a project whose element reads the file once
+ * it is up.
  * @param ctx - the command context.
  * @param file - the file.
  * @param handle - its handle, where the browser keeps them.
  * @param recentId - its Recent projects entry, when opened from there.
  */
-async function openProjectFile(
+export async function openProjectFile(
     ctx: CommandContext,
     file: File,
     handle?: FileSystemFileHandle,
@@ -375,9 +424,9 @@ async function openProjectFile(
         await openInSession(ctx, ctx.session, pending, false);
         return;
     }
-    fileState(ctx.workspace).pending = pending;
+    fileState(ctx.workspace).pending = { ...pending, fresh: true };
     ctx.workspace.set((state) => ({
-        project: { name: file.name, id: newProjectId(state) },
+        project: { name: withoutExtension(file.name), id: newProjectId(state) },
         page: "panels",
         place: "graph",
         inspected: null,

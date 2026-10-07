@@ -1,6 +1,5 @@
-import "./project.css";
-
-import { ActionIcon, Group, Menu, Stack, Text, UnstyledButton } from "@mantine/core";
+import { PageList } from "@graphty/compact-mantine";
+import { ActionIcon, Menu, Text } from "@mantine/core";
 import { MoreHorizontal } from "lucide-react";
 import React, { useState } from "react";
 
@@ -10,82 +9,51 @@ import { type RecentProject, useRecentProjects } from "./recent";
 import { sizeWords, whenWords } from "./words";
 
 /**
- * One Recent projects row (built from Mantine parts until compact-mantine's PageList rows can
- * carry a second line, a size and a row menu, #920): a click reopens the file (or asks for it with Locate... where the
- * browser keeps no handle, or can no longer read the file); its menu offers Locate... and Remove
- * from list.
+ * A Recent projects row's menu: Locate... and Remove from list.
  * @param props - Component props
  * @param props.entry - The entry
- * @returns The row
+ * @returns The menu
  */
-function RecentRow({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.Element {
+function RowMenu({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.Element {
     const workspace = useWorkspace();
-    const [missing, setMissing] = useState(false);
-    const locate = entry.handle === undefined || missing;
-    let second = whenWords(entry.at);
-    if (missing) {
-        second = "This file can no longer be read. Locate...";
-    } else if (locate) {
-        second = `${second} - Locate...`;
-    }
-
     return (
-        <Group gap={4} wrap="nowrap" className="ws-recent-row">
-            <UnstyledButton
-                className="ws-recent-open"
-                onClick={() => {
-                    const go = locate ? locateRecent(workspace, entry) : openRecent(workspace, entry);
-                    void go.then((outcome) => {
-                        setMissing(outcome === "missing" || (outcome === "cancelled" && missing));
-                    });
-                }}
-            >
-                <Group gap={8} wrap="nowrap" justify="space-between">
-                    <Text span size="sm" fw={550} truncate="end">
-                        {entry.name}
-                    </Text>
-                    <Text span size="xs" c="dimmed">
-                        {sizeWords(entry.nodes)}
-                    </Text>
-                </Group>
-                <Text size="xs" c={missing ? "red" : "dimmed"}>
-                    {second}
-                </Text>
-            </UnstyledButton>
-            <Menu position="bottom-end" withinPortal>
-                <Menu.Target>
-                    <ActionIcon variant="subtle" size="sm" aria-label={`More for ${entry.name}`}>
-                        <MoreHorizontal size={14} aria-hidden />
-                    </ActionIcon>
-                </Menu.Target>
-                <Menu.Dropdown>
-                    <Menu.Item
-                        onClick={() => {
-                            void locateRecent(workspace, entry);
-                        }}
-                    >
-                        Locate...
-                    </Menu.Item>
-                    <Menu.Item
-                        onClick={() => {
-                            void removeRecent(entry);
-                        }}
-                    >
-                        Remove from list
-                    </Menu.Item>
-                </Menu.Dropdown>
-            </Menu>
-        </Group>
+        <Menu position="bottom-end" withinPortal>
+            <Menu.Target>
+                <ActionIcon variant="subtle" size="sm" aria-label={`More for ${entry.name}`}>
+                    <MoreHorizontal size={14} aria-hidden />
+                </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+                <Menu.Item
+                    onClick={() => {
+                        void locateRecent(workspace, entry);
+                    }}
+                >
+                    Locate...
+                </Menu.Item>
+                <Menu.Item
+                    onClick={() => {
+                        void removeRecent(entry);
+                    }}
+                >
+                    Remove from list
+                </Menu.Item>
+            </Menu.Dropdown>
+        </Menu>
     );
 }
 
 /**
  * The start screen's Recent projects list (tier1-design.md section 2.11): each project's name,
- * size and time, newest first. No folder is shown, because no browser tells a page where a file is.
+ * size and time, newest first. A click reopens the file, or asks for it with Locate... where the
+ * browser keeps no handle or can no longer read it. No folder is shown, because no browser tells
+ * a page where a file is.
  * @returns The list
  */
 export function RecentProjects(): React.JSX.Element {
+    const workspace = useWorkspace();
     const entries = useRecentProjects();
+    const [missing, setMissing] = useState<ReadonlySet<string>>(new Set());
     if (entries.length === 0) {
         return (
             <Text size="xs" c="dimmed">
@@ -93,14 +61,53 @@ export function RecentProjects(): React.JSX.Element {
             </Text>
         );
     }
+
+    const open = (entry: RecentProject): void => {
+        const wasMissing = missing.has(entry.id);
+        const go =
+            entry.handle === undefined || wasMissing ? locateRecent(workspace, entry) : openRecent(workspace, entry);
+        void go.then((outcome) => {
+            const now = new Set(missing);
+            if (outcome === "missing" || (outcome === "cancelled" && wasMissing)) {
+                now.add(entry.id);
+            } else {
+                now.delete(entry.id);
+            }
+            setMissing(now);
+        });
+    };
+
     return (
-        <Stack gap={2}>
-            {entries.map((entry) => (
-                <RecentRow key={entry.id} entry={entry} />
-            ))}
+        <>
+            <PageList
+                label="Recent projects"
+                items={entries.map((entry) => {
+                    const lost = missing.has(entry.id);
+                    let description = whenWords(entry.at);
+                    if (lost) {
+                        description = "This file can no longer be read. Locate...";
+                    } else if (entry.handle === undefined) {
+                        description = `${description} - Locate...`;
+                    }
+                    return {
+                        id: entry.id,
+                        name: entry.name,
+                        value: sizeWords(entry.nodes),
+                        description,
+                        descriptionTone: lost ? "danger" : "default",
+                        menu: <RowMenu entry={entry} />,
+                    };
+                })}
+                onCurrentChange={(id) => {
+                    const entry = entries.find((candidate) => candidate.id === id);
+                    if (entry !== undefined) {
+                        open(entry);
+                    }
+                }}
+            />
             <Text size="xs" c="dimmed" mt="xs">
                 Recent projects are remembered in this browser; each project is a file saved where you chose.
             </Text>
-        </Stack>
+        </>
     );
 }

@@ -10,9 +10,10 @@ import { NoticeSlot } from "../frame/NoticeSlot";
 import { formatKey } from "../keys/keys";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { UsageDataCard } from "../privacy/UsageDataCard";
+import { openProjectFile } from "../project/actions";
 import { RecentProjects } from "../project/RecentProjects";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
-import { openFile, openSample } from "./open";
+import { openSample } from "./open";
 
 /**
  * One way in: a command drawn as a row with its key.
@@ -63,7 +64,7 @@ function Column({ title, children }: Readonly<{ title: string; children: React.R
 /**
  * The start screen (tier1-design.md section 2.11), shown whenever no project is open: the two
  * ways in, Recent projects, the four samples, and the usage data card at its foot until it is
- * answered. A file dropped anywhere on it opens.
+ * answered. A file dropped anywhere on it opens, as Open project or file... opens one.
  * @returns The start screen
  */
 export function StartScreen(): React.JSX.Element {
@@ -87,7 +88,7 @@ export function StartScreen(): React.JSX.Element {
             setDragging(false);
             const file = event.dataTransfer?.files.item(0) ?? null;
             if (file !== null) {
-                openFile(workspace, file);
+                void openProjectFile(workspace, file);
             }
         };
         globalThis.addEventListener("dragover", over);

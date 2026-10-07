@@ -984,6 +984,9 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             get dimension() {
                 return layout.dimension;
             },
+            get arrangedDimension(): "2d" | "3d" {
+                return layout.dimension === "2d" || layout.options.dim === 2 ? "2d" : "3d";
+            },
             /* An engine name is read as the layout it draws, as the element reads one. */
             set: (id: string, choice?: { readonly options?: Readonly<Record<string, unknown>> }): Promise<void> => {
                 relayout("Changed the layout", { ...layout, engine: id, options: choice?.options ?? {} });

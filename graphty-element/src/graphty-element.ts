@@ -8,7 +8,7 @@ import {
     type Capabilities,
     isAccelerationPolicy,
 } from "./acceleration";
-import { layoutIdForEngine } from "./catalog/layouts";
+import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
@@ -1400,9 +1400,10 @@ export class Graphty extends LitElement {
     /**
      * Layout algorithm to use for positioning nodes.
      * @remarks
-     * Available layouts:
-     * - `ngraph`: Force-directed (3D optimized, recommended)
-     * - `d3-force`: Force-directed (2D)
+     * A catalogue id from `catalog.layouts()` (such as `force`, drawn by its default engine) or a
+     * registered engine name (such as `ngraph`). Reading it back gives the engine. Some layouts:
+     * - `force`: Force-directed, drawn by `ngraph` (3D optimized, recommended)
+     * - `d3`: Force-directed, the d3 engine
      * - `circular`: Nodes arranged in a circle
      * - `grid`: Nodes arranged in a grid
      * - `hierarchical`: Tree/DAG layout
@@ -1478,17 +1479,19 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Choose a layout from the property pair, as one step. The engine name maps to the catalogue
-     * id it serves, and the slice keeps the engine itself.
-     * @param engine - The engine name.
+     * Choose a layout from the property pair, as one step. A catalogue id ("force") is drawn by
+     * its default engine; an engine name maps to the catalogue id it serves, and the slice keeps
+     * the engine itself.
+     * @param name - The catalogue id or the engine name.
      * @param options - Its options.
      */
-    #setLayoutPair(engine: string, options: Readonly<Record<string, unknown>>): void {
+    #setLayoutPair(name: string, options: Readonly<Record<string, unknown>>): void {
+        const descriptor = layoutDescriptor(name);
         void dispatcherOf(this.#graph.getSession())
             .dispatch({
                 op: "layout.set",
-                id: layoutIdForEngine(engine) ?? engine,
-                engine,
+                id: descriptor?.id ?? layoutIdForEngine(name) ?? name,
+                engine: descriptor?.engine ?? name,
                 options: { ...options },
                 coalesce: ELEMENT_LAYOUT,
                 ...(this.#settingUp ? { setup: true } : {}),

@@ -11,11 +11,11 @@ import { LAYOUT_SEED } from "../layout/methods";
 const LAYOUT_BEHAVIOR = { labels: { declutter: true } } as const;
 
 /**
- * The element's default force layout, from the app's seed, so every file and sample draws the
- * same way each time it is opened. Declared on the tag, it is where the project starts, not an
- * undoable step.
+ * The element's force layout (its catalog id; the element picks the engine), from the app's
+ * seed, so every file and sample draws the same way each time it is opened. Declared on the tag,
+ * it is where the project starts, not an undoable step.
  */
-const LAYOUT_ENGINE = "ngraph";
+const LAYOUT_ID = "force";
 const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
 
 /**
@@ -66,7 +66,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
     return (
         <graphty-element
             ref={ref}
-            layout={LAYOUT_ENGINE}
+            layout={LAYOUT_ID}
             layoutConfig={LAYOUT_CONFIG}
             layoutBehavior={LAYOUT_BEHAVIOR}
             xr={XR_CONFIG}

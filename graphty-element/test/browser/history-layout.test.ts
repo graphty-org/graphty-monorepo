@@ -337,4 +337,31 @@ describe("the element's layout properties", () => {
         },
         TEST_TIMEOUT_MS,
     );
+
+    it(
+        "a catalogue id names the layout and its default engine draws it",
+        async () => {
+            const element = document.createElement("graphty-element");
+            element.style.display = "block";
+            element.style.width = "400px";
+            element.style.height = "300px";
+            element.layout = "force";
+            element.layoutConfig = { seed: 1 };
+            document.body.appendChild(element);
+            cleanups.push(() => {
+                element.remove();
+            });
+            await element.updateComplete;
+            await operationQueueOf(element.graph).waitForCompletion();
+            const { session } = element;
+            await vi.waitFor(() => {
+                assert.lengthOf(session.history.pending, 0);
+            });
+
+            assert.strictEqual(session.layout.id, "force");
+            assert.strictEqual(session.layout.engine, "ngraph");
+            assert.deepEqual(session.layout.options, { seed: 1 });
+        },
+        TEST_TIMEOUT_MS,
+    );
 });

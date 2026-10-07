@@ -23,6 +23,8 @@ interface OptionsFormProps {
     words: (option: OptionDescriptor) => OptionLabel;
     /** Whether a node option offers "Use selected node" (off where the selection fills it). */
     canUseSelectedNode?: boolean;
+    /** More controls at the end of the Advanced fold (a layout's Seed and Reshuffle). */
+    advanced?: React.ReactNode;
 }
 
 /** The option types the form draws a control for; the rest keep their defaults. */
@@ -47,7 +49,7 @@ function num(value: unknown): number | undefined {
 }
 
 /** Props for one field. */
-interface FieldProps extends Omit<OptionsFormProps, "options" | "values"> {
+interface FieldProps extends Omit<OptionsFormProps, "options" | "values" | "advanced"> {
     option: OptionDescriptor;
     value: unknown;
 }
@@ -79,7 +81,8 @@ function AttributeField({
         .filter((a) => a.kind === on && (option.type !== "partition" || a.type !== "number"));
     const data = attributes.map((a) => ({ value: a.name, label: a.plainName }));
     const optional =
-        option.type === "attribute" && (option.default === undefined || option.default === null || option.default === "");
+        option.type === "attribute" &&
+        (option.default === undefined || option.default === null || option.default === "");
     if (optional) {
         data.unshift({ value: "", label: "None" });
     }
@@ -227,9 +230,15 @@ function OptionField({
  * @param props.onChange - Called with an option's name and its new value
  * @param props.words - The app's words for an option
  * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
+ * @param props.advanced - More controls at the end of the Advanced fold
  * @returns The fields
  */
-export function OptionsForm({ options, values, ...rest }: Readonly<OptionsFormProps>): React.JSX.Element {
+export function OptionsForm({
+    options,
+    values,
+    advanced: more,
+    ...rest
+}: Readonly<OptionsFormProps>): React.JSX.Element {
     const [advancedOpen, setAdvancedOpen] = useState(false);
     const drawn = options.filter((o) => o.internal !== true && DRAWN.has(o.type));
     const field = (option: OptionDescriptor): React.JSX.Element => (
@@ -239,9 +248,14 @@ export function OptionsForm({ options, values, ...rest }: Readonly<OptionsFormPr
     return (
         <>
             {drawn.filter((o) => o.advanced !== true).map(field)}
-            {advanced.length > 0 ? (
+            {advanced.length > 0 || more !== undefined ? (
                 <ControlSubGroup label="Advanced" opened={advancedOpen} onOpenChange={setAdvancedOpen}>
-                    {advancedOpen ? <Stack gap={8}>{advanced.map(field)}</Stack> : null}
+                    {advancedOpen ? (
+                        <Stack gap={8}>
+                            {advanced.map(field)}
+                            {more}
+                        </Stack>
+                    ) : null}
                 </ControlSubGroup>
             ) : null}
         </>

@@ -10,7 +10,7 @@ import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { xrRows } from "../inspector/words";
 import { formatKey } from "../keys/keys";
-import { LayoutGroup } from "../layout/LayoutGroup";
+import { LayoutPopover } from "../layout/LayoutPopover";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { immersiveMode } from "./commands";
 import type { ToolbarPopover } from "./popover";
@@ -269,12 +269,21 @@ export function WorkspaceToolbar(): React.JSX.Element {
                     </Popover.Dropdown>
                 </Popover>
                 <Toolbar.Divider />
-                <Popover {...popoverProps("layout")} width={280}>
+                <Popover
+                    {...popoverProps("layout")}
+                    closeOnEscape={false}
+                    width={380}
+                    // Capped to the room above the toolbar in the visual viewport, so a touch
+                    // keyboard never hides the field being typed into; the body scrolls.
+                    middlewares={{ flip: false, shift: true, size: { padding: 8 } }}
+                >
                     <Popover.Target>
                         <CommandTool ref={anchor("layout")} command="layout.open" icon={<GLYPHS.layout size={20} />} />
                     </Popover.Target>
-                    <Popover.Dropdown aria-label="Layout">
-                        {dialog === "layout" ? <LayoutGroup /> : null}
+                    <Popover.Dropdown aria-label="Layout" style={{ overflowY: "auto" }}>
+                        {dialog !== "layout" || session === null ? null : (
+                            <LayoutPopover session={session} onClose={close} />
+                        )}
                     </Popover.Dropdown>
                 </Popover>
                 <Menu {...popoverProps("view")}>

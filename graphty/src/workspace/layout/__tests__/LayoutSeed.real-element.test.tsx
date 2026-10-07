@@ -44,6 +44,7 @@ describe("the app's layout seed", () => {
                 throw new Error("the element never came up");
             }
 
+            assert.strictEqual(session.layout.id, "force");
             assert.strictEqual(session.layout.engine, "ngraph");
             assert.strictEqual(session.layout.options.seed, LAYOUT_SEED, "the project starts seeded");
             assert.strictEqual(
@@ -59,14 +60,15 @@ describe("the app's layout seed", () => {
             });
             await userEvent.click(layoutTool);
             const popover = await screen.findByRole("dialog", { name: "Layout" });
-            await userEvent.click(within(popover).getByRole("combobox", { name: "Method" }));
-            await userEvent.click(await within(popover).findByRole("option", { name: /^Random/ }));
+            await userEvent.click(within(popover).getByRole("option", { name: /^Random/ }));
+            await userEvent.click(within(popover).getByRole("button", { name: /Advanced/ }));
+            assert.strictEqual(within(popover).getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value, "1");
+            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
             const live = session;
             await waitFor(() => {
                 assert.strictEqual(live.layout.id, "random");
             });
             assert.strictEqual(live.layout.options.seed, LAYOUT_SEED, "a picked method is seeded too");
-            assert.strictEqual(within(popover).getByRole<HTMLInputElement>("spinbutton", { name: "Seed" }).value, "1");
         },
         TIMEOUT_MS,
     );

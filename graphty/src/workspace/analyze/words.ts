@@ -324,13 +324,23 @@ const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
     targetNode: "Target",
     sink: "Sink",
     startNode: "Start",
+    // Layout options.
+    start: "Start",
+    root: "Center",
+    groupBy: "Group by",
+    scale: "Scale",
+    columns: "Columns",
+    align: "Direction",
+    aspectRatio: "Aspect ratio",
+    springLength: "Spring length",
+    gravity: "Gravity",
 };
 
 /**
  * The words for one option. An option the app has no words for (a third party's algorithm, an
  * advanced option) reads under the element's plain name for it, and its choices under the
  * element's labels: never the raw option key.
- * @param algorithm - the algorithm's key.
+ * @param algorithm - the algorithm's key, or the layout's catalog id.
  * @param option - the element's option descriptor.
  * @returns the label, and the word for a choice by its value.
  */

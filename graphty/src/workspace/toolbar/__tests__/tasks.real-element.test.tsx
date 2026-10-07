@@ -191,12 +191,14 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             await userEvent.click(screen.getByRole("button", { name: "Layout" }));
             // The graph's inspector shows the same group; this one is the popover's.
             const popover = await screen.findByRole("dialog", { name: "Layout" });
-            const method = within(popover).getByRole("combobox", { name: "Method" });
-            // The sample opened on the layout the element recommends, and the group says so.
-            assert.match((method as HTMLInputElement).value, / - Recommended$/);
+            // The sample opened on the layout the element recommends: checked, and the list says so.
+            const current = within(popover)
+                .getAllByRole("option")
+                .find((row) => row.getAttribute("aria-selected") === "true");
+            assert.include(current?.textContent, "Recommended");
 
-            await userEvent.click(method);
-            await userEvent.click(await within(popover).findByRole("option", { name: /^Circle/ }));
+            await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+            await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
             await waitFor(() => {
                 assert.equal(session.layout.id, "circular");
             });

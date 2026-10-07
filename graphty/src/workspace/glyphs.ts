@@ -9,6 +9,7 @@ import {
     CaseSensitive,
     ChartColumn,
     ChartNetwork,
+    Check,
     ChevronDown,
     ChevronLeft,
     Circle,
@@ -105,6 +106,8 @@ export const GLYPHS = {
     remove: Minus,
     link: Link2,
     back: ChevronLeft,
+    // The current choice in a list.
+    check: Check,
     expand: ChevronDown,
     show: Eye,
     hide: EyeOff,

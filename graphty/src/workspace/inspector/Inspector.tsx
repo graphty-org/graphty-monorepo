@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { Sections } from "../frame/menus";
-import { LayoutGroup } from "../layout/LayoutGroup";
+import { LayoutGroup } from "../layout/LayoutForm";
 import { tabFor } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { GroupStyle, SelectionStyle, StyleTab } from "../style/StyleTab";

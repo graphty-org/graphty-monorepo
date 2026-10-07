@@ -1,7 +1,7 @@
 import { ComboInput, CompactColorInput, StyleNumberInput } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { LayerId } from "@graphty/graphty-element/schema";
-import { Button, Checkbox, CloseButton, Group, Select, Stack, Text } from "@mantine/core";
+import { Button, Checkbox, Group, Select, Stack, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -47,14 +47,12 @@ interface BindingPopoverProps {
     onSource: (choice: DataChoice) => void;
     /** Replaces the binding with one value. */
     onDetach: () => void;
-    /** Closes the popover; the choices stay. */
-    onClose: () => void;
 }
 
 /**
  * The Binding popover (tier1-design.md 5.T9): Source, Scale, Palette with reverse, Values from,
  * No value and Detach. Every change is written to the row's layer at once; Esc, the X and a
- * click outside all keep it.
+ * click outside all keep it. The pop-out it sits in carries the title and the X.
  * @param props - Component props
  * @param props.descriptor - the bound property
  * @param props.layerId - the layer that holds the binding
@@ -63,7 +61,6 @@ interface BindingPopoverProps {
  * @param props.onChange - writes a changed binding
  * @param props.onSource - reads another attribute instead
  * @param props.onDetach - replaces the binding with one value
- * @param props.onClose - closes the popover
  * @returns The popover's body
  */
 export function BindingPopover({
@@ -74,7 +71,6 @@ export function BindingPopover({
     onChange,
     onSource,
     onDetach,
-    onClose,
 }: Readonly<BindingPopoverProps>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [choosing, setChoosing] = useState(false);
@@ -105,13 +101,7 @@ export function BindingPopover({
         .find((block) => block.layerId === layerId && block.channel === descriptor.channel)?.domain;
 
     return (
-        <Stack gap={8} w={240} role="group" aria-label={`${name} binding`}>
-            <Group justify="space-between" wrap="nowrap">
-                <Text size="xs" fw={600}>
-                    {name} from data
-                </Text>
-                <CloseButton size="sm" aria-label="Close binding" onClick={onClose} />
-            </Group>
+        <Stack gap={8} role="group" aria-label={`${name} binding`}>
             <Group justify="space-between" wrap="nowrap">
                 <Text size="xs">
                     Source: <strong>{source}</strong>

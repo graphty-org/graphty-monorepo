@@ -242,6 +242,9 @@ export function QuickActions({
                 </span>
                 <input
                     ref={input}
+                    // Inside a Popout, the panel's own focus on open lands here rather than on
+                    // the panel, so typing filters at once.
+                    data-autofocus
                     className="cm-qa-input"
                     type="text"
                     role="combobox"

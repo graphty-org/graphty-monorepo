@@ -68,9 +68,6 @@ const POPOVER_EXCEPTIONS = [
     // A toolbar dropdown, toggled by its trigger and closed by an outside tap, as Figma's toolbar
     // menus are; the Layout and Analyze menus open in it.
     "src/workspace/toolbar/WorkspaceToolbar.tsx",
-    // Temporary: the Style tab's shape, bind, bound value and label popovers move to Popout next.
-    "src/workspace/style/SetLine.tsx",
-    "src/workspace/style/LabelSection.tsx",
 ];
 const WITHOUT_POPOVER_BAN = APP_REPLACEMENTS.filter((entry) => !entry.importNames.includes("Popover"));
 const NO_LUCIDE = { name: "lucide-react", message: "Use GLYPHS from src/workspace/glyphs.ts: one icon per concept." };

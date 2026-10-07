@@ -49,6 +49,8 @@ const css = `
     outline-offset: -1px;
 }
 .cm-button:where([data-block]) { display: flex; }
+/* A full-width button's content spans it, so Mantine's justify prop (--button-justify) can place it. */
+.cm-button:where([data-block]) > .cm-button-inner { flex: 1; }
 .cm-button:where([data-with-left-section], [data-with-right-section]) { padding: 0; }
 .cm-button-inner { transition: opacity var(--cm-duration-md) var(--cm-ease-loading); }
 /* The label carries the inset, so the button reports padding 0 (C7). */

@@ -590,6 +590,50 @@ describe("editing lines on the real element", () => {
     );
 
     it(
+        "the bind icon, the bound value, the Shape value and the label line open titled pop-outs their X closes",
+        async () => {
+            await openWithGraph();
+            const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+            /**
+             * Opens a pop-out from a trigger, then closes it with its own X.
+             * @param trigger - what opens it.
+             * @param title - the pop-out's title.
+             */
+            async function openAndClose(trigger: HTMLElement, title: string): Promise<void> {
+                await userEvent.click(trigger);
+                const panel = await screen.findByRole("dialog", { name: title });
+                await userEvent.click(within(panel).getByTestId("popout-header-close"));
+                await waitFor(() => {
+                    assert.isNull(screen.queryByRole("dialog", { name: title }));
+                });
+            }
+
+            await openAndClose(within(tab).getByRole("button", { name: "Color by attribute" }), "Color by attribute");
+            const shape = within(within(styleTab()).getByRole("group", { name: "Shape" })).getByRole("button", {
+                name: /^Shape /,
+            });
+            await openAndClose(shape, "Shape");
+
+            // The bound value: bind Color, then open and close its Binding pop-out.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Color by attribute" }));
+            await userEvent.click(
+                within(await screen.findByRole("dialog", { name: "From data" })).getByRole("option", { name: "dept" }),
+            );
+            await openAndClose(await within(styleTab()).findByRole("button", { name: /^dept,/ }), "Color from data");
+
+            // The label line: its attribute list, then its position.
+            await userEvent.click(within(styleTab()).getByRole("button", { name: "Add label line" }));
+            const list = await screen.findByRole("dialog", { name: "Label" });
+            await userEvent.click(within(list).getByTestId("popout-header-close"));
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("dialog", { name: "Label" }));
+            });
+            await openAndClose(within(styleTab()).getByRole("button", { name: "Label position" }), "Label position");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
         "a drag across the Color picker is one undo step",
         async () => {
             const { session } = await openWithGraph();

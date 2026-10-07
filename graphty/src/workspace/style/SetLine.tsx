@@ -5,25 +5,15 @@ import {
     FieldRow,
     opacityToAlphaHex,
     Popout,
+    PopoutButton,
     QuickActions,
     VariablePill,
 } from "@graphty/compact-mantine";
 import { type ChannelDescriptor, toColorValue } from "@graphty/graphty-element/catalog";
 import type { ChannelValue, LayerId } from "@graphty/graphty-element/schema";
 import type { Layer } from "@graphty/graphty-element/session";
-import {
-    ActionIcon,
-    Button,
-    Checkbox,
-    ColorSwatch,
-    Popover,
-    Select,
-    Stack,
-    Text,
-    TextInput,
-    Tooltip,
-} from "@mantine/core";
-import React, { useState } from "react";
+import { ActionIcon, Button, Checkbox, ColorSwatch, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import React, { useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -61,6 +51,9 @@ interface SetLineProps {
 
 /** Figma's paint field beside a row's bind icon and "-": 156 px, so the hex and opacity fit whole. */
 const PAINT_FIELD_WIDTH = 156;
+
+/** The width of a line's pop-out (a compound line, the bind list, the Binding and Shape lists), as wide as the panel's own rows. */
+const POPOUT_WIDTH = 248;
 
 /**
  * The line's color as the paint field edits it: `#RRGGBB`, and its opacity as a percent.
@@ -134,23 +127,25 @@ export function SetLine({
 
     const bindIcon =
         bindsAtRest(descriptor) && line.binding === undefined ? (
-            <Popover opened={binding} onChange={setBinding} position="left-start" trapFocus>
-                <Popover.Target>
+            <Popout opened={binding} onOpenChange={setBinding}>
+                <Popout.Trigger>
+                    {/* The Tooltip passes the trigger's click and ref to the button, but not its
+                        ARIA, so the button states its own. */}
                     <Tooltip label={bindLabel(descriptor)}>
-                        <ActionIcon
-                            variant="subtle"
-                            size="sm"
+                        <PopoutButton
+                            icon={<GLYPHS.link size={14} aria-hidden />}
                             aria-label={bindLabel(descriptor)}
-                            aria-pressed={false}
-                            onClick={() => {
-                                setBinding(!binding);
-                            }}
-                        >
-                            <GLYPHS.link size={14} aria-hidden />
-                        </ActionIcon>
+                            aria-haspopup="dialog"
+                            aria-expanded={binding}
+                        />
                     </Tooltip>
-                </Popover.Target>
-                <Popover.Dropdown p={0}>
+                </Popout.Trigger>
+                <Popout.Panel
+                    width={POPOUT_WIDTH}
+                    placement="left"
+                    alignment="start"
+                    header={{ variant: "title", title: bindLabel(descriptor) }}
+                >
                     <FromDataList
                         target={target}
                         channel={channel}
@@ -162,17 +157,18 @@ export function SetLine({
                             setBinding(false);
                         }}
                     />
-                </Popover.Dropdown>
-            </Popover>
+                </Popout.Panel>
+            </Popout>
         ) : null;
 
-    const removeButton = part || line.layer.locked ? null : (
-        <Tooltip label={`Remove ${name}`}>
-            <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${name}`} onClick={remove}>
-                <GLYPHS.remove size={14} aria-hidden />
-            </ActionIcon>
-        </Tooltip>
-    );
+    const removeButton =
+        part || line.layer.locked ? null : (
+            <Tooltip label={`Remove ${name}`}>
+                <ActionIcon variant="subtle" size="sm" aria-label={`Remove ${name}`} onClick={remove}>
+                    <GLYPHS.remove size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        );
 
     if (descriptor.accepts === "color" && line.binding === undefined) {
         // Figma's paint row: the name as a caption above the field, the bind icon beside it and
@@ -249,6 +245,7 @@ function BoundValue({
 }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const [open, setOpen] = useState(false);
+    const pill = useRef<HTMLDivElement>(null);
     if (session === null) {
         return null;
     }
@@ -283,39 +280,45 @@ function BoundValue({
     };
 
     return (
-        <Popover opened={open} onChange={setOpen} position="left-start" trapFocus closeOnEscape>
-            <Popover.Target>
-                <div>
-                    <VariablePill
-                        name={source}
-                        value={detail}
-                        swatch={swatch}
-                        width="100%"
-                        detachLabel={`Detach ${name}`}
-                        onDetach={detach}
-                        onClick={() => {
-                            setOpen(true);
-                        }}
-                    />
-                </div>
-            </Popover.Target>
-            <Popover.Dropdown>
-                <BindingPopover
-                    descriptor={descriptor}
-                    layerId={layer.id}
-                    binding={binding}
-                    source={source}
-                    onChange={(next) => {
-                        write({ binding: next });
-                    }}
-                    onSource={bind}
+        // No Popout.Trigger: its click would also fire for the pill's detach button inside it, so
+        // the pill opens the panel itself and the panel docks to it.
+        <Popout opened={open} onOpenChange={setOpen}>
+            <div ref={pill}>
+                <VariablePill
+                    name={source}
+                    value={detail}
+                    swatch={swatch}
+                    width="100%"
+                    detachLabel={`Detach ${name}`}
                     onDetach={detach}
-                    onClose={() => {
-                        setOpen(false);
+                    onClick={() => {
+                        setOpen(true);
                     }}
                 />
-            </Popover.Dropdown>
-        </Popover>
+            </div>
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                anchorX={pill}
+                anchorY={pill}
+                header={{ variant: "title", title: `${name} from data` }}
+            >
+                <Popout.Content>
+                    <BindingPopover
+                        descriptor={descriptor}
+                        layerId={layer.id}
+                        binding={binding}
+                        source={source}
+                        onChange={(next) => {
+                            write({ binding: next });
+                        }}
+                        onSource={bind}
+                        onDetach={detach}
+                    />
+                </Popout.Content>
+            </Popout.Panel>
+        </Popout>
     );
 }
 
@@ -476,21 +479,25 @@ function ShapeValue({
     const [open, setOpen] = useState(false);
     const current = typeof value === "string" ? value : "";
     return (
-        <Popover opened={open} onChange={setOpen} position="left-start" trapFocus>
-            <Popover.Target>
+        <Popout opened={open} onOpenChange={setOpen}>
+            <Popout.Trigger>
+                {/* A boxed field, as the other values are. */}
                 <Button
                     size="compact-xs"
-                    variant="subtle"
-                    color="dark"
+                    variant="default"
+                    fullWidth
+                    justify="flex-start"
                     aria-label={`${channelWord(descriptor.channel)} ${enumWords(current)}`}
-                    onClick={() => {
-                        setOpen(!open);
-                    }}
                 >
                     {enumWords(current)}
                 </Button>
-            </Popover.Target>
-            <Popover.Dropdown p={0}>
+            </Popout.Trigger>
+            <Popout.Panel
+                width={POPOUT_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title: channelWord(descriptor.channel) }}
+            >
                 <QuickActions
                     aria-label="Shapes"
                     placeholder="Filter shapes"
@@ -505,13 +512,10 @@ function ShapeValue({
                         setOpen(false);
                     }}
                 />
-            </Popover.Dropdown>
-        </Popover>
+            </Popout.Panel>
+        </Popout>
     );
 }
-
-/** The width of a compound line's popover, as wide as the panel's own rows. */
-const COMPOUND_POPOVER_WIDTH = 248;
 
 /** Props for CompoundSetLine. */
 interface CompoundSetLineProps {
@@ -558,7 +562,9 @@ export function CompoundSetLine({
     }
     const { name } = compound;
     // The reader's layers that set a part; a part on the element's own locked layer stays.
-    const holders = [...new Set(parts.flatMap((p) => (p.line === undefined || p.line.layer.locked ? [] : [p.line.layer])))];
+    const holders = [
+        ...new Set(parts.flatMap((p) => (p.line === undefined || p.line.layer.locked ? [] : [p.line.layer]))),
+    ];
     const remove = (): void => {
         Promise.all(
             holders.map((layer) =>
@@ -668,7 +674,7 @@ export function CompoundSetLine({
                     </Button>
                 </Popout.Trigger>
                 <Popout.Panel
-                    width={COMPOUND_POPOVER_WIDTH}
+                    width={POPOUT_WIDTH}
                     placement="left"
                     alignment="start"
                     header={{ variant: "title", title: name }}

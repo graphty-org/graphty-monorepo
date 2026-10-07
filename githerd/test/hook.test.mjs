@@ -16,7 +16,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import { isolateGit } from "../../tools/isolated-git-env.mjs";
 
 import { move, newJob } from "../lib/board.mjs";
 import {
@@ -140,6 +142,8 @@ afterEach(async () => {
     if (server) await new Promise((done) => server?.close(() => done(undefined)));
     rmSync(dir, { recursive: true, force: true });
 });
+
+beforeAll(() => isolateGit());
 
 describe("statusLine", () => {
     it("puts the banner first, then master, the owner's list, pull requests and the mode", () => {

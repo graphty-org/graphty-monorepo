@@ -6,7 +6,9 @@ import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+
+import { isolateGit } from "../../tools/isolated-git-env.mjs";
 
 import { runCli } from "../lib/cli.mjs";
 import {
@@ -51,6 +53,8 @@ afterEach(() => {
 });
 
 const sleep = async () => {};
+
+beforeAll(() => isolateGit());
 
 describe("createResponder", () => {
     it("blocks the first stop only, hands out the job and then the doorbell answer", () => {

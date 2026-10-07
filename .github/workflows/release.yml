@@ -4,7 +4,8 @@ name: Release
 # sections 10 and 11). Master runs no tests (owner decision, 2026-10-06): the merge queue tests each batch's
 # combined tree, and this train tests the exact commit it releases.
 #
-# 1. Every 6 hours (00:00, 06:00, 12:00 and 18:00 UTC), or at once when the owner dispatches it (the ad hoc
+# 1. Every 6 hours (00:17, 06:17, 12:17 and 18:17 UTC; the minute is off the hour because GitHub delays and
+#    drops scheduled runs at :00), or at once when the owner dispatches it (the ad hoc
 #    release), the pick job takes master's newest commit -- unless the previous release is still pending:
 #    a release/train-* pull request is open, a "Release held" issue is open (a fix is in progress; a dispatch
 #    runs anyway), the last release's publish has not tagged it yet, or nothing releasable changed since the
@@ -31,7 +32,7 @@ name: Release
 # project names) to release only those; every other project is held for that run, on top of release-hold.json.
 on:
     schedule:
-        - cron: "0 0,6,12,18 * * *"
+        - cron: "17 0,6,12,18 * * *"
     workflow_dispatch:
         inputs:
             packages:
@@ -279,7 +280,7 @@ jobs:
                   {
                       echo "The release train failed on ${SHA} (${what}): ${run_url}"
                       echo
-                      echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open: the fix's pull request should say \`Fixes #<this issue>\`, so its merge closes this issue and the next train (00:00, 06:00, 12:00 or 18:00 UTC, or \`gh workflow run release.yml --ref master\` at once) tests master again. A train that passes releases everything at once and closes this issue."
+                      echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open: the fix's pull request should say \`Fixes #<this issue>\`, so its merge closes this issue and the next train (00:17, 06:17, 12:17 or 18:17 UTC, or \`gh workflow run release.yml --ref master\` at once) tests master again. A train that passes releases everything at once and closes this issue."
                       if [ "$T4_RESULT" = failure ]; then
                           echo
                           echo "If the T4 job was refused or lost its runner (machine.dev: insufficient balance, concurrent runner limit, \"received a shutdown signal\", \"lost communication\"; such a job has no log below), there is no code to fix: it is an owner item. Restore the machine.dev capacity, then \`gh workflow run release.yml --ref master\` retries at once (a dispatch runs despite this issue), or close this issue and the next scheduled train retries."

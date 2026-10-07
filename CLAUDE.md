@@ -519,7 +519,7 @@ CI, and Mergify queues only ready pull requests.
 |----------|---------|---------|
 | `ci.yml` | Ready (non-draft) PRs, Mergify queue drafts, dispatch, called by `release.yml`; push to master (build only, no tests) | Build, lint, sharded tests (13 jobs on a full run), dead links (the `Links` job), cost estimates, screenshots and the visual gate; `All Checks Pass` and `Queue Checks Pass` summarize. On a push to master only the Build job runs; the summaries pass when it does |
 | `coverage.yml` | Called by `release.yml` after its CI call | Merge coverage reports, publish to Coveralls |
-| `release.yml` | Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
+| `release.yml` | Every 6 hours (00:17, 06:17, 12:17, 18:17 UTC), dispatch (the ad hoc release), push to master (publishes a merged release pull request) | The release train: full CI, T4, Hosts and audit on the candidate, then opens the release pull request; on the merge, tags and publishes it with npm trusted publishing. Anything red holds the release and opens one "Release held: <what> failed on <sha>" issue |
 | `deploy-pages.yml` | After every green CI run (the build) on master | Deploy graphty.app (app, docs, Storybooks, hosted data) to GitHub Pages |
 | `links-weekly.yml` | Mondays, dispatch | Every external link; files, rewrites or closes one `dead-links` issue. Never fails a pull request |
 | `gpu.yml` | Called by the release train (`release.yml`) on the commit it is about to release; dispatch. Never on PRs or master pushes | The webgpu-graph-algorithms NVIDIA T4 lane (a machine.dev T4): tests and benchmarks. The paid T4 runs only here and in the local pre-push gate (the developer's NVIDIA card). A red T4 holds the WHOLE release -- no release PR, nothing published -- and opens one "Release held: T4 GPU failed on <sha>" issue |
@@ -556,7 +556,8 @@ package has no guide pages, so its documentation link is the generated API refer
 ### Release versioning
 
 Releases go out on a release train (`design/ci/ci-cd-plan.md`, sections 10 and 11). Every 6 hours
-(00:00, 06:00, 12:00 and 18:00 UTC) `release.yml` takes master's newest commit and runs the full CI
+(00:17, 06:17, 12:17 and 18:17 UTC; the minute is off the hour because GitHub delays and drops
+scheduled runs at :00) `release.yml` takes master's newest commit and runs the full CI
 suite (ci.yml, every shard), the T4 GPU lane, Hosts and the production security audit on it; only
 if all pass does it version that commit and open a
 `chore(release): publish` pull request (branch `release/train-<run id>`, which Mergify puts first in the queue)

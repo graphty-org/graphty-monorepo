@@ -1081,7 +1081,7 @@ describe("release.yml", () => {
     });
 
     it("tries a release every 6 hours and on dispatch, from master's newest commit", () => {
-        assert.match(release, /schedule:\n\s+- cron: "0 0,6,12,18 \* \* \*"\n/);
+        assert.match(release, /schedule:\n\s+- cron: "17 0,6,12,18 \* \* \*"\n/);
         assert.match(release, /workflow_dispatch:\n\s+inputs:\n\s+packages:/);
         assert.match(pick, /if: \$\{\{ github.event_name != 'push' && github.ref == 'refs\/heads\/master' \}\}/);
         // the run's own commit, so the run, Coveralls and the lanes all name the tested commit

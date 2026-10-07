@@ -493,8 +493,8 @@ Three costs at 30 to 50 merges a day:
 
 **Adopted: a release train through the queue, every 6 hours.**
 
-1. On a schedule (00:00, 06:00, 12:00 and 18:00 UTC; `workflow_dispatch` is the ad hoc release of
-   section 11), release.yml takes master's newest commit, unless the previous release is still
+1. On a schedule (00:17, 06:17, 12:17 and 18:17 UTC; the minute is off the hour because GitHub
+   delays and drops scheduled runs at :00; `workflow_dispatch` is the ad hoc release of section 11), release.yml takes master's newest commit, unless the previous release is still
    pending: a release pull request is open (one that can no longer merge is closed and re-cut
    from the newest commit: it conflicts with master, a check on its head failed, or it left the
    merge queue, which the release queue rule never retries; one labelled `hold` waits), a

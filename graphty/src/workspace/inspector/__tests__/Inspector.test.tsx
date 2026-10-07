@@ -159,6 +159,18 @@ describe("the inspector", () => {
         assert.isNull(screen.queryByRole("region"));
     });
 
+    it("leaves out a Summary row that says nothing: no selected edges, a value only one node holds", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0", "n1", "n2"] });
+        });
+
+        const among = await screen.findByRole("group", { name: "Edges among them" });
+        assert.include(among.textContent, "2");
+        assert.isNull(screen.queryByRole("group", { name: "Edges" }));
+        assert.isNull(screen.queryByText(/\(1\)/));
+    });
+
     it("shows isolated nodes, self-loops and repeated edges from the element's statistics", async () => {
         const { session: on } = await renderInspector();
         await act(async () => {

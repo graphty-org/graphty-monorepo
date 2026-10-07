@@ -267,6 +267,7 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
 
 /**
  * One attribute of a selection in a few words: its mean, or its commonest value and how many.
+ * A commonest value held by one element says nothing about the selection, so it is left out.
  * @param attribute - the selection's statistics for the attribute.
  * @returns the words, or undefined when there is nothing to say.
  */
@@ -275,7 +276,7 @@ function attributeSummary(attribute: SelectionAttributeStatistics): string | und
         return `mean ${formatNumber(attribute.mean)}`;
     }
     const top = attribute.distribution?.[0];
-    return top === undefined ? undefined : `${top.value} (${formatNumber(top.count)})`;
+    return top === undefined || top.count <= 1 ? undefined : `${top.value} (${formatNumber(top.count)})`;
 }
 
 /**
@@ -294,7 +295,7 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
     return (
         <ControlSection label="Summary" defaultOpened>
             <DataRow stat name="Nodes" value={statistics.nodes} />
-            <DataRow stat name="Edges" value={statistics.edges} />
+            {statistics.edges > 0 && <DataRow stat name="Edges" value={statistics.edges} />}
             <DataRow stat name="Edges among them" value={statistics.inducedEdges} />
             {statistics.attributes.map((attribute) => {
                 const value = attributeSummary(attribute);

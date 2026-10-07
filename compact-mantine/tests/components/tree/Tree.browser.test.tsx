@@ -290,6 +290,44 @@ describe("Tree: keyboard", () => {
     });
 });
 
+describe("Tree: a focused row that goes away", () => {
+    /**
+     * A flat tree whose Delete key removes the focused row, as a caller's delete command does.
+     * @returns the tree
+     */
+    function Deleting(): React.JSX.Element {
+        const [items, setItems] = React.useState<TreeNodeData[]>([
+            { id: "a", name: "Alpha" },
+            { id: "b", name: "Beta" },
+            { id: "c", name: "Gamma" },
+        ]);
+        return (
+            <Tree
+                items={items}
+                onRowKeyDown={(id, event) => {
+                    if (event.key === "Delete") {
+                        event.preventDefault();
+                        setItems((now) => now.filter((item) => item.id !== id));
+                    }
+                }}
+            />
+        );
+    }
+
+    it("hands focus to the row now in its place, or to the new last row", async () => {
+        await renderThemed(<Deleting />);
+        await tabIn();
+        await userEvent.keyboard("{ArrowDown}");
+        expect(focused()).toBe("b");
+
+        await userEvent.keyboard("{Delete}");
+        expect(focused()).toBe("c");
+
+        await userEvent.keyboard("{Delete}");
+        expect(focused()).toBe("a");
+    });
+});
+
 describe("Tree: keyboard move", () => {
     const FLAT: TreeNodeData[] = [
         { id: "a", name: "Alpha" },

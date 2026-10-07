@@ -462,6 +462,27 @@ export function Tree({
         }
     });
 
+    // A focused row that goes away (its delete command ran) takes focus with it: focus goes to
+    // the row now in its place, or to the new last row, rather than to the page (WCAG 2.4.3).
+    const focusedIndex = useRef(0);
+    useLayoutEffect(() => {
+        if (focusedId === null) {
+            return;
+        }
+        const at = indexOf.get(focusedId);
+        if (at !== undefined) {
+            focusedIndex.current = at;
+            return;
+        }
+        const lost = document.activeElement === null || document.activeElement === document.body;
+        const next = rows[Math.min(focusedIndex.current, rows.length - 1)]?.node.id;
+        if (lost && next !== undefined) {
+            moveFocus(next);
+        } else {
+            setFocusedId(null);
+        }
+    });
+
     const moveFocus = (id: string | undefined): void => {
         if (id === undefined) {
             return;

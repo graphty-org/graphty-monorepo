@@ -179,11 +179,24 @@ describe("undo at the largest graph a session holds", { timeout: TIMEOUT_MS }, (
         assert.isBelow(ms, loadMs);
     });
 
-    // The fifty steps are most of this test's time: each add after a removal pays a rebuild of
-    // the whole graph (about 450 ms each, ten of them, measured alone at load average 48). That
-    // is the setup the measured restore needs, so it is sized here rather than skipped.
+    it("a redo and an undo of that import take the graph back without rebuilding it", async () => {
+        const rebuilds = harness.store.rebuildCount;
+        const ms = await time(async () => {
+            await session.redo();
+            await session.undo();
+            session.snapshot();
+        });
+        report("a redo and an undo of a replacing import, with the read", ms);
+        // The redo swaps in an empty builder for the ten imported rows; the undo takes the graph
+        // the redo set aside back whole.
+        assert.strictEqual(harness.store.rebuildCount, rebuilds + 1, "no rebuild of the large graph");
+    });
+
     it("restoreTo(null) after fifty mixed steps rebuilds the graph once and costs less than loading it", async () => {
+        /** Time per kind of step, so a CI log shows which kind a regression is in. */
+        const stepMs = [0, 0, 0, 0, 0];
         for (let at = 0; at < 50; at++) {
+            const stepStart = performance.now();
             switch (at % 5) {
                 case 0:
                     await session.data.addNodes([{ id: `n${String(at)}` }]);
@@ -205,8 +218,12 @@ describe("undo at the largest graph a session holds", { timeout: TIMEOUT_MS }, (
                 default:
                     await session.data.removeNodes([`v${String(30_000 + at)}`]);
             }
+            stepMs[at % 5] += performance.now() - stepStart;
         }
 
+        ["add", "position", "style", "attribute", "removal"].forEach((kind, at) => {
+            report(`the ten ${kind} steps of the fifty`, stepMs[at]);
+        });
         const rebuilds = harness.store.rebuildCount;
         const start = performance.now();
         const restoring = session.history.restoreTo(null);
@@ -220,6 +237,26 @@ describe("undo at the largest graph a session holds", { timeout: TIMEOUT_MS }, (
         assert.strictEqual(harness.store.rebuildCount, rebuilds + 1, "one rebuild for the fifty steps");
         assert.isBelow(call, FRAME_MS * CONTENTION);
         assert.isBelow(ms, loadMs);
+    });
+
+    it("an add after a removal paints only the row it added, and the removal's renumbering moves the rest", async () => {
+        // The restore above left its rows to the next read, and the picture to the next pass over
+        // the whole stack; an add takes that pass.
+        await session.data.addNodes([{ id: "after-the-restore" }]);
+        await session.data.removeNodes([`v${String(40_000)}`]);
+        const painted: number[] = [];
+        const stop = session.paint.onPainted(() => {
+            painted.push(session.paint.lastPainted("node").length + session.paint.lastPainted("edge").length);
+        });
+        // The removal's compacting freeze is paid here, by the first read after it.
+        const afterRemoval = await time(() => session.data.addNodes([{ id: "after-removal" }]));
+        const plain = await time(() => session.data.addNodes([{ id: "after-an-add" }]));
+        stop();
+        report("an add after a removal, with the removal's freeze and the repaint", afterRemoval);
+        report("an add after an add, with its freeze and the repaint", plain);
+        // Counted, not timed: one element each, where every layer used to repaint all of them.
+        assert.deepEqual(painted, [1, 1]);
+        assert.isBelow(afterRemoval, loadMs / 4);
     });
 
     it("reports what strict state adds to one dispatch", async () => {

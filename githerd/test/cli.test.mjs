@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
-import { escalate } from "../lib/board.mjs";
+import { escalate, move, newJob } from "../lib/board.mjs";
 import { parseSince, runCli } from "../lib/cli.mjs";
 import { repoRoot } from "../lib/config.mjs";
 import { startDaemon } from "../lib/daemon.mjs";
@@ -539,6 +539,41 @@ describe("mine and disown from inside a Claude session", () => {
         });
         expect(d.state.prOwners[710]).toMatchObject({ session: "s14", by: "session" });
         expect(d.state.prDisowned[710]).toBeUndefined();
+    });
+
+    it("makes the session's pull request, or its job on one, wait for another pull request or branch to merge", async () => {
+        const d = await daemon({ peers: { sessions: () => [], registered: () => registered } });
+        const head = "a".repeat(40);
+        d.state.prs = { 739: { headSha: head, headRef: "feat/githerd" }, 741: { headSha: head } };
+        d.state.prOwners = {
+            739: { session: "s14", name: "graphty-14", at: "2026-10-05T00:00:00.000Z", by: "session" },
+        };
+        const job = { ...newJob({ kind: "pr", target: "#741", id: "pr-741" }, new Date()), pr: 741 };
+        move(job, "starting", new Date());
+        move(job, "working", new Date());
+        job.holder = { session: "s14" };
+        d.state.jobs = { "pr-741": job };
+        const agent = { session: inSession(), tty: false, extraEnv: { CLAUDECODE: "1" } };
+
+        expect(await cli(["wait", "pr", "739", "--until-merged", "1520", "CI", "needs", "it"], agent)).toMatchObject({
+            code: 0,
+            out: "#739 waits for #1520 to merge; githerd does not ask about #739 until then",
+        });
+        expect(d.state.prWaits[739]).toMatchObject({ session: "s14", merge: "1520", reason: "CI needs it" });
+        expect((await readLedger(d.stateDir)).at(-1)).toMatchObject({ kind: "pr-wait", pr: 739, merge: "1520" });
+
+        expect(await cli(["wait", "pr", "741", "--until-branch", "ci/playwright-one-version"], agent)).toMatchObject({
+            code: 0,
+            out: "#741 waits for ci/playwright-one-version to merge; githerd does not ask about pr-741 until then",
+        });
+        expect(job).toMatchObject({ state: "waiting", waitingFor: { merge: "ci/playwright-one-version" } });
+
+        expect((await cli(["wait", "pr", "702", "--until-merged", "1520"], agent)).err).toBe(
+            "graphty-14 holds no job on pr #702 and owns no open pull request #702",
+        );
+        expect((await cli(["wait", "pr", "739"], agent)).code).toBe(2);
+        const worker = { session: inSession(), tty: false, extraEnv: { GITHERD_JOB: "pr-739" } };
+        expect((await cli(["wait", "pr", "739", "--until-merged", "1"], worker)).code).toBe(1);
     });
 
     it("refuses outside a Claude session, and refuses a worker", async () => {

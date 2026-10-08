@@ -147,6 +147,48 @@ describe("settleWaits", () => {
         expect(gone.news.at(-1).text).toBe("#1500 is no longer open");
     });
 
+    it("settles a merge wait when its pull request, or a pull request from its branch, merges or closes", async () => {
+        const byNumber = working("by-number");
+        move(byNumber, "waiting", T0, { waitingFor: { merge: "1520" } });
+        const byBranch = working("by-branch");
+        move(byBranch, "waiting", T0, { waitingFor: { merge: "ci/playwright-one-version" } });
+        const closed = working("closed");
+        move(closed, "waiting", T0, { waitingFor: { merge: "1521" } });
+        const state = stateOf(byNumber, byBranch, closed);
+        state.master.branch = "master";
+        state.prs = { 1520: { headRef: "fix/a", required: {} } };
+        /** @type {string[]} */
+        const asked = [];
+        let answer = {};
+        const gitHub = {
+            graphql: async (/** @type {string} */ q) => {
+                asked.push(q);
+                return { repository: answer };
+            },
+        };
+        // #1520 is open; the branch has no pull request yet: nothing settles.
+        answer = { j0: { nodes: [] }, j1: { state: "OPEN" } };
+        await confirmClosedWaits(state, { gitHub, repo: "o/r" });
+        expect(asked[0]).toContain('j0: pullRequests(headRefName: "ci/playwright-one-version", baseRefName: "master"');
+        expect(asked[0]).toContain("j1: pullRequest(number: 1521) { state }");
+        expect(asked[0]).not.toContain("1520");
+        expect(settleWaits(state, at(1))).toEqual([]);
+        // The branch's pull request opened and merged, #1520 merged, #1521 closed unmerged.
+        state.prs = {};
+        answer = {
+            j0: { state: "MERGED" },
+            j1: { nodes: [{ state: "CLOSED" }, { state: "MERGED" }] },
+            j2: { state: "CLOSED" },
+        };
+        await confirmClosedWaits(state, { gitHub, repo: "o/r" });
+        expect(settleWaits(state, at(2)).map((s) => s.job)).toEqual(["by-number", "by-branch", "closed"]);
+        expect([byNumber, byBranch, closed].map((j) => [j.state, j.news.at(-1).text])).toEqual([
+            ["working", "#1520 merged"],
+            ["working", "ci/playwright-one-version merged"],
+            ["working", "#1521 closed without merging"],
+        ]);
+    });
+
     it("leaves push and verification waits to their own owners, and requeues a job whose blocker ended", () => {
         const push = working("push");
         move(push, "waiting", T0, { waitingFor: { push: "q1" } });

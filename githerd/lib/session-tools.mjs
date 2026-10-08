@@ -25,6 +25,7 @@ import { TOOLS } from "./mcp.mjs";
 import { startedAsDraft, updateBranchCommand } from "./prs.mjs";
 import { askFor, issueRefusal, jobInUse } from "./queue.mjs";
 import { statusData, statusText } from "./tools.mjs";
+import { mergeTarget } from "./waits.mjs";
 
 /** The status sections of the old board that the new section names show. */
 const SECTION = /** @type {Record<string, string>} */ ({
@@ -53,6 +54,7 @@ const WAIT_KEYS = /** @type {Record<string, string>} */ ({
     release: "release",
     job: "job",
     local: "local",
+    merge: "merge",
 });
 
 /**
@@ -315,6 +317,12 @@ export function sessionToolSet(ctx) {
                 if (board.closesCycle(state, job.id, other.id)) {
                     throw new Error(`waiting on ${other.id} closes a cycle: it already waits on ${job.id}`);
                 }
+            }
+            if (args.for === "merge") {
+                const target = mergeTarget(args.target);
+                if (!target)
+                    throw new Error(`a merge wait names a pull request (#1520) or a branch, not ${args.target}`);
+                waitingFor.merge = target;
             }
             if (args.for === "local") {
                 // A task's directory is named after the session's own directory: an owner session's

@@ -417,13 +417,15 @@ export const TOOLS = [
     {
         name: "githerd_wait",
         description:
-            "Declare what you are waiting for (checks, a lane, a release, another job, or a local background task you " +
-            "started), then stop. githerd watches it and wakes this session when it settles; no timer ends the wait. " +
-            "Answers ok; refused if it is already settled.",
+            "Declare what you are waiting for (checks, a lane, a release, another job, a local background task you " +
+            "started, or another pull request's merge), then stop. githerd watches it and wakes this session when it " +
+            'settles; no timer ends the wait. For "merge", target is the pull request ("#1520") or, when its pull ' +
+            "request is not open yet, its branch: the wait ends when it merges into the default branch, or closes " +
+            "unmerged. While a job waits, githerd does not ask its status. Answers ok; refused if it is already settled.",
         inputSchema: object(
             {
                 job: JOB,
-                for: { type: "string", enum: ["checks", "lane", "release", "job", "local"] },
+                for: { type: "string", enum: ["checks", "lane", "release", "job", "local", "merge"] },
                 target: { type: "string", minLength: 1 },
                 reason: REASON,
             },

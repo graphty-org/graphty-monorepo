@@ -56,6 +56,35 @@ describe("renderBoard", () => {
         expect(text.split("\n").slice(1)).toEqual(["JOBS: none", "  invited 2 idle sessions at 11:42"]);
     });
 
+    it("shows what merge a pull request and a job wait for", () => {
+        const job = {
+            ...newJob({ kind: "pr", target: "#740", id: "pr-740" }, NOW),
+            pr: 740,
+            holder: { session: "s1" },
+        };
+        move(job, "starting", NOW);
+        move(job, "working", NOW);
+        move(job, "waiting", NOW, { waitingFor: { merge: "ci/playwright-one-version" } });
+        const state = {
+            jobs: { "pr-740": job },
+            prs: { 739: { headRef: "feat/githerd", required: {} }, 740: { headRef: "feat/b", required: {} } },
+            prOwners: { 739: { session: "s2", name: "d2", by: "session" } },
+            prWaits: { 739: { session: "s2", name: "d2", merge: "1520" } },
+        };
+        const prs = [
+            { number: 739, title: "githerd", decision: "BLOCKED" },
+            { number: 740, title: "b", decision: "BLOCKED" },
+        ];
+        const lines = renderBoard(view(state, { prs }), NOW).split("\n");
+        expect(lines.find((l) => l.startsWith("  #739 "))).toMatch(/ -- waits for #1520 to merge$/);
+        expect(lines.find((l) => l.startsWith("  #740 "))).toContain(
+            " -- waits for ci/playwright-one-version to merge",
+        );
+        expect(lines.find((l) => l.includes("pr-740 "))).toMatch(
+            /pr-740 waiting for ci\/playwright-one-version to merge /,
+        );
+    });
+
     it("shows a job whose branch is in the push queue as waiting to push, and one with CI running as waiting for CI", () => {
         const job = (/** @type {string} */ id, /** @type {number} */ pr) => ({
             ...newJob({ kind: "pr", target: `#${pr}`, id }, NOW),

@@ -680,6 +680,16 @@ describe("sessionToolSet", () => {
         expect(job.waitingFor.output).toBe("/tmp/claude-1000/-home-o-repo/w1/tasks/t1.output");
     });
 
+    it("waits for another pull request or a branch to merge, and refuses anything else as the target", async () => {
+        const job = heldJob("pr-7");
+        const { ctx } = setup({ jobs: { "pr-7": job } });
+        const bad = await call(ctx, "githerd_wait", { job: "pr-7", for: "merge", target: "--x y", reason: "r" });
+        expect(bad.text).toMatch(/a merge wait names a pull request \(#1520\) or a branch, not --x y/);
+        expect(job.state).toBe("working");
+        await call(ctx, "githerd_wait", { job: "pr-7", for: "merge", target: "#1520", reason: "needs #1520" });
+        expect(job).toMatchObject({ state: "waiting", waitingFor: { merge: "1520", reason: "needs #1520" } });
+    });
+
     it("refuses a wait on a settled job or one that closes a cycle", async () => {
         const job = heldJob("pr-7");
         const done = heldJob("pr-8");

@@ -880,6 +880,30 @@ describe("asking the owner of a broken pull request whether it is fixing it", ()
         expect(f.sent).toHaveLength(1);
     });
 
+    it("does not ask about it while it waits for another pull request to merge, and tells its owner when that merges", async () => {
+        const f = fake();
+        const state = owned();
+        await statusStep(state, opts(f, { now: at("12:00") }));
+        markMine(state, 710, { session: "s2", name: "graphty-14", at: "2026-10-05T12:05:00.000Z", by: "session" });
+        // The fix is another session's pull request (githerd wait pr 710 --until-merged 1520).
+        state.prWaits = {
+            710: { session: "s2", name: "graphty-14", merge: "1520", reason: "x", at: "2026-10-05T12:05:00.000Z" },
+        };
+        for (const hm of ["12:15", "12:30", "13:30"]) {
+            expect(await statusStep(state, opts(f, { now: at(hm) }))).toEqual([]);
+        }
+        expect(state.prOwners[710]).toMatchObject({ session: "s2" });
+        expect(f.sent).toHaveLength(1);
+        state.prWaits[710].result = "MERGED";
+        const lines = await statusStep(state, opts(f, { now: at("13:31") }));
+        expect(lines[0]).toEqual({ kind: "pr-wait-settled", pr: 710, merge: "1520", news: "#1520 merged" });
+        expect(f.sent[1]).toEqual([
+            "/s2.sock",
+            "githerd: #710 was waiting for #1520: #1520 merged. Pick #710 up again.",
+        ]);
+        expect(state.prWaits).toEqual({});
+    });
+
     it("releases it when the question goes unanswered, and offers the pr job until a new push", async () => {
         const f = fake();
         const state = owned();

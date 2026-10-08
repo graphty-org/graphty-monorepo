@@ -13,6 +13,8 @@
  *   vetoes closing an issue or pull request (`issue:<n>` or `pr:<n>`) for good. `{op:
  *   "session-mine" | "session-disown", pr, session}` is `githerd mine <pr>` or `githerd disown <pr>`
  *   run from inside a Claude session, for that session (the CLI finds it up its process chain).
+ *   `{op: "session-wait", kind: "pr" | "issue", n, merge, reason, session}` is `githerd wait`: that
+ *   session's job on the pull request or issue, or the pull request it owns, waits for `merge`.
  *
  * Presence (design 11.3) is recorded only from a request whose `X-Githerd-Caller` is `owner`, which
  * the CLI sends for an owner command (`status`, `ack`, `veto`) run from a plain terminal and never
@@ -151,7 +153,7 @@ import {
     readPushLog,
     scanTranscripts,
 } from "./owners.mjs";
-import { attributeTickets } from "./waits.mjs";
+import { attributeTickets, mergeTarget, mergeWhat } from "./waits.mjs";
 import { liveSessions, registeredSessions, socketTransport } from "./peers.mjs";
 import { advanceProposals, closedTargets, veto } from "./proposals.mjs";
 import {
@@ -165,7 +167,7 @@ import {
     whyStuck,
 } from "./prs.mjs";
 import { nextStackRecord, recoverInherited, updateDequeued, upkeepStacks } from "./upkeep.mjs";
-import { issueTypes, jobInUse, jobOrder, NEXT, SKIP } from "./queue.mjs";
+import { issueTypes, jobInUse, jobOrder, NEXT, prOf, SKIP } from "./queue.mjs";
 import {
     appendLedger,
     clearFatal,
@@ -3537,7 +3539,16 @@ export async function startDaemon({
     function owner(cmd, worker) {
         if (
             worker &&
-            ["ack", "veto", "policy-end", "mine", "mine-drop", "session-mine", "session-disown"].includes(cmd?.op)
+            [
+                "ack",
+                "veto",
+                "policy-end",
+                "mine",
+                "mine-drop",
+                "session-mine",
+                "session-disown",
+                "session-wait",
+            ].includes(cmd?.op)
         ) {
             return { status: 403, text: `${cmd.op} is the owner's: a worker cannot run it` };
         }
@@ -3553,6 +3564,7 @@ export async function startDaemon({
         if (cmd?.op === "veto") return ownerVeto(String(cmd.id));
         if (["mine", "mine-list", "mine-drop"].includes(cmd?.op)) return ownerMine(cmd);
         if (cmd?.op === "session-mine" || cmd?.op === "session-disown") return sessionAnswer(cmd);
+        if (cmd?.op === "session-wait") return sessionWait(cmd);
         if (["answer", "order", "policy", "policy-end"].includes(cmd?.op))
             return ownerCommand(state, cmd, now(), worker);
         if (CONTROL_OPS.has(cmd?.op)) {
@@ -3562,7 +3574,8 @@ export async function startDaemon({
         return {
             status: 400,
             text:
-                "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, answer, order, policy, " +
+                "op must be ack, veto, mine, mine-list, mine-drop, session-mine, session-disown, session-wait, answer, " +
+                "order, policy, " +
                 "policy-end, pause, resume, " +
                 "workers, keep or release",
         };
@@ -3653,6 +3666,59 @@ export async function startDaemon({
             status: 200,
             text: `#${pr} disowned: ${what}; only a new push, a claim or mine by ${s.name} makes it its again`,
             entry: { kind: "pr-disowned", pr: Number(pr), session: s.sessionId, name: s.name },
+        };
+    }
+
+    /**
+     * `githerd wait <pr|issue> <n> --until-merged <pr> | --until-branch <branch>` run from inside a
+     * Claude session: the session's job on that pull request or issue waits for the merge, as
+     * `githerd_wait` with `for: "merge"` would make it; without a job, the pull request the session
+     * owns does (`state.prWaits`, asks.mjs). Either way githerd stops asking its status until the
+     * merge settles (advance.mjs confirmClosedWaits), and then tells the session.
+     * @param {any} cmd `{op: "session-wait", kind, n, merge, reason, session}`
+     * @returns {any} the answer
+     */
+    function sessionWait(cmd) {
+        const n = String(cmd.n ?? "");
+        const merge = mergeTarget(cmd.merge);
+        if (!/^\d+$/.test(n) || !["pr", "issue"].includes(cmd.kind) || !merge) {
+            return { status: 400, text: "wait takes pr|issue <n> and a pull request or branch to wait for" };
+        }
+        const sessionsDir = join(env.HOME ?? homedir(), ".claude", "sessions");
+        const s = (peers.registered ?? registeredSessions)({ sessionsDir }).find((x) => x.sessionId === cmd.session);
+        if (!s) return { status: 404, text: `no live Claude Code session ${cmd.session} in the session registry` };
+        const t = now();
+        const what = `${cmd.kind === "pr" ? "#" : "issue #"}${n} waits for ${mergeWhat(merge)} to merge`;
+        const reason = String(cmd.reason || `waits for ${mergeWhat(merge)} to merge`).slice(0, 300);
+        const job = Object.values(state.jobs ?? {}).find(
+            (j) =>
+                j.holder?.session === s.sessionId &&
+                !board.TERMINAL.includes(j.state) &&
+                (cmd.kind === "pr" ? String(prOf(j)) === n : j.kind === "issue" && String(j.target) === `#${n}`),
+        );
+        if (job) {
+            if (job.state !== "working") return { status: 409, text: `${job.id} is ${job.state}, not working` };
+            board.move(job, "waiting", t, { waitingFor: { merge, reason } });
+            job.status = { at: t.toISOString(), text: reason };
+            return {
+                status: 200,
+                text: `${what}; githerd does not ask about ${job.id} until then`,
+                entry: { kind: "wait", job: job.id, for: "merge", target: merge },
+            };
+        }
+        const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
+        if (cmd.kind !== "pr" || !state.prs?.[n] || owner?.session !== s.sessionId) {
+            return {
+                status: 404,
+                text: `${s.name} holds no job on ${cmd.kind} #${n} and owns no open pull request #${n}`,
+            };
+        }
+        state.prWaits ??= {};
+        state.prWaits[n] = { session: s.sessionId, name: s.name, merge, reason, at: t.toISOString() };
+        return {
+            status: 200,
+            text: `${what}; githerd does not ask about #${n} until then`,
+            entry: { kind: "pr-wait", pr: Number(n), merge, session: s.sessionId },
         };
     }
 

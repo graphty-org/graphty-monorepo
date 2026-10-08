@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 
 import * as board from "./board.mjs";
 import { endItem, raiseItem } from "./notify.mjs";
+import { mergeNews } from "./waits.mjs";
 
 /** A fault on every surface for this long is paged once (design 9.5). */
 const FAULT_PAGE_MS = 24 * 3_600_000;
@@ -128,6 +129,7 @@ export function waitNews(state, job) {
     }
     if (w.github) return state.github?.downSince ? null : "GitHub answers again";
     if (w.local) return localNews(job, w.local, w.output);
+    if (w.merge) return mergeNews(w);
     return null;
 }
 
@@ -206,54 +208,107 @@ function checksNews(state, job, w) {
     return `checks on ${where} finished: ${results}`;
 }
 
+/** @typedef {{field: string, settle: (got: any) => void}} WaitAsk one field of the query and what its answer settles */
+
 /**
- * Asks GitHub, in one GraphQL query per poll, about the checks waits whose pull request the poll's
- * open list does not hold, and marks `waitingFor.closed` on each GitHub says is closed or merged.
- * A head commit counts as closed when every pull request it heads is. A failed query, an open
- * answer or a target that is neither a number nor a full commit confirms nothing; the next poll
- * asks again.
+ * The checks waits to ask GitHub about: their pull request is not in the poll's open list.
  * @param {any} state the daemon state
- * @param {{gitHub: any, repo: string}} facts the client and `owner/name`
- * @returns {Promise<void>}
+ * @returns {WaitAsk[]} the asks
  */
-export async function confirmClosedWaits(state, { gitHub, repo }) {
-    /** @type {any[]} */
+function checksAsks(state) {
+    /** @type {WaitAsk[]} */
     const asks = [];
-    /** @type {string[]} */
-    const fields = [];
     for (const job of Object.values(state.jobs ?? {})) {
         const w = job.waitingFor;
         if (job.state !== "waiting" || !w?.checks || w.verify || w.closed) continue;
         const target = String(w.checks);
         if (polledPr(state, job, target)) continue;
-        const key = `j${asks.length}`;
+        const settle = (/** @type {string[]} */ states) => {
+            if (states.length && states.every((s) => s === "CLOSED" || s === "MERGED")) w.closed = true;
+        };
         const number = waitNumber(target);
-        if (number) fields.push(`${key}: pullRequest(number: ${number}) { state }`);
-        else if (/^[0-9a-f]{40}$/.test(target)) {
-            fields.push(
-                `${key}: object(oid: "${target}") { ... on Commit { associatedPullRequests(first: 5) { nodes { state } } } }`,
-            );
-        } else continue;
-        asks.push(w);
+        if (number) {
+            asks.push({ field: `pullRequest(number: ${number}) { state }`, settle: (got) => settle([got?.state]) });
+        } else if (/^[0-9a-f]{40}$/.test(target)) {
+            asks.push({
+                field: `object(oid: "${target}") { ... on Commit { associatedPullRequests(first: 5) { nodes { state } } } }`,
+                settle: (got) =>
+                    settle((got?.associatedPullRequests?.nodes ?? []).map((/** @type {any} */ p) => p.state)),
+            });
+        }
     }
+    return asks;
+}
+
+/**
+ * The merge waits to ask GitHub about: a job's, or a pull request owner's (`state.prWaits`), whose
+ * pull request, or a pull request from whose branch, is not in the poll's open list.
+ * @param {any} state the daemon state
+ * @returns {WaitAsk[]} the asks
+ */
+function mergeAsks(state) {
+    const waits = [
+        ...Object.values(state.jobs ?? {})
+            .filter((j) => j.state === "waiting" && j.waitingFor?.merge)
+            .map((j) => j.waitingFor),
+        ...Object.values(state.prWaits ?? {}),
+    ].filter((w) => !w.result);
+    const open = Object.values(state.prs ?? {});
+    const base = JSON.stringify(state.master?.branch ?? "master");
+    /** @type {WaitAsk[]} */
+    const asks = [];
+    for (const w of waits) {
+        const target = String(w.merge);
+        if (/^\d+$/.test(target)) {
+            if (state.prs?.[target]) continue;
+            asks.push({
+                field: `pullRequest(number: ${target}) { state }`,
+                settle: (got) => {
+                    if (got?.state === "MERGED" || got?.state === "CLOSED") w.result = got.state;
+                },
+            });
+        } else if (!open.some((p) => p.headRef === target)) {
+            asks.push({
+                field: `pullRequests(headRefName: ${JSON.stringify(target)}, baseRefName: ${base}, first: 20) { nodes { state } }`,
+                settle: (got) => {
+                    const states = (got?.nodes ?? []).map((/** @type {any} */ p) => p.state);
+                    if (states.includes("MERGED")) w.result = "MERGED";
+                    else if (states.length && states.every((s) => s === "CLOSED")) w.result = "CLOSED";
+                },
+            });
+        }
+    }
+    return asks;
+}
+
+/**
+ * Asks GitHub, in one GraphQL query per poll, about the waits whose pull request the poll's open
+ * list does not hold. A checks wait gets `waitingFor.closed` once GitHub says it is closed or
+ * merged; a head commit counts as closed when every pull request it heads is. A merge wait (a job's
+ * `waitingFor.merge`, or a pull request owner's `state.prWaits`) gets `result`: `MERGED` once its
+ * pull request, or a pull request from its branch into the default branch, merged, and `CLOSED`
+ * once every such pull request closed unmerged. A branch with no pull request yet stays pending. A
+ * failed query, an open answer or a target that is neither a number nor a full commit confirms
+ * nothing; the next poll asks again.
+ * @param {any} state the daemon state
+ * @param {{gitHub: any, repo: string}} facts the client and `owner/name`
+ * @returns {Promise<void>}
+ */
+export async function confirmClosedWaits(state, { gitHub, repo }) {
+    const asks = [...checksAsks(state), ...mergeAsks(state)];
     if (!asks.length) return;
     const [owner, name] = repo.split("/");
+    const fields = asks.map((a, i) => `j${i}: ${a.field}`).join(" ");
     let data;
     try {
         data = await gitHub.graphql(
-            `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields.join(" ")} } }`,
+            `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`,
             { owner, name },
         );
     } catch {
         return;
     }
-    asks.forEach((w, i) => {
-        const got = data?.repository?.[`j${i}`];
-        const states = got?.associatedPullRequests
-            ? got.associatedPullRequests.nodes.map((/** @type {any} */ p) => p.state)
-            : [got?.state];
-        if (states.length && states.every((s) => s === "CLOSED" || s === "MERGED")) w.closed = true;
-    });
+    asks.forEach((a, i) => a.settle(data?.repository?.[`j${i}`]));
 }
 
 /**

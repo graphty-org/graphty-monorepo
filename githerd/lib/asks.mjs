@@ -31,7 +31,7 @@ import { askFor, askProblems, failingRequired, headIsGitherds, jobInUse, jobOnPr
 import { ownerHeld } from "./board.mjs";
 import { releaseOwnerJob } from "./jobs.mjs";
 import { tellSessions } from "./peers.mjs";
-import { jobWaits } from "./waits.mjs";
+import { jobWaits, mergeNews, mergeWhat } from "./waits.mjs";
 
 const MINUTE = 60 * 1000;
 
@@ -640,8 +640,9 @@ function brokenAskDue(state, n, rec, { now, minutes, live }, lines) {
     if (!found) return null;
     const { owner, why } = found;
     const ask = state.brokenAsks[n];
-    // Only waiting to push: githerd watches the push queue, so nothing is asked and silence is not held against it.
-    if (pushWaiting(state, n, rec)) {
+    // Only waiting to push, or for another pull request to merge (`state.prWaits`): githerd watches
+    // either, so nothing is asked and silence is not held against it.
+    if (pushWaiting(state, n, rec) || state.prWaits?.[n]?.session === owner.session) {
         if (ask) ask.heard = false;
         return null;
     }
@@ -850,6 +851,7 @@ export async function statusStep(
     { now, acting, sessions, transport, minutes, owners = sessions, cli = DEFAULT_CLI },
 ) {
     const lines = [];
+    await tellSettledPrWaits(state, { acting, transport, owners }, lines);
     const due = dueJobs(state, now, minutes, lines);
     const prsDue = brokenOwned(state, { now, minutes, owners }, lines);
     const live = due.size ? sessions() : [];
@@ -865,6 +867,41 @@ export async function statusStep(
         await askSession(state, asked, { now, acting, transport, minutes, cli }, lines);
     }
     return lines;
+}
+
+/**
+ * Ends each pull request owner's merge wait (`state.prWaits[<pr>]` = `{session, name, merge, reason,
+ * at, result?}`, `githerd wait pr <n>` from a session without githerd's tools) whose pull request or
+ * owner is gone, or whose merge settled (advance.mjs confirmClosedWaits); a settled one is told to
+ * its session, as `tellHolders` does. The status question about the pull request then resumes.
+ * @param {any} state the daemon state, changed in place
+ * @param {{acting: boolean, transport: import("./peers.mjs").Transport,
+ *   owners: () => import("./peers.mjs").PeerSession[]}} opts whether the `workers` write group acts,
+ *   the transport and every live session in this repository
+ * @param {({kind: string} & Record<string, unknown>)[]} lines the ledger lines, appended to
+ */
+async function tellSettledPrWaits(state, { acting, transport, owners }, lines) {
+    for (const [n, w] of Object.entries(state.prWaits ?? {})) {
+        const owner = state.prOwners?.[n] ?? state.prInferred?.[n];
+        const news = mergeNews(w);
+        if (state.prs?.[n] && owner?.session === w.session && !news) continue;
+        delete state.prWaits[n];
+        if (!news) continue;
+        lines.push({ kind: "pr-wait-settled", pr: Number(n), merge: w.merge, news });
+        const target = owners().filter((s) => s.sessionId === w.session);
+        if (!target.length) continue;
+        if (!acting) {
+            lines.push({ kind: "would-do", group: "workers", op: `tell ${target[0].name} that ${news}` });
+            continue;
+        }
+        const text = `githerd: #${n} was waiting for ${mergeWhat(w.merge)}: ${news}. Pick #${n} up again.`;
+        lines.push({
+            kind: "pr-wait-told",
+            pr: Number(n),
+            session: target[0].name,
+            ...(await tellSessions(target, text, transport)),
+        });
+    }
 }
 
 /**

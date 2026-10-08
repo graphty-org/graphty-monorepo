@@ -9,7 +9,7 @@ import { TERMINAL } from "./board.mjs";
 import { flakeData, flakeLines } from "./flakes.mjs";
 import { prHolder, prOf } from "./queue.mjs";
 import { sharedLines } from "./shared.mjs";
-import { jobWaits } from "./waits.mjs";
+import { jobWaits, mergeWhat } from "./waits.mjs";
 
 /** The board's sections, in order; banners and faults always come first. */
 export const SECTIONS = [
@@ -228,6 +228,13 @@ const RENDER = {
                     owned += ", which has no githerd tools: it answers with the githerd command line";
                 const d = v.state?.prDisowned?.[p.number];
                 if (d) owned += ` -- disowned by ${d.name}`;
+                // A merge it waits for: its owner's (`githerd wait`), or a job's on it.
+                const merge =
+                    v.state?.prWaits?.[p.number]?.merge ??
+                    openJobs(v.state).find(
+                        (j) => String(prOf(j)) === String(p.number) && j.state === "waiting" && j.waitingFor?.merge,
+                    )?.waitingFor.merge;
+                if (merge) owned += ` -- waits for ${mergeWhat(merge)} to merge`;
                 const fixing = v.state?.brokenAsks?.[p.number]?.active;
                 if (fixing) owned += ` -- being fixed: ${fixing}`;
                 const advisory = v.state?.prs?.[p.number]?.advisory ?? [];
@@ -367,13 +374,15 @@ function openJobs(state) {
  * @returns {string} the words
  */
 function jobState(j, now, wait) {
-    const label =
-        {
-            push: "waiting to push",
-            ci: "waiting for CI",
-            owner: "waiting for the owner's review",
-            merge: "waiting to merge",
-        }[wait ?? ""] ?? j.state;
+    const merge = j.state === "waiting" && j.waitingFor?.merge;
+    const label = merge
+        ? `waiting for ${mergeWhat(merge)} to merge`
+        : ({
+              push: "waiting to push",
+              ci: "waiting for CI",
+              owner: "waiting for the owner's review",
+              merge: "waiting to merge",
+          }[wait ?? ""] ?? j.state);
     const parts = [`${label} ${span(now.getTime() - Date.parse(j.stateSince))}`];
     if (j.pausedBy?.length) parts.push(`clock paused by ${j.pausedBy.join(", ")}`);
     else if (j.deadline) parts.push(`${j.deadlineAction} in ${span(Date.parse(j.deadline) - now.getTime())}`);

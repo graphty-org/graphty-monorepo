@@ -107,3 +107,33 @@ export function jobWaits(state) {
     }
     return out;
 }
+
+/**
+ * A merge wait's target as stored: a pull request's number (`1520`, from `1520` or `#1520`), or a
+ * branch whose pull request may not be open yet. Null when it is neither.
+ * @param {unknown} target what the session named
+ * @returns {string | null} the target
+ */
+export function mergeTarget(target) {
+    const t = typeof target === "string" ? target.trim() : "";
+    if (/^#?\d+$/.test(t)) return t.replace("#", "");
+    return /^[A-Za-z0-9._/-]{1,200}$/.test(t) && !t.startsWith("-") ? t : null;
+}
+
+/**
+ * Words for a merge wait's target: `#1520`, or the branch.
+ * @param {string} target the stored target
+ * @returns {string} the words
+ */
+export const mergeWhat = (target) => (/^\d+$/.test(target) ? `#${target}` : target);
+
+/**
+ * The news of a merge wait (`{merge, result}`, the result set by advance.mjs confirmClosedWaits),
+ * or null while it is pending.
+ * @param {{merge: string, result?: string}} w the wait
+ * @returns {string | null} the news line
+ */
+export function mergeNews(w) {
+    if (w.result === "MERGED") return `${mergeWhat(w.merge)} merged`;
+    return w.result === "CLOSED" ? `${mergeWhat(w.merge)} closed without merging` : null;
+}

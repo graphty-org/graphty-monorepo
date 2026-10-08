@@ -71,6 +71,12 @@ const USAGE = `usage: githerd <command>
                                            is working on the pull request (githerd_mine), or gives
                                            it up now, and githerd does not infer it back from
                                            earlier pushes
+  wait pr|issue <n> --until-merged <pr> | --until-branch <branch> [reason]
+                                           from inside a Claude session: its job on that pull
+                                           request or issue (or the pull request it owns) waits for
+                                           another pull request, or a branch whose pull request is
+                                           not open yet, to merge; githerd does not ask its status
+                                           meanwhile and tells the session when it merges or closes
   answer <item> <words>                    answer an owner item ("not yet" keeps it open)
   order <N...> <words>                     record an order: these issues, in this order
   policy [freeze-merges | park-gate <lane> | hold-package <name>] <words>
@@ -487,6 +493,41 @@ async function cmdMine(c) {
     }
     const port = await daemonPort(c);
     if (port === null) return 1;
+    const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
+    (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
+    return answer.ok ? 0 : 1;
+}
+
+/**
+ * `wait pr|issue <n> --until-merged <pr> | --until-branch <branch> [reason]`: for the Claude session
+ * this command runs under, as `mine <pr>` finds it, a wait on another pull request's merge.
+ * @param {Command} c the command
+ * @returns {Promise<number>} the exit code
+ */
+async function cmdWait(c) {
+    const [kind, n, ...words] = c.positional;
+    // Exactly one of --until-merged and --until-branch, with a value.
+    const named = [c.flags["until-merged"], c.flags["until-branch"]].filter((f) => f !== undefined);
+    const merge = named.length === 1 && typeof named[0] === "string" ? named[0] : "";
+    if (!["pr", "issue"].includes(kind) || !/^#?\d+$/.test(n ?? "") || !merge) {
+        c.err("usage: githerd wait pr|issue <n> --until-merged <pr> | --until-branch <branch> [reason]");
+        return 2;
+    }
+    const s = c.session();
+    if (!s) {
+        c.err("githerd wait acts for the Claude session it runs under, and none is up this process chain");
+        return 2;
+    }
+    const port = await daemonPort(c);
+    if (port === null) return 1;
+    const cmd = {
+        op: "session-wait",
+        kind,
+        n: n.replace("#", ""),
+        merge,
+        reason: words.join(" "),
+        session: s.sessionId,
+    };
     const answer = await post(port, "/owner", cmd, callerHeader(c.env, c.tty));
     (answer.ok ? c.out : c.err)(answer.text ?? answer.error);
     return answer.ok ? 0 : 1;
@@ -937,6 +978,7 @@ const HANDLERS = {
     veto: cmdOwner,
     mine: cmdMine,
     disown: cmdMine,
+    wait: cmdWait,
     answer: cmdRecord,
     order: cmdRecord,
     policy: cmdRecord,

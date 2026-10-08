@@ -241,6 +241,8 @@ describe("the pre-push gate matches CI", () => {
         try {
             mkdirSync(join(dir, "tools"));
             copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
+            // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
+            copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
@@ -255,6 +257,13 @@ describe("the pre-push gate matches CI", () => {
                 cwd: dir,
                 encoding: "utf8",
                 timeout: 60_000,
+                // Its own slot directory, with a slot per shard: never waits on, or holds up, the real slots.
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: join(dir, "tmp/test-slots"),
+                    GRAPHTY_TEST_SLOTS: "2",
+                    GRAPHTY_TEST_SLOT_HELD: "",
+                },
             });
             assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
             assert.match(run.stdout, /Stopped after broken failed/);

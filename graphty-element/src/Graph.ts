@@ -4396,7 +4396,9 @@ export class Graph implements GraphContext {
      */
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
         const camera = this.scene.activeCamera;
-        if (!camera) {
+        // Nothing is drawn before the first frame, and the scene's view matrix is unset until
+        // then: a press that arrives first picks nothing.
+        if (!camera || this.scene.getFrameId() === 0) {
             return undefined;
         }
 

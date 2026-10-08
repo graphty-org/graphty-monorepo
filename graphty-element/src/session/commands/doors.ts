@@ -553,6 +553,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     explain: READ,
     agreement: READ,
     counts: READ,
+    legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
         [{ op: "style.patch", action: "resolveToStatic", id: "no-such-layer", channel: "node.color" }],
@@ -735,6 +736,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             batchOperations: BATCH,
             on: LISTEN,
             addListener: LISTEN,
+            addEventListener: LISTEN,
+            removeEventListener: LISTEN,
             listenerCount: READ,
             is2D: READ,
             setXRConfig: XR,
@@ -749,6 +752,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             worldToScreen: READ,
             nodeScreenPosition: READ,
             screenToWorld: READ,
+            elementAt: READ,
             setData: calls(
                 [{ nodes: [{ id: "d1" }], edges: [] }],
                 batchOf("Set the graph data", addNodes({ id: "d1" })),
@@ -841,7 +845,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             loadFromFile: LOAD_FROM_FILE,
             loadFromUrl: LOAD_FROM_URL,
             ...DATA_DOORS,
-            // Called while the graph holds every node the rows above left: naming them all again removes none.
+            // Called while the graph holds every node the rows above left: naming them all again removes
+            // none, and n1, which `updateNodes` gave a weight, takes back the bare record it is handed.
             setNodes: calls(
                 [
                     [
@@ -856,6 +861,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ],
                 batchOf(
                     "Replaced the nodes",
+                    {
+                        op: "data.apply",
+                        mutation: {
+                            kind: "update-rows",
+                            target: "node",
+                            rows: [{ id: "n1", values: { id: "n1" } }],
+                            replace: true,
+                        },
+                    },
                     addNodesBy(
                         "id",
                         { id: "n1" },
@@ -943,6 +957,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             worldToScreen: READ,
             nodeScreenPosition: READ,
             screenToWorld: READ,
+            elementAt: READ,
             getCameraController: READ,
             getNodeMesh: READ,
             waitForSettled: READ,

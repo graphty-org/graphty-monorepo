@@ -163,17 +163,33 @@ describe("a hostile notes member", () => {
         assert.deepEqual(session.notes.list(), []);
     });
 
-    it("refuses or finishes quickly on a member whose objects share references", () => {
+    it("refuses a member whose objects share references, visiting each object a bounded number of times", () => {
         const { session } = notesHarness();
+        const LEVELS = 23;
+        // Each level's object counts the times anything lists its keys: walked as a tree, a
+        // 23-level shared tree is 2^23 visits (8,388,608); walked as a graph, a few per object.
+        const LISTINGS_PER_OBJECT = 4;
+        let visits = 0;
         let shared: unknown = 1;
-        for (let level = 0; level < 23; level++) {
-            shared = { left: shared, right: shared };
+        for (let level = 0; level < LEVELS; level++) {
+            shared = new Proxy(
+                { left: shared, right: shared },
+                {
+                    ownKeys: (target) => {
+                        visits++;
+                        return Reflect.ownKeys(target);
+                    },
+                },
+            );
         }
 
-        const started = performance.now();
         const refusal = refusalOf(() => session.notes.mergeDocument(member([fileNote("s", { later: shared })])));
+        assert.isAtMost(
+            visits,
+            LISTINGS_PER_OBJECT * LEVELS,
+            "each shared object is listed a few times at most, not once per path to it",
+        );
         assert.strictEqual(refusal?.code, "E_BAD_DOCUMENT", "an object reached twice is not JSON");
-        assert.isBelow(performance.now() - started, 500, "a 23-level shared tree is 2^23 visits if walked as a tree");
     });
 
     it("refuses a merge name longer than 1,024 characters, which would land in the undo label", () => {

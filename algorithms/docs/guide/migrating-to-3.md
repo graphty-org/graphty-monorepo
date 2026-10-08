@@ -232,6 +232,13 @@ graphs named:
   the Fiedler vector (the smallest nonzero eigenvalue's): a two-block planted partition splits exactly along its
   blocks, and Zachary's karate club scores modularity 0.40 where it scored 0.04. The clusters, `spectralValues` and
   modularity scores differ from 2.x's on almost every graph.
+- **`grsbm` keeps a split only when it raises the whole partition's modularity.** 2.x, and 3.x before the fix for
+  issue #960, compared the two halves' modularity terms alone with the parent split's and kept a split that lowered
+  that number by up to 0.01, so it kept splits that hurt the partition and refused ones that helped. A split is now
+  kept when the modularity of the whole partition, every other cluster held as it is, goes up. Each cluster's
+  `modularity`, each split's `bisectionModularity` and `modularityScores` are now that whole-partition modularity, and
+  `improvement` is how much the split raised it. Four planted groups of 20 (pIn 0.5, pOut 0.02) now come back as the
+  four groups at modularity 0.646, where they came back as two groups of 40 at 0.438.
 - **Flow and cuts.** `maxFlow` reports the net flow of two opposite edges on the edge it runs along, each within its
   capacity; `minSTCut` reports cut edges on graphs with numeric ids (2.x reported none); `stoerWagner` adds the weights
   of two opposite directed edges; `kargerMinCut` is seeded, so one graph gives one result, and on a graph of three or

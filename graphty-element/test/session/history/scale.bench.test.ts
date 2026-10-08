@@ -18,6 +18,10 @@
  * timeouts are safety limits only, set far above what a busy pre-push gate stretches the tests to
  * (several gates at once ran the machine at a load average of 50 to 82; issue #1277).
  *
+ * The ratios still move with load, because their two sides are timed at different moments, so
+ * this file gates no push: ci.yml's advisory "performance" job runs it. The rebuild counts are
+ * also asserted, gating, in scale.test.ts and round-trip.test.ts.
+ *
  * Measured on the development machine (i9-14900, Node 22), 49,000 nodes and 98,000 edges:
  * printed by each test as `[undo-scale]` lines.
  */

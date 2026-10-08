@@ -381,7 +381,8 @@ export interface StartOptions extends RunOptions {
     readonly as?: RunId;
     /**
      * What the element paints on first completion. Set false to opt out of the encoding layer it
-     * applies, or `{ size: true }` to size the nodes by a node measurement as well. See
+     * applies, or `{ size: true }` to size the nodes by a node measurement, or widen the edges by an
+     * edge measurement, as well. See
      * {@link RunStyle}.
      */
     readonly style?: RunStyle;
@@ -401,15 +402,18 @@ export interface StartOptions extends RunOptions {
  *
  * - `true`, or left off: the colour suggestion its result shape calls for.
  * - `false`: nothing. The numbers are published and no layer is added.
- * - `{ size }`: the colour suggestion, plus -- for a run whose result is a node measurement
- *   (shape `"node-metric"`: PageRank, degree, betweenness and the rest) -- a node size encoding of
- *   the same field. `size: true` sizes nodes from 1 (the default node size, so the least
- *   important node looks unchanged) to 3; `size: [min, max]` uses that range. `size: false` or
- *   left off adds no size. For any other result shape the size is ignored, without an error,
- *   exactly as the colour suggestion itself depends on the shape.
+ * - `{ size }`: the colour suggestion, plus a size encoding of the same field. For a run whose
+ *   result is a node measurement (shape `"node-metric"`: PageRank, degree, betweenness and the
+ *   rest) that is a node size: `size: true` sizes nodes from 1 (the default node size, so the
+ *   least important node looks unchanged) to 3. For a run whose result is an edge measurement
+ *   (shape `"edge-metric"`: max flow, edge betweenness) it is an edge width: `size: true` draws
+ *   edges from the default edge width to twice it. `size: [min, max]` uses that range, in the
+ *   channel's own units. `size: false` or left off adds no size. For any other result shape the
+ *   size is ignored, without an error, exactly as the colour suggestion itself depends on the
+ *   shape.
  *
- * Every layer this adds is scoped to the nodes carrying the run's value, and is removed with the
- * run.
+ * Every layer this adds is scoped to the elements carrying the run's value, and is removed with
+ * the run.
  */
 export type RunStyle = boolean | { readonly size?: boolean | readonly [min: number, max: number] };
 

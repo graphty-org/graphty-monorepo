@@ -13,31 +13,41 @@ import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import { CommonImportOptions } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
+import { CSV_LOSS } from '@graphty/graph-io';
+import { CX2_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
+import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
+import { GEXF_LOSS } from '@graphty/graph-io';
+import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
 import type { GraphExporter } from '@graphty/graph-io';
 import { GraphImporter } from '@graphty/graph-io';
 import type { GraphListing } from '@graphty/graph-io';
+import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
 import { ImportReport as ImportReport_2 } from '@graphty/graph-io';
 import { InstancedMesh } from '@babylonjs/core';
+import { JSON_LOSS } from '@graphty/graph-io';
 import { LayoutResult } from '@graphty/layout';
 import { LitElement } from 'lit';
+import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
+import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { Observer } from '@babylonjs/core';
+import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import { Quaternion } from '@babylonjs/core';
@@ -51,6 +61,7 @@ import { Vector2 } from '@babylonjs/core/Maths/math.vector';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
+import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod/v4';
 import * as z4 from 'zod/v4/core';
 import { z as z_2 } from 'zod';
@@ -721,6 +732,7 @@ export class Edge {
     get drawnLine(): {
         name: string;
         length: number;
+        width: number;
         visibility: number;
         centre: Vector3;
     } | null;
@@ -1322,6 +1334,15 @@ export const EdgeStyle: z.ZodObject<{
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
+export type ElementAtResult = {
+    readonly kind: "node";
+    readonly id: NodeId;
+} | {
+    readonly kind: "edge";
+    readonly id: EdgeId;
+};
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -1399,9 +1420,17 @@ export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEvent
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
 
 // @public
+export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+
+// @public
+export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED";
+
+// @public
 export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
+    readonly losses: readonly ExportLoss[];
+    // @deprecated
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
@@ -1512,6 +1541,10 @@ export class Graph implements GraphContext {
     dispose(): void;
     // (undocumented)
     element: Element;
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
@@ -1880,6 +1913,9 @@ export class Graphty extends LitElement {
     }>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions & QueueableOptions): Promise<void>;
     addEdges(edges: AdHocData[], options?: AddEdgesOptions & QueueableOptions): Promise<void>;
+    addEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
     addListener(type: EventType, callback: EventCallbackType): void;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
@@ -1927,6 +1963,10 @@ export class Graphty extends LitElement {
     set edgeSrcIdPath(value: string | undefined);
     get edgeWeightPath(): string | undefined;
     set edgeWeightPath(value: string | undefined);
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
@@ -2031,6 +2071,9 @@ export class Graphty extends LitElement {
     set positionScale(value: number | undefined);
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
+    removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
     render(): Element;
     get renderer(): RendererRequest;
@@ -2140,6 +2183,11 @@ export class Graphty extends LitElement {
 
 // @public
 export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
+
+// @public
+export interface GraphtyCapabilitiesChangeDetail {
+    readonly capabilities: AccelerationCapabilities;
+}
 
 // @public
 export type GraphtyElementEventMap = {
@@ -2552,6 +2600,27 @@ export type GraphtyErrorTarget = {
 };
 
 // @public
+export type GraphtyForwardedEventMap = {
+    [K in Exclude<GraphEventType | AiEventType, InternalEventType>]: CustomEvent<EventOfType<K>>;
+};
+
+// @public
+export interface GraphtyHistoryChangeDetail {
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    readonly position: number;
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    readonly steps: number;
+    readonly version: number;
+}
+
+// @public
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+// @public
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+// @public
 export type GraphtyWarningCode =
 /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
 "W_UNKNOWN_MEMBER"
@@ -2679,6 +2748,7 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     readNodePosition(n: Node_2, out: {
         x: number;

@@ -619,6 +619,92 @@ describe("passkey approvals", () => {
         expect(check(s, 6)[0]).toBe("visual-baselines/reviews/r.json: the record is for pull request #5, not #6");
     });
 
+    describe("an item approved before", () => {
+        const RECORD = "visual-baselines/reviews/20261001T000000Z-pr5.json";
+        /**
+         * The earlier approval: a record for #5 on branch `other`, pushed so the gate can fetch it.
+         * @param {object} r the repository, on branch `pr`
+         * @param {object} earlier the record
+         * @returns {string} the commit holding it
+         */
+        function earlierOn(r, earlier) {
+            git(r.repo, "checkout", "-q", "-b", "other", "master");
+            commit(r, { [RECORD]: earlier });
+            const sha = git(r.repo, "rev-parse", "HEAD");
+            git(r.repo, "push", "-q", "origin", "other");
+            git(r.repo, "checkout", "-q", "pr");
+            return sha;
+        }
+        const reused = (sha, extra = {}) => {
+            const record = v2();
+            record.items = [{ ...record.items[0], approvedBefore: { pr: 5, commit: sha, record: RECORD, ...extra } }];
+            return record;
+        };
+
+        it("moves the file when the named record approves exactly this image for this story", () => {
+            const r = repoWith(passkeysJson(KEY));
+            const sha = earlierOn(r, signed(v2(5)));
+            commit(r, { [PATH]: "new image", "visual-baselines/reviews/r.json": signed(reused(sha)) });
+            expect(check(r)).toEqual([]);
+        });
+
+        it("moves nothing on the page's word: a record for another image, an unsigned one, a missing one or a chain", () => {
+            const r = repoWith(passkeysJson(KEY));
+            // Every earlier record in one commit, and one item per case in one record of this pull request.
+            const at = (name) => `visual-baselines/reviews/${name}.json`;
+            git(r.repo, "checkout", "-q", "-b", "other", "master");
+            commit(r, {
+                [at("other-image")]: signed(v2(5, "f".repeat(64))),
+                [at("unsigned")]: v2(5),
+                [at("for-5")]: signed(v2(5)),
+                [at("chained")]: signed({ ...reused("1".repeat(40)), pr: 5 }),
+            });
+            const sha = git(r.repo, "rev-parse", "HEAD");
+            git(r.repo, "push", "-q", "origin", "other");
+            git(r.repo, "checkout", "-q", "pr");
+            const cases = [
+                [{ record: at("other-image") }, "the earlier record does not approve this image for this story"],
+                [{ record: at("unsigned") }, "the record has no passkey approval"],
+                [{ record: at("nothing") }, `${at("nothing")} is not at ${sha}`],
+                [{ record: "visual-baselines/../passkeys.json" }, "it names no commit and review record"],
+                [{ record: at("chained") }, "the earlier record does not approve this image for this story"],
+            ];
+            const record = v2();
+            record.items = cases.map(([extra]) => ({
+                ...record.items[0],
+                approvedBefore: { pr: 5, commit: sha, record: RECORD, ...extra },
+            }));
+            commit(r, { [PATH]: "new image", "visual-baselines/reviews/r.json": signed(record) });
+            expect(check(r)).toEqual([
+                ...cases.map(
+                    ([, why]) => `visual-baselines/reviews/r.json: ${PATH} is marked approved before, but ${why}`,
+                ),
+                `${PATH}: changed with no review record taking it from its base branch contents to these`,
+            ]);
+        });
+
+        it("before passkeys are enforced, takes an unsigned earlier record only from the base branch", () => {
+            const unsigned = { version: 1, unproven: true, pr: 5, items: [{ path: PATH, from: LEGACY, to: TO }] };
+            // On a branch anyone can push to: refused.
+            const r = repoWith(undefined);
+            const sha = earlierOn(r, unsigned);
+            commit(r, { [PATH]: "new image", "visual-baselines/reviews/r.json": reused(sha) });
+            expect(unrecordedChanges("master", "pr", r.repo)[0]).toContain(
+                `its commit ${sha} is not on the base branch, and an unsigned record counts only there`,
+            );
+            // On the base branch (a pull request the owner finished and merged): it stands.
+            const m = makeRepo();
+            commit(m, { [RECORD]: unsigned });
+            const merged = git(m.repo, "rev-parse", "HEAD");
+            git(m.repo, "checkout", "-q", "-b", "pr");
+            commit(m, { [PATH]: "new image", "visual-baselines/reviews/r.json": reused(merged) });
+            expect(unrecordedChanges("master", "pr", m.repo)).toEqual([]);
+            const s = repoWith(undefined);
+            commit(s, { [PATH]: "new image", "visual-baselines/reviews/r.json": reused("9".repeat(40)) });
+            expect(unrecordedChanges("master", "pr", s.repo)[0]).toContain("cannot be fetched");
+        });
+    });
+
     it("never takes keys from the pull request", () => {
         const k2 = makeKey();
         const r = repoWith(passkeysJson(KEY));
@@ -649,22 +735,31 @@ describe("passkey approvals", () => {
         expect(check(r)).toContain("visual-baselines/reviews/junk.json: not valid JSON");
     });
 
-    it("fails closed on an invalid base file, on switching enforcement off, and without --pr", () => {
-        const bad = repoWith('{ "version": 1, "keys": [{ "id": "x" }] }');
-        expect(approvalKeys("master", "pr", 7, bad.repo).problems[0]).toMatch(
-            /^visual-review\/passkeys.json on the base branch is invalid: keys\[0\]\.rpId/,
-        );
-        for (const change of ['{ "version": 1, "keys": [] }', null, "{"]) {
-            const r = repoWith(passkeysJson(KEY));
-            commit(r, { [PASSKEYS_FILE]: change });
-            expect(approvalKeys("master", "pr", 7, r.repo).problems).toEqual([
-                "this pull request would switch approval enforcement off: its visual-review/passkeys.json is missing, invalid or holds no key",
-            ]);
-        }
+    // One case per test: each builds its own repository, and a test holds one case's git work.
+    it("fails closed without --pr when the base branch holds a key", () => {
         const r = repoWith(passkeysJson(KEY));
         expect(approvalKeys("master", "pr", undefined, r.repo).problems).toEqual([
             "approvals are enforced (visual-review/passkeys.json on the base branch holds a key), so the gate needs --pr <number>",
         ]);
+    });
+
+    it.each([
+        ["emptied", '{ "version": 1, "keys": [] }'],
+        ["deleted", null],
+        ["broken", "{"],
+    ])("fails closed on switching enforcement off: passkeys.json %s", (_, change) => {
+        const r = repoWith(passkeysJson(KEY));
+        commit(r, { [PASSKEYS_FILE]: change });
+        expect(approvalKeys("master", "pr", 7, r.repo).problems).toEqual([
+            "this pull request would switch approval enforcement off: its visual-review/passkeys.json is missing, invalid or holds no key",
+        ]);
+    });
+
+    it("fails closed on an invalid base file", () => {
+        const bad = repoWith('{ "version": 1, "keys": [{ "id": "x" }] }');
+        expect(approvalKeys("master", "pr", 7, bad.repo).problems[0]).toMatch(
+            /^visual-review\/passkeys.json on the base branch is invalid: keys\[0\]\.rpId/,
+        );
     });
 
     describe("records count only from the base branch's contents", () => {
@@ -709,20 +804,31 @@ describe("passkey approvals", () => {
             ]);
         });
 
-        it("follows two sessions of one pull request, and refuses the decision a later one replaced", () => {
-            const r = history();
-            const NEXT = sha256("next image");
+        // One case per test: each builds its own repository, and a test holds one case's git work.
+        const NEXT = sha256("next image");
+        const twoSessions = (r) =>
             commit(r, {
                 [PATH]: "next image",
                 "visual-baselines/reviews/a.json": signed(rec(8, NOW, OLD, "22")),
                 "visual-baselines/reviews/b.json": signed(rec(8, OLD, NEXT, "23")),
             });
+
+        it("follows two sessions of one pull request", () => {
+            const r = history();
+            twoSessions(r);
             expect(check(r, 8)).toEqual([]);
+        });
+
+        it("refuses the decision a later session of the pull request replaced", () => {
+            const r = history();
+            twoSessions(r);
             commit(r, { [PATH]: "old image" });
             expect(check(r, 8)).toEqual([
                 `${PATH}: changed with no review record taking it from its base branch contents to these`,
             ]);
-            // A cycle that never starts at the base counts for nothing.
+        });
+
+        it("counts nothing for a cycle of records that never starts at the base", () => {
             const c = history();
             commit(c, {
                 [PATH]: "next image",

@@ -22,6 +22,20 @@ function renderRow(ui: React.ReactElement): ReturnType<typeof render> {
 }
 
 /**
+ * Render inside the compact theme, as the only cell of a `role="row"`: the place a caption is a
+ * column header, which is where `aria-sort` is defined.
+ * @param ui - The element under test
+ * @returns The testing-library render result
+ */
+function renderInRow(ui: React.ReactElement): ReturnType<typeof render> {
+    return renderRow(
+        <div role="table" aria-label="Nodes">
+            <div role="row">{ui}</div>
+        </div>,
+    );
+}
+
+/**
  * Render inside the compact theme and one named locale, for the numbers a row
  * formats.
  * @param ui - The element under test
@@ -580,13 +594,22 @@ describe("DataRowHeader", () => {
         });
 
         it("still reports a column somebody else sorted", () => {
-            renderRow(<DataRowHeader label="Most connected" unit="links" defaultSortDirection="descending" />);
+            renderInRow(<DataRowHeader label="Most connected" unit="links" defaultSortDirection="descending" />);
 
             const header = screen.getByTestId("data-row-header");
             expect(header).toHaveAttribute("role", "columnheader");
             expect(header).toHaveAttribute("aria-sort", "descending");
             expect(screen.queryByRole("button")).toBeNull();
         });
+    });
+
+    it("is no column header above a plain list, where a column header would have no row", () => {
+        renderRow(<DataRowHeader label="Most connected" sortDirection="descending" onSortChange={vi.fn()} />);
+
+        const header = screen.getByTestId("data-row-header");
+        expect(header).not.toHaveAttribute("role");
+        expect(header).not.toHaveAttribute("aria-sort");
+        expect(screen.getByRole("button", { name: "Most connected" })).toBeInTheDocument();
     });
 
     describe("when it sorts", () => {
@@ -599,7 +622,7 @@ describe("DataRowHeader", () => {
         });
 
         it("reports the sort state on the column header, where aria-sort is defined", () => {
-            renderRow(<DataRowHeader label="Most connected" onSortChange={vi.fn()} />);
+            renderInRow(<DataRowHeader label="Most connected" onSortChange={vi.fn()} />);
 
             const header = screen.getByTestId("data-row-header");
             expect(header).toHaveAttribute("role", "columnheader");
@@ -609,7 +632,7 @@ describe("DataRowHeader", () => {
         it("cycles to ascending first, and hands over the event that asked", async () => {
             const onSortChange = vi.fn();
             const user = userEvent.setup();
-            renderRow(<DataRowHeader label="Most connected" onSortChange={onSortChange} />);
+            renderInRow(<DataRowHeader label="Most connected" onSortChange={onSortChange} />);
 
             await user.click(screen.getByRole("button"));
 
@@ -666,7 +689,9 @@ describe("DataRowHeader", () => {
         it("follows the direction it is given, when the consumer holds the state", async () => {
             const onSortChange = vi.fn();
             const user = userEvent.setup();
-            renderRow(<DataRowHeader label="Most connected" sortDirection="descending" onSortChange={onSortChange} />);
+            renderInRow(
+                <DataRowHeader label="Most connected" sortDirection="descending" onSortChange={onSortChange} />,
+            );
 
             expect(screen.getByTestId("data-row-header")).toHaveAttribute("aria-sort", "descending");
 

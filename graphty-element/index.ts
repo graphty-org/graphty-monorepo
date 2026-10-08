@@ -47,7 +47,13 @@ import "./src/graphty-element";
 export { Edge } from "./src/Edge";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
-export type { GraphtyElementEventMap } from "./src/graphty-element";
+export type {
+    GraphtyCapabilitiesChangeDetail,
+    GraphtyElementEventMap,
+    GraphtyHistoryChangeDetail,
+    GraphtyNoteChangeDetail,
+    GraphtyRunChangeDetail,
+} from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
@@ -134,6 +140,8 @@ export type { WeightMeaning } from "./src/session/runs";
 export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./src/session/types";
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
+// What `element.elementAt({ x, y })` finds under a point
+export type { ElementAtResult } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
@@ -188,7 +196,7 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
-export type { ExportGraphOptions, ExportResult } from "./src/data/export";
+export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -246,6 +254,7 @@ export type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphtyForwardedEventMap,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,

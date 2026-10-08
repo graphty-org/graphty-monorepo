@@ -385,13 +385,9 @@ function cellText(column: Column, row: number): string | null {
  * W_CSV_NODE_TABLE: the node columns an edge-table or adjacency export leaves for a second, node-table export.
  * @param names - the node columns, label first
  * @param table - the table being written ("edges" or "adjacency")
- * @param note - the recorder
+ * @param notes - receives the note
  */
-function nodeTableNote(
-    names: readonly string[],
-    table: string,
-    note: (code: string, message: string, column?: string | null, count?: number | null) => void,
-): void {
+function nodeTableNote(names: readonly string[], table: string, notes: LossNote[]): void {
     const written = names.length;
     if (written > 0) {
         const shown =
@@ -399,11 +395,14 @@ function nodeTableNote(
                 .slice(0, 3)
                 .map((n) => JSON.stringify(n))
                 .join(", ") + (written > 3 ? ", ..." : "");
-        note(
-            CSV_LOSS.NODE_TABLE,
-            `the ${table === "adjacency" ? "adjacency" : "edge"} table has no room for node attributes: ${written} node column${plural(written)} (${shown}) ${agree(written, "is", "are")} written only by a second export with table: "nodes"`,
-            null,
-            written,
+        notes.push(
+            Object.freeze({
+                code: CSV_LOSS.NODE_TABLE,
+                message: `the ${table === "adjacency" ? "adjacency" : "edge"} table has no room for node attributes: ${written} node column${plural(written)} (${shown}) ${agree(written, "is", "are")} written only by a second export with table: "nodes"`,
+                column: null,
+                count: written,
+                columns: Object.freeze([...names]),
+            }),
         );
     }
 }
@@ -483,7 +482,8 @@ function planExport(
             edgeRows.push(e);
         }
     }
-    if (csv.dialect.type === null || csv.table === "adjacency") {
+    // A node table holds no edge: the direction and mutual notes are the edge table's.
+    if (csv.table !== "nodes" && (csv.dialect.type === null || csv.table === "adjacency")) {
         const where = csv.table === "adjacency" ? "an adjacency table" : "the generic dialect";
         const mixed = countMixedEdges(snapshot);
         if (!snapshot.directed) {
@@ -509,7 +509,7 @@ function planExport(
             0,
         );
     }
-    if (folding.mutualCount > 0) {
+    if (folding.mutualCount > 0 && csv.table !== "nodes") {
         note(
             CSV_LOSS.MUTUAL_EXPANDED,
             `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed rows; the mutual mark is lost`,
@@ -586,7 +586,7 @@ function planExport(
         nodeTableNote(
             [...(nodeLabel === null ? [] : [nodeLabel.meta.name]), ...nodeColumns.map((c) => c.column.meta.name)],
             csv.table,
-            note,
+            notes,
         );
     }
 
@@ -1116,6 +1116,7 @@ function headerlessNotes(plan: Plan): LossNote[] {
             message: `without a header the file is read back by position (${csv.table === "nodes" ? "id" : "source, target, weight"}, then unnamed columns), so ${names.length === 1 ? "the column" : "the columns"} ${shown} ${agree(names.length, "reads", "read")} back unnamed or in another column's place; write the header, or for an edge list pass dialect: "generic" and write only source, target and weight`,
             column: null,
             count: names.length,
+            columns: Object.freeze([...names]),
         }),
     ];
 }
@@ -1166,7 +1167,10 @@ function headerlessEdgeColumns(plan: Plan): string[] {
 function check(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): readonly LossNote[] {
     const plan = planExport(snapshot, options, true);
     return Object.freeze([
-        ...checkCapabilities(snapshot, CSV_CAPABILITIES, plan.common, { roles: KEPT_ROLES }),
+        ...checkCapabilities(snapshot, CSV_CAPABILITIES, plan.common, {
+            roles: KEPT_ROLES,
+            ...(plan.csv.table === "nodes" ? { tables: ["node"] as const } : {}),
+        }),
         ...plan.notes,
         ...headerlessNotes(plan),
     ]);

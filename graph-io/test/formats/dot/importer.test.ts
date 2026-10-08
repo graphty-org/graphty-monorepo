@@ -509,7 +509,7 @@ describe("dot importer: the grammar", () => {
         expect(codes(report)).toEqual([DOT_ISSUE.POS_DIMS, DOT_ISSUE.BAD_POS]);
         const position = snapshot.nodes.byRole("position");
         expect(position?.meta.name).toBe("pos");
-        expect(position?.dtype).toBe("f32");
+        expect(position?.dtype).toBe("f64");
         expect(position?.meta.components).toBe(3);
         expect(position?.meta.mutable).toBe(true);
         expect(position?.meta.extra).toEqual({ sourceDims: 2, units: "file" });
@@ -544,7 +544,7 @@ describe("dot importer: the grammar", () => {
                 continue;
             }
             expect(codes(report), text).toEqual([]);
-            expect(Array.from(position?.value(0) as ArrayLike<number>), text).toEqual(point.map((v) => Math.fround(v)));
+            expect(Array.from(position?.value(0) as ArrayLike<number>), text).toEqual(point);
             expect(nodeCell(snapshot, "a", "pin"), text).toBe(pinned ? true : null);
         }
     });
@@ -552,13 +552,19 @@ describe("dot importer: the grammar", () => {
     it("rejects a pathologically long pos in linear time", async () => {
         // A run of digits, and a run of spaces before a bad character, each took quadratic time
         // (about 10 s apiece at this length) when the point pattern could split a run two ways.
+        // Each run is measured on its own so a failure names the run that regressed; the limit is
+        // the one both shared when they were measured together.
         const n = 200_000;
-        const text = `digraph { a [pos="${"1".repeat(n)}x"]; b [pos="1,1${" ".repeat(n)}x"] }`;
-        const cpu = await cpuMilliseconds(async () => {
-            const { report } = await load(text);
-            expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS, DOT_ISSUE.BAD_POS]);
-        });
-        expect(cpu).toBeLessThan(2000);
+        const cpu = async (pos: string): Promise<number> => {
+            const text = `digraph { a [pos="${pos}"] }`;
+            return cpuMilliseconds(async () => {
+                const { report } = await load(text);
+                expect(codes(report)).toEqual([DOT_ISSUE.BAD_POS]);
+            });
+        };
+        const digits = await cpu(`${"1".repeat(n)}x`);
+        const spaces = await cpu(`1,1${" ".repeat(n)}x`);
+        expect(digits + spaces, `digit run ${digits} ms, space run ${spaces} ms of CPU`).toBeLessThan(2000);
     });
 
     it("keeps a node pos as written text with positions false", async () => {

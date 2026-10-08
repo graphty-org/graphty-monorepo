@@ -24,9 +24,9 @@ import {
     shell,
     spectral,
     spiral,
-} from "./indexed";
-import type { LayoutResult } from "./positions";
-import type { LayoutAccelerator, SimulationType } from "./simulation/types";
+} from "./indexed/index.js";
+import type { LayoutResult } from "./positions.js";
+import type { LayoutAccelerator, SimulationType } from "./simulation/types.js";
 
 /**
  * Whether a layout reads the snapshot's edge weights (an unweighted snapshot reads as every weight 1).

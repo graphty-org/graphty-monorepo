@@ -3,17 +3,17 @@
  * their results and other position forms, and the steppable simulations.
  */
 
-import * as layouts from "./indexed";
+import * as layouts from "./indexed/index.js";
 
 // Re-export all types
-export * from "./types";
+export * from "./types/index.js";
 
 // The deprecated rescale utilities (rescaleLayout, rescaleLayoutDict). A star re-export, because naming a
 // deprecated export here trips @typescript-eslint/no-deprecated.
-export * from "./utils/rescale";
+export * from "./utils/rescale.js";
 
 // Conversions between layout results, PositionMap and the scene position column
-export * from "./positions";
+export * from "./positions.js";
 
 // The layouts: each takes a GraphSnapshot and an options object and returns a LayoutResult. Explicit rather than
 // export *, so CommonLayoutOptions is the layouts' own and not the simulations' type of the same name.
@@ -46,7 +46,7 @@ export {
     spectral,
     spiral,
     type SpiralLayoutOptions,
-} from "./indexed";
+} from "./indexed/index.js";
 
 /**
  * The layouts under their 1.x namespace.
@@ -55,7 +55,7 @@ export {
 export const indexed = layouts;
 
 // Re-export the simulation seam (design/webgpu/webgpu-acceleration-plan.md section 9.3)
-export * from "./simulation";
+export * from "./simulation/index.js";
 
 // The machine-readable catalog of the layouts and simulations above.
 export {
@@ -64,4 +64,4 @@ export {
     type LayoutName,
     LAYOUTS,
     type LayoutWeightUse,
-} from "./catalog";
+} from "./catalog.js";

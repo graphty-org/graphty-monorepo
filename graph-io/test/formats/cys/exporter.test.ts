@@ -269,7 +269,7 @@ describe("cysExporter: round trips through graph-io's session importer", () => {
             node({ name: "ok", dtype: "bool" }, [true, false, true]);
             node({ name: "tags", dtype: "list", itemDtype: "string" }, [["a", "b"], ["c"], ['"q"']]);
             node({ name: "hits", dtype: "list", itemDtype: "f64" }, [[1.5, 2], [Infinity], [3]]);
-            node({ name: "position", dtype: "f32", components: 3, role: "position" }, [
+            node({ name: "position", dtype: "f64", components: 3, role: "position" }, [
                 [1, 2, 0],
                 [3, 4, 0],
                 [5, 6, 0],
@@ -439,7 +439,7 @@ describe("cysExporter: every loss check() announces happens", () => {
     it("positions of another shape, non-finite or with a z", async () => {
         const g = build(true, (b) => {
             b.addNodes(["1", "2", "3"]);
-            const pos = b.declareNodeColumn({ name: "xy", dtype: "f64", components: 3, role: "position" });
+            const pos = b.declareNodeColumn({ name: "xy", dtype: "f32", components: 3, role: "position" });
             b.setNodeValue(pos, 0, [1, 2, 5]);
             b.setNodeValue(pos, 1, [Number.NaN, 2, 0]);
             b.setNodeValue(pos, 2, [3, 4, 0]);

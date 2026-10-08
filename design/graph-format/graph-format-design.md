@@ -1021,7 +1021,9 @@ recording `origin.extra.sourceDims: 2` so the exporter omits `z`, and
 `origin.extra.units: "file"` so the consumer knows the values are the
 file's, not the scene's; graphty-element rescales at import per its
 config); there are no separate `x`/`y`/`z` roles, so there is no
-precedence rule to get wrong.
+precedence rule to get wrong. An importer's position column is `f64`
+(issue #963): it holds the file's coordinates exactly, and the element
+narrows them to its own `f32` scene column when it stores them.
 
 ### 5.3 Nullability, validity bitmap and defaults (C13)
 
@@ -3835,6 +3837,7 @@ export interface LossNote {
     readonly message: string;
     readonly column: string | null;
     readonly count: number | null;
+    readonly columns?: readonly string[];
 }
 export interface CommonExportOptions {
     sanitizeIds?: "error" | "mangle" | undefined;

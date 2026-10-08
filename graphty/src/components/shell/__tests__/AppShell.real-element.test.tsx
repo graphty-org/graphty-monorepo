@@ -16,6 +16,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { findSample, SAMPLE_MANIFEST, type SampleRecord } from "../../../data/sampleManifest";
 import { fireEvent, render, screen, waitFor, within } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
+import { COMMAND_PALETTE_PLACEHOLDER } from "../CommandPalette";
 
 /** The element itself, by its own published type; the import above registers it. */
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
@@ -345,6 +346,67 @@ describe("the inspector's Pin verb on the real graphty-element", () => {
                 assert.isNull(screen.queryByTestId("node-pinned-badge"));
             });
             assert.strictEqual(element.session.positions.pinned.size, 0);
+        },
+        LOAD_TEST_TIMEOUT_MS,
+    );
+});
+
+describe("the command palette's node and edge search on the real graphty-element", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    /**
+     * Opens the palette from the top bar's trigger and types into its field.
+     * @param text - what to type.
+     */
+    async function typeInPalette(text: string): Promise<void> {
+        fireEvent.click(screen.getByRole("button", { name: new RegExp(COMMAND_PALETTE_PLACEHOLDER) }));
+        fireEvent.change(await screen.findByLabelText(COMMAND_PALETTE_PLACEHOLDER), { target: { value: text } });
+    }
+
+    it(
+        "selects a node typed by its id and frames it",
+        async () => {
+            const cat = findSample("cat-social-network");
+            assert.isDefined(cat);
+            const { element } = await mountSampleThroughWelcome(cat);
+            const framed = vi.spyOn(element, "zoomToNodes");
+
+            await typeInPalette("Mr_Whiskers");
+            const rows = await screen.findAllByRole("option", { name: /^Nodes/ });
+            // The exact id match sorts first.
+            assert.strictEqual(rows[0]?.textContent, "NodesMr_Whiskers");
+            fireEvent.click(rows[0]);
+
+            await waitFor(() => {
+                assert.deepEqual([...element.session.selection.nodes], ["Mr_Whiskers"]);
+            });
+            await waitFor(() => {
+                assert.deepEqual(framed.mock.calls[0]?.[0], "Mr_Whiskers");
+            });
+        },
+        LOAD_TEST_TIMEOUT_MS,
+    );
+
+    it(
+        "selects an edge found by one of its values",
+        async () => {
+            const cat = findSample("cat-social-network");
+            assert.isDefined(cat);
+            const { element } = await mountSampleThroughWelcome(cat);
+            const [expected] = element.session.find("rivals", { kinds: ["edge"], limit: 1 }).records;
+            assert.isDefined(expected, "the cat sample has a rivals edge");
+
+            await typeInPalette("rivals");
+            const [row] = await screen.findAllByRole("option", { name: /^Edges/ });
+            assert.isDefined(row);
+            fireEvent.click(row);
+
+            await waitFor(() => {
+                assert.deepEqual([...element.session.selection.edges], [expected.id]);
+            });
+            assert.strictEqual(element.session.selection.nodes.length, 0);
         },
         LOAD_TEST_TIMEOUT_MS,
     );

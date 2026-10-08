@@ -41,10 +41,10 @@ import {
     FR_ADAPTIVE_MAX_ITERATIONS,
     FR_COOLING_PATIENCE,
     FR_COOLING_STEP,
-} from "./constants";
-import { kickDir } from "./forceatlas2";
-import { seedPositions } from "./seed";
-import type { FruchtermanReingoldOptions, LayoutSimulation } from "./types";
+} from "./constants.js";
+import { kickDir } from "./forceatlas2.js";
+import { seedPositions } from "./seed.js";
+import type { FruchtermanReingoldOptions, LayoutSimulation } from "./types.js";
 
 /** The legacy loop's starting temperature (fruchterman-reingold.ts line 81; design 7.20). */
 const FR_START_TEMPERATURE = 0.1;

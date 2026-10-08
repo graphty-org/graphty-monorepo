@@ -87,6 +87,15 @@ describe("the Analyze popover's words", () => {
         assert.equal(words.choice("avg"), "Average");
     });
 
+    it("says a sample size left empty means every node, never a number the run would not use", () => {
+        for (const key of ["closeness", "betweenness", "edge-betweenness"]) {
+            const descriptor = BUILT_IN_ALGORITHMS.find((d) => d.key === key);
+            const k = descriptor?.options.find((o) => o.name === "k");
+            assert.isNull(k?.default, key);
+            assert.equal(k === undefined ? undefined : optionWords(key, k).empty, "Every node", key);
+        }
+    });
+
     it("calls an estimate slow at ten seconds or more, or when it cannot be bounded", () => {
         assert.isFalse(isSlow(9.9));
         assert.isTrue(isSlow(10));

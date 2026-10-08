@@ -2,6 +2,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
+import { addLabelRow } from "../style/row";
 import { NEW, openStepEditor } from "./filterSteps";
 import { labelRefusalWords } from "./words";
 
@@ -52,7 +53,7 @@ function attributeActions(
             // A new row on top whose label is bound to the attribute. It lands selected, so the
             // inspector shows it; a refusal is one Problem notice.
             run: () => {
-                session.styles.encode({ column, channel: "node.label" }).then(
+                addLabelRow(session, column).then(
                     (layer) => {
                         store.set({ inspected: { kind: "layer-row", id: layer.id } });
                     },

@@ -15,78 +15,46 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-0000000. (2026-10-08) **Filter rows keep their sentence; editor and neighbor toggle answer back
-         (app only, no door).** A step row has NO visible count now: "shared_chapters is at least
-         3" plus a count could not share the 240px panel (even "44" cut the threshold), so the
-         outcome ("77 to 44 nodes" / "off") is the row's description and the header chip and
-         Overview carry what shows. Save step is disabled until the rule differs (key-order-free
-         compare); an edit-save announces `Saved "..." (off).`; a step opened by Filter to...
-         keeps its attribute row marked (`stepSource`); "The counts below..." at 11px (row size);
-         Filter to neighbors is `aria-pressed` with the `light` (toggle-on) look and removes its
-         step when pressed again; out-of-date words come from `StaleNote` ("Ran on 20 nodes; 7
-         shown now"). Tests: `filterWords`, `staleWords`, `Filters.real-element`, toolbar
-         `tasks.real-element`. Evidence `tmp/r1-dry1-filters-polish/` (A/04, A/07, A/09, A/13,
-         B/07, B/08, C/05, C/09, D/07).
-0000000. (2026-10-08) **Import page in reader words (app + compact-mantine).** Summary line
-         `modelWords()` ("people and messages: 12 nodes, 22 edges; each edge goes both ways" -- the
-         direction clause only once Direction is chosen; the CSV report has no direction fact);
-         roles "From"/"To"; the preview follows a table added through "+" (`added` ref, matched by
-         table name); preview columns sized by canvas `measureText` at the cell type (450 weight,
-         0.055px tracking, +1px) and the grid as tall as its rows, `(32 + 1) * (rows + 1) + 1`
-         (1px grid gap per row + 1px padding); `meaningGloss` is a whole sentence in every state;
-         "Weight: km (farther)" via `weightName`; role box `aria-label="Role of km"` (new optional
-         StyleSelect prop, team decision); reset tooltips on all three Style* resets. NOT done: the
-         hint's type still differs from the 9px labels -- it is the theme's 11px field hint (the
-         legibility decision of the shared-controls fix, and a test); matching would mean 9px hints
-         or 11px labels theme-wide. Raised for the director. Evidence `tmp/r1-dry1-import-page/`
-         (T4A/04, 06, 08; T20B/06, 07, 09).
-000000. (2026-10-08) **Shared controls: no clipped segment, one focus ring, legible find hints.**
-        (a) SegmentedControl: `.cm-sc-control { flex: 1 1 0 }` in a content-sized track gave every
-        option the AVERAGE width, so "Leave out" beside "Add" lost its padding and end. Fix:
-        `.cm-sc:not([data-full-width]) .cm-sc-control { flex-basis: auto }` (a set-width track with
-        equal content still splits equally; `min-width: auto` was tried first and broke the 88px
-        glyph track: 3 x 32 > 88). (b) VariablePill: the field's `:focus-within` ring AND the pill's
-        own ring; now the field drops its outline while the pill or Detach has `:focus-visible`.
-        Detach still shows on focus (keyboard reach). (c) Find hints were the app's `Text size="xs"`
-        (9px caption); now `Input.Description` = the theme's field hint (11/16, text-secondary,
-        7.6:1 on the dark panel). Theme `fontSizes.xs` left at 9 (243 app uses). Tests:
-        `compact-mantine/tests/theme/shared-controls.browser.test.tsx`, `GraphPlace.test.tsx`.
-        Evidence `tmp/r1-dry1-shared-controls/` (A/02, A/03, A/04, B/05, B/06; before/).
-00000. (2026-10-08) **Row text fits; a cut row's tooltip carries the whole row (compact-mantine).**
-       The 216px row cannot hold "Edges per node 3 to 6, mean 3.667": a `stat` reading wraps,
-       PageList descriptions wrap, a Tree `count` takes at most half the row, and a cut row's
-       tooltip shows name and count. Evidence `tmp/r1-dry1-rows-fit/`.
-
-0000. (2026-10-08) **A reopened run keeps its summary (graphty-element `projectFile.ts`, no door).**
-      Opening a project hands each saved result to its run as a canned outcome; that outcome had
-      no `summary`, so `run.record.summary` was undefined and every app row reading
-      `summary.measured` lost its count ("PageRank 20" -> "PageRank"). Fix: the canned outcome
-      carries `summary: result.summary()`, exactly as `AlgorithmManager.execute` does. The "dimmed
-      icon" in the pilot was only the unselected-row tone (dimming is for hidden rows only). Test:
-      `project-file.test.ts` "gives a reopened run the record it was saved with". Evidence
-      `tmp/r1-dry1-reopened-run-count/A/04.png` (PageRank 20), `B/04.png` (PageRank 15).
-
-000. (2026-10-08) **Marks visible (graphty-element; owner doors).** Highlight default -> `#332288`
-     (only dark blues/violets clear Delta E 15 from the defaults under all 3 color blindnesses);
-     selected edge `edgeColor` `#0077BB` / `edgeScale` 2.5 / `edgeOpacity` 1, a casing behind the
-     line (`zOffsetUnits`). Evidence `tmp/r1-dry1-marks-visible/`. The app's Highlight color
-     still writes only the node halo `color`.
-00. (2026-10-08) **A continuous measure's histogram is banded (element `buildHistogram`).** Per-value
-    bars only for integer / all-whole / single / repeated values; else bands. Owner door listed.
-    Tests `statistics.test.ts`, `column-histogram.test.ts`; evidence `tmp/r1-dry1-histogram-bands/`.
-0. (2026-10-08) **A line says it can be clicked (graphty-element, no door).** The 6 px edge pick
-   was already there; the defect was the cursor. A POINTERMOVE observer sets `hoverCursor` when
-   `pickEdgeId` finds a line (`element-at.test.ts`). `real.mjs --hover-at` prints `cursor:`.
-   Ceiling: linear edge walk per move. Evidence `tmp/r1-dry1-edge-picking/`.
-1. (2026-10-08) **Tier 2 pilot fixes (58f02b5d0 element, a2bbb2248 compact-mantine, 32c645e6b app).**
-   `LoadedSource.leftOut.edges` (owner door) replaces the app's "Show the left-out row";
-   `endpointsFor` stores declared ends; path run opens on Values, "4 hops"; Weight box names what
-   the run reads ("None" + reason when the loaded weight is not read); Higher means has "Not set";
-   "Date or time"; `EllipsizedName` tooltip shuts on pointerdown. OPEN: T21 Replace relayouts
-   every node; `real.mjs --prove` failed once in 4 on the first save (cause not found).
-2. (2026-10-07, condensed) Re-walk passed (647ba88b2); `:has()` does NOT nest (dropped silently).
-   Still open: Edit source... ADDS (41 -> 82); reopened Direction row raw; neighborhood filter has
-   no `direction`; Dijkstra always undirected; `selection.apply` throws synchronously (unfiled).
+1. (2026-10-08) **Inspector polish (app + compact-mantine, no owner door).** Attribute kind and
+   origin are stat rows ("Kind Amount", "Origin From the file"), the kind's meaning in a tooltip
+   (`measurementGloss`). Results is its own `ControlSection` (node and edge). The neighbor list's
+   heading is the section title, one form at every reach ("6 nodes within 1 hop of Ava",
+   `neighborhoodWords`), Hops/Follow at row size, and "Back to <node>" above it. A null-default
+   number option is an empty box saying what empty means (`StyleNumberInput.emptyText`; sample
+   size "Every node", else "Not set"). A right-click on a table header opens its menu, never
+   sorts. Every label line the app adds carries `labelStyle {font: body font, sizePx: 72}` in the
+   same undo step (`writeLine`, `addLabelRow` in a `session.transaction`); the legend skips
+   `*.labelStyle`. Evidence `tmp/r1-dry1-inspector-polish/` (A/02, A/03, A/05, A/07, A/10, B/04,
+   B/06, C/01). OPEN: label size is world-space (9-node file ~22px, 20-node ~10px); a size fixed on
+   screen needs an element option.
+2. (2026-10-08) **Filter rows keep their sentence; editor and neighbor toggle answer back (app,
+   no door).** A step row has no visible count; its outcome ("77 to 44 nodes" / "off") is the
+   row's description, the header chip and Overview carry what shows. Save step disabled until the
+   rule differs; an edit-save announces itself; Filter to neighbors is `aria-pressed` and removes
+   its step when pressed again; out-of-date words from `StaleNote`. Evidence
+   `tmp/r1-dry1-filters-polish/`.
+3. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()` summary;
+   roles "From"/"To"; preview follows a table added through "+"; columns sized by `measureText`;
+   `meaningGloss` a whole sentence; role box `aria-label="Role of km"` (StyleSelect prop, team
+   decision); reset tooltips on the three Style* resets. Open: the hint's 11px vs the 9px labels
+   (raised for the director). Evidence `tmp/r1-dry1-import-*`.
+4. (2026-10-08) **Shared controls (compact-mantine).** SegmentedControl `flex-basis: auto` in a
+   content-sized track (no clipped segment); one focus ring on a bound field; find hints are
+   `Input.Description` (11/16). Theme `fontSizes.xs` stays 9 (243 uses).
+5. (2026-10-08) **Row text fits.** A stat reading and a PageList description wrap (row grows); a
+   Tree count gets at most half the row and a cut row's tooltip carries name and count (owner door
+   listed: taller stat rows).
+6. (2026-10-08) **A reopened run keeps its summary** (element `projectFile.ts`): a canned outcome
+   carries everything a live one does.
+7. (2026-10-08) **Marks visible on a colored drawing** (element; owner doors): highlight `#332288`;
+   selected edge `edgeColor/edgeScale/edgeOpacity`, band behind via `zOffsetUnits`.
+8. (2026-10-08) **Histogram bands a continuous measure** (element `buildHistogram`); **a line says
+   it can be clicked** (POINTERMOVE sets `hoverCursor`; `--hover-at` prints `cursor:`).
+9. (2026-10-08) Tier 2 pilot fixes (58f02b5d0, a2bbb2248, 32c645e6b): `LoadedSource.leftOut.edges`
+   (owner door), path run opens on Values, Weight box names what the run reads. OPEN: T21 Replace
+   relayouts every node; `real.mjs --prove` failed once in 4 on the first save (cause not found).
+10. (2026-10-07) Still open: Edit source... ADDS (41 -> 82); neighborhood filter has no
+   `direction`; Dijkstra always undirected; `selection.apply` throws synchronously (unfiled).
 
 ## Priorities and values
 
@@ -138,6 +106,18 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-08) **The app states its label look on every label line it adds** (its own font from
+  `getComputedStyle(document.body)`, 72 on the label canvas). Reason: the element's default face
+  (Verdana) is missing on Linux, so labels fell back to a 6 px serif; the face and size are a
+  consumer's choice, so the app sets them, never the element's default. Rejected: an app-wide
+  base layer (shows in the layer list), changing the element default (an owner door and an
+  opinion). Two separate writes would be two undo steps: `session.transaction` makes it one.
+- (2026-10-08) **A neighborhood heading has one form** ("N nodes within K hop(s) of X") for the list
+  and the status line. Rejected: "X's N connections" at 1 hop only (two forms read as two things).
+- (2026-10-08) **Facts are rows, not chips.** A badge looks clickable; the kind's meaning goes in a
+  tooltip on the word (tabbable span). A right-click on a header opens the menu the caret and the
+  context-menu key open (the participant looked for options there).
 
 - (2026-10-08) **A filter step row shows only its sentence and checkbox.** Reason: the threshold
   is what the reader set and must stay readable on and off; the per-step count lost every room
@@ -218,6 +198,21 @@ acceptance test. "The studio worktree" is
   `elementAt`, `labelOf` merged (owner to confirm names); the app seeds layouts.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Worked: snapshot every shared file another agent has dirty BEFORE editing
+  (`cp` to `tmp/<task>/base/`), so "fails without the change" is copy base -> run -> copy mine back,
+  and my patch is `diff base mine`. Keep any file my new exports are imported from at mine, or the
+  whole test file fails on import instead of on the assertion.
+- (2026-10-08) A Mantine tooltip in a full browser-project run: `findByRole("tooltip")` missed one
+  that was in the page with its text (testing-library judged it inaccessible); alone it passed.
+  `findByText(...)` then `closest('[role="tooltip"]')` holds in both.
+- (2026-10-08) A world-space label size cannot be "legible" everywhere: 96 read ~14 px on the
+  20-node friends file and ~30 px on 9-node trails. 72 is the compromise; the real fix is a
+  screen-space label size in the element.
+- (2026-10-08) Adding a `set` channel to a layer can add a legend block: the element lists every
+  literal set; the app's `keyBlocks` decides what is keyed (now skips `*.labelStyle`).
+- (2026-10-08) Unrelated and not mine: toolbar real-element "frames a selected edge's two ends"
+  fails (camera x 13.46 vs 14.07) with another agent's frame/toolbar edits in the tree.
 
 - (2026-10-08) While other agents edit the same worktree, stage only your hunks by writing the
   index blob from HEAD plus your own edits (`git hash-object -w` + `update-index --cacheinfo`);

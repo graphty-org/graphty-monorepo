@@ -96,8 +96,8 @@ function fileAttributes(
 
 /**
  * One node's Values tab (tier1-design.md section 2.7 and task T12): Summary (the file's
- * attributes, then the results with rank, never mixed; Degree is a link that opens the
- * neighbors), then Memberships.
+ * attributes; Degree is a link that opens the neighbors), then Results (each with its rank),
+ * then Memberships.
  * @param props - Component props
  * @param props.id - The node
  * @returns The tab
@@ -144,15 +144,6 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
             <ControlSection label="Summary" defaultOpened>
                 <div ref={summary} tabIndex={-1} role="group" aria-label="Summary values">
                     <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
-                    {ranked.length > 0 && <DataRowHeader label="Results" />}
-                    {ranked.map(({ run, value, rank }) => (
-                        <DataRow
-                            key={run.id}
-                            stat
-                            name={run.label}
-                            value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
-                        />
-                    ))}
                     <div ref={degree} style={{ display: "contents" }}>
                         <DataRow
                             name="Degree"
@@ -165,6 +156,19 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                     </div>
                 </div>
             </ControlSection>
+            {/* A heading of its own, as Memberships has: a caption among the rows read as one more row. */}
+            {ranked.length > 0 && (
+                <ControlSection label="Results" defaultOpened>
+                    {ranked.map(({ run, value, rank }) => (
+                        <DataRow
+                            key={run.id}
+                            stat
+                            name={run.label}
+                            value={`${formatNumber(value)}, #${String(rank)} of ${formatNumber(run.result.measured.nodes)}`}
+                        />
+                    ))}
+                </ControlSection>
+            )}
             {memberships.length > 0 && (
                 <ControlSection label="Memberships" defaultOpened>
                     {memberships.map(({ run, group, name }) => (
@@ -191,6 +195,18 @@ const FOLLOW: readonly { value: SelectionDirection; label: string }[] = [
 ];
 
 /**
+ * A neighborhood in words, one form at every reach: "6 nodes within 1 hop of Ava", "14 nodes
+ * within 2 hops of Ava". The list's heading and the status line both say it.
+ * @param around - how many nodes, the center left out.
+ * @param hops - how many hops out.
+ * @param center - the node at the center.
+ * @returns the words.
+ */
+function neighborhoodWords(around: number, hops: number, center: NodeId): string {
+    return `${count(around, "node")} within ${count(hops, "hop")} of ${String(center)}`;
+}
+
+/**
  * Selects a center's neighborhood, opens it in the inspector and puts its size on the status
  * line once: "14 nodes within 2 hops of Ava".
  * @param session - the element's session.
@@ -211,19 +227,19 @@ async function showNeighborhood(
     // The selection change closes the open row, so it is opened again on the new reach.
     store.set({
         inspected: { kind: "neighborhood", id: neighborhoodKey(center, hops, direction) },
-        announcement: `${count(around, "node")} within ${count(hops, "hop")} of ${String(center)}`,
+        announcement: neighborhoodWords(around, hops, center),
     });
 }
 
 /**
- * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "1's 17
- * connections", each by name with its tie value, strongest first, read whole from
- * graphty-element's `data.neighbors()`. Each name selects that node; Esc returns to the node at
- * the center.
+ * A node's neighbors (tier1-design.md task T12; tier2-design.md section 6): "17 nodes within 1
+ * hop of 1", each by name with its tie value, strongest first, read whole from
+ * graphty-element's `data.neighbors()`. Each name selects that node; Back to the center, or Esc,
+ * returns to the node at the center.
  *
  * Its header picks how far out (Hops 1 | 2 | 3) and, on a directed graph, which way edges are
  * followed (Follow: Out | In | All); a change reselects and relists. Past one hop it lists the
- * selected nodes other than the center: "17 nodes within 2 hops of 1". Filter to neighbors adds
+ * selected nodes other than the center, under the same heading form. Filter to neighbors adds
  * one filter step keeping the same neighborhood.
  *
  * The heading names the center by its id until graphty-element publishes a node's name (#895).
@@ -277,7 +293,7 @@ export function NeighborList({
     let tie: string | undefined;
     if (reach > 1) {
         const around = session.selection.nodes.filter((node) => node !== center);
-        words = `${count(around.length, "node")} within ${String(reach)} hops of ${String(center)}`;
+        words = neighborhoodWords(around.length, reach, center);
         rows = around.map((node) => (
             <DataRow
                 key={nodeKey(node)}
@@ -296,7 +312,7 @@ export function NeighborList({
             return null;
         }
         tie = page.measuredBy?.attribute;
-        words = `${String(center)}'s ${count(page.total, "connection")}`;
+        words = neighborhoodWords(page.total, 1, center);
         rows = page.records.map((neighbor) => (
             <DataRow
                 key={nodeKey(neighbor.node.id)}
@@ -321,83 +337,97 @@ export function NeighborList({
 
     return (
         <section ref={heading} tabIndex={-1} aria-label={words}>
-            <Stack gap={4} px="md" py={6}>
-                <Group gap={8} wrap="nowrap">
-                    <Text size="xs" id={hopsLabel} w={44}>
-                        Hops
-                    </Text>
-                    <SegmentedControl
-                        aria-labelledby={hopsLabel}
-                        fullWidth
-                        style={{ flex: 1 }}
-                        value={String(reach)}
-                        data={["1", "2", "3"]}
-                        onChange={(picked) => {
-                            void showNeighborhood(session, store, center, Number(picked) as 1 | 2 | 3, follow);
-                        }}
-                    />
-                </Group>
-                {directed && (
+            {/* The way back to the node's own Values, for a pointer; Esc is the keyboard's. */}
+            <Button
+                variant="subtle"
+                size="compact-xs"
+                mx="md"
+                mt={4}
+                leftSection={<UiGlyph name="chevronLeft" size={PANEL_GRID.CHEVRON} />}
+                onClick={() => {
+                    returnToDegree = true;
+                    selectNode(session, center);
+                }}
+            >
+                {`Back to ${String(center)}`}
+            </Button>
+            {/* The heading is a section title, as Summary is on the node, never smaller than its rows. */}
+            <ControlSection label={words} collapsible={false}>
+                <Stack gap={4} px="md" py={6}>
                     <Group gap={8} wrap="nowrap">
-                        <Text size="xs" id={followLabel} w={44}>
-                            Follow
+                        <Text size="sm" id={hopsLabel} w={44}>
+                            Hops
                         </Text>
                         <SegmentedControl
-                            aria-labelledby={followLabel}
+                            aria-labelledby={hopsLabel}
                             fullWidth
                             style={{ flex: 1 }}
-                            value={follow}
-                            data={[...FOLLOW]}
+                            value={String(reach)}
+                            data={["1", "2", "3"]}
                             onChange={(picked) => {
-                                const next = FOLLOW.find((choice) => choice.value === picked)?.value ?? "all";
-                                void showNeighborhood(session, store, center, reach, next);
+                                void showNeighborhood(session, store, center, Number(picked) as 1 | 2 | 3, follow);
                             }}
                         />
                     </Group>
-                )}
-                {follow === "all" && (
-                    <Button
-                        variant={filtered?.on === true ? "light" : "subtle"}
-                        size="compact-xs"
-                        aria-pressed={filtered?.on === true}
-                        style={{ alignSelf: "flex-start" }}
-                        onClick={() => {
-                            const { steps } = session.visibility;
-                            // Pressed again, the step it added goes; an off one is turned back on.
-                            let next: FilterStep[];
-                            if (filtered === undefined) {
-                                next = [
-                                    ...steps,
-                                    {
-                                        id: newId(steps),
-                                        on: true,
-                                        rule: { kind: "neighborhood", seeds: [center], depth: reach },
-                                    },
-                                ];
-                            } else if (filtered.on) {
-                                next = steps.filter((s) => s.id !== filtered.id);
-                            } else {
-                                next = steps.map((s) => (s.id === filtered.id ? { ...s, on: true } : s));
-                            }
-                            void writeSteps(session, store, next);
-                        }}
-                    >
-                        Filter to neighbors
-                    </Button>
-                )}
-            </Stack>
-            <Text size="xs" fw={600} px="md" py={6}>
-                {words}
-            </Text>
-            {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}
-            {rows}
+                    {directed && (
+                        <Group gap={8} wrap="nowrap">
+                            <Text size="sm" id={followLabel} w={44}>
+                                Follow
+                            </Text>
+                            <SegmentedControl
+                                aria-labelledby={followLabel}
+                                fullWidth
+                                style={{ flex: 1 }}
+                                value={follow}
+                                data={[...FOLLOW]}
+                                onChange={(picked) => {
+                                    const next = FOLLOW.find((choice) => choice.value === picked)?.value ?? "all";
+                                    void showNeighborhood(session, store, center, reach, next);
+                                }}
+                            />
+                        </Group>
+                    )}
+                    {follow === "all" && (
+                        <Button
+                            variant={filtered?.on === true ? "light" : "subtle"}
+                            size="compact-xs"
+                            aria-pressed={filtered?.on === true}
+                            style={{ alignSelf: "flex-start" }}
+                            onClick={() => {
+                                const { steps } = session.visibility;
+                                // Pressed again, the step it added goes; an off one is turned back on.
+                                let next: FilterStep[];
+                                if (filtered === undefined) {
+                                    next = [
+                                        ...steps,
+                                        {
+                                            id: newId(steps),
+                                            on: true,
+                                            rule: { kind: "neighborhood", seeds: [center], depth: reach },
+                                        },
+                                    ];
+                                } else if (filtered.on) {
+                                    next = steps.filter((s) => s.id !== filtered.id);
+                                } else {
+                                    next = steps.map((s) => (s.id === filtered.id ? { ...s, on: true } : s));
+                                }
+                                void writeSteps(session, store, next);
+                            }}
+                        >
+                            Filter to neighbors
+                        </Button>
+                    )}
+                </Stack>
+                {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}
+                {rows}
+            </ControlSection>
         </section>
     );
 }
 
 /**
  * One edge's Values tab: its two ends, each a link that selects that node, and the file's
- * attributes, then what each run measured on it. An edge is reached from the Edges table
+ * attributes, then Results: what each run measured on it. An edge is reached from the Edges table
  * (tier1-design.md task T12) or by a click on it on the canvas.
  * @param props - Component props
  * @param props.id - The edge
@@ -415,27 +445,32 @@ export function EdgeValues({ id }: Readonly<{ id: string }>): React.JSX.Element 
         return typeof value === "number" ? [{ run, value }] : [];
     });
     return (
-        <ControlSection label="Summary" defaultOpened>
-            <DataRow
-                name="From"
-                value={String(edge.source)}
-                onClick={() => {
-                    selectNode(session, edge.source);
-                }}
-            />
-            <DataRow
-                name="To"
-                value={String(edge.target)}
-                onClick={() => {
-                    selectNode(session, edge.target);
-                }}
-            />
-            <AttributeRows rows={fileAttributes(session, "edge", edge)} />
-            {results.length > 0 && <DataRowHeader label="Results" />}
-            {results.map(({ run, value }) => (
-                <DataRow key={run.id} stat name={run.label} value={formatNumber(value)} />
-            ))}
-        </ControlSection>
+        <>
+            <ControlSection label="Summary" defaultOpened>
+                <DataRow
+                    name="From"
+                    value={String(edge.source)}
+                    onClick={() => {
+                        selectNode(session, edge.source);
+                    }}
+                />
+                <DataRow
+                    name="To"
+                    value={String(edge.target)}
+                    onClick={() => {
+                        selectNode(session, edge.target);
+                    }}
+                />
+                <AttributeRows rows={fileAttributes(session, "edge", edge)} />
+            </ControlSection>
+            {results.length > 0 && (
+                <ControlSection label="Results" defaultOpened>
+                    {results.map(({ run, value }) => (
+                        <DataRow key={run.id} stat name={run.label} value={formatNumber(value)} />
+                    ))}
+                </ControlSection>
+            )}
+        </>
     );
 }
 

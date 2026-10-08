@@ -10,6 +10,8 @@ import { type Meaning, weightName, weightReadWords } from "../analyze/words";
 interface OptionLabel {
     readonly label: string;
     readonly choice: (value: string) => string;
+    /** What a number option whose default is no value means while left empty ("Every node"). */
+    readonly empty?: string;
 }
 
 /** Props for OptionsForm. */
@@ -252,7 +254,7 @@ function OptionField({
     weightReads = null,
     algorithm,
 }: Readonly<FieldProps>): React.JSX.Element | null {
-    const { label, choice } = words(option);
+    const { label, choice, empty } = words(option);
     const set = (v: unknown): void => {
         onChange(option.name, v);
     };
@@ -265,6 +267,9 @@ function OptionField({
                     label={label}
                     value={num(value)}
                     defaultValue={num(option.default) ?? 0}
+                    // A default of no value (a sample size left to every node) is an empty box
+                    // that says what empty means, never a 0 the run would not use.
+                    emptyText={option.default === null ? (empty ?? "Not set") : undefined}
                     min={num(option.min)}
                     max={num(option.max)}
                     step={option.step ?? (integer ? 1 : undefined)}

@@ -153,7 +153,7 @@ export const SeveralElementsNeighborhood: Story = {
         const element = await loadRings(canvasElement);
         await element.session.selection.apply({ nodes: ["n0"] });
         await userEvent.click(await inspector(canvasElement).findByRole("button", { name: /Degree/ }));
-        await inspector(canvasElement).findByRole("region", { name: "n0's 3 connections" });
+        await inspector(canvasElement).findByRole("region", { name: "3 nodes within 1 hop of n0" });
         await element.waitForStableFrame();
     },
 };

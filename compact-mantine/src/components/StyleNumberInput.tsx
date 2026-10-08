@@ -64,6 +64,13 @@ export interface StyleNumberInputProps {
     /** What is shown while the reader has entered nothing of their own. */
     defaultValue: number;
     /**
+     * Words shown in place of `defaultValue` while the reader has entered
+     * nothing, for a setting whose default is no number at all -- "Every node"
+     * for a sample size left empty. The box is then empty, with these words as
+     * its placeholder, so a reader never sees a number nothing will use.
+     */
+    emptyText?: string;
+    /**
      * Called when the reader commits a number, and with `undefined` when they
      * reset the control to its default.
      *
@@ -154,6 +161,7 @@ export interface StyleNumberInputProps {
  * @param props.label - The control's name, drawn above it
  * @param props.value - The number, when you drive the control from your own state
  * @param props.defaultValue - What is shown while the reader has entered nothing of their own
+ * @param props.emptyText - Words shown in an empty box while nothing is entered, for a default that is no number
  * @param props.onChange - Called with the committed number, or with `undefined` when the control is reset
  * @param props.min - The smallest number accepted
  * @param props.max - The largest number accepted
@@ -184,6 +192,7 @@ export function StyleNumberInput({
     label,
     value,
     defaultValue,
+    emptyText,
     onChange,
     min,
     max,
@@ -218,11 +227,13 @@ export function StyleNumberInput({
     });
 
     const isDefault = committed === undefined;
+    // With emptyText, nothing entered is an empty box: no number, its words as the placeholder.
+    const empty = isDefault && emptyText !== undefined;
     const displayValue = committed ?? defaultValue;
 
     const field = useNumberField({
-        value: displayValue,
-        display: writeNumber(displayValue) + (suffix ?? ""),
+        value: empty ? null : displayValue,
+        display: empty ? "" : writeNumber(displayValue) + (suffix ?? ""),
         onCommit: (next, event) => {
             setCommitted(next, event);
         },
@@ -259,6 +270,7 @@ export function StyleNumberInput({
                 label={label}
                 description={annotation.description}
                 {...field.inputProps}
+                placeholder={empty ? emptyText : undefined}
                 disabled={disabled}
                 data-is-default={isDefault ? "true" : "false"}
                 styles={{

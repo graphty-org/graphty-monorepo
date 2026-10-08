@@ -220,6 +220,25 @@ export function measurementWord(measurement: Measurement): string | undefined {
         : undefined;
 }
 
+/** What each kind's word means, as a sentence for its tooltip. */
+const MEASUREMENT_GLOSS: Readonly<Record<Named<Measurement>, string>> = {
+    categorical: "Each value names a group, such as a department. Groups have no order.",
+    ordinal: "The values have an order, such as small, medium, large, but the steps between them are not equal.",
+    quantitative: "Each value is a quantity, such as a count or a distance, so values can be compared and averaged.",
+    time: "Each value is a date or a time.",
+};
+
+/**
+ * What a column's kind means, for the tooltip on its word.
+ * @param measurement - the element's measurement.
+ * @returns the sentence, or an empty string for a measurement the app has no words for.
+ */
+export function measurementGloss(measurement: Measurement | undefined): string {
+    return measurement !== undefined && Object.hasOwn(MEASUREMENT_GLOSS, measurement)
+        ? MEASUREMENT_GLOSS[measurement as Named<Measurement>]
+        : "";
+}
+
 /** Why a run failed, in the app's words, for the codes a run can fail with. */
 const RUN_FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_TOO_LARGE: "the graph is too large for this analysis",

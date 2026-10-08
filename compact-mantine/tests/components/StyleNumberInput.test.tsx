@@ -21,6 +21,26 @@ describe("StyleNumberInput", () => {
         expect(screen.getByRole("spinbutton")).toHaveValue("10");
     });
 
+    it("shows an empty box with its words when the default is no number", async () => {
+        const onChange = vi.fn();
+        renderInput(
+            <StyleNumberInput
+                label="Sample size"
+                value={undefined}
+                defaultValue={0}
+                emptyText="Every node"
+                min={1}
+                onChange={onChange}
+            />,
+        );
+        const box = screen.getByRole("spinbutton", { name: "Sample size" });
+        expect(box).toHaveValue("");
+        expect(box).toHaveAttribute("placeholder", "Every node");
+        // A number the reader types is committed as usual.
+        await userEvent.type(box, "5{Enter}");
+        expect(onChange).toHaveBeenLastCalledWith(5, expect.anything());
+    });
+
     it("shows explicit value when provided", () => {
         renderInput(<StyleNumberInput label="Size" value={20} defaultValue={10} onChange={vi.fn()} />);
         expect(screen.getByRole("spinbutton")).toHaveValue("20");

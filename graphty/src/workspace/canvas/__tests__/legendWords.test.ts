@@ -121,12 +121,14 @@ describe("the legend card's words", () => {
         );
     });
 
-    it("keys neither a label nor a size that does not vary, a highlight's included", () => {
+    it("keys neither a label, its look, nor a size that does not vary, a highlight's included", () => {
         const color = block({ layerId: "color" });
         const bound = block({ layerId: "sized", channel: "node.size" });
         const blocks = [
             color,
             block({ layerId: "names", channel: "node.label", kind: "categorical" }),
+            // A label's look (the app's font on every label line) is not a key either.
+            block({ layerId: "names", channel: "node.labelStyle", kind: "literal" }),
             block({ layerId: "one-size", channel: "node.size", kind: "literal", swatches: [swatch({ size: 1 })] }),
             // A path's highlight draws its edges 24 wide: a number a reader takes for the path's.
             block({ layerId: "on-path", channel: "edge.width", kind: "highlight", swatches: [swatch({ size: 24 })] }),

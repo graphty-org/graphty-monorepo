@@ -4,6 +4,25 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a number box can be empty with words, and a table header opens its menu on a right-click
+
+**What.** compact-mantine's `StyleNumberInput` gains an optional `emptyText` prop: while the reader
+has entered nothing, the box is empty and shows these words as its placeholder instead of
+`defaultValue`. Unset, nothing changes. `DataTable` now opens a column's header menu on a
+right-click (the same menu the caret and the context-menu key already open), and only the primary
+button sorts. A header without a menu still leaves the right-click to the browser. No prop, type
+or default changes meaning.
+
+**Why.** A sampled analysis's sample size has no default number (empty means the exact run from
+every node), but the box drew "0", which a participant read as a sample of nothing. In the same
+round a participant right-clicked a column header looking for its options, saw the menu caret
+appear on hover and took it for a sort; the right-click did nothing. Tests:
+`compact-mantine/tests/components/StyleNumberInput.test.tsx`,
+`compact-mantine/tests/components/DataTable/DataTable.header.browser.test.tsx`.
+
+**Alternatives.** A `defaultValue` of `null` (changes the type every caller reads); a separate
+"Exact" checkbox beside the box (two controls for one setting).
+
 ## 2026-10-08 -- Decided by the team: StyleSelect takes an `aria-label`, and every reset button has a tooltip
 
 **What.** compact-mantine's `StyleSelect` gains an optional `aria-label` prop, forwarded to the

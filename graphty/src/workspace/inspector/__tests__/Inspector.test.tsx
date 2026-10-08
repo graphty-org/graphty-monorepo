@@ -155,11 +155,11 @@ describe("the inspector", () => {
         assert.include(degree.textContent, "3");
         await userEvent.click(degree);
 
-        const list = await screen.findByRole("region", { name: "n0's 3 connections" });
+        const list = await screen.findByRole("region", { name: "3 nodes within 1 hop of n0" });
         const names = within(list)
             .getAllByRole("button")
             .map((row) => row.textContent)
-            .filter((name) => name !== "Filter to neighbors");
+            .filter((name) => name !== "Filter to neighbors" && name !== "Back to n0");
         // A session with no view holds no records, so no labels and no edge weights: each
         // neighbor is named by its id, in name order, with no tie value.
         assert.deepEqual(names, ["n1", "n5", "n6"]);
@@ -176,13 +176,50 @@ describe("the inspector", () => {
         });
     });
 
+    it("heads the neighbor list as a section, one form at every reach, with a way back to the node", async () => {
+        const { session: on } = await renderInspector();
+        await act(async () => {
+            await on.selection.apply({ nodes: ["n0"] });
+        });
+        await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
+        const list = await screen.findByRole("region", { name: "3 nodes within 1 hop of n0" });
+        // The heading is the section title, as the node's Summary is.
+        assert.isNotNull(within(list).getByRole("group", { name: "3 nodes within 1 hop of n0" }));
+
+        await userEvent.click(within(list).getByRole("radio", { name: "2" }));
+        const wider = await screen.findByRole("region", { name: /nodes within 2 hops of n0$/ });
+        assert.match(wider.getAttribute("aria-label") ?? "", /^\d+ nodes within 2 hops of n0$/);
+
+        await userEvent.click(within(wider).getByRole("button", { name: "Back to n0" }));
+        await waitFor(() => {
+            assert.deepEqual([...on.selection.nodes], ["n0"]);
+        });
+        assert.isNotNull(await screen.findByRole("button", { name: /Degree/ }));
+    });
+
+    it("draws an attribute's kind and origin as rows, the kind's meaning in a tooltip", async () => {
+        const { store } = await renderInspector();
+        act(() => {
+            store.set({ inspected: { kind: "attribute", id: "data.shared" } });
+        });
+        const origin = await screen.findByRole("group", { name: "Origin" });
+        assert.include(origin.textContent, "From the file");
+        const kind = screen.getByRole("group", { name: "Kind" });
+        const word = within(kind).getByText("Amount");
+        await userEvent.hover(word);
+        // By its text, then its tooltip: in a full run the role query alone missed a tooltip that
+        // was already in the page with this text (testing-library judged it inaccessible).
+        const tip = await screen.findByText(/quantity/);
+        assert.isNotNull(tip.closest('[role="tooltip"]'));
+    });
+
     it("closes the neighbor list when the selection changes again", async () => {
         const { session: on, store } = await renderInspector();
         await act(async () => {
             await on.selection.apply({ nodes: ["n0"] });
         });
         await userEvent.click(await screen.findByRole("button", { name: /Degree/ }));
-        await screen.findByRole("region", { name: "n0's 3 connections" });
+        await screen.findByRole("region", { name: "3 nodes within 1 hop of n0" });
 
         await act(async () => {
             await on.selection.apply({ nodes: [...on.selection.nodes, "n3"] });

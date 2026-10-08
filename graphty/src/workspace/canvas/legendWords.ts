@@ -40,9 +40,14 @@ const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
 /** The channels whose swatches carry a size. */
 const SIZE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.size", "edge.width"]);
 
-/** The channels that write text onto the drawing: the text is its own key, so they get no section. */
+/**
+ * The channels that write text onto the drawing, and the look of that text: the text is its own
+ * key, so they get no section.
+ */
 const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
     "node.label",
+    "node.labelStyle",
+    "edge.labelStyle",
     "node.tooltip",
     "edge.label",
     "edge.arrowHeadText",

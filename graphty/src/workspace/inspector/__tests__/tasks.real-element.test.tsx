@@ -101,7 +101,12 @@ async function pick(session: GraphSession, id: string): Promise<void> {
 const rowButtons = (section: HTMLElement): HTMLElement[] =>
     within(section)
         .getAllByRole("button")
-        .filter((button) => !button.hasAttribute("aria-expanded") && button.textContent !== "Filter to neighbors");
+        .filter(
+            (button) =>
+                !button.hasAttribute("aria-expanded") &&
+                button.textContent !== "Filter to neighbors" &&
+                !(button.textContent ?? "").startsWith("Back to "),
+        );
 
 /**
  * The inspector region.
@@ -162,7 +167,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.equal(values.getAttribute("aria-selected"), "true");
             await userEvent.click(inspector().getByRole("button", { name: /Degree/ }));
 
-            const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
+            const list = await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
             const rows = rowButtons(list);
             // The bridge (9) first, then the ring's two ties (6 and 1).
             assert.deepEqual(
@@ -186,7 +191,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             // The node's own menu in the inspector, where the Neighborhood command lives.
             await userEvent.click(await inspector().findByRole("button", { name: "Node actions" }));
             await userEvent.click(await screen.findByRole("menuitem", { name: /^Neighborhood/ }));
-            const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
+            const list = await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
             assert.deepEqual(
                 rowButtons(list).map((row) => row.textContent),
                 ["Node 69", "Node 56", "Node 11"],
@@ -205,7 +210,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 .getByRole("button", { name: /Degree/ })
                 .focus();
             await userEvent.keyboard("{Enter}");
-            const list = await inspector().findByRole("region", { name: "n0's 3 connections" });
+            const list = await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
             assert.equal(document.activeElement, list);
 
             await userEvent.keyboard("{Escape}");
@@ -217,7 +222,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
             });
             await userEvent.keyboard("{Enter}");
-            const again = await inspector().findByRole("region", { name: "n0's 3 connections" });
+            const again = await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
             // Tab goes past the header (Hops, then Filter to neighbors) to the first name.
             const first = rowButtons(again)[0];
             for (let tabs = 0; tabs < 6 && document.activeElement !== first; tabs++) {
@@ -249,7 +254,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await userEvent.tab();
             assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
             await userEvent.keyboard("{Enter}");
-            await inspector().findByRole("region", { name: "n0's 3 connections" });
+            await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
         },
         TIMEOUT_MS * 2,
     );
@@ -448,7 +453,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.deepEqual(controlNames(), [...new Set(controlNames())]);
             await pick(session, "n0");
             await userEvent.click(await inspector().findByRole("button", { name: /Degree/ }));
-            await inspector().findByRole("region", { name: "n0's 3 connections" });
+            await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
             assert.deepEqual(controlNames(), [...new Set(controlNames())]);
         },
         TIMEOUT_MS * 2,

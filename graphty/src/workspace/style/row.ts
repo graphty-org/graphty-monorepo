@@ -10,7 +10,7 @@
  */
 
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import type { Binding, Channel, ChannelValue, LayerId } from "@graphty/graphty-element/schema";
+import type { Binding, Channel, ChannelValue, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
 import type { ColumnRef, GraphSession, Layer } from "@graphty/graphty-element/session";
 
 import { runName } from "../analyze/words";
@@ -121,6 +121,60 @@ function without<T>(
     return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
+/** Each label channel's style channel. */
+const LABEL_STYLE_CHANNEL: Partial<Readonly<Record<Channel, Channel>>> = {
+    "node.label": "node.labelStyle",
+    "edge.label": "edge.labelStyle",
+};
+
+/**
+ * How tall the app draws a label's letters on the label's own canvas. graphty-element sizes a
+ * label in world units (one unit per 48 of these), so its size on screen follows the zoom: at 72
+ * a 20-node file framed whole reads at about 10 px and a 9-node one at about 22 px, where the
+ * element's own 48 drew the 20-node one at 6 px. A size fixed on screen would need the element to
+ * offer one.
+ */
+export const LABEL_SIZE_PX = 72;
+
+/**
+ * The app's look for a label: the font the app itself is set in, at a size a reader can read.
+ * graphty-element leaves both to its consumer (its own default face is often missing, and then
+ * the browser falls back to a serif), so the app states its choice on every label line it adds.
+ * @returns the label style.
+ */
+export function appLabelLook(): LabelStyle {
+    return { font: getComputedStyle(document.body).fontFamily, sizePx: LABEL_SIZE_PX };
+}
+
+/**
+ * The app's label look for a label line being bound, unless the layer already styles its labels.
+ * @param channel - the channel being written.
+ * @param set - what the layer already sets.
+ * @returns the style channel's entry to add, or nothing.
+ */
+function labelLookFor(
+    channel: Channel,
+    set: Partial<Record<Channel, ChannelValue>> | undefined,
+): Partial<Record<Channel, ChannelValue>> {
+    const style = LABEL_STYLE_CHANNEL[channel];
+    return style === undefined || set?.[style] !== undefined ? {} : { [style]: appLabelLook() };
+}
+
+/**
+ * Adds a row on top whose node label reads a column, in the app's label look: one undoable step.
+ * The door of every "Add label line" on an attribute.
+ * @param session - the element's session.
+ * @param column - the node attribute.
+ * @returns the new layer.
+ */
+export async function addLabelRow(session: GraphSession, column: ColumnRef): Promise<Layer> {
+    return session.transaction("Add label line", async (tx) => {
+        const layer = await tx.styles.encode({ column, channel: "node.label" });
+        await tx.styles.update(layer.id, { set: { ...layer.set, ...labelLookFor("node.label", layer.set) } });
+        return layer;
+    });
+}
+
 /** The layer a row's first edit adds when the row has no layer the reader may edit. */
 export interface NewLayer {
     readonly name: string;
@@ -213,6 +267,8 @@ export async function writeLine(
     const own = [...layers].reverse().find((layer) => !layer.locked);
     const set = "value" in write ? { [channel]: write.value } : undefined;
     const encode = "binding" in write ? { [channel]: write.binding } : undefined;
+    // A label line being bound brings the app's label look with it, in the same step.
+    const look = encode === undefined ? {} : labelLookFor(channel, own?.set);
     if (own === undefined) {
         const base = layers.at(-1) ?? topmostRow(session);
         const added = await session.styles.add(
@@ -220,7 +276,7 @@ export async function writeLine(
                 name: fresh.name,
                 target,
                 selector: fresh.selector,
-                ...(set === undefined ? {} : { set }),
+                ...(set === undefined && Object.keys(look).length === 0 ? {} : { set: { ...look, ...set } }),
                 ...(encode === undefined ? {} : { encode }),
                 ...(fresh.userData === undefined ? {} : { userData: fresh.userData }),
             },
@@ -229,7 +285,7 @@ export async function writeLine(
         return added.id;
     }
     await session.styles.update(own.id, {
-        set: set === undefined ? without(own.set, channel) : { ...own.set, ...set },
+        set: set === undefined ? without({ ...own.set, ...look }, channel) : { ...own.set, ...set },
         encode: encode === undefined ? without(own.encode, channel) : { ...own.encode, ...encode },
     });
     return own.id;

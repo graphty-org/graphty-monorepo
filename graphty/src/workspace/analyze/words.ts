@@ -296,7 +296,12 @@ export function isSlow(seconds: number): boolean {
 interface OptionWords {
     readonly label: string;
     readonly choices?: Readonly<Record<string, string>>;
+    /** What an option whose default is no value means while it is left empty. */
+    readonly empty?: string;
 }
+
+/** A sampled run's sample size: empty means the exact run, from every node. */
+const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
 
 /**
  * The app's words for the key options (the ones drawn outside the Advanced fold), by
@@ -324,6 +329,9 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
         choices: { "adamic-adar": "Adamic-Adar", "common-neighbors": "Common neighbors" },
     },
     "link-prediction.topK": { label: "Pairs" },
+    "closeness.k": SAMPLE_SIZE,
+    "betweenness.k": SAMPLE_SIZE,
+    "edge-betweenness.k": SAMPLE_SIZE,
 };
 
 /**
@@ -361,15 +369,16 @@ const SHARED_OPTION_WORDS: Readonly<Record<string, string>> = {
  * element's labels: never the raw option key.
  * @param algorithm - the algorithm's key, or the layout's catalog id.
  * @param option - the element's option descriptor.
- * @returns the label, and the word for a choice by its value.
+ * @returns the label, the word for a choice by its value, and what the option left empty means.
  */
 export function optionWords(
     algorithm: string,
     option: OptionDescriptor,
-): { label: string; choice: (value: string) => string } {
+): { label: string; choice: (value: string) => string; empty: string } {
     const words = OPTION_WORDS[`${algorithm}.${option.name}`];
     return {
         label: words?.label ?? SHARED_OPTION_WORDS[option.name] ?? option.plainName,
+        empty: words?.empty ?? "Not set",
         choice: (value) =>
             words?.choices?.[value] ?? option.values?.find((choice) => choice.value === value)?.label ?? value,
     };

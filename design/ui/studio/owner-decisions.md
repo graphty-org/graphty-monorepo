@@ -4,6 +4,47 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- For the owner: a ranking's histogram bins continuous values into bands
+
+**What.** `RunResult.histogram()` (and `data.histogram()`, which shares `buildHistogram`) gives one
+bar per distinct value whenever a field has no more distinct values than bins. For a field that
+counts things that is the readable shape; for a continuous field such as PageRank on a 20-node
+graph it gives 20 bars of height 1, which says nothing about the spread. The fix keeps one bar per
+value only for integer-valued fields, or when values repeat, and bands every other field. It
+changes what an existing method returns for small continuous fields, so it is listed here as
+possibly breaking; it is built on the studio branch so the study does not run on equal bars.
+
+**Why.** The tier 2 dry run drew 20, 12 and 14 equal bars on the PageRank Values chart, whose
+values cluster (five between 0.11 and 0.13, the rest between 0.02 and 0.07). The function's own
+documentation says the per-value shape exists "for a count metric".
+
+**Alternatives.** An option `binning: "bands"` the app passes (additive, but every consumer meets
+the same useless default first); leaving it (the chart stays on screen and misleads).
+
+## 2026-10-08 -- For the owner: the shortest path's node color no longer sits inside a ranking ramp
+
+**What.** The shortest path's suggested node color (the "Shortest route" layer) changes to a color
+outside the sequential ramps the element suggests for measures, so the chain's nodes stay visible
+on a drawing already colored by PageRank. A changed default appearance, so listed here; built on
+the studio branch.
+
+**Why.** On every ranked start of the tier 2 study, the path's orange nodes looked like low-ranked
+nodes; only the edges showed the chain.
+
+**Alternatives.** The app passes its own path color (a consumer's choice, but every consumer that
+stacks a path on a ranking meets the same clash first).
+
+## 2026-10-08 -- Decided by the team: a left-out row's file line and end columns
+
+**What.** Two optional fields, additive: `LeftOutEdge.line?: number`, the row's line in the file,
+numbered as the import page already numbers it, and
+`LoadedSource.leftOut.endColumns?: { source: string; target: string }`, the names of the columns
+the load read the ends from. A project saved without them still opens.
+
+**Why.** After Load the app showed a left-out row as "p11, p13, 6" with no column names and no
+line, though the import page had shown "Line 24, from, to, emails" a moment before. The facts
+existed during the load and were dropped; only the element has them.
+
 ## 2026-10-08 -- The left-out rows themselves: `LoadedSource.leftOut.edges` and `LeftOutEdge`
 
 **What.** One optional field on `LoadedSource.leftOut`: `edges?: readonly LeftOutEdge[]`, the

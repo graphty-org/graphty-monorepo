@@ -5,10 +5,18 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-08 (tier 2 criteria reviewed and frozen; returning starts built).
+Last updated: 2026-10-08 (dry run before tier 2 round 1 triaged).
 
 ## Top of mind
 
+- 2026-10-08: DRY RUN BEFORE ROUND 1 (`tier2/dry-run-r1-1.md`). Round 1 had started without one;
+  five sessions were stopped and discarded. 136 items triaged: 100 fixed before round 1, 24 left
+  for the sessions, 12 no change. Round 1 needs a NEW frozen build, a re-pilot of every task on
+  it and every "known on this build" key note re-recorded. Rule: no round starts until a dry run
+  on its exact build has been triaged and its fixes are built.
+- 2026-10-08: The discarded sessions show the real T20 question: 4 of 5 opened with "Open project
+  or file", found no place to set the weight's meaning after load, and went back to "New from
+  data". Left for the sessions on purpose (dry-run items 58, 60, S10, S16).
 - 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars: 1 success per task (8/8 size
   7 of 8, T4 6 of 6, 4-session tasks 4 of 4, T12R 2 of 2); 2 work kept (scripted open-work list);
   3 sev-4; 4 silent commit; 5 numbers vs drawing; 6 false done; 7 weight read as loaded (EVERY
@@ -44,9 +52,6 @@ Last updated: 2026-10-08 (tier 2 criteria reviewed and frozen; returning starts 
 - 2026-10-07: Words: glossary wins over refined B. "Follow: Out | In | All" (path: Out | All, directed
   only); weight "Higher means: Closer | Farther | Capacity" (no "strength"/"Stronger" on screen);
   never "route". Filter chip only while a step is on.
-- 2026-10-07: NO touch/tablet profile, NO keyboard-only study in tier 2 (owner).
-- 2026-10-07: The path-row crash needs NO element API: `RESULT_SHAPE_CONTRACTS` already gives
-  path fields (`onPath`, `order`, `hops`, `cost`) and `layer: "highlight"`. App reads the shape.
 - 2026-10-07: Owner one-way doors still open in `owner-decisions.md` (screenshot legend, undirected
   arrowheads, export group rank, legend covered layer -> recommend master's `legend.painted-over`,
   `optionsFor`, canvas `aria-label`, 2D zoom doc) plus the round 3 and tier 2 doors.
@@ -197,6 +202,16 @@ Last updated: 2026-10-08 (tier 2 criteria reviewed and frozen; returning starts 
   per-task). Old setups kept for pilot reproducibility, used by no task. Added
   `tool/files/long-names.csv` for the truncation audit.
 
+- 2026-10-08 -- Dry run triage (me, `tier2/dry-run-r1-1.md`). Fix now: any defect a participant
+  could hit (clipped text with room, dead or always-enabled controls, focus left on the canvas or
+  a container, raw notation, wrong values, the equal-bar histogram, a path color lost in the
+  PageRank ramp, unnamed or same-named controls, tool faults). Leave: where the weight meaning is
+  set after load, where the path form lives, several path rows, how stale values are marked,
+  labels by default, selection over color, hover linking. Two element changes go to the owner as
+  possibly breaking (histogram per-value binning only for counts; path node color) but are built
+  now so the study does not run on them; left-out rows gain `line` and `endColumns` (additive,
+  team). Reason: the sessions must spend their time on what returning users need.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-02 -- Eight simulated rounds on mocks and a clickable skeleton. Places were right;
@@ -254,6 +269,12 @@ Last updated: 2026-10-08 (tier 2 criteria reviewed and frozen; returning starts 
 - 2026-10-08 -- A `rm -rf $VAR/...` was refused by the safety check; use new folder names or
   `"${VAR:?}"` instead of clearing scratch folders.
 
+- 2026-10-08 (dry run) -- Did not work: starting round 1 before a dry run; the first five
+  sessions spent most of their steps on defects (same-named From/To boxes, a tool crash on EPIPE,
+  a helper script shared between sessions sending clicks into another session). Worked: piloting
+  every task on both datasets and triaging by "could a participant hit it" against "is it the
+  question the study asks".
+
 ## Thinking
 
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
@@ -272,7 +293,7 @@ Last updated: 2026-10-08 (tier 2 criteria reviewed and frozen; returning starts 
 
 ## Sources
 
-- Tier 2 (2026-10-08): `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
+- Tier 2 (2026-10-08): `tier2/dry-run-r1-1.md`, `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
   session starts"), `rounds/tier-2/setups/*-ranked*.txt`; reviews in `notes/researcher.md`,
   `notes/user.md`, `notes/redteam.md`.
 - Studio: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `owner-decisions.md`,
@@ -282,8 +303,6 @@ Last updated: 2026-10-08 (tier 2 criteria reviewed and frozen; returning starts 
   `framework.md`.
 - Earlier work: `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/` (owner feedback,
   decision log, round 8 insights, structure B); `.worktrees/feat-tier1-real-app/design/ui/tier1-real-app/`.
-- Director transcripts: `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/`
-  (framework synthesis 2026-09-27; round 4 and 6 positions; structure A vs B 2026-09-30; round 8
-  triage 2026-10-03). Extraction scripts in `tmp/director/`.
+- Director transcripts: `.claudehistory/3a19ea55-.../subagents/workflows/`; scripts `tmp/director/`.
 - Builds: round 1 9d6598eea, round 2 4a7a1a7fb, round 3 b7590f8de; served at
   `https://dev.ato.ms:9366/?next`.

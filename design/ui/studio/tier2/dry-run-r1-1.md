@@ -1,0 +1,246 @@
+# Tier 2 dry run before round 1: what to fix and what to leave
+
+Every tier 2 task was walked once on the frozen build 16dcf3494 (graphty@0.8.56), each prompt on
+both datasets, before any study session. Five early sessions that ran before this walk, and were
+then stopped, were read for the same purpose. This page lists every problem found, sorts it, and
+gives the reason.
+
+The sessions are for learning what a returning user needs. A session spent on a clipped word, a
+dead button or a misplaced focus ring teaches nothing about that, so every such problem is fixed
+before round 1. A problem that is a real design question -- where something lives, what a reader
+expects, what a new concept is called -- is left in, because answering it is what the sessions
+are for.
+
+Classes:
+
+- **(a) fix now.** An implementation or polish defect a participant could hit: clipped or
+  truncated text with room to spare, misalignment, a control that does nothing or gives no
+  feedback, a button enabled when it should not be, focus left behind, a wrong or inconsistent
+  component, raw internal text, a wrong value. Each names the fix group it belongs to (below).
+- **(b) leave for the sessions.** An open design question the study exists to answer.
+- **(n) no change.** Expected behavior, or a property of the frozen start that the answer key
+  records; the reason says which.
+
+Screenshots are under `rounds/r1/pilot/<task>/` (for example `T4A/09.png`) and, for the early
+sessions, `rounds/discarded-round-1-before-dry-run/sessions/<session>/`.
+
+Fixing the (a) list changes the build, so round 1 runs on a new frozen build: every task is piloted
+again on it, and every "known on this build" note in the answer key is recorded again.
+
+## Fix groups
+
+| Group | What it fixes | Package |
+| ----- | ------------- | ------- |
+| Rows | Row text cut short while there is room; a row's tooltip repeating only its name | compact-mantine |
+| Shared controls | The segmented control clipping "Leave out"; the doubled inner border on a focused range field; hint text size and contrast | compact-mantine |
+| Import page | Code-like headings and role names, the preview that does not follow the table just added, the narrow cut-off preview table, the weight hint and summary, unnamed role boxes, the reset button without a tooltip | graphty |
+| Left-out rows | A left-out row shown as bare values; the Sources row hiding the left-out and node counts; the project named after one of two files | graphty-element, graphty |
+| Path form and Made with | Unnamed and same-named From and To boxes, the Advanced arrow on the border, Made with laid out three ways with element words, the result header, "lightest" | graphty |
+| Focus | Focus left on the canvas or a whole container after Find path, Load, opening a project, clearing a selection or opening Neighborhood | graphty |
+| Histogram | A ranking's chart drawing one equal bar per node | graphty-element |
+| Marks | The path's node color lost inside the ranking's colors; marked edges too pale to see | graphty-element |
+| Edge picking | A 1-pixel line as the only target, with no sign it can be clicked | graphty-element |
+| Unasked view changes | The drawing moving after a run, Find leaving nodes off the canvas, half the drawing gone behind the Save dialog | graphty, graphty-element |
+| Reopened runs | A reopened project's PageRank row losing its count | graphty-element, graphty |
+| Filters | The condition hidden in its row, Save step always enabled, no sign a save landed, the source attribute losing its mark, the whole-graph note in tiny type, the neighbor filter with no "on" state, a stale note that does not say what changed | graphty |
+| Find rules | An example column the file does not have, the rule vanishing after Enter, a funnel icon on columns, two spellings of an edge's name, edges not found by their ends' names | graphty |
+| Inspector polish | Chips out of line and a chip that looks clickable but is not, "Results" styled as a value row, the connections heading smaller than its rows, two heading forms across hop counts, no way back from connections, "Sample size 0", right-click sorting a column, a serif 6 px label font | graphty |
+| Study tool | A stale tooltip printed after consecutive hovers, the tool crashing when a client goes away, a click timeout with no reason, a setup that leaves focus on a control, a helper script shared between sessions | studio tool |
+
+## Two tables (T4)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 1 | T4A: the Sources row cuts its quiet text to "12 no..." at the default panel width, and its tooltip repeats only the name (`T4A/09.png`, `13.png`). A reader cannot see that a row was left out without selecting the source. | (a) Rows, Left-out rows | Text cut with room to spare; a tooltip must carry what the row cut. |
+| 2 | T4A: the Overview value "Edges per node" cut to "3 to 6, mean 3...." with room in the inspector (`T4A/08.png`, `09.png`). | (a) Rows | A value cut while its row has room. |
+| 3 | T4A: the left-out row in the source inspector reads "p11, p13, 6", with no column names and no line number, though the import page showed "Line 24, from, to, emails" (`T4A/12.png`, `07.png`). | (a) Left-out rows | Raw values with no names; the facts existed before Load and were dropped. |
+| 4 | T4A: the "Leave out" label touches its own border and looks cut (`T4A/06.png`, `07.png`). | (a) Shared controls | Clipped label. |
+| 5 | T4A: the import preview cuts names to "Dmitri Vol..." with about 900 px of table empty, and shows 6 of the 12 rows it says it shows behind an inner scroll in a pane with room (`T4A/04.png`). | (a) Import page | Columns not sized to their content; an inner scroll where none is needed. |
+| 6 | T4A: after a second table is added, the preview stays on the first table though the summary names the second (`T4A/06.png`). | (a) Import page | The view does not follow the reader's own action. |
+| 7 | T4A: the import page's heading and role options use code notation: "node (12) --messages (22)--> node", "From -> node", "To -> node" (`T4A/06.png`, `07.png`). | (a) Import page | Raw internal notation on screen, not reader words. |
+| 8 | T4A: the study tool printed the previous hover's tooltip ("people.csv and messages.csv") for "Edges per node", while the screen showed the real one (`T4A/11.png`). | (a) Study tool | The tool reads a tooltip still fading out from the last hover; graders cannot trust a printed tooltip. |
+| 9 | T4B: the Sources row cuts both its name and summary ("players.csv and pas... 10 nod..."), and its tooltip repeats only the name; "1 row left out" shows nowhere in the list (`T4B/09.png`-`11.png`). | (a) Rows, Left-out rows | Same as 1. |
+| 10 | T4B: the import page heading is a schema diagram, "node (10) --passes (17)--> node", lower case, ASCII arrow, column name as a label (`T4B/04.png`, `06.png`). | (a) Import page | Same as 7. |
+| 11 | T4B: "Leave out" clipped on both sides, final "t" cut (`T4B/06.png`, `07.png`). | (a) Shared controls | Same as 4. |
+| 12 | T4B: the left-out row shows only "s04, s11, 3", no line, no column names (`T4B/11.png` against `07.png`). | (a) Left-out rows | Same as 3. |
+| 13 | T4B: the project is named "players" after the first file only (title bar and breadcrumb, `T4B/08.png`), while the inspector says "From 2 files". | (a) Left-out rows | A title that names one of two sources misstates what the project holds. |
+| 14 | T4B: after passes.csv is added, the pane still shows players.csv's columns (`T4B/06.png`). | (a) Import page | Same as 6. |
+| 15 | T4B: no names are drawn on the 10 nodes after Load (`T4B/08.png`). | (b) | Whether names are drawn by default is an open design question; the answer key excludes it from grading. |
+
+## Filter steps (T17)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 16 | T17A: the Filters row reads "weight is ..." beside "20 to 19 nodes" while the step is on, hiding the condition the reader set (`T17A/07.png`). | (a) Filters, Rows | The row's own subject is cut while a count takes the room. |
+| 17 | T17A: "The counts below are for the whole graph." is set much smaller than the rows it qualifies (`T17A/07.png`, 1225,228), inviting 20 to be read as the number still drawn. | (a) Filters | A qualifier that decides how a number is read must be as legible as the number. |
+| 18 | T17A: "Save step" is enabled the moment the editor opens, with nothing changed (`T17A/10.png`). | (a) Filters | A button enabled when it should not be. |
+| 19 | T17A: the attribute's actions menu opens over the Summary's "Table: Edges" value (`T17A/04.png`). | (n) | A menu covers what lies under it while open and closes on a pick; nothing is lost. |
+| 20 | T17A: the "Amount" and "From the file" chips sit left of the rows below and out of line with their labels (`T17A/03.png`, 1228-1350,173). | (a) Inspector polish | Misalignment. |
+| 21 | T17A: the Size control ("1 to 3") still shows a focus ring left from the setup's Escape (`T17A/01.png`). | (a) Study tool, Shared controls | The setup leaves focus where no returning user's start would; the doubled ring is the control's own defect. |
+| 22 | T17B: the filter row hides its threshold on ("shared_ch... 77 to 26 nodes") and off ("shared_chapters is at l... off") (`T17B/07.png`, `09.png`, `11.png`). | (a) Filters, Rows | Same as 16. |
+| 23 | T17B: editing a step that is off and pressing "Save step" returns with no visible change (`T17B/10.png` to `11.png`). | (a) Filters | No feedback that the save landed; with the condition visible (16) the new value shows, plus a status announcement. |
+| 24 | T17B: "Filter to..." from the attribute's menu removes the attribute row's selected mark; the new step shows no source (`T17B/03.png` against `05.png`). | (a) Filters | The mark of what the reader acted on vanishes. |
+| 25 | T17B: the Size control draws a ring inside a ring and an icon after the setup's Escape (`T17B/01.png`). | (a) Study tool, Shared controls | Same as 21. |
+
+## Shortest chain (T18)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 26 | T18A: the path's node color is an orange inside the PageRank colors, so the chain's nodes look like any low-ranked node; only the orange edges show it (`T18A/07.png`). | (a) Marks | A result the reader cannot see on the drawing; a highlight must not share colors with the ramp under it. |
+| 27 | T18A: Made with mixes layouts: label/value rows, then small bold "Weight: not read -- ..." running into "Source: Chloe", a gap, "Target: Milo", then the weight again as a label, sentence and select (`T18A/07.png`, right panel y 515-665). | (a) Path form and Made with | One section laid out three ways, and one fact shown twice. |
+| 28 | T18A: the form asks "From" and "To"; Made with says "Source" and "Target" (`T18A/07.png`). | (a) Path form and Made with | The element's option names reaching the screen; one label per meaning. |
+| 29 | T18A: the "Advanced" chevron in the popover sits on the popover's left border, outside the padding (`T18A/02.png`-`06.png`); in the right panel it is correct (`07.png`). | (a) Path form and Made with | Misplaced, half-clipped control. |
+| 30 | T18A: the open From or To suggestion list covers the next field's label and the weight sentence (`T18A/03.png`, `05.png`). | (n) | A suggestion list overlays the fields below it as every combobox does and closes on a pick; no walk lost a step to it. The wrong-box typing in the early sessions came from the shared name (row S1), which is fixed. |
+| 31 | T18A: the Size field shows the setup's focus ring (`T18A/01.png`). | (a) Study tool | Same as 21. |
+| 32 | T18B: the chain's nodes cannot be told from the rest on a PageRank-colored drawing; Medici turns lighter; the key shows two "Color:" entries with no hint which wins (`T18B/07.png`). | (a) Marks for the colors; (b) for the key | The color clash is a defect (as 26). How the key shows a layer painted over by another is an open owner question already on the owner's list. |
+| 33 | T18B: the Shortest path popover opens over the lower half of the drawing, covering the endpoints while they are picked (`T18B/02.png`-`06.png`, `08.png`, `09.png`). | (b) | Where the path form lives (a popover over the canvas or a panel) is a design question the sessions answer. |
+| 34 | T18B: choosing From or To puts no mark on the drawing (`T18B/04.png`). | (b) | Previewing the ends on the drawing is a new behavior; whether readers look for it is for the sessions. |
+| 35 | T18B: the "Advanced" caret is clipped on the popover's left edge (`T18B/02.png`). | (a) Path form and Made with | Same as 29. |
+| 36 | T18B: in Made with, the weight, Source and Target lines are smaller, indented differently from the rows above (x 1225 against 1233), with an uneven gap (`T18B/07.png`, `10.png`). | (a) Path form and Made with | Same as 27. |
+| 37 | T18B: a second path run replaces the first with no notice; there is still one "Shortest path 4 hops" row (`T18B/10.png`). | (b) | Several path rows were deferred on purpose in the tier 2 design; whether returning users want to compare chains is for the sessions. |
+| 38 | T18B: after Find path a white focus outline surrounds the whole canvas (`T18B/10.png`). | (a) Focus | Focus should land on the result that opened in Values, not the canvas. |
+| 39 | T18B: the drawing shifts and rescales when the run is applied (`T18B/06.png` to `07.png`). | (a) Unasked view changes | The view moves without the reader asking. |
+| 40 | T18B: the From list covers the "To" label and the To list the Weight box (`T18B/03.png`, `05.png`); neither list marks the option Enter will pick. | (n) for the overlay (as 30); (a) Path form and Made with for the mark | Enter picks the first option, so the first option must look active. |
+
+## Notes and reopening (T19)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 41 | T19A: Find moves the camera so the top nodes and edges are cut off; clearing the selection does not bring them back (`T19A/02.png`, `06.png`). | (a) Unasked view changes | Nodes pushed off the canvas read as lost data. |
+| 42 | T19A: with the "Save friends as" dialog open, the canvas below the dialog's top edge (about y 375) shows no nodes or edges (`T19A/10.png`); after Save the drawing is back (`11.png`). | (a) Unasked view changes | Half the drawing vanishes; a rendering defect to trace. |
+| 43 | T19A: after reopening from Recent projects the PageRank row has lost its count ("PageRank 20" before, `T19A/01.png`; no count after, `13.png`). | (a) Reopened runs | A restored run that looks emptied or stale. |
+| 44 | T19A: after reopening, the canvas has a white outline (`T19A/13.png`). | (a) Focus | Focus parked on the canvas after a project opens. |
+| 45 | T19A: the Recent projects row cuts its time ("Oct 8, 2026, 8:20 ...") on a 1440 px window (`T19A/12.png`). | (a) Rows | Cut with room to spare. |
+| 46 | T19A: two nodes are drawn on top of each other near the bottom; Farah's highlight sits half under the other (`T19A/02.png`, `13.png`). | (n) | The seeded layout's result on the frozen start. Changing the start would re-record every key that uses it; the answer key notes the overlap. |
+| 47 | T19A: the Size control shows the setup's focus ring (`T19A/01.png`). | (a) Study tool | Same as 21. |
+| 48 | T19B: after reopening, the PageRank row shows no count and a dimmed chart icon, also on hover (`T19B/13.png`, `15.png`); color, size, key and values come back. | (a) Reopened runs | Same as 43. |
+| 49 | T19B: after Escape Escape the Medici note card keeps a white focus ring with nothing selected (`T19B/06.png`); after opening a project the canvas shows an outline (`13.png`). | (a) Focus | Focus left on a container and on the canvas. |
+
+## Weight at load (T20)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 50 | T20A: the "Advanced" arrow in the Shortest path popover sits half outside its left border (`T20A/09.png`-`13.png`, about x 490, y 788). | (a) Path form and Made with | Same as 29. |
+| 51 | T20A: Made with lays its parameters out two ways, with a bigger gap before Target, and a Weight select repeats the weight a third time as "minutes (farther, loaded)" where the line above says "minutes (farther)" (`T20A/14.png`). | (a) Path form and Made with | Same as 27; one fact in one place with one wording. |
+| 52 | T20A: the result header reads "Path from Shortest path, Oct 8", naming the analysis as if it were a source; "Shortest path" appears three times in a row (`T20A/14.png`). | (a) Path form and Made with | Generated words that misstate what the result is. |
+| 53 | T20A: the hint under "Higher means" is larger and lighter than the labels around it (`T20A/06.png`, `07.png`). | (a) Import page | Inconsistent type. |
+| 54 | T20A: a name's option list opens over the next field's label (`T20A/10.png`, `12.png`). | (n) | As 30. |
+| 55 | T20A: a From option picked with a click leaves focus in From, while Enter moves on to To (`T20A/11.png`). | (a) Path form and Made with | The two ways to pick must leave the reader in the same place. |
+| 56 | T20B: the km column's role box has no accessible name ("combobox", `T20B/05.png`). | (a) Import page | An unnamed control. |
+| 57 | T20B: the icon-only reset button beside the role shows no tooltip (`T20B/07.png`). | (a) Import page | An icon-only button must say what it does on hover. |
+| 58 | T20B: choosing Weight makes "Higher means" appear at the top of the form, far from the km column, and pushes the table down 62 px (`T20B/05.png` to `06.png`). | (b) | Where the meaning is asked (beside the column or in the summary) is the T20 design question. |
+| 59 | T20B: after Farther, the hint shrinks to the fragment "smaller = closer" and the "Weight: km" summary does not show the meaning (`T20B/08.png`). | (a) Import page | A fragment where a sentence belongs; a summary that leaves out the choice just made. |
+| 60 | T20B: the Data page shows no loaded weight or meaning; km looks like any numeric attribute (`T20B/15.png`). | (b) | Whether and where a loaded weight shows (and can be changed) after load is the question four of the five early sessions ran into; the sessions answer it. |
+| 61 | T20B: Made with mixes formats and repeats the weight as a select (`T20B/14.png`). | (a) Path form and Made with | Same as 27. |
+| 62 | T20B: the Graph row reads "Shortest path 4 hops" beside a 7.5 km answer (`T20B/14.png`). | (b) | What a weighted path's row should count is a design question; the key's read-wrong case measures it. |
+| 63 | T20B: "Edges per node" cut to "2 to 4, mean 2...." (`T20B/09.png` on). | (a) Rows | Same as 2. |
+| 64 | T20B: the From list covers the "To" label, the To list the Weight box (`T20B/11.png`, `12.png`). | (n) | As 30. |
+| 65 | T20B: the Path popover covers part of the drawing, including the route asked about (`T20B/10.png`-`13.png`). | (b) | As 33. |
+| 66 | T20B: running the path moves the drawing about 35 px down (`T20B/13.png` to `14.png`). | (a) Unasked view changes | Same as 39. |
+| 67 | T20B: no names drawn on the 9-node network (`T20B/09.png`-`15.png`). | (b) | As 15. |
+| 68 | T20B: "As the file says" loads trails.csv as Directed, so every trail is one-way; the right route survives only because its edges point toward the Summit. | (b) | What direction a CSV with no statement defaults to is an open question; the risk goes in the answer key. |
+| 69 | T20B: the "Advanced" triangle sits half outside the popover (`T20B/10.png`). | (a) Path form and Made with | Same as 29. |
+
+## Replace with a new file (T21)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 70 | T21A: the Replace page shows "Higher means: Not set" (`T21A/05.png`) while Made with says "Weight: weight (closer)" (`02.png`, `06.png`, `07.png`). | (a) Path form and Made with | Two answers to one question; Made with must say the meaning was not set and how this run read it. |
+| 71 | T21A: the Values chart draws 20 bars of identical height before and after, though the ranges differ (`T21A/02.png`, `07.png`). | (a) Histogram | The element bins a continuous field with no more distinct values than bins as one bar per value, so every bar holds 1. |
+| 72 | T21A: "Weight: weight (closer)" sits against the "Damping factor" label in very small type (`T21A/02.png`, `07.png`). | (a) Path form and Made with | Same as 27. |
+| 73 | T21A: after Load, the old Top 10 and key range stay fully visible and look current; only the "Data changed since this run" bar and a clock icon mark them (`T21A/06.png`). | (b) | How strongly an out-of-date value must be marked is what T21's stale-read measure tests. |
+| 74 | T21A: after Load, a white focus outline surrounds the canvas (`T21A/06.png`). | (a) Focus | Same as 44. |
+| 75 | T21A: the source row's right-click menu opens over the row's counts (`T21A/04.png`). | (n) | As 19. |
+| 76 | T21B: the Values histogram draws 12, then 14 equal bars (`T21B/02.png`, `07.png`). | (a) Histogram | Same as 71. |
+| 77 | T21B: "Weight: weight (closer)" squeezed between "Ran" and "Damping factor", and named differently from the Replace page's "Not set" (`T21B/02.png`, `05.png`, `07.png`). | (a) Path form and Made with | Same as 27 and 70. |
+| 78 | T21B: the Sources row reads "16 rows, 16 edges" for team.csv with no node count (`T21B/03.png`). | (a) Left-out rows | A count with no whole: the load added 14 nodes and the row hides it. |
+
+## Rules in Find (T22)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 79 | T22A: the refusal and the hint use the example column "weight", which this file lacks (it has "minutes") (`T22A/03.png`, `08.png`). | (a) Find rules | An example that fails on the open data. |
+| 80 | T22A: computed values such as PageRank are not offered after "=" (`T22A/08.png`). | (b) | Whether rules on results belong in Find is a design question, not a missing list entry. |
+| 81 | T22A: after Enter applies the rule, the box clears; the rule is visible nowhere (`T22A/06.png`). | (a) Find rules | No record of what made the selection; the rule stays in the box, selected. |
+| 82 | T22A: a selection of several edges lists no members, only "Edges 3" (`T22A/06.png`). | (b) | Listing a selection's members was considered and rejected for tier 1; the key records it. |
+| 83 | T22A: after Enter, focus stays in the box, so "/" types a literal "/" (`T22A/07.png`). | (n) | Expected for a text box. |
+| 84 | T22A: the column list after "=" marks each column with a funnel icon (`T22A/08.png`), suggesting the filtering this task must avoid. | (a) Find rules | Wrong icon: a column is not a filter. |
+| 85 | T22B: the setup failed once with four 3-second click timeouts; the tool did not say which check failed. | (a) Study tool | The tool must print Playwright's reason so a failed start can be traced. |
+| 86 | T22B: the 13 marked ties are thin, pale gold lines hard to tell from gray ties (`T22B/06.png`). | (a) Marks | A selection the reader cannot see. |
+| 87 | T22B: the hints under the find box are about 9 px and low-contrast gray (`T22B/03.png`, `05.png`). | (a) Shared controls, Find rules | Below legible size and contrast. |
+| 88 | T22B: the box clears after Enter (`T22B/06.png`). | (a) Find rules | Same as 81. |
+| 89 | T22B: the selected edges are not listed (`T22B/06.png`). | (b) | Same as 82. |
+| 90 | T22B: the funnel icon on columns (`T22B/03.png`). | (a) Find rules | Same as 84. |
+
+## Neighbors (T23)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 91 | T23A: after "Filter to neighbors" the PageRank row is "out of date" with "What it ran on changed since this run", still showing 20 with 15 drawn (`T23A/07.png`, `08.png`). | (a) Filters for the words; (b) for whether a view filter should mark it | The note must say what changed in numbers ("ran on 20 nodes, 15 shown now"). Whether narrowing the view should mark a whole-graph run at all is a design question the key already tells graders to record. |
+| 92 | T23A: the drawing is not reframed after narrowing (`T23A/07.png`). | (b) | Whether a filter refits is a design question; an unasked view change is itself a defect elsewhere (39). |
+| 93 | T23A: the header changes form between hop counts: "Ava's 6 connections" with a weight table, then "14 nodes within 2 hops of Ava" with names (`T23A/05.png`, `06.png`). | (a) Inspector polish | One heading pattern for one view; the weight column stays only where direct ties carry weights. |
+| 94 | T23A: no labels drawn, so the drawing cannot confirm the 15 people. | (b) | As 15. |
+| 95 | T23A: the tool printed the PageRank row's tooltip for the "15 of 20 nodes" chip (`T23A/09.png` shows none). | (a) Study tool | Same as 8. |
+| 96 | T23A: no script errors, console errors or failed requests. | (n) | Not a defect. |
+| 97 | T23B: the PageRank row is marked out of date after narrowing; the key still shows the full range (`T23B/07.png`). | (a)/(b) as 91 | Same as 91. |
+| 98 | T23B: "Filter to neighbors" shows no pressed or active state once on, and the panel shows no way to undo it (`T23B/06.png`, `08.png`). | (a) Filters | A toggle with no "on" state; pressing it again turns it off. |
+| 99 | T23B: the tool printed the previous tooltip for the "12 of 15 nodes" chip (`T23B/08.png`). | (a) Study tool | Same as 8. |
+| 100 | T23B: focus rings land on whole containers: the Summary table after Enter (`T23B/03.png`), the Neighborhood panel after g (`04.png`); the setup's Size ring (`01.png`). | (a) Focus, Study tool | Focus must land on a control. |
+
+## Edges (T24)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 101 | T24A: labels collide: Hana's under Ivan's node, Chloe and Sarah overlapping (`T24A/02.png`, `04.png`). | (b) | The start draws every label; collision handling (declutter against all labels) is an open rendering design, not a polish fix. The key notes the collision. |
+| 102 | T24A: node labels are about 6 px in a serif face, unlike the rest of the app (`T24A/02.png`). | (a) Inspector polish | The app's label style sets no font, so the canvas falls back to serif; the app sets its own font and a legible size through its style layer. |
+| 103 | T24A: edges are 1-pixel lines; Gus-Ivan and Gus-Hana leave Gus about 20 degrees apart. | (a) Edge picking | A target far below a usable pointer size. |
+| 104 | T24A: after Select endpoints the line loses its gold band (`T24A/04.png`). | (n) | Consistent: the selection became two nodes. |
+| 105 | T24A: the Edge actions menu covers the inspector tabs ("Valu", `T24A/03.png`). | (n) | As 19. |
+| 106 | T24B: an edge is named two ways: "Station -> Stadium" (ASCII) in the inspector, a Unicode arrow in Find; typing the inspector's title finds nothing (`T24B/04.png`, `08.png`, `10.png`). | (a) Find rules | One spelling, and Find must find a name the app itself shows. |
+| 107 | T24B: Find does not list edges by the name of a stop at either end ("Stadium" returns only the node, `T24B/07.png`), though it lists them by value. | (a) Find rules | Once Find matches an edge's title (106), its ends' names match too; the key's expected route then exists. |
+| 108 | T24B: a line gives no feedback on hover (`T24B/02.png`, `03.png` identical). | (a) Edge picking | Nothing says the line can be clicked; the pointer must change over a pickable edge. |
+| 109 | T24B: the Stadium label sits on the Station-Stadium line, leaving a short, crowded target (`T24B/01.png`). | (b) | Label placement, as 101; the wider hit area (103) addresses the target. |
+
+## Returning to a neighborhood (T12R)
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| 110 | T12RA: the first click on "Degree" after the setup timed out once; the tool did not log why (`T12RA/06.png`). | (a) Study tool | Same as 85. |
+| 111 | T12RA: in Neighborhood, Javert's own dot looks like his 17 neighbors (`T12RA/08.png`, `10.png`, `13.png`). | (b) | How the starting node is marked against its neighbors is a design question; names on the drawing would also answer it. |
+| 112 | T12RA: no visible focus once Neighborhood opens; the Summary section shows a heavy outline around the whole group (`T12RA/05.png`, `08.png`). | (a) Focus | Focus on a container or invisible. |
+| 113 | T12RA: the Size box shows the setup's focus ring (`T12RA/01.png`). | (a) Study tool | Same as 21. |
+| 114 | T12RB: the connections view has no way back to the node's Summary; its menu holds only "Frame selection" (`T12RB/06.png`, `09.png`). | (a) Inspector polish | A dead end; earlier rounds removed the same kind. |
+| 115 | T12RB: "Medici's 6 connections" and "Hops" are smaller than the names under them (`T12RB/06.png`). | (a) Inspector polish | Inverted hierarchy. |
+| 116 | T12RB: "Results" is styled as a row of the values table with no value (`T12RB/05.png`). | (a) Inspector polish | Wrong component: a section heading drawn as a value row. |
+| 117 | T12RB: hovering a family in the list does not mark its dot (`T12RB/07.png`). | (b) | Linking hover between list and drawing is a new behavior; whether readers look for it is for the sessions. |
+| 118 | T12RB: the list opens under the still pointer, so Ridolfi shows the hover shade (`T12RB/06.png`). | (n) | Ordinary hover under a resting pointer; the hover shade differs from the selected one. |
+| 119 | T12RB: selecting a node repaints it and its neighbors gold, replacing the PageRank fill (`T12RB/05.png`, `06.png`). | (b) | How selection shows over a colored drawing is an open design question. |
+| 120 | T12RB: the Size control shows the setup's focus ring (`T12RB/01.png`). | (a) Study tool | Same as 21. |
+
+## From the five stopped sessions
+
+| # | Problem | Class | Reason |
+| - | ------- | ----- | ------ |
+| S1 | The From and To boxes of the Path popover have no accessible name (each reads "combobox") and share the placeholder "Type a node's name"; a participant aiming at To typed into From and got "DepotHarbor" (r1-s01 `16.png`). | (a) Path form and Made with | The visible labels are not tied to their inputs; two controls with one name. |
+| S2 | The edge table's "From" column header and the popover's From box are both reachable as "From"; aiming at the box sorted the table and closed the popover (r1-s01 `14.png`, r1-s03 `13.png`, r1-s04 `14.png`). | (a) Path form and Made with | The box's name says what it is ("From node"), keeping its visible label. |
+| S3 | Two "Expand Advanced" buttons are reachable at once (the popover's and the right panel's); the wrong one opened (r1-s04 `22.png`). | (a) Path form and Made with | Two controls with one name; each names whose options it opens. |
+| S4 | The "Amount" chip on an attribute looks clickable, does nothing, and has no tooltip (r1-s01 `07.png`, `08.png`; r1-s02 `07.png`; r1-s03 `05.png`; r1-s04 `06.png`). | (a) Inspector polish | A control-looking element with no action or explanation: drawn as plain text with a tooltip saying what the kind means. |
+| S5 | A right-click on a table column header sorts it (r1-s04 `09.png`). | (a) Inspector polish | Only a primary click sorts. |
+| S6 | Closeness's Advanced shows "Sample size 0" (r1-s04 `23.png`). | (a) Inspector polish | A raw value: 0 means every node is used, and the field says so. |
+| S7 | The Overview's Direction value is cut to "Undirected, set in the..." (r1-s02 `21.png`). | (a) Rows | Same as 2. |
+| S8 | After Direction is set to Undirected, the import heading still draws an arrow (r1-s02 `20.png`). | (a) Import page | Same as 7; the heading in words follows the direction. |
+| S9 | "Total distance 7.5" has no unit (r1-s02, r1-s03, r1-s04). | (b) | The program does not know the unit; whether to borrow the column's name is a design question. |
+| S10 | After a plain open, the Path popover's Weight starts on "None" and forgets a per-run pick on reopening; the list offers "minutes (farther)" though no meaning was set (r1-s03 `11.png`, `14.png`). | (b) | The load route against the per-run route is exactly what T20 measures. |
+| S11 | "Back to start" did not ask about an unsaved project after a plain open (r1-s02 `13.png`) but did after a run (r1-s03 `22.png`, r1-s04 `25.png`). | (n) | Nothing had changed since the file was opened; there was nothing to lose. |
+| S12 | The study tool crashed with `write EPIPE` (real.mjs line 373), ending two sessions (r1-s05, r1-s06). | (a) Study tool | Writing a reply to a client that has gone away kills the tool's server; the error must be caught. |
+| S13 | A helper script shared between sessions sent one session's click into another (r1-s03, r1-s01 `03.png`). | (a) Study tool | Sessions must never share a helper script; each runs `real.mjs` directly with its own folder. |
+| S14 | Before Farther, the hint says "paths ignore it", which participants did not understand (r1-s02 `17.png`). | (a) Import page | Part of the hint rewrite in 59. |
+| S15 | Shortest path's description, "the fewest steps, or the lightest route", reads oddly for minutes and kilometers (r1-s01, r1-s02, r1-s03, r1-s04). | (a) Path form and Made with | "Lightest" is not a word readers use for a cost; four of four noticed it. |
+| S16 | The attribute is tagged "Amount" while the Path popover calls the same column "minutes (farther)". | (b) | Whether an attribute shows its loaded weight meaning is the same question as 60. |
+
+## Counts
+
+Of the 136 items (120 from the dry run, 16 from the stopped sessions), 100 are fixed before
+round 1, in whole or in part; 24 are left for the sessions; 12 need no change. Four of the fixed
+items also hold a part left for the sessions (32, 91 and 97: the key's two color entries and
+whether a view filter should mark a run) or needing no change (40: the list overlay).

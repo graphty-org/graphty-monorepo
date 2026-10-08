@@ -267,9 +267,8 @@ function groupsSentence(params: Params, result: RunResult, locale: string | unde
     // one. The word for a scored one comes from the field's own interpretation scale.
     if (modularity !== undefined) {
         const words = bandWords(result, params.band);
-        parts.push(
-            `Modularity is ${figure(modularity, locale)}${words === undefined ? "" : ` (${words.toLowerCase()})`}.`,
-        );
+        const named = words === undefined ? "" : ` (${words.toLowerCase()})`;
+        parts.push(`Modularity is ${figure(modularity, locale)}${named}.`);
     }
 
     return parts.join(" ");
@@ -290,6 +289,80 @@ function bandWords(result: RunResult, id: CodedFactParam | undefined): string | 
 }
 
 /**
+ * A count and its noun, plural unless the count is exactly one.
+ * @param count - How many.
+ * @param noun - The singular.
+ * @param locale - The locale to print the count in.
+ * @returns Such as "3 hops".
+ */
+function counted(count: number, noun: string, locale: string | undefined): string {
+    const word = count === 1 ? noun : `${noun}s`;
+
+    return `${figure(count, locale)} ${word}`;
+}
+
+/** Writes the English for one reading code from the fact's figures. */
+type ReadingWords = (params: Params, result: RunResult, options: ReadingOptions) => string;
+
+/** The English sentence the deprecated `reading()` returns for each code. */
+const READING_SENTENCES: Readonly<Record<ReadingCode, ReadingWords>> = {
+    "reading.metric": metricSentence,
+    "reading.metric-empty": (params, result, options) =>
+        `Nothing was measured, so there is no ${fieldWords(result, String(params.field), options.audience)} to report.`,
+    "reading.groups": (params, result, options) => groupsSentence(params, result, options.locale),
+    "reading.groups-empty": () => "Nothing was grouped, so there are no groups to report.",
+    "reading.path": (params, _result, { locale }) => {
+        const hops = numberOf(params.hops);
+        const cost = numberOf(params.cost);
+        const parts: string[] = [];
+        if (hops !== undefined) {
+            parts.push(`The route runs ${counted(hops, "hop", locale)}.`);
+        }
+
+        if (cost !== undefined) {
+            parts.push(`Its total cost is ${figure(cost, locale)}.`);
+        }
+
+        return parts.join(" ");
+    },
+    "reading.path-none": () => "No route was found.",
+    "reading.set": (params, _result, { locale }) => {
+        const count = Number(params.count);
+        const noun = String(params.element);
+        if (count === 0) {
+            return `No ${noun}s were selected.`;
+        }
+
+        return `${counted(count, noun, locale)} were selected.`;
+    },
+    "reading.pairs": (params, _result, { locale }) => {
+        const count = Number(params.count);
+        if (count === 0) {
+            return "No pairs were found.";
+        }
+
+        const verb = count === 1 ? "was" : "were";
+        return `${counted(count, "pair", locale)} ${verb} found.`;
+    },
+    "reading.series": (params, _result, { locale }) => {
+        const steps = Number(params.steps);
+        if (steps === 0) {
+            return "The series is empty.";
+        }
+
+        return `The series covers ${counted(steps, "step", locale)}.`;
+    },
+    "reading.coverage": (params, _result, { locale }) => {
+        const measured = Number(params.measured);
+        if (measured === 0) {
+            return "The run produced no values.";
+        }
+
+        return `The run covered ${figure(measured, locale)} of ${figure(Number(params.count), locale)}.`;
+    },
+};
+
+/**
  * The English sentence the deprecated `reading()` returns for a reading fact.
  * @param fact - The fact.
  * @param result - The result it reads, for the names, units and band words of its fields.
@@ -297,65 +370,7 @@ function bandWords(result: RunResult, id: CodedFactParam | undefined): string | 
  * @returns The sentence.
  */
 export function readingSentence(fact: CodedFact<ReadingCode>, result: RunResult, options: ReadingOptions): string {
-    const { params } = fact;
-    const { locale } = options;
-    const count = Number(params.count);
-
-    switch (fact.code) {
-        case "reading.metric": {
-            return metricSentence(params, result, options);
-        }
-        case "reading.metric-empty": {
-            return `Nothing was measured, so there is no ${fieldWords(result, String(params.field), options.audience)} to report.`;
-        }
-        case "reading.groups": {
-            return groupsSentence(params, result, locale);
-        }
-        case "reading.groups-empty": {
-            return "Nothing was grouped, so there are no groups to report.";
-        }
-        case "reading.path": {
-            const hops = numberOf(params.hops);
-            const cost = numberOf(params.cost);
-
-            return [
-                ...(hops === undefined
-                    ? []
-                    : [`The route runs ${figure(hops, locale)} ${hops === 1 ? "hop" : "hops"}.`]),
-                ...(cost === undefined ? [] : [`Its total cost is ${figure(cost, locale)}.`]),
-            ].join(" ");
-        }
-        case "reading.path-none": {
-            return "No route was found.";
-        }
-        case "reading.set": {
-            const noun = String(params.element);
-
-            return count === 0
-                ? `No ${noun}s were selected.`
-                : `${figure(count, locale)} ${count === 1 ? noun : `${noun}s`} were selected.`;
-        }
-        case "reading.pairs": {
-            return count === 0
-                ? "No pairs were found."
-                : `${figure(count, locale)} ${count === 1 ? "pair was" : "pairs were"} found.`;
-        }
-        case "reading.series": {
-            const steps = Number(params.steps);
-
-            return steps === 0
-                ? "The series is empty."
-                : `The series covers ${figure(steps, locale)} ${steps === 1 ? "step" : "steps"}.`;
-        }
-        default: {
-            // `reading.coverage`, the statement of last resort.
-            const measured = Number(params.measured);
-
-            return measured === 0
-                ? "The run produced no values."
-                : `The run covered ${figure(measured, locale)} of ${figure(count, locale)}.`;
-        }
-    }
+    return READING_SENTENCES[fact.code](fact.params, result, options);
 }
 
 /**

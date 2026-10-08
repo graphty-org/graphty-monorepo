@@ -219,7 +219,7 @@ type Text = (name: string) => string;
 function grouped(value: CodedFactParam): string {
     const count = Number(value);
 
-    return Number.isFinite(count) ? String(Math.round(count)).replace(/\B(?=(\d{3})+(?!\d))/g, ",") : "unknown";
+    return Number.isFinite(count) ? Math.round(count).toLocaleString("en-US") : "unknown";
 }
 
 /** The English name each unscored partition algorithm goes by in its caveat. */

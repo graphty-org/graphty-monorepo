@@ -79,6 +79,49 @@ describe("data.import", () => {
         session.dispose();
     });
 
+    it("a redo and an undo of a replacing import rebuild nothing: the undo takes the graph back whole", async () => {
+        const harness = makeSession();
+        const { session, store } = harness;
+        await session.data.addNodes(["v0", "v1", "v2", "v3"].map((id, at) => ({ id, at })));
+        await session.data.addEdges([
+            { src: "v0", dst: "v1", weight: 2 },
+            { src: "v1", dst: "v2" },
+            { src: "v2", dst: "v3", weight: 5 },
+        ]);
+        await session.data.removeNodes(["v1"]);
+        await session.positions.set([{ id: "v2", x: 7, y: 8, z: 9 }]);
+        await session.data.import({ type: "json", config: { data: DOCUMENT } }, { mode: "replace" });
+        await session.undo();
+        const before = { ids: ids(session), columns: columns(session), digest: digest(session) };
+        const rebuilds = store.rebuildCount;
+
+        for (let cycle = 0; cycle < 2; cycle++) {
+            await session.redo();
+            assert.deepEqual(ids(session), ["a", "b"]);
+            // An edit to the imported graph, undone before the import is: the graph set aside is
+            // the one the undo needs whatever happened to the imported one meanwhile.
+            await session.data.addNodes([{ id: "c" }]);
+            await session.undo();
+            const redone = store.rebuildCount;
+            await session.undo();
+
+            assert.deepEqual(ids(session), before.ids);
+            assert.strictEqual(store.rebuildCount, redone, "the undo took the graph back without a rebuild");
+            assert.deepEqual(columns(session), before.columns);
+            assert.strictEqual(digest(session), before.digest, "rows, edge ids, weights and records as they were");
+        }
+
+        // Only the redo's swap to an empty builder counts, once per redo.
+        assert.strictEqual(store.rebuildCount, rebuilds + 2);
+        const at = { x: 0, y: 0, z: 0 };
+        store.positions.read(session.snapshot().ids.indexOf("v2"), at);
+        assert.deepEqual(at, { x: 7, y: 8, z: 9 }, "the node is where it was before the redo");
+        // The edge index the store keeps by edge id is the graph's own again: removing by id works.
+        await session.data.removeEdges(["2"]);
+        assert.strictEqual(session.snapshot().edgeCount, 0);
+        session.dispose();
+    });
+
     it("undoing a merge import and an add restores the report each one replaced", async () => {
         const session = await fixtureSession();
         const first = session.data.lastImport();

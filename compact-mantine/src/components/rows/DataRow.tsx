@@ -15,7 +15,8 @@ import { EllipsizedName } from "./EllipsizedName";
 import { holdsSomething, TrailingSlot } from "./TrailingSlot";
 
 /** What counts as a trailing control of its own, which keeps its clicks out of the row's. */
-const TRAILING_CONTROL = "button, a[href], input, select, textarea, label, [role]:not([role='presentation']), [tabindex]";
+const TRAILING_CONTROL =
+    "button, a[href], input, select, textarea, label, [role]:not([role='presentation']), [tabindex]";
 
 /**
  * Props for the DataRow component.
@@ -204,11 +205,10 @@ export function DataRow({
                 name={name}
             />
 
-            {hasValue && (
-                <span className="cm-data-row-value" data-testid="data-row-value">
-                    {reading}
-                </span>
-            )}
+            {/* A reading the row cannot fit beside its name (a phrase, not a number) is cut,
+                never below half the row's width, and carries its whole text as its own tooltip
+                and in the accessible name. */}
+            {hasValue && <EllipsizedName self className="cm-data-row-value" testId="data-row-value" name={reading} />}
         </>
     );
 

@@ -389,13 +389,35 @@ export const Inert: Story = {
 
 /**
  * A name longer than the row. It ellipsizes and carries the whole string as a title for the
- * pointer, and stays whole in the accessible name. The value never gives up its width, because
+ * pointer, and stays whole in the accessible name. A short value never gives up its width, because
  * the number is the thing being compared.
  */
 export const LongName: Story = {
     args: {
         name: "Mrs_Henderson_from_the_house_on_the_corner",
         value: "4",
+    },
+};
+
+/**
+ * A stat whose reading is a phrase longer than the row. The value takes at most 60% of the row,
+ * so the name stays readable; the value ellipsizes inside the row, carries its whole text as its
+ * own tooltip, and stays whole in the accessible name.
+ */
+export const LongValue: Story = {
+    parameters: BOTH_SCHEMES,
+    render: (): React.JSX.Element => (
+        <Stack gap={0}>
+            <DataRow stat name="Direction" value="Undirected, from the file: directed 0" />
+            <DataRow stat name="Edges per node" value={6.597} />
+            <DataRow stat name="Degree" value="1 to 36, mean 6.597, median 6" />
+        </Stack>
+    ),
+    play: async ({ canvasElement }) => {
+        const canvas = within(canvasElement);
+        await expect(canvas.getByRole("group", { name: "Direction" })).toHaveTextContent(
+            "DirectionUndirected, from the file: directed 0",
+        );
     },
 };
 

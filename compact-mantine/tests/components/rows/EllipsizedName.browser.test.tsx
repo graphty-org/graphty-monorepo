@@ -98,9 +98,10 @@ describe("a name that ellipsizes", () => {
     });
 
     it("shows the whole name when the pointer rests on a DataRow's value", async () => {
+        // A value drawn whole: a value that is itself cut short shows its own tooltip instead.
         await renderThemed(
             <div style={{ width: 240 }}>
-                <DataRow stat name={LONG} value="1 to 36, mean 6.597" />
+                <DataRow stat name={LONG} value="77" />
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-value"));

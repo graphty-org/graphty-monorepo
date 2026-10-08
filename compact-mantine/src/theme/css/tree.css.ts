@@ -425,10 +425,16 @@ const css = `
 .cm-data-row[data-selected]:hover::after { background: var(--cm-bg-selected); }
 .cm-data-row:has(.cm-data-row-body:focus-visible)::before,
 .cm-data-row[data-state="focus"]::before { outline-color: var(--cm-border-selected); }
+/* A grid rather than a flex row: when the name and the value do not both fit, the grid hands
+   them the width in equal halves, and a half one of them does not need goes to the other. So a
+   short name stays whole beside a long value, a short value stays whole beside a long name, and
+   only two long ones are each cut, at half the row. The name's track takes what is left over,
+   which keeps the value at the trailing edge. */
 .cm-data-row-body {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, max-content);
     align-items: center;
-    gap: 8px;
+    column-gap: 8px;
     flex: 1 1 auto;
     min-width: 0;
     height: 100%;
@@ -442,8 +448,10 @@ const css = `
     outline: none;
     cursor: default;
 }
+.cm-data-row-body:has(> .cm-data-row-icon) { grid-template-columns: 16px minmax(0, auto) minmax(0, max-content); }
+.cm-data-row-body:not(:has(> .cm-data-row-value)) { grid-template-columns: minmax(0, 1fr); }
+.cm-data-row-body:has(> .cm-data-row-icon):not(:has(> .cm-data-row-value)) { grid-template-columns: 16px minmax(0, 1fr); }
 .cm-data-row-icon {
-    flex: none;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -452,13 +460,18 @@ const css = `
     color: var(--cm-icon-secondary);
 }
 .cm-data-row-name {
-    flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.cm-data-row-value { flex: none; color: var(--cm-text-secondary); }
+.cm-data-row-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--cm-text-secondary);
+}
 .cm-data-row:not([data-trailing]) .cm-data-row-value { padding-inline-end: 8px; }
 /* A stat row (VOCAB.md): the name is the label, the value the reading the reader came for. */
 .cm-data-row[data-stat] .cm-data-row-name { color: var(--cm-text-secondary); font-weight: 400; }

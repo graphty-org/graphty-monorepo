@@ -1,19 +1,28 @@
 import { Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 /** A control inside the row, which keeps its own tooltip. */
 const CONTROL = "button, a, input, select, textarea, [role], [tabindex]";
 
+/** Another cut-short text in the row that anchors its own tooltip, such as a long value. */
+const SELF_ANCHORED = "[data-ellipsized]";
+
 /** Props for EllipsizedName. */
 interface EllipsizedNameProps {
     /** The whole string, drawn and, while it is cut short, the tooltip. */
-    name: string;
+    name: React.ReactNode;
     /** The class that draws it, and ellipsizes it. */
     className: string;
     /** An id, for a row that names itself by this string. */
     id?: string;
     /** A test id. */
     testId?: string;
+    /**
+     * Anchors the tooltip to the text itself rather than to its row: for a second text in a row,
+     * such as a long value, whose tooltip must not take the row from the name's.
+     */
+    self?: boolean;
 }
 
 /**
@@ -27,15 +36,16 @@ interface EllipsizedNameProps {
  * @param props.className - The class that draws and ellipsizes it
  * @param props.id - An id, for a row that names itself by this string
  * @param props.testId - A test id
+ * @param props.self - Anchors the tooltip to the text itself rather than to its row
  * @returns The name
  */
-export function EllipsizedName({ name, className, id, testId }: EllipsizedNameProps): React.JSX.Element {
+export function EllipsizedName({ name, className, id, testId, self = false }: EllipsizedNameProps): React.JSX.Element {
     const ref = useRef<HTMLSpanElement>(null);
     const [row, setRow] = useState<HTMLElement | null>(null);
     const [cut, setCut] = useState(false);
     useEffect(() => {
         const span = ref.current;
-        const area = span?.parentElement ?? null;
+        const area = self ? span : (span?.parentElement ?? null);
         setRow(area);
         if (span === null || area === null) {
             return undefined;
@@ -43,21 +53,33 @@ export function EllipsizedName({ name, className, id, testId }: EllipsizedNamePr
         // pointerover fires on every element the pointer enters, before the tooltip's own
         // mouseenter, so the measure is current when the tooltip decides to open.
         const measure = (event: PointerEvent): void => {
-            const control = (event.target as Element).closest(CONTROL);
+            const target = event.target as Element;
+            const control = target.closest(CONTROL);
             const onControl = control !== null && control !== area && area.contains(control);
-            setCut(!onControl && span.scrollWidth > span.clientWidth);
+            // A cut value under the pointer shows its own tooltip, so the name's stays shut.
+            const other = target.closest(SELF_ANCHORED);
+            const onOtherCut = other !== null && other !== span && other.scrollWidth > other.clientWidth;
+            // Rendered, tooltip mounted and listening, before this same pointer movement's
+            // mouseenter: a plain update waits for a later task, and the enter would be missed.
+            flushSync(() => {
+                setCut(!onControl && !onOtherCut && span.scrollWidth > span.clientWidth);
+            });
         };
         area.addEventListener("pointerover", measure);
         return () => {
             area.removeEventListener("pointerover", measure);
         };
-    }, []);
+    }, [self]);
     return (
         <>
-            <span className={className} id={id} data-testid={testId} ref={ref}>
+            <span className={className} id={id} data-testid={testId} data-ellipsized={self ? "" : undefined} ref={ref}>
                 {name}
             </span>
-            {row !== null && <Tooltip label={name} target={row} disabled={!cut} />}
+            {/* No tooltip at all while the text is whole, rather than a disabled one: inside a
+                Tooltip.Group only one tooltip is open at a time, and a disabled tooltip still
+                opens, unseen, and takes the turn from one in the same row that has something to
+                show. */}
+            {row !== null && cut && <Tooltip label={name} target={row} />}
         </>
     );
 }

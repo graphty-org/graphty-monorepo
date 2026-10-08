@@ -47,6 +47,9 @@ export interface TreeNodeData {
     /**
      * A count drawn before the toggles in the secondary ink, always visible (the toggles hide
      * until hover). It joins the row's accessible description, so it is heard as well as seen.
+     * Pass a row's quiet text here (a count, a fill, a filter's outcome): it stays whole until
+     * it would take more than half the row, and while the name or the count is cut short, the
+     * name's tooltip shows both.
      */
     count?: React.ReactNode;
     /**

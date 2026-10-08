@@ -15,6 +15,18 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+00000. (2026-10-08) **Row text fits; a cut row's tooltip carries the whole row (compact-mantine).**
+       The inspector row is 216px inside the 240px panel (section padding 16/8, row 16/8, value 8),
+       so "Edges per node 3 to 6, mean 3.667" truly did not fit (184 needed, 176 free): no padding
+       trick. Fix: a `stat` DataRow's reading WRAPS (row min 32, grows; name start-aligned on the
+       first line); PageList `description` wraps; Tree `count` is `flex:none; max-width:50%`
+       (whole unless more than half the row) and `EllipsizedName` takes `detail` (the count,
+       marked `data-row-detail`) so the tooltip shows name AND count when either is cut. Sources
+       rows now pass `count` (not a pinned `actions` span). Attribute fill stays pinned text: its
+       description already says "25% have a value", and `count` joins aria-describedby (read twice).
+       Listed for the owner (stat rows can be taller). Evidence `tmp/r1-dry1-rows-fit/A/07.png`,
+       `A/10.png` (tooltip), `A/12.png` (recent), `B/04.png` (Direction).
+
 0000. (2026-10-08) **A reopened run keeps its summary (graphty-element `projectFile.ts`, no door).**
       Opening a project hands each saved result to its run as a canned outcome; that outcome had
       no `summary`, so `run.record.summary` was undefined and every app row reading
@@ -65,16 +77,10 @@ acceptance test. "The studio worktree" is
 2. (2026-10-07) **Tier 2 re-walk: all 12 pilots reach the answer (647ba88b2).** Regression fixed
    (1c723b415): only a `.cm-tree-actions` slot with pinned text and no button/input shrinks.
    `:has()` does NOT nest (a `:has(:not(:has()))` selector is dropped whole, silently).
-3. (2026-10-07) Bare `Input.Wrapper` themed in compact-mantine (aaf5ef737): 11 px secondary ink.
-4. (2026-10-07) Weight read-or-not comes from the element's `plan()` (0e2379250, 295d601b9).
-5. (2026-10-07, condensed) Older fixes each with a proof test: Path popover Enter, Frame selection
-   frames a selected edge, selection summary words, Find rule checks, Overview "Nodes showing",
-   Find names edges by end names (inspector `edgeName` still passes ids), real.mjs placeholder
-   clicks and overlay-free motion check.
-6. (2026-10-07) Still open from the tier 2 preflight: Edit source... ADDS (41 -> 82); a reopened
-   project's Direction row shows raw text; element gaps: neighborhood filter has no `direction`,
-   one node + one edge table per load, Dijkstra always undirected; `selection.apply` throws
-   synchronously on a bad selector (unfiled).
+3. (2026-10-07, condensed) Input.Wrapper themed (aaf5ef737); weight read-or-not from the element's
+   `plan()`; older fixes each have a proof test. Still open: Edit source... ADDS (41 -> 82); a
+   reopened project's Direction row shows raw text; neighborhood filter has no `direction`;
+   Dijkstra always undirected; `selection.apply` throws synchronously on a bad selector (unfiled).
 
 ## Priorities and values
 
@@ -127,6 +133,10 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **A stat's reading and a list row's second line wrap; they are never cut.** Reason:
+  the reading is what the reader came for and a tooltip is not reading. A row's quiet text gets up
+  to half the row, and a cut row's tooltip carries name and quiet text. Rejected: cutting the
+  stat's name instead, trimming padding (8px buys one case).
 - (2026-10-08) A canned outcome (project open) must carry everything a live execution's outcome
   does: result, summary, fields, caveats. Reason: the run's record is built from the outcome, so
   any field left off silently vanishes from `run.record` after a reopen while the result itself
@@ -204,6 +214,15 @@ acceptance test. "The studio worktree" is
   `elementAt`, `labelOf` merged (owner to confirm names); the app seeds layouts.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Worked: measuring before fixing. The "free space" beside a cut stat value was three
+  stacked 8px end paddings, and the text was 8px short -- wrapping, not padding, is the fix.
+  Proving a test fails without the change with no stash: `git diff -- <src> > p.patch`,
+  `git apply -R`, run, `git apply`. Did not work: putting an attribute's fill in `count` (its
+  description already reads the fill; a test caught the doubled reading).
+- (2026-10-08) compact-mantine full run: `toolbar.test.tsx` "keeps the last picked face" hit the
+  5 s test timeout (5.5 s) while the browser project shared the CPU; alone it passes in time. Not
+  touched by row changes; watch it if it recurs.
 
 - (2026-10-08) Worked: comparing `run.record.summary` before save and after open in a node test.
   Comparing the whole summary did NOT work: caveats and durationMs differ because the file saves

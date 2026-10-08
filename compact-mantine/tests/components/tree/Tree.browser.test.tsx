@@ -810,6 +810,28 @@ describe("PageList: second line, value and row menu", () => {
         expect(screen.getByRole("gridcell", { name: "Plain" }).getBoundingClientRect().height).toBeCloseTo(32, 0);
     });
 
+    it("wraps a second line too long for the row rather than cutting it", async () => {
+        const when = "In this browser - 20 nodes - Oct 8, 2026, 8:20 PM";
+        await renderThemed(
+            <div style={{ width: 200 }}>
+                <PageList
+                    label="Recent projects"
+                    items={[
+                        {
+                            id: "f",
+                            name: "friends",
+                            description: when,
+                            menu: <button type="button">More for friends</button>,
+                        },
+                    ]}
+                />
+            </div>,
+        );
+        const second = screen.getByText(when);
+        expect(second.scrollWidth).toBeLessThanOrEqual(second.clientWidth);
+        expect(second.getBoundingClientRect().height).toBeGreaterThan(16);
+    });
+
     it("keeps the menu out of the row's name and out of switching, and reaches it with ArrowRight", async () => {
         const onCurrentChange = vi.fn();
         await renderThemed(<PageList label="Recent projects" items={RECENT} onCurrentChange={onCurrentChange} />);

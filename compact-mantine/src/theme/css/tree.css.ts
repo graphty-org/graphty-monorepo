@@ -144,8 +144,15 @@ const css = `
     align-items: center;
     margin-inline-start: 8px;
 }
+/* The count (a row's quiet text) stays whole until it would take more than half the row; then it
+   ellipsizes at half, and the name's tooltip carries both whole. */
 .cm-tree-count {
     flex: none;
+    max-width: 50%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     margin-inline: 4px;
     color: var(--cm-text-secondary);
     font-weight: 450;
@@ -319,11 +326,10 @@ const css = `
     line-height: 16px;
 }
 .cm-page-line { display: flex; align-items: center; min-width: 0; }
+/* The second line wraps rather than cut: a time or a status sentence is read whole. */
 .cm-page-description {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     color: var(--cm-text-secondary);
     font-weight: 400;
     letter-spacing: normal;
@@ -424,9 +430,9 @@ const css = `
     content: "";
     position: absolute;
     top: 4px;
+    bottom: 4px;
     inset-inline-start: 12px;
     inset-inline-end: 8px;
-    height: 24px;
     border-radius: 5px;
     pointer-events: none;
 }
@@ -490,6 +496,18 @@ const css = `
 /* A stat row (VOCAB.md): the name is the label, the value the reading the reader came for. */
 .cm-data-row[data-stat] .cm-data-row-name { color: var(--cm-text-secondary); font-weight: 400; }
 .cm-data-row[data-stat] .cm-data-row-value { color: var(--cm-text); font-weight: 500; }
+/* A stat's reading is never cut: one that does not fit beside its name wraps onto more 16px lines
+   in its own track, and the row grows. The name keeps the first line (start-aligned in a 32px
+   line, level with the reading's first 16px line under its 8px padding). */
+.cm-data-row[data-stat] { height: auto; min-height: 32px; }
+.cm-data-row[data-stat] .cm-data-row-body { align-items: start; }
+.cm-data-row[data-stat] .cm-data-row-value {
+    padding-block: 8px;
+    line-height: 16px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: end;
+}
 
 .cm-data-row-header {
     box-sizing: border-box;

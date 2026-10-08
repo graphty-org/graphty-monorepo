@@ -31,10 +31,45 @@ describe("a stat with a long value", () => {
         expect(screen.getByRole("group", { name: "Direction" }).textContent).toBe(`Direction${VALUE}`);
     });
 
-    it("shows the whole value as a tooltip while the row cuts it short", async () => {
+    it("reads the whole value, wrapped onto more lines, rather than cutting it", async () => {
+        await renderThemed(
+            <div style={{ width: 216 }}>
+                <DataRow stat name="Direction" value={VALUE} />
+            </div>,
+        );
+        const value = screen.getByTestId("data-row-value");
+        expect(value.scrollWidth).toBeLessThanOrEqual(value.clientWidth);
+        expect(value.scrollHeight).toBeLessThanOrEqual(value.clientHeight);
+        // Wrapped: the row grew past its one-line 32px.
+        expect(screen.getByTestId("data-row").getBoundingClientRect().height).toBeGreaterThan(32);
+    });
+
+    it("draws a reading that just misses fitting in full, as the inspector's Overview shows it", async () => {
+        // 216 is the row inside the 240px inspector's section padding.
+        await renderThemed(
+            <div style={{ width: 216 }}>
+                <DataRow stat name="Edges per node" value="3 to 6, mean 3.667" />
+            </div>,
+        );
+        const value = screen.getByTestId("data-row-value");
+        expect(value.scrollWidth).toBeLessThanOrEqual(value.clientWidth);
+        const name = screen.getByTestId("data-row-name");
+        expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
+    });
+
+    it("keeps a one-line stat at 32px", async () => {
+        await renderThemed(
+            <div style={{ width: 216 }}>
+                <DataRow stat name="Nodes" value={12} />
+            </div>,
+        );
+        expect(screen.getByTestId("data-row").getBoundingClientRect().height).toBe(32);
+    });
+
+    it("shows the whole value as a tooltip while a list row cuts it short", async () => {
         await renderThemed(
             <div style={{ width: 240 }}>
-                <DataRow stat name="Direction" value={VALUE} />
+                <DataRow name="Direction" value={VALUE} />
             </div>,
         );
         await userEvent.hover(screen.getByTestId("data-row-value"));
@@ -48,7 +83,7 @@ describe("a stat with a long value", () => {
             <Tooltip.Group>
                 <div style={{ width: 240 }}>
                     <div data-testid="outside" style={{ height: 40 }} />
-                    <DataRow stat name="Direction" value={VALUE} />
+                    <DataRow name="Direction" value={VALUE} />
                 </div>
             </Tooltip.Group>,
         );

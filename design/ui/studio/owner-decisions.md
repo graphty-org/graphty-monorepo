@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- For the owner: a compact-mantine stat row grows instead of cutting its reading
+
+**What.** In `@graphty/compact-mantine`, a `DataRow` with `stat` whose reading does not fit beside
+its name now wraps the reading onto more 16px lines and the row grows past 32px; before, the
+reading was cut with an ellipsis and a tooltip. A `PageList` row's second line (`description`)
+also wraps instead of cutting. A `Tree` row's `count` stays whole until it would take more than
+half the row, then ellipsizes at half, and while the name or the count is cut, the name's tooltip
+shows both. No prop, type or export changes, but a consumer that assumed every stat row is 32px
+tall (a fixed-height virtual list) sees taller rows, so it is listed here as possibly breaking.
+
+**Why.** At 1440 x 900 with default panel widths the inspector's Overview cut "3 to 6, mean
+3.667" to "3 to 6, mean 3...." and "Undirected, set in the project" to "Undirected, set in the...",
+Recent projects cut the save time, and a cut Sources row's tooltip named the file but not its
+counts. A stat's reading is the half the reader came for; a tooltip is not a reading.
+
+**Alternatives.** Cutting the name instead of the reading (a stat label cut to "Edges per n..." is
+no better); trimming row padding (gains 8px, enough for one case, not for a phrase).
+
 ## 2026-10-08 -- For the owner: a ranking's histogram bins continuous values into bands
 
 **What.** `RunResult.histogram()` (and `data.histogram()`, which shares `buildHistogram`) gives one

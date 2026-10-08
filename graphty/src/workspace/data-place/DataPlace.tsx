@@ -88,7 +88,8 @@ function sourceItem(row: SourceRow): TreeNodeData {
         name: row.name,
         icon: SOURCE_GLYPHS[row.kind],
         strong: false,
-        ...(row.quiet === "" ? {} : { description: row.quiet, actions: <Quiet>{row.quiet}</Quiet> }),
+        // The quiet text is the row's count: drawn, read after the name, and in a cut row's tooltip.
+        ...(row.quiet === "" ? {} : { count: row.quiet }),
         ...(row.children === undefined ? {} : { children: row.children.map(sourceItem) }),
     };
 }
@@ -110,6 +111,7 @@ function attributeItem(row: AttributeRow): TreeNodeData {
                 <span>{TYPE_GLYPHS[row.glyph]}</span>
             </Tooltip>
         ),
+        // The fill is already in the description, so it stays out of the row's count.
         ...(row.fill === null ? {} : { actions: <Quiet>{row.fill}</Quiet> }),
     };
 }

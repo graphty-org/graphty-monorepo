@@ -41,6 +41,8 @@ export interface DataRowProps {
      * in the primary color at weight 500, because the reading is the half the
      * reader came for. The pair is exposed as one `role="group"` named by the
      * name, so a screen reader reads "Nodes, 1,000,000" as one unit (WCAG 1.3.1).
+     * A reading too long for the row beside its name wraps onto more lines and
+     * the row grows, so a stat is never cut short.
      *
      * Leave it off for a list of the reader's own strings -- datasets, files,
      * nodes -- where the name is the thing being read.
@@ -205,9 +207,10 @@ export function DataRow({
                 name={name}
             />
 
-            {/* A reading the row cannot fit beside its name (a phrase, not a number) is cut,
-                never below half the row's width, and carries its whole text as its own tooltip
-                and in the accessible name. */}
+            {/* A reading the row cannot fit beside its name (a phrase, not a number) gets at
+                least half the row's width. A stat's reading then wraps onto more lines, so it is
+                never cut; any other row's is cut and carries its whole text as its own tooltip.
+                Either way the whole text is in the accessible name. */}
             {hasValue && <EllipsizedName self className="cm-data-row-value" testId="data-row-value" name={reading} />}
         </>
     );

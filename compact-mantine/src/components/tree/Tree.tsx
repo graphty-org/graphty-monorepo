@@ -206,9 +206,9 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                     {swatch}
                 </span>
             )}
-            {nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} />}
+            {nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} detail={hasCount ? count : undefined} />}
             {hasCount && (
-                <span className="cm-tree-count" id={countId} data-testid="tree-count">
+                <span className="cm-tree-count" id={countId} data-testid="tree-count" data-row-detail="">
                     {count}
                 </span>
             )}

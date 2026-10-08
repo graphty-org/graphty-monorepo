@@ -46,6 +46,33 @@ describe("a name that ellipsizes", () => {
         expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
     });
 
+    it("keeps a short count whole beside a long name, and shows both in the cut row's tooltip", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree label="Sources" items={[{ id: "a", name: "people.csv and messages.csv", count: "12 nodes, 22 edges" }]} />
+            </div>,
+        );
+        const count = screen.getByTestId("tree-count");
+        expect(count.scrollWidth).toBeLessThanOrEqual(count.clientWidth);
+        await userEvent.hover(screen.getByText("people.csv and messages.csv"));
+        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(
+            "people.csv and messages.csv12 nodes, 22 edges",
+        );
+    });
+
+    it("gives a long count half the row and shows it whole in the tooltip, hovered on the count", async () => {
+        const quiet = "1,284 rows, 1,284 nodes, 9 left out because they name no node";
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree label="Sources" items={[{ id: "a", name: "Node table", count: quiet }]} />
+            </div>,
+        );
+        const name = screen.getByText("Node table");
+        expect(name.scrollWidth).toBeLessThanOrEqual(name.clientWidth);
+        await userEvent.hover(screen.getByTestId("tree-count"));
+        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(`Node table${quiet}`);
+    });
+
     it("shuts the tooltip when the row is pressed, though the pointer stays on it", async () => {
         await renderThemed(
             <div style={{ width: 240 }}>

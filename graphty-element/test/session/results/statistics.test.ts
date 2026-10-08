@@ -293,7 +293,10 @@ describe("buildHistogram", () => {
 
         assert.strictEqual(histogram.binning, "banded");
         assert.strictEqual(binned(histogram.bins), 12);
-        assert.isTrue(histogram.bins.some((bin) => bin.count > 1), "some band holds more than one node");
+        assert.isTrue(
+            histogram.bins.some((bin) => bin.count > 1),
+            "some band holds more than one node",
+        );
     });
 
     it("keeps one bar per value for a count field, and for a decimal field whose values repeat", () => {

@@ -142,11 +142,12 @@ reasons, in short:
   follow-up; grade fields fixed in the plan; starts are setups or empty only.
 - 2026-10-07 (researcher, tier 2 prepared and key corrected, folded) -- Wrote `tier2/` (tasks,
   answers, roster, criteria); kept T4, T17-T21 and added T22 (rule: bus >= 10 min = 3; Les Mis
-  >= 10 chapters = 13), T23 (Ava 14; Medici 11), T24 (Gus-Ivan 1; Station-Stadium 4), each piloted
-  and checked against a hand count. Bars 2 and 7 replaced (work kept; weight read as loaded).
-  Personas: six graduates plus Alex, Jordan, Dana; no one on both halves. Key sentences name the
-  build they are true on, never an unlanded fix. Rejected: node-attribute rules for T22, "which
-  stops" in T22 (known gap graded twice), Mara (expert workflows).
+
+    > = 10 chapters = 13), T23 (Ava 14; Medici 11), T24 (Gus-Ivan 1; Station-Stadium 4), each piloted
+    > and checked against a hand count. Bars 2 and 7 replaced (work kept; weight read as loaded).
+    > Personas: six graduates plus Alex, Jordan, Dana; no one on both halves. Key sentences name the
+    > build they are true on, never an unlanded fix. Rejected: node-attribute rules for T22, "which
+    > stops" in T22 (known gap graded twice), Mara (expert workflows).
 
 - 2026-10-07 (researcher, round 3 skeptic verdicts) -- Applied two skeptics' verdicts
   (`rounds/round-3/insights.md`). Rule added for split verdicts: one skeptic's weakening stands

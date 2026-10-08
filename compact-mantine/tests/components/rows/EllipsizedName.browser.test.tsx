@@ -49,7 +49,10 @@ describe("a name that ellipsizes", () => {
     it("keeps a short count whole beside a long name, and shows both in the cut row's tooltip", async () => {
         await renderThemed(
             <div style={{ width: 240 }}>
-                <Tree label="Sources" items={[{ id: "a", name: "people.csv and messages.csv", count: "12 nodes, 22 edges" }]} />
+                <Tree
+                    label="Sources"
+                    items={[{ id: "a", name: "people.csv and messages.csv", count: "12 nodes, 22 edges" }]}
+                />
             </div>,
         );
         const count = screen.getByTestId("tree-count");

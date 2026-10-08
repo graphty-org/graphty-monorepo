@@ -35,6 +35,7 @@ acceptance test. "The studio worktree" is
   ("element is not enabled", "... intercepts pointer events"). A setup ends with focus released
   (the Size box wore a ring at 01.png). Sessions call real.mjs directly, never through a shared
   helper (launch prompt, workflow RULES, README). Evidence `tmp/r1-dry1-study-tool/`.
+
 0. (2026-10-08) **The drawing stays put (element + app, team door).** Three pilot defects, two
    mechanisms. (a) A run grew the legend card; the app reported a bigger top inset and the element
    re-framed (`viewInsets` setter called `zoomToFit` under `autoFrame`) and the orbit camera
@@ -46,6 +47,7 @@ acceptance test. "The studio worktree" is
    Now the camera turns only for a pick that is off screen (`nodeScreenPosition().visible`). (c) The
    "empty canvas below the Save dialog" was (b): after the turn, the drawing ended at y 490 and the
    dialog covered it. Evidence `tmp/r1-dry1-view-stays-put/` (T18B/03-04, T20B/04-05, T19A/02-04).
+
 - (2026-10-08) **Find rules and edge names (element + app + compact-mantine, team door).**
   `FindOptions.edgeNameJoiner` (element, optional, default unchanged) finds an edge by its name,
   ranked with node names, `match.path` "ends"; the app passes `edgeJoiner(session)` (words.ts), the
@@ -56,6 +58,7 @@ acceptance test. "The studio worktree" is
   Evidence `tmp/r1-dry1-find-rules-polish/` (T22A/02, 03, 05, 06; T22B/02, 04; T24B/02-05).
   OPEN: inspector names an edge's ends by id, Find by name (#895); Columns after "=" omit run
   results (PageRank not offered on Les Miserables).
+
 1. (2026-10-08) **Path form names and Made with rows (app + element, team door).** From/To boxes
    are named "From node"/"To node" (visible "From"/"To" kept), hints differ ("Where the path
    starts/ends"); a click pick moves on like Enter; the first option is active (Enter's pick).
@@ -242,7 +245,6 @@ acceptance test. "The studio worktree" is
   Untraced: toolbar real test "frames a selected edge's two ends" lands at x 13.92/14.46 vs 14.07
   with or without that change; TableDock's export preview fails only inside the full real run.
 
-
 - (2026-10-08) Did not work: landing focus on the left panel's tree after open -- Tree typeahead
   claims every one-character key, so the study's single-key shortcuts typed nothing. Worked: a
   plain button (rail). A project that opens ON the Data page (New from data...) must not take
@@ -272,7 +274,6 @@ acceptance test. "The studio worktree" is
   nothing (focus is a treeitem). To capture a second analysis, start a separate setup for it.
 - (2026-10-08) Check a dry-run finding on the frozen build first (`--hover-at` sweeps print
   `elementAt` and the cursor). A Tree child row is not inside its parent treeitem: use `within(tree)`.
-
 
 - (2026-10-07, condensed) Contrast in a browser test: blend alpha over the first opaque ancestor
   (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone (beside it in

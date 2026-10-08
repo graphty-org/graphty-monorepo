@@ -50,7 +50,13 @@ describe("SegmentedControl sized by its content", () => {
 describe("VariablePill bound number field", () => {
     it("draws one focus ring when the pill has keyboard focus", async () => {
         const { container } = renderWithTheme(
-            <VariablePill name="PageRank" value="1 to 3" width={88} onDetach={() => undefined} onClick={() => undefined} />,
+            <VariablePill
+                name="PageRank"
+                value="1 to 3"
+                width={88}
+                onDetach={() => undefined}
+                onClick={() => undefined}
+            />,
         );
         const field = container.querySelector<HTMLElement>(".cm-var-field");
         const pill = container.querySelector<HTMLElement>(".cm-var-pill");

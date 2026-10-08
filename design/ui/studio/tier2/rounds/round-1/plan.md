@@ -57,12 +57,12 @@ audit) are measured on this build apart from the sessions and are not part of th
 
 ## Size: 56 sessions
 
-| Group          | Tasks                                                | Sessions | Bar 1 needs                                |
-| -------------- | ---------------------------------------------------- | -------- | ------------------------------------------ |
-| Core four      | T20, T17, T18, T21: 4 + 4 each                       | 32       | 7 of 8 per task, 3 of 4 per half          |
-| Two tables     | T4: 3 + 3                                            | 6        | 6 of 6                                     |
-| Reduced        | T19, T22, T23, T24: 2 + 2 each                       | 16       | 4 of 4 per task (2 of 2 per half)          |
-| Returning T12  | T12R: 1 + 1                                          | 2        | 2 of 2, graded with tier 1's key (T12)     |
+| Group         | Tasks                          | Sessions | Bar 1 needs                            |
+| ------------- | ------------------------------ | -------- | -------------------------------------- |
+| Core four     | T20, T17, T18, T21: 4 + 4 each | 32       | 7 of 8 per task, 3 of 4 per half       |
+| Two tables    | T4: 3 + 3                      | 6        | 6 of 6                                 |
+| Reduced       | T19, T22, T23, T24: 2 + 2 each | 16       | 4 of 4 per task (2 of 2 per half)      |
+| Returning T12 | T12R: 1 + 1                    | 2        | 2 of 2, graded with tier 1's key (T12) |
 
 Every session is by a returning persona: 37 of 56 (66%) by personas who did tier 1 as first-time
 users (Grace, Ruth, Dev, Elena, Nadia, Tom), 19 by regular analysts (Alex, Jordan, Dana). Each
@@ -108,64 +108,64 @@ shares), with every name drawn in the `-names` setups. No session starts from a 
 file (`../../tasks.md`, "Starts"): reopening was measured in tier 1, and a setup reaches the same
 open work without depending on the project format.
 
-| Id     | Task | Half and data | Persona | Start |
-| ------ | ---- | ------------- | ------- | ----- |
-| r1-s01 | T20 | A: bus stops, bus-stops.csv | Dev | `empty` |
-| r1-s02 | T20 | B: hiking trails, trails.csv | Grace | `empty` |
-| r1-s03 | T20 | A: bus stops, bus-stops.csv | Alex (analyst) | `empty` |
-| r1-s04 | T20 | B: hiking trails, trails.csv | Jordan (analyst) | `empty` |
-| r1-s05 | T20 | A: bus stops, bus-stops.csv | Elena | `empty` |
-| r1-s06 | T20 | B: hiking trails, trails.csv | Nadia | `empty` |
-| r1-s07 | T20 | A: bus stops, bus-stops.csv | Dana (analyst) | `empty` |
-| r1-s08 | T20 | B: hiking trails, trails.csv | Tom | `empty` |
-| r1-s09 | T17 | A: running club, friends.csv | Ruth | `setup:friends-ranked.txt` |
-| r1-s10 | T17 | B: Les Miserables | Dev | `setup:lesmis-ranked.txt` |
-| r1-s11 | T17 | A: running club, friends.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
-| r1-s12 | T17 | B: Les Miserables | Alex (analyst) | `setup:lesmis-ranked.txt` |
-| r1-s13 | T17 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
-| r1-s14 | T17 | B: Les Miserables | Grace | `setup:lesmis-ranked.txt` |
-| r1-s15 | T17 | A: running club, friends.csv | Nadia | `setup:friends-ranked.txt` |
-| r1-s16 | T17 | B: Les Miserables | Tom | `setup:lesmis-ranked.txt` |
-| r1-s17 | T18 | A: running club, friends.csv | Ruth | `setup:friends-ranked.txt` |
-| r1-s18 | T18 | B: Florentine families | Nadia | `setup:florentine-ranked.txt` |
-| r1-s19 | T18 | A: running club, friends.csv | Dana (analyst) | `setup:friends-ranked.txt` |
-| r1-s20 | T18 | B: Florentine families | Alex (analyst) | `setup:florentine-ranked.txt` |
-| r1-s21 | T18 | A: running club, friends.csv | Grace | `setup:friends-ranked.txt` |
-| r1-s22 | T18 | B: Florentine families | Dev | `setup:florentine-ranked.txt` |
-| r1-s23 | T18 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
-| r1-s24 | T18 | B: Florentine families | Tom | `setup:florentine-ranked.txt` |
-| r1-s25 | T21 | A: running club, friends.csv to friends-v2.csv | Grace | `setup:friends-ranked.txt` |
-| r1-s26 | T21 | B: team, team.csv to team-v2.csv | Dev | `setup:team-ranked.txt` |
-| r1-s27 | T21 | A: running club, friends.csv to friends-v2.csv | Alex (analyst) | `setup:friends-ranked.txt` |
-| r1-s28 | T21 | B: team, team.csv to team-v2.csv | Dana (analyst) | `setup:team-ranked.txt` |
-| r1-s29 | T21 | A: running club, friends.csv to friends-v2.csv | Tom | `setup:friends-ranked.txt` |
-| r1-s30 | T21 | B: team, team.csv to team-v2.csv | Ruth | `setup:team-ranked.txt` |
-| r1-s31 | T21 | A: running club, friends.csv to friends-v2.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
-| r1-s32 | T21 | B: team, team.csv to team-v2.csv | Nadia | `setup:team-ranked.txt` |
-| r1-s33 | T4 | A: office, people.csv + messages.csv | Grace | `empty` |
-| r1-s34 | T4 | B: football, players.csv + passes.csv | Tom | `empty` |
-| r1-s35 | T4 | A: office, people.csv + messages.csv | Dana (analyst) | `empty` |
-| r1-s36 | T4 | B: football, players.csv + passes.csv | Alex (analyst) | `empty` |
-| r1-s37 | T4 | A: office, people.csv + messages.csv | Elena | `empty` |
-| r1-s38 | T4 | B: football, players.csv + passes.csv | Ruth | `empty` |
-| r1-s39 | T19 | A: running club, friends.csv | Tom | `setup:friends-ranked.txt` |
-| r1-s40 | T19 | B: Florentine families | Dev | `setup:florentine-ranked.txt` |
-| r1-s41 | T19 | A: running club, friends.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
-| r1-s42 | T19 | B: Florentine families | Elena | `setup:florentine-ranked.txt` |
-| r1-s43 | T22 | A: bus stops, bus-stops.csv | Nadia | `setup:bus-stops-ranked.txt` |
-| r1-s44 | T22 | B: Les Miserables | Ruth | `setup:lesmis-ranked.txt` |
-| r1-s45 | T22 | A: bus stops, bus-stops.csv | Jordan (analyst) | `setup:bus-stops-ranked.txt` |
-| r1-s46 | T22 | B: Les Miserables | Dana (analyst) | `setup:lesmis-ranked.txt` |
-| r1-s47 | T23 | A: running club, friends.csv | Elena | `setup:friends-ranked.txt` |
-| r1-s48 | T23 | B: Florentine families | Grace | `setup:florentine-ranked.txt` |
-| r1-s49 | T23 | A: running club, friends.csv | Jordan (analyst) | `setup:friends-ranked.txt` |
-| r1-s50 | T23 | B: Florentine families | Nadia | `setup:florentine-ranked.txt` |
-| r1-s51 | T24 | A: running club, friends.csv, names drawn | Ruth | `setup:friends-ranked-names.txt` |
-| r1-s52 | T24 | B: bus stops, bus-stops.csv, names drawn | Dev | `setup:bus-stops-ranked-names.txt` |
-| r1-s53 | T24 | A: running club, friends.csv, names drawn | Dana (analyst) | `setup:friends-ranked-names.txt` |
-| r1-s54 | T24 | B: bus stops, bus-stops.csv, names drawn | Alex (analyst) | `setup:bus-stops-ranked-names.txt` |
-| r1-s55 | T12R | A: Les Miserables | Ruth | `setup:lesmis-ranked.txt` |
-| r1-s56 | T12R | B: Florentine families | Jordan (analyst) | `setup:florentine-ranked.txt` |
+| Id     | Task | Half and data                                  | Persona          | Start                              |
+| ------ | ---- | ---------------------------------------------- | ---------------- | ---------------------------------- |
+| r1-s01 | T20  | A: bus stops, bus-stops.csv                    | Dev              | `empty`                            |
+| r1-s02 | T20  | B: hiking trails, trails.csv                   | Grace            | `empty`                            |
+| r1-s03 | T20  | A: bus stops, bus-stops.csv                    | Alex (analyst)   | `empty`                            |
+| r1-s04 | T20  | B: hiking trails, trails.csv                   | Jordan (analyst) | `empty`                            |
+| r1-s05 | T20  | A: bus stops, bus-stops.csv                    | Elena            | `empty`                            |
+| r1-s06 | T20  | B: hiking trails, trails.csv                   | Nadia            | `empty`                            |
+| r1-s07 | T20  | A: bus stops, bus-stops.csv                    | Dana (analyst)   | `empty`                            |
+| r1-s08 | T20  | B: hiking trails, trails.csv                   | Tom              | `empty`                            |
+| r1-s09 | T17  | A: running club, friends.csv                   | Ruth             | `setup:friends-ranked.txt`         |
+| r1-s10 | T17  | B: Les Miserables                              | Dev              | `setup:lesmis-ranked.txt`          |
+| r1-s11 | T17  | A: running club, friends.csv                   | Jordan (analyst) | `setup:friends-ranked.txt`         |
+| r1-s12 | T17  | B: Les Miserables                              | Alex (analyst)   | `setup:lesmis-ranked.txt`          |
+| r1-s13 | T17  | A: running club, friends.csv                   | Elena            | `setup:friends-ranked.txt`         |
+| r1-s14 | T17  | B: Les Miserables                              | Grace            | `setup:lesmis-ranked.txt`          |
+| r1-s15 | T17  | A: running club, friends.csv                   | Nadia            | `setup:friends-ranked.txt`         |
+| r1-s16 | T17  | B: Les Miserables                              | Tom              | `setup:lesmis-ranked.txt`          |
+| r1-s17 | T18  | A: running club, friends.csv                   | Ruth             | `setup:friends-ranked.txt`         |
+| r1-s18 | T18  | B: Florentine families                         | Nadia            | `setup:florentine-ranked.txt`      |
+| r1-s19 | T18  | A: running club, friends.csv                   | Dana (analyst)   | `setup:friends-ranked.txt`         |
+| r1-s20 | T18  | B: Florentine families                         | Alex (analyst)   | `setup:florentine-ranked.txt`      |
+| r1-s21 | T18  | A: running club, friends.csv                   | Grace            | `setup:friends-ranked.txt`         |
+| r1-s22 | T18  | B: Florentine families                         | Dev              | `setup:florentine-ranked.txt`      |
+| r1-s23 | T18  | A: running club, friends.csv                   | Elena            | `setup:friends-ranked.txt`         |
+| r1-s24 | T18  | B: Florentine families                         | Tom              | `setup:florentine-ranked.txt`      |
+| r1-s25 | T21  | A: running club, friends.csv to friends-v2.csv | Grace            | `setup:friends-ranked.txt`         |
+| r1-s26 | T21  | B: team, team.csv to team-v2.csv               | Dev              | `setup:team-ranked.txt`            |
+| r1-s27 | T21  | A: running club, friends.csv to friends-v2.csv | Alex (analyst)   | `setup:friends-ranked.txt`         |
+| r1-s28 | T21  | B: team, team.csv to team-v2.csv               | Dana (analyst)   | `setup:team-ranked.txt`            |
+| r1-s29 | T21  | A: running club, friends.csv to friends-v2.csv | Tom              | `setup:friends-ranked.txt`         |
+| r1-s30 | T21  | B: team, team.csv to team-v2.csv               | Ruth             | `setup:team-ranked.txt`            |
+| r1-s31 | T21  | A: running club, friends.csv to friends-v2.csv | Jordan (analyst) | `setup:friends-ranked.txt`         |
+| r1-s32 | T21  | B: team, team.csv to team-v2.csv               | Nadia            | `setup:team-ranked.txt`            |
+| r1-s33 | T4   | A: office, people.csv + messages.csv           | Grace            | `empty`                            |
+| r1-s34 | T4   | B: football, players.csv + passes.csv          | Tom              | `empty`                            |
+| r1-s35 | T4   | A: office, people.csv + messages.csv           | Dana (analyst)   | `empty`                            |
+| r1-s36 | T4   | B: football, players.csv + passes.csv          | Alex (analyst)   | `empty`                            |
+| r1-s37 | T4   | A: office, people.csv + messages.csv           | Elena            | `empty`                            |
+| r1-s38 | T4   | B: football, players.csv + passes.csv          | Ruth             | `empty`                            |
+| r1-s39 | T19  | A: running club, friends.csv                   | Tom              | `setup:friends-ranked.txt`         |
+| r1-s40 | T19  | B: Florentine families                         | Dev              | `setup:florentine-ranked.txt`      |
+| r1-s41 | T19  | A: running club, friends.csv                   | Jordan (analyst) | `setup:friends-ranked.txt`         |
+| r1-s42 | T19  | B: Florentine families                         | Elena            | `setup:florentine-ranked.txt`      |
+| r1-s43 | T22  | A: bus stops, bus-stops.csv                    | Nadia            | `setup:bus-stops-ranked.txt`       |
+| r1-s44 | T22  | B: Les Miserables                              | Ruth             | `setup:lesmis-ranked.txt`          |
+| r1-s45 | T22  | A: bus stops, bus-stops.csv                    | Jordan (analyst) | `setup:bus-stops-ranked.txt`       |
+| r1-s46 | T22  | B: Les Miserables                              | Dana (analyst)   | `setup:lesmis-ranked.txt`          |
+| r1-s47 | T23  | A: running club, friends.csv                   | Elena            | `setup:friends-ranked.txt`         |
+| r1-s48 | T23  | B: Florentine families                         | Grace            | `setup:florentine-ranked.txt`      |
+| r1-s49 | T23  | A: running club, friends.csv                   | Jordan (analyst) | `setup:friends-ranked.txt`         |
+| r1-s50 | T23  | B: Florentine families                         | Nadia            | `setup:florentine-ranked.txt`      |
+| r1-s51 | T24  | A: running club, friends.csv, names drawn      | Ruth             | `setup:friends-ranked-names.txt`   |
+| r1-s52 | T24  | B: bus stops, bus-stops.csv, names drawn       | Dev              | `setup:bus-stops-ranked-names.txt` |
+| r1-s53 | T24  | A: running club, friends.csv, names drawn      | Dana (analyst)   | `setup:friends-ranked-names.txt`   |
+| r1-s54 | T24  | B: bus stops, bus-stops.csv, names drawn       | Alex (analyst)   | `setup:bus-stops-ranked-names.txt` |
+| r1-s55 | T12R | A: Les Miserables                              | Ruth             | `setup:lesmis-ranked.txt`          |
+| r1-s56 | T12R | B: Florentine families                         | Jordan (analyst) | `setup:florentine-ranked.txt`      |
 
 "(analyst)" marks the three regular analysts; every other persona did tier 1 as a first-time
 user.
@@ -174,17 +174,17 @@ user.
 
 Each participant reads its persona file(s), then its history in `../../roster.md`.
 
-| Persona | Files (read in this order)                                                                                                      |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| Grace   | `design/ui/studio/personas/nonprofit-operations-analyst.md`, then `design/ui/studio/personas/returning-nonprofit-analyst.md`    |
-| Ruth    | `design/ui/studio/personas/data-journalist.md`, then `design/ui/studio/personas/returning-data-journalist.md`                    |
-| Dev     | `design/ui/studio/personas/class-project-student.md`, then `design/ui/studio/personas/returning-class-project-student.md`        |
-| Elena   | `<study>/personas/explorer-elena.md`                                                                                            |
-| Nadia   | `<study>/personas/alert-reviewer.md`                                                                                            |
-| Tom     | `<study>/personas/recipe-recipient.md`                                                                                          |
-| Alex    | `<study>/personas/analyst-alex.md`                                                                                              |
-| Jordan  | `<study>/personas/marketing-analyst.md`                                                                                         |
-| Dana    | `<study>/personas/supply-chain-analyst.md`                                                                                      |
+| Persona | Files (read in this order)                                                                                                   |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Grace   | `design/ui/studio/personas/nonprofit-operations-analyst.md`, then `design/ui/studio/personas/returning-nonprofit-analyst.md` |
+| Ruth    | `design/ui/studio/personas/data-journalist.md`, then `design/ui/studio/personas/returning-data-journalist.md`                |
+| Dev     | `design/ui/studio/personas/class-project-student.md`, then `design/ui/studio/personas/returning-class-project-student.md`    |
+| Elena   | `<study>/personas/explorer-elena.md`                                                                                         |
+| Nadia   | `<study>/personas/alert-reviewer.md`                                                                                         |
+| Tom     | `<study>/personas/recipe-recipient.md`                                                                                       |
+| Alex    | `<study>/personas/analyst-alex.md`                                                                                           |
+| Jordan  | `<study>/personas/marketing-analyst.md`                                                                                      |
+| Dana    | `<study>/personas/supply-chain-analyst.md`                                                                                   |
 
 `<study>` is
 `/home/apowers/Projects/graphty-monorepo/.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study`;

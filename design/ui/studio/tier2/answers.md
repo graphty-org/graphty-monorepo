@@ -110,7 +110,7 @@ seed, so the pilot of each round re-reads it.
 file..." --upload people.csv`; `--click "Add a table"` (the "+" beside Tables); `--click "File..."
 --upload messages.csv`; read the report (`--click "Show the 1 unmatched row"` shows it); `--click
 "Load"`; `--click "Data"` (Sources); the "1 row left out" row is in the list; selecting it (or
-the source row) shows the left-out row again in the inspector.
+  the source row) shows the left-out row again in the inspector.
 - **Other routes:** opening people.csv from "Open project or file..." loads it straight in (12
   nodes, no ties); then Control+O with messages.csv goes through the Data page as an addition
   (not piloted). Grade SD if the end state and the unmatched row are right.
@@ -384,7 +384,7 @@ shared_chapters as an edge column; the PageRank values are not listed) above the
 under it still reads "Rule: press Enter to select matches" (`rounds/r1d1/pilot/T22A/06.png`,
 `T22B/06.png`); only the inspector header and the Selection row show that it ran. Escape clears
 the box and keeps the selection (`T22B/07.png`). A second Enter on the accepted rule is not a
-detour. On B the example 16 sits near the task's 10; record any participant who uses 16.
+  detour. On B the example 16 sits near the task's 10; record any participant who uses 16.
 - **Other routes, graded by the end state:** clicking each line with Shift held (A: 3 lines; not
   checked on this build); a color on Everything's edges that separates exactly the 10-or-more ties.
   A filter step ("minutes is at least 10") narrows the drawing to the slow links and their stops (not
@@ -500,7 +500,7 @@ Graded with tier 1's key (`../answers.md`, T12): the same names, counts and grad
 on build 3dfe7daf9e45 from the ranked starts (`rounds/r1d1/pilot/T12RA/`, `T12RB/`):
 
 - **The path is 5 steps** (no sample to open): `--key /`; `--type Javert` (B: Medici); `--key
-  ArrowDown`; `--key Enter`; `--click "Degree"` (the row's name is "Degree 17", B "Degree 6").
+ArrowDown`; `--key Enter`; `--click "Degree"` (the row's name is "Degree 17", B "Degree 6").
   After Enter, focus lands on the Degree row itself (focus ring, `rounds/r1d1/pilot/T12RA/05.png`),
   so no Tab is needed. Selecting the node does not move the camera.
 - **The node's values:** the inspector header reads "Javert / Node" with "Style" and "Values"

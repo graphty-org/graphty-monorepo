@@ -160,8 +160,10 @@ export const States: Story = {
     play: async ({ canvasElement }) => {
         await waitForSettledLayout(canvasElement, ".mantine-Tooltip-tooltip");
         // Every cell holds its tooltip open, drawn on the dark tooltip surface.
+        // Five per rendered copy: BOTH_SCHEMES draws the story twice unless the schemes global is "single".
+        const copies = within(canvasElement).getAllByText("below (default)").length;
         const tips = [...canvasElement.querySelectorAll<HTMLElement>(".mantine-Tooltip-tooltip")];
-        await expect(tips).toHaveLength(5);
+        await expect(tips).toHaveLength(5 * copies);
         for (const tip of tips) {
             await expect(getComputedStyle(tip).display).not.toBe("none");
             await expect(getComputedStyle(tip).backgroundColor).not.toBe("rgba(0, 0, 0, 0)");

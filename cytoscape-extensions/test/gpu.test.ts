@@ -140,19 +140,12 @@ describe("the CPU path (WebGPU disabled)", () => {
 });
 
 /**
- * A path graph.
+ * A graph of isolated nodes: the warning reads only the node count, and edges would double what Cytoscape builds.
  * @param n - its node count
  * @returns the core
  */
-function pathGraph(n: number): cytoscape.Core {
-    const elements: cytoscape.ElementDefinition[] = [];
-    for (let i = 0; i < n; i++) {
-        elements.push({ data: { id: `n${i}` } });
-        if (i > 0) {
-            elements.push({ data: { id: `e${i}`, source: `n${i - 1}`, target: `n${i}` } });
-        }
-    }
-    return cytoscape({ headless: true, elements });
+function isolatedNodes(n: number): cytoscape.Core {
+    return cytoscape({ headless: true, elements: Array.from({ length: n }, (_, i) => ({ data: { id: `n${i}` } })) });
 }
 
 /**
@@ -191,7 +184,7 @@ describe("the warning for a large graph on the CPU", () => {
 
     it("Node without Dawn: warns once above the size floor, naming the reason and the fix", async () => {
         refusing("E_NO_WEBGPU", NODE_FIXES);
-        const cy = pathGraph(GPU_SIZE_FLOOR);
+        const cy = isolatedNodes(GPU_SIZE_FLOOR);
         const r = await cy.graphtyPageRankAsync();
         expect(r.backend).toEqual({
             ran: "cpu",
@@ -208,10 +201,13 @@ describe("the warning for a large graph on the CPU", () => {
 
     it("a refused software adapter names acceptSoftware, also from a simulation", async () => {
         refusing("E_SOFTWARE_ONLY");
-        const cy = pathGraph(GPU_SIZE_FLOOR);
+        const cy = isolatedNodes(GPU_SIZE_FLOOR);
         const layout = cy.layout({ name: "graphty-forceatlas2", boundingBox: BOX, maxIter: 1 } as LayoutOptions);
         const stop = layout.promiseOn("layoutstop");
         layout.run();
+        // The warning comes from the device decision, before any step. Stopping while the decision is pending ends the
+        // run there, so the test skips a CPU iteration, whose exact repulsion is 25 million pairs at this size.
+        layout.stop();
         await stop;
         expect((layout as unknown as { backend: Backend }).backend.ran).toBe("cpu");
         expect(warn).toHaveBeenCalledTimes(1);
@@ -220,10 +216,12 @@ describe("the warning for a large graph on the CPU", () => {
 
     it('stays quiet for a small graph, for gpu: "off", and for a reason nobody can fix', async () => {
         refusing("E_NO_WEBGPU", NODE_FIXES);
-        await pathGraph(GPU_SIZE_FLOOR - 1).graphtyPageRankAsync();
-        await pathGraph(GPU_SIZE_FLOOR).graphtyPageRankAsync({ gpu: "off" });
+        // one graph: building one at the floor costs more than everything the test checks
+        const cy = isolatedNodes(GPU_SIZE_FLOOR);
+        await cy.nodes().slice(1).graphtyPageRankAsync();
+        await cy.graphtyPageRankAsync({ gpu: "off" });
         refusing("E_NO_ADAPTER", NODE_FIXES);
-        const r = await pathGraph(GPU_SIZE_FLOOR).graphtyPageRankAsync();
+        const r = await cy.graphtyPageRankAsync();
         expect(r.backend.reason).toMatch(/E_NO_ADAPTER/);
         expect(warn).not.toHaveBeenCalled();
     });

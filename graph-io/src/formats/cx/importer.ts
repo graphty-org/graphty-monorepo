@@ -86,7 +86,6 @@ import {
     CxStructure,
     declareFresh,
     ExactInteger,
-    fitsF32,
     flipY,
     headText,
     inexactLiteral,
@@ -2445,11 +2444,11 @@ class CxReader {
                 );
                 continue;
             }
-            if (!fitsF32(value.x) || !fitsF32(value.y)) {
+            if (!Number.isFinite(value.x) || !Number.isFinite(value.y)) {
                 this.report.error(
                     "validation-error",
                     BAD_VALUE_CODE,
-                    `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, beyond what the f32 position column holds; skipped`,
+                    `a cartesianLayout element for node ${shown(value.node)} has the coordinates ${String(value.x)}, ${String(value.y)}, which are not both finite; skipped`,
                     { line, element: "cartesianLayout" },
                 );
                 continue;

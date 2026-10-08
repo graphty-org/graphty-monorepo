@@ -15,7 +15,7 @@
 export const LABEL_COLUMN = "label";
 
 /**
- * The node column holding the vertex coordinates (role position, f32 x 3, units "file").
+ * The node column holding the vertex coordinates (role position, f64 x 3, units "file").
  * @category Plugin helpers
  */
 export const POSITION_COLUMN = "position";

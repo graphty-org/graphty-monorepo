@@ -2,6 +2,7 @@ import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
 import { LAYOUT_SEED } from "../layout/methods";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 
@@ -85,6 +86,7 @@ export function ElementHost({ onReady }: Readonly<ElementHostProps>): React.JSX.
             // Undefined until the tag has upgraded to the element.
             const session: GraphSession | undefined = element?.session;
             if (!disposed && element !== null && session !== undefined) {
+                session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
                 onReady(element, session);
             }
         };

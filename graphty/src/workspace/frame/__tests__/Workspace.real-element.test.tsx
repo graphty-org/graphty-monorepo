@@ -11,6 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
 
+import { APP_HIGHLIGHT_COLOR } from "../../../constants/highlight";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -123,6 +124,30 @@ describe("the workspace frame on the real element", () => {
             const left = method?.getBoundingClientRect().left ?? 0;
             // compact-mantine's panel grid: content begins 16px in from the panel's leading edge.
             assert.closeTo(left - panel.getBoundingClientRect().left, 16, 1, "Method starts at the content band");
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "paints a shortest path in the app's own highlight colour, not the element's indigo",
+        async () => {
+            const session = await openWorkspace();
+            await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+            await session.data.addEdges([
+                { source: "a", target: "b" },
+                { source: "b", target: "c" },
+            ]);
+
+            await session.runs.start("shortest-path", { source: "a", target: "c" });
+
+            await waitFor(() => {
+                const route = session.styles.list().filter((layer) => layer.kind === "highlight");
+                assert.lengthOf(route, 2);
+                for (const layer of route) {
+                    assert.equal(layer.set?.[`${layer.target ?? "node"}.color`], APP_HIGHLIGHT_COLOR);
+                }
+            });
+            assert.notEqual(APP_HIGHLIGHT_COLOR.toLowerCase(), "#332288");
         },
         TIMEOUT_MS,
     );

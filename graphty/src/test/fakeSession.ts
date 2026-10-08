@@ -868,6 +868,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             return Promise.resolve(layers[at === -1 ? layers.length - 1 : at]);
         },
         resolveToStatic: (id: string): Promise<Layer | undefined> => Promise.resolve(styles.get(id)),
+        /* A view setting: the stand-in paints no highlights, so it only accepts the call. */
+        setHighlightColor: (): void => undefined,
         /* A layer's own legend: its fixed colour as one swatch, while it is shown. */
         legendOf: (id: string): readonly LegendBlock[] => {
             const layer = layers[indexOf(id)];

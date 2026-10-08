@@ -333,36 +333,6 @@ describe("the element's own highlight colour", () => {
             }
         }
     });
-
-    // The checks above compare swatches; a route's nodes are lit spheres a few pixels across, and
-    // shading pulls every colour towards black. Paul Tol's indigo passed the swatch checks and,
-    // rendered, sat Delta E 19 and 2.1:1 from the default nodes: readers saw ordinary nodes. Every
-    // check here compares two NODES at the same tone, because nodes side by side are lit alike.
-    const tones = Object.entries(NODE_TONES);
-
-    it("is clearly apart from the default node at every tone of a node (Delta E >= 30)", () => {
-        for (const vision of [undefined, "protan", "deutan"] as const) {
-            for (const [tone, factor] of tones) {
-                const [mark, node] = [shaded(DEFAULT_HIGHLIGHT.color, factor), shaded(underneath.node, factor)];
-                assert.isAtLeast(deltaE(mark, node, vision), 30, `${vision ?? "normal"} ${tone}: ${mark} vs ${node}`);
-            }
-        }
-    });
-
-    it("is apart from every measurement colour at every tone of a node (Delta E >= 15)", () => {
-        for (const vision of [undefined, "protan", "deutan"] as const) {
-            for (const color of measurementSamples) {
-                for (const [tone, factor] of tones) {
-                    const [mark, ranked] = [shaded(DEFAULT_HIGHLIGHT.color, factor), shaded(color, factor)];
-                    assert.isAtLeast(
-                        deltaE(mark, ranked, vision),
-                        15,
-                        `${vision ?? "normal"} ${tone}: ${mark} vs ${ranked}`,
-                    );
-                }
-            }
-        }
-    });
 });
 
 describe("the band a selected edge is drawn with", () => {

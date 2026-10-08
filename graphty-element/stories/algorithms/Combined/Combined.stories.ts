@@ -287,9 +287,10 @@ export const RouteOverRanking: Story = {
  * before measuring anything.
  *
  * Every other node keeps the default node colour, so the route's nodes have to stand apart from
- * THAT colour as lit spheres a few pixels across, not only as swatches. The highlight is black,
- * where the indigo before it was the default node's own hue made darker and read as more of the
- * same nodes. Beside `RouteOverRanking`, which draws the same route over PageRank's colours.
+ * THAT colour as lit spheres a few pixels across, not only as swatches. The route is drawn in the
+ * element's own highlight colour, indigo, which differs from the default node mostly in lightness;
+ * a consumer that wants more separation sets `session.styles.setHighlightColor()`. Beside
+ * `RouteOverRanking`, which draws the same route over PageRank's colours.
  */
 export const RouteOverUnranked: Story = {
     args: {

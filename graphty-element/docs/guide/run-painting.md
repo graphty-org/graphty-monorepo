@@ -102,6 +102,20 @@ sets the same channel:
 
 Layers that came from earlier runs never hold a later run back.
 
+## Choosing the color of a route
+
+A route or a chosen set of nodes is painted in graphty-element's own highlight color, indigo
+`#332288`, and a highlighted edge is drawn three times as wide. To use your own color for every
+highlight a run paints, and for every `session.styles.highlight()` you call without `set`, set it
+once:
+
+```ts
+session.styles.setHighlightColor("#000000");
+```
+
+`setHighlightColor(undefined)` goes back to indigo. It affects highlights painted after the call,
+not layers already in the stack, and it is not saved with the styles.
+
 ## What the decision does not tell you
 
 - It is a snapshot of the run's first completion. Running the same algorithm again with the same

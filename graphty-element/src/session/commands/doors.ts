@@ -332,6 +332,9 @@ const TOOLS = exempt("Registers or lists assistant tools; it runs none of them."
 const PALETTE_DEFAULTS = exempt(
     "Chooses the palette a layer written later takes when it names none; a project file saves the layer's resolved palette, and a reapply rewrites layers through style.patch.",
 );
+const HIGHLIGHT_DEFAULT = exempt(
+    "Chooses the colour a highlight written later takes when it names none; a project file saves the layer's resolved colour.",
+);
 const QUEUE = exempt("Schedules work; the doors that queue work have their own rows.");
 const EVENTS = exempt("Publishes and subscribes to events; it changes no state.");
 const KEYS = exempt("API keys are secrets of this machine, never saved in a project file.");
@@ -574,6 +577,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     ),
     toDocument: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
+    setHighlightColor: HIGHLIGHT_DEFAULT,
 };
 
 /**

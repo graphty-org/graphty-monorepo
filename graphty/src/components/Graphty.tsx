@@ -3,6 +3,7 @@ import type { AccelerationPolicy, GraphSession, Layer } from "@graphty/graphty-e
 import { Box } from "@mantine/core";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
+import { APP_HIGHLIGHT_COLOR } from "../constants/highlight";
 import type { LayerItem } from "./shell/panel/StyleLayerList";
 
 /**
@@ -136,7 +137,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
        upgraded when the definition lands, which `customElements.whenDefined` announces. */
     useEffect(() => {
         const element = graphtyRef.current;
-        if (!element || (!onStylesChange && !onSession)) {
+        if (!element) {
             return undefined;
         }
 
@@ -150,6 +151,7 @@ export const Graphty = forwardRef<GraphtyHandle, GraphtyProps>(function Graphty(
                 return false;
             }
 
+            session.styles.setHighlightColor(APP_HIGHLIGHT_COLOR);
             onSession?.(session);
 
             if (onStylesChange) {

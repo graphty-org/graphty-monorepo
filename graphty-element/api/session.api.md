@@ -3560,6 +3560,7 @@ export interface StylesApi {
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
     }): void;
+    setHighlightColor(color: string | undefined): void;
     settled(): Promise<void>;
     setValueHidden(id: LayerId, channel: Channel, value: string | number | boolean, hidden: boolean, options?: RunOptions): Run<Layer>;
     toDocument(): StyleDocument;

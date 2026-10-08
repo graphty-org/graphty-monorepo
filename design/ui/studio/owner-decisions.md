@@ -293,37 +293,34 @@ value on average); otherwise bands. In `buildHistogram`, so `RunResult.histogram
 value per element (`data.histogram` on a five-row `score` of 0, 0.5, ... 2) now reports
 `binning: "banded"` where it reported `"per-value"`.
 
-## 2026-10-08 -- For the owner: the shortest path's node color stands out from the default nodes and from a ranking ramp
+## 2026-10-08 -- Decided by the owner: the element's highlight stays indigo; the app picks its own route color
 
-**What.** The color the element paints a highlight in when the caller names none -- the shortest
-path's nodes and edges (the "Shortest route" layers), and any node or edge set -- changes from
-Okabe-Ito vermilion `#D55E00` to black `#000000`, so a route's nodes stand out both on a drawing
-already colored by PageRank and on a drawing with no measure at all. A changed default appearance,
-so listed here; built on the studio branch.
+**Decision.** The owner decided on 2026-10-08: graphty-element's default highlight color stays Paul
+Tol's indigo `#332288`, and the graphty app chooses its own highlight color. An earlier studio
+commit (5a7d22fd1) had changed the element default to black; that change is undone.
 
-**Why.** On every ranked start of the tier 2 study, the path's orange nodes looked like low-ranked
-nodes; only the edges showed the chain. A first fix, Paul Tol's indigo `#332288`, cleared every
-swatch check but is the default node's own hue made darker: rendered as lit spheres on an
-unranked drawing, the route's nodes measured Delta E 19.5 and 2.1:1 from the nodes around them,
-and pilots read them as ordinary nodes; only the thick edges showed the route.
+**Why.** Changing an existing default changes what every consumer's drawings look like, which is a
+breaking change, and the element's defaults are the neutral choice while consumers make their own
+(root CLAUDE.md, "graphty-element offers choices; consumers make them"). The problem the black
+default fixed is real but is the app's: on the app's unranked drawings, an indigo route's nodes
+measured Delta E 19.5 and 2.1:1 from the default nodes as lit spheres, and study pilots read them
+as ordinary nodes (T20A). Another consumer may want a different route color, so it is a choice,
+not a default.
 
-**Alternatives.** The app passes its own path color (a consumer's choice, but every consumer that
-stacks a path on a ranking meets the same clash first). A second, non-color cue on the route's
-nodes: a size would flatten whatever size encoding sits beneath (PageRank sizes the nodes in the
-ranked case), and an outline is a full-screen pass drawn the same thin width for every node.
-Neither was needed once the color was right.
-
-**Built.** `DEFAULT_HIGHLIGHT.color` is `#000000`. Measured as a lit node draws it (shadow, middle
-and lit tones), black is Delta E 40 from the default node and 22 from the darkest step of the
-default measurement palette, for normal vision and under protanopia and deuteranopia, and 19:1
-against the background; a search of the color space found nothing that clears both by more (the
-indigo: 19 and 14). Rendered in the app, the route's nodes against the other nodes: Delta E 50
-and 3.0:1 on the unranked bus stops and trails (indigo: 19.5 and 2.1:1), Delta E 44 and 50 over
-PageRank on friends and the Florentine families (indigo: 25). The cost: black also is the seventh
-color of the default group palette, so a route over a drawing with seven or more groups shares
-its color with one of them; the thick route edges still tell it apart. Tests:
-`test/catalog/default-palette-quality.test.ts` (now also at every tone of a node); stories
-`Algorithms/Combined::RouteOverRanking` and `Algorithms/Combined::RouteOverUnranked`.
+**Built.** graphty-element adds one additive method, `session.styles.setHighlightColor(color |
+undefined)`: the color every highlight that names no style of its own is painted in (a route or
+chosen set a finished run paints by itself, and `styles.highlight()` without `set`); undefined goes
+back to indigo. A view setting: no history step, not saved, applies to highlights painted after
+the call; it refuses a color a layer would not accept with `E_BAD_COMMAND`. The app sets black
+(`APP_HIGHLIGHT_COLOR` in `graphty/src/constants/highlight.ts`) on the session in both element hosts
+(`workspace/frame/ElementHost.tsx` and `components/Graphty.tsx`). Black measured on the app's
+screenshots: route nodes Delta E 50 and 3.0:1 from the default nodes unranked, 44 to 50 over
+PageRank; its cost is that black is also the seventh default group color. Tests: the element
+default and `setHighlightColor` in `graphty-element/test/session/styles/StylesApi.test.ts`; the
+app's route color on the real element in
+`graphty/src/workspace/frame/__tests__/Workspace.real-element.test.tsx`. Checked on a fresh build
+with the study tool: the T20A bus-stops route draws black and stands out
+(`design/ui/studio/tmp/highlight-owner-decision/T20A/14.png`).
 
 ## 2026-10-08 -- For the owner: a selected edge is drawn with a solid blue band behind it
 

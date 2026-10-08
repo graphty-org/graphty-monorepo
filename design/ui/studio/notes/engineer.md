@@ -74,9 +74,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08) **Labels on top (element + app, team door).** `LabelStyle.onTop` (default depth
   sorted) draws a label after the graph; the app's `appLabelLook` sets it. Evidence
   `tmp/r1-dry2-labels-on-top/`.
-- (2026-10-08) **Route color is black (element default, owner door).** Indigo passed swatch checks
-  but read as ordinary on lit spheres. Judge node colors at shaded tones and screenshot pixels
-  (`tmp/r1-dry2-path-color/measure.py`), never swatches. Cost: black is the 7th group color.
+- (2026-10-08) **Route color: element default stays indigo, the app sets black (owner decided).**
+  Never change an element default for the app: the app calls `session.styles.setHighlightColor`
+  with `APP_HIGHLIGHT_COLOR` (`graphty/src/constants/highlight.ts`) in BOTH hosts (`ElementHost.tsx`
+  for `?next`, `Graphty.tsx`). Indigo read as ordinary on lit spheres; judge node colors at shaded
+  tones and screenshot pixels (`tmp/r1-dry2-path-color/measure.py`). Cost: black is the 7th group color.
 - (2026-10-08) **Which end is missing (element + app, team door).** `LeftOutEdge.missingEnds` /
   `DraftRow.missingEnds`; the app marks the cell, the caption and leads the inspector line with it.
   Evidence `tmp/r1-dry2-missing-end/`.
@@ -165,7 +167,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   under the shading model against the default node, the measurement ramp, edge grey, background
   and the selection band (normal, protan, deutan): black wins by far (min Delta E 22 vs 14 for
   indigo). Size was rejected (flattens a size encoding beneath, e.g. PageRank size), outline too
-  (one thin width for all, a full-screen pass). Changes a default -> owner-decisions "for the owner".
+  (one thin width for all, a full-screen pass). The owner kept the element default; the app sets it.
 - (2026-10-08) **View insets are margins for the next fit, never a reason to move the drawing.**
   The consumer that covered the canvas decides, by the shape it knows (`nodesInRect`), whether to
   ask for a fit. Rejected: re-frame when a node is under the bands (moved T18B), a second switch.
@@ -249,7 +251,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08) Did not work: piloting on `graphty/dist` while others rebuild (their `vite build`
   empties it: "no production build"). Worked: copy dist into the task's tmp folder after the
   build, grep its JS for the new words, serve the copy. Run prettier on an index-built blob.
-
 
 - (2026-10-08) A test must fail without the fix: a contrast check passed on the old gray (compare
   to the chosen label instead); unnested rows fit at 240 px and proved nothing.

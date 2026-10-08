@@ -3,6 +3,7 @@ import {
     Combobox,
     FileInput,
     InputClearButton,
+    InputWrapper,
     JsonInput,
     type MantineTheme,
     MultiSelect,
@@ -180,6 +181,16 @@ function listVars(
 }
 
 export const inputComponentExtensions = {
+    // A bare `Input.Wrapper` (around a SegmentedControl, a Slider, a group of checkboxes) takes the
+    // fields' label, description and error. Without it Mantine sizes the description from the
+    // wrapper's size minus 2px: 7px at `size="xs"`, too small to read.
+    InputWrapper: InputWrapper.extend({
+        classNames: (_theme, props) =>
+            props.variant === "unstyled"
+                ? {}
+                : { label: "cm-field-label", description: "cm-field-description", error: "cm-field-error" },
+    }),
+
     TextInput: TextInput.extend({
         defaultProps: { size: "sm", variant: "filled" },
         vars: (_theme, props) => ({ root: {}, wrapper: compactVarsForSize(compactInputScale, props?.size) }),

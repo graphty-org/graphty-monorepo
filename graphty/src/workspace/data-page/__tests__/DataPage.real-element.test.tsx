@@ -109,6 +109,51 @@ function loadButton(): HTMLElement {
     return screen.getByRole("button", { name: "Load" });
 }
 
+/**
+ * The relative luminance of a computed `rgb()` / `rgba()` color (WCAG 2.x).
+ * @param color - the computed color.
+ * @returns its channels (0-255) and alpha.
+ */
+function channels(color: string): [number, number, number, number] {
+    const [r = 0, g = 0, b = 0, a = 1] = (color.match(/[\d.]+/g) ?? []).map(Number);
+    return [r, g, b, a];
+}
+
+/**
+ * The relative luminance of three 0-255 channels.
+ * @param rgb - the channels.
+ * @returns the luminance.
+ */
+function luminance(rgb: number[]): number {
+    const [r = 0, g = 0, b = 0] = rgb.map((c) => {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * The contrast of an element's text against the first opaque background behind it.
+ * @param element - the text's element.
+ * @returns the ratio, such as 4.5.
+ */
+function contrastOnPage(element: HTMLElement): number {
+    let surface: HTMLElement | null = element;
+    let back = channels("rgb(255, 255, 255)");
+    while (surface !== null) {
+        const found = channels(getComputedStyle(surface).backgroundColor);
+        if (found[3] === 1) {
+            back = found;
+            break;
+        }
+        surface = surface.parentElement;
+    }
+    const [r, g, b, a] = channels(getComputedStyle(element).color);
+    const text = [r * a + back[0] * (1 - a), g * a + back[1] * (1 - a), b * a + back[2] * (1 - a)];
+    const [hi, lo] = [luminance(text), luminance(back)].sort((x, y) => y - x);
+    return ((hi ?? 0) + 0.05) / ((lo ?? 0) + 0.05);
+}
+
 describe("the Data page on the real element", () => {
     it(
         "T3: opens a graph file with every check green and focus on Load, and Enter loads it",
@@ -541,6 +586,26 @@ describe("the Data page on the real element", () => {
             );
             await screen.findByText("Loaded weight", {}, { timeout: TIMEOUT_MS });
             assert.isNotNull(screen.getByText("emails (closer)"));
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "draws the unset weight's hint at the fields' 11px and at 4.5:1 contrast (WCAG 1.4.3)",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File(["from,to,emails\np01,p02,14\np02,p03,9\n"], "messages.csv"));
+            await screen.findByText("Weight: none (each edge counts 1)", {}, { timeout: TIMEOUT_MS });
+            await pick("emails", "Weight");
+            const hint = await screen.findByText(
+                "paths ignore it; PageRank and communities read it as larger = closer",
+                {},
+                { timeout: TIMEOUT_MS },
+            );
+            const ratio = contrastOnPage(hint);
+            assert.isAtLeast(ratio, 4.5, `the hint measures ${ratio.toFixed(2)}:1`);
+            // Mantine sizes a bare wrapper's description as its size minus 2px: 7px at xs.
+            assert.equal(getComputedStyle(hint).fontSize, "11px");
         },
         TIMEOUT_MS * 2,
     );

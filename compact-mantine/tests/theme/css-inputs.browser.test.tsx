@@ -805,3 +805,21 @@ describe("InputClearButton - All CSS Values (Browser)", () => {
         expect(getCssVar(button, "--cb-icon-size")).toBe("10px");
     });
 });
+
+// ============================================================================
+// Input.Wrapper
+// ============================================================================
+describe("Input.Wrapper - All CSS Values (Browser)", () => {
+    it("draws a bare wrapper's label as the legend and its description at 11px in the secondary ink", () => {
+        const { container } = renderWithTheme(
+            <Input.Wrapper label="Higher means" description="paths ignore it" size="xs">
+                <div />
+            </Input.Wrapper>,
+        );
+        expectLegendLabel(styleOf(container, ".mantine-InputWrapper-label"));
+        const description = styleOf(container, ".mantine-InputWrapper-description");
+        expect(description.fontSize).toBe("11px");
+        expect(description.lineHeight).toBe("16px");
+        expect(hex(description.color)).toBe("#0000008c");
+    });
+});

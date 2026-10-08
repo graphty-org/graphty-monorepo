@@ -1430,7 +1430,7 @@ class Positions {
         if (this.values.size > 0) {
             const handle = this.emitter.declare("node", {
                 name: POSITION_COLUMN,
-                dtype: "f32",
+                dtype: "f64",
                 components: 3,
                 role: "position",
                 nullable: true,

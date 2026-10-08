@@ -728,6 +728,7 @@ export type FindKind = "node" | "edge";
 
 // @public
 export interface FindOptions {
+    readonly edgeNameJoiner?: string;
     readonly kinds?: readonly FindKind[];
     readonly limit?: number;
     readonly offset?: number;

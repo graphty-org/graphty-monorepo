@@ -1014,4 +1014,10 @@ describe("ResultRow", () => {
         expect(document.activeElement).toBe(field);
         expect(screen.getByText("rect")).toHaveClass("cm-result-match");
     });
+
+    it("draws a name as typed, with no arrow ligature for ->", async () => {
+        await renderThemed(<ResultRow name="Station -> Stadium" />);
+        const name = screen.getByTitle("Station -> Stadium");
+        expect(getComputedStyle(name).fontFeatureSettings).toBe('"calt" 0');
+    });
 });

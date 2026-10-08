@@ -241,7 +241,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         async () => {
             const { session } = await openRings();
             await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Node 0");
-            await screen.findByRole("option", { name: /Node 0/ });
+            // The node first, then the edges named by it.
+            await screen.findAllByRole("option", { name: /Node 0/ });
             await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["n0"]);

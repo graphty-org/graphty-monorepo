@@ -306,6 +306,8 @@ interface FindIndex {
     readonly names: readonly string[];
     /** Each edge's ends, as node indices. */
     readonly ends: readonly (readonly [number, number])[];
+    /** Each joiner's edge-name column, built on first use. */
+    readonly edgeNames: Map<string, IndexedColumn>;
 }
 
 /** What {@link QueryEngine.search} reads beside the text, already checked. */
@@ -318,6 +320,8 @@ export interface SearchRequest {
     readonly kinds: ReadonlySet<FindKind>;
     /** The elements in scope, or null for the whole graph. */
     readonly scope: { readonly nodes: ReadonlySet<NodeId>; readonly edges: ReadonlySet<EdgeId> } | null;
+    /** `FindOptions.edgeNameJoiner`: absent, an edge is not found by its name. */
+    readonly edgeNameJoiner?: string;
 }
 
 /** What {@link QueryEngine.search} answers; the caller adds the window and the revision. */
@@ -386,7 +390,34 @@ function buildIndex(parts: QueryEngineParts): FindIndex {
     );
     const ends = edgeIds.map((_, index) => [graph.edgeSource(index), graph.edgeTarget(index)] as const);
 
-    return { node: { columns: nodeColumns, ids: nodeIds }, edge: { columns: edgeColumns, ids: edgeIds }, names, ends };
+    return {
+        node: { columns: nodeColumns, ids: nodeIds },
+        edge: { columns: edgeColumns, ids: edgeIds },
+        names,
+        ends,
+        edgeNames: new Map(),
+    };
+}
+
+/**
+ * The edge-name column for one joiner: each edge's source name, the joiner, its target name.
+ * It names the edge, so it ranks with node names; its path is `"ends"`.
+ * @param index - The index for this revision.
+ * @param joiner - The text between the two names.
+ * @returns The column, cached on the index.
+ */
+function edgeNameColumn(index: FindIndex, joiner: string): IndexedColumn {
+    let column = index.edgeNames.get(joiner);
+    if (column === undefined) {
+        const values = index.ends.map(([source, target], at): IndexedValue => {
+            const value = `${index.names[source]}${joiner}${index.names[target]}`;
+            return { value, norm: normalizeText(value), wholeOnly: false, members: [at] };
+        });
+        column = { path: "ends", names: true, values };
+        index.edgeNames.set(joiner, column);
+    }
+
+    return column;
 }
 
 /** One matched value row before it is cut to {@link VALUE_ROWS}. */
@@ -464,7 +495,11 @@ function matchKind(
     request: SearchRequest,
     rows: MatchedRow[],
 ): BestMatch {
-    const { columns, ids } = index[kind];
+    const { ids } = index[kind];
+    const columns =
+        kind === "edge" && request.edgeNameJoiner !== undefined
+            ? [edgeNameColumn(index, request.edgeNameJoiner), ...index.edge.columns]
+            : index[kind].columns;
     const best: BestMatch = { rank: new Uint8Array(ids.length).fill(NO_RANK), from: [] };
     if (!request.kinds.has(kind)) {
         return best;

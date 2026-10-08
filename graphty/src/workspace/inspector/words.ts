@@ -134,7 +134,16 @@ export function directionWords(statistics: GraphStatistics): string {
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    return `${String(edge.source)} ${session.status.directed ? "->" : "--"} ${String(edge.target)}`;
+    return `${String(edge.source)}${edgeJoiner(session)}${String(edge.target)}`;
+}
+
+/**
+ * What goes between an edge's two ends in its name, which Find also matches an edge by.
+ * @param session - the session, which says whether the graph is directed.
+ * @returns " -> " on a directed graph, " -- " otherwise.
+ */
+export function edgeJoiner(session: GraphSession): string {
+    return session.status.directed ? " -> " : " -- ";
 }
 
 /**

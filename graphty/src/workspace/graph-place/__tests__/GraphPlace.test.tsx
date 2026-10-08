@@ -123,6 +123,23 @@ describe("the Graph place", () => {
             const list = await screen.findByRole("listbox", { name: "Find results" });
             assert.isNotNull(within(list).getByRole("option", { name: new RegExp(`^${name}`) }));
         });
+
+        it(`finds an edge by its name "${name}" or by either end's name`, async () => {
+            const session = createGraphSession();
+            sessions.push(session);
+            await session.config.set({ data: { directed } });
+            await session.data.addNodes([{ id: "Station" }, { id: "Stadium" }]);
+            await session.data.addEdges([{ source: "Station", target: "Stadium" }]);
+            renderPlace(session);
+            const box = screen.getByRole("combobox", { name: "Find" });
+
+            for (const typed of [name, "Stadium"]) {
+                await userEvent.clear(box);
+                await userEvent.type(box, typed);
+                const list = await screen.findByRole("listbox", { name: "Find results" });
+                assert.isNotNull(within(list).getByRole("option", { name }), typed);
+            }
+        });
     }
 
     it("moves through the list with Down and Up, never past its ends, and Enter picks the active row", async () => {
@@ -214,14 +231,14 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "=");
-        const hint = await screen.findByText("Type a rule after =, such as weight > `3`");
+        const hint = await screen.findByText("Type a rule, such as minutes > `12`");
         // The theme's field hint (11px, secondary ink), not a 9px caption.
         assert.isTrue(hint.classList.contains("cm-field-description"));
         assert.equal(getComputedStyle(hint).fontSize, "11px");
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
 
         await userEvent.type(box, "minutes >= 10");
-        assert.isNotNull(await screen.findByText("Put numbers in backticks: weight > `3`"));
+        assert.isNotNull(await screen.findByText("Put numbers in backticks: minutes > `12`"));
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
         assert.equal(session.selection.size, 0);
 
@@ -242,6 +259,9 @@ describe("the Graph place", () => {
             name: "Columns",
         });
         const option = within(columns).getByRole("option", { name: /^minutes/ });
+        // A column wears the attribute glyph, not the filter funnel.
+        assert.isNotNull(option.querySelector(".lucide-columns-3"));
+        assert.isNull(option.querySelector(".lucide-list-filter"));
         assert.isNull(within(columns).queryByRole("option", { name: /^side/ }));
         await userEvent.click(option);
         assert.equal((box as HTMLInputElement).value, "=minutes");
@@ -256,7 +276,7 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "=weight > 3{Enter}");
-        const line = await screen.findByText("Put numbers in backticks: weight > `3`");
+        const line = await screen.findByText("Put numbers in backticks: weight > `5`");
         assert.equal(box.getAttribute("aria-invalid"), "true");
         assert.notEqual(line.id, "");
         assert.include(box.getAttribute("aria-describedby") ?? "", line.id);
@@ -267,6 +287,10 @@ describe("the Graph place", () => {
         await waitFor(() => {
             assert.equal(session.selection.size, 1);
         });
+        // The rule stays in the box, selected, to change or type over.
+        const input = box as HTMLInputElement;
+        assert.equal(input.value, "=weight > `3`");
+        assert.deepEqual([input.selectionStart, input.selectionEnd], [0, input.value.length]);
         assert.isNull(screen.queryByRole("alert"));
         assert.notEqual(box.getAttribute("aria-invalid"), "true");
     });

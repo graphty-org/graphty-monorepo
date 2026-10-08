@@ -6,7 +6,7 @@ import React, { useEffect, useId, useMemo, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { focusNodeValuesNext } from "../inspector/reads";
-import { edgeName } from "../inspector/words";
+import { edgeJoiner, edgeName } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "./useSessionVersion";
 
@@ -17,17 +17,34 @@ export const FIND_BOX_ID = "ws-find";
 const LIMIT = 20;
 
 /**
+ * An example rule over the open data: a number column from the file (else any number column),
+ * compared with a value inside its range, such as minutes > `5`.
+ * @param session - the element's session.
+ * @returns the example.
+ */
+function exampleRule(session: GraphSession): string {
+    const numbers = session.data.attributes().filter((a) => a.measurement === "quantitative");
+    const column = numbers.find((a) => a.origin === "imported") ?? numbers[0];
+    if (column === undefined) {
+        return "weight > `3`";
+    }
+    const middle = column.min === undefined || column.max === undefined ? 3 : (column.min + column.max) / 2;
+    return `${columnText(column.path)} > \`${String(Math.round(middle))}\``;
+}
+
+/**
  * One line wording why the element refused a typed rule, from the refusal's reason code.
+ * @param session - the element's session, whose data gives the example.
  * @param error - what `selection.apply` threw.
  * @returns the line, or null when the error is not a refused rule.
  */
-function ruleRefusalWords(error: unknown): string | null {
+function ruleRefusalWords(session: GraphSession, error: unknown): string | null {
     if (!isGraphtyError(error) || error.code !== "E_BAD_SELECTOR") {
         return null;
     }
     const details = (error.details ?? {}) as { reason?: unknown; position?: unknown };
     if (details.reason === "number-needs-backticks") {
-        return "Put numbers in backticks: weight > `3`";
+        return `Put numbers in backticks: ${exampleRule(session)}`;
     }
     // The element counts from 0 after the "="; the reader counts from 1 including it.
     return typeof details.position === "number"
@@ -38,8 +55,6 @@ function ruleRefusalWords(error: unknown): string | null {
 /** How long typing pauses before the element checks a typed rule. */
 const CHECK_DELAY_MS = 200;
 
-/** The hint under a lone "=", where a rule has yet to be typed. */
-const EMPTY_RULE_WORDS = "Type a rule after =, such as weight > `3`";
 
 /**
  * What the element says of a typed rule, without selecting anything: it counts the rule's
@@ -57,7 +72,7 @@ async function ruleVerdict(session: GraphSession, typed: string): Promise<string
         return "ok";
     } catch (error) {
         // An error that is not a refused rule is left for Enter, which reports it as before.
-        return ruleRefusalWords(error);
+        return ruleRefusalWords(session, error);
     }
 }
 
@@ -184,7 +199,9 @@ export function FindBox(): React.JSX.Element {
 
     const found: FindResult | null = useMemo(() => {
         const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
-        return session === null || text.trim() === "" ? null : session.find(text, { limit: LIMIT });
+        return session === null || text.trim() === ""
+            ? null
+            : session.find(text, { limit: LIMIT, edgeNameJoiner: edgeJoiner(session) });
     }, [session, text, version]);
     const isRule = found?.notSearchable === "expression";
     const { word, columns } = useMemo(() => {
@@ -253,12 +270,13 @@ export function FindBox(): React.JSX.Element {
         await element?.zoomToSelection();
     };
 
-    const runTyped = async (current: GraphSession, typed: string): Promise<void> => {
+    const runTyped = async (current: GraphSession, typed: string, box: HTMLInputElement): Promise<void> => {
         try {
             await current.selection.apply({ text: typed });
-            setText("");
+            // The rule stays, selected, so it can be changed or typed over.
+            box.select();
         } catch (error) {
-            const words = ruleRefusalWords(error);
+            const words = ruleRefusalWords(current, error);
             if (words === null) {
                 throw error;
             }
@@ -280,7 +298,7 @@ export function FindBox(): React.JSX.Element {
                 void pick(chosen);
             } else if (found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text))) {
                 // A regex or expression is not run while typing; Enter runs it as a selection.
-                void runTyped(session, text);
+                void runTyped(session, text, event.currentTarget);
             } else {
                 const option = options[Math.max(active, 0)];
                 if (option !== undefined) {
@@ -298,7 +316,10 @@ export function FindBox(): React.JSX.Element {
     let emptyLine: string | null = `No match for "${text}"`;
     if (isRule) {
         // The press-Enter hint is only for a rule the element accepts.
-        const ruleLines = { ok: "Rule: press Enter to select matches", empty: EMPTY_RULE_WORDS } as const;
+        const ruleLines = {
+            ok: "Rule: press Enter to select matches",
+            empty: session === null ? "" : `Type a rule, such as ${exampleRule(session)}`,
+        } as const;
         emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
     } else if (found?.notSearchable === "regex") {
         emptyLine = `Press Enter to select "${text}"`;
@@ -412,7 +433,7 @@ export function FindBox(): React.JSX.Element {
                                         name={column.name}
                                         match={word}
                                         path={kindWords(column.kinds)}
-                                        icon={<GLYPHS.filter size={14} />}
+                                        icon={<GLYPHS.attribute size={14} />}
                                         current={i === active}
                                         onClick={() => {
                                             void pick({ type: "column", column });

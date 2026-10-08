@@ -1011,7 +1011,13 @@ export class SessionData implements SessionDataApi {
 
         const scope = options.scope === undefined ? null : this.pages.resolve(options.scope);
         const revision = this.pages.revision();
-        const found = this.pages.search(text, { offset, limit, kinds: new Set(kinds), scope });
+        const found = this.pages.search(text, {
+            offset,
+            limit,
+            kinds: new Set(kinds),
+            scope,
+            edgeNameJoiner: options.edgeNameJoiner,
+        });
         return { ...found, offset, revision: String(revision) };
     }
 

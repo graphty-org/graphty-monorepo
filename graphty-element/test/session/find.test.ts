@@ -121,6 +121,21 @@ describe("finding without selecting", () => {
         session.dispose();
     });
 
+    it("finds an edge by its name, its ends' names joined by the caller's text, when asked", async () => {
+        const session = await cast();
+        const edges = (text: string): string[] =>
+            session
+                .find(text, { kinds: ["edge"], edgeNameJoiner: " -> " })
+                .records.map((hit) => `${String(hit.match.value)} @ ${hit.match.path}`);
+
+        assert.deepEqual(edges("Valjean -> Javert"), ["Valjean -> Javert @ ends"]);
+        assert.deepEqual(edges("javert"), ["Valjean -> Javert @ ends"], "either end's name lists the edge");
+        assert.deepEqual(edges("cosette"), ["Valjean -> Cosette @ ends"]);
+        assert.deepEqual(edges("enem"), ["enemies @ data.kind"], "its own values still match");
+        assert.deepEqual(edges("kind:valjean"), [], "an attribute prefix reads only that column");
+        session.dispose();
+    });
+
     it("lists at most three value rows, commonest first, each target selecting exactly its count of one kind", async () => {
         const session = await cast();
 

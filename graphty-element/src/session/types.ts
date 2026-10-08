@@ -268,6 +268,13 @@ export interface FindOptions {
      * listed, and carries `excludedBy`.
      */
     readonly scope?: ScopeInput;
+    /**
+     * Also find an edge by its name: its source's name, this text, then its target's name, such
+     * as `" -> "` for "Station -> Stadium". The name ranks with node names, so typing either end's
+     * name, or the whole name, lists the edge; the hit's `match.path` is then `"ends"`. Absent
+     * (the default), an edge is found by its own attribute values only.
+     */
+    readonly edgeNameJoiner?: string;
 }
 
 /** One end of an edge hit. */
@@ -315,7 +322,10 @@ export type FindHit =
           readonly name: string;
       })
     | (FindHitBase & {
-          /** An edge, found by its own attribute values only, never by its id or its ends. */
+          /**
+           * An edge, found by its own attribute values, and by its name when
+           * `FindOptions.edgeNameJoiner` is set; never by its id.
+           */
           readonly kind: "edge";
           /** Its element-assigned id. */
           readonly id: EdgeId;
@@ -2198,7 +2208,7 @@ export interface GraphSession {
      * are not run while typing; they set `notSearchable` and list nothing.
      *
      * A node is found by its id, its name and its attribute values; an edge by its own attribute
-     * values only. A number or boolean value matches only whole. Ranking promises only this: an
+     * values, and by its two ends' names when `edgeNameJoiner` is set. A number or boolean value matches only whole. Ranking promises only this: an
      * exact name or id first, name and id matches before attribute values, ties in graph order.
      *
      * Synchronous: the first call after a change builds an index in one walk of the graph, and

@@ -402,6 +402,8 @@ const css = `
 .cm-result-name,
 .cm-result-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-result-match { font-weight: 600; }
+/* A result reads as the text typed to find it: "->" stays two characters, not Inter's arrow. */
+.cm-result-name { font-feature-settings: "calt" 0; }
 .cm-result-path { font-size: 10px; line-height: 16px; color: var(--cm-text-secondary); }
 .cm-result-row[data-tone="component"],
 .cm-result-row[data-tone="component"] .cm-result-icon,

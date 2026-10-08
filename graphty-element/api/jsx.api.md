@@ -109,6 +109,7 @@ export interface GraphtyElementJSXProps {
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     // (undocumented)
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
+    "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
     // (undocumented)
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     // (undocumented)
@@ -135,10 +136,13 @@ export interface GraphtyElementJSXProps {
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
+    "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
     // (undocumented)
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     // (undocumented)
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
+    "onlayout-updated"?: (event: CustomEvent<EventOfType<"layout-updated">>) => void;
     // (undocumented)
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)
@@ -147,6 +151,7 @@ export interface GraphtyElementJSXProps {
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     // (undocumented)
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
+    "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     // (undocumented)
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
     // (undocumented)
@@ -169,6 +174,7 @@ export interface GraphtyElementJSXProps {
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
     // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
+    "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
     // (undocumented)
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;

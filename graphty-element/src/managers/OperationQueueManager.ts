@@ -2,6 +2,7 @@ import PQueue from "p-queue";
 import toposort from "toposort";
 
 import { OBSOLESCENCE_RULES } from "../constants/obsolescence-rules";
+import type { OperationCancelledEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import type { OperationMetadata, OperationProgress } from "../types/operations";
 import type { EventManager } from "./EventManager";
@@ -850,8 +851,8 @@ export class OperationQueueManager implements Manager {
                 controller.abort();
                 this.eventManager.emitGraphEvent("operation-cancelled", {
                     id,
-                    reason: "Queue cleared",
-                });
+                    reason: "queue-cleared",
+                } satisfies Omit<OperationCancelledEvent, "type">);
             }
         });
 
@@ -1004,8 +1005,8 @@ export class OperationQueueManager implements Manager {
             // Emit cancellation event
             this.eventManager.emitGraphEvent("operation-cancelled", {
                 id: operationId,
-                reason: "Manual cancellation",
-            });
+                reason: "cancelled",
+            } satisfies Omit<OperationCancelledEvent, "type">);
 
             return true;
         }

@@ -10,13 +10,22 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-08 -- TIER 2 STUDY BUILD FROZEN: e2ccec0e9304, served from
-  `.study-builds/tier2-e2ccec0e9/` with `REAL_DIST` (first line of `tier2/criteria.md`). Every
-  task, both halves, walked on it (`tier2/pilot/final.md`): all 18 reach their end state, no
-  script error, miss or moving drawing. `tool/real.mjs --prove` on it: 3 of 4 runs passed every
-  check; one failed "a first save names the project" once (the Save as dialog never opened after
-  Escape closed Export); cause not found, so watch for it in a session's save before blaming the
-  participant.
+- 2026-10-08 -- TIER 2 CRITERIA REVIEW (before freeze): 8 changes proposed, none applied by me
+  (the director decides). Biggest: the per-round expert walkthrough and screenshot audit feed NO
+  bar -- add bar 10 with its own confirmation rule; "not scored" must mean "round cannot pass";
+  bar 7 (a) must run every catalog algorithm and the full meaning matrix, not trust the catalog's
+  marks; preflight 2 is not met (`--prove` 3 of 4) and the failing step is the save T19's reopen
+  grades. Full list in the decision entry below.
+- 2026-10-08 -- ROUND 1 BUILD is 16dcf3494700 (`.study-builds/tier2-r1-16dcf3494/`). Round 1
+  pilots of every half from the ranked starts (`tier2/rounds/r1/pilot/`): all reach their end
+  state, every reference value holds. Key matched to them (criteria change log). Watch in
+  sessions: T4's left-out row is readable after Load ONLY in the source's inspector (row text cut
+  to "12 no..."); T18 path nodes vanish into the PageRank colors; T23's filter marks PageRank out
+  of date; PageRank row loses its count after a reopen (not `work-lost`).
+- 2026-10-08 -- Two tool faults to rule out before blaming a participant: an
+  `elementHandle.click` 3000 ms timeout with no screen change (setup lesmis-ranked once, `--click
+  Degree` once; cause untraced, the log does not say which actionability check failed), and a
+  printed tooltip left over from the previous hover. Trust screenshots over printed tooltips.
 - 2026-10-08 -- The answer key is re-recorded on that build, every "on build ca8b3b916c22" note
   checked; criteria change log lists each edit. No bar and no prompt changed; T20's avoided words
   gained "set", "date", "time" (new controls "Not set", "Date or time").
@@ -27,8 +36,9 @@ made and evidence comes in.
   on the source after Load (T4's likeliest false-done is weaker). Watch T20 for participants who
   leave "Not set" and still pass by the per-run route: graded SD, as before.
 - 2026-10-08 -- Watch items left on screen, not fixed (in the key): T21 lays the drawing out
-  again after Replace; Find frames the graph off the canvas; Hops 1 and Hops 2 lists differ; thin
-  gold bands on Les Miserables; legend layer names say "route".
+  again after Replace; Find frames the graph off the canvas in T19 A (not in T23 on 16dcf); Hops 1
+  and Hops 2 lists differ on A; thin gold bands on Les Miserables; legend layer names say "route";
+  a multi-edge selection lists no members.
 - 2026-10-07 -- TIER 2 IS READY FOR THE OWNER TO START: `tier2/criteria.md` (frozen), `tasks.md`,
   `answers.md`, `roster.md`. Nine tasks on two datasets each (T4, T17-T24); 54 sessions in round 1;
   core four T20, T21, T17, T18 at 4+4. Owner: no keyboard-only, screen-reader or touch sessions.
@@ -43,9 +53,6 @@ made and evidence comes in.
   frozen fixed build (fixes in flight change From-to-To, Edit source, the path row number), re-
   record values, wording check over prompts AND histories, extend `bars.mjs` to tier 2 screens,
   write the bar 7 weight script and prove it on a planted wrong reading, run tier 1 paths too.
-- 2026-10-07 -- Known gaps the new tasks will meet (in the key, graded by end state): a selection
-  of several edges lists no members and cannot select their ends; Find frames off center.
-  (2026-10-08: Everything keeps the selection, and the from/to rows are gone.)
 - 2026-10-07 -- Tier 1 report: bars 1-6 and 9 hold in round 3; 7 fails on missing data, 8 on one
   contrast color. A sev 4 needs a wrong conclusion a reader would act on, from what the
   participant could perceive. Never name the expected outcome to graders.
@@ -97,6 +104,42 @@ reasons, in short:
 
 ## Decisions and reasons
 
+- 2026-10-08 (researcher, key matched to round 1 pilots) -- Edited `tier2/answers.md` (and one
+  description line of T12R in `tasks.md`) from 20 pilot reports on 16dcf3494700; no bar, no
+  prompt. Choices: (1) a header section names the round 1 build, the pilot folder, that `final/`
+  walks started unranked, and that screenshot numbers follow step grouping -- one rule instead of
+  re-citing every number. (2) T4's "Sources row says 1 row left out" rewritten: the row is on the
+  Data page and its text is cut before the count, so only the inspector shows it; a key claiming
+  a visible count would let graders mark a participant who missed it as careless. (3) The Made
+  with Weight select counts as pointing to Made with (T20): it is inside that section and states
+  the loaded meaning. (4) PageRank's missing count after a reopen is explicitly not `work-lost`:
+  run, colors, key and values return. (5) T23's off-canvas note deleted, not kept: the screens
+  show the drawing on the canvas, and a stale watch note primes graders. (6) T24 B point moved to
+  753,258 and the "find lists ties by name" route replaced by what exists (ties by value). (7)
+  T12R gets its own section in the tier 2 key rather than an edit to tier 1's key, which tier 1
+  rounds still grade with. Rejected: re-numbering every `final/` citation to round 1 screens (the
+  values agree; numbers drift with grouping).
+
+- 2026-10-08 (researcher, tier 2 criteria review) -- Proposed 8 changes to `tier2/criteria.md`:
+  (1) bar 10 for the walkthrough and screenshot audit: every bar 8 screen at 1440x900 and 1280x800,
+  scripted counts for clipped text and non-shared controls, a finding confirmed by two specialists
+  or a measurement, 0 confirmed sev 3+ open; report audit-only vs session-only findings. Reason:
+  the owner added them because tier 1 missed what a real person saw first; a check with no bar is
+  never acted on, and the 2-participant rule can never confirm an expert finding. `bars.mjs`
+  skips clipped text, so truncation is currently invisible by design. (2) "Not scored" counts as
+  not holding. (3) Bar 7 (a): every catalog algorithm, results compared with and without the
+  weight column (an unmarked reader that changes its answer fails), and every meaning to every
+  reader (farther to PageRank, capacity to a path), each skip with a code. (4) Preflight 2 not
+  met; trace the Save as miss before T19/T21; a save the tool lost voids, never `not-kept`.
+  (5) Bar 2 checked by an inventory script (runs, styles, notes, steps, sources at the setup vs
+  the end), not by eye. (6) Steps median <= 2x becomes a gate on the core four: success alone
+  does not measure repeat work, and cost is the returning persona's stated reason to quit.
+  (7) Bar 9 also on a "returning rest" screen (a step on, a run, two notes, two sources),
+  reported with no rise between rounds. (8) The 2 spare slots (54 of 56) go to tier 1 T15, since
+  tier 2 moved places T15 crosses and a script proves a route exists, not that it is found.
+  Rejected: raising ease to 5.5 (uncalibrated; trend only); changing prompts (re-pilot cost, no
+  echo found).
+
 - 2026-10-07 (researcher, tier 2 key corrected) -- Edited `tier2/answers.md` from the re-pilots
   (`tier2/pilot/`) and one walk of my own: T4 "Add a table" by name, line 17 for B, left-out row
   recorded nowhere after Load; T17 Overview 20/77 under a filter is `read-wrong`; T18 adds
@@ -136,34 +179,11 @@ reasons, in short:
   Spectral moved to words. "Live regions already holding text" to not shown. Rejected: keeping
   bar 3 failing because "the picture names the wrong person" -- the picture's key names nobody.
 
-- 2026-10-07 (researcher, round 3 scoring) -- Scored on valid sessions with the void shown
-  "as graded" beside it (r3-s10 S, r3-s55 measured). Counted for bar 3 the 3D size misreading
-  (reproduced drawing, r3-s08 wrong answer, r3-s06 and void r3-s10 alike) with the strict reading
-  written beside it; reason: the exported picture names the wrong person for every reader, which
-  is the severity-4 outcome. Counted bar 6 for r3-s01 (build-decided, cause reproduced), not
-  `truth-on-screen`. Bar 5: only the label count (the export selection ring stays out, as the
-  round 2 skeptics held). Bar 4: none. Credited each change only on its route; "not tested" for
-  2D Fit, the painted-over key layer and the chevron (pointer users clicked the word). Sizing
-  share counted on 17 valid sizing sessions. Path lengths from the key's round 3 numbers (T10 5,
-  T9 8, T7 7, T15 18), with T10 also on round 2's 4 for comparison. Rejected: crediting the
-  autofocus removal (it created a severity 3); treating T11's 4.00 as below the floor.
-
-- 2026-10-07 (researcher, round 3 plan and preflight) -- Sized round 3 at 56: full size for the
-  tasks whose path changed most or whose round 2 numbers missed a target (T15 10, T10 8, T9 8, T11 5) and for the one task below its bar by the scores (T6 5, though the skeptics held its failure
-  not shown); regression checks at 4 for T12 (2 and 2; 8 of 8 in round 2, one small fix) and T7 B;
-  the rest at 1 to 3 so every tier 1 task is seen. Reasons: the full rule needs about 70; the
-  round's questions (names checkbox, Size list, group layouts, reading mode) sit on T10, T9, T15,
-  T11, T6. Rejected: T12 at full size (spends 4 sessions re-measuring a 0.9x, 8 of 8 task);
-  dropping T3, T2, T5 (the criteria allow it, but the brief is to see every tier 1 task, and T5 is
-  Morgan's bar 7 task). Personas: no first-time persona meets T15 twice; first-time 66%, at most 7
-  each, because the four studio persona files still lack a skeptic review.
-- 2026-10-07 (researcher, round 3 preflight) -- Fixed the study, not the app: `bars.mjs` skips
-  clipped text (else bar 9 rose 42 to 46 on hidden words and would have failed a correct fix),
-  `real.mjs` merges a label with its control, `ranks.mjs` exports the nodes CSV it meant to read
-  (round 2's read no groups and the key cited a pilot instead). Served the round from a frozen copy
-  of the build so a mid-round rebuild cannot change the app under a session. Did not touch the
-  contrast color: it is a product fix the studio has not decided; flagged as the one known bar
-  failure.
+- 2026-10-07 (round 3 plan, preflight and scoring, folded) -- Sized at 56: full size where the
+  path changed or a target missed, regression checks at 4, the rest 1-3 so every task is seen.
+  Fixed the study, not the app (`bars.mjs` skips clipped text, `real.mjs` label merge, `ranks.mjs`
+  CSV); served a frozen build. Scored on valid sessions with voids shown beside; credited a change
+  only on its route; "not tested" where no session met it.
 
 - 2026-10-06 to 10-07 (rounds 1-2 and round 3 setup, folded) -- One change per problem in the
   owning package; read the element before calling a fact missing (the key's cover fact existed,
@@ -186,6 +206,12 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-08 (key vs round 1 pilots) -- Worked: one edit script with an exact-count assert per
+  anchor and an ASCII assert on the result (`tmp/researcher/r1-pilot-key/edit.py`); checking each
+  pilot's setup line against `roster.md` showed every `final/` walk started unranked, which
+  explains T24 B's dead click point. Did not check: T18 A's Weight list and Ben-to-Nora chain (no
+  pilot opened or walked them) -- the key says so.
 
 - 2026-10-07 (tier 2 key correction) -- Worked: checking `git log` and `git status graphty` for
   the dependency fixes before writing "the fixed build" -- they were absent. Worked: a one-file walk
@@ -228,16 +254,9 @@ reasons, in short:
   wording, T7's missing Values step, and the tool's label double-match before graders met them.
   Did not cover: keyboard and SR paths (no `--sr` pilot) -- owed at preflight.
 
-- 2026-10-07 (round 3 key) -- Worked: grepping the worktree source for each planned change
-  (`runName`, the switch, `groupings()` in `layout/methods.ts`) before writing paths showed none
-  had landed, so the key says "not yet walked" instead of claiming walks. Also read
-  `layout/methods.ts` for the group-layout greying rule ("Needs a node attribute to group by"
-  comes from `startingValues`/`unavailable`), so the T11 defect test is exact.
-
-- 2026-10-07 (round 3 critique) -- Worked: grepping the element for an existing option before
-  proposing element work (`declutter` already existed; the "hidden names" fix shrank from element
-  plus app to one app switch). Looking at the cited screenshots changed one reading: r2-s56's key
-  lists both color layers because both are in the stack.
+- 2026-10-07 (round 3 key and critique, folded) -- Worked: grepping the worktree source for each
+  planned change before writing paths (none had landed, so the key said "not yet walked"), and
+  grepping the element for an existing option before proposing element work (`declutter` existed).
 
 - 2026-10-06 to 10-07 (rounds 1-2, folded) -- Worked: one row per session in an `rN-score.py`
   with an assert on the count; grader JSON plus `grade.md` greps; re-walking every success path by

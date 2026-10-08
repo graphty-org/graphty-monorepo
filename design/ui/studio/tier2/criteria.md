@@ -328,3 +328,22 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-e2ccec0e9/`) to 16dcf3494700
   (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1-16dcf3494/`), a fresh build of the worktree's current commit, so round 1 runs on what the worktree
   holds now. No bar changed.
+- **2026-10-08, before round 1: the answer key matched to the round 1 pilots.** Every task half was
+  piloted on 16dcf3494700 from its ranked start (`rounds/r1/pilot/`). Every reference value held;
+  `answers.md` was changed only where a screen differed, each with the pilot's screenshot: a
+  section on the round 1 build and on two tool faults (a click timeout, a stale printed tooltip);
+  T4's Sources row is on the Data page, cut to "12 no..." with a name-only tooltip, so the left-out
+  row is readable after Load only in the source's inspector; T17 A's step name is cut while on;
+  T18's Made with adds Source and Target lines, Enter in To focuses Find path, a clicked option
+  leaves focus in From, the path's node color is lost in the PageRank colors, a second run
+  replaces the first, and B's follow-up chain is added; T19's header wording, the framing that
+  lasts until the reopen, the blank drawing under the Save dialog, the PageRank count missing
+  after the reopen (not `work-lost`), and B's ambiguous reopen click; T20's role box moved to
+  728,225 (both halves), the Data page names no weight on either route, the Made with Weight
+  select counts as Made with, and B loads directed; T21 B's new people stay uncolored until
+  Rerun; T22's A column list, a cleared box after a rule and a refused rule's Enter doing nothing;
+  T23's framing note was deleted (the drawing stays on the canvas), the Hops 1 table is A only,
+  and the filter marks PageRank out of date; T24 B's click point is 753,258 on the ranked start,
+  and the find box lists ties by value, not by an end's name; a T12R section records the 5-step
+  path, the Summary heading and the Neighborhood view the Degree row opens. `tasks.md` T12R says
+  Follow appears only on directed data. No bar and no prompt changed.

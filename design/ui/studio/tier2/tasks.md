@@ -261,8 +261,9 @@ changes:
 
 Tier 1's T12, asked of a returning user from a ranked start. It is graded with tier 1's answer key
 (`../answers.md`, T12) and measures whether the habit the histories lean on most, a person's list of
-connections, still arrives now that tier 2 added Hops and Follow to that list and new entries to
-the node menu beside it.
+connections, still arrives now that tier 2 added Hops, Follow (on directed data only, so on
+neither sample here) and "Filter to neighbors" to that list and new entries to the node menu
+beside it.
 
 - **Prompt A (Les Miserables):** "You have used this program a few times. The ready-made network
   of characters from the novel Les Miserables is already open. Go to the police inspector Javert,

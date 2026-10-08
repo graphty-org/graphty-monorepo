@@ -4,7 +4,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession } from "../../session";
+import { createGraphSession, type LoadedSource } from "../../session";
 
 const FRIENDS = "source,target\nAva,Ben\nBen,Cara\nCara,Ava\n";
 const MESSAGES = "source,target\nAva,Dan\nDan,Eve\n";
@@ -78,17 +78,21 @@ describe("session.data.sources", () => {
     it("keeps the unmatched edge rows a load left out, the rows themselves with their lines and end columns, through undo, redo, save and reopen", async () => {
         const session = createGraphSession();
         const people = new File(["id\nAva\nBen\n"], "people.csv");
-        const passes = new File(["from,to,emails\nAva,Ben,2\nBen,Zed,6\n"], "passes.csv");
+        const passes = new File(["from,to,emails\nAva,Ben,2\nBen,Zed,6\nZed,Ava,1\nYan,Zed,4\n"], "passes.csv");
         const draft = await session.data.prepare({ config: { nodeFile: people, edgeFile: passes } });
         await draft.load({ unmatched: "leave-out" });
         await load(session, MESSAGES, "messages.csv", "merge");
         const [first, second] = session.data.sources();
         const leftOut = {
-            rows: 1,
-            values: 1,
+            rows: 3,
+            values: 2,
             endColumns: { source: "from", target: "to" },
-            edges: [{ source: "Ben", target: "Zed", line: 3, values: { emails: 6 } }],
-        };
+            edges: [
+                { source: "Ben", target: "Zed", line: 3, values: { emails: 6 }, missingEnds: ["target"] },
+                { source: "Zed", target: "Ava", line: 4, values: { emails: 1 }, missingEnds: ["source"] },
+                { source: "Yan", target: "Zed", line: 5, values: { emails: 4 }, missingEnds: ["source", "target"] },
+            ],
+        } satisfies LoadedSource["leftOut"];
         assert.deepStrictEqual(first?.leftOut, leftOut, "the row itself is kept, not only its count");
         assert.notProperty(second, "leftOut", "a load that left nothing out says nothing");
 

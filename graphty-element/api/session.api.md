@@ -456,6 +456,7 @@ export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" |
 // @public
 export interface DraftRow {
     readonly line: number;
+    readonly missingEnds?: readonly EdgeEnd[];
     readonly values: Readonly<Record<string, unknown>>;
 }
 
@@ -483,6 +484,9 @@ export interface DraftTable {
     readonly rowCount: number;
     readonly weightCandidate?: string;
 }
+
+// @public
+export type EdgeEnd = "source" | "target";
 
 // @public
 export type EdgeId = string;
@@ -1502,6 +1506,7 @@ export interface LayoutRecommendationOptions {
 // @public
 export interface LeftOutEdge {
     readonly line?: number;
+    readonly missingEnds?: readonly EdgeEnd[];
     readonly source: NodeId_2;
     readonly target: NodeId_2;
     readonly values: Readonly<Record<string, unknown>>;

@@ -27,6 +27,7 @@ import type {
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
+    EdgeEnd,
     LoadChoices,
     LoadDraft,
     LoadMapping,
@@ -85,6 +86,9 @@ export const LOAD_ROLES: Readonly<
         requires: Object.freeze(["source", "target"] as const),
     }),
 });
+
+/** An edge's two ends, in the order its endpoint expressions are read. */
+const EDGE_ENDS: readonly EdgeEnd[] = ["source", "target"];
 
 /** The keys a table's mapping takes: `rowsAre` and its roles. */
 const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
@@ -492,12 +496,20 @@ export class Draft implements LoadDraft {
         const read = this.live("rows");
         const held = this.table(read, table);
         const { offset = 0, limit = 100, only, choices = {} } = options;
-        const picked = only === undefined ? null : this.filter(read, held, only, choices);
+        const missing = new Map<number, readonly EdgeEnd[]>();
+        const picked = only === undefined ? null : this.filter(read, held, only, choices, missing);
         const total = picked?.length ?? held.rows.length;
         const records: DraftRow[] = [];
         for (let i = offset; i < Math.min(total, offset + limit); i++) {
             const index = picked?.[i] ?? i;
-            records.push(Object.freeze({ line: held.lines?.[index] ?? index + 1, values: held.rows[index] }));
+            const missingEnds = only === "unmatched" ? missing.get(index) : undefined;
+            records.push(
+                Object.freeze({
+                    line: held.lines?.[index] ?? index + 1,
+                    values: held.rows[index],
+                    ...(missingEnds === undefined ? {} : { missingEnds }),
+                }),
+            );
         }
 
         return Object.freeze({ records: Object.freeze(records), offset, total, revision: "draft" });
@@ -732,9 +744,16 @@ export class Draft implements LoadDraft {
      * @param held - The table.
      * @param only - Which rows.
      * @param choices - The choices `report` and `load` take.
+     * @param missing - Filled, by row index, with the ends of each unmatched edge row that name no node.
      * @returns Their indexes.
      */
-    private filter(read: ReadSource, held: HeldTable, only: DraftRowFilter, choices: LoadChoices): number[] {
+    private filter(
+        read: ReadSource,
+        held: HeldTable,
+        only: DraftRowFilter,
+        choices: LoadChoices,
+        missing: Map<number, readonly EdgeEnd[]>,
+    ): number[] {
         // Only this table need be ready: another table's missing role does not stop reading this one.
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
         const roles = mapping.tables[held.table.id];
@@ -775,7 +794,14 @@ export class Draft implements LoadDraft {
         held.rows.forEach((row, index) => {
             const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
             const rejected = !ends.every(isStorableId);
-            const unmatched = matching && !rejected && ends.some((end) => !known.has(end) && !graph.has(end));
+            const missingEnds = EDGE_ENDS.filter((_, at) => {
+                const end = ends[at];
+                return isStorableId(end) && !known.has(end) && !graph.has(end);
+            });
+            const unmatched = matching && !rejected && missingEnds.length > 0;
+            if (unmatched) {
+                missing.set(index, Object.freeze(missingEnds));
+            }
             // ponytail: "loaded" counts every repeat as its own edge, as the default `keep` policy
             // does; a folding policy would have to fold repeats here too.
             const loaded = !rejected && !(unmatched && choices.unmatched === "leave-out");

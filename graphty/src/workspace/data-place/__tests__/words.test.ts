@@ -10,6 +10,7 @@ import {
     leftOutRow,
     leftOutSentence,
     loadIndexOf,
+    noNodeRow,
     sourceRows,
     sourcesWords,
 } from "../words";
@@ -150,6 +151,21 @@ describe("the Data place's words", () => {
             "p11, p13, emails 6",
             "a project saved before lines and end columns were kept",
         );
+        assert.equal(
+            leftOutRow(
+                { source: "s04", target: "s11", line: 17, values: { passes: 3 }, missingEnds: ["target"] },
+                { source: "from", target: "to" },
+            ),
+            "Line 17: s11 has no node row; from s04, to s11, passes 3",
+            "the end that names no node is marked",
+        );
+        assert.equal(
+            leftOutRow({ source: "x", target: "y", values: {}, missingEnds: ["source", "target"] }),
+            "x and y have no node rows; x, y",
+        );
+        assert.equal(noNodeRow(["s11"]), "s11 has no node row");
+        assert.equal(noNodeRow(["s11", "p13", "s11"]), "s11 and p13 have no node rows");
+        assert.equal(noNodeRow(["a", "b", "c", "d"]), "a, b and 2 more have no node rows");
         assert.equal(loadIndexOf("source:1:0"), 1);
         assert.isUndefined(loadIndexOf("node:age"));
     });

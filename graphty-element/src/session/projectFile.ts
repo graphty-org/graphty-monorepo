@@ -954,7 +954,10 @@ function isLoadedSource(value: unknown): value is LoadedSource {
                             (edge) =>
                                 isObject(edge) &&
                                 isObject(edge.values) &&
-                                (edge.line === undefined || typeof edge.line === "number"),
+                                (edge.line === undefined || typeof edge.line === "number") &&
+                                (edge.missingEnds === undefined ||
+                                    (Array.isArray(edge.missingEnds) &&
+                                        edge.missingEnds.every((end) => end === "source" || end === "target"))),
                         )))))
     );
 }

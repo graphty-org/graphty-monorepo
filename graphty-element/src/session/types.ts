@@ -1129,7 +1129,15 @@ export interface DraftRow {
     readonly line: number;
     /** The row's values by column name. */
     readonly values: Readonly<Record<string, unknown>>;
+    /**
+     * Which ends of an edge row name a node no node row (nor, for a merge, the graph) holds.
+     * Present only on the rows `only: "unmatched"` reads.
+     */
+    readonly missingEnds?: readonly EdgeEnd[];
 }
+
+/** One end of an edge: the node it leaves, or the node it enters. */
+export type EdgeEnd = "source" | "target";
 
 /** Which rows `LoadDraft.rows` reads. */
 export interface DraftRowOptions {
@@ -1280,6 +1288,11 @@ export interface LeftOutEdge {
     readonly line?: number;
     /** The row's other values, by column. */
     readonly values: Readonly<Record<string, unknown>>;
+    /**
+     * Which ends name a node no node row held: one end or both. Absent in a project saved before
+     * it was kept.
+     */
+    readonly missingEnds?: readonly EdgeEnd[];
 }
 
 /** One load still in the graph: where it came from, and what it added. */

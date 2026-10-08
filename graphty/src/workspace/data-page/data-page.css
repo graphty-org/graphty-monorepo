@@ -72,3 +72,16 @@
     padding: 8px 16px 12px;
     border-top: 1px solid var(--cm-border);
 }
+
+/* An unmatched row's end that names no node: the value marked, then why. */
+.dp-missing-end {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--cm-text-danger);
+    font-weight: 600;
+}
+
+.dp-missing-words {
+    font-weight: 450;
+}

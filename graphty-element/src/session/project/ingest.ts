@@ -44,7 +44,7 @@ import {
 } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
-import type { LeftOutEdge, LoadedSource } from "../types";
+import type { EdgeEnd, LeftOutEdge, LoadedSource } from "../types";
 import { frozenRecord } from "./draft";
 
 /** How many left-out edge rows a load keeps with its source, so a reader can still see them. */
@@ -76,6 +76,7 @@ function columnOf(expression: string): string | null {
  * @param target - its target end.
  * @param endpoints - where the ends were read from.
  * @param line - the row's line, or undefined.
+ * @param missingEnds - the ends that name no node.
  * @returns the frozen entry.
  */
 function leftOutEdge(
@@ -84,10 +85,17 @@ function leftOutEdge(
     target: NodeIdType,
     endpoints: ResolvedEndpoints,
     line: number | undefined,
+    missingEnds: readonly EdgeEnd[],
 ): LeftOutEdge {
     const ends = [columnOf(endpoints.source), columnOf(endpoints.target)];
     const values = Object.fromEntries(Object.entries(edge).filter(([key]) => !ends.includes(key)));
-    return Object.freeze({ source, target, ...(line === undefined ? {} : { line }), values: frozenRecord(values) });
+    return Object.freeze({
+        source,
+        target,
+        ...(line === undefined ? {} : { line }),
+        values: frozenRecord(values),
+        missingEnds: Object.freeze([...missingEnds]),
+    });
 }
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -953,7 +961,13 @@ export class Ingest<K extends KnownEdge> {
         }
 
         const line = this.loadEdgeLines === null ? undefined : (this.loadEdgeLines[ordinal - 1] ?? ordinal);
-        this.leftOutEdges.push(leftOutEdge(edge, source, target, endpoints, line));
+        // The ends `isUnmatched` just counted as missing, by the same test.
+        const missingValues = this.loadTally?.unmatchedValues;
+        const missingEnds = (["source", "target"] as const).filter((end) => {
+            const id = end === "source" ? source : target;
+            return isStorableId(id) && (missingValues?.has(id) === true || !this.hasNode(id));
+        });
+        this.leftOutEdges.push(leftOutEdge(edge, source, target, endpoints, line, missingEnds));
         const [sourceColumn, targetColumn] = [columnOf(endpoints.source), columnOf(endpoints.target)];
         if (this.leftOutEnds === null && sourceColumn !== null && targetColumn !== null) {
             this.leftOutEnds = { source: sourceColumn, target: targetColumn };

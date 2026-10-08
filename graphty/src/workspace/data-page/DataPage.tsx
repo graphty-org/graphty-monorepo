@@ -32,13 +32,14 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
-import { missingNodes } from "../data-place/words";
+import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     elementRole,
     kindChanged,
+    loadChoices,
     type PageChoices,
     type PageRole,
     ROLES_BY_KIND,
@@ -932,6 +933,19 @@ function fitWidth(header: string, values: readonly string[]): number {
  */
 function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.JSX.Element {
     const rows = useMemo(() => page.rows?.records ?? [], [page.rows]);
+    // The columns an unmatched row's ends were read from, so the end that names no node is marked.
+    const { draft, choices } = page;
+    const endColumns = useMemo(() => {
+        if (draft === null || !rows.some((row) => row.missingEnds !== undefined)) {
+            return null;
+        }
+        return draft.resolve(loadChoices(draft, choices, "replace")).tables[table.id] ?? null;
+    }, [draft, choices, rows, table]);
+    const missingIn = useCallback(
+        (row: DraftRow, name: string): boolean =>
+            row.missingEnds?.some((end) => endColumns?.[end]?.column === name) === true,
+        [endColumns],
+    );
     const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
         const cell = (row: DraftRow, name: string): string | null => {
             const value = row.values[name];
@@ -941,24 +955,53 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
         };
         return [
             { id: "#line", header: "Line", value: (row) => row.line, align: "end", width: 64 },
-            ...table.columns.map((column) => ({
-                id: column.name,
-                header: column.name,
-                value: (row: DraftRow) => cell(row, column.name),
-                // Wide enough for its longest shown value, so "Dmitri Volkov" is not cut while
-                // the table has room to spare.
-                width: fitWidth(
-                    column.name,
-                    rows.map((row) => cell(row, column.name) ?? ""),
-                ),
-            })),
+            ...table.columns.map((column) => {
+                const marks = rows.some((row) => missingIn(row, column.name));
+                return {
+                    id: column.name,
+                    header: column.name,
+                    value: (row: DraftRow) => cell(row, column.name),
+                    ...(marks
+                        ? {
+                              cell: (row: DraftRow) => {
+                                  const value = cell(row, column.name);
+                                  return missingIn(row, column.name) ? (
+                                      <span className="dp-missing-end">
+                                          <GLYPHS.warning size={12} aria-hidden />
+                                          {value} <span className="dp-missing-words">{NO_NODE_ROW}</span>
+                                      </span>
+                                  ) : (
+                                      value
+                                  );
+                              },
+                          }
+                        : {}),
+                    // Wide enough for its longest shown value, so "Dmitri Volkov" is not cut while
+                    // the table has room to spare.
+                    width: fitWidth(
+                        column.name,
+                        rows.map((row) =>
+                            missingIn(row, column.name)
+                                ? `MM${cell(row, column.name) ?? ""} ${NO_NODE_ROW}`
+                                : (cell(row, column.name) ?? ""),
+                        ),
+                    ),
+                };
+            }),
         ];
-    }, [table, rows]);
+    }, [table, rows, missingIn]);
     const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
+    const missingNames = rows.flatMap((row) =>
+        (row.missingEnds ?? []).flatMap((end) => {
+            const column = endColumns?.[end]?.column;
+            const value = column === undefined ? undefined : row.values[column];
+            return typeof value === "string" || typeof value === "number" ? [String(value)] : [];
+        }),
+    );
     const caption =
         page.filter === "all"
             ? `The first ${plural(rows.length, "row")} of ${count(table.rowCount)}`
-            : plural(page.rows?.total ?? 0, what);
+            : `${plural(page.rows?.total ?? 0, what)}${missingNames.length === 0 ? "" : `: ${noNodeRow(missingNames)}`}`;
     return (
         <Stack gap={4}>
             <Group gap="xs">

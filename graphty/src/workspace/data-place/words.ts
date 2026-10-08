@@ -101,12 +101,28 @@ export function leftOutSentence(leftOut: NonNullable<LoadedSource["leftOut"]>): 
     return `${count(leftOut.rows, "edge row")} ${one ? "was" : "were"} left out: ${one ? "it names" : "they name"} ${missingNodes(leftOut.values)}.`;
 }
 
+/** The words after an unmatched row's end that names no node, in the import grid. */
+export const NO_NODE_ROW = "(no node row)";
+
 /**
- * One left-out row as a line: where it was in the file, its two ends under their column names,
- * then its other values under theirs.
+ * Says which names have no node row: an unmatched row on the import page, a left-out row in the inspector.
+ * @param names - the missing names, in row order, repeats allowed.
+ * @returns such as "s11 has no node row" or "s11, p13 and 2 more have no node rows".
+ */
+export function noNodeRow(names: readonly string[]): string {
+    const unique = [...new Set(names)];
+    const shown = unique.length > 3 ? [...unique.slice(0, 2), `${String(unique.length - 2)} more`] : unique;
+    const list = shown.length === 1 ? shown[0] : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+    return unique.length === 1 ? `${list} has no node row` : `${list} have no node rows`;
+}
+
+/**
+ * One left-out row as a line: where it was in the file, which of its values has no node row (first,
+ * so a narrow inspector still shows it), then its two ends under their column names and its other
+ * values under theirs.
  * @param edge - the row, as its load kept it.
  * @param ends - the columns the ends were read from, `LoadedSource.leftOut.endColumns`.
- * @returns such as "Line 24: from p11, to p13, emails 6".
+ * @returns such as "Line 24: p13 has no node row; from p11, to p13, emails 6".
  */
 export function leftOutRow(edge: LeftOutEdge, ends?: NonNullable<LoadedSource["leftOut"]>["endColumns"]): string {
     const text = (value: unknown): string => (value === null || value === undefined ? "" : valueText(value));
@@ -117,7 +133,9 @@ export function leftOutRow(edge: LeftOutEdge, ends?: NonNullable<LoadedSource["l
         named(ends?.target, edge.target),
         ...Object.entries(edge.values).map(([name, value]) => named(name, value)),
     ].join(", ");
-    return edge.line === undefined ? values : `Line ${String(edge.line)}: ${values}`;
+    const missing = (edge.missingEnds ?? []).map((end) => text(edge[end]));
+    const line = missing.length === 0 ? values : `${noNodeRow(missing)}; ${values}`;
+    return edge.line === undefined ? line : `Line ${String(edge.line)}: ${line}`;
 }
 
 /**

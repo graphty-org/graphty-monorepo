@@ -215,9 +215,12 @@ describe("the Data page on the real element", () => {
             assert.include(report.textContent, "1 edge row names a node missing from the node rows.");
 
             await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
-            await screen.findByText("1 unmatched row");
+            await screen.findByText("1 unmatched row: z has no node row");
             const grid = screen.getByRole("grid", { name: "Rows of ties.csv" });
-            assert.isNotNull(within(grid).getByText("z"));
+            // The target end names no node, so its cell is marked; the source end, c, is not.
+            const marked = [...grid.querySelectorAll(".dp-missing-end")].map((cell) => cell.textContent);
+            assert.deepEqual(marked, ["z (no node row)"]);
+            assert.isNotNull(within(grid).getByText("c"));
 
             await userEvent.click(within(report).getByText("Add"));
             await waitFor(() => {
@@ -439,7 +442,7 @@ describe("the Data page on the real element", () => {
             const inspector = screen.getByRole("complementary", { name: "Inspector" });
             await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
             // The row itself, kept by the element with the load: no file to reopen.
-            await within(inspector).findByText("Line 4: source c, target z, weight 1");
+            await within(inspector).findByText("Line 4: z has no node row; source c, target z, weight 1");
         },
         TIMEOUT_MS * 3,
     );
@@ -494,9 +497,12 @@ describe("the Data page on the real element", () => {
                     { timeout: TIMEOUT_MS },
                 ),
             );
-            await screen.findByText("1 unmatched row");
+            await screen.findByText("1 unmatched row: z has no node row");
             const grid = screen.getByRole("grid", { name: "Rows of ties.csv" });
-            assert.isNotNull(within(grid).getByText("z"));
+            assert.deepEqual(
+                [...grid.querySelectorAll(".dp-missing-end")].map((cell) => cell.textContent),
+                ["z (no node row)"],
+            );
         },
         TIMEOUT_MS * 2,
     );

@@ -4,6 +4,31 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: which end of a left-out row has no node (`missingEnds`)
+
+**What.** graphty-element adds a type, `EdgeEnd = "source" | "target"`, and one optional field in
+two places, additive: `LeftOutEdge.missingEnds?: readonly EdgeEnd[]` (kept with each left-out row,
+saved with the project; a project saved before it still opens, with the field absent) and
+`DraftRow.missingEnds?: readonly EdgeEnd[]` (present only on the rows `draft.rows(table, { only:
+"unmatched" })` returns). Each lists the ends that name a node no node row holds: one end or both.
+The graphty app marks that cell in the import page's unmatched grid ("s11 (no node row)", with a
+warning glyph), says it in the grid's caption ("1 unmatched row: s11 has no node row"), and leads the
+inspector's left-out line with it ("Line 17: s11 has no node row; from s04, to s11, passes 3").
+
+**Why.** An unmatched row showed "s04, s11, 3" and the reader could not tell which name was the
+missing one: "s11" looks like "s04". The element decides which end is missing while it reads the
+rows and then dropped that fact; another consumer could only recompute it by matching ids against
+the node rows itself. The ends are named, not the values, so a row whose two ends hold the same
+value is still exact, and the app finds the column through the roles it already reads
+(`draft.resolve`, `LoadedSource.leftOut.endColumns`). Not breaking: new optional fields and a new
+type. Tests: `graphty-element/test/session/load-draft.test.ts` (source missing, target missing,
+both; absent without the filter), `graphty-element/test/session/data-sources.test.ts` (kept through
+undo, redo, save and reopen).
+
+**Alternatives.** The missing values themselves (`missing: ["s11"]`), which loses which column they
+came from when both ends hold the same text; the missing column names on `DraftRow`, which a
+`LeftOutEdge` cannot carry the same way (its ends are not columns when read by an expression).
+
 ## 2026-10-08 -- Decided by the team: a label can be drawn over the graph (`LabelStyle.onTop`)
 
 **What.** graphty-element's label style (`node.labelStyle`, `edge.labelStyle`, the `LabelStyle`

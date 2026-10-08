@@ -1319,20 +1319,21 @@ describe("gpu.yml", () => {
         assert.doesNotMatch(gpu, /gpu-lane-needed|T4 GPU gate/);
     });
 
-    it("runs on a spot T4 by default, the release train included, with on-demand and hosted as dispatch options", () => {
-        // owner decision, 2026-10-04; a workflow_call declares no runner input, so the train takes the default
+    it("runs on an on-demand T4 by default, the release train included, with spot and hosted as dispatch options", () => {
+        // owner decision, 2026-10-08 (spot reclaims held releases); a workflow_call declares no runner input, so the
+        // train takes the default
         assert.match(
             job(gpu, "test-gpu"),
-            /runs-on: \$\{\{ inputs\.runner \|\| 'machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot' \}\}/,
+            /runs-on: \$\{\{ inputs\.runner \|\| 'machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand' \}\}/,
         );
-        assert.match(gpu, /default: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/);
-        for (const option of ["gpu-linux-t4", "machine/gpu=t4/cpu=4/ram=16/tenancy=on_demand"]) {
+        assert.match(gpu, /default: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/);
+        for (const option of ["gpu-linux-t4", "machine/gpu=t4/cpu=4/ram=16/tenancy=spot"]) {
             assert.ok(gpu.includes(`- ${option}\n`), option);
         }
         assert.doesNotMatch(triggers(gpu).split("workflow_dispatch:")[0], /runner:/);
         assert.match(
             job(workflow("gpu-weekly-paired.yml"), "paired"),
-            /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=spot\n/,
+            /runs-on: machine\/gpu=t4\/cpu=4\/ram=16\/tenancy=on_demand\n/,
         );
     });
 

@@ -1,6 +1,6 @@
 # .github/workflows/gpu-rerun-on-runner-loss.yml -- re-runs a T4 run's failed jobs ONCE when the only thing that
-# went wrong is that a machine.dev spot runner was taken away mid-job (owner decision, 2026-10-04: the T4 lanes run
-# on spot). A reclaimed runner ends its job as a failure whose annotation says the runner was lost or shut down;
+# went wrong is that a machine.dev runner was taken away mid-job (a spot reclaim when a dispatch picks spot; the T4
+# lanes default to on-demand since 2026-10-08). A reclaimed runner ends its job as a failure whose annotation says the runner was lost or shut down;
 # that is not a test result, so the failed jobs are re-run on a fresh runner. Only the first attempt is re-run: a
 # second loss stays red, and an attempt with any real failure (a job without the lost-runner message, in any lane)
 # is never re-run. tools/gpu-runner-lost.sh decides.

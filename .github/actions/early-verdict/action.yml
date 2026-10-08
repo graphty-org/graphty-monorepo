@@ -1,0 +1,43 @@
+name: Report a failure to the summary checks now
+description: >
+    Marks "All Checks Pass" and "Queue Checks Pass" as failed on the pull request's head commit the
+    moment a job they require fails, instead of when the slowest job of the run ends. Without it a
+    pull request, or a merge-queue batch Mergify could already be splitting, waited up to half an hour
+    for a verdict that was settled. Each check is a new check run of the same name; the summary jobs
+    themselves still run when every job has ended and post their own verdict, which is then the newest
+    check run of that name and the one GitHub and Mergify read. This step only ever reports a failure,
+    and only for a job whose failure fails "All Checks Pass" anyway, so it can make a verdict earlier but
+    never different: a job in its warning period (tools/ci-advisory-checks.json) is skipped. A re-run
+    that passes posts newer, passing summary checks. Use it as the last step of a required job, with
+    `if: failure() && github.event_name == 'pull_request'` and `continue-on-error: true` (a fork's
+    read-only token cannot create check runs, and that must not change the job's result).
+inputs:
+    job:
+        description: The job's id, as tools/ci-advisory-checks.json names it.
+        required: true
+    advisory:
+        description: The run's advisory checks, the JSON list the packages job prints.
+        required: false
+        default: "[]"
+runs:
+    using: composite
+    steps:
+        - shell: bash
+          env:
+              GH_TOKEN: ${{ github.token }}
+              JOB: ${{ inputs.job }}
+              ADVISORY: ${{ inputs.advisory }}
+              SHA: ${{ github.event.pull_request.head.sha }}
+              RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          run: |
+              if jq -e --arg job "$JOB" 'index($job) != null' <<<"${ADVISORY:-[]}" >/dev/null; then
+                  echo "$JOB is in its warning period: its failure does not fail the summary checks"
+                  exit 0
+              fi
+              for check in "All Checks Pass" "Queue Checks Pass"; do
+                  gh api "repos/$GITHUB_REPOSITORY/check-runs" --silent \
+                      -f name="$check" -f head_sha="$SHA" -f status=completed -f conclusion=failure \
+                      -f details_url="$RUN_URL" \
+                      -f "output[title]=$JOB failed" \
+                      -f "output[summary]=The $JOB job failed, so this run cannot pass. The run's own summary job reports again when every job has ended: $RUN_URL"
+              done

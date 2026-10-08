@@ -22,6 +22,21 @@ import type { Node as GraphNode, NodeIdType } from "./Node";
 import { dispatcherOf } from "./session/GraphSession";
 import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
 
+/**
+ * The id of the node a click at a canvas point lands on, or `undefined` when it lands on none.
+ *
+ * Every pointer handler that asks "which node is under the pointer" and `elementAt` ask it here,
+ * so the public answer and what a click selects cannot drift apart.
+ * @param scene - The scene to pick in.
+ * @param x - X in CSS pixels from the canvas's left edge.
+ * @param y - Y in CSS pixels from the canvas's top edge.
+ * @returns The node's id, or `undefined`.
+ */
+export function pickNodeId(scene: Scene, x: number, y: number): NodeIdType | undefined {
+    const metadata = scene.pick(x, y).pickedMesh?.metadata as { nodeId?: NodeIdType } | null | undefined;
+    return metadata?.nodeId;
+}
+
 interface NodeBehaviorOptions {
     pinOnDrag?: boolean;
 }
@@ -440,11 +455,8 @@ export class NodeDragHandler {
             switch (pointerInfo.type) {
                 case PointerEventTypes.POINTERDOWN: {
                     // Check if we clicked on this node
-                    const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
-
-                    // Use nodeId from mesh metadata for comparison
-                    // This works with both regular and instanced meshes
-                    const pickedNodeId = pickInfo.pickedMesh?.metadata?.nodeId;
+                    // nodeId from mesh metadata works with both regular and instanced meshes
+                    const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
 
                     if (pickedNodeId === this.node.id) {
                         // Initialize click tracking
@@ -540,8 +552,7 @@ export class NodeDragHandler {
             }
 
             // Check if we're hovering over this node
-            const pickInfo = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
-            const pickedNodeId = pickInfo.pickedMesh?.metadata?.nodeId;
+            const pickedNodeId = pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY);
             const isOverThisNode = pickedNodeId === this.node.id;
 
             // Emit node-hover when entering the node (not when already hovering)

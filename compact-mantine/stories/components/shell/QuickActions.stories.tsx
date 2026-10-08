@@ -1,7 +1,7 @@
 import { ActionIcon, Stack, Tabs, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, fn, userEvent, within } from "@storybook/test";
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 
 import { QuickActions, type QuickActionsProps } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
@@ -22,9 +22,12 @@ function Palette(props: QuickActionsProps): React.JSX.Element {
         plugins: props.actions.filter((a) => a.section === "Plugins & widgets"),
     };
     const shown = scopes[scope ?? "all"];
+    // The scope tabs filter the result list rather than switch panels, so each names the list.
+    const listId = `${useId()}-results`;
     return (
         <QuickActions
             {...props}
+            listId={listId}
             actions={shown}
             searchAction={
                 <ActionIcon aria-label="Visual search" onClick={fn()}>
@@ -34,9 +37,15 @@ function Palette(props: QuickActionsProps): React.JSX.Element {
             header={
                 <Tabs value={scope} onChange={setScope}>
                     <Tabs.List aria-label="Search in">
-                        <Tabs.Tab value="all">All</Tabs.Tab>
-                        <Tabs.Tab value="assets">Assets</Tabs.Tab>
-                        <Tabs.Tab value="plugins">Plugins &amp; widgets</Tabs.Tab>
+                        <Tabs.Tab value="all" aria-controls={listId}>
+                            All
+                        </Tabs.Tab>
+                        <Tabs.Tab value="assets" aria-controls={listId}>
+                            Assets
+                        </Tabs.Tab>
+                        <Tabs.Tab value="plugins" aria-controls={listId}>
+                            Plugins &amp; widgets
+                        </Tabs.Tab>
                     </Tabs.List>
                 </Tabs>
             }

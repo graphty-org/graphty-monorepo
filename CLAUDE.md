@@ -610,6 +610,25 @@ version plan in a temporary release group for exactly this reason; the group is 
 package is on conventional commits again. Check any release change with
 `pnpm exec nx release --dry-run --skip-publish`.
 
+### A new package's first npm publish
+
+npm trusted publishing is configured per package on npmjs.com, and a new trusted-publisher
+configuration expires if no publish uses it within 2 days (https://docs.npmjs.com/trusted-publishers/).
+So the first publish of a new package is a manual owner step, done at one moment only:
+
+1. Wait until the first release containing the package reaches its publish step and fails with
+   "This command requires you to be logged in to https://registry.npmjs.org/ / You need to
+   authorize this machine using `npm adduser`". The "Release held: publish failed" issue then
+   says so as an owner item naming the package.
+2. Then, and not before, create the trusted publisher: the package's settings page on npmjs.com
+   (`https://www.npmjs.com/package/<name>/access`), Trusted Publisher, GitHub Actions, with
+   organization `graphty-org`, repository `graphty-monorepo`, workflow filename `release.yml`,
+   and no environment.
+3. Re-run the failed publish job at once: `gh run rerun <run id> --failed`.
+
+Never create the trusted publisher ahead of time: unused, it expires after 2 days and the publish
+fails the same way (this is how @graphty/cytoscape-extensions' first release failed on 2026-10-07).
+
 To hold one package back from npm, add it to `release-hold.json` at the repository root, with a
 reason and the date: `{ "hold": [{ "project": "graphty-element", "reason": "...", "since":
 "2026-10-03" }] }` (`project` is the nx project name, `pnpm exec nx show projects`). Every other

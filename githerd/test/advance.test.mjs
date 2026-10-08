@@ -114,6 +114,39 @@ describe("settleWaits", () => {
         expect([checks, lane, onJob, gh].every((j) => j.state === "working")).toBe(true);
     });
 
+    it("holds a checks wait named by its pull request's number until that pull request's checks finish", async () => {
+        // Sessions name the pull request (#1451), not a head sha: the wait must hold while CI runs.
+        const byNumber = working("by-number");
+        move(byNumber, "waiting", T0, { waitingFor: { checks: "1451" } });
+        const bySha = working("by-sha");
+        move(bySha, "waiting", T0, { waitingFor: { checks: HEAD } });
+        const state = stateOf(byNumber, bySha);
+        // A summary check such as All Checks Pass is MISSING until the jobs it needs end.
+        state.prs = {
+            1451: { headSha: "d".repeat(40), required: { "All Checks Pass": "MISSING", "Lint PR Title": "SUCCESS" } },
+            7: { headSha: HEAD, required: { "All Checks Pass": "MISSING" } },
+        };
+        expect(settleWaits(state, at(1))).toEqual([]);
+        expect([byNumber, bySha].every((j) => j.state === "waiting")).toBe(true);
+        // A new push to the pull request does not end a wait on the pull request itself.
+        state.prs[1451].headSha = "e".repeat(40);
+        expect(settleWaits(state, at(2))).toEqual([]);
+        state.prs[1451].required["All Checks Pass"] = "FAILURE";
+        expect(settleWaits(state, at(3)).map((s) => s.job)).toEqual(["by-number"]);
+        expect(byNumber.news.at(-1).text).toBe(
+            "checks on #1451 finished: All Checks Pass FAILURE, Lint PR Title SUCCESS",
+        );
+        const gone = working("gone");
+        move(gone, "waiting", T0, { waitingFor: { checks: "#1500" } });
+        state.jobs.gone = gone;
+        // Not in the poll is not closed (#1371): only GitHub's answer ends the wait.
+        expect(settleWaits(state, at(4))).toEqual([]);
+        const gitHub = { graphql: async () => ({ repository: { j0: { state: "CLOSED" } } }) };
+        await confirmClosedWaits(state, { gitHub, repo: "o/r" });
+        expect(settleWaits(state, at(5)).map((s) => s.job)).toEqual(["gone"]);
+        expect(gone.news.at(-1).text).toBe("#1500 is no longer open");
+    });
+
     it("leaves push and verification waits to their own owners, and requeues a job whose blocker ended", () => {
         const push = working("push");
         move(push, "waiting", T0, { waitingFor: { push: "q1" } });
@@ -201,7 +234,7 @@ describe("a checks wait on a pull request the poll has not seen", () => {
         state.prs = {};
         Object.assign(github, { 1368: "CLOSED", [SHA]: "MERGED" });
         expect((await poll()).map((s) => s.line.news)).toEqual([
-            "the pull request of 1368 is no longer open",
+            "#1368 is no longer open",
             "the pull request of ddddddddd is no longer open",
         ]);
         expect([byNumber.state, bySha.state]).toEqual(["working", "working"]);

@@ -28,8 +28,9 @@
  *   closing are in its batch. No clock: merges count. Once, a `types` pass over every open issue
  *   (20 per job) re-judges each type label now that `infrastructure` exists (owner decision
  *   2026-10-06; `state.triagePasses.typesQueued`).
- * - `issue-<n>`: one queued issue job at a time, for the issue at the front of the ranked list;
- *   the next is made once that one leaves the queue, never one per backlog issue. An issue a session
+ * - `issue-<n>`: one queued issue job per session githerd may invite (`workers.sessions`, one
+ *   when it names none), for the issues at the front of the ranked list; the next is made once one
+ *   leaves the queue, never one per backlog issue. An issue a session
  *   deferred (`state.deferred`, done.mjs) is left out until its revision changes. Only the types of
  *   `backlog.issueTypes` get a new job (bug and infrastructure by default) unless the owner picked the
  *   issue, even one master already references (`issueRefusal` in queue.mjs, the one rule). A job
@@ -587,8 +588,8 @@ function cancelClosedIssueJobs(state, cancel) {
 }
 
 /**
- * The issue jobs: one queued at a time, for the issue at the front (an open order first, then the
- * ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
+ * The issue jobs: one queued per session githerd may invite, for the issue at the front (an open
+ * order first, then the ranked list); the re-land of every pull request a revert took out; and an issue job whose issue
  * closed is cancelled.
  * @param {any} state the daemon state
  * @param {any} config the normalized config
@@ -603,14 +604,36 @@ function issueJobs(state, config, now, add, cancel) {
     for (const [n, revision] of Object.entries(state.unbundled ?? {}))
         if (state.issues?.byNumber?.[n]?.updatedAt !== revision) delete state.unbundled[n];
     // A promotion waits for an owner session and holds no place in the issue queue.
-    const queued = Object.values(state.jobs).some(
+    let queued = Object.values(state.jobs).filter(
         (j) => j.kind === "issue" && j.state === "queued" && j.facts?.scope !== "promote",
-    );
+    ).length;
     const priorities = config.labels?.priorities ?? [];
-    const candidates = issueCandidates(state, config, now, deferred);
-    const top = candidates[0];
-    // One queued issue job at a time, but a critical one never waits behind a lower one.
-    if (!top || (queued && priorities[top.priority] !== CRITICAL)) return;
+    // One queued issue job per session githerd may invite (`workers.sessions`, one when it names
+    // none), all made in this pass, so an issue every session passes on does not leave the others
+    // without work; a critical one never waits behind a lower one.
+    const room = Math.max(config.workers?.sessions?.length ?? 1, 1);
+    const tried = new Set();
+    for (;;) {
+        const candidates = issueCandidates(state, config, now, deferred);
+        const top = candidates[0];
+        if (!top || tried.has(top.number) || (queued >= room && priorities[top.priority] !== CRITICAL)) return;
+        tried.add(top.number);
+        addIssueJob(state, config, now, add, top, candidates);
+        queued += 1;
+    }
+}
+
+/**
+ * Makes the issue job for the issue at the front of the queue, with its bundle.
+ * @param {any} state the daemon state
+ * @param {any} config the normalized config
+ * @param {Date} now the clock
+ * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
+ * @param {any} top the front issue (`issueCandidates`)
+ * @param {any[]} candidates every free issue, in queue order
+ */
+function addIssueJob(state, config, now, add, top, candidates) {
+    const priorities = config.labels?.priorities ?? [];
     const issue = state.issues.byNumber[top.number];
     const guard = guardIssue(state, String(issue.text ?? "").split("\n")[0]);
     const label = priorities[top.priority];

@@ -202,7 +202,12 @@ source: the owner by hand, a Claude session, githerd, a CI bot, anyone else) and
 pull request's closing keyword, as not planned or duplicate, by githerd, or otherwise), pull
 requests opened, merged and closed unmerged, the heads whose required lanes failed, merge-queue
 dequeues and release trains. It is rebuilt from GitHub's list endpoints, so a day the daemon missed
-is filled in the next day. `githerd stats` reports it.
+is filled in the next day. `githerd stats` reports it, and then the pre-push gate: pushes and
+failures per day, the median queue wait and gate time, and the failing tests and steps ranked by
+the queue hours they cost, each split into failures where the push changed the test's package and
+failures where it did not (a flaky or load-sensitive test). It reads the push log the push queue
+writes in the main checkout's `tmp/`; the daemon reads it every poll too, so a test that fails the
+gates of two branches that do not touch its package gets a flaky-test issue.
 
 ## Commands
 
@@ -213,6 +218,7 @@ githerd status [--json]          # the daemon's status, as githerd_status shows 
 githerd ledger --since 1d --kind job-created --target pr:704
 githerd stats [--json]           # issues and pull requests per week, where issues come from, what is stalled
 githerd stats --backfill         # first rebuild the missing days of the last 8 weeks from GitHub (reads only)
+githerd stats --backfill-gate    # first recover older pushes' pre-push gate output from transcripts and shard logs
 githerd mode paused              # lower the mode locally (also dry-run); mode clear removes it
 githerd pause | resume           # stop / restart every worker start and doorbell
 githerd workers <n> | --stop     # working sessions (0 keeps only the urgent slot); --stop ends all

@@ -152,43 +152,58 @@ function localNews(job, task, output) {
     return exited ? `task ${task} finished with exit code ${exited[1]}` : null;
 }
 
+/** Required-check states that are not a result yet: a summary check is MISSING until its jobs end. */
+const UNSETTLED = new Set(["PENDING", "MISSING", "CANCELLED", "EXPECTED"]);
+
 /**
- * The polled open pull request a checks wait names: its target is a pull request's number (as a
- * session names it) or a head commit, which also matches the job's own pull request.
+/**
+ * The pull request number a checks wait names (`1451` or `#1451`, which sessions pass), or null
+ * when it names a head sha.
+ * @param {string} target the wait's target
+ * @returns {string | null} the number
+ */
+const waitNumber = (target) => (/^#?\d+$/.test(target) ? target.replace("#", "") : null);
+
+/**
+ * The polled open pull request a checks wait names: by number, or by head sha, which also matches
+ * the job's own pull request.
  * @param {any} state the daemon state
  * @param {any} job the waiting job
  * @param {string} target the wait's target
  * @returns {[string, any] | undefined} the number and the record, or undefined when not polled
  */
 function polledPr(state, job, target) {
-    const num = /^\d+$/.test(target) ? Number(target) : null;
+    const number = waitNumber(target);
     return Object.entries(state.prs ?? {}).find(([n, p]) =>
-        num === null ? p.headSha === target || Number(n) === job.pr : Number(n) === num,
+        number ? n === number : p.headSha === target || Number(n) === job.pr,
     );
 }
 
 /**
- * The news of a wait on a pull request's required checks, or null while they run. A pull request
- * the poll's open list does not hold is "not seen yet" (opened since, or past the list's end), not
- * closed: only GitHub's own answer (`confirmClosedWaits`) ends the wait for that.
+ * The news of a wait on a pull request's required checks, or null while they run. A wait on the
+ * number follows the pull request across pushes. A pull request the poll's open list does not hold
+ * is "not seen yet" (opened since, or past the list's end), not closed: only GitHub's own answer
+ * (`confirmClosedWaits`) ends the wait for that.
  * @param {any} state the daemon state
  * @param {any} job the waiting job
  * @param {any} w its wait: `checks` the pull request's number or head, `closed` GitHub's answer
  * @returns {string | null} the news line, or null
  */
 function checksNews(state, job, w) {
-    const target = String(w.checks);
-    const pr = polledPr(state, job, target);
-    if (!pr) return w.closed ? `the pull request of ${target.slice(0, 9)} is no longer open` : null;
-    const [n, rec] = pr;
-    // A wait on a number follows the pull request's head wherever it moves.
-    if (!/^\d+$/.test(target) && rec.headSha !== target) {
-        return `#${n}'s head moved to ${String(rec.headSha).slice(0, 9)}`;
+    const t = String(w.checks);
+    const number = waitNumber(t);
+    const pr = polledPr(state, job, t);
+    if (!pr) {
+        if (!w.closed) return null;
+        return number ? `#${number} is no longer open` : `the pull request of ${t.slice(0, 9)} is no longer open`;
     }
+    const [n, rec] = pr;
+    if (!number && rec.headSha !== t) return `#${n}'s head moved to ${String(rec.headSha).slice(0, 9)}`;
     const states = Object.entries(rec.required ?? {});
-    if (!states.length || states.some(([, s]) => s === "PENDING" || s === "EXPECTED")) return null;
+    if (!states.length || states.some(([, s]) => UNSETTLED.has(s))) return null;
     const results = states.map(([k, s]) => `${k} ${s}`).join(", ");
-    return `checks on ${String(rec.headSha).slice(0, 9)} finished: ${results}`;
+    const where = number ? "#" + n : t.slice(0, 9);
+    return `checks on ${where} finished: ${results}`;
 }
 
 /**
@@ -212,7 +227,8 @@ export async function confirmClosedWaits(state, { gitHub, repo }) {
         const target = String(w.checks);
         if (polledPr(state, job, target)) continue;
         const key = `j${asks.length}`;
-        if (/^\d+$/.test(target)) fields.push(`${key}: pullRequest(number: ${target}) { state }`);
+        const number = waitNumber(target);
+        if (number) fields.push(`${key}: pullRequest(number: ${number}) { state }`);
         else if (/^[0-9a-f]{40}$/.test(target)) {
             fields.push(
                 `${key}: object(oid: "${target}") { ... on Commit { associatedPullRequests(first: 5) { nodes { state } } } }`,

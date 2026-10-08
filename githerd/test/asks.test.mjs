@@ -541,6 +541,31 @@ describe("inviting idle sessions to pull work", () => {
         expect(atActiveCap(state, "s2", config)).toBeNull();
     });
 
+    it("does not count a job whose pull request only waits to merge or for the owner's visual review", () => {
+        // graphty-monorepo-fc, 2026-10-07 22:39: its claim was refused at 3 "active" jobs while two
+        // pull requests sat green in the merge queue and one waited only on the owner's review.
+        const state = queued();
+        const config = { workers: { maxActive: 1 } };
+        state.jobs["issue-965"] = {
+            ...newJob({ kind: "issue", target: "#965", id: "issue-965" }, NOW),
+            state: "working",
+            holder: { session: "s1" },
+        };
+        state.prs = { 1418: { headRef: "fix/kk", references: [965], required: { "All Checks Pass": "FAILURE" } } };
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+        state.prs[1418].ownerGate = true;
+        expect(atActiveCap(state, "s1", config)).toBeNull();
+        // The owner rejected the images: the holder has work to do again.
+        state.prs[1418].ownerRejected = true;
+        expect(atActiveCap(state, "s1", config)).toMatch(/you hold 1 active jobs/);
+        state.prs[1418] = {
+            headRef: "fix/kk",
+            references: [965],
+            required: { "All Checks Pass": "SUCCESS", "Lint PR Title": "SUCCESS" },
+        };
+        expect(atActiveCap(state, "s1", config)).toBeNull();
+    });
+
     it("counts an issue job with no pull request as waiting only on its session's ticket and a status that says push", () => {
         const state = queued();
         const config = { workers: { maxActive: 1 } };
@@ -596,7 +621,7 @@ describe("asking an owner session for the status of the job it holds", () => {
         expect(f.sent[0][1]).toContain("calling githerd_expect once per listed job");
         expect(f.sent[0][1]).toContain("Can you take another job? Answer that with capacity set");
         expect(f.sent[0][1]).toMatch(
-            /jobs that are only waiting to push or for CI do not count toward your capacity: count only jobs you are actively working when you answer capacity\./i,
+            /jobs that are only waiting to push, for CI, for the owner's review or to merge do not count toward your capacity: count only jobs you are actively working when you answer capacity\./i,
         );
         expect(f.sent[0][1]).not.toMatch(/minutes set|how long until/);
         expect(f.sent[0][1]).toContain("background subagents or workflows");

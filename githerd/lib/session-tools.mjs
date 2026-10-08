@@ -325,6 +325,9 @@ export function sessionToolSet(ctx) {
             // ponytail: only a job wait is checked for being settled; checks, lanes and releases are
             // settled by the next poll, which ends the wait with the doorbell. No timer ends it.
             board.move(job, "waiting", now, { waitingFor });
+            // Declaring a wait says where the job stands: it answers githerd's status question
+            // (asks.mjs), so a wait that settles before the next question never reads as silence.
+            job.status = { at: now.toISOString(), text: args.reason };
             await ctx.commit({ kind: "wait", job: job.id, for: args.for, target: args.target });
             return JSON.stringify({ ok: true });
         },
@@ -346,7 +349,9 @@ export function sessionToolSet(ctx) {
                     .map((j) => j.id);
                 state.capacity[session] = { n: args.capacity, at: now.toISOString(), held };
             }
-            await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason });
+            // The capacity answer goes in the ledger too, so who had room when can be read back.
+            const capacity = args.capacity === undefined ? {} : { capacity: args.capacity };
+            await ctx.commit({ kind: "expect", job: job.id, until, reason: args.reason, ...capacity });
             return JSON.stringify(until ? { ok: true, until } : { ok: true });
         },
         githerd_push: async (args, caller, client) => {

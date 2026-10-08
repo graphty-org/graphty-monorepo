@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { statusStep } from "../lib/asks.mjs";
 import { move, newJob } from "../lib/board.mjs";
 import { createMcpServer, TOOL_PROTOCOL, TOOLS } from "../lib/mcp.mjs";
 import { CLAIMED, sessionToolSet } from "../lib/session-tools.mjs";
@@ -407,7 +408,7 @@ describe("sessionToolSet", () => {
         expect(refused.isError).toBe(true);
         expect(JSON.parse(refused.text).reason).toBe(
             "you hold 3 active jobs; finish or report one first. " +
-                "Jobs that are only waiting to push or for CI do not count toward your capacity.",
+                "Jobs that are only waiting to push, for CI, for the owner's review or to merge do not count toward your capacity.",
         );
         // Its local-task wait ends in a wait on CI: two active jobs, room for one more.
         jobs["issue-7"].waitingFor = { checks: HEAD };
@@ -610,7 +611,7 @@ describe("sessionToolSet", () => {
     it("declares a wait and a long step only for a job the caller holds", async () => {
         const job = heldJob("pr-7");
         const other = heldJob("pr-8");
-        const { ctx } = setup({ jobs: { "pr-7": job, "pr-8": other } });
+        const { ctx, commits } = setup({ jobs: { "pr-7": job, "pr-8": other } });
         expect((await call(ctx, "githerd_expect", { job: "pr-7", minutes: 30, reason: "build" })).text).toBe(
             JSON.stringify({ ok: true, until: "2026-10-04T12:30:00.000Z" }),
         );
@@ -621,6 +622,8 @@ describe("sessionToolSet", () => {
         // The optional capacity is the session's answer to "can you take another job?" (asks.mjs).
         await call(ctx, "githerd_expect", { job: "pr-7", minutes: 30, reason: "build", capacity: 2 });
         expect(ctx.state.capacity).toEqual({ w1: { n: 2, at: "2026-10-04T12:00:00.000Z", held: ["pr-7", "pr-8"] } });
+        // The ledger keeps each capacity answer, so who had room when can be read back.
+        expect(commits.filter((c) => c.kind === "expect").map((c) => c.capacity)).toEqual([undefined, 2]);
         expect((await call(ctx, "githerd_status", {})).text).toContain("pr-7 working status 12:00 UTC: build");
         expect(
             (
@@ -647,6 +650,26 @@ describe("sessionToolSet", () => {
         expect((await call(ctx, "githerd_wait", { job: "pr-7", for: "checks", target: HEAD, reason: "ci" })).text).toBe(
             "pr-7 is waiting, not working",
         );
+    });
+
+    it("takes a wait as the holder's answer to the status question, so the job is not released for silence", async () => {
+        const job = heldJob("issue-433");
+        job.claim = { session: "w1", at: "2026-10-04T11:00:00.000Z" };
+        job.holder.startedBy = "owner";
+        // The status question was heard just before the session declared its wait.
+        job.statusAsk = { at: "2026-10-04T11:59:00.000Z", heard: true };
+        const { ctx } = setup({ jobs: { "issue-433": job } });
+        const reason = "PR #1451 opened; report done when checks settle";
+        await call(ctx, "githerd_wait", { job: "issue-433", for: "checks", target: "1451", reason }, { session: "w1" });
+        expect(job.status).toEqual({ at: NOW.toISOString(), text: reason });
+        // The wait settles (the checks finished) before githerd asks again: the question was answered.
+        move(job, "working", NOW);
+        const later = new Date(NOW.getTime() + 20 * 60_000);
+        const sessions = () => [{ pid: 1, sessionId: "w1", name: "w1", cwd: "/r", socket: "/w1.sock", status: "busy" }];
+        const transport = { send: async () => {} };
+        const lines = await statusStep(ctx.state, { now: later, acting: true, sessions, transport, minutes: 15 });
+        expect(lines.map((l) => l.kind)).toEqual(["status-asked"]);
+        expect(job.holder?.session).toBe("w1");
     });
 
     it("names an owner session's task output after the checkout the session works in", async () => {

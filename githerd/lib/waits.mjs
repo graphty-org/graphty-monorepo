@@ -1,6 +1,7 @@
 /**
  * Which held jobs are only waiting on something githerd watches: a push in the machine's push
- * queue, or CI on the job's pull request. Such a job is not counted toward `workers.maxActive`
+ * queue, CI on the job's pull request, the owner's visual review of it, or its merge (every
+ * required check green, so Mergify takes it). Such a job is not counted toward `workers.maxActive`
  * (asks.mjs `atActiveCap`), and the board shows it as waiting rather than working.
  *
  * Every poll the daemon records the push queue's live tickets in `state.pushTickets` as
@@ -14,6 +15,8 @@
  * says it is pushing; neither fact alone is enough. A job waits for CI when its pull request's
  * required checks are not all reported yet and none failed: a check pending, or missing because it
  * has not started (a summary check such as All Checks Pass appears only when the jobs it needs end).
+ * It waits for the owner when the only failing check is the owner's visual gate (`ownerGate`,
+ * prs.mjs) and the owner has not rejected the images, and to merge when every required check passed.
  */
 
 import { pushedBranches } from "./owners.mjs";
@@ -56,12 +59,25 @@ function prRecord(state, job) {
 }
 
 /**
+ * What a pull request's required checks leave its job waiting on, or null when the holder has work.
+ * @param {any} rec the pull request's record
+ * @returns {"ci" | "owner" | "merge" | null} what it waits on
+ */
+function prWait(rec) {
+    const checks = Object.values(rec.required ?? {});
+    const unsettled = checks.some((c) => c === "PENDING" || c === "MISSING");
+    if (unsettled && !checks.includes("FAILURE")) return "ci";
+    if (rec.ownerGate && !rec.ownerRejected) return "owner";
+    return checks.length && checks.every((c) => c === "SUCCESS") ? "merge" : null;
+}
+
+/**
  * What each held job in `working` or `starting` is only waiting on, if anything.
  * @param {any} state the daemon state
- * @returns {Map<string, "push" | "ci">} the waiting jobs, by id
+ * @returns {Map<string, "push" | "ci" | "owner" | "merge">} the waiting jobs, by id
  */
 export function jobWaits(state) {
-    /** @type {Map<string, "push" | "ci">} */
+    /** @type {Map<string, "push" | "ci" | "owner" | "merge">} */
     const out = new Map();
     const tickets = [...(state.pushTickets ?? [])];
     const take = (/** @type {(t: PushTicket) => boolean} */ match) => {
@@ -78,9 +94,8 @@ export function jobWaits(state) {
         if (take((t) => (branch && t.branch === branch) || (job.worktree && t.cwd === job.worktree))) {
             out.set(job.id, "push");
         } else if (rec) {
-            const checks = Object.values(rec.required ?? {});
-            const unsettled = checks.some((c) => c === "PENDING" || c === "MISSING");
-            if (unsettled && !checks.includes("FAILURE")) out.set(job.id, "ci");
+            const wait = prWait(rec);
+            if (wait) out.set(job.id, wait);
         } else if (!job.worktree) {
             branchless.push(job);
         }

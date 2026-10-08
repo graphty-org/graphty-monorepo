@@ -67,4 +67,8 @@ Build order and per-task done-criteria: `design/githerd/githerd-plan.md`.
   slots one gate at a time for every session. The board reads the queue's tickets in the main
   checkout's `tmp/push-queue/` (`pushQueueTickets` in `lib/proc.mjs`). The script also appends one line per push
   to the main checkout's `tmp/push-log.jsonl` naming the Claude session that launched it, from
-  which `lib/owners.mjs` infers each pull request's owner every poll (with worktree presence).
+  which `lib/owners.mjs` infers each pull request's owner every poll (with worktree presence). Each line
+  also carries the push's queue and gate times, its gate's `[FAIL]` and `FAIL` lines and the
+  directories it changes (the full output goes to `tmp/push-gate-logs/`); `lib/prepush.mjs` reads
+  them for `githerd stats` and hands each poll's pushes to the flaky-test tracker. Recording must
+  never fail or slow a push.

@@ -363,11 +363,17 @@ function openJobs(state) {
  * A job's state, age, deadline and holder.
  * @param {import("./board.mjs").Job} j the job
  * @param {Date} now the current time
- * @param {"push" | "ci"} [wait] what the job is only waiting on (waits.mjs), shown in place of its state
+ * @param {"push" | "ci" | "owner" | "merge"} [wait] what the job is only waiting on (waits.mjs), shown in place of its state
  * @returns {string} the words
  */
 function jobState(j, now, wait) {
-    const label = { push: "waiting to push", ci: "waiting for CI" }[wait ?? ""] ?? j.state;
+    const label =
+        {
+            push: "waiting to push",
+            ci: "waiting for CI",
+            owner: "waiting for the owner's review",
+            merge: "waiting to merge",
+        }[wait ?? ""] ?? j.state;
     const parts = [`${label} ${span(now.getTime() - Date.parse(j.stateSince))}`];
     if (j.pausedBy?.length) parts.push(`clock paused by ${j.pausedBy.join(", ")}`);
     else if (j.deadline) parts.push(`${j.deadlineAction} in ${span(Date.parse(j.deadline) - now.getTime())}`);

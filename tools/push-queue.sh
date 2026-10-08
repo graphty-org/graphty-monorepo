@@ -21,6 +21,7 @@ dir=${PUSH_QUEUE_DIR:-$main/tmp/push-queue}
 mkdir -p "$dir"
 rank=1; [ "${PUSH_QUEUE_PRIORITY:-}" = critical ] && rank=0
 ticket="$dir/$rank-$(date +%s%N)-$$"
+queued_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 echo "$PWD :: $*" > "$ticket"
 trap 'rm -f "$ticket" "$PUSH_QUEUE_COPY"' EXIT
 
@@ -37,6 +38,7 @@ while :; do
     done
     sleep 10
 done
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # The push log, which githerd reads to learn whose pull request a branch is
 # (githerd/lib/owners.mjs): one JSON line per push, appended when it ends, with the pushed branch
@@ -70,11 +72,35 @@ while [ "${p:-0}" -gt 1 ] && [ -r "/proc/$p/stat" ]; do
     fi
     p=${f[1]}
 done
-"$@"
+# The gate's report, for githerd's pre-push statistics (githerd/lib/prepush.mjs): the command's
+# stdout and stderr (the gate prints on both) are each copied into tmp/push-gate-logs/<ticket>.log on
+# their way to where they went before; `wait` lets both copies finish before the log is read. The
+# log line then carries the queue times, the gate's [FAIL] and FAIL lines -- with the FAIL lines of
+# each failed shard's own log (tmp/prepush-tests/<shard>.log), whose printed tail can miss them --
+# and the top-level directories the push changes against its merge base with origin/master
+# (Markdown left out). Recording never fails or slows the push: each part that fails is left out of
+# the line. Logs older than 14 days are removed.
+gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
+mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
+"$@" > >(tee -a "$gate_log" 2>/dev/null) 2> >(tee -a "$gate_log" >&2 2>/dev/null)
 rc=$?
-jq -nc --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg branch "$branch" --arg sha "$sha" --arg cwd "$PWD" \
-    --argjson exit "$rc" --argjson session "${session:-null}" \
+finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+wait
+gate=$(sed 's/\x1b\[[0-9;]*m//g' "$gate_log" 2>/dev/null | grep -aE '\[FAIL\]|^ *FAIL |All pre-push checks passed|\[(remote )?rejected\]' \
+    | awk '{ print } /\[FAIL\] [^ ]+ \(exit .*; the end of .*:$/ {
+        f = $0; sub(/.*; the end of /, "", f); sub(/:$/, "", f)
+        while ((getline l < f) > 0) { gsub(/\033\[[0-9;]*m/, "", l); if (l ~ /^ *FAIL /) print l }
+        close(f) }' 2>/dev/null | head -200 | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
+changed=
+if [ -n "$sha" ] && base=$(git merge-base origin/master "$sha" 2>/dev/null); then
+    changed=$(git diff --name-only "$base" "$sha" 2>/dev/null | awk -F/ '!/\.md$/ { print (NF > 1 ? $1 "/" : $0) }' | sort -u \
+        | jq -Rsc 'split("\n") | map(select(length > 0))' 2>/dev/null)
+fi
+jq -nc --arg at "$finished_at" --arg branch "$branch" --arg sha "$sha" --arg cwd "$PWD" \
+    --argjson exit "$rc" --argjson session "${session:-null}" --arg queuedAt "$queued_at" --arg startedAt "$started_at" \
+    --arg gateLog "$gate_log" --argjson gate "${gate:-null}" --argjson changed "${changed:-null}" \
     '{at: $at, branch: (if $branch == "" then null else $branch end),
       sha: (if $sha == "" then null else $sha end), exit: $exit, cwd: $cwd,
-      sessionId: $session.sessionId, name: $session.name}' >>"$log" 2>/dev/null
+      sessionId: $session.sessionId, name: $session.name,
+      queuedAt: $queuedAt, startedAt: $startedAt, gateLog: $gateLog, gate: $gate, changed: $changed}' >>"$log" 2>/dev/null
 exit $rc

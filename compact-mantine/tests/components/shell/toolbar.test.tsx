@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SecondaryToolbar, Toolbar, ToolButton, ToolGroup, type ToolItem } from "../../../src";
+import { compactThemeWithoutTooltips } from "../theme-without-tooltips";
 import { renderShell } from "./render";
 
 const SHAPES: ToolItem[] = [
@@ -68,8 +69,10 @@ describe("Toolbar", () => {
         expect(within(screen.getByRole("toolbar")).queryByRole("button", { name: "Rectangle" })).not.toHaveFocus();
     });
 
+    // Real key presses, without tooltips: each focus move would mount one (see
+    // theme-without-tooltips.ts), and the test is about where focus goes.
     it("moves with the arrows, Home and End, wrapping", async () => {
-        renderShell(<Editor />);
+        renderShell(<Editor />, compactThemeWithoutTooltips);
         await userEvent.tab();
         await userEvent.keyboard("{ArrowRight}");
         expect(screen.getByRole("button", { name: "Move tools" })).toHaveFocus();

@@ -144,29 +144,37 @@ value on average); otherwise bands. In `buildHistogram`, so `RunResult.histogram
 value per element (`data.histogram` on a five-row `score` of 0, 0.5, ... 2) now reports
 `binning: "banded"` where it reported `"per-value"`.
 
-## 2026-10-08 -- For the owner: the shortest path's node color no longer sits inside a ranking ramp
+## 2026-10-08 -- For the owner: the shortest path's node color stands out from the default nodes and from a ranking ramp
 
-**What.** The shortest path's suggested node color (the "Shortest route" layer) changes to a color
-outside the sequential ramps the element suggests for measures, so the chain's nodes stay visible
-on a drawing already colored by PageRank. A changed default appearance, so listed here; built on
-the studio branch.
+**What.** The color the element paints a highlight in when the caller names none -- the shortest
+path's nodes and edges (the "Shortest route" layers), and any node or edge set -- changes from
+Okabe-Ito vermilion `#D55E00` to black `#000000`, so a route's nodes stand out both on a drawing
+already colored by PageRank and on a drawing with no measure at all. A changed default appearance,
+so listed here; built on the studio branch.
 
 **Why.** On every ranked start of the tier 2 study, the path's orange nodes looked like low-ranked
-nodes; only the edges showed the chain.
+nodes; only the edges showed the chain. A first fix, Paul Tol's indigo `#332288`, cleared every
+swatch check but is the default node's own hue made darker: rendered as lit spheres on an
+unranked drawing, the route's nodes measured Delta E 19.5 and 2.1:1 from the nodes around them,
+and pilots read them as ordinary nodes; only the thick edges showed the route.
 
 **Alternatives.** The app passes its own path color (a consumer's choice, but every consumer that
-stacks a path on a ranking meets the same clash first).
+stacks a path on a ranking meets the same clash first). A second, non-color cue on the route's
+nodes: a size would flatten whatever size encoding sits beneath (PageRank sizes the nodes in the
+ranked case), and an outline is a full-screen pass drawn the same thin width for every node.
+Neither was needed once the color was right.
 
-**Built.** `DEFAULT_HIGHLIGHT.color` (every highlight a caller names no style for: a route and a
-node or edge set) goes from Okabe-Ito vermilion `#D55E00` to Paul Tol's indigo `#332288`. The
-vermilion was Delta E 1 from the second step of the default measurement palette. The indigo is at
-least Delta E 19 from the default node, the default edge, the background and all eleven sampled
-colors of the default measurement palette, for normal vision and all three kinds of color
-blindness, and 11:1 against the background; a search of the color space found only dark blues
-and violets that clear Delta E 15 against all of those at once. The cost: on a drawing with no
-measure, the route is a dark indigo among the default periwinkle nodes, told apart by lightness
-rather than by hue (Delta E 23 to 24 and 2.7:1, against 31 to 34 for the vermilion). Test:
-`test/catalog/default-palette-quality.test.ts`; story `Algorithms/Combined::RouteOverRanking`.
+**Built.** `DEFAULT_HIGHLIGHT.color` is `#000000`. Measured as a lit node draws it (shadow, middle
+and lit tones), black is Delta E 40 from the default node and 22 from the darkest step of the
+default measurement palette, for normal vision and under protanopia and deuteranopia, and 19:1
+against the background; a search of the color space found nothing that clears both by more (the
+indigo: 19 and 14). Rendered in the app, the route's nodes against the other nodes: Delta E 50
+and 3.0:1 on the unranked bus stops and trails (indigo: 19.5 and 2.1:1), Delta E 44 and 50 over
+PageRank on friends and the Florentine families (indigo: 25). The cost: black also is the seventh
+color of the default group palette, so a route over a drawing with seven or more groups shares
+its color with one of them; the thick route edges still tell it apart. Tests:
+`test/catalog/default-palette-quality.test.ts` (now also at every tone of a node); stories
+`Algorithms/Combined::RouteOverRanking` and `Algorithms/Combined::RouteOverUnranked`.
 
 ## 2026-10-08 -- For the owner: a selected edge is drawn with a solid blue band behind it
 

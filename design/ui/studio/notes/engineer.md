@@ -15,6 +15,13 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **Route color is black (element default, owner door).** `DEFAULT_HIGHLIGHT.color`
+  `#332288` -> `#000000`. Indigo passed every swatch check but, rendered as lit spheres, sat Delta E
+  19.5 / 2.1:1 from the default nodes (pilots T20A/T20B read the route's nodes as ordinary). Black:
+  rendered Delta E 50 / 3.0:1 unranked, 44-50 over PageRank. Rule learned: judge node colors at the
+  shaded tones (`shaded()` x `NODE_TONES` in `default-palette-quality.test.ts`) and on screenshot
+  pixels (`tmp/r1-dry2-path-color/measure.py`), never on swatches alone. Known cost: black is the
+  7th default group color. Evidence `tmp/r1-dry2-path-color/walk/`.
 - (2026-10-08) **Study tool trust (real.mjs).** A hover prints only its own tooltip: tooltips on the
   page before the pointer moved are marked and skipped (one still showing after 2 s is the same
   control's, so hovering a control twice still reads it). The socket server handles a client that
@@ -58,7 +65,7 @@ acceptance test. "The studio worktree" is
    `tmp/r1-dry1-focus-placement/`.
 3. (2026-10-08) Earlier polish, in place (details under Decisions): inspector rows and one
    neighbor heading form; filter rows keep their sentence; import page in reader words; segmented
-   `flex-basis: auto`; readings wrap; a reopened run keeps its summary; highlight `#332288` and the
+   `flex-basis: auto`; readings wrap; a reopened run keeps its summary; highlight (now black, see path color) and the
    selected-edge band. OPEN: label size is world-space (needs an element option); T21 Replace
    relayouts every node; neighborhood filter has no `direction`; Dijkstra always undirected.
 
@@ -113,6 +120,11 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **A route is told apart by color, not by a second cue.** Searched the color space
+  under the shading model against the default node, the measurement ramp, edge grey, background
+  and the selection band (normal, protan, deutan): black wins by far (min Delta E 22 vs 14 for
+  indigo). Size was rejected (flattens a size encoding beneath, e.g. PageRank size), outline too
+  (one thin width for all, a full-screen pass). Changes a default -> owner-decisions "for the owner".
 - (2026-10-08) **View insets are margins for the next fit, never a reason to move the drawing.**
   The consumer that laid something over the canvas decides whether it hides a node, by the shape
   it knows (`nodesInRect`), and asks for the fit. Reason: insets are bands across the canvas; a
@@ -194,6 +206,10 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: re-walking the pilots with a copy of `tier2/pilot/rewalk.sh` whose `SET`
+  is overridable and setup files rebuilt from each pilot's `session.json` "setup" list (the r1d1
+  T18 pilots started with PageRank run and sized, not the plain friends setup). Did not work:
+  flat-swatch Delta E as a proxy for what a reader sees on a 20 px shaded sphere.
 - (2026-10-06 to 10-08, condensed) Small facts: `--hover` rests on a row's center; a mesh toggled
   outside an update pass needs `meshesShownOrHidden()`, an edge rebuilt outside a style pass
   `forceEdgeWalk()`; a layer `set` channel can add a legend block (`keyBlocks` decides).
@@ -206,29 +222,20 @@ acceptance test. "The studio worktree" is
   could not measure it: the element is 0 px wide in that harness; a stand-in element in
   `CanvasOverlays.test.tsx` (spies on `nodesInRect`/`zoomToFit`) does.
 
-- (2026-10-08) Worked: a find option the caller fills with its own words (`edgeNameJoiner`) keeps
-  the arrow spelling in the app and the matching in the element. Did not hold: the toolbar real
-  test "frames a selected edge's two ends" fails on this branch with or without the find change:
-  the camera lands at x 13.92 / 14.46 against an expected 14.07 that is the same every run, so the
-  frame itself ends somewhere different each run (not yet traced). TableDock's export preview
-  passes alone and failed only inside the full real-element run (its 1 s `waitFor` on "Writing the
-  preview..." expired while 20 files drew at once).
+- (2026-10-08) Worked: a find option the caller fills with its own words (`edgeNameJoiner`).
+  Untraced: toolbar real test "frames a selected edge's two ends" lands at x 13.92/14.46 vs 14.07
+  with or without that change; TableDock's export preview fails only inside the full real run.
 
 
 - (2026-10-08) Did not work: landing focus on the left panel's tree after open -- Tree typeahead
   claims every one-character key, so the study's single-key shortcuts typed nothing. Worked: a
   plain button (rail). A project that opens ON the Data page (New from data...) must not take
   focus from that page: the open effect runs only when `page === "panels"`.
-- (2026-10-08) A programmatic `focus()` right after a mouse click on Degree DID show the ring on
-  the first neighbor (`T12RA/03.png`); after a mouse click on a Recent project the rail button
-  showed none.
 
 - (2026-10-08) Worked: snapshot every shared file another agent has dirty BEFORE editing
   (`cp` to `tmp/<task>/base/`), so "fails without the change" is copy base -> run -> copy mine back,
   and my patch is `diff base mine`. Keep any file my new exports are imported from at mine, or the
   whole test file fails on import instead of on the assertion.
-- (2026-10-08) Mantine tooltip in a full browser run: use `findByText(...)` then
-  `closest('[role="tooltip"]')`, not `findByRole("tooltip")`.
 
 - (2026-10-08) While other agents edit the same worktree, stage only your hunks by writing the
   index blob from HEAD plus your own edits (`git hash-object -w` + `update-index --cacheinfo`);
@@ -242,10 +249,9 @@ acceptance test. "The studio worktree" is
 - (2026-10-08) Measure before fixing (a cut stat was 8px short: wrap, not padding). "Fails
   without" with no stash: `git diff > p.patch`, `git apply -R`, run, `git apply`.
 
-- (2026-10-08) Worked: canvas `measureText` for a DataTable column's content width, once the
-  font weight and `letterSpacing` match the cell's (400 weight measured 3px short at 450). A
-  Mantine Tooltip in jsdom never opens (use a `.browser.test.tsx`); the theme's open delay is
-  1000 ms, so `findByRole("tooltip", {}, { timeout: 3000 })`. The study tool cannot click a role
+- (2026-10-08) Worked: canvas `measureText` for a column width once weight and `letterSpacing`
+  match the cell's. Mantine Tooltip: never opens in jsdom (use `.browser.test.tsx`), open delay
+  1000 ms; in a full run use `findByText` + `closest('[role="tooltip"]')`. The study tool cannot click a role
   box named only "km" when the grid header is also "km" (pilots used `--click-at`); "Role of km" fixes it.
 - (2026-10-08) Save/open round trip: compare summary counts, not the whole summary (caveats and
   durationMs differ by design). Choose colors by measuring (`default-palette-quality.test.ts`).

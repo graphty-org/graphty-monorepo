@@ -813,19 +813,23 @@ const NO_INDEX = (): number | undefined => undefined;
  *
  * A highlight is drawn OVER the default indigo node, the default darkgrey edge, the whitesmoke
  * background AND whatever a measurement painted the other nodes, so it is chosen against all of
- * them rather than on its own. Paul Tol's indigo is at least Delta E 19 from each of them -- every
- * colour of the default measurement palette included -- at normal vision and under all three
- * kinds of colour blindness, and 11:1 against the background. The Okabe-Ito vermilion it replaced
- * sat inside the default measurement palette (Delta E 1 from its second step), so a route drawn
- * over nodes coloured by a score read as low-scored nodes; the blue before that was Delta E 13
- * from the default node. `test/catalog/default-palette-quality.test.ts` measures it.
+ * them rather than on its own -- and against them as a lit 3D node draws them, because a shaded
+ * sphere a few pixels across is darker and duller than its swatch. Black is the colour that
+ * stands furthest from all of them at once: Delta E 40 from the default node at every tone of a
+ * node and 22 from the darkest step of the default measurement palette, for normal vision and
+ * under protanopia and deuteranopia, and 19:1 against the background. A search of the colour
+ * space found nothing that clears both by more. Paul Tol's indigo before it was the same hue as
+ * the default node, only darker: rendered, a route's nodes measured Delta E 19 and 2.1:1 from the
+ * nodes around them and readers took them for ordinary nodes. The Okabe-Ito vermilion before
+ * that sat inside the default measurement palette. `test/catalog/default-palette-quality.test.ts`
+ * measures it.
  *
  * Colour alone is not enough for an edge: a thin line at the default width reads as a thin line
  * whatever its colour, so a highlighted edge is also drawn three times as wide. A node gets no
  * size, because a size here would flatten whatever size encoding the layers beneath it drew.
  */
 export const DEFAULT_HIGHLIGHT = {
-    color: "#332288",
+    color: "#000000",
     edgeWidth: EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
 } as const;
 

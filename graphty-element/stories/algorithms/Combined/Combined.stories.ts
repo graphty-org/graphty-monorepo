@@ -283,6 +283,49 @@ export const RouteOverRanking: Story = {
 };
 
 /**
+ * A route over an unranked graph: the picture a reader gets when they find the shortest path
+ * before measuring anything.
+ *
+ * Every other node keeps the default node colour, so the route's nodes have to stand apart from
+ * THAT colour as lit spheres a few pixels across, not only as swatches. The highlight is black,
+ * where the indigo before it was the default node's own hue made darker and read as more of the
+ * same nodes. Beside `RouteOverRanking`, which draws the same route over PageRank's colours.
+ */
+export const RouteOverUnranked: Story = {
+    args: {
+        setup: storySetup({
+            algorithms: ["graphty:dijkstra"],
+        }),
+        runAlgorithmsOnLoad: true,
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+
+        const element = canvasElement.querySelector("graphty-element");
+        if (!element) {
+            return;
+        }
+
+        const { graph } = element;
+
+        await graph.waitForSettled();
+
+        await holds(
+            graph.applySuggestedStyles(["graphty:dijkstra"]),
+            "Algorithms/Combined RouteOverUnranked: applySuggestedStyles returned false, so the route had " +
+                "nothing to paint",
+        );
+
+        const scene = await drawn(canvasElement, "Algorithms/Combined RouteOverUnranked");
+
+        await assertGraphLoaded(scene, { nodes: 20, edges: 29 });
+        await assertAlgorithmPainted(scene, "graphty:dijkstra");
+        await assertDrawnVariety(scene, "hex", 2);
+        await assertDistinctPicture(scene, "Algorithms/Combined");
+    },
+};
+
+/**
  * Combined Edge Flow - edge color and width based on relationship strength
  * Demonstrates multi-dimensional edge styling where:
  * - Edge colour follows the value along viridis (dark purple = weak, yellow = strong)

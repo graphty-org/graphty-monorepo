@@ -40,9 +40,9 @@
  * What is timed is the element's `measure()` minus its progress reports and its chunked read of
  * the result back out. Building the run's result (`createRunResult`) is not timed and not priced.
  * It no longer builds an id index (it reads the snapshot's) or sorts for ranks (they are filled
- * when first read), and for most rows it is small beside the work measured here. For degree it is
- * not: about 55 ns a node, against 30 to 48 for the counting, nearly all of it the sort that finds
- * the value column's median (issue #1517). So a degree run still takes about twice its estimate.
+ * when first read), and it finds the value column's median by selection rather than by sorting, so
+ * for most rows it is small beside the work measured here. Degree is the closest: about 20 to 30 ns
+ * a node, against 30 to 48 for the counting.
  */
 
 import { execFileSync } from "node:child_process";

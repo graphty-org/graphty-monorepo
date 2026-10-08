@@ -354,3 +354,35 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   drawing kept where it is after a run, a find pick and with a dialog open; the tool printing only
   the hovered tooltip and the reason a click failed). `tool/real.mjs --prove` passed on it. No bar
   changed.
+- **2026-10-08, before round 1: the answer key matched to the pilots on build 3dfe7daf9e45.**
+  Every task half but T21 A was piloted again on the study build from its start
+  (`rounds/r1d1/pilot/`). Every success path landed on the first try with no script errors,
+  console errors or failed requests, and every reference value held. `answers.md` was changed only
+  where a screen differed, each with the pilot's screenshot: a section on this build (blue
+  selection bands, Made with's From and To, a clicked From option moving focus to To); T4's
+  Sources row now shows the counts in full and a "1 row left out" row under the source, with a
+  longer tooltip and an inspector line "Line 24: from p11, to p13, emails 6", the "1 row left out"
+  row opening the same inspector, the project named after both files ("people and messages",
+  "players and passes"), and the green check on the edge table before Load; T17's Filters row
+  shows the full step name with no count and no word "off", the follow-up values were added (A
+  10 of 20 nodes, 5 of 41 edges; B 17 of 77 nodes, 19 of 254 edges), with the edit of an off step
+  that stays off, and A's overlapping dots; T18's "Not read" wording, Made with's rows and order
+  with no Weight select and an empty Method select, the path's indigo color replacing the note on
+  orange nodes, Escape in the Weight list closing the popover, the overlaps on both drawings and
+  the new screenshot numbers; T19's three watch notes deleted (framing, the drawing under the Save
+  dialog, the PageRank count after the reopen) and replaced by the smaller reopen framing, the
+  "Add note" tooltip over a saved note, focus on the Degree row and B's two "Florentine families"
+  entries; T20's Higher means wording and its fourth choice "Capacity" (not walked, graded by the
+  end state), the summary changing at once, Made with as plain rows (pointing to the Path
+  popover's Weight box before the run also counts, since Made with has no select), and the total
+  with no unit; T21 B's post-Rerun screen, the stale Top 10 at full contrast and the menu opening
+  on "Edit source..."; T22's blue bands, the rule and its hint staying after Enter, the help and
+  refusal examples taken from the data's own column; T23's Hops 1 header, Selection 7 at Hops 1,
+  the drawing not moving, the new out-of-date tooltip, the filter button's pressed state, B's
+  Hops 2 order and the setup's leftover hover; T24's blue band, B's click point moved from
+  753,258 (now empty canvas) to 752,170, the find box now listing a stop's ties and finding a tie
+  by its title, and A's hidden label; T12R's build, the Neighborhood header, "Back to <name>",
+  Results as its own section, focus on the Degree row, the find box's list of ties (graded SD as
+  tier 1 grades neighbors read from the ties) and B's setup ending on the PageRank inspector.
+  `tasks.md` T20 records the "longer trail" line as a possible echo of prompt B. No bar and no
+  prompt changed.

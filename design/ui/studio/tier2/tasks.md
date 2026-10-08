@@ -177,7 +177,11 @@ changes:
   "Not set" choice), "date", "time" (the "Date or time" role). B says
   "shortest walk", which shares "shortest" with the Path popover's title "Shortest path": kept,
   because "the shortest walk" is the hiker's own phrase and A measures the same step without it;
-  a pass on B with a fail on A is reported as a wording echo, as tier 1's T10 B is.
+  a pass on B with a fail on A is reported as a wording echo, as tier 1's T10 B is. The line shown
+  once "Farther" is chosen says "such as a longer trail", which shares "trail" and "longer" with
+  prompt B ("trails.csv", "a longer walk"); it appears only after the choice, so it cannot lead a
+  participant to it, but a B participant's reading of that line is reported as a possible echo.
+  "Capacity", a fourth choice under Higher means, is not in either prompt.
 
 ### T21. The list was updated (two datasets)
 

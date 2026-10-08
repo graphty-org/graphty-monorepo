@@ -298,26 +298,28 @@ describe("one convergence rule", () => {
 });
 
 describe("the convergence rule holds the error to the tolerance on a large graph", () => {
-    // 100,000 nodes and about 500,000 random arcs from a fixed seed (mulberry32).
-    const n = 100_000;
-    let state = 12_345;
-    const random = (): number => {
-        state = (state + 0x6d2b79f5) >>> 0;
-        let t = Math.imul(state ^ (state >>> 15), state | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
-    };
-    const src: number[] = [];
-    const dst: number[] = [];
-    for (let arc = 0; arc < 5 * n; arc++) {
-        const u = Math.floor(random() * n);
-        const v = Math.floor(random() * n);
-        if (u !== v) {
-            src.push(u);
-            dst.push(v);
+    /** `n` nodes and about 5n random arcs from a fixed seed (mulberry32). */
+    function randomGraph(n: number): GraphSnapshot {
+        let state = 12_345;
+        const random = (): number => {
+            state = (state + 0x6d2b79f5) >>> 0;
+            let t = Math.imul(state ^ (state >>> 15), state | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+        };
+        const src: number[] = [];
+        const dst: number[] = [];
+        for (let arc = 0; arc < 5 * n; arc++) {
+            const u = Math.floor(random() * n);
+            const v = Math.floor(random() * n);
+            if (u !== v) {
+                src.push(u);
+                dst.push(v);
+            }
         }
+        return fromEdgeArrays({ src: Uint32Array.from(src), dst: Uint32Array.from(dst), nodeCount: n, directed: true });
     }
-    const s = fromEdgeArrays({ src: Uint32Array.from(src), dst: Uint32Array.from(dst), nodeCount: n, directed: true });
+    const s = randomGraph(100_000);
 
     /** Summed difference from a reference, relative to the reference's summed size. */
     function relativeError(x: ArrayLike<number>, reference: ArrayLike<number>): number {
@@ -328,8 +330,7 @@ describe("the convergence rule holds the error to the tolerance on a large graph
         return l1(x, reference) / size;
     }
 
-    // With nodeCount * tolerance as the limit, PageRank stopped after 3 passes here with a summed error of 2.7e-2,
-    // and HITS after 22 with 4.8e-4.
+    // With nodeCount * tolerance as the limit, PageRank stopped after 3 passes here with a summed error of 2.7e-2.
     it("PageRank at the default tolerance lands within a small summed error of a fully converged run", () => {
         const reference = pageRank(s, { convergenceNorm: "max", tolerance: 1e-15, maxIterations: 1000 });
         expect(reference.converged).toBe(true);
@@ -338,13 +339,18 @@ describe("the convergence rule holds the error to the tolerance on a large graph
         expect(relativeError(r.scores, reference.scores)).toBeLessThan(1e-5);
     }, 30_000);
 
+    // HITS runs on 10,000 nodes. On the 100,000-node graph its 154 reference passes took 5 to 13 s alone with
+    // coverage and 22 to 27 s at load average 40 to 89, and timed out at 30 s in a loaded pre-push gate. Here the
+    // relative rule stops after 43 passes with a summed error of 2e-6; nodeCount * tolerance stopped after 26 with
+    // 1.2e-4. Measured 0.07 s alone, 0.3 s with coverage, 0.8 to 2.6 s with coverage at load average 61 to 96.
     it("HITS at the default tolerance lands within a small summed error of a fully converged run", () => {
-        const reference = hits(s, { tolerance: 1e-14, maxIterations: 5000 });
+        const g = randomGraph(10_000);
+        const reference = hits(g, { tolerance: 1e-14, maxIterations: 5000 });
         expect(reference.converged).toBe(true);
-        const r = hits(s);
+        const r = hits(g);
         expect(r.converged).toBe(true);
-        expect(relativeError(r.hubs, reference.hubs)).toBeLessThan(1e-4);
-        expect(relativeError(r.authorities, reference.authorities)).toBeLessThan(1e-4);
+        expect(relativeError(r.hubs, reference.hubs)).toBeLessThan(2e-5);
+        expect(relativeError(r.authorities, reference.authorities)).toBeLessThan(2e-5);
     }, 30_000);
 });
 

@@ -308,9 +308,8 @@ describe("indexed.PriorityDeltaPageRank", () => {
         expect(new PriorityDeltaPageRank(s).computeWithPriority().length).toBe(0);
     });
 
-    // One test per fixture, so no single test carries the whole list's work. deltaThreshold is 1e-16, not 0: at 0 a
-    // popped duplicate whose delta is already spent still re-queues every out-neighbour, so the heap holds about 2
-    // million entries on the larger fixtures, against 300 thousand here, for the same answer to 1e-15.
+    // One test per fixture, so no single test carries the whole list's work. deltaThreshold 0 propagates every
+    // nonzero delta; a node is queued at most once, so a spent entry never re-queues its out-neighbors.
     for (const weighted of [false, true]) {
         for (const { name, graph } of fixtures()) {
             it(`converges to pageRank on ${name} (weighted: ${String(weighted)})`, () => {
@@ -319,7 +318,7 @@ describe("indexed.PriorityDeltaPageRank", () => {
                 const actual = new PriorityDeltaPageRank(s, { weights: exactArcWeights(s) }).computeWithPriority({
                     weighted,
                     tolerance: 1e-14,
-                    deltaThreshold: 1e-16,
+                    deltaThreshold: 0,
                     maxIterations: 10_000_000,
                 });
                 for (let i = 0; i < s.nodeCount; i++) {
@@ -328,4 +327,35 @@ describe("indexed.PriorityDeltaPageRank", () => {
             });
         }
     }
+
+    it("does at most four times power iteration's work at deltaThreshold 0", () => {
+        // Power iteration relaxes every arc once per iteration: 40 iterations, 28,000 relaxations here. The weights
+        // override counts its reads, and every read during the run is one arc relaxation. When a popped duplicate whose
+        // delta was already spent still re-queued its out-neighbors, this run made 2,599,276 relaxations (93 times
+        // power iteration's); queuing each node at most once brings it to 51,611.
+        const s = snapshotOf(gnm(150, 700, true, 97531));
+        const power = pageRank(s, { tolerance: 1e-14, maxIterations: 10_000 });
+        expect(power.converged).toBe(true);
+        let relaxations = 0;
+        const weights = new Proxy(new Array<number>(s.arcCount).fill(1), {
+            get(target, key): unknown {
+                if (typeof key === "string" && /^\d+$/.test(key)) {
+                    relaxations++;
+                }
+                return Reflect.get(target, key) as unknown;
+            },
+        });
+        const engine = new PriorityDeltaPageRank(s, { weights });
+        relaxations = 0;
+        const scores = engine.computeWithPriority({
+            weighted: true,
+            tolerance: 1e-14,
+            deltaThreshold: 0,
+            maxIterations: 10_000_000,
+        });
+        expect(relaxations).toBeLessThanOrEqual(4 * power.iterations * s.arcCount);
+        for (let i = 0; i < s.nodeCount; i++) {
+            expect(scores[i], `node ${String(i)}`).toBeCloseTo(power.scores[i], 9);
+        }
+    });
 });

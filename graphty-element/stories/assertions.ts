@@ -1873,16 +1873,42 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
 }
 
 /**
- * Selecting a node puts the element's own highlight on screen.
+ * Click a node the way a mouse does: move onto it, press and release, on the canvas, at the spot
+ * the element says the node is drawn.
+ *
+ * Pointer events on the canvas rather than `selectNode`, because these stories exist to show that
+ * a CLICK selects: a story that selected through the API passed with the canvas's pointer
+ * listeners gone. `button: -1` on the move, as a real move carries no button (a hand-built one
+ * defaults to the left button, which Babylon reads as a press).
+ * @param scene - What the story drew.
+ * @param id - The node to click.
+ */
+export async function clickNode(scene: Drawn, id: string): Promise<void> {
+    const at = scene.element.nodeScreenPosition(id);
+
+    await holds(at?.visible === true, `${scene.story}: node "${id}" is not on screen to be clicked`);
+
+    const { canvas } = scene.graph;
+    const box = canvas.getBoundingClientRect();
+    const point = { clientX: box.left + (at?.x ?? 0), clientY: box.top + (at?.y ?? 0) };
+    const pointer = { ...point, bubbles: true, pointerId: 1, pointerType: "mouse", isPrimary: true };
+
+    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1 }));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0 }));
+}
+
+/**
+ * Clicking a node puts the element's own highlight on screen.
  *
  * THE SCENE'S ANSWER TO "IS IT SELECTED", rather than the session's. The element draws a halo
  * mesh around the selected node and around nothing else, so the picture and the model can be
  * compared with each other -- which is the whole subject of the four selection stories.
  * @param scene - What the story drew.
- * @param id - The node the story selects.
+ * @param id - The node the story clicks.
  */
 export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
-    scene.graph.selectNode(id);
+    await clickNode(scene, id);
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.

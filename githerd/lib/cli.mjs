@@ -17,6 +17,7 @@ import { groupModes, modeText, renderBoard, whyText } from "./board-text.mjs";
 import { originHead, repoRoot, resolveConfig } from "./config.mjs";
 import { createGitHub } from "./github.mjs";
 import { notifyCommandProblem } from "./daemon.mjs";
+import { readWorkspace } from "./flakes.mjs";
 import { callingSession } from "./owners.mjs";
 import {
     daemonStartArgs,
@@ -36,6 +37,7 @@ import {
 import { UNCHECKED_STOPS } from "./hook.mjs";
 import { TOOL_PROTOCOL } from "./mcp.mjs";
 import { createNotifier } from "./notify.mjs";
+import { backfillGate, gateReport, gateText, readPushes } from "./prepush.mjs";
 import { pushQueueTickets, sameProcess } from "./proc.mjs";
 import { runSelftest, selftestText } from "./selftest.mjs";
 import { defaultStateDir, readLedger, readLiveness, replayLedger, STATE_SCHEMA } from "./store.mjs";
@@ -51,9 +53,14 @@ const USAGE = `usage: githerd <command>
   mode                                     each write group's mode and its ledger coverage
   ledger [--since 1d] [--target pr:704] [--kind error,fatal]
                                            ledger entries, one JSON line each
-  stats [--json] [--backfill [--days 56]]  issues and pull requests per week, where issues come
+  stats [--json] [--backfill [--days 56]] [--backfill-gate]
+                                           issues and pull requests per week, where issues come
                                            from, and what is stalled; --backfill first rebuilds the
-                                           missing days from GitHub's history (read-only)
+                                           missing days from GitHub's history (read-only); then the
+                                           pre-push gate: pushes, failure rate, queue wait, gate
+                                           time and the failures that cost the most queue hours;
+                                           --backfill-gate first recovers older pushes' gate output
+                                           from the Claude Code transcripts and worktree shard logs
   mode dry-run|paused|clear                lower the mode locally, or remove the override
   ack <key>                                clear an escalation
   veto <issue:N|pr:N>                      never let githerd close this issue or pull request
@@ -208,7 +215,7 @@ async function post(port, path, body, headers = {}) {
 
 /**
  * Splits arguments into positionals and `--flag value` pairs (`--json`, `--send-test`, `--stop`,
- * `--with-job` and `--list` take no value).
+ * `--with-job`, `--list`, `--backfill` and `--backfill-gate` take no value).
  * @param {string[]} args the arguments after the command
  * @returns {{positional: string[], flags: Record<string, string | true>}} the parts
  */
@@ -220,7 +227,9 @@ function parseArgs(args) {
     const rest = [...args];
     for (let a = rest.shift(); a !== undefined; a = rest.shift()) {
         if (!a.startsWith("--")) positional.push(a);
-        else if (["--json", "--send-test", "--stop", "--with-job", "--list", "--backfill"].includes(a))
+        else if (
+            ["--json", "--send-test", "--stop", "--with-job", "--list", "--backfill", "--backfill-gate"].includes(a)
+        )
             flags[a.slice(2)] = true;
         else flags[a.slice(2)] = rest.shift() ?? "";
     }
@@ -685,8 +694,20 @@ async function cmdStats(c) {
             return 1;
         }
     }
+    if (c.flags["backfill-gate"]) {
+        const got = await backfillGate({ root: c.root, home: c.env.HOME ?? homedir() });
+        c.err(
+            `githerd stats: of ${got.failed} failed pushes, recovered gate output for ${got.fromTranscripts} pushes from transcripts and ${got.fromShardLogs} from shard logs`,
+        );
+    }
     const report = statsReport(readHistory(c.stateDir));
-    c.out(c.flags.json ? JSON.stringify(report, null, 2) : statsText(report));
+    const ws = readWorkspace(c.root);
+    const gate = gateReport(readPushes(join(c.root, "tmp"), ws.packages), ws);
+    c.out(
+        c.flags.json
+            ? JSON.stringify({ ...report, prepush: gate }, null, 2)
+            : `${statsText(report)}\n\n${gateText(gate)}`,
+    );
     return 0;
 }
 

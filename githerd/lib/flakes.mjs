@@ -13,6 +13,10 @@
  *   failing head passes the job; (3) on master, the job's lane passes at the next commit and no
  *   commit between touched the package; (4) the test failed on two or more pull requests whose
  *   changes do not touch its package.
+ * - **The local pre-push gate** counts too (prepush.mjs reads the push queue's log): a failing test
+ *   in a push's gate output is an occurrence (`where: "push"`, its branch), a push that passed the
+ *   gate is a pass of the same commit (proof 1), and failing in the gates of two or more branches
+ *   whose changes do not touch the test's package is proof (4).
  * - **Issues.** A proven test gets one issue (labels `bug`, `intermittent`, a priority and
  *   `effort:medium`), found again by its marker line; later occurrences are appended, and a closed
  *   one is reopened with them. Priority is raised, never lowered: critical once it failed on master
@@ -56,6 +60,8 @@ const UNREAD = /(?:^(?:design|docs|\.claude)\/)|(?:\.md$)/;
 const JOBS_KEPT = 2000;
 /** The longest log line quoted. */
 const LINE_MAX = 300;
+/** The job name a local pre-push gate's occurrences and passes carry. */
+const GATE_JOB = "pre-push gate";
 
 /**
  * Whether a job is a test job, whose failing tests this tracker reads and owns (shared.mjs leaves
@@ -74,9 +80,9 @@ const SECTION = /^==> (\S+)/;
  * @typedef {{packages: string[], deps: Record<string, string[]>}} Workspace the workspace's package
  *   directories, and the workspace packages each depends on, transitively
  * @typedef {{id: string, package: string | null, file: string, name: string, line: string}} FailedTest
- * @typedef {{runId: number, attempt: number | null, job: string, jobId: number, sha: string,
- *   where: "master" | "pr" | "queue", pr: number | null, touched: boolean | null, lane?: string | null,
- *   line?: string, at: string}} Occurrence
+ * @typedef {{runId: number | null, attempt: number | null, job: string, jobId: number | string, sha: string,
+ *   where: "master" | "pr" | "queue" | "push", pr: number | null, touched: boolean | null, lane?: string | null,
+ *   branch?: string | null, line?: string, at: string}} Occurrence
  * @typedef {{kind: string, text: string}} Proof
  * @typedef {{id: string, package: string | null, file: string, name: string, occurrences: Occurrence[],
  *   proofs: Proof[], issue: number | null, reported: number, proofsReported: number}} Test
@@ -244,6 +250,43 @@ export function touchesPackage(files, pkg, ws) {
 }
 
 /**
+ * A test's record, made on first sight.
+ * @param {Store} store the record
+ * @param {FailedTest} t the test
+ * @returns {Test} its record
+ */
+function testRecord(store, t) {
+    store.tests[t.id] ??= {
+        id: t.id,
+        package: t.package,
+        file: t.file,
+        name: t.name,
+        occurrences: [],
+        proofs: [],
+        issue: null,
+        reported: 0,
+        proofsReported: 0,
+    };
+    return store.tests[t.id];
+}
+
+/**
+ * Whether a push changes a package directly: a file in it or in a workspace package it depends on.
+ * Unlike `touchesPackage`, repository-wide files (the lockfile, tools, root configuration) do not
+ * count: the local pre-push gate runs only the affected packages' tests, so every test it runs is
+ * reachable from the change, and the question is whether the change is in the test's own code.
+ * @param {string[] | null | undefined} changed the changed paths or top-level directories (`graph-io/`)
+ * @param {string | null} pkg the package
+ * @param {Workspace} ws the workspace
+ * @returns {boolean | null} the answer; null when the paths or the package are unknown
+ */
+export function changesPackage(changed, pkg, ws) {
+    if (!Array.isArray(changed) || !pkg) return null;
+    const reach = new Set([pkg, ...(ws.deps[pkg] ?? [])]);
+    return changed.some((f) => reach.has(f.split("/")[0]));
+}
+
+/**
  * Records one job's failing tests, once per job.
  * @param {Store} store the record
  * @param {FailedTest[]} tests the job's failing tests
@@ -258,17 +301,7 @@ function recordTests(store, tests, occ, ws) {
     const ids = Object.keys(store.jobs);
     for (const old of ids.slice(0, Math.max(0, ids.length - JOBS_KEPT))) delete store.jobs[old];
     for (const t of tests) {
-        const rec = (store.tests[t.id] ??= {
-            id: t.id,
-            package: t.package,
-            file: t.file,
-            name: t.name,
-            occurrences: [],
-            proofs: [],
-            issue: null,
-            reported: 0,
-            proofsReported: 0,
-        });
+        const rec = testRecord(store, t);
         if (rec.occurrences.some((o) => o.jobId === occ.jobId)) continue;
         rec.occurrences.push({ ...where, touched: touchesPackage(files, t.package, ws), line: t.line });
     }
@@ -286,6 +319,47 @@ function prove(t, kind, text) {
 }
 
 const short = (/** @type {string} */ sha) => sha.slice(0, 9);
+
+/**
+ * Records the failing tests of the local pre-push gates (prepush.mjs reads them from the push
+ * queue's log), each push once, and answers the pushes that passed the gate as passes of their
+ * commit (proof 1).
+ * @param {Store} store the record
+ * @param {{key: string, at: string, branch: string | null, sha: string | null, exit: number,
+ *   changed: string[] | null, gate: {tests: FailedTest[]} | null}[]} pushes the pushes
+ * @param {Workspace} ws the workspace
+ * @returns {Pass[]} the passes
+ */
+function notePushes(store, pushes, ws) {
+    /** @type {Pass[]} */
+    const passes = [];
+    for (const p of pushes) {
+        if (!p.sha) continue;
+        if (p.exit === 0) {
+            if (p.gate) passes.push({ sha: p.sha, job: GATE_JOB, where: "push" });
+            continue;
+        }
+        const jobId = `push ${p.key}`;
+        for (const t of p.gate?.tests ?? []) {
+            const rec = testRecord(store, t);
+            if (rec.occurrences.some((o) => o.jobId === jobId)) continue;
+            rec.occurrences.push({
+                runId: null,
+                attempt: null,
+                job: GATE_JOB,
+                jobId,
+                sha: p.sha,
+                where: "push",
+                pr: null,
+                branch: p.branch,
+                touched: changesPackage(p.changed, t.package, ws),
+                line: t.line,
+                at: p.at,
+            });
+        }
+    }
+    return passes;
+}
 
 /**
  * Proofs (1) and (2): a job that failed passing on the same commit, and a merge-queue batch holding
@@ -317,9 +391,10 @@ function passProof(o, p, heads) {
     const lanePass = p.job === "*" && p.lane === o.lane && o.where === "master";
     if (p.job !== o.job && !lanePass) return null;
     if (p.sha === o.sha) {
+        const run = o.where === "push" ? `on ${o.branch}` : `in run ${o.runId}`;
         return {
             kind: "same-commit",
-            text: `${o.job} failed on ${short(o.sha)} in run ${o.runId} and passed on the same commit`,
+            text: `${o.job} failed on ${short(o.sha)} ${run} and passed on the same commit`,
         };
     }
     const batch = p.where === "queue" && o.where === "pr" && o.pr !== null;
@@ -380,18 +455,40 @@ function provePrs(store) {
         const prs = [...new Set(t.occurrences.filter((o) => o.where === "pr" && o.touched === false).map((o) => o.pr))];
         const list = prs.map((n) => "#" + n).join(", ");
         if (prs.length >= 2) prove(t, "untouched-prs", `failed on ${list}, none of which touches ${t.package}`);
+        const pushed = untouchedBranches(t);
+        if (pushed.length >= 2) {
+            prove(
+                t,
+                "untouched-pushes",
+                `failed the pre-push gate of ${pushed.join(", ")}, none of which touches ${t.package}`,
+            );
+        }
     }
 }
 
 /**
+ * The branches whose pre-push gate the test failed although their changes do not touch its package.
+ * @param {Test} t the test
+ * @returns {string[]} the branches
+ */
+const untouchedBranches = (t) => [
+    ...new Set(
+        t.occurrences.filter((o) => o.where === "push" && o.touched === false && o.branch).map((o) => String(o.branch)),
+    ),
+];
+
+/**
  * The priority a test's harm calls for: critical once it failed on master or a merge batch, high
- * once on two or more pull requests, medium otherwise.
+ * once on two or more pull requests or in the pre-push gates of two or more branches, medium
+ * otherwise.
  * @param {Test} t the test
  * @returns {string} the label
  */
 function priorityFor(t) {
-    if (t.occurrences.some((o) => o.where !== "pr")) return PRIORITIES[0];
-    return new Set(t.occurrences.map((o) => o.pr)).size >= 2 ? PRIORITIES[1] : PRIORITIES[2];
+    if (t.occurrences.some((o) => o.where === "master" || o.where === "queue")) return PRIORITIES[0];
+    const prs = new Set(t.occurrences.filter((o) => o.where === "pr").map((o) => o.pr)).size;
+    const branches = new Set(t.occurrences.filter((o) => o.where === "push").map((o) => o.branch)).size;
+    return prs >= 2 || branches >= 2 ? PRIORITIES[1] : PRIORITIES[2];
 }
 
 /**
@@ -416,7 +513,13 @@ function knownFlakes(store, issues = {}) {
  * @returns {string} the line
  */
 function occurrenceLine(repo, t, o) {
-    const where = { master: "master", queue: `merge batch #${o.pr}`, pr: `#${o.pr}` }[o.where];
+    if (o.where === "push") {
+        const touch = o.touched === false ? `; the push does not touch ${t.package}` : "";
+        return `- pre-push gate on this machine, branch ${o.branch ?? "?"} at ${short(o.sha)}, ${o.at}${touch}`;
+    }
+    const where = { master: "master", queue: `merge batch #${o.pr}`, pr: `#${o.pr}` }[
+        /** @type {"master"} */ (o.where)
+    ];
     const run = `https://github.com/${repo}/actions/runs/${o.runId}/job/${o.jobId}`;
     const touch = o.touched === false ? `; the change does not touch ${t.package}` : "";
     const line = o.line ? `: \`${o.line.replaceAll("`", "'")}\`` : "";
@@ -431,7 +534,8 @@ function occurrenceLine(repo, t, o) {
 function counts(t) {
     const n = (/** @type {string} */ w) => t.occurrences.filter((o) => o.where === w).length;
     const prs = new Set(t.occurrences.filter((o) => o.where === "pr").map((o) => o.pr)).size;
-    return `Failed in ${t.occurrences.length} runs: ${n("master")} on master, ${n("queue")} in merge batches, ${n("pr")} on ${prs} pull requests.`;
+    const pushes = n("push") ? `, ${n("push")} in local pre-push gates` : "";
+    return `Failed in ${t.occurrences.length} runs: ${n("master")} on master, ${n("queue")} in merge batches, ${n("pr")} on ${prs} pull requests${pushes}.`;
 }
 
 /**
@@ -751,8 +855,8 @@ function headFailures(store, node, required) {
  * The tracked tests as the board shows them: counts of runs by where they ran, the proofs, and
  * the issue.
  * @param {any} state the daemon state
- * @returns {{test: string, runs: number, master: number, batch: number, pr: number, proofs: Proof[],
- *   issue: number | null}[]} one entry per test
+ * @returns {{test: string, runs: number, master: number, batch: number, pr: number, push: number,
+ *   proofs: Proof[], issue: number | null}[]} one entry per test
  */
 export function flakeData(state) {
     return Object.values(/** @type {Store | undefined} */ (state?.flakes)?.tests ?? {}).map((t) => {
@@ -763,11 +867,19 @@ export function flakeData(state) {
             master: n("master"),
             batch: n("queue"),
             pr: n("pr"),
+            push: n("push"),
             proofs: t.proofs,
             issue: t.issue,
         };
     });
 }
+
+/**
+ * A test's pre-push gate count for the board, when it has one.
+ * @param {{push?: number}} t the tracked test
+ * @returns {string} `, 3 pre-push` or nothing
+ */
+const pushCount = (t) => (t.push ? `, ${t.push} pre-push` : "");
 
 /**
  * The board's flaky-tests section.
@@ -783,7 +895,7 @@ export function flakeLines(tests) {
     return [
         `FLAKY TESTS (${tests.length}):`,
         ...tests.flatMap((t) => [
-            `  ${t.test} -- ${t.runs} runs (${t.master} master, ${t.batch} batch, ${t.pr} PR); ${issue(t)}`,
+            `  ${t.test} -- ${t.runs} runs (${t.master} master, ${t.batch} batch, ${t.pr} PR${pushCount(t)}); ${issue(t)}`,
             ...t.proofs.map((p) => `    proof ${p.kind}: ${p.text}`),
         ]),
     ];
@@ -857,11 +969,12 @@ export async function masterFlakeStep({ state, ws, github, repo, incident, lane,
  * classification (`rec.knownFlake`, the reason its job gets; classify.mjs class `intermittent`).
  * @param {{state: any, nodes: any[], ws: Workspace, config: {repo: string, requiredChecks: string[]},
  *   github: ReturnType<typeof import("./github.mjs").createGitHub>, log: (jobId: number) => Promise<string | null>,
- *   commits: any[], at: string}} ctx the daemon state (its `prs` already this poll's), the GraphQL
- *   pull request nodes, the workspace, the config, the client, the job log reader, master's recent
- *   commits and the time
+ *   commits: any[], at: string, pushes?: Parameters<typeof notePushes>[1]}} ctx the daemon state (its
+ *   `prs` already this poll's), the GraphQL pull request nodes, the workspace, the config, the
+ *   client, the job log reader, master's recent commits, the time, and the local pushes
+ *   (prepush.mjs `readPushes`)
  */
-export async function flakePoll({ state, nodes, ws, config, github, log, commits, at }) {
+export async function flakePoll({ state, nodes, ws, config, github, log, commits, at, pushes = [] }) {
     const store = flakeStore(state);
     const repo = config.repo;
     const gateHeads = state.mergeGate?.heads ?? {};
@@ -878,6 +991,7 @@ export async function flakePoll({ state, nodes, ws, config, github, log, commits
             nodes.find((x) => x.number === n)?.detail?.files ??
             (gateHeads[n]?.sha === sha ? (gateHeads[n].files ?? null) : null),
     });
+    passes.push(...notePushes(store, pushes, ws));
     for (const [lane, rec] of Object.entries(state.master?.lanes ?? {})) {
         for (const [sha, out] of Object.entries(/** @type {any} */ (rec).shas ?? {})) {
             if (out === "green") passes.push({ sha, job: "*", lane, where: "master" });

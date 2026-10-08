@@ -683,3 +683,85 @@ describe("the master re-run", () => {
         expect(writes(repo)).toEqual(["POST actions/jobs/701/rerun"]);
     });
 });
+
+describe("the local pre-push gate", () => {
+    /**
+     * A push the prepush.mjs reader made.
+     * @param {string} branch the branch
+     * @param {string} commit the commit
+     * @param {{exit?: number, changed?: string[] | null, failing?: boolean}} [opts] its exit, its
+     *   changed directories, and whether its gate output names the test
+     * @returns the push
+     */
+    const push = (branch, commit, { exit = 1, changed = ["tools/"], failing = true } = {}) => ({
+        key: `${AT} ${commit}`,
+        at: AT,
+        branch,
+        sha: commit,
+        exit,
+        changed,
+        gate: {
+            tests: failing
+                ? failingTests("FAIL  test/a.test.ts > suite > settles", {
+                      job: "Test (graphty-element-default)",
+                      packages: WS.packages,
+                  })
+                : [],
+        },
+    });
+    const pollPushes = (/** @type {any} */ state, /** @type {any} */ github, /** @type {any[]} */ pushes) =>
+        flakePoll({
+            state,
+            nodes: [],
+            ws: WS,
+            config: { repo: REPO, requiredChecks: ["All Checks Pass"] },
+            github,
+            log: async () => null,
+            commits: [],
+            at: AT,
+            pushes,
+        });
+
+    it("records each failing push once, and two branches whose changes miss the package prove it", async () => {
+        const repo = fakeRepo();
+        const { github } = client(repo);
+        const state = daemonState();
+        // A push that changes graphty-element itself is no proof; one that changes only tools/ is half of one.
+        const pushes = [push("fix/a", sha("a"), { changed: ["graphty-element/"] }), push("fix/b", sha("b"))];
+        await pollPushes(state, github, pushes);
+        await pollPushes(state, github, pushes);
+        const t = flakeStore(state).tests[TEST];
+        expect(t.occurrences.map((o) => [o.where, o.branch, o.touched])).toEqual([
+            ["push", "fix/a", true],
+            ["push", "fix/b", false],
+        ]);
+        expect(t.proofs).toEqual([]);
+        await pollPushes(state, github, [...pushes, push("fix/c", sha("c"))]);
+        expect(t.proofs.map((p) => p.kind)).toEqual(["untouched-pushes"]);
+        const [issue] = repo.s.issues;
+        expect(issue.labels).toContain("priority:high");
+        expect(issue.body).toContain("pre-push gate on this machine, branch fix/b");
+        expect(issue.body).toContain("3 in local pre-push gates.");
+        expect(flakeLines(flakeData(state))[1]).toBe(
+            `  ${TEST} -- 3 runs (0 master, 0 batch, 0 PR, 3 pre-push); issue #900`,
+        );
+    });
+
+    it("a later push of the same commit that passes the gate proves it; dry-run writes nothing", async () => {
+        const repo = fakeRepo();
+        const { github } = client(repo, "dry-run");
+        const state = daemonState();
+        await pollPushes(state, github, [
+            push("fix/a", sha("a"), { changed: ["graphty-element/"] }),
+            push("fix/a", sha("a"), { exit: 0, failing: false }),
+        ]);
+        const t = flakeStore(state).tests[TEST];
+        expect(t.proofs).toEqual([
+            {
+                kind: "same-commit",
+                text: `pre-push gate failed on ${sha("a").slice(0, 9)} on fix/a and passed on the same commit`,
+            },
+        ]);
+        expect(repo.gh.writes()).toEqual([]);
+    });
+});

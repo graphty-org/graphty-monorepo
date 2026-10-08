@@ -1,3 +1,23 @@
+## 0.8.58 (2026-10-08)
+
+### 🩹 Fixes
+
+- **graphty:** keep the run-name helpers private to runWords ([98e013c76](https://github.com/graphty-org/graphty-monorepo/commit/98e013c76))
+- **graphty-element:** let an edge measurement ask for edge width ([#708](https://github.com/graphty-org/graphty-monorepo/issues/708))
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+- **graphty:** load eruda in Storybook only when asked for ([#204](https://github.com/graphty-org/graphty-monorepo/issues/204))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.39
+- Updated compact-mantine to 0.9.11
+- Updated graphty-element to 3.19.0
+- Updated graph-io to 0.3.30
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.57 (2026-10-08)
 
 ### 🚀 Features

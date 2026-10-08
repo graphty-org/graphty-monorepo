@@ -107,6 +107,20 @@ status() { # <state> [projects...]
 }
 trap 'status failed' ERR
 
+# git fetch into the main checkout, retried: the lock above covers only previews, and any other fetch
+# there (a gate, an agent, the review server) that moves the same ref first makes this one exit 1 with
+# "cannot lock ref ...: is at <new> but expected <old>" (issue #1548). The winner has already written the
+# ref, so a retry succeeds. A fetch that still fails dies with git's own message.
+fetch_main() { # <refspec>...
+    local err="" try
+    for try in 1 2 3; do
+        err="$(git -C "$MAIN" fetch -q origin "$@" 2>&1)" && return 0
+        echo "$err" >> "$LOG"
+        [[ $try -eq 3 ]] || sleep "$try"
+    done
+    die "cannot fetch $*: $err"
+}
+
 status running
 exec 9> "$ROOT/.lock"
 flock 9
@@ -119,7 +133,7 @@ if [[ "$MODE" == "head" ]]; then
     # be days old, and a preview of an old master is not what CI captures.
     STEP="fetching origin/master"
     status running
-    git -C "$MAIN" fetch -q origin master >> "$LOG" 2>&1 || die "cannot fetch origin/master"
+    fetch_main master
     STEP="merging ${HEAD:0:10} into origin/master"
     status running
     # Exit 1 is a conflict; anything else (a missing ref, an unreadable object) is an error, never a pass.
@@ -136,7 +150,7 @@ if [[ "$MODE" == "head" ]]; then
 else
     STEP="fetching refs/pull/$PR/merge"
     status running
-    git -C "$MAIN" fetch -q origin "+refs/pull/$PR/merge:refs/visual-preview/$PR" >> "$LOG" 2>&1
+    fetch_main "+refs/pull/$PR/merge:refs/visual-preview/$PR"
     MERGE="$(git -C "$MAIN" rev-parse "refs/visual-preview/$PR")"
     [[ "$(git -C "$MAIN" rev-parse "$MERGE^2")" == "$HEAD" ]] \
         || die "refs/pull/$PR/merge is not built from the head $HEAD yet; try again in a minute"

@@ -341,10 +341,21 @@ interface OpenEntry {
     next: unknown;
 }
 
+/** What a key of a draft held before a change: its `next`, or NOT_HELD when the draft did not hold the key. */
+const NOT_HELD: unique symbol = Symbol("not held");
+
 /** The mutable side of one open draft. */
 interface OpenDraft {
     readonly entries: Map<string, OpenEntry>;
     readonly log: OpLogEntry[];
+    /**
+     * Each change to `entries` since the first checkpoint, in order, with what the key held before
+     * it. A checkpoint is a position in this list, so taking one costs nothing: a transaction takes
+     * one per member, and copying `entries` each time made a transaction of n writes cost n^2
+     * (10,000 notes: 7 s of copying and 3 s of collecting the copies).
+     */
+    readonly changes: { readonly id: string; readonly before: unknown }[];
+    checkpointed: boolean;
     rows: RowPatch | null;
     closed: boolean;
 }
@@ -424,8 +435,17 @@ export function createProjectStore(
                 prior = read(slice, key);
             } else {
                 // Hand-over: the earlier open draft gives up the key and its prior.
-                prior = holder.entries.get(id)?.prior;
+                const given = holder.entries.get(id);
+                prior = given?.prior;
+                if (holder.checkpointed && given !== undefined) {
+                    holder.changes.push({ id, before: given.next });
+                }
+
                 holder.entries.delete(id);
+            }
+
+            if (draft.checkpointed) {
+                draft.changes.push({ id, before: NOT_HELD });
             }
 
             entry = { slice, key, prior, next: value };
@@ -437,6 +457,8 @@ export function createProjectStore(
                     throw strictViolation(`after a hand-over, ${id} is in ${holders} open patches, not one`);
                 }
             }
+        } else if (draft.checkpointed) {
+            draft.changes.push({ id, before: entry.next });
         }
 
         entry.next = value;
@@ -467,7 +489,14 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false };
+            const draft: OpenDraft = {
+                entries: new Map(),
+                log: [],
+                changes: [],
+                checkpointed: false,
+                rows: null,
+                closed: false,
+            };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -524,7 +553,8 @@ export function createProjectStore(
                     return patch;
                 },
                 checkpoint() {
-                    const saved = new Map([...draft.entries].map(([id, entry]) => [id, entry.next]));
+                    draft.checkpointed = true;
+                    const mark = draft.changes.length;
                     const logged = draft.log.length;
 
                     return () => {
@@ -534,14 +564,27 @@ export function createProjectStore(
                             changed.add(entry.slice);
                         }
 
-                        for (const [id, entry] of draft.entries) {
+                        // What each key changed since held at the checkpoint: its first change's `before`.
+                        const saved = new Map<string, unknown>();
+                        for (const { id, before } of draft.changes.slice(mark)) {
                             if (!saved.has(id)) {
+                                saved.set(id, before);
+                            }
+                        }
+
+                        for (const [id, before] of saved) {
+                            const entry = draft.entries.get(id);
+                            if (entry === undefined) {
+                                continue; // handed to another draft since: theirs
+                            }
+
+                            if (before === NOT_HELD) {
                                 put(entry.slice, entry.key, entry.prior);
                                 draft.entries.delete(id);
                                 owners.delete(id);
                                 changed.add(entry.slice);
-                            } else if (saved.get(id) !== entry.next) {
-                                entry.next = saved.get(id);
+                            } else if (before !== entry.next) {
+                                entry.next = before;
                                 put(entry.slice, entry.key, entry.next);
                                 changed.add(entry.slice);
                             }

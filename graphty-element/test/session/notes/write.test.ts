@@ -305,6 +305,9 @@ describe("notes.add", () => {
         assert.deepEqual(session.notes.list(), []);
     });
 
+    // 10,000 adds in one transaction: 0.8-0.9 s alone (it was 7.5-12 s, almost all of it each
+    // member's checkpoint copying the whole draft, until checkpoints became a position in the
+    // draft's change list). An explicit 30 s limit, over thirty times that, for a busy machine.
     it("refuses a note larger than 256 KB saved, and a session past 10,000 notes", async () => {
         const { session } = notesHarness();
         const big = refuses(session, () =>
@@ -320,7 +323,7 @@ describe("notes.add", () => {
         assert.strictEqual(session.notes.counts().notes, 10_000);
         const full = refuses(session, () => session.notes.add({ text: "one more", targets: [{ graph: true }] }));
         assert.deepEqual([full.code, full.details.reason], ["E_TOO_LARGE", "notes"]);
-    });
+    }, 30_000);
 });
 
 describe("notes.update and notes.remove", () => {

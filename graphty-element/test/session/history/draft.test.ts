@@ -182,6 +182,80 @@ describe("two open drafts writing one key", () => {
     });
 });
 
+describe("a checkpoint", () => {
+    it("puts back what was written since: keys first written go, rewritten keys get their value back", () => {
+        const store = createProjectStore(createProjectState());
+        const draft = store.open();
+        draft.config.set("a", 1);
+        draft.config.set("b", 1);
+        const revert = draft.checkpoint();
+        draft.config.set("a", 2);
+        draft.config.set("a", 3);
+        draft.config.set("c", 1);
+        draft.config.delete("b");
+
+        assert.deepEqual(revert(), ["config"]);
+        assert.deepEqual(
+            [...store.state.config],
+            [
+                ["a", 1],
+                ["b", 1],
+            ],
+        );
+        assert.deepEqual(
+            draft.seal().entries.map((e) => [e.key, e.prior, e.next]),
+            [
+                ["a", ABSENT, 1],
+                ["b", ABSENT, 1],
+            ],
+        );
+    });
+
+    it("changes nothing and reports no slice when nothing was written since", () => {
+        const store = createProjectStore(createProjectState());
+        const draft = store.open();
+        draft.config.set("a", 1);
+        const revert = draft.checkpoint();
+        assert.deepEqual(revert(), []);
+        assert.strictEqual(store.state.config.get("a"), 1);
+    });
+
+    it("nests: the inner one puts back only its own writes, the outer one everything after it", () => {
+        const store = createProjectStore(createProjectState());
+        const draft = store.open();
+        draft.config.set("a", 1);
+        const outer = draft.checkpoint();
+        draft.config.set("a", 2);
+        draft.config.set("b", 1);
+        const inner = draft.checkpoint();
+        draft.config.set("a", 3);
+        draft.config.set("c", 1);
+        inner();
+        assert.deepEqual(
+            [...store.state.config],
+            [
+                ["a", 2],
+                ["b", 1],
+            ],
+        );
+        draft.config.set("c", 2);
+        outer();
+        assert.deepEqual([...store.state.config], [["a", 1]]);
+    });
+
+    it("leaves a key another draft took since with that draft", () => {
+        const store = createProjectStore(createProjectState());
+        const a = store.open();
+        const revert = a.checkpoint();
+        a.config.set("k", "a");
+        const b = store.open();
+        b.config.set("k", "b");
+        revert();
+        assert.strictEqual(store.state.config.get("k"), "b");
+        assert.lengthOf(a.seal().entries, 0);
+    });
+});
+
 describe("deepFreezeArgs", () => {
     it("copies and deep-freezes a stored argument, so the caller's later edits change nothing", () => {
         const argument = { filter: { where: { path: "degree", gte: 2 } }, tags: ["a"] };

@@ -126,7 +126,9 @@ describe("the Data page's choices", () => {
         const [table] = draft.tables;
         const named = setRole(draft, table, "emails", "weight", INITIAL_CHOICES);
         const choices = loadChoices(draft, setWeightMeaning(table, "strength", named), "replace");
-        assert.equal(choices.mapping?.tables?.[table.id]?.weightMeaning, "strength");
+        const { mapping } = choices;
+        assert.ok(mapping !== undefined && "tables" in mapping);
+        assert.equal(mapping.tables[table.id]?.weightMeaning, "strength");
 
         await draft.load(choices);
         assert.deepEqual(session?.data.loadedWeight(), { attribute: "emails", meaning: "strength" });

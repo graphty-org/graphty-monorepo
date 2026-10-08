@@ -221,7 +221,7 @@ export class LlmRegressionTestHarness {
             );
         }
 
-        // The provider VITE_LLM_REGRESSION_PROVIDER names (anthropic by default)
+        // The provider VITE_LLM_REGRESSION_PROVIDER names (google by default)
         const provider = new ToolCallCapturingProvider(getLlmRegressionProvider());
         provider.configure({
             apiKey,

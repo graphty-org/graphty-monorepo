@@ -14,7 +14,7 @@ import type { Graph } from "../../Graph";
 
 /** The sentence every selector parameter carries, so each tool describes the language the same way. */
 export const SELECTOR_SYNTAX =
-    "A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks). An empty string matches everything.";
+    "A node's or edge's own fields are under 'data.', so write data.type == 'server' or data.weight > `0.5` (numbers in backticks); a bare name such as id or type matches nothing. An empty string matches everything.";
 
 /**
  * Common selector spellings that mean "every element".

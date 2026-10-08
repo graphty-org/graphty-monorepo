@@ -214,16 +214,19 @@ describe("AiController", () => {
      */
     describe("execute - tool results go back to the model", () => {
         /** A provider that answers each ask with the next scripted response and records what it was sent. */
-        function scriptedProvider(script: LlmResponse[]): LlmProvider & { asks: Message[][] } {
+        function scriptedProvider(script: LlmResponse[]): LlmProvider & { asks: Message[][]; choices: string[] } {
             const asks: Message[][] = [];
+            const choices: string[] = [];
             return {
                 name: "scripted",
                 supportsStreaming: false,
                 supportsTools: true,
                 asks,
+                choices,
                 configure: () => undefined,
-                generate: (messages) => {
+                generate: (messages, _tools, options) => {
                     asks.push([...messages]);
+                    choices.push(options?.toolChoice ?? "auto");
                     return Promise.resolve(script[asks.length - 1] ?? { text: "done", toolCalls: [] });
                 },
                 generateStream: () => Promise.reject(new Error("not used")),
@@ -322,17 +325,29 @@ describe("AiController", () => {
             assert.include(toolMessages[1].content, "Not run");
         });
 
-        it("stops asking after five turns of a model that never stops calling tools", async () => {
+        it("stops running tools after five turns, then asks for a text answer only", async () => {
             const ran = registerEcho("again");
             const forever = { text: "", toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }] };
-            const provider = scriptedProvider(Array.from({ length: 10 }, () => forever));
+            const answer = {
+                text: "I looked at the data; what should change?",
+                toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }],
+            };
+            const provider = scriptedProvider([...Array.from({ length: 5 }, () => forever), answer, forever]);
             const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
 
             const result = await multi.execute("loop");
 
-            assert.strictEqual(provider.asks.length, 5);
+            assert.strictEqual(provider.asks.length, 6);
+            assert.deepStrictEqual(provider.choices, ["auto", "auto", "auto", "auto", "auto", "none"]);
+            // only the answer-only ask ends with the request to answer, and it is not kept in the history
+            const lasts = provider.asks.map((ask) => ask.at(-1));
+            assert.strictEqual(lasts[5]?.role, "user");
+            assert.include(lasts[5]?.content, "No more tools can run");
+            assert.ok(lasts.slice(0, 5).every((m) => !m?.content.includes("No more tools can run")));
+            // the answer-only ask's tool call, from a provider that ignored toolChoice, does not run
             assert.strictEqual(ran.length, 5);
             assert.strictEqual(result.success, true);
+            assert.strictEqual(result.llmText, "I looked at the data; what should change?");
         });
     });
 

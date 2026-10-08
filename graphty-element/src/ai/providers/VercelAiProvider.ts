@@ -102,12 +102,13 @@ export class VercelAiProvider implements LlmProvider {
      * @param tools - Available tools for the LLM
      * @param options - Generation options
      * @param options.signal - Optional abort signal
+     * @param options.toolChoice - "none" for a text answer only; "auto" (default) lets the model call tools
      * @returns Promise resolving to LLM response
      */
     async generate(
         messages: Message[],
         tools: ToolDefinition[],
-        options?: { signal?: AbortSignal },
+        options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
     ): Promise<LlmResponse> {
         const model = this.getModel();
         const convertedMessages = this.convertMessages(messages);
@@ -117,6 +118,7 @@ export class VercelAiProvider implements LlmProvider {
             model,
             messages: convertedMessages,
             tools: convertedTools,
+            toolChoice: options?.toolChoice,
             maxOutputTokens: this.maxTokens,
             temperature: this.temperature,
             abortSignal: options?.signal,

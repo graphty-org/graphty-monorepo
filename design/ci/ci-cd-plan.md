@@ -82,7 +82,7 @@ The four times master went red on 3 and 4 October each have a clear mechanism:
  release train every 6 h (00/06/12/18 UTC), unless the previous release is
  pending (release PR open, "Release held" issue open, nothing releasable):
  on master's newest commit run the FULL CI suite, the paid T4 GPU lane, Hosts,
- the production audit and the LLM regression tests (paid Anthropic calls);
+ the production audit and the LLM regression tests (paid Google Gemini calls);
  only if all pass is a release PR (versions +
  changelogs) cut from it, merged through the queue, published with npm
  trusted publishing from that run's builds. Anything red: no PR, one
@@ -429,7 +429,7 @@ lane, and nothing re-runs on the CPU.
 | Hosts (macOS, Windows)                    | short scope, advisory  | --                | none           | full, gates                  | nightly full            |
 | T4 GPU (paid)                             | -- (pre-push locally)  | --                | none           | gates                        | weekly paired benchmark |
 | Production security audit                 | -- (dependency review) | --                | none           | gates                        | --                      |
-| LLM regression (paid Anthropic calls)     | --                     | --                | none           | gates                        | --                      |
+| LLM regression (paid Gemini calls)        | --                     | --                | none           | gates                        | --                      |
 
 **Nightly, on master tip:**
 
@@ -506,11 +506,11 @@ Three costs at 30 to 50 merges a day:
    On the candidate it runs the FULL CI suite (ci.yml called with `workflow_call`, every shard,
    which also makes the builds the release ships), the T4 GPU lane (section 7), Hosts at full
    scope, `pnpm audit --prod --audit-level=high` and graphty-element's `llm-regression` vitest
-   project (each case sends a prompt to Anthropic's claude-haiku-4-5 and checks the model calls
-   the element's tools correctly; about 175 paid calls a release, so it runs nowhere else, with the
-   `ANTHROPIC_API_KEY` repository secret. A missing or empty secret fails the job instead of
-   letting the tests skip, and a missing secret or an account Anthropic refuses -- a rejected key,
-   no credit left -- names the held issue's lane "LLM regression (owner item: Anthropic account)"
+   project (each case sends a prompt to Google's gemini-3.8-flash and checks the model calls
+   the element's tools correctly; about 190 paid calls a release, so it runs nowhere else, with the
+   `GOOGLE_API_KEY` repository secret. A missing or empty secret fails the job instead of
+   letting the tests skip, and a missing secret or an account Google refuses -- a rejected key,
+   no credit left -- names the held issue's lane "LLM regression (owner item: Google account)"
    and says there is no code to fix). Anything red holds the whole release: no
    pull request, nothing published, and one "Release held: <what> failed on <sha>" issue
    (`bug`, `priority:high`, `effort:medium`) that githerd turns into a fix. **A held release

@@ -1619,18 +1619,18 @@ describe("release.yml", () => {
         assert.match(cov, /git-commit: \$\{\{ inputs.ref \}\}\n\s+git-branch: master/);
     });
 
-    it("runs the LLM regression tests on the candidate with the Anthropic secret, failing when it is missing", () => {
+    it("runs the LLM regression tests on the candidate with the Google secret, failing when it is missing", () => {
         assert.match(llm, /needs: pick\n\s+if: \$\{\{ needs.pick.outputs.release == 'true' \}\}/);
         assert.match(llm, /ref: \$\{\{ needs.pick.outputs.sha \}\}/);
         assert.match(llm, /run: pnpm exec nx run graphty-element:build/);
-        assert.match(llm, /VITE_LLM_REGRESSION_PROVIDER: anthropic\n/);
-        assert.match(llm, /VITE_ANTHROPIC_API_KEY: \$\{\{ secrets.ANTHROPIC_API_KEY \}\}/);
+        assert.match(llm, /VITE_LLM_REGRESSION_PROVIDER: google\n/);
+        assert.match(llm, /VITE_GOOGLE_API_KEY: \$\{\{ secrets.GOOGLE_API_KEY \}\}/);
         // the tests skip without a key; the job must fail instead, naming the secret, before vitest runs
-        const check = llm.indexOf('if [ -z "${VITE_ANTHROPIC_API_KEY}" ]; then');
+        const check = llm.indexOf('if [ -z "${VITE_GOOGLE_API_KEY}" ]; then');
         assert.ok(check > 0, "checks the key is non-empty");
         assert.match(
             llm.slice(check),
-            /^\s+echo "owner_item=[^\n]*\n\s+echo "::error::the ANTHROPIC_API_KEY repository secret[^\n]*\n\s+exit 1\n/m,
+            /^\s+echo "owner_item=[^\n]*\n\s+echo "::error::the GOOGLE_API_KEY repository secret[^\n]*\n\s+exit 1\n/m,
         );
         assert.ok(check < llm.indexOf("npx vitest run --project llm-regression"), "before the tests run");
         assert.doesNotMatch(llm, /continue-on-error/, "a failure holds the release");
@@ -1649,7 +1649,7 @@ describe("release.yml", () => {
         );
         // paid calls: never on a pull request, the merge queue or a master push
         for (const file of ["ci.yml", "gpu.yml", "hosts.yml", "coverage.yml"]) {
-            assert.doesNotMatch(workflow(file), /llm-regression|ANTHROPIC_API_KEY|OPENAI_API_KEY/, file);
+            assert.doesNotMatch(workflow(file), /llm-regression|ANTHROPIC_API_KEY|OPENAI_API_KEY|GOOGLE_API_KEY/, file);
         }
     });
 
@@ -1675,10 +1675,7 @@ describe("release.yml", () => {
         }
         // the LLM lane is named an owner item when the provider refused the account
         assert.ok(held.includes('"$llm_lane=$LLM_RESULT"'), "LLM regression");
-        assert.match(
-            held,
-            /\[ -z "\$LLM_OWNER_ITEM" \] \|\| llm_lane="LLM regression \(owner item: Anthropic account\)"/,
-        );
+        assert.match(held, /\[ -z "\$LLM_OWNER_ITEM" \] \|\| llm_lane="LLM regression \(owner item: Google account\)"/);
         assert.match(held, /LLM_OWNER_ITEM: \$\{\{ needs.llm.outputs.owner_item \}\}/);
         assert.match(
             held,
@@ -1909,8 +1906,8 @@ describe("release.yml", () => {
                 { LLM_RESULT: "failure", LLM_OWNER_ITEM: "the provider refused the account (credit balance too low)" },
                 [],
             );
-            assert.equal(title, "Release held: LLM regression (owner item: Anthropic account) failed on 44ab26d\n");
-            assert.match(body, /LLM regression \(owner item: Anthropic account\) failure/);
+            assert.equal(title, "Release held: LLM regression (owner item: Google account) failed on 44ab26d\n");
+            assert.match(body, /LLM regression \(owner item: Google account\) failure/);
             assert.match(body, /The LLM regression job did not fail on code: the provider refused the account/);
             assert.doesNotMatch(body, /githubstatus/);
         });

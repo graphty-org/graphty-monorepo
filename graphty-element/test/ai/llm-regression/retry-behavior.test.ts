@@ -8,7 +8,7 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
 import { assertCalled, LlmRegressionTestHarness, type RetryOptions } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
 
@@ -136,7 +136,7 @@ describe.skipIf(skipIfNoApiKey())("Retry Behavior LLM Regression", () => {
 
             // Latency should be tracked regardless of retry configuration
             assert.ok(result.latencyMs > 0, "Expected positive latency");
-            assert.ok(result.latencyMs < 60000, "Expected reasonable latency");
+            assert.ok(result.latencyMs < getLlmRegressionCaseTimeoutMs(), "Expected latency under the per-case limit");
         });
     });
 });

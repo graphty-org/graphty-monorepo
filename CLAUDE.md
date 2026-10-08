@@ -474,7 +474,7 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - `storybook` - Component tests (4 CI shards)
 - `interactions` - Interaction tests
 - `xr` - WebXR: real VR and AR sessions on an emulated headset (IWER) and the XR UI; runs in pre-push and in the CI browser shards
-- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`anthropic` by default; `openai`, `google`), with its key in `VITE_ANTHROPIC_API_KEY` (or `VITE_OPENAI_API_KEY`, `VITE_GOOGLE_API_KEY`). Runs in the release train (release.yml) on Anthropic with the `ANTHROPIC_API_KEY` repository secret, never on a pull request or in the merge queue
+- `llm-regression` - LLM regression tests: real, paid calls to the provider `VITE_LLM_REGRESSION_PROVIDER` names (`google` by default, model `gemini-3.8-flash`; `openai`, `anthropic`), with its key in `VITE_GOOGLE_API_KEY` (or `VITE_OPENAI_API_KEY`, `VITE_ANTHROPIC_API_KEY`). Runs in the release train (release.yml) on Google with the `GOOGLE_API_KEY` repository secret, never on a pull request or in the merge queue
 
 ### Running Specific Test Projects
 

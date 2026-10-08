@@ -39,17 +39,17 @@ describe("LlmRegressionTestHarness", () => {
                 vi.unstubAllEnvs();
             });
 
-            it("defaults to anthropic and its key variable and model", () => {
+            it("defaults to google, as the release job runs, and its key variable and model", () => {
                 vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", "");
                 vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "");
-                assert.strictEqual(getLlmRegressionProvider(), "anthropic");
-                assert.strictEqual(getLlmRegressionKeyVariable(), "VITE_ANTHROPIC_API_KEY");
-                assert.strictEqual(getLlmRegressionModel(), "claude-haiku-4-5-20251001");
+                assert.strictEqual(getLlmRegressionProvider(), "google");
+                assert.strictEqual(getLlmRegressionKeyVariable(), "VITE_GOOGLE_API_KEY");
+                assert.strictEqual(getLlmRegressionModel(), "gemini-3.8-flash");
             });
 
             it.each([
                 ["openai", "VITE_OPENAI_API_KEY", "gpt-4o-mini"],
-                ["google", "VITE_GOOGLE_API_KEY", "gemini-3.8-flash"],
+                ["anthropic", "VITE_ANTHROPIC_API_KEY", "claude-haiku-4-5-20251001"],
             ])("%s reads %s and defaults to %s", (provider, keyVariable, model) => {
                 vi.stubEnv("VITE_LLM_REGRESSION_PROVIDER", provider);
                 vi.stubEnv("VITE_LLM_REGRESSION_MODEL", "");

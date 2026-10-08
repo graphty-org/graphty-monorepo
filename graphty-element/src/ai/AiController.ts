@@ -9,16 +9,18 @@ import type { TransactionScope } from "../session/types";
 import { type AiStatus, AiStatusManager, type StatusChangeCallback } from "./AiStatus";
 import type { CommandRegistry } from "./commands";
 import type { CommandContext, CommandResult } from "./commands/types";
+import { MAX_TOOL_TURNS } from "./prompt/SystemPromptBuilder";
 import type { LlmProvider, Message, ToolCall } from "./providers/types";
 import type { SchemaManager } from "./schema";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "ai"]);
 
-/**
- * How many times one message may ask the model. Each ask after the first carries the results of
- * the tools the previous one called; the last one's tools still run, and its answer is final.
- */
-const MAX_MODEL_TURNS = 5;
+/** The last ask's closing message, after the tool turns ran out: answer, do not call another tool. */
+const ANSWER_NOW: Message = {
+    role: "user",
+    content:
+        "No more tools can run for this message. Answer me now in plain text: say what you found and what you changed, and if my request was unclear, ask what I want.",
+};
 
 /** How much of one tool result is handed back to the model, so a large graph's answer stays a bounded prompt. */
 const MAX_TOOL_RESULT_CHARS = 8000;
@@ -333,7 +335,16 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         const texts: string[] = [];
 
         for (let turn = 1; ; turn++) {
-            const response = await this.provider.generate(messages, tools, { signal: aborted });
+            // Past the tool turns, a text answer only: a model that spent every turn looking
+            // (sampleData, describeProperty, findNodes) and never acted would otherwise end the
+            // message with nothing said, and the person would get no answer at all.
+            // toolChoice "none" alone is not enough: gemini-3.8-flash still answers it with a tool
+            // call and no text, so the ask also says, in words, that it is time to answer.
+            const answerOnly = turn > MAX_TOOL_TURNS;
+            const response = await this.provider.generate(answerOnly ? [...messages, ANSWER_NOW] : messages, tools, {
+                signal: aborted,
+                toolChoice: answerOnly ? "none" : "auto",
+            });
 
             logger.debug("Response", {
                 turn,
@@ -352,7 +363,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 });
             }
 
-            if (response.toolCalls.length === 0) {
+            // A provider that ignores toolChoice may still call tools on the answer-only ask: they do not run.
+            if (answerOnly || response.toolCalls.length === 0) {
                 break;
             }
 
@@ -366,9 +378,8 @@ When the user asks you to perform an action, use the appropriate tool. If no too
                 throw new MessageRolledBack(this.combineResults(results, joinTexts(texts)));
             }
 
-            if (turn === MAX_MODEL_TURNS) {
-                logger.debug("Stopped asking the model", { turns: turn });
-                break;
+            if (turn === MAX_TOOL_TURNS) {
+                logger.debug("Out of tool turns: asking for a text answer only", { turns: turn });
             }
 
             messages.push({ role: "assistant", content: response.text, toolCalls: response.toolCalls });

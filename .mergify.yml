@@ -78,11 +78,11 @@ queue_rules:
       # Checked for as long as a pull request is queued: adding "hold" (or retitling it as a breaking
       # change) takes an already-queued pull request out of the queue. A pull request enters only
       # once its own CI passed; the ruleset's required checks (All Checks Pass, Lint PR Title) are
-      # added here by Mergify on its own. "Link PR Issue" (pr-issue-link.yml) is required here too, so it
-      # holds whether or not the ruleset lists it.
+      # added here by Mergify on its own. A failing "Link PR Issue" (pr-issue-link.yml) blocks too; it is
+      # negated, not check-success, because pull requests opened before the check existed have none.
       queue_conditions:
           - label!=hold
-          - check-success=Link PR Issue
+          - -check-failure=Link PR Issue
           - "-title~=^[a-z]+(\\([^)]*\\))?!:"
       # The batch merges only when the full suite passed on the combined tree.
       merge_conditions:

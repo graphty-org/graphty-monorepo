@@ -1147,7 +1147,7 @@ describe("pr-issue-link.yml", () => {
         assert.doesNotMatch(wf, /^concurrency:/m);
         assert.match(wf, /PR_BODY: \$\{\{ github\.event\.pull_request\.body \}\}\n/);
     });
-    it("fails with the message that says what to add, and is required by Mergify", () => {
+    it("fails with the message that says what to add, and a failing one blocks Mergify", () => {
         const run = (env) =>
             spawnSync(process.execPath, [new URL("pr-issue-link.mjs", import.meta.url).pathname], {
                 encoding: "utf8",
@@ -1159,7 +1159,8 @@ describe("pr-issue-link.yml", () => {
         assert.equal(run({ PR_BODY: "Fixes #1611" }).status, 0);
         assert.equal(run({ PR_BODY: "", PR_AUTHOR: "dependabot[bot]" }).status, 0);
         const mergify = readFileSync(new URL("../.mergify.yml", import.meta.url), "utf8");
-        assert.match(mergify, /- check-success=Link PR Issue\n/);
+        assert.match(mergify, /- -check-failure=Link PR Issue\n/);
+        assert.doesNotMatch(mergify, /check-success=Link PR Issue/);
     });
 });
 

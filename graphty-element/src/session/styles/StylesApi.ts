@@ -167,7 +167,14 @@ import {
     specOf,
     type ValidationResult,
 } from "./Layer";
-import { buildLegend, type EncodingLookup, type FieldWords, type LegendBlock, type LegendSources } from "./legend";
+import {
+    buildLayerLegend,
+    buildLegend,
+    type EncodingLookup,
+    type FieldWords,
+    type LegendBlock,
+    type LegendSources,
+} from "./legend";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
 import { stackChange } from "./repaint";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
@@ -404,6 +411,17 @@ export interface StylesApi {
      *     {@link StylesApi.list} returns. Empty when nothing is bound to paint.
      */
     legend(): readonly LegendBlock[];
+    /**
+     * The legend blocks of one layer: what it paints, channel by channel, read the way
+     * {@link StylesApi.legend} reads it. Unlike `legend()`, a base layer is answered too, so a
+     * layer list can show every layer's paint (a fixed colour is one swatch). A hidden layer
+     * paints nothing and answers no blocks.
+     * @param id - The layer.
+     * @returns One block per channel the layer paints, fixed values included.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+     * @since 3.17.0
+     */
+    legendOf(id: LayerId): readonly LegendBlock[];
     /**
      * Resolve once the element has finished painting everything it started for itself.
      *
@@ -2439,6 +2457,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         legend(): readonly LegendBlock[] {
             return buildLegend(legendSources);
+        },
+
+        legendOf(id: LayerId): readonly LegendBlock[] {
+            const blocks = buildLayerLegend(legendSources, id);
+
+            if (blocks === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNKNOWN_LAYER",
+                    message: `There is no style layer with the id "${id}".`,
+                    source: "style",
+                    target: { kind: "layer", id },
+                    details: { id, known: listLayers().map((layer) => layer.id) },
+                });
+            }
+
+            return blocks;
         },
 
         async settled(): Promise<void> {

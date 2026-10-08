@@ -58,7 +58,7 @@ import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
 import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
-import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
+import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import {
     AdHocData,
     defaultXRConfig,
@@ -118,6 +118,7 @@ import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter"
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
+import { pickNodeId } from "./NodeBehavior";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
@@ -319,6 +320,12 @@ export class Graph implements GraphContext {
     camera: CameraManager;
     private initialCameraState?: import("./screenshot/types.js").CameraState;
     private initialCameraStateCaptured = false;
+    /**
+     * True from the first settlement until the framing it asked for lands: `resetCamera()` returns
+     * to the camera that framing produced, which is recorded on its `zoom-to-fit-complete`. A
+     * framing waits for a style pass on its way, so it can land any number of frames later.
+     */
+    #initialCameraStateOwed = false;
 
     /**
      * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
@@ -978,6 +985,14 @@ export class Graph implements GraphContext {
             )
             .catch(() => undefined);
 
+        // The first settlement's framing has landed: that is the camera `resetCamera()` returns to.
+        this.eventManager.addListener("zoom-to-fit-complete", () => {
+            if (this.#initialCameraStateOwed) {
+                this.#initialCameraStateOwed = false;
+                this.initialCameraState = this.getCameraState();
+            }
+        });
+
         // Listen for layout-initialized events to handle zoom to fit
         this.eventManager.addListener("layout-initialized", (event) => {
             if (event.type === "layout-initialized") {
@@ -1524,15 +1539,13 @@ export class Graph implements GraphContext {
                             // Force a final zoom to fit after layout has truly settled, unless the
                             // camera was placed since the load asked for framing: that placement
                             // is the answer, and a slow machine settles after it as often as before.
-                            if (!this.#cameraPlaced) {
-                                this.autoFrame();
-                            }
-
-                            // Capture initial camera state after first settlement for resetCamera()
-                            // Use setTimeout to allow zoom-to-fit to complete first
-                            setTimeout(() => {
+                            // The camera `resetCamera()` returns to is the one this framing lands
+                            // on, recorded when it lands; with no framing asked for, it is this one.
+                            const framing = !this.#cameraPlaced && this.autoFrame();
+                            this.#initialCameraStateOwed = framing;
+                            if (!framing) {
                                 this.initialCameraState = this.getCameraState();
-                            }, 100);
+                            }
                         }
                     }
 
@@ -2235,8 +2248,8 @@ export class Graph implements GraphContext {
      *
      * What the `node-data` property does, and the node half of {@link setEdges}. A node whose id is
      * not in the new set is removed the way {@link removeNodes} removes one, so the edges attached
-     * to it go too. A node whose id IS in the new set keeps its object and its position; its data
-     * is not rewritten. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
+     * to it go too. A node whose id IS in the new set keeps its object and its position, and its
+     * data becomes the record it was just given, so a style reading a changed field repaints. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
      * is removed, so the graph keeps the nodes it had.
      * @param nodes - the nodes the graph should hold afterwards
      * @param idPath - Key to use for node IDs (default: the configured node id path)
@@ -3460,10 +3473,8 @@ export class Graph implements GraphContext {
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
                     // This was a click - check if we hit anything
-                    const pickResult = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
-
-                    // If we didn't hit anything or hit something without a nodeId, deselect
-                    if (!pickResult.hit || !pickResult.pickedMesh?.metadata?.nodeId) {
+                    // If we didn't hit a node, deselect
+                    if (pickNodeId(this.scene, this.scene.pointerX, this.scene.pointerY) === undefined) {
                         this.selectionManager.deselect();
                     }
                 }
@@ -3558,12 +3569,16 @@ export class Graph implements GraphContext {
      * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
      * configuration placed the camera itself with `startingCameraDistance`. An explicit
      * `zoomToFit()` is not affected.
+     * @returns True when a framing was asked for.
      */
-    private autoFrame(): void {
+    private autoFrame(): boolean {
         this.#cameraPlaced = false;
         if (this.#autoFrame && this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
+            return true;
         }
+
+        return false;
     }
 
     /**
@@ -4184,6 +4199,18 @@ export class Graph implements GraphContext {
         }
 
         return null;
+    }
+
+    /**
+     * The node under a point on the element, as a click there would see it.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "node", id }`, or `null` when no node is there.
+     */
+    elementAt(point: { x: number; y: number }): ElementAtResult | null {
+        const id = pickNodeId(this.scene, point.x, point.y);
+        return id === undefined ? null : { kind: "node", id };
     }
 
     /**
@@ -4825,6 +4852,9 @@ export class Graph implements GraphContext {
         // one -- and moves the camera off the state just placed. A later load or layout asks again.
         this.updateManager.disableZoomToFit();
         this.#cameraPlaced = true;
+        // The framing the first settlement asked for is withdrawn, so it will not land: a reset
+        // returns to where the camera stands when it is first asked for.
+        this.#initialCameraStateOwed = false;
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {

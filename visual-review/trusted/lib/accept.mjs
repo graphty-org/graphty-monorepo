@@ -490,6 +490,22 @@ export function legacyApprovals({ repo, pr, head, base, config }) {
     return items.length + drop.length > 0 ? { items, drop } : null;
 }
 
+// The child legacyApprovalsAsync runs: this module's legacyApprovals on its input, as JSON.
+const LEGACY_CHILD =
+    "import(process.argv[1]).then((m) => process.stdout.write(JSON.stringify(m.legacyApprovals(JSON.parse(process.argv[2])))))";
+
+/**
+ * legacyApprovals in a child process. It runs a git call per changed baseline, synchronously: a
+ * pull request changing hundreds of baselines takes seconds, and the server's own thread would
+ * answer no request meanwhile.
+ * @param {Parameters<typeof legacyApprovals>[0]} input as in legacyApprovals
+ * @returns {Promise<ReturnType<typeof legacyApprovals>>} what legacyApprovals returns
+ */
+export async function legacyApprovalsAsync(input) {
+    const out = await exec(process.execPath, ["-e", LEGACY_CHILD, import.meta.url, JSON.stringify(input)]);
+    return JSON.parse(out);
+}
+
 /**
  * A Finish's record items with the legacy ones added: a file decided in this Finish too keeps its
  * decision, taken from the base branch's contents (what the gate compares) rather than from the
@@ -1072,7 +1088,7 @@ async function planWrites(repo, base, writes, baselines) {
         files.push({ path, bytes: w.bytes ?? null });
         counts.accept++;
         if (!w.item.from) {
-            items.push({ path, from: w.item.baseline, to: w.item.capture, reason: w.reason });
+            items.push({ path, from: w.item.baseline, to: w.item.capture, reason: w.reason, ...provenance(w) });
             continue;
         }
         // A rename: the old id's baseline (of this mode) goes, the new one takes its place. For a
@@ -1103,6 +1119,10 @@ const blobAt = (repo, ref, path) =>
 
 // The results.json a Finish with nothing decided reports on: its first loaded project's.
 const firstCapture = (projects) => Object.values(projects).find((p) => p?.results)?.results ?? null;
+
+// An image the owner approved before for this story: the record item names where, and the gate
+// checks that earlier approval before the item counts.
+const provenance = (w) => (w.approvedBefore ? { approvedBefore: w.approvedBefore } : {});
 
 // Two modes of one story excluded together write one settings file: keep one record item.
 const dedupe = (items) => [...new Map(items.map((i) => [i.path, i])).values()];

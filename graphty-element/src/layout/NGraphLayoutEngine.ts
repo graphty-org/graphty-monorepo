@@ -285,17 +285,10 @@ export class NGraphEngine extends LayoutEngine {
         const ngraphNode = this._getMappedNode(n);
         const pos = this.ngraphLayout.getNodePosition(ngraphNode.id);
 
-        // Publish first, then answer from the array, so a caller reading one node at a time sees
-        // the same coordinates as a caller reading the array in bulk. A node with no row in the
-        // graph falls through to the simulation's own body, which is the object ngraph itself
-        // mutates -- see setNodePosition, which writes straight into it.
-        const out = { x: 0, y: 0, z: 0 };
-        this.writeNodePosition(n, pos.x, pos.y, pos.z ?? 0);
-        if (this.readNodePosition(n, out)) {
-            return out;
-        }
-
-        return pos;
+        // A node whose row is unplaced or missing falls through to the simulation's own body,
+        // which is the object ngraph itself mutates -- see setNodePosition, which writes straight
+        // into it.
+        return this.publishOnRead(n, pos.x, pos.y, pos.z ?? 0) ?? pos;
     }
 
     /**

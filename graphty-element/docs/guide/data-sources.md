@@ -22,9 +22,9 @@ element.edgeData = [{ source: "a", target: "b" }];
 ```
 
 Assigning either property REPLACES what it describes. A node missing from a new `nodeData` array
-is removed along with the edges attached to it; a node that is still there keeps its position and,
-for now, its OLD data -- a changed field on a retained node is not applied. `edgeData` replaces
-edge records outright. To add to the graph instead, call `addNodes` and `addEdges`.
+is removed along with the edges attached to it; a node that is still there keeps its position and
+its edges and takes the record it was just given, so a changed field is applied and a style that
+reads it repaints. The whole assignment is one undo step. `edgeData` replaces edge records outright. To add to the graph instead, call `addNodes` and `addEdges`.
 
 ## Loading from URL
 

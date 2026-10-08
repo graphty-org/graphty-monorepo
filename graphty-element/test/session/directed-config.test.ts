@@ -172,3 +172,67 @@ describe("data.directed on a standalone session (#837)", () => {
         s.dispose();
     });
 });
+
+const DIRECTED_GML = "graph [ directed 1 node [ id 1 ] node [ id 2 ] edge [ source 1 target 2 ] ]";
+
+describe("data.directed set on a live session settles the direction (#969)", () => {
+    it("is settled by the configuration right after config.set", async () => {
+        const s = createGraphSession();
+        await s.config.set({ data: { directed: false } });
+        assert.deepStrictEqual(s.data.store.directionSettledBy, { by: "configuration", statedBy: null });
+        s.dispose();
+    });
+
+    it("is not overruled by a file loaded after config.set", async () => {
+        const s = createGraphSession();
+        await s.config.set({ data: { directed: false } });
+        await s.data.import({ type: "gml", config: { data: DIRECTED_GML } });
+        assert.isFalse(s.status.directed);
+        assert.strictEqual(s.data.snapshot().directed, false);
+        assert.strictEqual(s.data.store.directionSettledBy.by, "configuration");
+        s.dispose();
+    });
+
+    it("is not overruled by add-edges carrying a direction after config.set", async () => {
+        const s = createGraphSession();
+        await s.config.set({ data: { directed: false } });
+        await s.execute({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: [{ source: "a", target: "b" }], directed: true },
+        });
+        assert.isFalse(s.status.directed);
+        assert.strictEqual(s.data.store.directionSettledBy.by, "configuration");
+        s.dispose();
+    });
+
+    it("unlocks an empty graph set back to auto, so the next file settles it", async () => {
+        const s = createGraphSession();
+        await s.config.set({ data: { directed: false } });
+        await s.config.set({ data: { directed: "auto" } });
+        assert.strictEqual(s.data.store.directionSettledBy.by, "unsettled");
+
+        await s.data.import({
+            type: "gml",
+            config: { data: DIRECTED_GML.replace("directed 1", "directed 0") },
+        });
+        assert.isFalse(s.status.directed);
+        assert.strictEqual(s.data.store.directionSettledBy.by, "file");
+        s.dispose();
+    });
+
+    it("re-reads a graph that holds edges in the configured direction, settled by the configuration", async () => {
+        const s = createGraphSession();
+        await s.data.import({ type: "gml", config: { data: DIRECTED_GML } });
+        assert.strictEqual(s.data.store.directionSettledBy.by, "file");
+
+        await s.config.set({ data: { directed: false } });
+        assert.isFalse(s.status.directed);
+        assert.strictEqual(s.data.store.directionSettledBy.by, "configuration");
+        assert.strictEqual(s.data.snapshot().edgeCount, 1);
+
+        await s.config.set({ data: { directed: "auto" } });
+        assert.isTrue(s.status.directed);
+        assert.strictEqual(s.data.store.directionSettledBy.by, "file", "auto returns to what the file said");
+        s.dispose();
+    });
+});

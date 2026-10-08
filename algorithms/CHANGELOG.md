@@ -1,3 +1,18 @@
+## 3.3.8 (2026-10-07)
+
+### 🩹 Fixes
+
+- **algorithms:** keep direction-optimized BFS top-down on a tree ([#447](https://github.com/graphty-org/graphty-monorepo/issues/447))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.23
+- Updated graph-format to 1.3.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.7 (2026-10-07)
 
 ### 🩹 Fixes

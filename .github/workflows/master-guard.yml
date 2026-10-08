@@ -1,8 +1,11 @@
 # Keeps master green (design/ci/ci-cd-plan.md section 12). When CI or Hosts finishes on master,
 # tools/master-guard.mjs:
 # - CI red: freezes the Mergify queue (only priority:critical pull requests merge), opens a revert of the
-#   commit when its parent was green, and opens a priority:critical issue;
+#   commit when its parent was green, and opens a priority:critical issue; when the failure looks external (an
+#   outside service's error, a lost runner, the same job red on an earlier commit) it re-runs the failed jobs
+#   instead of freezing and reverting, and the issue names the evidence;
 # - CI green at or after a frozen red commit: lifts the freeze;
+# - either way: closes its own revert pull requests that master CI shows are no longer needed;
 # - Hosts red (the nightly; a push to master no longer runs Hosts): opens, or adds to, a priority:critical
 #   issue naming the merges since the lane's last green run. Never freezes; release.yml already refuses to release.
 # The T4 GPU lane (gpu.yml) no longer runs on master: the release train runs it and files its own issue.
@@ -28,7 +31,7 @@ permissions:
     contents: write # push the revert branch
     pull-requests: write
     issues: write
-    actions: read
+    actions: write # read failed jobs' logs, re-run an external failure
 
 jobs:
     guard:

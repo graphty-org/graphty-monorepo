@@ -69,6 +69,32 @@ describe("parseGate", () => {
         ]);
     });
 
+    it("reads the push queue's line for a timed-out shard, whose tests come from the shard's own log", () => {
+        // feat/githerd, 2026-10-08T02:42:27Z: the printed tail of the shard log was a process list.
+        const g = parseGate(
+            [
+                "  [FAIL] webgpu-graph-algorithms-node (exit 1, 275s); the end of /w/tmp/prepush-tests/webgpu-graph-algorithms-node.log:",
+                " FAIL  |node| test/noise-floor.test.ts > noise floor (benchmarks/results/noise-floor.json) > every tolerance is derived from a recorded basis row: floor <= value <= 10 x floor, factor = value / floor, no seed entry left",
+                " FAIL  |node| test/algorithms/all-pairs.test.ts > allPairsShortestPath (design 8.7 / 9.7) > grid30/integer: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged",
+                "[FAIL] Tests (the CI shards of the affected packages) failed",
+            ],
+            WS.packages.concat("webgpu-graph-algorithms"),
+        );
+        expect(g.shards).toEqual([{ shard: "webgpu-graph-algorithms-node", secs: 275 }]);
+        expect(g.tests.map((t) => [t.file, t.package, t.shard])).toEqual([
+            [
+                "webgpu-graph-algorithms/test/noise-floor.test.ts",
+                "webgpu-graph-algorithms",
+                "webgpu-graph-algorithms-node",
+            ],
+            [
+                "webgpu-graph-algorithms/test/algorithms/all-pairs.test.ts",
+                "webgpu-graph-algorithms",
+                "webgpu-graph-algorithms-node",
+            ],
+        ]);
+    });
+
     it("reads a background step, a passed gate and GitHub's rejection", () => {
         const g = parseGate(
             [

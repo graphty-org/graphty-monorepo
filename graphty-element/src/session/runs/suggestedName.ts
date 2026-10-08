@@ -13,6 +13,13 @@
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import type { AlgorithmDescriptor, SuggestedName } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { RunDistinction } from "./types";
+
+/** The name an unnamed run is given, and the option that name was suggested by. */
+export interface RunName extends SuggestedName {
+    /** The option a built-in names its result by, or null for any other name. */
+    readonly distinguishedBy: RunDistinction | null;
+}
 
 /** What a suggested id must look like: a selector names it unquoted, so no hyphens. */
 const SUGGESTED_ID = /^[a-z][a-z0-9_]*$/;
@@ -55,7 +62,7 @@ function idPart(text: string): string {
 function builtInSuggestion(
     descriptor: AlgorithmDescriptor,
     params: Readonly<Record<string, unknown>>,
-): SuggestedName | undefined {
+): RunName | undefined {
     const setting = BUILT_IN_SETTINGS[descriptor.key] as (typeof BUILT_IN_SETTINGS)[string] | undefined;
     if (setting === undefined) {
         return undefined;
@@ -76,6 +83,7 @@ function builtInSuggestion(
     return {
         id: `${plainId(descriptor.key)}_${word}_${idPart(text)}`,
         label: `${descriptor.plainName} (${word} ${text})`,
+        distinguishedBy: Object.freeze({ option, value }),
     };
 }
 
@@ -94,19 +102,20 @@ function plainId(key: string): string {
  * What an unnamed run of this algorithm, with these parameters, should be called.
  * @param descriptor - The algorithm's catalogue entry.
  * @param params - The run's canonical parameters, the declared defaults filled in.
- * @returns The id to try first, and the label.
+ * @returns The id to try first, the label, and the option a built-in's name was suggested by.
  * @throws A `GraphtyError` with code `E_BAD_COMMAND` when a registered algorithm suggests an id a
  *   selector could not carry, or no label.
  */
-export function suggestRunName(
-    descriptor: AlgorithmDescriptor,
-    params: Readonly<Record<string, unknown>>,
-): SuggestedName {
+export function suggestRunName(descriptor: AlgorithmDescriptor, params: Readonly<Record<string, unknown>>): RunName {
     const suggest = registeredAlgorithmByKey(descriptor.key)?.suggestedName;
-    const suggestion = suggest === undefined ? builtInSuggestion(descriptor, params) : suggest(params);
 
+    if (suggest === undefined) {
+        return builtInSuggestion(descriptor, params) ?? plainName(descriptor);
+    }
+
+    const suggestion = suggest(params);
     if (suggestion === undefined) {
-        return { id: plainId(descriptor.key), label: descriptor.plainName };
+        return plainName(descriptor);
     }
 
     const { id, label } = suggestion as Partial<SuggestedName>;
@@ -122,5 +131,14 @@ export function suggestRunName(
         });
     }
 
-    return { id, label };
+    return { id, label, distinguishedBy: null };
+}
+
+/**
+ * The name of a run its algorithm suggests nothing for.
+ * @param descriptor - The algorithm's catalogue entry.
+ * @returns Its key as the id, its plain name as the label.
+ */
+function plainName(descriptor: AlgorithmDescriptor): RunName {
+    return { id: plainId(descriptor.key), label: descriptor.plainName, distinguishedBy: null };
 }

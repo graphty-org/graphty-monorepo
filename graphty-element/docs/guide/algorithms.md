@@ -151,24 +151,26 @@ thresholds:
 const result = await element.run("louvain");
 const band = result.band("modularity");
 
-console.log(band?.id, band?.plainName); // "clear" "Clearly separated"
+console.log(band?.id); // "clear"
 ```
 
-| Band id  | Modularity                | Plain name        |
-| -------- | ------------------------- | ----------------- |
-| `clear`  | above 0.3                 | Clearly separated |
-| `weak`   | 0.1 to 0.3, both included | Weakly separated  |
-| `barely` | below 0.1                 | Barely separated  |
+Word the band yourself from its `id`:
+
+| Band id  | Modularity                |
+| -------- | ------------------------- |
+| `clear`  | above 0.3                 |
+| `weak`   | 0.1 to 0.3, both included |
+| `barely` | below 0.1                 |
 
 The 0.3 line is Newman and Girvan's ("Finding and evaluating community structure in networks",
 Phys. Rev. E 69, 026113, 2004); the 0.1 line is graphty-element's convention for a split barely
-better than a random one. The same scale, with a one-sentence description per band and the
-citation, is on the modularity field of the algorithm's catalogue entry
-(`fields[].interpretation`), so it can be shown before anything has run. `band()` returns
-`undefined` for a field with no scale or no finite value.
+better than a random one. The same scale and the citation are on the modularity field of the
+algorithm's catalogue entry (`fields[].interpretation`), so it can be shown before anything has
+run. `band()` returns `undefined` for a field with no scale or no finite value. A band's
+`plainName` and `description`, and the scale's `summary`, are English and deprecated; they are
+removed in the next major.
 
-The result's own sentence, `result.reading()`, names the band too, for example "Modularity is
-0.447 (clearly separated)."
+The result's [reading fact](#what-a-result-says) carries the band's id too, as `params.band`.
 
 ### Component Analysis
 
@@ -287,19 +289,157 @@ time, sorted by the run's values -- see [Result Columns](./result-columns).
 ### A result that stopped early
 
 A run that stopped before it finished still succeeds and publishes what it had. `run.partial` (and
-`run.record.partial`) is `true`, and `run.caveats.partialReason` says why, whatever stopped it: a
-`timeBoxMs` box, a cancellation, or an algorithm reporting that it reached its own iteration cap
-(a [custom algorithm](./extending/custom-algorithms) does that with `converged(false, iterations)`). The two always
-agree, so a consumer that marks unfinished results reads `partial` alone:
+`run.record.partial`) is `true`, and `run.caveats.partialCause` says why, as a code and its
+values, whatever stopped it: a `timeBoxMs` box, a cancellation, a batch that did not finish, or an
+algorithm reporting that it reached its own iteration cap (a
+[custom algorithm](./extending/custom-algorithms) does that with `converged(false, iterations)`).
+The two always agree, so a consumer that marks unfinished results reads `partial` alone:
 
 ```typescript
 const run = element.run("betweenness", {}, { timeBoxMs: 200 });
 await run;
 
 if (run.partial) {
-    console.log(run.caveats.partialReason); // why it stopped
+    console.log(run.caveats.partialCause); // { code: "partial.time-box", params: { ms: 200 } }
 }
 ```
+
+The codes are in the [table below](#why-a-run-stopped-early). `run.caveats.partialReason`, the
+same cause as an English sentence, is deprecated and removed in the next major.
+
+## What a result says
+
+graphty-element does not write sentences for a reader. What a run has to say about its own numbers
+comes as facts -- a `code` and the values it is about, in `params` -- and you word each one, in
+your own language, or leave it out. Switch on `code`, and treat a code you do not know as something
+to leave out: a minor release may add codes.
+
+### What the result means
+
+`result.readingFact()` is the one fact a result's figures add up to, one code per result shape:
+
+```typescript
+const result = await element.run("louvain");
+
+console.log(result.readingFact());
+// { code: "reading.groups", params: { groups: 4, largest: 12, measured: 34, modularity: 0.41, band: "clear" } }
+```
+
+| Code                   | Shape                                   | `params`                                                                                                  |
+| ---------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `reading.metric`       | node or edge metric                     | `field`, `leader` (id), `leaderLabel`, `highest`, `median`, `lowest`, `tiedAtLowest`, `measured`, `count` |
+| `reading.metric-empty` | a metric that measured nothing          | `field`                                                                                                   |
+| `reading.groups`       | community, layered grouping, categories | `groups`, `largest`, `measured`, `modularity` (or null), `band` (a band id, or null)                      |
+| `reading.groups-empty` | a partition that grouped nothing        | none                                                                                                      |
+| `reading.path`         | a route                                 | `hops`, `cost` (each a number or null)                                                                    |
+| `reading.path-none`    | a path result with neither              | none                                                                                                      |
+| `reading.set`          | node or edge set                        | `count`, `element` (`"node"` or `"edge"`)                                                                 |
+| `reading.pairs`        | pair list                               | `count`                                                                                                   |
+| `reading.series`       | temporal series                         | `steps` (0 when empty)                                                                                    |
+| `reading.coverage`     | any other shape                         | `measured`, `count`                                                                                       |
+
+`result.reading()`, the element's English sentence for the same fact ("4 groups were found, the
+largest holding 12 of 34. Modularity is 0.41 (clearly separated)."), its `ReadingOptions` and
+`defaultReading` are deprecated and removed in the next major.
+
+### What qualifies the numbers
+
+`run.caveats.facts` holds one fact per remark about the numbers, in the order a reader reads them:
+
+```typescript
+const run = element.run("pagerank", { dampingFactor: 0.9 });
+await run;
+
+console.log(run.caveats.facts);
+// [{ code: "pagerank.damping", params: { dampingFactor: 0.9 } },
+//  { code: "pagerank.sums-to-one", params: {} }, { code: "weights.unread", params: {} }]
+```
+
+A node id in `params` is the data's own id, a string or a number. `run.caveats.notes`, the same
+remarks as English sentences, is deprecated and removed in the next major; an algorithm registered
+from outside the element that writes its own `notes` in words has no facts for them.
+
+| Code                                 | What it says, and its `params`                                                                                                                                                                  |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `weights.unread`                     | edge weights were not read.                                                                                                                                                                     |
+| `route.found`                        | the run measured the route between two nodes: `{ source, target }`.                                                                                                                             |
+| `route.none`                         | no route runs between two nodes: `{ source, target }`.                                                                                                                                          |
+| `iteration.stop-rule`                | iteration stops at a tolerance or a pass count, whichever comes first: `{ tolerance, maxIterations }`.                                                                                          |
+| `iteration.cap-reached`              | it stopped at the pass cap without reaching the tolerance: `{ maxIterations }`.                                                                                                                 |
+| `partition.unscored`                 | the algorithm does not score its own partition, so it reports no modularity: `{ algorithm }`, its catalog key.                                                                                  |
+| `community.resolution`               | the resolution the partition was found at: `{ resolution }`.                                                                                                                                    |
+| `paths.counted-exactly`              | every shortest path was counted exactly, over the graph read as undirected.                                                                                                                     |
+| `paths.hop-lengths`                  | path lengths count edges, and edge weights were not read.                                                                                                                                       |
+| `tree.edge-count`                    | the spanning tree's size: `{ edges }`.                                                                                                                                                          |
+| `scope.whole-graph`                  | computed on the whole graph, values kept for the scope only.                                                                                                                                    |
+| `scope.induced-subgraph`             | computed on the subgraph the scope's nodes induce: `{ nodes }`.                                                                                                                                 |
+| `scope.subgraph`                     | computed on the scope's nodes and edges: `{ nodes, edges }`.                                                                                                                                    |
+| `parallel-edges.merged`              | parallel edges were merged into one, every member of a group carrying the merged value: `{ count, policy }`, how many were merged and how their weights combined (`"sum"`, `"min"` or `"max"`). |
+| `input.empty`                        | the graph held nothing for the algorithm to measure.                                                                                                                                            |
+| `sampled.instead-of-exact`           | the run sampled rather than computed exactly: `{ method, name, sampleSize, nodes }`, the approximate method's id and catalog name, the sample, and the nodes it was drawn from.                 |
+| `sampled.exact-past-cap`             | an exact run was estimated past the cost cap, so the approximate method ran: `{ seconds, cap }`.                                                                                                |
+| `sampled.still-past-cap`             | the sampled run is itself estimated past the cap: `{ seconds, cap }`.                                                                                                                           |
+| `astar.straight-line`                | A* was steered by straight-line distance, so its route is the cheapest only when every edge weighs at least the distance it spans.                                                              |
+| `betweenness.sampled`                | betweenness was estimated from sampled sources, unscaled: `{ sources, nodes }`.                                                                                                                 |
+| `betweenness.halved`                 | the raw counts were halved, because an undirected shortest path is reached from both ends.                                                                                                      |
+| `edge-betweenness.sampled`           | edge betweenness was estimated from sampled sources, unscaled: `{ sources, nodes }`.                                                                                                            |
+| `bfs.origin`                         | the walk went outwards from a node, which is level 0: `{ source }`.                                                                                                                             |
+| `bfs.target-reached`                 | the walk stopped at its target: `{ target }`.                                                                                                                                                   |
+| `bfs.target-unreached`               | the walk never reached its target, so it covered everything reachable: `{ target }`.                                                                                                            |
+| `dfs.walk`                           | the walk's start and when it recorded a node: `{ source, order }`, `order` `"pre"` (as reached) or `"post"` (as left).                                                                          |
+| `closeness.sampled`                  | closeness was estimated from sampled sources, unscaled: `{ sources, nodes }`.                                                                                                                   |
+| `closeness.exact`                    | distances are exact, over the graph read as undirected.                                                                                                                                         |
+| `closeness.hop-distances`            | distance counts edges, and edge weights were not read.                                                                                                                                          |
+| `closeness.reciprocal`               | a score is the reciprocal of the summed distance, uncorrected for how many nodes are reachable.                                                                                                 |
+| `clustering-coefficient.local`       | each value is the node's local clustering coefficient.                                                                                                                                          |
+| `clustering-coefficient.simple`      | the graph was read as simple and undirected.                                                                                                                                                    |
+| `components.weak`                    | weak components: an edge joins its two nodes whichever way it points.                                                                                                                           |
+| `components.strong`                  | strong components: a directed path must run each way.                                                                                                                                           |
+| `components.undirected-strong`       | the graph is undirected, so its strong components are its connected ones.                                                                                                                       |
+| `degree.as-declared`                 | degree was counted as the records declared the edges.                                                                                                                                           |
+| `eigenvector.converged`              | power iteration converged: `{ tolerance, maxIterations }`.                                                                                                                                      |
+| `eigenvector.scored-by`              | which nodes score a node: `{ mode }`, `"in"` (the nodes pointing at it) or anything else (the nodes it points at).                                                                              |
+| `floyd-warshall.eccentricity`        | every pair was measured, and a node's value is its eccentricity.                                                                                                                                |
+| `flow.ends`                          | the flow measured: `{ source, sink }`.                                                                                                                                                          |
+| `flow.ends-chosen`                   | the source or sink was chosen automatically.                                                                                                                                                    |
+| `flow.no-path`                       | no directed path runs from source to sink: `{ source, sink }`.                                                                                                                                  |
+| `girvan-newman.no-cut`               | no edge could be cut, so every node is its own community.                                                                                                                                       |
+| `girvan-newman.best-of`              | the best of several successive cuts was kept: `{ cuts }`.                                                                                                                                       |
+| `hierarchical.hop-distances`         | distances are hop counts, and edge weights were not read.                                                                                                                                       |
+| `hierarchical.fewer-clusters`        | fewer clusters than asked for: `{ asked, allowed }`.                                                                                                                                            |
+| `hits.published-score`               | which HITS score is the published value: `{ mode }`, `"in"` (authority), `"out"` (hub) or `"total"` (their average).                                                                            |
+| `hits.unit-length`                   | the hub and authority vectors have unit length.                                                                                                                                                 |
+| `hits.max-scaled`                    | the hub and authority vectors were divided by their own highest score.                                                                                                                          |
+| `k-core.undirected`                  | counted over the graph read as undirected; edge weights not read.                                                                                                                               |
+| `k-core.loops-and-parallels`         | a self-loop does not count, and parallel edges count once.                                                                                                                                      |
+| `katz.attenuation`                   | every node's base influence and the per-step attenuation: `{ beta, alpha }`.                                                                                                                    |
+| `katz.direction`                     | which way paths were counted: `{ mode }`, `"in"`, `"out"` or `"total"`.                                                                                                                         |
+| `link-prediction.candidates`         | only unjoined pairs sharing a neighbor were scored.                                                                                                                                             |
+| `matching.not-bipartite`             | the graph has no two sides, so nothing was paired.                                                                                                                                              |
+| `matching.partnered`                 | how many nodes found a partner: `{ count }`.                                                                                                                                                    |
+| `min-cut.karger`                     | Karger's method is randomized.                                                                                                                                                                  |
+| `min-cut.sides`                      | the size of each side of the cut: `{ first, second }`.                                                                                                                                          |
+| `min-cut.end-chosen`                 | only one end was set, so the other was chosen: `{ source, sink }`.                                                                                                                              |
+| `negative-cycle.no-distance`         | a negative cycle leaves no distance defined, so none was published.                                                                                                                             |
+| `negative-cycle.no-route`            | a negative cycle makes every distance past it meaningless, so no route is marked.                                                                                                               |
+| `pagerank.damping`                   | the probability of following a link: `{ dampingFactor }`.                                                                                                                                       |
+| `pagerank.sums-to-one`               | the ranks sum to 1.                                                                                                                                                                             |
+| `pagerank.undirected`                | the graph is undirected, so every edge carries rank both ways.                                                                                                                                  |
+| `pagerank.personalized`              | the random jump lands on the personalization vector's nodes.                                                                                                                                    |
+| `pagerank.personalization-unmatched` | no personalization entry applies, so the jump lands anywhere.                                                                                                                                   |
+| `pagerank.personalization-outside`   | personalization entries naming nodes outside the graph were left out: `{ count }`.                                                                                                              |
+
+### Why a run stopped early
+
+`run.caveats.partialCause` is present when `run.partial` is true and the element knows why:
+
+| Code                       | What stopped it                                          | `params`                                                  |
+| -------------------------- | -------------------------------------------------------- | --------------------------------------------------------- |
+| `partial.iteration-cap`    | the algorithm stopped at an iteration cap the caller set | none                                                      |
+| `partial.time-box`         | the run's `timeBoxMs` ran out                            | `ms`                                                      |
+| `partial.canceled`         | the run was canceled and published what it had           | `reason` (the text given to `cancel()`, or null), `runId` |
+| `partial.stopped`          | the work stopped early without saying why                | none                                                      |
+| `partial.batch-incomplete` | a batch stopped before every member finished             | `completed`, `total`                                      |
 
 ## Running over part of the graph
 
@@ -312,7 +452,7 @@ const team = element.session.sets.create({ kind: "fixed", nodes: ["a", "b", "c",
 const run = element.run("pagerank", {}, { scope: { set: team } });
 await run;
 
-console.log(run.caveats.notes); // ["Computed on the induced subgraph of 4 nodes."]
+console.log(run.caveats.facts); // [{ code: "scope.induced-subgraph", params: { nodes: 4 } }]
 console.log(run.record.scope.set); // the set's id, and its revision when the run read it
 ```
 
@@ -362,10 +502,30 @@ for (const option of options) {
 **A run's id names its result, in words.** A run you do not name with `as:` is named after its
 algorithm -- `results.degree.value`, `results.pagerank.value`, `results.shortest_path.onPath` --
 and an algorithm whose settings change what its result means adds the setting once it leaves its
-default: `results.louvain_resolution_1_5.group`, labelled "Communities (resolution 1.5)", or
-`results.pagerank_damping_0_9.value`. The built-ins name PageRank's damping, Katz's alpha, the
-direction of eigenvector centrality and HITS, the resolution of Louvain and Leiden, the
-strength of components, and the method of shortest path and link prediction.
+default: `results.louvain_resolution_1_5.group`, or `results.pagerank_damping_0_9.value`. The
+built-ins name PageRank's damping, Katz's alpha, the direction of eigenvector centrality and HITS,
+the resolution of Louvain and Leiden, the strength of components, and the method of shortest path
+and link prediction.
+
+**What to call a run is yours to word.** A run (and its `record`, its entry in `results.roots`)
+carries the facts a name is made from: its `algorithm`, whose catalog `plainName` is the
+algorithm's default name; `distinguishedBy`, the one setting its id was named after, once it left
+its default (`{ option: "resolution", value: 1.5 }`, or `null`); and `siblingsDifferBy`, what tells
+it apart from the other listed runs of the same algorithm that would otherwise go by the same name:
+the options whose values differ, sorted, an empty list when only the scope differs, or `null` while
+no other run shares the name.
+
+```typescript
+const run = element.run("louvain", { resolution: 1.5 });
+const name = element.session.catalog.algorithms().find((entry) => entry.key === run.algorithm)?.plainName;
+
+console.log(name, run.distinguishedBy); // "Communities" { option: "resolution", value: 1.5 }
+console.log(run.siblingsDifferBy); // null: no other Communities run yet
+```
+
+`run.label` ("Communities (resolution 1.5)") is the element's own English for the same facts. It is
+deprecated, with the `label` of a run's record, of a `ResultRoot` and of an `EncodingRun`, and
+removed in the next major.
 
 Starting the same run again finds the same result: same algorithm, same name, and the same scope
 -- with `"visible"` and `"selection"` frozen to the filter and the selection in force when the run
@@ -446,8 +606,9 @@ await element.session.styles.encode({ run, channel: "node.color", palette: "viri
 `encode()` replaces the layer already painting that channel from that run, so running the
 algorithm again leaves one layer and one legend block rather than two.
 
-On `node.size` or `edge.width`, a measurement is drawn from 1 (the default size) to 3 unless you
-pass `range` -- the same default a column of amounts gets -- and that range is written into the
+On `node.size`, a measurement is drawn from 1 (the default size) to 3, and on `edge.width` from
+the default edge width to twice it, unless you pass `range` -- the same defaults a column of
+amounts gets -- and that range is written into the
 layer, so `styles.get(layer.id)` and a saved project show it:
 
 ```typescript
@@ -468,9 +629,17 @@ element.run("pagerank", {}, { style: { size: true } });
 element.run("pagerank", {}, { style: { size: [1, 5] } });
 ```
 
-`style: true` (the default) paints the colour alone and `style: false` paints nothing. `size` is
-ignored for a result that is not a node measurement -- a community has no amount to size by. The
-size layer paints only the nodes the run measured and is removed with the run.
+`style: true` (the default) paints the colour alone and `style: false` paints nothing. For an
+edge measurement, such as max flow or edge betweenness, `size` draws edge width instead: `size:
+true` runs from the default edge width to twice it, and `[min, max]` is in edge width units.
+
+```typescript
+// Colour AND widen each edge by the flow it carries.
+element.run("max-flow", { source: "a", sink: "z" }, { style: { size: true } });
+```
+
+`size` is ignored for a result that is not a measurement -- a community has no amount to size by.
+The size layer paints only the elements the run measured and is removed with the run.
 
 ### Running algorithms when the data loads
 

@@ -5,6 +5,7 @@ import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-el
 import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
+import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { columnChoices, countOf, type RecordKind, sortCaption, type TableColumnChoice } from "./columns";
@@ -57,7 +58,7 @@ const ARRANGEMENTS = new WeakMap<WorkspaceStore, Arrangement>();
 function groupRuns(session: GraphSession): { id: string; label: string; groups: readonly SummaryGroup[] }[] {
     return session.runs.list().flatMap((run) => {
         const groups = run.result?.summary().groups;
-        return groups === undefined ? [] : [{ id: run.id, label: run.label, groups }];
+        return groups === undefined ? [] : [{ id: run.id, label: runName(session, run), groups }];
     });
 }
 

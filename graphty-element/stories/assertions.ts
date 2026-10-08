@@ -652,7 +652,9 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     // scene, and the lines that do, together and in one list -- what an edge is drawn BY is a
     // renderer decision and no assertion should have to know which half an edge fell into.
     const drawnEdgeLines = [
-        ...edges.flatMap((edge) => (edge.drawnLine === null ? [] : [edge.drawnLine.name])),
+        ...edges.flatMap((edge) =>
+            edge.drawnLine === null ? [] : [`${edge.drawnLine.name}|w${edge.drawnLine.width.toFixed(3)}`],
+        ),
         ...patternElements.map((element) => patternAppearance(element)),
         ...graph.scene.meshes
             .map((mesh) => edgeLineAppearance(mesh))
@@ -1375,6 +1377,28 @@ export async function assertEdgeVariety(scene: Drawn, atLeast: number): Promise<
         scene.edgeStyleNames.length >= atLeast,
         `${scene.story}: the story's layers ask for ${String(atLeast)} different edge appearances and the scene ` +
             `draws ${String(scene.edgeStyleNames.length)} -- [${scene.edgeStyleNames.join(", ")}]`,
+    );
+}
+
+/**
+ * The edges in the picture are drawn at this many different widths.
+ *
+ * Read off the same appearance keys as {@link assertEdgeVariety}, which carry the width every
+ * line is drawn with: a line in a shared batch reports the width its batch was built with, and a
+ * line the renderer built on its own its mesh's width. A line keyed only by an interned 3D source
+ * mesh name carries no width and is not counted.
+ * @param scene - What the story drew.
+ * @param atLeast - How many widths the story promises.
+ */
+export async function assertEdgeWidthVariety(scene: Drawn, atLeast: number): Promise<void> {
+    const widths = [
+        ...new Set(scene.edgeStyleNames.flatMap((name) => /\|w([^|]+)$/.exec(name)?.slice(1) ?? [])),
+    ].sort();
+
+    await holds(
+        widths.length >= atLeast,
+        `${scene.story}: the story promises ${String(atLeast)} different edge widths and the scene draws ` +
+            `${String(widths.length)} -- [${widths.join(", ")}]`,
     );
 }
 

@@ -233,6 +233,37 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
+    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
+        // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository:
+        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
+        // running then and is stopped. The stopped shard closing last must still end the stage.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
+            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            writeFileSync(
+                join(dir, "tools/ci-test-matrix.mjs"),
+                `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
+            );
+            writeFileSync(
+                join(dir, "tools/run-tests.sh"),
+                'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
+            );
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
+                cwd: dir,
+                encoding: "utf8",
+                timeout: 60_000,
+            });
+            assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
+            assert.match(run.stdout, /Stopped after broken failed/);
+            assert.equal(run.status, 1, run.stdout + run.stderr);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it("warms each package's caches one family at a time before the rest of the package starts", () => {
         const shards = localShards(["graphty-element", "layout"]);
         const pick = (n) => shards.find((s) => s.shard === n);
@@ -241,13 +272,13 @@ describe("the pre-push gate matches CI", () => {
             shards.filter((s) => !running.includes(s) && canStart(s, running, new Set(warmed))).map((s) => s.shard);
         // Cold: one warm-up per package (the shortest command of a family), and nothing else.
         assert.deepEqual(startable([], []).sort(), [
-            "graphty-element-browser-2",
+            "graphty-element-browser-1",
             "graphty-element-default",
             "graphty-element-storybook-1",
             "layout",
         ]);
         // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
-        assert.deepEqual(startable([pick("graphty-element-browser-2")], []), ["layout"]);
+        assert.deepEqual(startable([pick("graphty-element-browser-1")], []), ["layout"]);
         // A warmed family's siblings still wait for the package's other families.
         const afterBrowser = startable([], ["graphty-element-browser"]);
         assert.ok(!afterBrowser.includes("graphty-element-browser-3"));
@@ -321,6 +352,14 @@ fi
 case " $* " in
     *" lfs "*) exit 0 ;;
     *" merge-tree "*) [ -n "$STUB_MERGE_TREE_RC" ] && exit "$STUB_MERGE_TREE_RC" ;;
+    *" fetch "*)
+        # A concurrent fetch holding origin/master's ref lock, for the first STUB_FETCH_LOCKED fetches:
+        # real git then fails exactly as it does when it loses the race.
+        n=$(( $(cat "$2/fetches" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$2/fetches"
+        if [ "$n" -le "\${STUB_FETCH_LOCKED:-0}" ]; then
+            lock="$2/.git/refs/remotes/origin/master.lock"
+            touch "$lock"; ${realGit} "$@"; rc=$?; rm -f "$lock"; exit $rc
+        fi ;;
 esac
 exec ${realGit} "$@"
 `,
@@ -374,7 +413,16 @@ exec ${realGit} "$@"
                         encoding: "utf8",
                         timeout: 60_000,
                     });
-                fn({ run, head, local: join(main, "tmp/visual-review/local") });
+                // Master moves on the remote (pushed by URL, so origin/master here is not updated), so
+                // the next fetch must lock and write refs/remotes/origin/master.
+                const origin = join(t, "origin.git");
+                git(
+                    "push",
+                    "-q",
+                    origin,
+                    `${git("commit-tree", "master^{tree}", "-p", "master", "-m", "m2")}:refs/heads/master`,
+                );
+                fn({ run, head, origin, local: join(main, "tmp/visual-review/local") });
             } finally {
                 rmSync(t, { recursive: true, force: true });
             }
@@ -402,6 +450,29 @@ exec ${realGit} "$@"
                 const r = run({ STUB_STATUS: "failed" }, "--head", head);
                 assert.equal(r.status, 1);
                 assert.match(r.stderr, /stories failed to capture/);
+            });
+        });
+
+        it("retries a fetch that lost a ref-lock race with another fetch (#1548)", () => {
+            sandbox(({ run, head }) => {
+                const r = run({ STUB_STATUS: "changed", STUB_FETCH_LOCKED: "2" }, "--head", head);
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+            });
+        });
+
+        it("fails a fetch that keeps failing with git's own message", () => {
+            sandbox(({ run, head, local, origin }) => {
+                rmSync(origin, { recursive: true, force: true });
+                const r = run({ STUB_STATUS: "changed" }, "--head", head);
+                assert.equal(r.status, 1);
+                assert.match(
+                    r.stderr,
+                    /cannot fetch master: fatal: '.*origin\.git' does not appear to be a git repository/,
+                );
+                const status = JSON.parse(readFileSync(join(local, `.pending-${head}/status.json`), "utf8"));
+                assert.equal(status.state, "failed");
+                assert.equal(status.step, "fetching origin/master");
+                assert.match(status.log, /does not appear to be a git repository/);
             });
         });
 
@@ -506,6 +577,17 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+
+    it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
+        const steps = job(ci, "performance")
+            .split(/\n {12}- /)
+            .slice(1);
+        const first = steps.findIndex((step) => /vitest run --project=bench/.test(step));
+        assert.ok(first > 0, "the performance job runs the graphty-element benchmarks");
+        for (const step of steps.slice(first)) {
+            assert.match(step, /\n\s+if: \$\{\{ !cancelled\(\) \}\}\n/, `this step runs after a failure:\n${step}`);
+        }
     });
 
     it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {

@@ -1,3 +1,38 @@
+## 0.0.3 (2026-10-08)
+
+### 🩹 Fixes
+
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+- **algorithms:** keep a grsbm split only when it raises the partition's modularity ([#960](https://github.com/graphty-org/graphty-monorepo/issues/960))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.39
+- Updated algorithms to 3.3.10
+- Updated graph-io to 0.3.30
+- Updated layout to 2.2.11
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.2 (2026-10-08)
+
+### 🩹 Fixes
+
+- **layout:** kamadaKawai rejects a dist matrix with no finite distance ([#965](https://github.com/graphty-org/graphty-monorepo/issues/965))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.38
+- Updated algorithms to 3.3.9
+- Updated graph-io to 0.3.29
+- Updated layout to 2.2.10
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.1 (2026-10-07)
 
 ### 🚀 Features

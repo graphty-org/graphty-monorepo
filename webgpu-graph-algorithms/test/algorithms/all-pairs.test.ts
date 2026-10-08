@@ -119,6 +119,8 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
         ctx.dispose();
     });
 
+    // The slowest fixture, grid30/integer, takes 6.3-6.9 s alone on lavapipe with coverage (18.6 s before it stopped
+    // sweeping a second Floyd-Warshall), nearly all of it the blocked f32 reference; 120 s covers a busy machine.
     for (const fixture of FIXTURES) {
         it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
@@ -136,10 +138,19 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
                 expect(first.dist.length).toBe(n * n);
                 expectBitwiseEqual(first.dist, second.dist, `${fixture.name}: dist run twice`);
                 if (weighted) {
+                    const blocked = blockedF32(s, true);
                     expect(Array.from(first.dist), `${fixture.name}: dist vs the blocked f32 reference`).toEqual(
-                        Array.from(blockedF32(s, true)),
+                        Array.from(blocked),
                     );
-                    const f64 = floydWarshallOracle(s, { weighted: true, precision: "f64" });
+                    // Integer weights whose path sums stay below 2^24 add exactly in f32, so every order of
+                    // additions reaches the same matrix and the textbook f64 sweep IS the blocked f32 one (the
+                    // oracle suite checks the two orders agree on integer weights). Sweeping it again was 12.9 s of
+                    // grid30/integer's 18.6 s on lavapipe with coverage, and checked nothing new.
+                    const exact =
+                        s.weights !== null &&
+                        s.weights.every(Number.isInteger) &&
+                        blocked.every((x) => x === Infinity || x < 2 ** 24);
+                    const f64 = exact ? blocked : floydWarshallOracle(s, { weighted: true, precision: "f64" });
                     const spread = relSpread(first.dist, f64);
                     console.warn(`[all-pairs] ${fixture.name}: f32 vs the f64 textbook sweep, relative ${spread}`);
                     expect(spread, `${fixture.name}: dist vs the f64 reference`).toBeLessThanOrEqual(WEIGHTED_REL);

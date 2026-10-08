@@ -5,10 +5,23 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-07 (tier 2 pilot findings turned into fix units).
+Last updated: 2026-10-08 (tier 2 criteria reviewed and frozen; returning starts built).
 
 ## Top of mind
 
+- 2026-10-08: TIER 2 CRITERIA FROZEN (`tier2/criteria.md`). 11 bars: 1 success per task (8/8 size
+  7 of 8, T4 6 of 6, 4-session tasks 4 of 4, T12R 2 of 2); 2 work kept (scripted open-work list);
+  3 sev-4; 4 silent commit; 5 numbers vs drawing; 6 false done; 7 weight read as loaded (EVERY
+  algorithm x every meaning + no-column check); 8 axe/focus; 9 words (tier 1 screen <= 50; tier 2
+  screens never above round 1); 10 expert walkthrough + screenshot audit (0 confirmed sev 3-4,
+  count never rises); 11 core-four median steps <= 2x. "Not scored" never holds.
+- 2026-10-08: Before round 1 the preflight still owes: re-pilot every task whose start changed and
+  T12R and the T17/T18 follow-ups; re-record answers; `--prove` 5 in a row (it went 3 of 4,
+  first-save fault untraced); bars.mjs for bars 8-10 with planted cases; bar 7 (a) script; the
+  open-work lister for bar 2; the wording check incl. follow-ups.
+- 2026-10-08: Starts are ranked + colored + sized by PageRank (`*-ranked*.txt`, all 7 run clean on
+  the study build); only T4 and T20 start empty (new files). No round cap; stall = no progress
+  (< 3 more core-four successes of 32, no core sev 3-4 closed, no failing bar newly held).
 - 2026-10-07: TIER 2 PILOTS (T4, T17, T18, T20, T22, T24) all reached success; no blocker stops a
   path. Fixing every app, element and tool defect they found before the owner runs the study.
   Two doors at most: a per-load record of left-out unmatched rows on `data.sources()`, and a
@@ -31,21 +44,14 @@ Last updated: 2026-10-07 (tier 2 pilot findings turned into fix units).
 - 2026-10-07: Words: glossary wins over refined B. "Follow: Out | In | All" (path: Out | All, directed
   only); weight "Higher means: Closer | Farther | Capacity" (no "strength"/"Stronger" on screen);
   never "route". Filter chip only while a step is on.
-- 2026-10-07: Owner: fix round 3's problems and add tier 2 features, then he starts the tier 2
-  study himself. NO touch/tablet profile, NO keyboard-only study (do not plan one).
+- 2026-10-07: NO touch/tablet profile, NO keyboard-only study in tier 2 (owner).
 - 2026-10-07: The path-row crash needs NO element API: `RESULT_SHAPE_CONTRACTS` already gives
   path fields (`onPath`, `order`, `hops`, `cost`) and `layer: "highlight"`. App reads the shape.
-- 2026-10-07: The tier 1 studio is DONE by the stop rule "round 3 finished", not by passing.
-  Report: `report.md`. Real people later (graphty.app opt-in usage data, 5-8 analysts, one real
-  screen-reader user).
 - 2026-10-07: Owner one-way doors still open in `owner-decisions.md` (screenshot legend, undirected
   arrowheads, export group rank, legend covered layer -> recommend master's `legend.painted-over`,
   `optionsFor`, canvas `aria-label`, 2D zoom doc) plus the round 3 and tier 2 doors.
 - 2026-10-07: Severity 4 needs a wrong conclusion a reader would act on, from what the participant
   could perceive. Never prime graders with the outcome to look for.
-- Gates (frozen 2026-10-06): each task >= 80%, each dataset half >= 75%; first-time >= 80%; 0
-  confirmed sev-4, silent commits, count/drawing mismatches, false "done"; keyboard and screen
-  reader; automated a11y; app words at rest <= 50.
 - Before a new element API, grow an existing method (`CodedFact`, `CameraViewInput.current`,
   `WeightMeaning`, `ElementAtResult` already exist). Remove before adding; words at rest never rise.
 - Open owner items: usage-data card wording, tooltip delay (500 vs 1000 ms), whether a run's
@@ -174,6 +180,23 @@ Last updated: 2026-10-07 (tier 2 pilot findings turned into fix units).
   components of the filtered graph). "Higher means" left unselected on purpose: it is the trap T20
   measures; only its hint's contrast is checked.
 
+- 2026-10-08 -- Tier 2 criteria freeze (me), from the researcher, user advocate and red team
+  reviews. Adopted: carry-forward scoring; "not scored" fails; bar 10 (all three asked); bar 11
+  core-four cost as a GATE (researcher; steps are behavior, cost is the returning persona's quit
+  reason); bar 7 (a) over every algorithm (a wrong catalog mark is the defect that started tier
+  2); bar 9 (b) with round 1's own count as the limit (no count existed to set a number; red
+  team's 40-word limits rejected as guesses); broken-habit finding; door removal after 8 chances;
+  T22 dialog rule fixed now; stop rules from the launch prompt (no cap). Second-time follow-ups on
+  T17/T18 as a TARGET, not a gate: new, unpiloted prompts (round 6 lesson). Spare 2 slots to T12
+  as T12R (Ruth, Jordan), not T15: no returning persona can honestly play a first session.
+  Rejected: red team's 5-of-6 T4 floor (inconsistent with 3 of 3 per half), raising ease to 5.5,
+  rewording original prompts, a T21 second updated file (needs a v3 file and re-pilot for little).
+- 2026-10-08 -- Returning starts (me): the routine every history shares is ranking; most also size
+  or color by it. So every start is file + PageRank + Size bound to PageRank; names drawn for T24.
+  Per-persona setups rejected (9 x 18 variants; a history is a briefing, the open work is
+  per-task). Old setups kept for pilot reproducibility, used by no task. Added
+  `tool/files/long-names.csv` for the truncation audit.
+
 ## Tried: worked / did not work
 
 - 2026-09-27..10-02 -- Eight simulated rounds on mocks and a clickable skeleton. Places were right;
@@ -224,6 +247,13 @@ Last updated: 2026-10-07 (tier 2 pilot findings turned into fix units).
   does not replace the selection; bare-number refusal shows only after Enter): pilot the key, not
   only the app.
 
+- 2026-10-08 (setups) -- Worked: walking a setup by hand once in a live session before writing
+  seven of them. The tier 1 key path ("Add to Shape", then "Size") failed as a blind script:
+  after Run the inspector shows the Graph, the run row must be clicked first, and "Size" is
+  ambiguous with the resize separators (use `role=menuitem:Size`). All seven then ran clean.
+- 2026-10-08 -- A `rm -rf $VAR/...` was refused by the safety check; use new folder names or
+  `"${VAR:?}"` instead of clearing scratch folders.
+
 ## Thinking
 
 - **What tier 2 needs before its first round:** tasks and answers for filter, shortest chain,
@@ -242,6 +272,9 @@ Last updated: 2026-10-07 (tier 2 pilot findings turned into fix units).
 
 ## Sources
 
+- Tier 2 (2026-10-08): `tier2/criteria.md` (frozen), `tier2/tasks.md`, `tier2/roster.md` ("Where each
+  session starts"), `rounds/tier-2/setups/*-ranked*.txt`; reviews in `notes/researcher.md`,
+  `notes/user.md`, `notes/redteam.md`.
 - Studio: `criteria.md`, `tasks.md`, `answers.md`, `roster.md`, `owner-decisions.md`,
   `rounds/pilot/triage.md`, `rounds/round-{1,2,3}/{plan,preflight,scores,insights}.md`,
   `rounds/round-{1,2}/decisions.md`, `tool/README.md`.

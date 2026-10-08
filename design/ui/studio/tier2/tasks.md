@@ -32,7 +32,17 @@ changes:
   from `../rounds/tier-2/setups/`, which the participant never sees. No task starts from a saved
   project file: reopening a saved project was measured in tier 1 (T14), and a setup reaches the
   same open work without depending on the project file format, which changes with the build.
-  The setups:
+  Every start but T4's and T20's reflects the earlier sessions every history shares: the file
+  open, ranked by PageRank, its dots colored and sized by the ranking. T4 and T20 start empty
+  because each is about bringing in new files from scratch. The setups:
+    - `friends-ranked.txt`, `team-ranked.txt`, `bus-stops-ranked.txt`, `lesmis-ranked.txt`,
+      `florentine-ranked.txt`: the file or sample opened from the start screen, PageRank run from
+      Analyze (picked by click), and Size added to the run's Shape bound to PageRank, so the
+      drawing is colored and sized by the ranking and its key says so.
+    - `friends-ranked-names.txt`, `bus-stops-ranked-names.txt`: the same, with a label line on
+      Everything bound to `id` and "Show all labels" ticked, so every name is drawn.
+
+  Earlier setups, kept so the pilots that used them can be re-run, and used by no task:
     - `friends.txt`: `friends.csv` opened from the start screen (20 people, 41 ties).
     - `friends-names.txt`: the same, with a label line on Everything bound to `id` and "Show all
       labels" ticked, so every name is drawn.
@@ -64,6 +74,7 @@ changes:
 | T22  | Marking everything that meets a condition (select where, rules) | bus-stops.csv                     | Les Miserables                     |
 | T23  | Neighborhood distance                                           | running club                      | Florentine families                |
 | T24  | One tie on the drawing (edge selection)                         | running club                      | bus-stops.csv                      |
+| T12R | Tier 1's one person and their ties, asked of a returning user   | Les Miserables                    | Florentine families                |
 
 ### T4. Two spreadsheets as one network (two datasets)
 
@@ -94,10 +105,16 @@ changes:
   share. For a short essay you care only about pairs who share 5 or more chapters. Change the
   drawing so it has only those pairs, tell us how many characters are still in it, and then bring
   every character back."
-- **Start:** setup `friends.txt` (A), `lesmis.txt` (B). **Files:** none to open.
+- **Start:** setup `friends-ranked.txt` (A), `lesmis-ranked.txt` (B). **Files:** none to open.
 - **Suits:** everyone; reporters and analysts especially.
+- **Follow-up (the second time),** given word for word once the participant says the prompt is
+  done, in the same session, to every session that succeeded:
+    - A: "Your club now asks the same for pairs who ran together 5 or more times. How many people
+      are in the drawing then? Bring the whole club back when you are done."
+    - B: "Now the same for pairs who share 8 or more chapters: how many characters are in the
+      drawing then? Bring every character back when you are done."
 - **Words avoided:** "filter", "keep", "step", "apply", "show", "leave out" (all controls on or
-  near the path).
+  near the path); the follow-ups add none.
 
 ### T18. The fewest people in between (two datasets)
 
@@ -109,8 +126,16 @@ changes:
   network of marriages between the leading families of Renaissance Florence is already open. The
   Strozzi want a message carried to the Pazzi, passed only between families joined by marriage,
   through as few families as possible. Which families does it pass through, in order?"
-- **Start:** setup `friends.txt` (A), `florentine.txt` (B). **Files:** none to open.
+- **Start:** setup `friends-ranked.txt` (A), `florentine-ranked.txt` (B). **Files:** none to open.
 - **Suits:** reporters (Ruth returning) and investigators above all.
+- **Follow-up (the second time),** given word for word once the participant says the prompt is
+  done, in the same session, to every session that succeeded:
+    - A: "Ben now wants to be introduced to Nora the same way. Who is in that chain, in order, and
+      how many introductions does it take?"
+    - B: "The Peruzzi now want a message carried to the Ginori the same way. Which families does it
+      pass through, in order?"
+  Both pairs have exactly one chain with the fewest in between, 4 ties long, counting every tie in
+  either direction (as the main prompts' pairs do).
 - **Words avoided:** "shortest", "path", "route", "find", "from", "to" as a pair of field names
   ("from Chloe to Milo" keeps "from" and "to" in running prose; graders note any participant who
   went to the From field straight after reading it).
@@ -127,7 +152,7 @@ changes:
   one about the Medici, 'Check the 1434 return from exile', and one about the network as a whole,
   'Marriages only; business ties are a separate list'. Make sure both will still be there the next
   time you come back to this, then show us where you would read them."
-- **Start:** setup `friends.txt` (A), `florentine.txt` (B). **Files:** none to open.
+- **Start:** setup `friends-ranked.txt` (A), `florentine-ranked.txt` (B). **Files:** none to open.
 - **Suits:** reporters, students and anyone who keeps a map for months (Dev, Tom, Elena
   returning; Jordan).
 - **Words avoided:** "note", "notes", "add", "save" (Notes place, "Add note", "Save as").
@@ -165,7 +190,7 @@ changes:
   updated list, team-v2.csv, in your Downloads folder: two people joined since. Put the new list
   in place of the old one without losing your work, redo the ranking on the new list, and tell us
   how many people the team has now, who was first before, and who is first now."
-- **Start:** setup `friends-pagerank.txt` (A), `team-pagerank.txt` (B). **Files:** A
+- **Start:** setup `friends-ranked.txt` (A), `team-ranked.txt` (B). **Files:** A
   `friends-v2.csv`; B `team-v2.csv`.
 - **Suits:** quarterly and weekly analysts (Grace returning, Alex, Dana).
 - **Words avoided:** "replace", "rerun", "update" (as a verb on a control), "out of date", "data",
@@ -183,7 +208,7 @@ changes:
   share. You want to see where the closest pairs sit in the whole cast. Without taking any
   character or tie off the drawing, make every tie of 10 or more shared chapters stand out from
   the rest, and tell us how many there are."
-- **Start:** setup `bus-stops.txt` (A), `lesmis.txt` (B). **Files:** none to open.
+- **Start:** setup `bus-stops-ranked.txt` (A), `lesmis-ranked.txt` (B). **Files:** none to open.
 - **Suits:** analysts and reporters (Alex, Dana, Jordan; Ruth and Nadia returning).
 - **Why this task:** the design gives "select where" one home, a rule typed into the find box
   (it starts with "="), and keeps a separate dialog for later "if the tier 2 study shows people
@@ -205,7 +230,7 @@ changes:
   Medici want to know which families are at most two marriages away from them: a family they
   married into, or a family that married into one of those. How many families is that, not
   counting the Medici? Then change the drawing so it has only the Medici and those families."
-- **Start:** setup `friends.txt` (A), `florentine.txt` (B). **Files:** none to open.
+- **Start:** setup `friends-ranked.txt` (A), `florentine-ranked.txt` (B). **Files:** none to open.
 - **Suits:** everyone; investigators and marketers above all (Nadia, Jordan, Elena returning).
 - **Words avoided:** "neighbors", "neighborhood", "hops", "follow", "within", "filter",
   "connections", "steps", "grow", "select". "change the drawing so it has only" is T17's phrase
@@ -221,7 +246,8 @@ changes:
   links, bus-stops.csv, is already open, with every stop's name on the drawing. On the drawing you
   notice the link between Station and Stadium. How many minutes does that link take? Then make
   Station and Stadium, and no other stop, the ones that stand out on the drawing."
-- **Start:** setup `friends-names.txt` (A), `bus-stops-names.txt` (B). **Files:** none to open.
+- **Start:** setup `friends-ranked-names.txt` (A), `bus-stops-ranked-names.txt` (B). **Files:**
+  none to open.
 - **Suits:** everyone (Tom, Dev, Dana, Alex).
 - **Why this task:** a tie can now be clicked on the canvas, opens in the inspector with its two
   ends and its numbers, and offers a way to select its two ends. Before, a click on a line read
@@ -229,3 +255,22 @@ changes:
   to tell which line is meant; the task is reading a line seen on the drawing, so names are drawn.
 - **Words avoided:** "edge", "line" (the Style tab's "Add label line"), "select", "endpoints",
   "click", "weight", "value". "tie" and "link" are T17's and T22's words for the same thing.
+
+### T12R. One person and who they are tied to, for a returning user (two datasets)
+
+Tier 1's T12, asked of a returning user from a ranked start. It is graded with tier 1's answer key
+(`../answers.md`, T12) and measures whether the habit the histories lean on most, a person's list of
+connections, still arrives now that tier 2 added Hops and Follow to that list and new entries to
+the node menu beside it.
+
+- **Prompt A (Les Miserables):** "You have used this program a few times. The ready-made network
+  of characters from the novel Les Miserables is already open. Go to the police inspector Javert,
+  read what the program knows about him, and see which characters he shares chapters with. Tell us
+  who they are and how many."
+- **Prompt B (Florentine families):** "You have used this program a few times. The ready-made
+  network of the leading families of Renaissance Florence and the marriages between them is
+  already open. Go to the Medici family, read what the program knows about them, and see which
+  families they married into. Tell us who they are and how many."
+- **Start:** setup `lesmis-ranked.txt` (A), `florentine-ranked.txt` (B). **Files:** none to open.
+- **Words:** tier 1's prompt with its first sentence changed to the returning form and the sample
+  described as open; no new word.

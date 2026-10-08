@@ -156,10 +156,33 @@ you have merged them in Excel first. Every month the numbers change and you redo
 hand. You have never told the program how to read a number in your file. Anything you have not done
 before is as new to you as it was the first day."
 
+## Where each session starts
+
+Every session starts from work that reflects the persona's earlier sessions, never from an empty
+app, except where the task is about starting fresh. Every history above ranks who matters most
+from the analysis button, and most size or color the dots by it, so each start is the file (or
+sample) open, ranked by PageRank, its dots colored and sized by the ranking, with the key saying
+so; where the task reads names on the drawing, every name is drawn too, as Grace and Dev did. The
+setups are in `../rounds/tier-2/setups/` and the participant never sees them (`tasks.md`,
+"Starts"). Each was run on the study build and its first screenshot looked at on 2026-10-08.
+
+| Task | A starts from                                    | B starts from                                     | Why                                                                                  |
+| ---- | ------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| T4   | empty                                            | empty                                             | Bringing two new spreadsheets in as a new network is the task: it starts fresh.      |
+| T20  | empty                                            | empty                                             | A colleague's new file, read the right way round at load, is the task: it starts fresh. |
+| T17  | `friends-ranked.txt`                             | `lesmis-ranked.txt`                               | The club's ranked map, as left last time.                                            |
+| T18  | `friends-ranked.txt`                             | `florentine-ranked.txt`                           | The same; the chain must not overwrite the ranking's colors and sizes unasked.       |
+| T19  | `friends-ranked.txt`                             | `florentine-ranked.txt`                           | Notes are left on a map already worked on.                                           |
+| T21  | `friends-ranked.txt`                             | `team-ranked.txt`                                 | Last month's ranking, sized by it: what the newer file must keep or mark out of date. |
+| T22  | `bus-stops-ranked.txt`                           | `lesmis-ranked.txt`                               | The ranked map, as left last time.                                                   |
+| T23  | `friends-ranked.txt`                             | `florentine-ranked.txt`                           | The ranked map, as left last time.                                                   |
+| T24  | `friends-ranked-names.txt`                       | `bus-stops-ranked-names.txt`                      | The ranked map with every name drawn, since the task reads a tie between two names.  |
+| T12R | `lesmis-ranked.txt`                              | `florentine-ranked.txt`                           | The ranked map, as left last time.                                                   |
+
 ## Who takes which task in round 1
 
-54 sessions (`criteria.md`, "Round plan"). Tier 1 graduates are listed first in each row. No
-persona takes both halves of one task, and each persona takes 6 sessions.
+56 sessions (`criteria.md`, "Round plan"). Tier 1 graduates are listed first in each row. No
+persona takes both halves of one task; each persona takes 6 sessions, Ruth and Jordan 7.
 
 | Task                                             | n      | Participants               |
 | ------------------------------------------------ | ------ | -------------------------- |
@@ -181,9 +204,16 @@ persona takes both halves of one task, and each persona takes 6 sessions.
 | T23 a step or two away, Florentine (B)           | 2      | Grace, Nadia               |
 | T24 one tie, running club (A)                    | 2      | Ruth; Dana                 |
 | T24 one tie, bus stops (B)                       | 2      | Dev; Alex                  |
-| **Total**                                        | **54** | tier 1 graduates 36 (67%)  |
+| T12R one person's ties, Les Miserables (A)       | 1      | Ruth                       |
+| T12R one person's ties, Florentine (B)           | 1      | Jordan                     |
+| **Total**                                        | **56** | tier 1 graduates 37 (66%)  |
 
-Sessions per persona: Grace 6, Ruth 6, Dev 6, Elena 6, Nadia 6, Tom 6, Alex 6, Jordan 6, Dana 6.
+Sessions per persona: Grace 6, Ruth 7, Dev 6, Elena 6, Nadia 6, Tom 6, Alex 6, Jordan 7, Dana 6.
+
+T12R goes to Ruth and Jordan because their histories name a person's list of connections as the
+thing they use most ("that list of connections is what you used most"; "you typed the name in the
+find box and read their list of connections"): whether that habit still arrives is what T12R
+measures. Each task half has one session, so T12R is reported, and it passes bar 1 only at 2 of 2.
 
 Ruth's persona file uses "notes" for her own habit (reporters keep notes per source, from its
 sources), which is also the name of the place T19 measures. So she does not take T19 in round 1:

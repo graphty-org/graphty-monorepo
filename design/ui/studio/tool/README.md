@@ -73,6 +73,7 @@ A file is a path, or a name from `files/`:
 | `trails.csv`           | `from,to,km`: 13 trails between 9 junctions, each with its length.                               |
 | `team.csv`             | `source,target,weight`: 16 ties between 12 colleagues.                                           |
 | `team-v2.csv`          | The same team two months later: two new people (Mo, Nia) and five new ties, 21 in all.           |
+| `long-names.csv`       | `source,target,average_minutes_between_visits`: 9 ties between 6 sites, two named in 40 or more characters, a 30-character column name. For the screenshot audit's truncation check, never a task. |
 
 ## Names, dialogs and lists
 

@@ -75,7 +75,7 @@ describe("session.data.sources", () => {
         reopened.dispose();
     });
 
-    it("keeps the unmatched edge rows a load left out, through undo, redo, save and reopen", async () => {
+    it("keeps the unmatched edge rows a load left out, and the rows themselves, through undo, redo, save and reopen", async () => {
         const session = createGraphSession();
         const people = new File(["id\nAva\nBen\n"], "people.csv");
         const passes = new File(["source,target\nAva,Ben\nBen,Zed\n"], "passes.csv");
@@ -83,19 +83,20 @@ describe("session.data.sources", () => {
         await draft.load({ unmatched: "leave-out" });
         await load(session, MESSAGES, "messages.csv", "merge");
         const [first, second] = session.data.sources();
-        assert.deepStrictEqual(first?.leftOut, { rows: 1, values: 1 });
+        const leftOut = { rows: 1, values: 1, edges: [{ source: "Ben", target: "Zed", values: {} }] };
+        assert.deepStrictEqual(first?.leftOut, leftOut, "the row itself is kept, not only its count");
         assert.notProperty(second, "leftOut", "a load that left nothing out says nothing");
 
         await session.undo();
         await session.undo();
         assert.deepStrictEqual(session.data.sources(), []);
         await session.redo();
-        assert.deepStrictEqual(session.data.sources()[0]?.leftOut, { rows: 1, values: 1 });
+        assert.deepStrictEqual(session.data.sources()[0]?.leftOut, leftOut);
 
         const { text } = await session.project.save();
         const reopened = createGraphSession();
         await reopened.project.open(text, { discard: true });
-        assert.deepStrictEqual(reopened.data.sources()[0]?.leftOut, { rows: 1, values: 1 });
+        assert.deepStrictEqual(reopened.data.sources()[0]?.leftOut, leftOut);
         session.dispose();
         reopened.dispose();
     });

@@ -21,7 +21,14 @@ import { decideRepeat } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
 import { type DataLoadingError, ErrorAggregator } from "../../data/ErrorAggregator";
 import type { GraphStore } from "../../data/GraphStore";
-import { type ImportReport, type ImportTally, loadErrorOf, type LoadReport, newImportTally, sealImportReport } from "../../data/report";
+import {
+    type ImportReport,
+    type ImportTally,
+    loadErrorOf,
+    type LoadReport,
+    newImportTally,
+    sealImportReport,
+} from "../../data/report";
 import { readSeedPosition } from "../../data/seedPosition";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { GraphtyLogger, type Logger } from "../../logging/GraphtyLogger.js";
@@ -37,8 +44,32 @@ import {
 } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
-import type { LoadedSource } from "../types";
+import type { LeftOutEdge, LoadedSource } from "../types";
 import { frozenRecord } from "./draft";
+
+/** How many left-out edge rows a load keeps with its source, so a reader can still see them. */
+const LEFT_OUT_KEPT = 100;
+
+/**
+ * A left-out edge row as its source keeps it: the two ends, and the row's other values (the
+ * columns the ends were read from left out, when they are plain column names).
+ * @param edge - the row.
+ * @param source - its source end.
+ * @param target - its target end.
+ * @param endpoints - where the ends were read from.
+ * @returns the frozen entry.
+ */
+function leftOutEdge(
+    edge: Readonly<Record<string | number, unknown>>,
+    source: NodeIdType,
+    target: NodeIdType,
+    endpoints: ResolvedEndpoints,
+): LeftOutEdge {
+    const values = Object.fromEntries(
+        Object.entries(edge).filter(([key]) => key !== endpoints.source && key !== endpoints.target),
+    );
+    return Object.freeze({ source, target, values: frozenRecord(values) });
+}
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
 /**
@@ -339,6 +370,9 @@ export class Ingest<K extends KnownEdge> {
     /** The load in progress drops an edge naming a node no node record holds. */
     private leaveOutUnmatched = false;
 
+    /** The edge rows the load in progress left out, up to {@link LEFT_OUT_KEPT}. */
+    private leftOutEdges: LeftOutEdge[] = [];
+
     /** What the load in progress does with a node record repeating an id an earlier one gave. */
     private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
 
@@ -455,7 +489,8 @@ export class Ingest<K extends KnownEdge> {
     async importSource(command: DataImportCommand, writer: GraphWriter, signal?: AbortSignal): Promise<void> {
         const { type, config } = command.source;
         const loads = type !== undefined && config !== undefined;
-        const earlier = command.mode === "merge" ? ((writer.graphValue(SOURCES_VALUE) as readonly LoadedSource[]) ?? []) : [];
+        const earlier =
+            command.mode === "merge" ? ((writer.graphValue(SOURCES_VALUE) as readonly LoadedSource[]) ?? []) : [];
         if (loads && command.mode !== "merge") {
             this.apply({ kind: "clear" }, writer);
         }
@@ -469,6 +504,7 @@ export class Ingest<K extends KnownEdge> {
         const before = this.heldCounts();
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
+        this.leftOutEdges = [];
         this.duplicateIds = command.duplicateIds ?? "first";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
         // the graph is counted, so a measured merge matches its edges against the graph it counts
@@ -490,11 +526,19 @@ export class Ingest<K extends KnownEdge> {
                 ...described,
                 tables: Object.freeze([...(command.tables ?? [])]),
                 added: Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges }),
-                ...(this.leaveOutUnmatched && report.unmatched.rows > 0 ? { leftOut: report.unmatched } : {}),
+                ...(this.leaveOutUnmatched && report.unmatched.rows > 0
+                    ? {
+                          leftOut: Object.freeze({
+                              ...report.unmatched,
+                              edges: Object.freeze(this.leftOutEdges),
+                          }),
+                      }
+                    : {}),
             });
             writer.setGraphValues({ [SOURCES_VALUE]: Object.freeze([...earlier, loaded]) });
         } finally {
             this.leaveOutUnmatched = false;
+            this.leftOutEdges = [];
             this.duplicateIds = "first";
             this.measure = null;
         }
@@ -672,6 +716,9 @@ export class Ingest<K extends KnownEdge> {
             const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
             const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
             if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
+                if (this.leftOutEdges.length < LEFT_OUT_KEPT) {
+                    this.leftOutEdges.push(leftOutEdge(edge, srcNodeId, dstNodeId, endpoints));
+                }
                 continue;
             }
 
@@ -869,7 +916,17 @@ export class Ingest<K extends KnownEdge> {
         options: AddEdgesOptions | undefined,
     ): ResolvedEndpoints {
         if (options?.source !== undefined && options.target !== undefined) {
-            return { source: options.source, target: options.target, resolvedFrom: "declared" };
+            const declared: ResolvedEndpoints = {
+                source: options.source,
+                target: options.target,
+                resolvedFrom: "declared",
+            };
+            if (this.loadTally !== null && edges.length > 0) {
+                // The load's answer too, so its report (and the columns' roles) name the columns
+                // the reader chose rather than the configured defaults it never read.
+                this.loadEndpoints = declared;
+            }
+            return declared;
         }
 
         if (this.loadEndpoints !== null) {

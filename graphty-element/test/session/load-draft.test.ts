@@ -180,6 +180,27 @@ describe("session.data.prepare", () => {
         session.dispose();
     });
 
+    it("reports the end columns a draft load read, and lists them as no edge attribute", async () => {
+        const session = createGraphSession();
+        const file = new File(["from,to,minutes\nStation,Stadium,4\nDepot,Station,15\n"], "bus-stops.csv");
+        const draft = await session.data.prepare({ config: { file } });
+        await draft.load();
+        assert.deepStrictEqual(session.data.lastImport()?.endpoints, {
+            source: "from",
+            target: "to",
+            resolvedFrom: "declared",
+        });
+        // The ends are the edge's own From and To, as source and target are for a file that says so.
+        assert.deepStrictEqual(
+            session.data
+                .attributes()
+                .filter((column) => column.kind === "edge")
+                .map((column) => column.name),
+            ["minutes"],
+        );
+        session.dispose();
+    });
+
     it("loads the edges a CSV source's own endpoint options name", async () => {
         const session = createGraphSession();
         await session.data.import({

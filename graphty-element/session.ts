@@ -95,6 +95,7 @@ export type {
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LeftOutEdge,
     LoadChoices,
     LoadDraft,
     LoadedSource,

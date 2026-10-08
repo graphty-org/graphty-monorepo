@@ -1499,6 +1499,13 @@ export interface LayoutRecommendationOptions {
 }
 
 // @public
+export interface LeftOutEdge {
+    readonly source: NodeId_2;
+    readonly target: NodeId_2;
+    readonly values: Readonly<Record<string, unknown>>;
+}
+
+// @public
 export interface LegendBlock {
     readonly channel: Channel;
     // @deprecated
@@ -1621,6 +1628,7 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly leftOut?: {
         readonly rows: number;
         readonly values: number;
+        readonly edges?: readonly LeftOutEdge[];
     };
     readonly tables: readonly string[];
 }

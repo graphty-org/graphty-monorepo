@@ -940,7 +940,13 @@ function isLoadedSource(value: unknown): value is LoadedSource {
     return (
         typeof value.added.nodes === "number" &&
         typeof value.added.edges === "number" &&
-        (leftOut === undefined || (isObject(leftOut) && typeof leftOut.rows === "number" && typeof leftOut.values === "number"))
+        (leftOut === undefined ||
+            (isObject(leftOut) &&
+                typeof leftOut.rows === "number" &&
+                typeof leftOut.values === "number" &&
+                (leftOut.edges === undefined ||
+                    (Array.isArray(leftOut.edges) &&
+                        leftOut.edges.every((edge) => isObject(edge) && isObject(edge.values))))))
     );
 }
 

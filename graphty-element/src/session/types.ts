@@ -1256,6 +1256,16 @@ export interface DataSourceDescriptor {
     readonly config?: Readonly<Record<string, unknown>>;
 }
 
+/** One edge row a load left out because an end names a node no node row held. */
+export interface LeftOutEdge {
+    /** The source end, as the load read it. */
+    readonly source: NodeId;
+    /** The target end, as the load read it. */
+    readonly target: NodeId;
+    /** The row's other values, by column. */
+    readonly values: Readonly<Record<string, unknown>>;
+}
+
 /** One load still in the graph: where it came from, and what it added. */
 export interface LoadedSource extends DataSourceDescriptor {
     /** The names of the tables the load read, as the draft named them; empty when it read none by name. */
@@ -1267,7 +1277,16 @@ export interface LoadedSource extends DataSourceDescriptor {
      * "leave-out"`), and how many distinct such names, as `LoadReport.unmatched` counts them.
      * Present only when the load left at least one row out.
      */
-    readonly leftOut?: { readonly rows: number; readonly values: number };
+    readonly leftOut?: {
+        readonly rows: number;
+        readonly values: number;
+        /**
+         * The left-out rows themselves (the first 100), so they can be shown after the load and
+         * after a project is saved and reopened: each row's two ends as the load read them, and
+         * its other values. Absent in a project saved before they were kept.
+         */
+        readonly edges?: readonly LeftOutEdge[];
+    };
 }
 
 /** How an import treats the graph already there. */

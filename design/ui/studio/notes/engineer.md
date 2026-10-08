@@ -15,13 +15,21 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) **A cut row name's tooltip opens from anywhere on its row (compact-mantine, no door).**
+1. (2026-10-07) **Long stat values stay in the row (a8dae1930, compact-mantine, no door).**
+   `.cm-data-row-body` is a GRID `minmax(0,auto) minmax(0,max-content)`: when name and value do
+   not both fit, each gets half and a half one does not need goes to the other (grid "maximize
+   tracks"), so "Direction" and "Edges per node" stay whole and the value ellipsizes. A cut value
+   is `EllipsizedName self` (own tooltip, `data-ellipsized`). The name's Tooltip is now MOUNTED
+   only while cut (+ `flushSync` in the pointerover measure): a disabled Mantine tooltip still
+   opens unseen and, inside the app's `Tooltip.Group`, steals the one open turn. Proof:
+   `DataRow.long-value.browser.test.tsx`, `tmp/t2pilotfix-cm-datarow-long-value/after-les/05.png`.
+2. (2026-10-07) **A cut row name's tooltip opens from anywhere on its row (compact-mantine, no door).**
    `EllipsizedName` anchors its Tooltip (`target`) to its parent row, measures the cut on the row's
    `pointerover`; a control in the row keeps its own tooltip; a whole name has none. Cause was NOT
    the first-hover guess (hovering the text always worked): the pilots' hover hit the row center,
    the count. Every Tree row and DataRow. Proof: `EllipsizedName.browser.test.tsx` (count / value / checkbox cases),
    `tmp/t2pilotfix-cm-ellipsized-tooltip/after-filter/05.png`, `after-sources/10.png`, `12.png`.
-2. (2026-10-07) **Selected edge = halo band, not a recolored line (288624ad1, no door).** `Edge.paintHalo`:
+3. (2026-10-07) **Selected edge = halo band, not a recolored line (288624ad1, no door).** `Edge.paintHalo`:
    the line keeps its paint; a band of `selection.color` at `selection.opacity`, width = line width
    x 2 x `scale`, in its own line batch (`selection-halo|...` key), curved with the line, hidden with
    it. Replaced the 3:1 darkening (`selectionMarkColor`) that made gold dark olive. Proof: pixel
@@ -29,13 +37,13 @@ acceptance test. "The studio worktree" is
    `Styles/Selection Highlight::SelectedEdge` (new baseline), `tmp/t2pilotfix-element-selected-edge-color/B`.
    CAVEAT: at the default 40% the band is paler than the olive was (no 3:1 against a light canvas,
    like the node halo); the knob is `selectionStyle.opacity`, a consumer choice.
-3. (2026-10-07) **Left-out rows kept per load DONE (0c12c233b, OWNER DOOR: hold + needs-decision).**
+4. (2026-10-07) **Left-out rows kept per load DONE (0c12c233b, OWNER DOOR: hold + needs-decision).**
    `LoadedSource.leftOut?: { rows, values }` (= `LoadReport.unmatched`) only when a load under
    `unmatched: "leave-out"` dropped rows; set in `ingest.ts importSource` from the report that
    `addDataFromSource` now returns. Saved, undone, redone with the entry. App does NOT show it yet
    (next: a "1 row left out" line under the source row). Proof: `data-sources.test.ts`,
    `tmp/t2pilotfix-element-source-left-out/probe.out`.
-4. (2026-10-07) **Tier 2 study prep DONE (no door): tasks, answers, personas, preflight.**
+5. (2026-10-07) **Tier 2 study prep DONE (no door): tasks, answers, personas, preflight.**
    `tasks.md` and `answers.md` "Tier 2" sections: T4 (two sheets), T17 filter, T18 fewest in
    between, T19 reminders, T20 farther weight, T21 updated list; two datasets each; new files in
    `tool/files` (bus-stops, trails, players+passes, team, team-v2; `rounds/tier-2/preflight/
@@ -43,56 +51,54 @@ reference/gen.py`). Values read from the element (`reference/probe.mjs`), all 12
    the answer. Preflight `rounds/tier-2/preflight.md`: every tier2-design decision built / not /
    differs. Not built: "No filters.", Follow in Path popover, path row summary (shows 61), never
    "route"; Edit source... still ADDS (41 -> 82). Owner starts the study; wording check not run.
-5. (2026-10-07) **Replace with file + out-of-date runs DONE (ca8b3b916, no door).** Offered when
+6. (2026-10-07) **Replace with file + out-of-date runs DONE (ca8b3b916, no door).** Offered when
    `canReplace(data.sources())` (one load, <= 1 table); Data page intent `"replace"` ("Replace:
    <file>", `replaceWords` "Was ...; now ...", roles and meaning carried). Stale row: `rows.ts`
    state `"stale"`, `GLYPHS.outOfDate`, label "<name>, out of date"; `RunStateBar` Rerun =
    `runs.start(algorithm, params, { as: id, scope })`. Open: positions not kept; focus lands on
    Everything after Load. Proof: `Replace.real-element.test.tsx`.
-6. (2026-10-07) **Neighborhood header DONE (no door).** `NodeValues.tsx NeighborList`: Hops
+7. (2026-10-07) **Neighborhood header DONE (no door).** `NodeValues.tsx NeighborList`: Hops
    1|2|3, Follow Out|In|All only when directed; a change = `selection.apply({ neighborsOf, depth,
 direction })` + one status line; "Filter to neighbors" appends a `neighborhood` step. ELEMENT
    GAP: that filter rule has no `direction` (button hidden unless All). Proof: toolbar
    `tasks.real-element.test.tsx`, `tmp/t2feat-app-neighborhood/s1/`.
-7. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** One row per
+8. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** One row per
    `data.sources()` entry (ids `source:<i>[:<j>]`), header `sourcesWords` ("From 2 files");
    `request.ts` remembers each load's files + `PageChoices` in a WeakMap keyed by `LoadedSource`
    (`rememberLoad`). ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles. Load on
    an edited source ADDS again. Proof: `DataPage.real-element.test.tsx`, `tmp/t2feat-app-sources/`.
-8. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
+9. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
    Analyze > Shortest path open one popover (`analyze/PathForm.tsx`); pick button = capture-phase
    swallow + `elementAt`; status from `pathAnnouncement` reading `session.runs.get(id)`. Open:
    no Follow (Dijkstra always undirected; would be an owner door); same From/To reuses its run id.
    Proof: `PathForm.real-element.test.tsx`, `tmp/t2feat-app-path-popover/`.
-9. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
+10. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
    `filterWords.ts`, `filterSteps.ts`; editor = inspected kind `filter-step`; counts from
    `plan({ op: "visibility.steps" })`; `FilterChip` in Header; read a step BEFORE undoing it.
    `keys.isTypingTarget` no longer swallows shortcuts on checkbox/radio. Open: row name truncates
    at 240px. Proof: `Filters.real-element.test.tsx`, `tmp/t2feat-app-filters/s2`.
-10. (2026-10-07) **Tier 2 element work landed (owner doors, hold + needs-decision):** edge pick
+11. (2026-10-07) **Tier 2 element work landed (owner doors, hold + needs-decision):** edge pick
    (5a2b3b605), filter steps (8966b0888), stale runs (ce34f31f3; edge-metric runs keyed by old
    edge ids), every load a source (f141b1283), loaded weight + meaning, edge-attribute filter
    (559f5dcb2), coded selector refusals (3d89d43c3). App sides all done. CSV intake: a data file opened into an open project goes through the Data page
    (52ae4b683; tests click "Add" in the Match report).
-11. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
+12. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
    edge inspector (`edgeName()`, ends, attributes, per-run `result.edge(id)`), "Select
    endpoints"; status line announces every selection. Open: Frame selection disabled in the edge
    menu (unchecked whether `scope: "selection"` frames an edge). Proof: `tmp/t2feat-app-edge-select/`.
-12. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
+13. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
    `graph-place/rows.ts`), header calls a path "Measure"; picking From by keys leaves focus in From;
    Edit source... ADDS (41 -> 82); adding a file of all-new people defaults to "Leave out" (adds
    nothing); a reopened project's Direction row shows raw `"directed": f...`; Find framing leaves the
    graph off-canvas; element caps a load at one node + one edge table.
-13. (2026-10-07) **Remaining element plan:** a run result says each field's type (fixes (a) at the
+14. (2026-10-07) **Remaining element plan:** a run result says each field's type (fixes (a) at the
     root); several node types / Links to / One edge per Pair is the largest item -- last.
     Undecided by the design: OR/NOT between steps (keep "all"), Path popover grouping key.
-14. (2026-10-07) Element English still on screen: Analyze's algorithm refusals (codes exist,
-    `AnalyzePopover.tsx` `estimate.reason`), `MetricAvailability.reason`, layout descriptions,
-    `run.label`, partition choice labels. Fix = codes from the element, words in the app.
-15. (2026-10-06) Graph logic goes in graphty-element; an app comment explaining why the element
-    could not be used is an element bug report. Neutral facts from the element, words in the app,
-    style only through layers (selection is the documented exception: drawn from the mask).
-    Public element API or behavior change = owner door: `owner-decisions.md` + `npm run api:report`.
+15. (2026-10-07) Element English still on screen (Analyze refusals `estimate.reason`,
+    `MetricAvailability.reason`, layout descriptions, `run.label`, partition labels): fix = codes
+    from the element, words in the app. Public element API change = owner door
+    (`owner-decisions.md` + `npm run api:report`); an app comment explaining why the element
+    could not be used is an element bug report.
 ## Priorities and values
 
 - (2026-10-07) Owner: no touch/tablet profile and no keyboard-only study in the tier 2 fix work;
@@ -155,15 +161,11 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
   CSV, "nodes"/"edges" for a pair) are only known once it is read; ids are stable across files,
   so remembered `PageChoices` carry over unchanged. Rejected: Rerun all, auto-rerun (design).
 
-- (2026-10-07) **Notes: one command, the inspector decides the target.** Every door (N, "+",
-  menus) runs `notes.add`, which reads `resolveInspected` at press time and stores the targets in
-  the draft, so going to the Notes place (which keeps the selection) cannot change what the note
-  is about. Neighborhood and Selection rows note the selection; more than 64 selected disables
-  the command with a reason (element limit). The list is a plain `ul` with roving tabindex (one
-  Tab stop; the active note's chips and Delete are tabbable): Tree did not fit a multi-line card
-  with chips. Focus after delete/save goes by note id once the list redraws (an index would hit
-  the removed row). Known: "+" and the menu item share the name "Add note" (one command, two
-  doors), which the study tool reports as `ambiguous` while both are on screen.
+- (2026-10-07) **Notes: one command, the inspector decides the target.** Every door runs
+  `notes.add`, which reads `resolveInspected` at press time and stores the targets in the draft;
+  over 64 selected disables it (element limit). The list is a plain `ul` with roving tabindex
+  (Tree did not fit a multi-line card); focus after delete/save goes by note id. Known: "+" and
+  the menu item share "Add note" (real.mjs says `ambiguous`).
 
 - (2026-10-07) **Weight meaning in the app (no new API).** Data page "Higher means" SegmentedControl
   ("" = unset, gloss beneath) sent as `TableMapping.weightMeaning` only with a Weight column;
@@ -220,29 +222,27 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
 
 ## Tried: worked / did not work
 
-- (2026-10-07) **compact-mantine browser suite is file-order dependent (not fixed).** The color
+- (2026-10-07) **compact-mantine browser suite is file-order dependent (not fixed; seen again
+  2026-10-07 on HEAD, 1 of 3 runs of shell+color+chrome+tree).** The color
   test's `commands.touchDrag` leaves `(hover: none)` on for every later file (probe: false ->
   true), so `figma/tree.browser` "toggles ... hidden until hover" fails when color runs first;
   vitest orders files by cached duration, so any test change can expose it. Did NOT reset it:
   touch emulation off (same or fresh CDP session), no enable (the dispatch alone flips it), a mouse
   move, `setEmulatedMedia` hover features. Idea: the touch test in its own browser project.
 
-- (2026-10-07) **Element source facts: what bit.** HEAD had `isLoadedSource` (projectFile.ts) cut
-  off without its return (a partial-hunk commit by another agent); fixed in 0c12c233b. The app's
-  `choices.test.ts` broke `tsc` (union `LoadMapping` read `?.tables`); fixed in 35a444f45.
-  `api:report` reads `dist/` types: build the element first, stage only my hunks.
-- (2026-10-07) Bars: 41 app words at rest (limit 50); axe 0 on 13 screens (`tool/bars.mjs`).
+- (2026-10-07) A partial-hunk commit by another agent can leave HEAD broken (`isLoadedSource`
+  cut off; fixed 0c12c233b). `api:report` reads `dist/` types: build the element first, stage
+  only my hunks. Bars: 41 app words at rest (limit 50); axe 0 on 13 screens (`tool/bars.mjs`).
 - (2026-10-07) **Neighborhood header: what bit.** A header above a list moves Tab counts (tests
   now Tab until focus is on the row) and adds a button that list-collecting tests must skip.
   `real.mjs --click "2"` says ambiguous ("2" vs "Dev 2") but takes the exact radio;
   `role=radio:2` finds nothing.
 - (2026-10-07) The element FREEZES Babylon's active-mesh list on a still frame: a mesh toggled
   outside an update pass needs `getUpdateManager().meshesShownOrHidden()`.
-- (2026-10-07) **Study prep: what bit.** Probe imports with `session.data.import({ config: { file } },
-  { mapping })` (two tables: `{ nodeFile, edgeFile }`); await a Run as `new Promise(ok =>
-  run.then(ok, ok))` then read `run.result`. `project.open(file)` does NOT load into the element;
-  knownFields leak between imports (fresh page per file). CSV PageRank is DIRECTED; `start,end`
-  are not endpoints. `design/ui/studio/tmp/` is gitignored: copy evidence under `rounds/`.
+- (2026-10-07) **Study prep: what bit.** Probe imports: `session.data.import({ config: { file } },
+  { mapping })`; await a Run as `new Promise(ok => run.then(ok, ok))`. `project.open(file)` does
+  NOT load into the element; knownFields leak between imports (fresh page per file). CSV PageRank
+  is DIRECTED. `design/ui/studio/tmp/` is gitignored: copy evidence under `rounds/`.
 - (2026-10-07) **Study tool habits (moved from Top of mind).** Study tool: `ambiguous` on a label plus its input is a tool defect. No
   `--shift-click-at`: select two unlabeled nodes with Find `=id == 'A' || id == 'B'`; `--key /`
   then `--type Ava --key Enter` selects one. Copy `graphty/dist`, use `REAL_DIST`. Trust a
@@ -254,11 +254,9 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
   lost): the list now floats (`analyze/path.css`). Also: `autoFocus` loses to Mantine's focus trap
   (use `data-autofocus`); a focused ToggleIconButton's tooltip takes the first Esc; keep a
   `role=status` mounted and change its text. Never wait with `pgrep -f '<my own words>'`.
-- (2026-10-07) **Filters (7742cd688): three traps.** A Mantine Select is role `combobox`; Ctrl+Z
-  after a checkbox click was swallowed (`keys.isTypingTarget`, fixed at the root); one hunk of a
-  file others have dirty: build the blob from `git show HEAD:<file>` + my edit, `git hash-object
-  -w`, `git update-index --cacheinfo` (`--unidiff-zero` misplaced a line). Helpers out of
-  component files (`react-refresh/only-export-components`).
+- (2026-10-07) **Filters: traps.** A Mantine Select is role `combobox`; `keys.isTypingTarget`
+  swallowed Ctrl+Z after a checkbox (fixed at the root); one hunk of a file others have dirty:
+  `git show HEAD:<file>` + my edit, `git hash-object -w`, `git update-index --cacheinfo`.
 - (2026-10-07) **Another agent's write can silently undo my edit** in a shared file (RunValues
   lost my hunks when 2df88ddef landed). Re-grep my changes in every touched file just before
   committing. Prettier from the worktree ROOT (`npx prettier --write graphty/...`), not from
@@ -280,8 +278,8 @@ read-tree HEAD`, add my files, `git apply --cached --unidiff-zero` my hunks, com
 reset -q HEAD -- <my paths>` in the real index). Never commit `npm run api:report` wholesale.
 - (2026-10-06 to 10-07) **Builds.** App: `NODE_OPTIONS=--max-old-space-size=16384 npm run build`
   in `graphty/` (worked 2026-10-07, 28 s); `nx run graphty:build` OOMs on the default heap, empties
-  `dist` first, and fails on others' half-done tsc edits. The app reads the element AND
-  compact-mantine from SOURCE. Wait on another agent's build by PID, never `pgrep -f`; Nx may
+  `dist` first, and fails on others' half-done tsc edits. The app reads the element from
+  SOURCE but compact-mantine from its `dist/` (2026-10-07: `npm run build` in compact-mantine first). Wait on another agent's build by PID, never `pgrep -f`; Nx may
   restore a partial element dist (`npm run build` in graphty-element). Others' builds clean `dist/`
   mid-test: wait, or copy a good build and use `REAL_DIST`.
 - (2026-10-07) **Pixel assertions in browser tests: worked.** `waitForStableFrame()`, `scene.render()`,

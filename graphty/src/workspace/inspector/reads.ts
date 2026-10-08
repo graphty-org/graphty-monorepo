@@ -45,12 +45,12 @@ export function selectNode(session: GraphSession, id: NodeId): void {
     void session.selection.apply({ nodes: [id] });
 }
 
-/** Set by a find pick, so the next node view takes keyboard focus on its Degree row. */
+/** Set by a find pick, so the next node view puts keyboard focus on the inspector's title. */
 let nodeValuesFocus = false;
 
 /**
- * Asks the node view the next selection draws to take keyboard focus on its Degree row (the
- * Summary's one control), so typing after a find pick no longer lands in the find box.
+ * Asks the node view the next selection draws to put keyboard focus on the inspector's title, so
+ * typing after a find pick no longer lands in the find box.
  */
 export function focusNodeValuesNext(): void {
     nodeValuesFocus = true;
@@ -70,7 +70,7 @@ export function takeNodeValuesFocus(): boolean {
 let pathValuesFocus: string | null = null;
 
 /**
- * Asks a path run's Values to take keyboard focus on its first node in order once the route is
+ * Asks a path run's Values to put keyboard focus on the inspector's title once the route is
  * there, so Find path leaves the reader on the result rather than on what opened the form.
  * @param run - the path run's id.
  */

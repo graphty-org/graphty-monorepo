@@ -11,6 +11,7 @@ import { AttributeMenuItems } from "../data-place/MenuItems";
 import { SourceValues } from "../data-place/SourceValues";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { loadIndexOf, loadName, sourcesWords } from "../data-place/words";
+import { INSPECTOR_TITLE_ID } from "../frame/focus";
 import { Sections } from "../frame/menus";
 import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { LayoutGroup } from "../layout/LayoutForm";
@@ -183,7 +184,15 @@ export function Inspector(): React.JSX.Element {
                         {header.swatch !== undefined && (
                             <ColorSwatch color={header.swatch} size={12} withShadow={false} aria-hidden />
                         )}
-                        <Text size="sm" fw={600} truncate>
+                        {/* Focusable from script only: where focus lands after a run or a find pick. */}
+                        <Text
+                            id={INSPECTOR_TITLE_ID}
+                            tabIndex={-1}
+                            className="cm-focus-outside"
+                            size="sm"
+                            fw={600}
+                            truncate
+                        >
                             {header.name}
                         </Text>
                     </Group>

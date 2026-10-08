@@ -17,3 +17,15 @@ export function focusIsLost(): boolean {
 export function focusCurrentPlace(): void {
     document.querySelector<HTMLElement>('.ws-rail [aria-current="page"]')?.focus();
 }
+
+/** The inspector title's id; see `focusInspectorTitle`. */
+export const INSPECTOR_TITLE_ID = "ws-inspector-title";
+
+/**
+ * Puts focus on the inspector's title after an action filled the inspector (a run, a find pick):
+ * the ring says "here is what you asked for" without marking a value row as chosen, and the next
+ * Enter opens nothing. Single-key shortcuts (n for a note) still work from there.
+ */
+export function focusInspectorTitle(): void {
+    document.getElementById(INSPECTOR_TITLE_ID)?.focus();
+}

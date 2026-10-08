@@ -18,6 +18,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { newId, writeSteps } from "../data-place/filterSteps";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
+import { focusInspectorTitle } from "../frame/focus";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
@@ -112,12 +113,12 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
             degree.current?.querySelector("button")?.focus();
         }
     }, []);
-    // After every render, so a pick of the node already shown takes focus too. Focus goes to
-    // Degree, the Summary's one control (it opens the neighbors), never to the whole group: a ring
-    // around every row marks nothing the reader can act on.
+    // After every render, so a pick of the node already shown takes focus too. Focus goes to the
+    // inspector's title, never to Degree: a ring on a value row reads as a choice the reader did
+    // not make, and the next Enter would open it.
     useEffect(() => {
         if (summary.current !== null && takeNodeValuesFocus()) {
-            degree.current?.querySelector("button")?.focus();
+            focusInspectorTitle();
         }
     });
     if (session === null) {

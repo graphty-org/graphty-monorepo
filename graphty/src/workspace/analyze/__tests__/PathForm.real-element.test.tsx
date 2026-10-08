@@ -13,6 +13,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -126,12 +127,11 @@ describe("the Path popover, on the real element", () => {
             );
             assert.deepEqual(store.get().inspected, { kind: "measure-row", id: runId });
             await screen.findByText("Shortest path added: Ava to Lee, 2 hops");
-            // Committing closes the popover and hands focus to the result: the route's first node
-            // in Values, a control, never the drawing's outline.
+            // Committing closes the popover and hands focus to the result: the inspector's title,
+            // never the drawing's outline nor a node row whose ring would read as picked.
             assert.isNull(screen.queryByRole("form", { name: "Shortest path" }));
             await waitFor(() => {
-                const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-                assert.equal(document.activeElement, inspector.getByRole("button", { name: /^Ava/ }));
+                assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
             });
         },
         TIMEOUT_MS,

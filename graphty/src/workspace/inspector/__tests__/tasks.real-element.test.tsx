@@ -18,6 +18,7 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -237,7 +238,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     );
 
     it(
-        "T12 from the find box: a pick moves focus to Degree in the node's values",
+        "T12 from the find box: a pick moves focus to the inspector's title, not a value row",
         async () => {
             const { session } = await openRings();
             await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Node 0");
@@ -247,12 +248,13 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["n0"]);
             });
-            // Degree, the Summary's one control, not a ring around the whole group.
+            // The title that names the pick, not Degree: a ring on a value row reads as chosen, and
+            // Enter there would open the neighbors.
             await waitFor(() => {
-                assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
+                assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
             });
             await userEvent.keyboard("{Enter}");
-            await inspector().findByRole("region", { name: "Node 0's 3 connections" });
+            assert.isNull(inspector().queryByRole("region", { name: "Node 0's 3 connections" }));
         },
         TIMEOUT_MS * 2,
     );

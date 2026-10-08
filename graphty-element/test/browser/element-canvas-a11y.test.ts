@@ -120,3 +120,23 @@ test("focus handed to the drawing as the element is connected survives its first
     assert.exists(canvas);
     assert.strictEqual(host.shadowRoot?.activeElement, canvas, "the first render dropped focus to the page");
 });
+
+test("a pointer press focuses the canvas without the keyboard ring, even after a key press", async () => {
+    const before = document.createElement("input");
+    document.body.prepend(before);
+    mounted.push(before);
+    const { host, canvas } = await mount({ "aria-label": "Network drawing" });
+    // The handlers that focus the canvas on a press are attached once the scene is up.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // A key press last: Chrome's script focus then counts as keyboard focus.
+    before.focus();
+    await userEvent.keyboard("a");
+    await userEvent.click(canvas, { position: { x: 200, y: 150 } });
+    assert.strictEqual(host.shadowRoot?.activeElement, canvas, "the press did not focus the canvas");
+    assert.strictEqual(getComputedStyle(canvas).outlineStyle, "none", "a pointer press drew the keyboard ring");
+
+    // A key pressed in the drawing brings the ring back: the reader is on the keyboard now.
+    await userEvent.keyboard("{Shift}");
+    assert.notStrictEqual(getComputedStyle(canvas).outlineStyle, "none", "a key press left the ring hidden");
+});

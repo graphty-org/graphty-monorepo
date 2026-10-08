@@ -1,20 +1,27 @@
 # Design Engineer -- designer's notes
 
 Role: I build what the studio decides, in the graphty app (`graphty/src/workspace/`) and in
-graphty-element, and I say what the code and the element's API can and cannot do today. I keep
-fixes small and in the right package. I read this file at the start of every session and update it
-as I decide and learn.
+graphty-element, small and in the right package, and say what the element's API can do today. I
+read this file first every session and update it as I decide and learn.
 
-Words used below: "the app" is the graphty app; "the element" is graphty-element; "tier 1" is a
-first-time user's core path from an empty app (open a sample or a file, read it, run an analysis,
-color or size by a result, put names on, find a node and its neighbors, export a picture and the
-numbers, save and reopen). "The walk" is the whole first session chained end to end, the build's
-acceptance test. "The studio worktree" is
-`/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1` on branch
-`design/studio-tier1`.
+Words: "the app" is the graphty app; "the element" is graphty-element; "tier 1" is a first-time
+user's core path (open, read, analyze, color or size by a result, names, find a node and its
+neighbors, export, save and reopen); "the walk" chains it end to end as the build's acceptance
+test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/studio-tier1`).
 
 ## Top of mind
 
+- (2026-10-08) **Focus after an action goes to the inspector's title (app + element, no API
+  change).** A run or a find pick focuses the inspector title (`focusInspectorTitle`, id
+  `INSPECTOR_TITLE_ID` in `frame/focus.ts`, `tabIndex -1`, shared ring class `cm-focus-outside`),
+  never Degree or a "Nodes in order" row; Enter there opens nothing; n still opens a note.
+  "Back to <name>" already returned focus to Degree (Enter reopens the list); after a pointer
+  press Chrome shows no ring by design, Esc shows it. The canvas ring after a click on a line:
+  the element's pointerdown prevents default and focuses the canvas from script, which Chrome
+  marks focus-visible when a key was the last input; `focusVisible: false` is ignored by
+  Chrome 143. Fix: graphty-element's container sets `data-pointer-focus` on a press (cleared by a
+  key or focus leaving) and the shadow CSS hides the canvas ring then. Evidence
+  `tmp/r1-dry2-focus-after-actions/` (T18B/07, T19A/02-03, T19B/02-03, T12RA/07-09, T24A/02).
 - (2026-10-08) **Find confirms what it ran; selections list members (element + app, team door).**
   After Enter a rule stays in the box unselected (caret at end) and the line under it reads the
   live count ("3 edges selected", "Nothing matches this rule") while `selection.origin` is still
@@ -63,59 +70,35 @@ acceptance test. "The studio worktree" is
 - (2026-10-08) **Find rules and edge names.** `FindOptions.edgeNameJoiner` (element) finds an edge
   by its name; rule example from the data; ResultRow turns off Inter's `calt`. OPEN: Columns after "="
   omit run results. (Edge ends are named by name since 2026-10-08.)
-- (2026-10-08) **Path form and focus.** From/To "From node"/"To node"; Made with rows Analysis, Ran,
-  From, To, Weight; `WeightMeaning.assumed`. Focus lands on a control after each action
-  (`focusCurrentPlace`). OPEN: label size is world-space; T21 Replace relayouts every node;
-  neighborhood filter has no `direction`; Dijkstra always undirected.
+- (2026-10-08) **Path form.** From/To "From node"/"To node"; Made with rows Analysis, Ran, From,
+  To, Weight; `WeightMeaning.assumed`. OPEN: label size is world-space; neighborhood filter has no
+  `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
-- (2026-10-07) Owner: no touch/tablet profile and no keyboard-only study in the tier 2 fix work;
-  the owner starts the tier 2 study after the fixes land.
-
-- The first-time user's core path works end to end on real wiring, before anything else
-  (owner, 2026-10-02 and 2026-10-03). A step that looks right but changes nothing visible is worse
-  than a missing step: the mock rounds' dominant failure was "the right control is found; what it
-  does next fails."
-- Fixes land in the package every consumer gets. The app is today the only consumer of the
-  element, so it is the only thing that can discover element defects; a workaround throws that
-  information away (repository `CLAUDE.md`, "The app MUST NOT work around graphty-element").
-- Small diffs, root causes. One guard in the shared function rather than a patch per caller.
-- Evidence over taste: I assert on element reports (`runs.painting()`, `styles.explain()`,
-  `labelOf`, `nodeScreenPosition`), not on pixels or on what a panel claims.
-- The studio's time and the owner's attention are expensive. I tell designers early when a
-  decision would need new element API (a public contract, so a one-way door for the owner), and
-  when it is cheap app chrome (a two-way door I can just build).
-- Never blame timing or load for a failure; find the mechanism first.
+- (2026-10-07) Owner: no touch/tablet profile and no keyboard-only study in the tier 2 fix work.
+- The core path works end to end on real wiring first (owner, 2026-10-02/03): a step that looks
+  right but changes nothing visible is worse than a missing one.
+- Fixes land in the package every consumer gets; an app workaround hides an element defect.
+- Small diffs, root causes; one guard in the shared function, not a patch per caller.
+- Evidence over taste: assert on element reports (`runs.painting()`, `styles.explain()`,
+  `labelOf`, `nodeScreenPosition`), not on what a panel claims.
+- Say early when a decision needs element API (owner door if breaking) vs cheap app chrome.
+- Never blame timing or load; find the mechanism.
 
 ## Design criteria
 
-- **Visible effect at commit.** Every step's change shows on the canvas and the legend the moment
-  it commits (tier 1 design, the walk). Reason: round 8's walk failed 21 of 21, mostly on actions
-  that changed panel text but not the drawing.
-- **Live counts only.** Any number in a message is read from the element at render time. Reason:
-  repeated "numbers disagree between screens" findings in rounds 2-7.
-- **No promises.** An unbuilt item is not drawn: no "Coming" tags, no disabled stand-ins for work
-  that does not exist (tier 1 design, section 3). Reason: dead-end menu items ("not available
-  yet") turned every second route into a failure in round 8.
-- **One door, one command.** A command is registered once and every door (key, menu, Quick
-  actions, selection bar) uses its words verbatim; no two reachable controls share an accessible
-  name. Reason: "Data" and "Louvain" on several controls confused sighted users and broke the
-  screen-reader persona; it also breaks the study tool's click-by-name.
-- **Element owns facts, app owns words.** The element returns codes, values and descriptors; the
-  app writes every sentence (owner, 2026-10-03). Reason: a third-party consumer must be able to
-  present the same facts its own way.
-- **Easy things easy.** A new element API has a simple path whose first example fits in about 15
-  lines and names no internal concept; it is checked by a docs-only author (repository
-  `CLAUDE.md`).
-- **Style layers only; suggested layers scoped to the result** (repository `CLAUDE.md`). Reason:
-  styling outside layers is invisible to the layer list and lost at a dataset boundary; an
-  unscoped suggested layer erases every algorithm beneath it.
-- **Exact by default.** The method named is the method run; a sampled variant is offered, never
-  swapped in; cost estimates come from the element (framework principle 2).
-- **The app never starts work unasked.** Samples open with nothing run (round 8 decision).
-- **Accessible by default.** WCAG 2.2 AA; the table and inspector are the canvas's text
-  equivalent; Esc closes the innermost thing first; focus never falls to the page body.
+- **Visible effect at commit** on canvas and legend (round 8's walk failed 21/21 on panel-only
+  changes). **Live counts only**, read from the element at render time.
+- **No promises:** nothing unbuilt is drawn (no "Coming", no disabled stand-ins).
+- **One door, one command:** registered once, same words at every door, no two controls share an
+  accessible name (also what the study tool clicks by).
+- **Element owns facts, app owns words** (owner, 2026-10-03). **Easy things easy:** a new element
+  API's first example fits in about 15 lines with no internal concept.
+- **Style layers only;** suggested layers scoped to the result. **Exact by default;** cost
+  estimates come from the element. **The app never starts work unasked.**
+- **Accessible by default:** WCAG 2.2 AA; Esc closes the innermost thing; focus never falls to
+  the page body; a ring never sits on a value row the reader did not pick.
 
 ## Decisions and reasons
 
@@ -233,6 +216,12 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: `focus({ focusVisible: false })` (HTML standard) -- Chrome 143
+  ignores it, still draws the ring. Worked: a plain probe page (`fv-probe3.mjs`: input, key,
+  click a canvas in a delegatesFocus shadow root) showed every script focus inherits the
+  keyboard modality there, with or without preventDefault; `real.mjs --sr` "focus:" lines and a
+  computed-style probe (`title-ring-probe.mjs`) told "not focused" from "focused, no ring"
+  (Mantine's `mantine-focus-never` erases outlines; `cm-focus-outside` restores one).
 - (2026-10-08) Worked: staging only my hunks in a shared worktree: `git diff -U0` per file, drop
   foreign hunks by header, `git apply --cached --unidiff-zero`
   (`tmp/r1-dry2-find-and-selection/stage.py`). Did not work: expecting `data.name()` to read a

@@ -200,7 +200,10 @@ describe("the inspector", () => {
         await waitFor(() => {
             assert.deepEqual([...on.selection.nodes], ["n0"]);
         });
-        assert.isNotNull(await screen.findByRole("button", { name: /Degree/ }));
+        // Focus returns to the Degree row that opened the neighbors, as Esc's does.
+        await waitFor(() => {
+            assert.equal(document.activeElement, screen.getByRole("button", { name: /Degree/ }));
+        });
     });
 
     it("draws Filter to neighbors as a button that says what it does, and how to undo it when on", async () => {

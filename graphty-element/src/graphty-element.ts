@@ -117,6 +117,13 @@ export class Graphty extends LitElement {
         canvas:focus-visible {
             outline-offset: -2px;
         }
+
+        /* The ring is for keyboard focus. A press focuses the canvas from script (its pointerdown
+           default is prevented), and Chrome then draws the ring whenever a key was the last input
+           anywhere on the page; see the constructor. */
+        [data-pointer-focus] canvas:focus-visible {
+            outline: none;
+        }
     `;
 
     /**
@@ -160,6 +167,14 @@ export class Graphty extends LitElement {
         // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
+        // A press on the drawing hides the keyboard focus ring until a key is pressed in it or
+        // focus leaves it. On the container, so a replaced canvas is covered too.
+        const pointerFocus = (on: boolean) => (): void => {
+            this.#element.toggleAttribute("data-pointer-focus", on);
+        };
+        this.#element.addEventListener("pointerdown", pointerFocus(true), { capture: true });
+        this.#element.addEventListener("keydown", pointerFocus(false), { capture: true });
+        this.#element.addEventListener("focusout", pointerFocus(false));
         this.#graph = new Graph(this.#element);
         // The graph is never rebuilt, so this subscription lives as long as the element.
         this.#graph.onNodeLabelCounts.add((counts) => {

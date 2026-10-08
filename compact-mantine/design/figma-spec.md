@@ -1695,6 +1695,11 @@ These are the places the result will NOT match Figma, and why. Everything else m
 | Nested popouts                                                        | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
 | Checkbox default                                                      | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
 | `highContrast` option                                                 | --                                             | section 2.9                                                    | owner decision; off by default                                        |
+| Tree row with a count                                                 | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
+| Selected parent in the tree                                           | `bg-selected`, 1.05:1 / 1.2:1 from the band    | `bg-selected-hover`; a hovered child takes `bg-selected`       | the selected row could not be told from its children                  |
+| Segmented control, unchecked label                                    | 50% ink (secondary)                            | body text color; the face and edge mark the choice             | a gray word beside the raised face read as a disabled option          |
+| Context menu opened by the pointer                                    | --                                             | no row highlighted; keyboard opens still highlight the first   | a pre-highlighted row read as the suggested choice                    |
+| Escape in an open list field                                          | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
 
 ## 15. Breaking changes for the release notes (0.x)
 

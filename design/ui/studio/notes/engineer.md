@@ -15,6 +15,18 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **Shared rows, lists and menus (compact-mantine only, no API change).** (1) A tree
+  row's count yields to its name: `.cm-tree-count` shrinks 1000x faster, floor 2.5em with its
+  ellipsis, `text-align: end` ("friends-v2.csv 20 nodes, 41 ..."). (2) A selected expanded parent
+  fills `bg-selected-hover` (dark 1.6:1 from the band, was 1.2:1); a hovered child takes
+  `bg-selected`. (3) Unchosen segmented label in `--cm-text`, not `text-secondary` (passed 6.6:1
+  on paper and still read as disabled at 10px). (4) ContextMenu: only a keyboard open focuses the
+  first row; a pointer open focuses the dropdown (ArrowDown reaches row 1). (5) Select,
+  Autocomplete, MultiSelect, TagsInput default `onKeyDown: consumeListEscape` (stop + prevent while
+  `data-expanded`). Limit: a Mantine Popover with default `closeOnEscape` closes in its capture
+  phase before any field sees the key (the app uses `closeOnEscape={false}`). Figma departures
+  in `compact-mantine/design/figma-spec.md` 14. Evidence `tmp/r1-dry2-rows-shared-controls/`
+  (T4A/06, 08-10; T21A/02-03; T21A-after/06; T21B-after/06; T18A/06-08).
 - (2026-10-08) **A run says which method it used (element + app, team door).** The fact was
   already `caveats.method`; the missing piece was the switch the `method` description promised:
   unset -> Dijkstra, Bellman-Ford when a read weight is negative (`AlgorithmManager.execute`,
@@ -44,13 +56,9 @@ acceptance test. "The studio worktree" is
   s11 has no node row; from s04, ...") because the narrow inspector cuts the line's end. Evidence
   `tmp/r1-dry2-missing-end/` (T4B/05, 07; T4A/05, 07). OPEN: `door-surface.test.ts` fails on HEAD
   (`Graphty.nodesInRect` not in `doors.ts`).
-- (2026-10-08) **Study tool trust (real.mjs).** A hover prints only its own tooltip: tooltips on the
-  page before the pointer moved are marked and skipped (one still showing after 2 s is the same
-  control's, so hovering a control twice still reads it). The socket server handles a client that
-  left (EPIPE killed the session process, r1-s05/s06). A click timeout prints Playwright's call log
-  ("element is not enabled", "... intercepts pointer events"). A setup ends with focus released
-  (the Size box wore a ring at 01.png). Sessions call real.mjs directly, never through a shared
-  helper (launch prompt, workflow RULES, README). Evidence `tmp/r1-dry1-study-tool/`.
+- (2026-10-08) **Study tool trust (real.mjs).** Hover prints only its own tooltip; EPIPE from a
+  client that left no longer kills the session; click timeouts print Playwright's reason; a setup
+  ends with focus released. Evidence `tmp/r1-dry1-study-tool/`.
 
 0. (2026-10-08) **The drawing stays put (element + app, team door).** Three pilot defects, two
    mechanisms. (a) A run grew the legend card; the app reported a bigger top inset and the element
@@ -82,11 +90,8 @@ acceptance test. "The studio worktree" is
    find pick -> Degree; Degree -> first neighbor, else Hops; saved note -> "+"; project open and
    leaving Data -> the place's rail button (`focusCurrentPlace`). Evidence
    `tmp/r1-dry1-focus-placement/`.
-3. (2026-10-08) Earlier polish, in place (details under Decisions): inspector rows and one
-   neighbor heading form; filter rows keep their sentence; import page in reader words; segmented
-   `flex-basis: auto`; readings wrap; a reopened run keeps its summary; highlight (now black, see path color) and the
-   selected-edge band. OPEN: label size is world-space (needs an element option); T21 Replace
-   relayouts every node; neighborhood filter has no `direction`; Dijkstra always undirected.
+3. (2026-10-08) Earlier polish in place (see Decisions). OPEN: label size is world-space; T21
+   Replace relayouts every node; neighborhood filter has no `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
@@ -139,6 +144,12 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **The name wins the room fight, the count yields.** Reverses the earlier "count stays
+  whole up to half the row": the name says which row it is, and two versions of a file differ at
+  the end of the name. The tooltip still carries both. Rejected: moving the count under the name
+  (rows are a fixed 32 px, virtualized), `min-width: 0` (the count vanished with no sign).
+- (2026-10-08) **A pointer-opened menu has no keyboard position.** Rejected: highlighting row 1 for
+  every open (read as the suggested choice, "Edit source..." in T21B).
 - (2026-10-08) **The run record of a resolved option is the caveat that names it, not a new field.**
   `caveats.method` already said "dijkstra"; a `resolvedParams` record would state it twice. The app
   matches it against the option's choice values only for an enum left unset. Writing the resolved
@@ -159,12 +170,8 @@ acceptance test. "The studio worktree" is
   indigo). Size was rejected (flattens a size encoding beneath, e.g. PageRank size), outline too
   (one thin width for all, a full-screen pass). Changes a default -> owner-decisions "for the owner".
 - (2026-10-08) **View insets are margins for the next fit, never a reason to move the drawing.**
-  The consumer that laid something over the canvas decides whether it hides a node, by the shape
-  it knows (`nodesInRect`), and asks for the fit. Reason: insets are bands across the canvas; a
-  corner card covers far less than its band, so "a node under the bands" re-framed the T18B
-  drawing although the card hid nothing. Not breaking: `viewInsets` is new on this branch (master
-  has none). Rejected: re-frame when a node is under the bands (tried, moved T18B), a second
-  switch beside `autoFrame`.
+  The consumer that covered the canvas decides, by the shape it knows (`nodesInRect`), whether to
+  ask for a fit. Rejected: re-frame when a node is under the bands (moved T18B), a second switch.
 - (2026-10-08) **Find moves the camera only to show a pick that is off screen.** Reason: turning to
   every pick (`zoomToSelection`) swings the far side of the drawing off the canvas for good.
 
@@ -186,12 +193,9 @@ acceptance test. "The studio worktree" is
   ring around the whole canvas), the first tree row. Cost: after a mouse open the rail button
   shows no ring (Chrome's focus-visible follows the last pointer input); a keyboard open does.
 
-- (2026-10-08) **The app states its label look on every label line it adds** (its own font from
-  `getComputedStyle(document.body)`, 72 on the label canvas). Reason: the element's default face
-  (Verdana) is missing on Linux, so labels fell back to a 6 px serif; the face and size are a
-  consumer's choice, so the app sets them, never the element's default. Rejected: an app-wide
-  base layer (shows in the layer list), changing the element default (an owner door and an
-  opinion). Two separate writes would be two undo steps: `session.transaction` makes it one.
+- (2026-10-08) **The app states its label look on every label line it adds** (body font, 72 on the
+  label canvas): the element's default Verdana is missing on Linux. One `session.transaction`, one
+  undo step. Rejected: an app-wide base layer, changing the element default.
 - (2026-10-08) **A neighborhood heading has one form** ("N nodes within K hop(s) of X") for the list
   and the status line. Rejected: "X's N connections" at 1 hop only (two forms read as two things).
 - (2026-10-08) **Facts are rows, not chips.** A badge looks clickable; the kind's meaning goes in a
@@ -212,11 +216,9 @@ acceptance test. "The studio worktree" is
   does: result, summary, fields, caveats. Reason: the run's record is built from the outcome, so
   any field left off silently vanishes from `run.record` after a reopen while the result itself
   looks fine. Watch for the next field added to `RunOutcome`.
-- (2026-10-08) **A selected edge gets its own three settings, flat (`edgeColor`, `edgeScale`,
-  `edgeOpacity`).** Reason: no one value serves a translucent ring around a ball and a band beside
-  a one-pixel line; changing the shared gold would move every node halo, and blue is too close to
-  the default indigo node. Flat because `setSelectionStyle` merges one level deep. Rejected: a
-  nested `edge` object, darkening the line (rejected before: unconfigured olive).
+- (2026-10-08) **A selected edge gets its own flat settings** (`edgeColor`, `edgeScale`,
+  `edgeOpacity`): no one value serves a ring and a band; flat because `setSelectionStyle` merges
+  one level deep.
 - (2026-10-07, condensed) **Tier 2 element work (owner doors, hold + needs-decision):** edge pick
   5a2b3b605; filter steps `setSteps` with counts only in `plan` (8966b0888; rejected live counts,
   OR/NOT); stale runs ce34f31f3 (Replace reads `run.stale`, never reruns; Rerun passes
@@ -239,6 +241,10 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: a contrast assertion alone for the "looks disabled" segment -- the old
+  gray already passed 4.5:1; the test that fails without the fix compares the unchosen label's
+  color to the chosen one's. Worked: nesting the test rows one level (`Sources` parent) to match
+  the app's indent, else everything fit at 240 and the count test proved nothing.
 - (2026-10-08) Did not work: a browser test asserting explicit Dijkstra over a negative weight --
   the page froze (no test timeout fires on a synchronous loop); the vitest run sat at "RUN" 12 min.
   A hung browser test with no output means a sync infinite loop: rerun with `-t` to bisect. Another
@@ -249,11 +255,8 @@ acceptance test. "The studio worktree" is
   entry's public types are listed in `graphty-element/session.ts`, not only `src/session/index.ts`:
   a type missing there is absent from `api/session.api.md`. `getByText` misses text split across a
   glyph span: read `.textContent` of the marked cell.
-- (2026-10-08) Worked: `label-drawn-over-edges.test.ts`'s fixture (a red edge in front of a green
-  label, pixels read off the frame) proves draw order with no camera guessing; 282 edge pixels over
-  the label without the change, 0 with it. A story scene that puts a far label behind a near sphere
-  needs a capture to check (`visual-review capture --stories styles-label--on-top`): the fixed
-  layout's camera did not frame it the way I guessed, but it still shows one cut and one whole label.
+- (2026-10-08) Worked: `label-drawn-over-edges.test.ts` reads pixels off the frame to prove draw
+  order (282 edge pixels over the label without the change, 0 with it); story scenes need a capture.
 - (2026-10-08) Worked: re-walking the pilots with a copy of `tier2/pilot/rewalk.sh` whose `SET`
   is overridable and setup files rebuilt from each pilot's `session.json` "setup" list (the r1d1
   T18 pilots started with PageRank run and sized, not the plain friends setup). Did not work:
@@ -262,13 +265,9 @@ acceptance test. "The studio worktree" is
   outside an update pass needs `meshesShownOrHidden()`, an edge rebuilt outside a style pass
   `forceEdgeWalk()`; a layer `set` channel can add a legend block (`keyBlocks` decides).
 - (2026-10-08) Worked: a probe script (`tmp/r1-dry1-view-stays-put/probe.mjs`, own static server,
-  run through `with-browser.sh`) logging `getCameraState()`, canvas rect and `viewInsets` around
-  each step. It named all three mechanisms in two runs: canvas size never changed; insets went
-  top 80 -> 180 with cameraDistance 66.6 -> 77.6; Find left the camera position and rotated the
-  pivot. Did not work: re-framing only when a node lies under the new bands (T18B still moved:
-  its band reached Strozzi beside, not under, the card). A real-element app test of the legend
-  could not measure it: the element is 0 px wide in that harness; a stand-in element in
-  `CanvasOverlays.test.tsx` (spies on `nodesInRect`/`zoomToFit`) does.
+  through `with-browser.sh`) logging `getCameraState()`, canvas rect and `viewInsets` per step
+  named all three camera mechanisms in two runs. A real-element app test cannot measure the
+  legend (element 0 px wide there); a stand-in element with spies can.
 
 - (2026-10-08) Worked: a find option the caller fills with its own words (`edgeNameJoiner`).
   Untraced: toolbar real test "frames a selected edge's two ends" lands at x 13.92/14.46 vs 14.07

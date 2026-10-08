@@ -49,7 +49,9 @@ const INTERACTION_TEST_TAGS = ["!dev", "!autodocs"];
  * ## Keyboard and accessibility
  *
  * - ContextMenu opens on right-click and, from the keyboard, on Shift+F10 or the ContextMenu key
- *   at the focused element. The first enabled row is focused, so Enter acts on it at once.
+ *   at the focused element. Opened from the keyboard, the first enabled row is focused, so
+ *   Enter acts on it at once; opened by the pointer, no row is highlighted until a key or the
+ *   pointer moves to one.
  * - Arrow Up and Down move the highlight (looping), Home and End jump, ArrowRight opens a
  *   submenu at once, typing a letter jumps to the next row starting with it, and Escape closes
  *   the whole stack and returns focus to where it was. Tab is ignored inside a menu.
@@ -116,7 +118,8 @@ function ContextArea({
 
 /**
  * The context menu: right-click the area (or focus it and press Shift+F10) and the menu opens at
- * the pointer, 3px right and 5px up, with the first enabled row highlighted.
+ * the pointer, 3px right and 5px up, with no row highlighted (from the keyboard, the first
+ * enabled row is).
  */
 export const ContextMenu: Story = {
     args: {

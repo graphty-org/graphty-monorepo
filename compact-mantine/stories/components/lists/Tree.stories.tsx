@@ -258,6 +258,44 @@ export const RowParts: Story = {
     ),
 };
 
+/**
+ * The name keeps its room and the count yields: where both do not fit, the count shortens first
+ * (down to a stub with its ellipsis) and only then is the name cut, so "friends-v2.csv" keeps the
+ * "v2" that tells it from "friends.csv". Resting on a cut row shows both whole. The selected
+ * source draws a stronger fill than the band behind its children, so it reads as the selection.
+ */
+export const NameBeforeCount: Story = {
+    render: () => (
+        <Panel>
+            <Tree
+                label="Sources"
+                defaultExpanded={["merged"]}
+                defaultSelected={["merged"]}
+                items={[
+                    { id: "friends", name: "friends.csv", icon: <UiGlyph name="frame" />, count: "20 nodes, 38 edges" },
+                    {
+                        id: "friends-v2",
+                        name: "friends-v2.csv",
+                        icon: <UiGlyph name="frame" />,
+                        count: "20 nodes, 41 edges",
+                    },
+                    {
+                        id: "merged",
+                        name: "people.csv and messages.csv",
+                        icon: <UiGlyph name="frame" />,
+                        count: "12 nodes, 22 edges",
+                        children: [
+                            { id: "people", name: "people.csv", icon: <UiGlyph name="frame" /> },
+                            { id: "messages", name: "messages.csv", icon: <UiGlyph name="frame" /> },
+                            { id: "left-out", name: "1 row left out", icon: <UiGlyph name="frame" /> },
+                        ],
+                    },
+                ]}
+            />
+        </Panel>
+    ),
+};
+
 /** Every row state, light and dark side by side. */
 export const States: Story = {
     parameters: BOTH_SCHEMES,

@@ -281,7 +281,10 @@ const css = `
     border-radius: 5px;
     ${cmFont("body")}
     font-size: var(--sc-font-size);
-    color: var(--cm-text-secondary);
+    /* An unchosen option is a choice the reader can make, so its label is drawn in the body
+       color: the secondary gray at 10-11px read as a disabled option beside the raised chosen
+       one ("Add" of Add / Leave out). The chosen one is marked by its face and edge. */
+    color: var(--cm-text);
     background-color: transparent;
     outline: 1px solid transparent;
     outline-offset: 1px;

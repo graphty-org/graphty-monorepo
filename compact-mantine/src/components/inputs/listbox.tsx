@@ -322,6 +322,20 @@ function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLE
 }
 
 /**
+ * A list field's keydown default: an Escape that closes the field's open list is used up there,
+ * so the panel, popover or dialog around the field stays open. Mantine closes the list but lets
+ * the key bubble on, and the next Escape handler up (a popover's) closed the whole panel and
+ * threw away what was typed in it. With the list shut, Escape bubbles as usual.
+ * @param event - the field's keydown
+ */
+export function consumeListEscape(event: React.KeyboardEvent<HTMLElement>): void {
+    if (event.key === "Escape" && event.currentTarget.hasAttribute("data-expanded")) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+}
+
+/**
  * The keyboard of an open select-only list (flows.md 4 and 9, design/figma-spec.md 6.5), on top
  * of Mantine's arrows, Enter and Escape:
  *

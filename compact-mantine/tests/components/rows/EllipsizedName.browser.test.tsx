@@ -46,7 +46,42 @@ describe("a name that ellipsizes", () => {
         expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(LONG);
     });
 
-    it("keeps a short count whole beside a long name, and shows both in the cut row's tooltip", async () => {
+    it("keeps the name whole and shortens the count first, and shows both in the cut row's tooltip", async () => {
+        // A Sources row at the panel's default width: the name says which file this is; the
+        // count yields first, so "v2" (what tells two versions apart) is never cut.
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree
+                    label="Data"
+                    defaultExpanded={["sources"]}
+                    items={[
+                        {
+                            id: "sources",
+                            name: "Sources",
+                            children: [
+                                { id: "a", name: "friends-v2.csv", count: "20 nodes, 41 edges" },
+                                { id: "b", name: "team-v2.csv", count: "18 nodes, 30 edges" },
+                            ],
+                        },
+                    ]}
+                />
+            </div>,
+        );
+        for (const name of ["friends-v2.csv", "team-v2.csv"]) {
+            const span = screen.getByText(name);
+            expect(span.scrollWidth).toBeLessThanOrEqual(span.clientWidth);
+        }
+        const [count] = screen.getAllByTestId("tree-count");
+        expect(count.scrollWidth).toBeGreaterThan(count.clientWidth);
+        // The cut count still shows a stub with its ellipsis, not nothing.
+        expect(count.clientWidth).toBeGreaterThan(20);
+        await userEvent.hover(screen.getByText("friends-v2.csv"));
+        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(
+            "friends-v2.csv20 nodes, 41 edges",
+        );
+    });
+
+    it("cuts the name only after the count is down to its stub", async () => {
         await renderThemed(
             <div style={{ width: 240 }}>
                 <Tree
@@ -56,11 +91,10 @@ describe("a name that ellipsizes", () => {
             </div>,
         );
         const count = screen.getByTestId("tree-count");
-        expect(count.scrollWidth).toBeLessThanOrEqual(count.clientWidth);
-        await userEvent.hover(screen.getByText("people.csv and messages.csv"));
-        expect((await screen.findByRole("tooltip", {}, { timeout: 3000 })).textContent).toBe(
-            "people.csv and messages.csv12 nodes, 22 edges",
-        );
+        const name = screen.getByText("people.csv and messages.csv");
+        // The stub is about 2.5em; the name keeps all the rest, so "people.csv" is whole.
+        expect(count.clientWidth).toBeLessThan(32);
+        expect(name.clientWidth).toBeGreaterThan(110);
     });
 
     it("gives a long count half the row and shows it whole in the tooltip, hovered on the count", async () => {

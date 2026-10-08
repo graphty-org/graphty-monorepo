@@ -71,6 +71,9 @@ const css = `
 .cm-tree-row[data-tint="parent"]::after {
     box-sizing: content-box;
     height: 24px;
+    /* A selected parent is told apart from the band its children wear: the stronger selected
+       tint, where bg-selected sits within 1.2:1 of the band in dark (#394360 on #32394d). */
+    background: var(--cm-bg-selected-hover);
     border-bottom: 4px solid var(--cm-bg-selected-secondary);
     border-radius: 5px 5px 0 0;
 }
@@ -78,7 +81,7 @@ const css = `
 .cm-tree-row[data-tint="child-last"]::before { display: block; }
 .cm-tree-row[data-tint="child-last"]::before { bottom: 4px; border-radius: 0 0 5px 5px; }
 .cm-tree-row[data-tint^="child"]:hover::after,
-.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-bg-selected-hover); }
+.cm-tree-row[data-tint^="child"][data-state="hover"]::after { background: var(--cm-bg-selected); }
 
 /* Keyboard focus (ours; Figma rows take no focus): a 1px ring on the 24 pill area. */
 .cm-tree-ring {
@@ -144,15 +147,17 @@ const css = `
     align-items: center;
     margin-inline-start: 8px;
 }
-/* The count (a row's quiet text) stays whole until it would take more than half the row; then it
-   ellipsizes at half, and the name's tooltip carries both whole. */
+/* The count (a row's quiet text) yields to the name: when both do not fit, the count shortens
+   first, down to a stub that still shows its ellipsis, and only then is the name cut. The name
+   says which row this is ("friends-v2.csv"); the count only describes it. Its weight against the
+   name's shrink of 1 makes it take the whole cut first; the name's tooltip carries both whole. */
 .cm-tree-count {
-    flex: none;
-    max-width: 50%;
-    min-width: 0;
+    flex: 0 1000 auto;
+    min-width: 2.5em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: end;
     margin-inline: 4px;
     color: var(--cm-text-secondary);
     font-weight: 450;

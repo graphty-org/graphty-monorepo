@@ -67,10 +67,11 @@ export interface ContextMenuProps extends Omit<
 /**
  * A dark menu opened at the pointer by a right-click (design/figma-spec.md 8.2):
  * its top-left corner 3px right of and 5px above the pointer, flipping and
- * shifting to stay on screen, with the first enabled row highlighted so Enter
- * acts on it at once. On touch and pen, a press held still for half a second
+ * shifting to stay on screen, with no row highlighted until a key or the
+ * pointer moves to one. On touch and pen, a press held still for half a second
  * opens it at the finger. It also opens from the keyboard (Shift+F10, the
- * ContextMenu key) at the focused element. Escape, a click outside or choosing a
+ * ContextMenu key) at the focused element, with the first enabled row
+ * highlighted so Enter acts on it at once. Escape, a click outside or choosing a
  * row closes it and returns focus to where it was.
  * @param props - Component props
  * @param props.target - The element that opens the menu
@@ -108,7 +109,11 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
     // menu, or a key, clears it.
     const liftPending = useRef(false);
 
-    const openAt = (x: number, y: number): void => {
+    // How the menu was opened: only a keyboard open has a keyboard position to show.
+    const openedByKeyboard = useRef(false);
+
+    const openAt = (x: number, y: number, byKeyboard = false): void => {
+        openedByKeyboard.current = byKeyboard;
         returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         lastPoint.current = { x, y };
         setPoint({ x, y });
@@ -121,18 +126,22 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
         returnFocus.current?.focus();
     };
 
-    // The first enabled row is highlighted on open. Mantine's focus trap puts
-    // focus on its placeholder first (a timeout scheduled on mount); this runs
-    // after it and moves focus to the row, which is what the :focus highlight
-    // and Enter act on.
+    // Opened from the keyboard, the first enabled row is highlighted, so Enter acts on it at once.
+    // Opened by the pointer (a right-click, a held press) nothing is: the pointer has no keyboard
+    // position yet, and a pre-highlighted row reads as the suggested choice. Focus then rests on
+    // the menu itself, where ArrowDown / ArrowUp reach the first row (Mantine's dropdown). Both
+    // run after Mantine's focus trap has placed its own focus (a timeout scheduled on mount).
     useEffect(() => {
         if (!opened) {
             return undefined;
         }
         const timer = setTimeout(() => {
-            dropdownRef.current
-                ?.querySelector<HTMLElement>("[data-menu-item]:not([data-disabled]):not(:disabled)")
-                ?.focus();
+            const menu = dropdownRef.current;
+            if (!openedByKeyboard.current) {
+                menu?.focus();
+                return;
+            }
+            menu?.querySelector<HTMLElement>("[data-menu-item]:not([data-disabled]):not(:disabled)")?.focus();
         }, 0);
         return () => {
             clearTimeout(timer);
@@ -278,7 +287,7 @@ export function ContextMenu({ target, children, onChange, ...menuProps }: Contex
             event.stopPropagation();
             keyboardOpenedAt.current = performance.now();
             const rect = (event.target as HTMLElement).getBoundingClientRect();
-            openAt(rect.left, rect.bottom);
+            openAt(rect.left, rect.bottom, true);
         }
     };
 

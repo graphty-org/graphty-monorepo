@@ -499,16 +499,22 @@ describe.skipIf(!available)("8.2 context menu", () => {
         );
     }
 
-    it("opens at the pointer, 3px right and 5px up, first enabled row highlighted", async () => {
+    it("opens at the pointer, 3px right and 5px up, with no row highlighted until ArrowDown", async () => {
         const { getByTestId } = await renderFigma(<Ctx />);
         const area = getByTestId("area");
         const r = box(area);
         await userEvent.click(area, { button: "right", position: { x: 50, y: 60 } });
         const dropdown = await waitFor(() => document.querySelector<HTMLElement>(".mantine-Menu-dropdown"));
+        await waitFor(() => document.activeElement === dropdown);
         const copy = row(document, "Copy");
-        await waitFor(() => document.activeElement === copy);
         expect(box(dropdown).left).toBeCloseTo(r.left + 50 + 3, 0);
         expect(box(dropdown).top).toBeCloseTo(r.top + 60 - 5, 0);
+        // The pointer has no keyboard position yet: no row wears the highlight.
+        for (const item of document.querySelectorAll("[data-menu-item]")) {
+            expect(computed(item as HTMLElement, "::before").backgroundColor).toBe("rgba(0, 0, 0, 0)");
+        }
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => document.activeElement === copy);
         expectMeasured(copy, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => !document.querySelector(".mantine-Menu-dropdown"));

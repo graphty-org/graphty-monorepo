@@ -122,6 +122,33 @@ describe("Tree: a long pinned text", () => {
         expect(name.width).toBeGreaterThan(40);
         expect(pinned.right).toBeLessThanOrEqual(row.getBoundingClientRect().right);
     });
+
+    it("keeps a pinned checkbox whole on a narrow row with a count", async () => {
+        const items: TreeNodeData[] = [
+            {
+                id: "step",
+                name: "shared_chapters is at least 5",
+                count: "77 to 26 nodes",
+                actions: (
+                    <span data-pinned="">
+                        <input type="checkbox" aria-label="Apply step" defaultChecked />
+                    </span>
+                ),
+            },
+        ];
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree label="Filters" items={items} />
+            </div>,
+        );
+        const row = screen.getByRole("treeitem", { name: /shared_chapters/ }).getBoundingClientRect();
+        const box = screen.getByRole("checkbox", { name: "Apply step" }).getBoundingClientRect();
+        expect(box.width).toBeGreaterThan(8);
+        expect(box.right).toBeLessThanOrEqual(row.right);
+        expect(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)).toBe(
+            screen.getByRole("checkbox", { name: "Apply step" }),
+        );
+    });
 });
 
 describe("Tree: keyboard", () => {

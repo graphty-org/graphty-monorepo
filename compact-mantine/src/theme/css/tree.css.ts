@@ -180,19 +180,23 @@ const css = `
 
 /* Lock / eye: 24 hit targets on a 20 pitch, ending 8 from the panel edge. Hidden until the row
    is hovered or focused; a toggle that is on stays visible. */
-/* The slot gives way before the name does (four times as fast), so a long pinned text (a row's quiet
-   counts) never squeezes the name to nothing; buttons keep their size (their min-content), and a
-   pinned text ellipsizes. */
 .cm-tree-actions {
-    flex: 0 4 auto;
-    min-width: 0;
+    flex: none;
     display: flex;
     align-items: center;
     height: 24px;
     margin-inline-end: 8px;
 }
+/* A slot holding a pinned text (a row's quiet counts) gives way before the name does (four times as
+   fast), so the text never squeezes the name to nothing, and the text ellipsizes. A slot of controls
+   only (buttons, a checkbox) keeps its size: shrunk, it would cut the control off the row. (:has()
+   does not nest, so a slot mixing text and a control keeps its size too.) */
+.cm-tree-actions:has(> [data-pinned]):not(:has(button, input)) {
+    flex: 0 4 auto;
+    min-width: 0;
+}
 .cm-tree-actions > * + * { margin-inline-start: -4px; }
-.cm-tree-actions > [data-pinned]:not(button, :has(button)) {
+.cm-tree-actions > [data-pinned]:not(button, :has(button, input)) {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;

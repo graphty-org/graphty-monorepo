@@ -2531,19 +2531,38 @@ describe("the commit and push hooks", () => {
     });
 });
 
+// The test files under `root` (tracked, or untracked and not ignored) that run git without
+// isolateGit() or isolatedGitEnv().
+function bareGitTests(root) {
+    const runsGit = /\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec|execa)\(\s*["'`]git\b/;
+    const isTest = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+    const files = spawnSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+        cwd: root,
+        encoding: "utf8",
+    }).stdout.split("\0");
+    return files
+        .filter((f) => isTest.test(f) && /\.[cm]?[jt]sx?$/.test(f))
+        .filter((f) => {
+            const text = readFileSync(join(root, f), "utf8");
+            return runsGit.test(text) && !/\b(isolateGit|isolatedGitEnv)\b/.test(text);
+        });
+}
+
 describe("tests that run git", () => {
     it("run it with the developer's own git config isolated (tools/isolated-git-env.mjs)", () => {
-        const runsGit = /\b(?:spawnSync|spawn|execFileSync|execFile|execSync|exec|execa)\(\s*["'`]git\b/;
-        const isTest = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
         const root = new URL("..", import.meta.url).pathname;
-        const files = spawnSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).stdout.split("\0");
-        const bare = files
-            .filter((f) => isTest.test(f) && /\.[cm]?[jt]sx?$/.test(f))
-            .filter((f) => {
-                const text = readFileSync(join(root, f), "utf8");
-                return runsGit.test(text) && !/\b(isolateGit|isolatedGitEnv)\b/.test(text);
-            });
-        assert.deepEqual(bare, [], "these run git without isolateGit() or isolatedGitEnv()");
+        assert.deepEqual(bareGitTests(root), [], "these run git without isolateGit() or isolatedGitEnv()");
         assert.match(readFileSync(join(root, "visual-review/vitest.config.mjs"), "utf8"), /isolate-git\.setup\.mjs/);
+    });
+
+    it("the check also covers a new test file git does not track yet", () => {
+        const dir = mkdtempSync(join(tmpdir(), "bare-git-test-"));
+        try {
+            spawnSync("git", ["init", "-q"], { cwd: dir });
+            writeFileSync(join(dir, "new.test.mjs"), 'spawnSync("git", ["status"]);\n');
+            assert.deepEqual(bareGitTests(dir), ["new.test.mjs"]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 });

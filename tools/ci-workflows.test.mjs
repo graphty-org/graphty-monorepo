@@ -1967,12 +1967,114 @@ describe("release.yml", () => {
         assert.match(publish, /issues: write/);
         assert.match(
             publish,
-            /- name: Report a failed publish\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*tools\/release-held.sh open "Release held: publish failed on \$\{GITHUB_SHA:0:7\}"/,
+            /- name: Report a failed publish\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{GITHUB_SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
         );
         assert.match(
             publish,
             /- name: Close the failed-publish issue\n\s+run: \|\n\s+tools\/release-held.sh close[\s\S]*"Release held: publish failed"\n/,
         );
+    });
+
+    // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
+    // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
+    // tools/release-held.sh recording the issue it would open.
+    const publishReport = (log) => {
+        const script = /- name: Report a failed publish\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(publish)[1];
+        const dir = mkdtempSync(join(tmpdir(), "release-publish-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "bin"));
+            for (const project of ["cytoscape-extensions", "layout"]) {
+                mkdirSync(join(dir, project));
+                writeFileSync(join(dir, project, "package.json"), JSON.stringify({ name: `@graphty/${project}` }));
+            }
+            writeFileSync(join(dir, "bin", "pnpm"), '#!/bin/sh\necho "{\\"root\\": \\"$5\\"}"\n', { mode: 0o755 });
+            writeFileSync(
+                join(dir, "tools", "release-held.sh"),
+                `#!/bin/sh\necho "$2" > "${join(dir, "title")}"\ncp "$3" "${join(dir, "body")}"\necho 42\n`,
+                { mode: 0o755 },
+            );
+            if (log !== undefined) writeFileSync(join(dir, "publish.log"), log);
+            const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                    GITHUB_SERVER_URL: "https://github.com",
+                    GITHUB_REPOSITORY: "graphty-org/graphty-monorepo",
+                    GITHUB_RUN_ID: "37691314850",
+                    GITHUB_SHA: "e140ea5c8358785f46e6a671172c30a361c6ded4",
+                    RUNNER_TEMP: dir,
+                },
+            });
+            assert.equal(run.status, 0, run.stderr);
+            return { title: readFileSync(join(dir, "title"), "utf8"), body: readFileSync(join(dir, "body"), "utf8") };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    const task = (ok, project, output) =>
+        `##[group]${ok ? "✅" : "❌"} \x1b[2m> \x1b[22m\x1b[2mnx run\x1b[22m ${project}:nx-release-publish\n\n${output}\n##[endgroup]\n`;
+    const LOGIN =
+        "pnpm publish error:\nThis command requires you to be logged in to https://registry.npmjs.org/\nYou need to authorize this machine using `npm adduser`";
+    const FAILED = "\x1b[2mFailed tasks:\x1b[22m\n\n\x1b[2m-\x1b[22m cytoscape-extensions:nx-release-publish\n";
+
+    it("keeps the publish output for the report and still lets the registry check decide", () => {
+        assert.match(
+            publish,
+            /set -o pipefail\n\s+pnpm exec nx release publish --projects="\$PROJECTS" --nxBail=false 2>&1 \| tee "\$RUNNER_TEMP\/publish.log" \|\|\n\s+echo "::warning::/,
+        );
+        assert.match(
+            publish,
+            /- name: Check every version is on npm\n[\s\S]*?::error::\$\{spec\} is versioned on master but not on npm[\s\S]*?exit 1\n/,
+        );
+    });
+
+    it("makes a package with no npm trusted publisher an owner item naming its settings, the fields and the re-run", () => {
+        const { title, body } = publishReport(
+            task(true, "graph-format", 'Published to https://registry.npmjs.org/ with tag "latest"') +
+                task(false, "cytoscape-extensions", LOGIN) +
+                task(true, "graphty-element", "{") +
+                FAILED,
+        );
+        assert.equal(
+            title.trim(),
+            "Release held: publish failed on e140ea5: owner must create the npm trusted publisher for @graphty/cytoscape-extensions",
+        );
+        assert.ok(title.startsWith("Release held: publish failed"), "the close step still finds it");
+        assert.match(body, /^## OWNER ITEM: create the npm trusted publisher for @graphty\/cytoscape-extensions\n/);
+        assert.match(body, /This is not a code defect/);
+        assert.match(
+            body,
+            /- @graphty\/cytoscape-extensions: https:\/\/www.npmjs.com\/package\/@graphty\/cytoscape-extensions\/access\n/,
+        );
+        assert.match(
+            body,
+            /Organization or user `graphty-org`, Repository `graphty-monorepo`, Workflow filename `release.yml`, Environment left empty/,
+        );
+        assert.match(body, /within 2 days/);
+        assert.match(body, /`gh run rerun 37691314850 --failed`/);
+        assert.doesNotMatch(body, /graph-format|graphty-element/);
+    });
+
+    it("names every package that hit the login error, and only those", () => {
+        const { title, body } = publishReport(
+            task(false, "layout", LOGIN) +
+                task(false, "graph-io", "npm error code E403") +
+                task(false, "cytoscape-extensions", LOGIN),
+        );
+        assert.match(title, /trusted publisher for @graphty\/cytoscape-extensions @graphty\/layout\n$/);
+        assert.doesNotMatch(body, /graph-io/);
+    });
+
+    it("reports any other failed publish as before, with no owner item", () => {
+        for (const log of [task(false, "graph-io", "npm error code E403\nnpm error 403 Forbidden"), undefined]) {
+            const { title, body } = publishReport(log);
+            assert.equal(title.trim(), "Release held: publish failed on e140ea5");
+            assert.doesNotMatch(body, /OWNER ITEM/);
+            assert.match(body, /^The publish job failed on master /);
+        }
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {

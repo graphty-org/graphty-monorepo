@@ -380,6 +380,63 @@ export const LightPopoverSurfaces: Story = {
     },
 };
 
+/**
+ * A box with a CSS transform, which `position: fixed` then measures from instead of the viewport,
+ * so panels inside it are placed in its moved and scaled frame. Each panel still opens right below
+ * its trigger: a pop-out panel on the left (translated box) and an `InfoCircle` bubble on the right
+ * (translated and scaled box). The manager sits inside the box, as it does in an app that is
+ * itself mounted in a transformed container.
+ */
+export const InsideTransformedAncestor: Story = {
+    parameters: { layout: "padded", docs: { story: { height: "420px" } } },
+    render: () => (
+        <Group align="flex-start" gap={24} wrap="nowrap">
+            <Box style={{ transform: "translate(24px, 32px)", width: 256, height: 320 }}>
+                <Column caption="translate(24px, 32px)">
+                    <Popout defaultOpened>
+                        <Popout.Trigger>
+                            <PopoutButton
+                                icon={<UiGlyph name="settings" size={12} />}
+                                aria-label="Translated settings"
+                            />
+                        </Popout.Trigger>
+                        <Popout.Panel
+                            width={240}
+                            placement="bottom"
+                            anchorX="trigger"
+                            manageFocus={false}
+                            header={{ variant: "title", title: "Translated settings" }}
+                        >
+                            <Popout.Content>
+                                <Rows />
+                            </Popout.Content>
+                        </Popout.Panel>
+                    </Popout>
+                </Column>
+            </Box>
+            <Box style={{ transform: "translate(24px, 32px) scale(0.8)", transformOrigin: "0 0", width: 256 }}>
+                <Column caption="translate(24px, 32px) scale(0.8)">
+                    <Group gap={4}>
+                        <Text size="sm">Resolution</Text>
+                        <InfoCircle label="Resolution" defaultOpened>
+                            Higher resolution finds more, smaller communities.
+                        </InfoCircle>
+                    </Group>
+                </Column>
+            </Box>
+        </Group>
+    ),
+    play: async ({ canvasElement }) => {
+        await waitForSettledLayout(canvasElement, "[data-testid='popout-panel']");
+        const panel = within(canvasElement.ownerDocument.body).getByRole("dialog", { name: "Translated settings" });
+        const trigger = within(canvasElement).getByRole("button", { name: "Translated settings" });
+        const panelBox = panel.getBoundingClientRect();
+        const triggerBox = trigger.getBoundingClientRect();
+        await expect(Math.abs(panelBox.top - triggerBox.bottom)).toBeLessThanOrEqual(1);
+        await expect(Math.abs(panelBox.left - triggerBox.left)).toBeLessThanOrEqual(1);
+    },
+};
+
 /** The assertions for the default pop-out: ARIA wiring, the drag handle, close and reopen. */
 export const DefaultInteractions: Story = {
     ...Default,

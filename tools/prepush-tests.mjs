@@ -239,6 +239,7 @@ async function main() {
     const canStart = startRule(shards);
     const waiting = [...shards];
     let failed = null;
+    let stopping = false;
     const started = Date.now();
 
     const start = (shard) => {
@@ -267,6 +268,10 @@ async function main() {
             running.delete(shard.shard);
             const secs = Math.round((Date.now() - t0) / 1000);
             if (failed) {
+                // Once stopAll ran, the last shard to close ends the stage: nothing else is left to.
+                if (stopping && running.size === 0) {
+                    finish();
+                }
                 return;
             }
             if (code === 0) {
@@ -276,15 +281,23 @@ async function main() {
                 return;
             }
             failed = shard.shard;
+            process.exitCode = 1;
             console.log(`  [FAIL] ${shard.shard} (exit ${code}, ${secs}s); the end of ${log}:`);
-            out.end(() => {
+            const tail = () => {
                 console.log(readFileSync(log, "utf8").split("\n").slice(-80).join("\n"));
                 stopAll();
-            });
+            };
+            // end() never calls back on a log stream destroyed before it finished.
+            if (out.destroyed) {
+                tail();
+            } else {
+                out.end(tail);
+            }
         });
     };
 
     const stopAll = () => {
+        stopping = true;
         for (const child of running.values()) {
             try {
                 process.kill(-child.pid, "SIGTERM");
@@ -304,7 +317,7 @@ async function main() {
                     }
                 }
                 finish();
-            }, 10_000).unref();
+            }, 10_000);
         }
     };
 
@@ -358,6 +371,7 @@ async function main() {
     for (const signal of ["SIGINT", "SIGTERM"]) {
         process.on(signal, () => {
             failed ??= signal;
+            process.exitCode = 1;
             stopAll();
         });
     }

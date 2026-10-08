@@ -1,3 +1,24 @@
+## 3.3.10 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** compare the grsbm split gain with <= for clarity ([0a9b48620](https://github.com/graphty-org/graphty-monorepo/commit/0a9b48620))
+- **algorithms:** keep a grsbm split only when it raises the partition's modularity ([#960](https://github.com/graphty-org/graphty-monorepo/issues/960))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 3.3.9 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** queue each node at most once in PriorityDeltaPageRank ([a7ae60535](https://github.com/graphty-org/graphty-monorepo/commit/a7ae60535))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.8 (2026-10-07)
 
 ### 🩹 Fixes

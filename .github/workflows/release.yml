@@ -13,9 +13,12 @@ name: Release
 #    failed, or it left the merge queue) is closed and replaced by this attempt.
 # 2. On that commit, in parallel: the FULL CI suite (ci.yml called on it, every shard of every package, which
 #    also makes the builds this release ships), the paid NVIDIA T4 lane (gpu.yml), the host matrix (hosts.yml,
-#    full scope) and the security audit of the shipped dependencies. Coverage is published from the same CI run
+#    full scope), the security audit of the shipped dependencies and the LLM regression tests (graphty-element's
+#    llm-regression project: real, paid Google Gemini calls that check the model still picks the element's tools,
+#    with the GOOGLE_API_KEY repository secret; a missing secret fails the job, it never skips, and a key or balance
+#    the provider refuses holds the release as an owner item). Coverage is published from the same CI run
 #    (coverage.yml).
-# 3. Only when all four pass does the train job version the commit with nx release and open a
+# 3. Only when all five pass does the train job version the commit with nx release and open a
 #    "chore(release): publish" pull request holding only version fields and changelogs. Anything red holds the
 #    WHOLE release: no pull request, nothing published, and the held job opens or updates ONE "Release held:
 #    <what> failed on <sha>" issue for githerd to fix. A later train that passes closes it. Mergify merges the
@@ -250,6 +253,66 @@ jobs:
             - name: Security audit
               run: pnpm audit --prod --audit-level=high
 
+    # graphty-element's llm-regression project on exactly the candidate: each case sends a prompt to Google
+    # (gemini-3.8-flash, graphty-element/test/helpers/llm-regression-env.ts) and checks the model calls the element's
+    # own tools with the right arguments. About 190 calls a release. It runs only here, never on a pull request or
+    # in the merge queue, because every case is a paid API call. A missing or empty GOOGLE_API_KEY secret fails
+    # the job: the tests would otherwise skip, and a release test that skips is worse than none. A missing secret,
+    # or a key or balance the provider refuses (the harness prints ACCOUNT_REFUSED_MARKER), sets the job's
+    # owner_item output, and the held job files the issue as the owner's to fix rather than a code defect. Each
+    # case has a per-provider limit, 120 s on Google (graphty-element/test/helpers/llm-regression-env.ts), so the
+    # job ends on its own.
+    llm:
+        name: LLM regression
+        needs: pick
+        if: ${{ needs.pick.outputs.release == 'true' }}
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+        outputs:
+            owner_item: ${{ steps.llm.outputs.owner_item }}
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  ref: ${{ needs.pick.outputs.sha }}
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22.x
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+              env:
+                  HUSKY: "0"
+
+            # graphty-element's tests resolve the workspace packages it depends on from their dist folders.
+            - name: Build graphty-element and its dependencies
+              run: pnpm exec nx run graphty-element:build
+
+            - name: LLM regression tests
+              id: llm
+              working-directory: graphty-element
+              env:
+                  VITE_LLM_REGRESSION_PROVIDER: google
+                  VITE_GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+              run: |
+                  set -uo pipefail
+                  if [ -z "${VITE_GOOGLE_API_KEY}" ]; then
+                      echo "owner_item=the GOOGLE_API_KEY repository secret is missing or empty" >> "$GITHUB_OUTPUT"
+                      echo "::error::the GOOGLE_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"
+                      exit 1
+                  fi
+                  npx vitest run --project llm-regression 2>&1 | tee "$RUNNER_TEMP/llm-regression.log"
+                  status=${PIPESTATUS[0]}
+                  if [ "$status" != 0 ] && grep -q '\[llm-regression\] provider refused the account' "$RUNNER_TEMP/llm-regression.log"; then
+                      echo "owner_item=Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left)" >> "$GITHUB_OUTPUT"
+                      echo "::error::Google refused the account behind GOOGLE_API_KEY (a rejected key, or no credit left): an owner item, not a code defect"
+                  fi
+                  exit "$status"
+
     # Coveralls' master coverage, from the CI run above (a push to master runs no test shards). Advisory: it
     # never holds the release.
     coverage:
@@ -276,7 +339,7 @@ jobs:
     # cancelled run still reports; a pick that failed (not one that skipped by design) is held too.
     held:
         name: Hold the release
-        needs: [pick, ci, t4, hosts, audit, train]
+        needs: [pick, ci, t4, hosts, audit, llm, train]
         if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success')) }}
         runs-on: ubuntu-24.04
         permissions:
@@ -291,6 +354,8 @@ jobs:
             T4_RESULT: ${{ needs.t4.result }}
             HOSTS_RESULT: ${{ needs.hosts.result }}
             AUDIT_RESULT: ${{ needs.audit.result }}
+            LLM_RESULT: ${{ needs.llm.result }}
+            LLM_OWNER_ITEM: ${{ needs.llm.outputs.owner_item }}
             TRAIN_RESULT: ${{ needs.train.result }}
         steps:
             - uses: actions/checkout@v4
@@ -308,9 +373,11 @@ jobs:
                   # gives no name in its docs (abandoned). Skipped is a consequence (the train skips when a lane
                   # did not pass), never a cause.
                   what=()
+                  llm_lane="LLM regression"
+                  [ -z "$LLM_OWNER_ITEM" ] || llm_lane="LLM regression (owner item: Google account)"
                   results=()
                   for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
-                      "security audit=$AUDIT_RESULT" "release pull request=$TRAIN_RESULT"; do
+                      "security audit=$AUDIT_RESULT" "$llm_lane=$LLM_RESULT" "release pull request=$TRAIN_RESULT"; do
                       results+=("${lane%%=*} ${lane#*=}")
                       case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
                   done
@@ -339,6 +406,10 @@ jobs:
                       [ "$TRIGGER" != workflow_run ] || echo "This was a restarted release: a master push whose build passed restarted the held release, and it failed again."
                       echo
                       echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open. The release restarts itself on the next push to master whose build passes, so the fix's pull request should name this issue without closing it (\`Refs #<this issue>\`, not \`Fixes #<this issue>\`): its merge restarts the release on its commit. A train that passes releases everything at once and closes this issue; one that fails again comments here."
+                      if [ -n "$LLM_OWNER_ITEM" ]; then
+                          echo
+                          echo "The LLM regression job did not fail on code: ${LLM_OWNER_ITEM}. There is no code to fix: it is an owner item. Fund the Google account (its Gemini API billing) or replace the GOOGLE_API_KEY repository secret, then \`gh workflow run release.yml --ref master\` retries at once (a dispatch runs despite this issue), or close this issue and the next scheduled train retries."
+                      fi
                       if [ "$T4_RESULT" = failure ]; then
                           echo
                           echo "If the T4 job was refused or lost its runner (machine.dev: insufficient balance, concurrent runner limit, \"received a shutdown signal\", \"lost communication\"; such a job has no log below), there is no code to fix: it is an owner item. Restore the machine.dev capacity, then \`gh workflow run release.yml --ref master\` retries at once (a dispatch runs despite this issue), or close this issue and the next scheduled train retries."
@@ -368,12 +439,12 @@ jobs:
                   open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
                   echo "::error::release held: ${what} failed on ${SHA}; no release pull request was opened (issue ${open})"
 
-    # Versions the candidate and opens the release pull request, only after the full suite, the T4, Hosts and the
-    # audit all passed on it.
+    # Versions the candidate and opens the release pull request, only after the full suite, the T4, Hosts, the
+    # audit and the LLM regression tests all passed on it.
     train:
         name: Open the release pull request
-        needs: [pick, ci, t4, hosts, audit]
-        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' }}
+        needs: [pick, ci, t4, hosts, audit, llm]
+        if: ${{ needs.pick.outputs.release == 'true' && needs.ci.result == 'success' && needs.t4.result == 'success' && needs.hosts.result == 'success' && needs.audit.result == 'success' && needs.llm.result == 'success' }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -466,7 +537,7 @@ jobs:
                   [ "$TRIGGER" != workflow_dispatch ] || kind="ad hoc"
                   [ "$TRIGGER" != workflow_run ] || kind="restarted"
                   {
-                      echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts and the security audit passed on it in ${run_url}."
+                      echo "The ${kind} release train versions ${SHA}, master's newest commit, after the full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on it in ${run_url}."
                       [ -z "${PACKAGES// /}" ] || echo "Only these packages are released: ${PACKAGES}."
                       echo
                       echo "Releases:"
@@ -477,7 +548,7 @@ jobs:
                   gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
                   for context in "All Checks Pass" "Lint PR Title"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
-                          -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts and the audit" \
+                          -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts, the audit and the LLM regression tests" \
                           -f target_url="$run_url" >/dev/null
                   done
 
@@ -488,7 +559,7 @@ jobs:
               run: |
                   set -euo pipefail
                   tools/release-held.sh close \
-                      "The full CI suite, the T4 GPU lane, Hosts and the security audit passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases everything that was held."
+                      "The full CI suite, the T4 GPU lane, Hosts, the security audit and the LLM regression tests passed on ${SHA} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}); this train releases everything that was held."
 
     # Runs on the push that merges a release pull request: Mergify's merge commit names the release branch. The
     # release queue rule merges with merge_method: merge for this reason; a merge-batch commit names only numbers.

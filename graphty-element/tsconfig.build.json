@@ -34,6 +34,7 @@
         "**/*.stories.ts",
         ".storybook/**/*",
         "src/debug/**/*",
+        "src/testing/**/*",
         "coverage/**/*",
         "dist/**/*",
         "node_modules/**/*"

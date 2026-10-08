@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import type { Graph } from "../../Graph";
 import { SchemaExtractor } from "../schema/SchemaExtractor";
+import { isMatchAllSelector, matchingNodeIds, noMatchMessage, SELECTOR_SYNTAX } from "./selectors";
 import type { CommandResult, GraphCommand } from "./types";
 
 /**
@@ -122,90 +123,33 @@ const DEFAULT_FIND_NODES_LIMIT = 50;
 export const findNodes: GraphCommand = {
     name: "findNodes",
     description:
-        "Find nodes in the graph that match specific criteria. Returns the total number of matches and at most `limit` matching node IDs (50 when no limit is given), with `truncated` true when the list was cut. Note: selectors search within node data directly, so use 'type' not 'data.type'.",
+        "Find nodes in the graph that match a selector. Returns the total number of matches and at most `limit` matching node IDs (50 when no limit is given), with `truncated` true when the list was cut. Takes the same selector as findAndStyleNodes and zoomToNodes.",
     parameters: z.object({
-        selector: z
-            .string()
-            .describe(
-                "Simple selector to match nodes (e.g., 'type == \"server\"'). Search is performed on node data directly, so use property names like 'type' not 'data.type'.",
-            ),
+        selector: z.string().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
         limit: z.number().optional().describe("Maximum number of node IDs to return (default 50)"),
     }),
     examples: [
-        { input: "Find all server nodes", params: { selector: "type == 'server'" } },
-        { input: "Find nodes with high degree", params: { selector: "degree > 5" } },
+        { input: "Find all server nodes", params: { selector: "data.type == 'server'" } },
+        { input: "Find nodes older than 30", params: { selector: "data.age > `30`" } },
         { input: "Get first 10 nodes", params: { selector: "", limit: 10 } },
     ],
 
-    execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
+    async execute(graph: Graph, params: Record<string, unknown>): Promise<CommandResult> {
         const { selector, limit } = params as { selector: string; limit?: number };
 
         try {
-            const dataManager = graph.getDataManager();
-            const nodes = Array.from(dataManager.nodes.values());
-            let matchingNodes: typeof nodes;
-
-            if (!selector || selector === "" || selector === "*") {
-                // No selector - return all nodes
-                matchingNodes = nodes;
-            } else {
-                // Simple selector matching
-                // Support basic patterns like "type == 'server'" (searches within node.data)
-                matchingNodes = nodes.filter((node) => {
-                    try {
-                        // Parse simple equality expressions like "type == 'server'" or "active == 'true'"
-                        const equalMatch = /^(\w+)\s*==\s*['"](.+)['"]$/.exec(selector);
-                        if (equalMatch) {
-                            const [, key, value] = equalMatch;
-                            const nodeValue = node.data[key];
-
-                            // Handle boolean comparison: 'true'/'false' strings match boolean values
-                            if (typeof nodeValue === "boolean") {
-                                return nodeValue === (value === "true");
-                            }
-
-                            return nodeValue === value;
-                        }
-
-                        // Parse simple comparison expressions like "degree > 5"
-                        const compMatch = /^(\w+)\s*(>|<|>=|<=)\s*(\d+)$/.exec(selector);
-                        if (compMatch) {
-                            const [, key, op, valueStr] = compMatch;
-                            const nodeValue = Number(node.data[key]);
-                            const compareValue = Number(valueStr);
-
-                            switch (op) {
-                                case ">":
-                                    return nodeValue > compareValue;
-                                case "<":
-                                    return nodeValue < compareValue;
-                                case ">=":
-                                    return nodeValue >= compareValue;
-                                case "<=":
-                                    return nodeValue <= compareValue;
-                                default:
-                                    return false;
-                            }
-                        }
-
-                        // If no pattern matches, return false
-                        return false;
-                    } catch {
-                        return false;
-                    }
-                });
-            }
-
+            const matchingNodes = await matchingNodeIds(graph, selector);
             const total = matchingNodes.length;
-            const nodeIds = matchingNodes
-                .slice(0, limit !== undefined && limit > 0 ? limit : DEFAULT_FIND_NODES_LIMIT)
-                .map((n) => String(n.id));
+            const nodeIds = matchingNodes.slice(0, limit !== undefined && limit > 0 ? limit : DEFAULT_FIND_NODES_LIMIT);
             const returned = nodeIds.length;
             const truncated = total > returned;
+            const plural = total === 1 ? "" : "s";
+            const showing = truncated ? ` (showing ${returned})` : "";
+            const found = `Found ${total} matching node${plural}${showing}.`;
 
-            return Promise.resolve({
+            return {
                 success: true,
-                message: `Found ${total} matching node${total !== 1 ? "s" : ""}${truncated ? ` (showing ${returned})` : ""}.`,
+                message: total === 0 && !isMatchAllSelector(selector) ? noMatchMessage(selector) : found,
                 data: {
                     total,
                     returned,
@@ -214,12 +158,12 @@ export const findNodes: GraphCommand = {
                     nodeIds,
                 },
                 affectedNodes: nodeIds,
-            });
+            };
         } catch (error) {
-            return Promise.resolve({
+            return {
                 success: false,
                 message: `Failed to find nodes: ${(error as Error).message}`,
-            });
+            };
         }
     },
 };

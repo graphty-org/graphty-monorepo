@@ -51,11 +51,13 @@ import type {
     RunId,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { englishRunLabel } from "../english";
 import { nearestNames } from "../results/ResultsApi";
 import { fieldMeasurement, resultPath, resultShapeContract, type RunRef } from "../results/types";
+import type { RunDistinction } from "../runs/types";
 import type { CodedFact, ColumnRef } from "../shared";
 import type { ChannelDescriptor, ChannelValueKind } from "./channels";
-import { DEFAULT_SIZE_RANGE } from "./derive";
+import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "./derive";
 import { requireChannel, type RuleBinding } from "./encoding";
 import { columnPaletteFor, sequentialSamples } from "./palettes";
 import type { ScaleRegistry } from "./scales";
@@ -179,8 +181,25 @@ export type EncodingProposal =
 export interface EncodingRun {
     /** The run id, which is the path segment under `results`. */
     readonly id: RunId;
-    /** What to call the run, which becomes half of the layer's name. */
+    /**
+     * What to call the run, which becomes half of the layer's name.
+     * @deprecated Word the run from its `algorithm`, {@link EncodingRun.distinguishedBy} and
+     *   {@link EncodingRun.siblingsDifferBy} yourself. Removed in the next major.
+     */
     readonly label: string;
+    /**
+     * The option the run's name was suggested by, once it left its default. See
+     * {@link Run.distinguishedBy}.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells the run apart from other listed runs of its algorithm sharing its name. See
+     * {@link Run.siblingsDifferBy}.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm produced it, recorded on the layer so the layer can be re-run. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it ran with, recorded for the same reason. */
@@ -517,15 +536,13 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     // An amount on a size gets the same default range a column's does, written into the layer
     // now, rather than the unit interval that draws every node smaller than the default size.
     const sized =
-        spec.scale === undefined &&
-        spec.range === undefined &&
-        SIZE_CHANNELS.has(descriptor.channel) &&
-        scaleDescriptor(scale)?.domainKind === "numeric";
-    const ranged: EncodingOptions = sized ? { ...spec, range: [DEFAULT_SIZE_RANGE[0], DEFAULT_SIZE_RANGE[1]] } : spec;
+        spec.scale === undefined && spec.range === undefined && scaleDescriptor(scale)?.domainKind === "numeric";
+    const defaultRange = sized ? DEFAULT_RANGES.get(descriptor.channel) : undefined;
+    const ranged: EncodingOptions = defaultRange ? { ...spec, range: [defaultRange[0], defaultRange[1]] } : spec;
     const binding = buildBinding(ranged, path, scale, descriptor);
 
     return {
-        name: spec.name ?? `${run.label} - ${descriptor.plainName}`,
+        name: spec.name ?? `${englishRunLabel(run)} - ${descriptor.plainName}`,
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },
@@ -541,8 +558,14 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
 /** How many distinct values the attribute walk counts before it stops; past it, too many to name. */
 const DISTINCT_LIMIT = 256;
 
-/** The channels that default to {@link DEFAULT_SIZE_RANGE} for an amount. */
-const SIZE_CHANNELS: ReadonlySet<Channel> = new Set(["node.size", "edge.width"]);
+/**
+ * The range each size channel defaults to for an amount: {@link DEFAULT_SIZE_RANGE} for a node,
+ * {@link DEFAULT_EDGE_WIDTH_RANGE} for an edge, each starting at that half's default size.
+ */
+const DEFAULT_RANGES: ReadonlyMap<Channel, readonly [number, number]> = new Map([
+    ["node.size", DEFAULT_SIZE_RANGE],
+    ["edge.width", DEFAULT_EDGE_WIDTH_RANGE],
+]);
 
 /** A default the column measurement chose: a scale and what goes with it, or a refusal. */
 type DefaultChoice =
@@ -580,17 +603,17 @@ function chooseForGroups(
  * The default for an ordinal column on a color or a size: each declared value mapped, in order.
  * @param spec - The encoding.
  * @param order - The declared values, lowest first.
- * @param accepts - What the channel carries.
+ * @param descriptor - The channel.
  * @returns The choice.
  */
 function chooseForOrder(
     spec: ColumnEncodingSpec,
     order: readonly (string | number)[],
-    accepts: ChannelValueKind,
+    descriptor: ChannelDescriptor,
 ): DefaultChoice {
-    const [low, high] = spec.range ?? DEFAULT_SIZE_RANGE;
+    const [low, high] = spec.range ?? DEFAULT_RANGES.get(descriptor.channel) ?? DEFAULT_SIZE_RANGE;
     const values =
-        accepts === "color"
+        descriptor.accepts === "color"
             ? sequentialSamples(order.length)
             : order.map((_, index) => low + ((high - low) * index) / Math.max(1, order.length - 1));
     return {
@@ -615,7 +638,7 @@ function chooseForAmounts(
         return { scale: "linear", extra: { palette: spec.palette ?? columnPaletteFor(scales, "linear", 0) } };
     }
 
-    const range = spec.range ?? (SIZE_CHANNELS.has(descriptor.channel) ? DEFAULT_SIZE_RANGE : undefined);
+    const range = spec.range ?? DEFAULT_RANGES.get(descriptor.channel);
     return { scale: "linear", extra: range === undefined ? {} : { range: [range[0], range[1]] } };
 }
 
@@ -645,7 +668,7 @@ function chooseDefault(
 
     const order = declaration?.measurement === "ordinal" ? declaration.order : undefined;
     if (measurement === "ordinal" && order !== undefined && accepts !== "enum") {
-        return chooseForOrder(spec, order, accepts);
+        return chooseForOrder(spec, order, descriptor);
     }
 
     if (measurement === "quantitative" && accepts !== "enum") {

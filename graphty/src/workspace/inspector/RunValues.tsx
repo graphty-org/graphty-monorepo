@@ -10,6 +10,8 @@ import {
 import { Button, Checkbox, Group, Select, Text } from "@mantine/core";
 import type React from "react";
 
+import { modularityBandName } from "../../components/shell/readings/readingFormat";
+import { runName } from "../runWords";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
@@ -237,7 +239,7 @@ function MeasureValues({
             <ControlSection label="Values" defaultOpened>
                 {first !== undefined && last !== undefined && (
                     <HistogramRow
-                        label={run.label}
+                        label={runName(session, run)}
                         bins={histogram.bins.map((bin) => ({
                             label: `${formatNumber(bin.from)} to ${formatNumber(bin.to)}: ${count(bin.count, measuredNoun(run))}`,
                             count: bin.count,
@@ -296,7 +298,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                         value={
                             band === undefined
                                 ? formatNumber(modularity)
-                                : `${formatNumber(modularity)}, ${band.plainName}`
+                                : `${formatNumber(modularity)}, ${modularityBandName(band)}`
                         }
                     />
                 )}
@@ -422,7 +424,7 @@ export function GroupValues({
                         }}
                     />
                 )}
-                <DataRow stat name="Made by" value={run.label} />
+                <DataRow stat name="Made by" value={runName(session, run)} />
             </ControlSection>
             {members !== undefined && (
                 <ControlSection label="Members" defaultOpened>

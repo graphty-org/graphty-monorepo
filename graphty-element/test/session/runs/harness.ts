@@ -23,6 +23,7 @@ export const CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "test",
+    facts: [],
     notes: [],
 });
 
@@ -268,6 +269,7 @@ export function stubResult(runId: RunId): RunResult {
         groupSizes: () => ({ bins: [], scale: "linear", suggestedScale: "linear", binning: "empty" }),
         summary: stubSummary,
         reading: () => "A stub result.",
+        readingFact: () => ({ code: "reading.metric-empty", params: { field: "value" } }),
         band: () => undefined,
     };
 }

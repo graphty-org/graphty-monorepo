@@ -313,7 +313,7 @@ describe("pajekExporter: writing", () => {
         expect(lines(text).slice(1, 3)).toEqual(["1 1 1 2 3", "2 2 4 5 0"]);
         const twoComponents = builderWith(true, [{ name: "position", dtype: "f64", components: 2, role: "position" }]);
         twoComponents.addNodeRecord(1, { position: [1.5, 2] });
-        expect(lines(await pajekExporter.exportToString(twoComponents.freeze()))[1]).toBe("1 1 1.5 2.0");
+        expect(lines(await pajekExporter.exportToString(twoComponents.freeze()))[1]).toBe("1 1 1.5 2");
     });
 
     it("writes the shape keywords in their slot, or the whole column as a parameter when a value is not a keyword", async () => {

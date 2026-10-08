@@ -17,7 +17,7 @@ import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/grap
 import { pairFolding } from "../../common/direction.js";
 import { isPajekLabel, quotePajekLabel } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS, type SanitizedIds, sanitizeIds } from "../../common/export.js";
-import { formatDecimal, formatF32, formatInteger, idText } from "../../common/format.js";
+import { formatDecimal, formatF32, formatInteger, formatNumber, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
@@ -586,10 +586,11 @@ function coordinatesText(column: Column, i: number, writeZ: boolean): string | n
     }
     const dtype = column.dtype as "f32" | "f64" | "i32" | "u32" | "u8";
     const vector = column.value(i) as ArrayLike<number>;
-    const x = numberText(vector[0], dtype);
-    const y = numberText(vector[1], dtype);
+    // the importer reads coordinates by position, so the shortest text of each is enough
+    const x = formatNumber(vector[0], dtype);
+    const y = formatNumber(vector[1], dtype);
     if (column.meta.components === 3 && writeZ) {
-        return `${x} ${y} ${numberText(vector[2], dtype)}`;
+        return `${x} ${y} ${formatNumber(vector[2], dtype)}`;
     }
     return `${x} ${y}`;
 }

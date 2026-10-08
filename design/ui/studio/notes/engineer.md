@@ -15,6 +15,16 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **Find rules and edge names (element + app + compact-mantine, team door).**
+  `FindOptions.edgeNameJoiner` (element, optional, default unchanged) finds an edge by its name,
+  ranked with node names, `match.path` "ends"; the app passes `edgeJoiner(session)` (words.ts), the
+  same text the inspector title uses, so "Station -> Stadium" or "Stadium" lists the edge. Rule
+  example from the data (`exampleRule`: an imported number column, its rounded midpoint); a rule
+  stays in the box after Enter, selected; Columns wear `GLYPHS.attribute`. ResultRow names turn off
+  Inter's `calt` so "->" is not drawn as an arrow (the inspector header already showed "->").
+  Evidence `tmp/r1-dry1-find-rules-polish/` (T22A/02, 03, 05, 06; T22B/02, 04; T24B/02-05).
+  OPEN: inspector names an edge's ends by id, Find by name (#895); Columns after "=" omit run
+  results (PageRank not offered on Les Miserables).
 0. (2026-10-08) **Path form names and Made with rows (app + element, team door).** From/To boxes
    are named "From node"/"To node" (visible "From"/"To" kept), hints differ ("Where the path
    starts/ends"); a click pick moves on like Enter; the first option is active (Enter's pick).
@@ -24,51 +34,25 @@ acceptance test. "The studio worktree" is
    is one row of what the run read, no select. Element `WeightMeaning.assumed` (team decision):
    "weight, meaning not set, read as closer". Header "Path ran Oct 8" when the row is named after
    its analysis. Evidence `tmp/r1-dry1-path-form-made-with/` (A/02, 03, 08, 11, 13, 15; B/10).
-1. (2026-10-08) **Focus lands on a control (app, no door).** Find path -> the route's first node
-   in Values (`focusPathValuesNext(run.id)` from the toolbar, taken in `PathValues`); find-pick
-   Enter -> Degree (the Summary group lost `tabIndex=-1`); g / Degree -> the first neighbor, else the
-   checked Hops (section lost `tabIndex=-1`); a saved note -> "+" (not the card); a project opening
-   on the panels, and leaving the Data page -> the open place's rail button (`focusCurrentPlace`
-   in `frame/focus.ts`). The table dock closing still hands focus to the drawing. Tests:
-   `FocusAfterClose`, `Replace`, `Notes`, `PathForm`, inspector `tasks` (real-element) and
-   `Inspector.test.tsx`. Evidence `tmp/r1-dry1-focus-placement/` (T18B/07, T19A/13, T19B/06,
-   T19B/13, T21A/06, T23B/02-04, T12RA/02-03).
-2. (2026-10-08) **Inspector polish (app + compact-mantine, no owner door).** Attribute kind and
-   origin are stat rows ("Kind Amount", "Origin From the file"), the kind's meaning in a tooltip
-   (`measurementGloss`). Results is its own `ControlSection` (node and edge). The neighbor list's
-   heading is the section title, one form at every reach ("6 nodes within 1 hop of Ava",
-   `neighborhoodWords`), Hops/Follow at row size, and "Back to <node>" above it. A null-default
-   number option is an empty box saying what empty means (`StyleNumberInput.emptyText`; sample
-   size "Every node", else "Not set"). A right-click on a table header opens its menu, never
-   sorts. Every label line the app adds carries `labelStyle {font: body font, sizePx: 72}` in the
-   same undo step (`writeLine`, `addLabelRow` in a `session.transaction`); the legend skips
-   `*.labelStyle`. Evidence `tmp/r1-dry1-inspector-polish/` (A/02, A/03, A/05, A/07, A/10, B/04,
-   B/06, C/01). OPEN: label size is world-space (9-node file ~22px, 20-node ~10px); a size fixed on
-   screen needs an element option.
-3. (2026-10-08) **Filter rows keep their sentence; editor and neighbor toggle answer back (app,
-   no door).** A step row has no visible count; its outcome ("77 to 44 nodes" / "off") is the
-   row's description, the header chip and Overview carry what shows. Save step disabled until the
-   rule differs; an edit-save announces itself; Filter to neighbors is `aria-pressed` and removes
-   its step when pressed again; out-of-date words from `StaleNote`. Evidence
-   `tmp/r1-dry1-filters-polish/`.
-4. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()` summary;
-   roles "From"/"To"; preview follows a table added through "+"; columns sized by `measureText`;
-   `meaningGloss` a whole sentence; role box `aria-label="Role of km"` (StyleSelect prop, team
-   decision); reset tooltips on the three Style* resets. Open: the hint's 11px vs the 9px labels
-   (raised for the director). Evidence `tmp/r1-dry1-import-*`.
-5. (2026-10-08) **Shared controls (compact-mantine).** SegmentedControl `flex-basis: auto` in a
-   content-sized track (no clipped segment); one focus ring on a bound field; find hints are
-   `Input.Description` (11/16). Theme `fontSizes.xs` stays 9 (243 uses).
-6. (2026-10-08) **Row text fits.** A stat reading and a PageList description wrap (row grows); a
-   Tree count gets at most half the row and a cut row's tooltip carries name and count (owner door
-   listed: taller stat rows).
-7. (2026-10-08) **A reopened run keeps its summary** (element `projectFile.ts`): a canned outcome
-   carries everything a live one does.
-8. (2026-10-08) **Marks visible on a colored drawing** (element; owner doors): highlight `#332288`;
-   selected edge `edgeColor/edgeScale/edgeOpacity`, band behind via `zOffsetUnits`.
-9. (2026-10-08) Earlier: histogram bands (`buildHistogram`); edge hover cursor; pilot fixes
-   (`LoadedSource.leftOut.edges`). OPEN: T21 Replace relayouts every node; Edit source... ADDS;
-   neighborhood filter has no `direction`; Dijkstra always undirected.
+1. (2026-10-08) **Focus lands on a control (app).** Find path -> the route's first node in Values;
+   find pick -> Degree; Degree -> first neighbor, else Hops; saved note -> "+"; project open and
+   leaving Data -> the place's rail button (`focusCurrentPlace`). Evidence
+   `tmp/r1-dry1-focus-placement/`.
+2. (2026-10-08) **Inspector polish (app + compact-mantine).** Kind and origin as stat rows,
+   Results its own section, one neighbor heading form (`neighborhoodWords`), empty number box with
+   words (`StyleNumberInput.emptyText`), header right-click opens its menu, label lines carry a
+   72px `labelStyle` in one undo step. OPEN: label size is world-space; a screen-fixed size needs an
+   element option. Evidence `tmp/r1-dry1-inspector-polish/`.
+3. (2026-10-08) **Filter rows keep their sentence (app).** Outcome as the row description; Save
+   step disabled until changed; neighbor filter `aria-pressed`. Evidence `tmp/r1-dry1-filters-polish/`.
+4. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()`, roles
+   "From"/"To", `meaningGloss`, role box `aria-label`. Open: hint 11px vs labels 9px. Evidence
+   `tmp/r1-dry1-import-*`.
+5. (2026-10-08) Earlier, in place: SegmentedControl `flex-basis: auto`; find hints are
+   `Input.Description`; stat readings and PageList descriptions wrap; a reopened run keeps its
+   summary (`projectFile.ts`); highlight `#332288` and the selected-edge band (owner doors);
+   histogram bands. OPEN: T21 Replace relayouts every node; neighborhood filter has no
+   `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
@@ -191,6 +175,14 @@ acceptance test. "The studio worktree" is
   #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Worked: a find option the caller fills with its own words (`edgeNameJoiner`) keeps
+  the arrow spelling in the app and the matching in the element. Did not hold: the toolbar real
+  test "frames a selected edge's two ends" fails on this branch with or without the find change:
+  the camera lands at x 13.92 / 14.46 against an expected 14.07 that is the same every run, so the
+  frame itself ends somewhere different each run (not yet traced). TableDock's export preview
+  passes alone and failed only inside the full real-element run (its 1 s `waitFor` on "Writing the
+  preview..." expired while 20 files drew at once).
 
 - (2026-10-08) The study tool's `combobox ""` in an ambiguity line is its own description
   (aria-label or innerText or value), not the accessible name: the From box WAS named "From" by

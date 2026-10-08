@@ -4,6 +4,26 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: find an edge by its name (`FindOptions.edgeNameJoiner`)
+
+**What.** graphty-element's `FindOptions` gains an optional `edgeNameJoiner?: string`. Set, `find`
+also matches each edge against its name: its source's name, the joiner, its target's name (with
+`" -> "`, "Station -> Stadium"). The name ranks with node names, so typing the whole name or either
+end's name lists the edge, after the node itself; the hit's `match.path` is then `"ends"`. Absent
+(the default), an edge is found by its own attribute values only, exactly as before. The graphty
+app passes the same joiner its inspector titles an edge with (`edgeJoiner` in
+`graphty/src/workspace/inspector/words.ts`).
+
+**Why.** A reader who read "Station -> Stadium" at the top of the inspector, or who knew the two
+stops, typed that into Find and got "No match": an edge was findable only by its own columns. The
+words between the names are the application's, so the element takes them from the caller instead
+of choosing an arrow; the matching over the graph is the element's. Test:
+`graphty-element/test/session/find.test.ts` ("finds an edge by its name ...").
+
+**Alternatives.** Matching ends by default (changes what `find` returns for existing calls:
+breaking); the app splitting its own title and searching twice (computing over the graph in the
+app); a structured `{ source, target }` query (a second way in for a typed box that has only text).
+
 ## 2026-10-08 -- Decided by the team: a run says when it assumed its weight's meaning (`WeightMeaning.assumed`)
 
 **What.** graphty-element's `WeightMeaning` gains an optional `assumed?: true`. A run's

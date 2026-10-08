@@ -495,7 +495,6 @@ function attributeSummary(attribute: SelectionAttributeStatistics): string | und
     return top === undefined || top.count <= 1 ? undefined : `${top.value} (${formatNumber(top.count)})`;
 }
 
-/**
 /** How many selected edges the list names before "N more edges". */
 const EDGES_LISTED = 20;
 
@@ -540,6 +539,7 @@ function SelectedEdges({ session }: Readonly<{ session: GraphSession }>): React.
     );
 }
 
+/**
  * Several elements' Values (tier1-design.md section 2.7): what the selection adds up to, from
  * graphty-element's `selection.statistics()`.
  * @param props - Component props

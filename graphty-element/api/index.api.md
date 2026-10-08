@@ -732,6 +732,7 @@ export class Edge {
     get drawnLine(): {
         name: string;
         length: number;
+        width: number;
         visibility: number;
         centre: Vector3;
     } | null;

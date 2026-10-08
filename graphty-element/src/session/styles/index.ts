@@ -36,6 +36,7 @@ export type {
 export type {
     ChannelAgreement,
     ChannelExplanation,
+    ChannelRefusalCode,
     ChannelShare,
     ExplainTarget,
     StyleAgreement,
@@ -43,6 +44,7 @@ export type {
     StyleCounts,
     StyleExplanation,
     UnboundLayer,
+    UnboundLayerCode,
 } from "./explain";
 export type {
     CompiledLayer,

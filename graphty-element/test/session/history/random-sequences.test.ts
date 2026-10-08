@@ -17,7 +17,7 @@
  */
 
 import fc from "fast-check";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, onTestFailed } from "vitest";
 
 import type { LayerSpec } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/GraphSession";
@@ -43,7 +43,13 @@ const SEEDS = [1, 17, 4242, 90210, 2026];
 const NUM_RUNS = Number(process.env.FC_NUM_RUNS ?? 60);
 /** Longest sequence tried. */
 const MAX_COMMANDS = 30;
-/** Per seed: a coverage run of the whole model is slower than the project's 30 s default. */
+/**
+ * Per seed: a coverage run of the whole model is slower than the project's 30 s default. This is
+ * also what fails a sequence that hangs. Every clock, queue turn and run here is held by the
+ * model, so a sequence that never settles is waiting on something that will never come, and no
+ * per-sequence deadline is needed to find one: a deadline would only fail a slow machine. When
+ * the limit fails a seed, the test prints the sequence that was running (see `runSeed`).
+ */
 const SEED_TIMEOUT_MS = 90_000;
 
 /** Where a sequence starts. */
@@ -178,12 +184,25 @@ async function begin(start: Start): Promise<{ real: Real; model: Model }> {
  * @param numRuns - How many sequences to try.
  */
 async function runSeed(seed: number, numRuns: number): Promise<void> {
+    // fast-check reports a failing sequence, but not one the seed's time limit stopped, so the test
+    // keeps the running one at hand and prints it however the seed fails.
+    let run = -1;
+    let running = (): string => "no sequence had started";
+    onTestFailed(() => {
+        console.error(
+            `Seed ${String(seed)} failed during run ${String(run)} (0-based; FC_SEED=${String(seed)} ` +
+                `FC_PATH=${String(run)} replays it). The commands that had started, the last one ` +
+                `possibly unfinished: ${running()}`,
+        );
+    });
     await fc.assert(
         guardedAsyncProperty(
             fc.constantFrom(...STARTS),
             fc.scheduler(),
             fc.commands(COMMANDS, { maxCommands: MAX_COMMANDS, size: "max" }),
             async (start, s, commands) => {
+                run++;
+                running = () => `from ${start}: ${fc.stringify(commands)}\nScheduler: ${fc.stringify(s)}`;
                 let begun: { real: Real; model: Model } | undefined;
                 await fc.scheduledModelRun(
                     s,
@@ -203,8 +222,6 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
         {
             seed,
             numRuns,
-            // A sequence that hangs fails rather than holding the seed's test until it times out.
-            timeout: 10_000,
             // Shrinking a long sequence takes longer than CI gives it; FC_SHRINK=1 shrinks one
             // failure locally, and FC_PATH replays it from the path the failure printed.
             endOnFailure: process.env.FC_SHRINK === undefined,

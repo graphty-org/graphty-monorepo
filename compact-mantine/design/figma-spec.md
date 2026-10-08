@@ -208,19 +208,19 @@ The family is `"Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-syste
 `--font-family-default` with our bundled face first). Monospace: `"Roboto Mono", ui-monospace,
 SFMono-Regular, Menlo, monospace` (Figma `--text-mono-medium`; not bundled).
 
-| Role                  | Size / line-height       | Weight | Letter-spacing          | Figma token                 | Used by                                                                   |
-| --------------------- | ------------------------ | ------ | ----------------------- | --------------------------- | ------------------------------------------------------------------------- |
-| body                  | 11 / 16                  | 450    | 0.055px                 | `--text-body-medium`        | menu items, tooltips, input values, buttons, list rows                    |
-| body strong           | 11 / 16                  | 550    | 0.055px                 | `--text-body-medium-strong` | section titles (letter-spacing normal on section `h2`), active tab, toast |
-| heading small         | 13 / 22                  | 550    | -0.032px                | `--text-heading-small`      | selection type title, file name                                           |
-| heading medium        | 15 / 25                  | 550    | -0.075px                | `--text-heading-medium`     | empty-state heading                                                       |
-| caption strong        | 9 / 14                   | 500    | 0.27px                  | `--text-body-small-strong`  | captions above two-column fields                                          |
-| caption               | 9 / 14                   | 450    | 0.045px                 | `--text-body-small`         | rail labels                                                               |
-| layer top-level       | 11 / 32                  | 600    | 0.055px                 | none                        | top-level tree rows                                                       |
-| layer nested / legend | 11 / 32 (legend 11 / 16) | 400    | 0.055px (legend normal) | none                        | nested tree rows, field legends                                           |
-| large row             | 13 / 24                  | 400    | -0.003px                | none                        | quick actions rows                                                        |
-| sheet                 | 12 / 16 (tabs 12 / 38)   | 400    | normal                  | none                        | keyboard shortcuts sheet                                                  |
-| key cap               | 14 / 24                  | 400    | normal                  | none                        | key caps                                                                  |
+| Role                  | Size / line-height       | Weight | Letter-spacing          | Figma token                 | Used by                                                                         |
+| --------------------- | ------------------------ | ------ | ----------------------- | --------------------------- | ------------------------------------------------------------------------------- |
+| body                  | 11 / 16                  | 450    | 0.055px                 | `--text-body-medium`        | menu items, tooltips, input values, buttons, list rows                          |
+| body strong           | 11 / 16                  | 550    | 0.055px                 | `--text-body-medium-strong` | section titles (letter-spacing normal on section `h2`), active tab, toast       |
+| heading small         | 13 / 22                  | 550    | -0.032px                | `--text-heading-small`      | selection type title, file name                                                 |
+| heading medium        | 15 / 25                  | 550    | -0.075px                | `--text-heading-medium`     | empty-state heading                                                             |
+| caption strong        | 9 / 14                   | 500    | 0.27px                  | `--text-body-small-strong`  | captions above two-column fields, field-row legends (9.3)                       |
+| caption               | 9 / 14                   | 450    | 0.045px                 | `--text-body-small`         | rail labels                                                                     |
+| layer top-level       | 11 / 32                  | 600    | 0.055px                 | none                        | top-level tree rows                                                             |
+| layer nested / legend | 11 / 32 (legend 11 / 16) | 400    | 0.055px (legend normal) | none                        | nested tree rows, input labels (a `ControlGroup` legend is caption strong, 9.3) |
+| large row             | 13 / 24                  | 400    | -0.003px                | none                        | quick actions rows                                                              |
+| sheet                 | 12 / 16 (tabs 12 / 38)   | 400    | normal                  | none                        | keyboard shortcuts sheet                                                        |
+| key cap               | 14 / 24                  | 400    | normal                  | none                        | key caps                                                                        |
 
 Mantine theme mapping (`theme.fontSizes` / `theme.lineHeights`, both px):
 
@@ -1228,14 +1228,17 @@ ii/tooltip-panel-below #25-#39, cr/empty-section-title-hover)
 
 (C45; rs/frame-top-panel "Position", dt/dark-number-input-x--default #23 fieldset 240 x 48 padding 0 8 0 16)
 
-- `fieldset` 240 x 48: a 16 legend band (11/16 weight 400, letter-spacing normal,
-  `--cm-text-secondary`), 4 gap, 24 controls, 4 bottom. Controls on the grid (88 | 8 | 88 | 8 |
+- `fieldset` 240 x 48: a 16 legend band, 4 gap, 24 controls, 4 bottom. The legend's text is a
+  span in the caption strong role, 9/14 weight 500 0.27px `--cm-text-secondary` (rs/s-al-full-panel
+  #115, dt/dark-panel-rect #129, dt/dark-panel-text: every captured legend span is 9px 500 0.27px,
+  11 tall at y 3). The `<legend>` element itself computes 11/16 400 normal, but that is only what
+  it inherits from the fieldset; no legend text is drawn at that size. Controls on the grid (88 | 8 | 88 | 8 |
   24).
 - Labeled two-column row (`FieldRow showLabels` / captions): 50 tall, 9/14 weight 500 0.27px
   `--cm-text-secondary` captions ABOVE each column, 3 gap, 24 control. The old "word beside each
   control" layout (`LABEL_COLUMN` beside) stays only for `labelPosition="inline"` (new prop,
   default `"above"`), for compatibility where a caller relies on it -- listed in section 15.
-- `ControlGroup`'s title becomes the legend (11/16 400 secondary), not 10px 500 primary; its
+- `ControlGroup`'s title becomes the legend (9/14 500 0.27px secondary), not 10px 500 primary; its
   divider goes (groups inside a section are not divided in Figma).
 
 ### 9.4 Sub-group (`ControlSubGroup`) -- "Advanced ... settings"

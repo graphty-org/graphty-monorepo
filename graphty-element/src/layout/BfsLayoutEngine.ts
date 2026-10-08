@@ -44,6 +44,7 @@ const bfsLayoutOptionsSchema = defineOptions({
 
 const BfsLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(20),
     start: z.number().or(z.string()),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
@@ -59,8 +60,6 @@ export class BfsLayout extends SnapshotLayoutEngine {
     static type = "bfs";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = bfsLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 20;
     protected readonly dimensions: 2 | 3;
     config: BfsLayoutConfigType;
 
@@ -110,7 +109,7 @@ export class BfsLayout extends SnapshotLayoutEngine {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
             }),
-            BfsLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

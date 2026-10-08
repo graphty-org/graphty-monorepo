@@ -152,7 +152,7 @@ describe("the Data output", () => {
     it("previews the first six lines from the first chunks, never the whole text", async () => {
         const text = vi.fn(() => Promise.reject(new Error("read the whole file")));
         const exportGraph = vi.fn(() =>
-            Promise.resolve({ format: "graphty", lossNotes: [], text, bytes: manyLines() }),
+            Promise.resolve({ format: "graphty", losses: [], lossNotes: [], text, bytes: manyLines() }),
         );
         renderData({ exportGraph });
 
@@ -166,7 +166,7 @@ describe("the Data output", () => {
 
     it("words a failed export by its code, and an unknown code as itself", async () => {
         const exportGraph = vi.fn(() =>
-            Promise.resolve({ format: "graphty", lossNotes: [], text: vi.fn(), bytes: manyLines() }),
+            Promise.resolve({ format: "graphty", losses: [], lossNotes: [], text: vi.fn(), bytes: manyLines() }),
         );
         const downloadGraph = vi.fn(() => Promise.reject(Object.assign(new Error("boom"), { code: "E_X" })));
         renderData({ exportGraph, downloadGraph });
@@ -180,7 +180,7 @@ describe("the Data output", () => {
 
     it("keeps the advanced options behind a closed fold and previews with what the reader sets", async () => {
         const exportGraph = vi.fn(() =>
-            Promise.resolve({ format: "csv", lossNotes: [], text: vi.fn(), bytes: manyLines() }),
+            Promise.resolve({ format: "csv", losses: [], lossNotes: [], text: vi.fn(), bytes: manyLines() }),
         );
         renderData(
             { exportGraph },

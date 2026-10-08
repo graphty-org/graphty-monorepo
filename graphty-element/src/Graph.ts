@@ -377,6 +377,12 @@ export class Graph implements GraphContext {
     camera: CameraManager;
     private initialCameraState?: import("./screenshot/types.js").CameraState;
     private initialCameraStateCaptured = false;
+    /**
+     * True from the first settlement until the framing it asked for lands: `resetCamera()` returns
+     * to the camera that framing produced, which is recorded on its `zoom-to-fit-complete`. A
+     * framing waits for a style pass on its way, so it can land any number of frames later.
+     */
+    #initialCameraStateOwed = false;
 
     /**
      * Whether the camera was placed explicitly (`setCameraState` and every route through it) since
@@ -1066,6 +1072,14 @@ export class Graph implements GraphContext {
             )
             .catch(() => undefined);
 
+        // The first settlement's framing has landed: that is the camera `resetCamera()` returns to.
+        this.eventManager.addListener("zoom-to-fit-complete", () => {
+            if (this.#initialCameraStateOwed) {
+                this.#initialCameraStateOwed = false;
+                this.initialCameraState = this.getCameraState();
+            }
+        });
+
         // Listen for layout-initialized events to handle zoom to fit
         this.eventManager.addListener("layout-initialized", (event) => {
             if (event.type === "layout-initialized") {
@@ -1619,15 +1633,13 @@ export class Graph implements GraphContext {
                             // Force a final zoom to fit after layout has truly settled, unless the
                             // camera was placed since the load asked for framing: that placement
                             // is the answer, and a slow machine settles after it as often as before.
-                            if (!this.#cameraPlaced) {
-                                this.autoFrame();
-                            }
-
-                            // Capture initial camera state after first settlement for resetCamera()
-                            // Use setTimeout to allow zoom-to-fit to complete first
-                            setTimeout(() => {
+                            // The camera `resetCamera()` returns to is the one this framing lands
+                            // on, recorded when it lands; with no framing asked for, it is this one.
+                            const framing = !this.#cameraPlaced && this.autoFrame();
+                            this.#initialCameraStateOwed = framing;
+                            if (!framing) {
                                 this.initialCameraState = this.getCameraState();
-                            }, 100);
+                            }
                         }
                     }
 
@@ -2330,8 +2342,8 @@ export class Graph implements GraphContext {
      *
      * What the `node-data` property does, and the node half of {@link setEdges}. A node whose id is
      * not in the new set is removed the way {@link removeNodes} removes one, so the edges attached
-     * to it go too. A node whose id IS in the new set keeps its object and its position; its data
-     * is not rewritten. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
+     * to it go too. A node whose id IS in the new set keeps its object and its position, and its
+     * data becomes the record it was just given, so a style reading a changed field repaints. A set past the render ceiling is refused with `E_TOO_LARGE` before a node
      * is removed, so the graph keeps the nodes it had.
      * @param nodes - the nodes the graph should hold afterwards
      * @param idPath - Key to use for node IDs (default: the configured node id path)
@@ -3664,12 +3676,16 @@ export class Graph implements GraphContext {
      * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
      * configuration placed the camera itself with `startingCameraDistance`. An explicit
      * `zoomToFit()` is not affected.
+     * @returns True when a framing was asked for.
      */
-    private autoFrame(): void {
+    private autoFrame(): boolean {
         this.#cameraPlaced = false;
         if (this.#autoFrame && this.styles.config.graph.startingCameraDistance === undefined) {
             this.updateManager.enableZoomToFit();
+            return true;
         }
+
+        return false;
     }
 
     /**
@@ -5024,6 +5040,9 @@ export class Graph implements GraphContext {
         // one -- and moves the camera off the state just placed. A later load or layout asks again.
         this.updateManager.disableZoomToFit();
         this.#cameraPlaced = true;
+        // The framing the first settlement asked for is withdrawn, so it will not land: a reset
+        // returns to where the camera stands when it is first asked for.
+        this.#initialCameraStateOwed = false;
 
         // For immediate (non-animated) updates or skipQueue, apply directly
         if (!options || !options.animate || options.skipQueue) {
@@ -6216,7 +6235,8 @@ export class Graph implements GraphContext {
      * @param format - The format id, as `session.catalog.formats()` lists it.
      * @param options - The writer's options, plus graph-io's `sanitizeIds` and `onMixedDirection`
      * and the element's `notes`.
-     * @returns The loss notes, and the document as text or as UTF-8 chunks.
+     * @returns What the export loses (`losses`, coded facts), and the document as text or as UTF-8
+     * chunks.
      * @throws A `GraphtyError` (as a rejection): `E_UNKNOWN_FORMAT` when nothing writes the format,
      * `E_UNKNOWN_OPTION` or `E_OPTION_RANGE` for an option the format's `writerOptions` does not
      * accept, `E_UNSUPPORTED` when the writer's up-front check refuses this graph under these

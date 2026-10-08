@@ -14,7 +14,7 @@ import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./Sn
  */
 const circularLayoutOptionsSchema = defineOptions({
     scalingFactor: {
-        schema: z.number().min(1).max(1000).default(100),
+        schema: z.number().min(1).max(1000).default(80),
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
@@ -41,6 +41,7 @@ const circularLayoutOptionsSchema = defineOptions({
 // Legacy Zod config (kept for backward compatibility)
 const CircularLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(80),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
@@ -60,8 +61,6 @@ export class CircularLayout extends SnapshotLayoutEngine {
      */
     static zodOptionsSchema: OptionsSchema = circularLayoutOptionsSchema;
 
-    /** Layout units to scene units. */
-    private static readonly scale = 80;
     protected readonly dimensions: 2 | 3;
     config: CircularLayoutConfigType;
 
@@ -104,7 +103,7 @@ export class CircularLayout extends SnapshotLayoutEngine {
                 center: this.config.center ?? undefined,
                 dim: layoutDim(this.config.dim),
             }),
-            CircularLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

@@ -13,7 +13,7 @@
  */
 import { Button, Loader, Menu, Modal, Popover, Progress, ScrollArea, Tooltip } from "@mantine/core";
 import { useState } from "react";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import { InfoCircle } from "../../src/components/InfoCircle";
@@ -21,6 +21,7 @@ import { ContextMenu } from "../../src/components/overlays/ContextMenu";
 import { MenuCheckItem } from "../../src/components/overlays/MenuCheckItem";
 import { MenuItemDescription } from "../../src/components/overlays/MenuItemDescription";
 import { ModalFooter } from "../../src/components/overlays/ModalFooter";
+import { installOverlayBehavior } from "../../src/components/overlays/overlayBehavior";
 import { Toast } from "../../src/components/overlays/Toast";
 import { TooltipShortcut } from "../../src/components/overlays/TooltipShortcut";
 import { Popout, PopoutManager } from "../../src/components/popout";
@@ -37,7 +38,12 @@ import {
     resetHarness,
 } from "./harness";
 
-afterEach(resetHarness);
+afterEach(async () => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    clockOffset = 0;
+    await resetHarness();
+});
 // A desktop window, as Figma's captures were taken in: a modal and a popover are clamped to the
 // viewport, so the default narrow test page would measure the clamp instead of the component.
 beforeAll(async () => {
@@ -84,19 +90,71 @@ function box(el: Element): DOMRect {
     return el.getBoundingClientRect();
 }
 
+/** Poll until `fn` returns a value. vi.waitFor keeps polling on the real clock under fake timers. */
 async function waitFor<T>(fn: () => T | null | undefined, timeout = 3000): Promise<T> {
-    const start = performance.now();
-    for (;;) {
-        const value = fn();
-        if (value) {
+    return vi.waitFor(
+        () => {
+            const value = fn();
+            if (!value) {
+                throw new Error("timed out");
+            }
             return value;
-        }
-        if (performance.now() - start > timeout) {
-            throw new Error("timed out");
-        }
-        await new Promise((r) => setTimeout(r, 10));
-    }
+        },
+        { timeout, interval: 10 },
+    );
 }
+
+/** Two animation frames: React has committed whatever a timer that just fired scheduled. */
+async function frames(): Promise<void> {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+}
+
+/**
+ * The tooltip delays (Mantine's open and close, overlayBehavior.ts's focus hold) all run on
+ * setTimeout. A fake setTimeout steps them exactly, so the timing tests check the delays the code
+ * asks for rather than how long a busy machine took to honour them. Everything else (rendering,
+ * animation frames, the real clock the warm window is read from) stays real.
+ */
+function fakeTooltipTimers(): void {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+}
+
+const realNow = performance.now.bind(performance);
+let clockOffset = 0;
+/**
+ * Move the clock overlayBehavior.ts reads (performance.now) forward by `ms`, as a busy machine
+ * would between two events. The afterEach puts the real clock back.
+ * @param ms - how far to jump
+ */
+function jumpClock(ms: number): void {
+    clockOffset += ms;
+    vi.spyOn(performance, "now").mockImplementation(() => realNow() + clockOffset);
+}
+
+/**
+ * Resolve when the tooltip showing `text` mounts, after overlayBehavior.ts has decided whether to
+ * hold it. Its document listener must be added before this one so it runs first: the theme only
+ * installs it when the first tooltip opens, which in a test run on its own can come after this
+ * call, so install it here (installing again is a no-op).
+ * Call it after rendering and before the input that opens the tooltip.
+ * @param text - the tooltip's label
+ * @returns the tooltip element
+ */
+function tooltipMount(text: string): Promise<HTMLElement> {
+    installOverlayBehavior();
+    return new Promise((resolve) => {
+        const seen = (event: AnimationEvent): void => {
+            const el = event.target;
+            if (el instanceof HTMLElement && el.classList.contains("cm-tooltip") && el.textContent === text) {
+                document.removeEventListener("animationstart", seen);
+                resolve(el);
+            }
+        };
+        document.addEventListener("animationstart", seen);
+    });
+}
+
+const isVisible = (el: Element): boolean => el.isConnected && computed(el).visibility === "visible";
 
 const available = await figmaAvailable();
 
@@ -491,11 +549,17 @@ describe.skipIf(!available)("8.3 tooltip", () => {
                 { scheme },
             );
             const trigger = getByRole("button");
-            // wait until floating-ui has placed it (it mounts at 0, 0 first)
+            // wait until floating-ui has placed it (it mounts at 0, 0 first) and has stopped
+            // moving it: run on its own, the first placement sat 1.27px left of center (left
+            // 37.30) and floating-ui re-centered it (38.56) a frame later, same width
             const bubble = await waitFor(() => {
                 const el = document.querySelector<HTMLElement>(".mantine-Tooltip-tooltip");
                 return el && box(el).top > 0 ? el : null;
             });
+            for (let last = ""; JSON.stringify(box(bubble)) !== last;) {
+                last = JSON.stringify(box(bubble));
+                await frames();
+            }
             const figma = await figmaElement(TIP, { index: 63 });
             expectMeasured(
                 bubble,
@@ -571,27 +635,36 @@ describe.skipIf(!available)("8.3 tooltip", () => {
             </Tooltip.Group>,
         );
         const tip = (): HTMLElement | null => document.querySelector<HTMLElement>(".mantine-Tooltip-tooltip");
+        fakeTooltipTimers();
 
-        const t0 = performance.now();
+        // cold: nothing at 999 ms, the tooltip at 1000. The open delay is the one pending timer:
+        // still pending at 999 ms (a shorter delay would already have fired), gone at 1000.
         await userEvent.hover(getByRole("button", { name: "1" }));
-        await waitFor(tip, 3000);
-        const cold = performance.now() - t0;
-        expect(cold).toBeGreaterThan(900);
-        expect(cold).toBeLessThan(1400);
+        expect(vi.getTimerCount()).toBe(1);
+        vi.advanceTimersByTime(999);
+        expect(vi.getTimerCount()).toBe(1);
+        await frames();
+        expect(tip()).toBeNull();
+        vi.advanceTimersByTime(1);
+        expect(vi.getTimerCount()).toBe(0);
+        await waitFor(tip);
 
-        const t1 = performance.now();
+        // warm: the next one shows after floating-ui's 1 ms group delay, not the 1000 ms
         await userEvent.hover(getByRole("button", { name: "2" }));
-        await waitFor(() => (tip()?.textContent === "Two" ? tip() : null), 1000);
-        expect(performance.now() - t1).toBeLessThan(250);
+        vi.advanceTimersByTime(1);
+        await waitFor(() => (tip()?.textContent === "Two" ? tip() : null));
 
-        const t2 = performance.now();
+        // hide: still there at 299 ms after the pointer leaves, gone at 300; the close delay is
+        // the one pending timer, still pending at 299 ms
         await commands.mouseAway();
-        await new Promise((r) => setTimeout(r, 150));
+        expect(vi.getTimerCount()).toBe(1);
+        vi.advanceTimersByTime(299);
+        expect(vi.getTimerCount()).toBe(1);
+        await frames();
         expect(tip()).not.toBeNull();
-        await waitFor(() => (tip() ? null : true), 1000);
-        const hide = performance.now() - t2;
-        expect(hide).toBeGreaterThan(250);
-        expect(hide).toBeLessThan(600);
+        vi.advanceTimersByTime(1);
+        expect(vi.getTimerCount()).toBe(0);
+        await waitFor(() => (tip() ? null : true));
     });
 });
 
@@ -659,31 +732,92 @@ describe("8.3 tooltip dismiss and focus delay", () => {
     it("keyboard focus shows the tooltip after the same 1000 ms delay", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await commands.mouseAway();
-        // Cold: no tooltip visible within the last 300 ms (the previous test showed one).
-        await new Promise((r) => setTimeout(r, 400));
+        // Cold: any warm window an earlier test left (300 ms on overlayBehavior.ts's clock) is over.
+        jumpClock(10_000);
+        fakeTooltipTimers();
         getByRole("button", { name: "1" }).focus();
-        const t0 = performance.now();
+        const mounted = tooltipMount("Two");
         await userEvent.keyboard("{Tab}");
         expect(document.activeElement?.textContent).toBe("2");
-        await new Promise((r) => setTimeout(r, 300));
-        expect(document.querySelector(".mantine-Tooltip-tooltip")).not.toBeNull();
-        expect(visibleTip()).toBeNull();
-        await waitFor(visibleTip, 2000);
-        const shown = performance.now() - t0;
-        expect(shown).toBeGreaterThan(900);
-        expect(shown).toBeLessThan(1400);
+        const two = await mounted;
+        expect(two.hasAttribute("data-cm-held")).toBe(true);
+        vi.advanceTimersByTime(999);
+        await frames();
+        expect(isVisible(two)).toBe(false);
+        vi.advanceTimersByTime(1);
+        await waitFor(() => isVisible(two));
+    });
+
+    it("a tooltip stays hidden until overlayBehavior has decided whether to hold it", async () => {
+        // The decision runs on the tooltip's mount animation. Its 1 ms can end a frame before
+        // animationstart is dispatched, so a tooltip must not depend on the animation to stay
+        // hidden: one whose mount was never seen (here, no animation at all) is not shown.
+        await renderFigma(
+            <div className="cm-tooltip" style={{ animation: "none" }}>
+                unseen
+            </div>,
+        );
+        await new Promise((r) => setTimeout(r, 50));
+        expect(computed(document.querySelector(".cm-tooltip") as HTMLElement).visibility).toBe("hidden");
     });
 
     it("Tab from a visible tooltip's trigger hands off at once (warm), as the pointer does", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await commands.mouseAway();
+        fakeTooltipTimers();
+        const mountedOne = tooltipMount("One");
         getByRole("button", { name: "1" }).focus();
-        await waitFor(visibleTip, 2000);
-        const t0 = performance.now();
+        const one = await mountedOne;
+        vi.advanceTimersByTime(1000);
+        await waitFor(() => isVisible(one));
+        const mountedTwo = tooltipMount("Two");
+        // A slow render: the clock passes the 300 ms warm window between the focus moving to "2"
+        // and its tooltip mounting. The hand-off is decided by the focus, so it stays warm.
+        // (overlayBehavior.ts's focusin listener was added first, so it records the focus time
+        // before this one moves the clock.)
+        document.addEventListener("focusin", () => jumpClock(1000), { capture: true, once: true });
         await userEvent.keyboard("{Tab}");
         expect(document.activeElement?.textContent).toBe("2");
-        await waitFor(() => (visibleTip()?.textContent === "Two" ? true : null), 1000);
-        expect(performance.now() - t0).toBeLessThan(250);
+        // At once: not held for the cold delay, and visible with the clock not moved.
+        const two = await mountedTwo;
+        expect(two.hasAttribute("data-cm-held")).toBe(false);
+        await waitFor(() => isVisible(two));
+    });
+
+    it("a key press does not warm the tooltip of a trigger that was already focused", async () => {
+        function Late(): React.JSX.Element {
+            const [enabled, setEnabled] = useState(false);
+            return (
+                <div style={{ display: "flex", gap: 8, padding: 40 }}>
+                    <Tooltip label="One" openDelay={0}>
+                        <button type="button">1</button>
+                    </Tooltip>
+                    <Tooltip label="Two" disabled={!enabled}>
+                        <button type="button" onKeyDown={() => setEnabled(true)}>
+                            2
+                        </button>
+                    </Tooltip>
+                </div>
+            );
+        }
+        const { getByRole } = await renderFigma(<Late />);
+        // Past any warm window an earlier test left (the previous test's tooltip was visible when
+        // its pointer left the window), so the only window is the one this test's key opens.
+        jumpClock(10_000);
+        // "2" holds focus (its tooltip is disabled, so none shows) while "One" shows on hover.
+        getByRole("button", { name: "2" }).focus();
+        await userEvent.hover(getByRole("button", { name: "1" }));
+        const one = await waitFor(visibleTip);
+        // A key press while "One" is visible opens a warm window and enables "Two"'s tooltip,
+        // which mounts with focus unchanged after the window has passed. The focus is older than
+        // the key, so this is no hand-off: it waits the cold delay.
+        const mounted = tooltipMount("Two");
+        document.addEventListener("keydown", () => jumpClock(1000), { once: true });
+        await userEvent.keyboard("a");
+        const two = await mounted;
+        expect(one.hasAttribute("data-cm-dismissed")).toBe(true);
+        expect(document.activeElement?.textContent).toBe("2");
+        expect(two.hasAttribute("data-cm-held")).toBe(true);
     });
 });
 

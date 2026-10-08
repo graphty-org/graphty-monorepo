@@ -96,10 +96,16 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             .then(async (result) => {
                 const lines = await previewOf(result);
                 if (live) {
-                    // Only the coded facts: the notes' English messages never reach the screen.
+                    // Only the coded facts, one per column they name: the element writes no words.
                     setPreview({
                         lines,
-                        losses: result.lossNotes.map(({ code, column, count }) => ({ code, column, count })),
+                        losses: result.losses.flatMap(({ code, params }) => {
+                            const count = typeof params.count === "number" ? params.count : null;
+                            const columns = Array.isArray(params.columns) ? params.columns.map(String) : [];
+                            return columns.length === 0
+                                ? [{ code, column: null, count }]
+                                : columns.map((column) => ({ code, column, count }));
+                        }),
                     });
                 }
             })

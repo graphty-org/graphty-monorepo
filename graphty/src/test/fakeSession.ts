@@ -868,6 +868,37 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             return Promise.resolve(layers[at === -1 ? layers.length - 1 : at]);
         },
         resolveToStatic: (id: string): Promise<Layer | undefined> => Promise.resolve(styles.get(id)),
+        /* A layer's own legend: its fixed colour as one swatch, while it is shown. */
+        legendOf: (id: string): readonly LegendBlock[] => {
+            const layer = layers[indexOf(id)];
+
+            if (layer === undefined) {
+                throw new Error("E_UNKNOWN_LAYER");
+            }
+
+            const color = layer.set?.[COLOUR];
+
+            return layer.enabled && typeof color === "string"
+                ? [
+                      {
+                          channel: COLOUR,
+                          layerId: id,
+                          kind: "literal",
+                          swatches: [{ label: layer.name, value: color, color }],
+                          facts: [],
+                          departures: [],
+                      },
+                  ]
+                : [];
+        },
+        /* Every layer matches the three nodes of the tiny default graph. */
+        counts: (id: string) => {
+            if (indexOf(id) === -1) {
+                throw new Error("E_UNKNOWN_LAYER");
+            }
+
+            return { matched: 3, painted: {}, noValue: 0, outsideScale: 0, revision: "0" };
+        },
         legend: (): readonly LegendBlock[] =>
             layers
                 .filter((layer) => layer.encode?.[COLOUR] !== undefined)

@@ -28,9 +28,10 @@ name: Release
 # Nothing here pushes to master: the version commit reaches master only by the pull request. The file keeps its
 # name because npm's trusted-publisher entry for every package names it.
 #
-# The scheduled attempts are started by an external scheduler (cron-job.org), not by GitHub's cron: GitHub
-# creates this repository's scheduled runs hours late or not at all (owner decision, 2026-10-07). At 00:00, 06:00,
-# 12:00 and 18:00 UTC it dispatches this workflow with scheduled=true:
+# The scheduled attempts are not started by GitHub's cron: GitHub creates this repository's scheduled runs hours
+# late or not at all (owner decision, 2026-10-07). Instead the Cloudflare Worker in tools/release-scheduler/
+# dispatches release.yml with scheduled=true at 00:00, 06:00, 12:00 and 18:00 UTC as the graphty-release-scheduler
+# GitHub App (setup and operation: tools/release-scheduler/README.md):
 #   POST https://api.github.com/repos/graphty-org/graphty-monorepo/actions/workflows/release.yml/dispatches
 #   {"ref":"master","inputs":{"scheduled":"true"}}   (answers HTTP 204)
 # Such a run behaves exactly like a scheduled train attempt; a person can still dispatch it by hand.
@@ -267,10 +268,16 @@ jobs:
     # retitles and comments on) the one open "Release held: <what> failed on <sha>" issue, which githerd turns
     # into a fix job. Scheduled trains skip while it is open; it closes when the fix merges ("Fixes #n") or when
     # a later train passes.
+    # A train attempt ends with a release pull request or with this issue, never with neither. So the condition
+    # is "the train did not succeed", never a list of the results that count as red: a job's result is not only
+    # failure or cancelled. On 2026-10-07 (run 37635516841) a GitHub Actions outage left CI's "All Checks Pass"
+    # queued for good, its result "abandoned", the CI call ended neither failure nor cancelled, and a list of
+    # those two skipped this job: the attempt ended red with no pull request and no issue. always(), so a
+    # cancelled run still reports; a pick that failed (not one that skipped by design) is held too.
     held:
         name: Hold the release
         needs: [pick, ci, t4, hosts, audit, train]
-        if: ${{ !cancelled() && needs.pick.outputs.release == 'true' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+        if: ${{ always() && ((needs.pick.result != 'success' && needs.pick.result != 'skipped') || (needs.pick.outputs.release == 'true' && needs.train.result != 'success')) }}
         runs-on: ubuntu-24.04
         permissions:
             actions: read
@@ -278,7 +285,8 @@ jobs:
             issues: write
         env:
             GH_TOKEN: ${{ github.token }}
-            SHA: ${{ needs.pick.outputs.sha }}
+            SHA: ${{ needs.pick.outputs.sha || github.sha }}
+            PICK_RESULT: ${{ needs.pick.result }}
             CI_RESULT: ${{ needs.ci.result }}
             T4_RESULT: ${{ needs.t4.result }}
             HOSTS_RESULT: ${{ needs.hosts.result }}
@@ -296,19 +304,17 @@ jobs:
               run: |
                   set -euo pipefail
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # Every job the train needs that did not succeed, by its result: failure, cancelled, or one GitHub
+                  # gives no name in its docs (abandoned). Skipped is a consequence (the train skips when a lane
+                  # did not pass), never a cause.
                   what=()
-                  [ "$CI_RESULT" != failure ] || what+=("CI")
-                  [ "$T4_RESULT" != failure ] || what+=("T4 GPU")
-                  [ "$HOSTS_RESULT" != failure ] || what+=("Hosts")
-                  [ "$AUDIT_RESULT" != failure ] || what+=("security audit")
-                  [ "$TRAIN_RESULT" != failure ] || what+=("release pull request")
-                  if [ "${#what[@]}" = 0 ]; then
-                      # Only cancelled (gpu.yml's queue replaced the pending T4 run, a person cancelled a
-                      # lane): nothing to fix, so no issue; the run goes red so the attempt leaves a trace,
-                      # and the next attempt retries.
-                      echo "::error::release attempt on ${SHA} did not finish: a lane was cancelled (CI ${CI_RESULT}, T4 ${T4_RESULT}, Hosts ${HOSTS_RESULT}, audit ${AUDIT_RESULT}); the next attempt retries"
-                      exit 1
-                  fi
+                  results=()
+                  for lane in "candidate pick=$PICK_RESULT" "CI=$CI_RESULT" "T4 GPU=$T4_RESULT" "Hosts=$HOSTS_RESULT" \
+                      "security audit=$AUDIT_RESULT" "release pull request=$TRAIN_RESULT"; do
+                      results+=("${lane%%=*} ${lane#*=}")
+                      case "${lane#*=}" in success | skipped) ;; *) what+=("${lane%%=*}") ;; esac
+                  done
+                  [ "${#what[@]}" != 0 ] || what+=("release train")
                   # The first attempt failed only because a spot runner was taken away (every failed job says its
                   # runner was lost): gpu-rerun-on-runner-loss.yml re-runs this run's failed jobs once when it
                   # ends, with the same test (tools/gpu-runner-lost.sh), so there is nothing to hold yet. A second
@@ -319,8 +325,17 @@ jobs:
                   fi
                   what=$(printf '%s, ' "${what[@]}"); what=${what%, }
                   title="Release held: ${what} failed on ${SHA:0:7}"
+                  # Each job of this attempt that did not pass: failed, cancelled, or never finished (a job GitHub
+                  # never ran stays queued with no conclusion: "none" here, as read collapses an empty tab field).
+                  # Not this job, and not the advisory Coverage job.
+                  jobs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
+                      --jq '.jobs[] | select(.name != "Hold the release" and (.name | startswith("Coverage") | not)) | select(.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral") | "\(.id)\t\(.conclusion // "none")\t\(.name)\t\(.status)\t\([.steps[] | select(.conclusion == "failure") | .name] | join("; "))"') ||
+                      jobs="" # the issue matters more than its details
                   {
                       echo "The release train failed on ${SHA} (${what}): ${run_url}"
+                      echo
+                      echo "Results: $(printf '%s, ' "${results[@]}" | sed 's/, $//')"
+                      [ -z "$jobs" ] || echo "Jobs that did not pass: $(cut -f3 <<<"$jobs" | paste -sd, - | sed 's/,/, /g')"
                       [ "$TRIGGER" != workflow_run ] || echo "This was a restarted release: a master push whose build passed restarted the held release, and it failed again."
                       echo
                       echo "No release pull request was opened and nothing was published. The whole release is held until this is fixed on master. Scheduled trains skip while this issue is open. The release restarts itself on the next push to master whose build passes, so the fix's pull request should name this issue without closing it (\`Refs #<this issue>\`, not \`Fixes #<this issue>\`): its merge restarts the release on its commit. A train that passes releases everything at once and closes this issue; one that fails again comments here."
@@ -328,18 +343,26 @@ jobs:
                           echo
                           echo "If the T4 job was refused or lost its runner (machine.dev: insufficient balance, concurrent runner limit, \"received a shutdown signal\", \"lost communication\"; such a job has no log below), there is no code to fix: it is an owner item. Restore the machine.dev capacity, then \`gh workflow run release.yml --ref master\` retries at once (a dispatch runs despite this issue), or close this issue and the next scheduled train retries."
                       fi
+                      if grep -q $'^[0-9]*\tnone\t' <<<"$jobs" || [[ " ${results[*]} " != *" failure "* ]]; then
+                          echo
+                          echo "A job that never finished, or a lane that was cancelled or abandoned rather than failed, is usually GitHub Actions itself (an outage, a runner never assigned, a person cancelling the run), not the code: check https://www.githubstatus.com for the run's time. If nothing failed on its own, re-run the run's failed jobs (\`gh run rerun ${GITHUB_RUN_ID} --failed\`) or \`gh workflow run release.yml --ref master\` (a dispatch runs despite this issue)."
+                      fi
                       echo
-                      echo "What failed (each failed job's failed steps, then its FAIL and error lines):"
+                      echo "What did not pass (each job's failed steps, then its FAIL and error lines):"
                       echo
                       echo '```'
-                      gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}/jobs?per_page=100" \
-                          --jq '.jobs[] | select(.conclusion == "failure") | "\(.id) \(.name): \([.steps[] | select(.conclusion == "failure") | .name] | join("; "))"' |
-                          while read -r id rest; do
-                              echo "$rest"
-                              # a job the provider refused (no balance, no runner) has no log
-                              gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${id}/logs" 2>/dev/null |
-                                  sed 's/^[0-9TZ:.-]* //' | grep -E '(^| )(FAIL|##\[error\])' | head -60 || true
-                          done || echo "(the run's jobs could not be read; open the run)" # the issue matters more than its details
+                      [ -n "$jobs" ] || echo "(the run's jobs could not be read; open the run)"
+                      while IFS=$'\t' read -r id conclusion name status steps; do
+                          [ -n "$id" ] || continue
+                          if [ "$conclusion" = none ]; then
+                              echo "${name}: never finished (still ${status}): GitHub Actions did not run it"
+                              continue
+                          fi
+                          echo "${name} (${conclusion}): ${steps}"
+                          # a job the provider refused (no balance, no runner) has no log
+                          gh api "repos/${GITHUB_REPOSITORY}/actions/jobs/${id}/logs" 2>/dev/null |
+                              sed 's/^[0-9TZ:.-]* //' | grep -E '(^| )(FAIL|##\[error\])' | head -60 || true
+                      done <<<"$jobs"
                       echo '```'
                   } > "$RUNNER_TEMP/body.md"
                   open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
@@ -581,7 +604,10 @@ jobs:
                   # npm answers a retry inside its propagation window (up to about 7.5 minutes after it accepted
                   # an upload) with E409 "Cannot publish over previously staged version" (npm/cli#9889), which
                   # failed the 3.1.0 release although every version it refused was already published.
-                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false ||
+                  #
+                  # The output is kept for the failed-publish report, which reads npm's login error from it.
+                  set -o pipefail
+                  pnpm exec nx release publish --projects="$PROJECTS" --nxBail=false 2>&1 | tee "$RUNNER_TEMP/publish.log" ||
                       echo "::warning::nx release publish reported a failure; the registry check below decides"
               env:
                   PROJECTS: ${{ steps.tags.outputs.projects }}
@@ -620,12 +646,39 @@ jobs:
               run: |
                   set -euo pipefail
                   run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+                  # A package with no npm trusted publisher fails with npm's login error: its first publish, or one
+                  # whose trusted-publisher configuration expired unused. Only the owner can fix that on npmjs.com,
+                  # so the issue says so instead of reading as a code defect. nx prints each task's output under
+                  # its "nx run <project>:nx-release-publish" line.
+                  login=()
+                  if [ -f "$RUNNER_TEMP/publish.log" ]; then
+                      mapfile -t login < <(sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/publish.log" | awk '
+                          match($0, /nx run [^ ]+:nx-release-publish/) { p = substr($0, RSTART + 7, RLENGTH - 26) }
+                          /requires you to be logged in to https:\/\/registry\.npmjs\.org/ && p != "" { print p; p = "" }' | sort -u)
+                  fi
+                  names=()
+                  for project in "${login[@]}"; do
+                      root=$(pnpm exec nx show project "$project" --json | jq -r .root)
+                      names+=("$(jq -r .name "${root}/package.json")")
+                  done
+                  title="Release held: publish failed on ${GITHUB_SHA:0:7}"
+                  [ "${#names[@]}" = 0 ] || title="${title}: owner must create the npm trusted publisher for ${names[*]}"
                   {
+                      if [ "${#names[@]}" -gt 0 ]; then
+                          echo "## OWNER ITEM: create the npm trusted publisher for ${names[*]}"
+                          echo
+                          echo "This is not a code defect: no pull request or agent can fix it. npm refused to publish ${names[*]} with \"This command requires you to be logged in to https://registry.npmjs.org/\". That is what npm trusted publishing (OIDC) answers when a package has no trusted-publisher configuration: its first publish, or a configuration that expired because no publish used it within 2 days of its creation (https://docs.npmjs.com/trusted-publishers/)."
+                          echo
+                          echo "1. On npmjs.com, for each package below, open its settings, Trusted Publisher, GitHub Actions, and enter: Organization or user \`${GITHUB_REPOSITORY%%/*}\`, Repository \`${GITHUB_REPOSITORY#*/}\`, Workflow filename \`release.yml\`, Environment left empty."
+                          for name in "${names[@]}"; do echo "   - ${name}: https://www.npmjs.com/package/${name}/access"; done
+                          echo "2. Re-run the failed publish at once: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. The new configuration expires if no publish uses it within 2 days."
+                          echo
+                      fi
                       echo "The publish job failed on master ${GITHUB_SHA}: ${run_url}"
                       echo
                       echo "The release pull request merged, but its packages are not all tagged and on npm, so every later release train skips. Read the failed step in the run, fix the cause (an npm rejection, a missing \`release-builds-<sha>\` artifact of the train run, more than one version commit in the push), then re-run the failed jobs: \`gh run rerun ${GITHUB_RUN_ID} --failed\`. A publish that passes closes this issue. The builds the train kept expire 30 days after the train ran."
                   } > "$RUNNER_TEMP/body.md"
-                  open=$(tools/release-held.sh open "Release held: publish failed on ${GITHUB_SHA:0:7}" "$RUNNER_TEMP/body.md")
+                  open=$(tools/release-held.sh open "$title" "$RUNNER_TEMP/body.md")
                   echo "::error::publish failed on ${GITHUB_SHA}; issue ${open}"
 
             - name: Close the failed-publish issue

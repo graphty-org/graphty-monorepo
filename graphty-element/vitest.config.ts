@@ -245,7 +245,9 @@ export default defineConfig({
                 test: {
                     // Timing benchmarks, kept out of the coverage-collecting "default" project
                     // because instrumentation makes a stopwatch measure the instrumentation. Run
-                    // with: npx vitest run --project=bench.
+                    // with: npx vitest run --project=bench. They gate no push: CI runs them in
+                    // ci.yml's advisory "performance" job, because a stopwatch on a busy machine
+                    // measures the machine.
                     //
                     // What keeps them uninstrumented is that no coverage script names this
                     // project -- every one of them lists --project=default --project=mesh. A
@@ -482,8 +484,9 @@ export default defineConfig({
             {
                 // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
                 // reason "bench" is kept out of "default": nothing here runs under coverage, which
-                // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
-                // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
+                // would time the instrumentation. Like "bench", it gates no push: CI runs it in
+                // ci.yml's advisory "performance" job, and by hand with:
+                // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
                 optimizeDeps: { include: PREBUNDLED },
                 test: {

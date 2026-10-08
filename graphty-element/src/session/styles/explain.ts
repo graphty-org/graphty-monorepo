@@ -36,6 +36,7 @@
 
 import type { Channel, ChannelValue, EdgeId, Encoding, LayerId, LayerSpec, NodeId, Path } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import type { CodedFact } from "../shared";
 import { CHANNELS, type ChannelValues, isChannel } from "./channels";
 import { type PreparedBinding, requireChannel } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
@@ -72,9 +73,34 @@ export interface ChannelExplanation {
     readonly mode: "static" | "encoded";
     /** Whether a consumer may offer a control that writes this channel on that layer. */
     readonly editable: boolean;
-    /** Why not, when it is not. A sentence, written for the person who would have edited it. */
+    /**
+     * Why not, when it is not. A sentence, written for the person who would have edited it.
+     * @deprecated English written by the element. Word {@link ChannelExplanation.fact} instead;
+     * removed in the next major release.
+     */
     readonly reason?: string;
+    /**
+     * Why not, when it is not, as a code and its values for the application to word. Present
+     * exactly when `editable` is false.
+     * @since 3.17.0
+     */
+    readonly fact?: CodedFact<ChannelRefusalCode>;
 }
+
+/**
+ * Why a channel cannot be edited on the layer that won it, as the `code` of its
+ * {@link ChannelExplanation.fact}. The application words it; graphty-element writes no sentence
+ * for it. Each code's `params`:
+ *
+ * | Code | Params |
+ * | --- | --- |
+ * | `layer.locked` | `layerId`, `name`: the layer, which belongs to the element and refuses every edit; add a layer above it instead |
+ * | `channel.encoded` | `layerId`, `name`: the layer; `channel`; `path`: the path the layer works the channel out from. Resolve the rule to a fixed value (`styles.resolveToStatic`) first |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.17.0
+ */
+export type ChannelRefusalCode = "layer.locked" | "channel.encoded";
 
 /** Everything there is to say about why one element looks the way it does. */
 export interface StyleExplanation {
@@ -188,11 +214,34 @@ export interface AgreementElements {
 export interface UnboundLayer {
     /** The layer. */
     readonly layerId: LayerId;
-    /** Why it paints nothing, in a sentence. */
+    /**
+     * Why it paints nothing, in a sentence.
+     * @deprecated English written by the element. Word {@link UnboundLayer.fact} instead; removed
+     * in the next major release.
+     */
     readonly reason: string;
+    /**
+     * Why it paints nothing, as a code and its values for the application to word.
+     * @since 3.17.0
+     */
+    readonly fact: CodedFact<UnboundLayerCode>;
     /** The paths it reads that nothing in this session answers. */
     readonly needs: readonly Path[];
 }
+
+/**
+ * Why a layer paints nothing, as the `code` of its {@link UnboundLayer.fact}. The application
+ * words it; graphty-element writes no sentence for it. Each code's `params`:
+ *
+ * | Code | Params |
+ * | --- | --- |
+ * | `layer.detached` | `layerId`, `name`: the layer, whose `{match:"member"}` scope cannot be resolved (a set this project does not hold, a cycle); `error`: the `GraphtyErrorCode` the scope was refused with |
+ * | `layer.unanswered` | `layerId`, `name`: the layer; `paths`: the paths it reads, none of which this session answers (the same list as `needs`) |
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ * @since 3.17.0
+ */
+export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 /** What converting a rule to a fixed value comes to. */
 export interface StaticResolution {
@@ -434,23 +483,33 @@ function paintOne(
  * send a person down a road that also ends in `E_PROTECTED`.
  * @param winner - The layer that won the channel and how.
  * @param channel - The channel.
- * @returns The sentence, or undefined when a control may be offered.
+ * @returns The sentence and its fact, or undefined when a control may be offered.
  */
-function refusal(winner: Winner, channel: Channel): string | undefined {
+function refusal(
+    winner: Winner,
+    channel: Channel,
+): { reason: string; fact: CodedFact<ChannelRefusalCode> } | undefined {
     const { layer, mode, path } = winner;
 
     if (layer.locked) {
-        return (
-            `"${layer.name}" belongs to the element, so it cannot be edited. ` +
-            "Add a layer of your own above it instead."
-        );
+        return {
+            reason:
+                `"${layer.name}" belongs to the element, so it cannot be edited. ` +
+                "Add a layer of your own above it instead.",
+            fact: { code: "layer.locked", params: { layerId: layer.id, name: layer.name } },
+        };
     }
 
     if (mode === "encoded") {
-        return (
-            `"${layer.name}" works ${channel} out from "${String(path)}", so a fixed value written here ` +
-            "would be replaced the next time the layer paints. Resolve the rule to a fixed value first."
-        );
+        return {
+            reason:
+                `"${layer.name}" works ${channel} out from "${String(path)}", so a fixed value written here ` +
+                "would be replaced the next time the layer paints. Resolve the rule to a fixed value first.",
+            fact: {
+                code: "channel.encoded",
+                params: { layerId: layer.id, name: layer.name, channel, path: String(path) },
+            },
+        };
     }
 
     return undefined;
@@ -517,13 +576,13 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
             continue;
         }
 
-        const reason = refusal(winner, channel);
+        const refused = refusal(winner, channel);
         channels.push({
             channel,
             layerId: winner.layer.id,
             mode: winner.mode,
-            editable: reason === undefined,
-            ...(reason === undefined ? {} : { reason }),
+            editable: refused === undefined,
+            ...refused,
         });
     }
 
@@ -777,7 +836,11 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
         if (detached !== undefined) {
             unbound.push({
                 layerId: layer.id,
-                reason: `"${layer.name}" names a scope that cannot be resolved, so it is detached and paints nothing. ${detached}`,
+                reason: `"${layer.name}" names a scope that cannot be resolved, so it is detached and paints nothing. ${detached.message}`,
+                fact: {
+                    code: "layer.detached",
+                    params: { layerId: layer.id, name: layer.name, error: detached.code },
+                },
                 needs: NO_NEEDS,
             });
             continue;
@@ -807,6 +870,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
                 reason:
                     `"${layer.name}" reads ${needs.map((path) => `"${path}"`).join(", ")}, ` +
                     "which nothing in this session answers, so it paints nothing.",
+                fact: { code: "layer.unanswered", params: { layerId: layer.id, name: layer.name, paths: needs } },
                 needs: Object.freeze(needs),
             });
         }

@@ -28,7 +28,7 @@ import type { AlgorithmKey, FieldDescriptor, ResultShape, RunId } from "../../ca
 import { GraphtyError } from "../../errors";
 import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
-import type { ResultSummary, RunResult } from "../results/types";
+import { bindResultPath, type ResultSummary, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
 import {
@@ -362,6 +362,18 @@ function createDeferred<T>(): Deferred<T> {
 }
 
 /**
+ * A run's fields with their paths naming this run. A catalogue descriptor is written before any
+ * run exists, so its paths say `results.$.value`; a consumer reading `run.fields` gets
+ * `results.<runId>.value`, the path a layer or `session.results.path(run)` uses.
+ * @param fields - The fields as the descriptor or the executor declared them.
+ * @param runId - The run they belong to.
+ * @returns The fields, each path bound.
+ */
+function boundFields(fields: readonly FieldDescriptor[], runId: RunId): readonly FieldDescriptor[] {
+    return fields.map((field) => ({ ...field, path: bindResultPath(field.path, runId) }));
+}
+
+/**
  * The monotonic clock, for durations that a wall-clock change cannot corrupt.
  * @returns Milliseconds since an arbitrary origin.
  */
@@ -521,7 +533,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.engine = definition.engine;
         this.style = definition.style;
         this.caveatsValue = definition.caveats;
-        this.fieldsValue = definition.fields;
+        this.fieldsValue = boundFields(definition.fields, definition.id);
         this.scopeValue = surroundings.resolveScope();
         this.scopeFactsValue = surroundings.scopeFacts?.();
     }
@@ -1108,7 +1120,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         this.resultValue = outcome.result;
         this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
-        this.fieldsValue = outcome.fields ?? this.fieldsValue;
+        this.fieldsValue = outcome.fields ? boundFields(outcome.fields, this.id) : this.fieldsValue;
         this.caveatsValue = this.mergeCaveats(outcome, partial, timedOut);
         this.partialValue = partial;
         this.durationValue = Math.round(nowMs() - this.startedAtMs);

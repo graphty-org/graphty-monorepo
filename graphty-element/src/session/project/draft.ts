@@ -341,12 +341,12 @@ interface OpenEntry {
     next: unknown;
 }
 
-/** One write to an open draft's entries since its first checkpoint: what to put back. */
-interface TrailStep {
+/** What a key's entry held just before a change, for the checkpoints taken before it. */
+interface JournalRecord {
     readonly id: string;
-    readonly entry: OpenEntry;
-    /** True when this write created the entry; otherwise the `next` it replaced. */
-    readonly created: boolean;
+    /** Whether the draft held the key. */
+    readonly had: boolean;
+    /** Its `next` then, when it did. */
     readonly next: unknown;
 }
 
@@ -357,10 +357,23 @@ interface OpenDraft {
     rows: RowPatch | null;
     closed: boolean;
     /**
-     * Every entry write since the first checkpoint, oldest first; null until one is taken. A
-     * checkpoint is a length of it, so taking one costs nothing however many keys the draft holds.
+     * What each key held before its first change after each checkpoint, oldest first; null until
+     * the first checkpoint is taken. A checkpoint is a position in it, so taking one costs nothing
+     * however many keys the draft holds, and a transaction of ten thousand members is not
+     * quadratic in its own writes. A revert needs only the first record of each key after its
+     * position, so a key gets one record per checkpoint at most, not one per write.
+     *
+     * Memory: the journal lives as long as the draft, because a checkpoint has no release and an
+     * earlier checkpoint's revert may still need any record. It holds one value per key per
+     * checkpoint the key was written after. A transaction whose every member rewrites a slice
+     * kept as one value (`styles`, a `visibility` field) keeps every member's prior of it until
+     * the transaction closes; snapshot checkpoints held each only while that member ran.
      */
-    trail: TrailStep[] | null;
+    journal: JournalRecord[] | null;
+    /** The journal's length when the latest checkpoint was taken. */
+    mark: number;
+    /** Where in the journal each key was last recorded. */
+    recorded: Map<string, number>;
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -424,12 +437,35 @@ export function createProjectStore(
         }
     };
 
+    /**
+     * Record what a key's entry holds before it changes, when a checkpoint may need it back.
+     * @param draft - The draft whose entry changes.
+     * @param id - The key, as `slice/key`.
+     */
+    const journal = (draft: OpenDraft, id: string): void => {
+        if (draft.journal === null) {
+            return;
+        }
+
+        // Recorded since the latest checkpoint: that record is already the first after every
+        // checkpoint, since every one of them was taken at or before the latest.
+        const last = draft.recorded.get(id);
+        if (last !== undefined && last >= draft.mark) {
+            return;
+        }
+
+        const entry = draft.entries.get(id);
+        draft.recorded.set(id, draft.journal.length);
+        draft.journal.push({ id, had: entry !== undefined, next: entry?.next });
+    };
+
     const write = (draft: OpenDraft, slice: ValueSlice, key: string, value: unknown): void => {
         if (draft.closed) {
             throw new Error(`A closed draft cannot write ${slice}/${key}.`);
         }
 
         const id = `${slice}/${key}`;
+        journal(draft, id);
         let entry = draft.entries.get(id);
         if (entry === undefined) {
             const holder = owners.get(id);
@@ -439,21 +475,19 @@ export function createProjectStore(
             } else {
                 // Hand-over: the earlier open draft gives up the key and its prior.
                 prior = holder.entries.get(id)?.prior;
+                journal(holder, id);
                 holder.entries.delete(id);
             }
 
             entry = { slice, key, prior, next: value };
             draft.entries.set(id, entry);
             owners.set(id, draft);
-            draft.trail?.push({ id, entry, created: true, next: undefined });
             if (strict) {
                 const holders = [...openDrafts].filter((open) => open.entries.has(id)).length;
                 if (holders !== 1) {
                     throw strictViolation(`after a hand-over, ${id} is in ${holders} open patches, not one`);
                 }
             }
-        } else {
-            draft.trail?.push({ id, entry, created: false, next: entry.next });
         }
 
         entry.next = value;
@@ -484,7 +518,15 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false, trail: null };
+            const draft: OpenDraft = {
+                entries: new Map(),
+                log: [],
+                rows: null,
+                closed: false,
+                journal: null,
+                mark: 0,
+                recorded: new Map(),
+            };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -541,9 +583,10 @@ export function createProjectStore(
                     return patch;
                 },
                 checkpoint() {
-                    draft.trail ??= [];
-                    const { trail } = draft;
-                    const marked = trail.length;
+                    draft.journal ??= [];
+                    const records = draft.journal;
+                    const mark = records.length;
+                    draft.mark = mark;
                     const logged = draft.log.length;
 
                     return () => {
@@ -553,24 +596,33 @@ export function createProjectStore(
                             changed.add(entry.slice);
                         }
 
-                        // Newest first, so a key written twice since ends at what it held before.
-                        for (const step of trail.splice(marked).reverse()) {
-                            const { id, entry } = step;
-                            if (draft.entries.get(id) !== entry) {
-                                // Handed to another draft since: theirs now.
+                        // Each key changed since the mark, as it was at the mark: its first record.
+                        const saved = new Map<string, JournalRecord>();
+                        for (let at = mark; at < records.length; at++) {
+                            if (!saved.has(records[at].id)) {
+                                saved.set(records[at].id, records[at]);
+                            }
+                        }
+
+                        for (const [id, record] of saved) {
+                            const entry = draft.entries.get(id);
+                            if (entry === undefined) {
+                                // Handed to another draft since, or already reverted: not ours.
                                 continue;
                             }
 
-                            if (step.created) {
+                            if (!record.had) {
+                                journal(draft, id);
                                 put(entry.slice, entry.key, entry.prior);
                                 draft.entries.delete(id);
                                 owners.delete(id);
-                            } else {
-                                entry.next = step.next;
+                                changed.add(entry.slice);
+                            } else if (record.next !== entry.next) {
+                                journal(draft, id);
+                                entry.next = record.next;
                                 put(entry.slice, entry.key, entry.next);
+                                changed.add(entry.slice);
                             }
-
-                            changed.add(entry.slice);
                         }
 
                         return [...changed];

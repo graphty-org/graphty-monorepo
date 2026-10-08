@@ -254,6 +254,37 @@ const theme = mergeMantineTheme(
 <MantineProvider theme={theme}>{children}</MantineProvider>;
 ```
 
+The accent follows `primaryColor`. By default it is `"brand"`, Figma's blue (#0d99ff, exported as
+`compactBrandColors`); set it to any Mantine color, or to a 10-shade palette of your own, and the
+filled buttons, checked boxes and switches, focus rings, selected rows and brand text take it.
+Light mode uses shades 6 (fill) and 7 (hover and text), dark mode shades 8, 9 and 4:
+
+```tsx
+const theme = mergeMantineTheme(
+    compactTheme,
+    createTheme({
+        colors: {
+            forest: [
+                "#ebfbee",
+                "#d3f9d8",
+                "#b2f2bb",
+                "#8ce99a",
+                "#69db7c",
+                "#51cf66",
+                "#40c057",
+                "#37b24d",
+                "#2f9e44",
+                "#2b8a3e",
+            ],
+        },
+        primaryColor: "forest",
+    }),
+);
+```
+
+With `highContrast: true`, a custom accent replaces the AA option's darker blues, so check its
+contrast yourself.
+
 If you already build your theme from several overrides, take
 `compactThemeOverride` (or `createCompactTheme(options)`) instead. It is the raw
 `createTheme()` result, suitable for `mergeThemeOverrides()`:

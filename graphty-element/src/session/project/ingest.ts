@@ -414,7 +414,12 @@ export class Ingest<K extends KnownEdge> {
             case "update-rows":
                 // Values of its own for each row.
                 for (const row of mutation.rows) {
-                    writer.setAttributes(mutation.target, resolve(mutation.target, row.id), row.values);
+                    writer.setAttributes(
+                        mutation.target,
+                        resolve(mutation.target, row.id),
+                        row.values,
+                        mutation.replace,
+                    );
                 }
 
                 return;

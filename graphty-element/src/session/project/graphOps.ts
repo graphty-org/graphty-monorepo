@@ -296,9 +296,10 @@ export interface GraphWriter {
      * @param target - Node or edge.
      * @param id - Its id.
      * @param values - The new values.
+     * @param replace - The values are the whole new record: a key they lack is dropped.
      * @returns False when the graph holds no such element.
      */
-    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord): boolean;
+    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace?: boolean): boolean;
     /**
      * Set graph-level values: the import report, graph-level results.
      * @param values - The values by name.
@@ -1166,7 +1167,7 @@ class Writer implements GraphWriter {
         }
     }
 
-    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord): boolean {
+    setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace = false): boolean {
         const map = (target === "node" ? this.graph.slice.nodes : this.graph.slice.edges) as Map<NodeId, GraphRecord>;
         const key = target === "node" ? id : String(id);
         const prior = map.get(key);
@@ -1179,6 +1180,7 @@ class Writer implements GraphWriter {
         // revisions, as every attribute write does (design/sets 6.2): comparing values to spare a
         // bump would cost a deep equality per field for no correctness gain.
         if (
+            (!replace || Object.keys(prior).length === Object.keys(values).length) &&
             Object.entries(values).every(
                 ([name, value]) => Object.hasOwn(prior, name) && deepEquals(prior[name], value),
             )
@@ -1189,7 +1191,7 @@ class Writer implements GraphWriter {
         }
 
         this.begin();
-        const next = frozenRecord({ ...prior, ...values });
+        const next = frozenRecord(replace ? values : { ...prior, ...values });
         map.set(key, next);
         if (target === "edge") {
             writeCapacity(this.store, edgeCounterOf(String(key)), next);

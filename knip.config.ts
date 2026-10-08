@@ -24,6 +24,9 @@ const config: KnipConfig = {
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
+                // The release scheduler Worker (deployed by wrangler, not imported) and its tests
+                "tools/release-scheduler/src/worker.js",
+                "tools/release-scheduler/test/*.test.mjs",
             ],
             project: ["*.ts", "*.js", "tools/**/*.{ts,js,cjs,sh}"],
             ignoreDependencies: [
@@ -155,7 +158,14 @@ const config: KnipConfig = {
 
         // Layout package
         layout: {
-            entry: ["src/index.ts!", "test/**/*.test.ts", "test/types/**/*.test-d.ts", "scripts/**/*.{ts,js}"],
+            entry: [
+                "src/index.ts!",
+                "test/**/*.test.ts",
+                "test/types/**/*.test-d.ts",
+                // compiled by tsconfig.consumer.json (npm run typecheck:consumer)
+                "test/consumer/*.ts",
+                "scripts/**/*.{ts,js}",
+            ],
             project: ["src/**/*.ts!", "test/**/*.ts", "scripts/**/*.{ts,js}"],
             ignoreDependencies: [
                 "@storybook/html",
@@ -295,6 +305,10 @@ const config: KnipConfig = {
                 // Used in storybook demos
                 "@zag-js/floating-panel",
                 "@zag-js/react",
+                // The engine @storybook/addon-a11y ships (a devDependency here), imported by
+                // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
+                // Declaring it would change pnpm-lock.yaml.
+                "axe-core",
             ],
         },
     },

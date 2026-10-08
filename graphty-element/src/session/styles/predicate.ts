@@ -161,9 +161,9 @@ export interface LiveScope {
     bits(target: SelectorTarget): U32 | null;
     /**
      * Why the scope paints nothing, when it cannot be resolved.
-     * @returns The reason in a sentence, or undefined when it resolves.
+     * @returns The refusal it resolved to, or undefined when it resolves.
      */
-    problem(): string | undefined;
+    problem(): GraphtyError | undefined;
 }
 
 /**
@@ -253,7 +253,7 @@ export interface CompiledSelector {
      * Why a `{match:"member"}` selector paints nothing, when its scope cannot be resolved (a
      * removed set, a cycle). Absent for every other kind.
      */
-    readonly problem?: () => string | undefined;
+    readonly problem?: () => GraphtyError | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------

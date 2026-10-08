@@ -1058,3 +1058,27 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
 
     return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);
 }
+
+/**
+ * The blocks one layer draws, whether or not the legend lists it: a base layer is answered like
+ * any other. A hidden layer answers none, because a hidden layer paints nothing.
+ * @param sources - What the legend is read from.
+ * @param layerId - The layer.
+ * @returns The layer's blocks, one per channel it paints, or undefined when the stack holds no
+ *     layer with that id.
+ */
+export function buildLayerLegend(sources: LegendSources, layerId: LayerId): readonly LegendBlock[] | undefined {
+    const layers = sources.layers();
+    const at = layers.findIndex((layer) => layer.id === layerId);
+
+    if (at === -1) {
+        return undefined;
+    }
+
+    const layer = layers[at];
+    const blocks = layer.enabled
+        ? sources.encoding(layerId).map((prepared) => buildBlock(layer, prepared, layers, at, sources))
+        : [];
+
+    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);
+}

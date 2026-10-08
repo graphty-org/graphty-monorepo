@@ -1,9 +1,9 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
-import { type LayoutResult, rescaleInPlace } from "../positions";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { RandomNumberGenerator } from "../utils/random";
-import { type CommonLayoutOptions, resolve, result } from "./common";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { RandomNumberGenerator } from "../utils/random.js";
+import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
 /** Relative residual at which the eigenvector iteration stops; far below what a drawing can show. */
 const TOLERANCE = 1e-6;

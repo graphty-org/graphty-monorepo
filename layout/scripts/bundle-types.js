@@ -29,7 +29,7 @@ function bundleTypes() {
  * This file provides type information for the bundled dist/layout.js module.
  */
 
-export * from './src/index';
+export * from './src/index.js';
 `;
 
         const outputPath = path.resolve(__dirname, "../dist/layout.d.ts");

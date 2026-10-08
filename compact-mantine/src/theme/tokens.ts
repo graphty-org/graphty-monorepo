@@ -113,6 +113,45 @@ export const CM_COLORS = {
 export type CmColorName = keyof typeof CM_COLORS;
 
 /**
+ * One shade of the theme's primary color, as Mantine publishes it on :root.
+ * @param shade - the shade, 0 to 9
+ * @returns the CSS value
+ */
+const primary = (shade: number): string => `var(--mantine-primary-color-${shade})`;
+/**
+ * A color mixed over a base.
+ * @param color - the color
+ * @param percent - how much of it
+ * @param base - what it is mixed into
+ * @returns the CSS value
+ */
+const mix = (color: string, percent: number, base: string): string =>
+    `color-mix(in srgb, ${color} ${percent}%, ${base})`;
+
+/**
+ * The accent tokens when the theme's `primaryColor` is not this package's own `brand` (the
+ * Figma accent, #0d99ff): read from the primary palette at the shades the brand values sit at
+ * (light 6 / dark 8 filled, 7 / 9 hover, 7 / 4 text, 0-2 light tints). Figma's dark selection
+ * tints and pressed fills are not palette shades, so a custom accent derives them by mixing.
+ * At the default `brand` this block is not applied and every token keeps its Figma value.
+ */
+const CM_PRIMARY_ACCENT: Partial<Record<CmColorName, { light: string; dark: string }>> = {
+    "bg-brand": { light: primary(6), dark: primary(8) },
+    "bg-brand-hover": { light: primary(7), dark: primary(9) },
+    "bg-brand-pressed": { light: mix(primary(7), 85, "#000000"), dark: mix(primary(9), 85, "#000000") },
+    "bg-selected": { light: primary(0), dark: mix(primary(8), 25, "#2c2c2c") },
+    "bg-selected-hover": { light: primary(1), dark: mix(primary(8), 35, "#2c2c2c") },
+    "bg-selected-secondary": { light: mix(primary(0), 50, "#ffffff"), dark: mix(primary(8), 15, "#2c2c2c") },
+    "bg-selected-pressed": { light: primary(2), dark: mix(primary(8), 25, "#2c2c2c") },
+    "bg-info": { light: primary(0), dark: mix(primary(8), 25, "#2c2c2c") },
+    "text-brand": { light: primary(7), dark: primary(4) },
+    "icon-brand": { light: primary(7), dark: primary(4) },
+    "border-selected": { light: primary(6), dark: primary(8) },
+    "border-selected-strong": { light: primary(7), dark: primary(4) },
+    "text-highlight": { light: mix(primary(6), 40, "transparent"), dark: mix(primary(6), 40, "transparent") },
+};
+
+/**
  * The WCAG 2.2 AA option (spec 2.9): the ONLY tokens `createCompactTheme({ highContrast: true })`
  * changes. Every value is a Figma palette color, so the look stays inside Figma's palette.
  *
@@ -343,6 +382,16 @@ export function tokenDeclarations(): string {
  */
 export function highContrastDeclarations(): string {
     return Object.entries(CM_HIGH_CONTRAST)
+        .map(([name, token]) => `--cm-${name}: ${colorValue(token as CmColorToken)};`)
+        .join("\n    ");
+}
+
+/**
+ * The declarations a custom `primaryColor` overrides.
+ * @returns CSS declarations, one per line
+ */
+export function primaryAccentDeclarations(): string {
+    return Object.entries(CM_PRIMARY_ACCENT)
         .map(([name, token]) => `--cm-${name}: ${colorValue(token as CmColorToken)};`)
         .join("\n    ");
 }

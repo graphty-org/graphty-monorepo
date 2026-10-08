@@ -1954,10 +1954,13 @@ export class GraphStore {
     }
 
     /**
-     * How the direction of this store's graph was settled.
+     * How the direction of this store's graph was settled. Reading it first follows a
+     * `data.directed` changed since the graph was last read, as {@link GraphStore.builder} does,
+     * so a boolean set a moment ago already reads as `configuration`.
      * @returns the provenance, which is `"unsettled"` until a file or the configuration says
      */
     get directionSettledBy(): DirectionProvenance {
+        this.settle();
         return this.direction;
     }
 

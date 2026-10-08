@@ -30,7 +30,8 @@ import type { EventOfType } from "./src/events";
 export interface GraphtyElementJSXProps {
     /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
-     * keeps its row and its edges, and one it no longer names goes, with its edges.
+     * keeps its row, its position and its edges and takes its new record, and one it no longer
+     * names goes, with its edges.
      */
     nodeData?: Graphty["nodeData"];
     /**
@@ -197,7 +198,8 @@ export interface GraphtyElementJSXProps {
     "aria-label"?: string;
     /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
-     * keeps its row and its edges, and one it no longer names goes, with its edges.
+     * keeps its row, its position and its edges and takes its new record, and one it no longer
+     * names goes, with its edges.
      */
     "node-data"?: string;
     /**

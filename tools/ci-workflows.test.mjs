@@ -24,7 +24,17 @@ import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
-import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPrs, revertBody, revertTitle } from "./master-guard.mjs";
+import {
+    closeStaleReverts,
+    decide,
+    examineRed,
+    fileIssue,
+    FREEZE_PREFIX,
+    frozenSha,
+    mergedPrs,
+    revertBody,
+    revertTitle,
+} from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -231,13 +241,13 @@ describe("the pre-push gate matches CI", () => {
             shards.filter((s) => !running.includes(s) && canStart(s, running, new Set(warmed))).map((s) => s.shard);
         // Cold: one warm-up per package (the shortest command of a family), and nothing else.
         assert.deepEqual(startable([], []).sort(), [
-            "graphty-element-browser-2",
+            "graphty-element-browser-1",
             "graphty-element-default",
             "graphty-element-storybook-1",
             "layout",
         ]);
         // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
-        assert.deepEqual(startable([pick("graphty-element-browser-2")], []), ["layout"]);
+        assert.deepEqual(startable([pick("graphty-element-browser-1")], []), ["layout"]);
         // A warmed family's siblings still wait for the package's other families.
         const afterBrowser = startable([], ["graphty-element-browser"]);
         assert.ok(!afterBrowser.includes("graphty-element-browser-3"));
@@ -496,6 +506,17 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+
+    it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
+        const steps = job(ci, "performance")
+            .split(/\n {12}- /)
+            .slice(1);
+        const first = steps.findIndex((step) => /vitest run --project=bench/.test(step));
+        assert.ok(first > 0, "the performance job runs the graphty-element benchmarks");
+        for (const step of steps.slice(first)) {
+            assert.match(step, /\n\s+if: \$\{\{ !cancelled\(\) \}\}\n/, `this step runs after a failure:\n${step}`);
+        }
     });
 
     it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {
@@ -1478,6 +1499,139 @@ describe("master-guard", () => {
         // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
         assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
     });
+
+    // A red CI run on master as the jobs API and the logs show it. `logs` maps a failed job's name to the lines
+    // its failed step printed; `earlier` lists the jobs that failed on a master run an hour before.
+    const redRun = (logs, earlier = []) => {
+        const at = (s) => `2026-10-06T09:51:${s}Z`;
+        const jobs = [
+            { id: 1, name: "Build", conclusion: "success", steps: [] },
+            ...Object.keys(logs).map((name, i) => ({
+                id: 10 + i,
+                name,
+                conclusion: "failure",
+                steps: [{ name: "Run it", conclusion: "failure", started_at: at(26), completed_at: at(30) }],
+            })),
+            { id: 99, name: "All Checks Pass", conclusion: "failure", steps: [] },
+        ];
+        const run = { id: 5, run_attempt: 1, head_sha: "b".repeat(40), created_at: "2026-10-06T10:00:00Z" };
+        const gh = async (path) => {
+            if (path === "/actions/runs/5/attempts/1/jobs?per_page=100") {
+                return { jobs };
+            }
+            const log = /^\/actions\/jobs\/(\d+)\/logs$/.exec(path);
+            if (log) {
+                const job = jobs.find((j) => j.id === Number(log[1]));
+                // a line of the step before, which must not count
+                return [`${at(20)} ETIMEDOUT in an earlier step`, ...logs[job.name].map((l) => `${at(27)} ${l}`)].join(
+                    "\n",
+                );
+            }
+            if (path.startsWith("/actions/workflows/ci.yml/runs?")) {
+                return {
+                    workflow_runs: [
+                        { id: 4, head_sha: "a".repeat(40), conclusion: "failure", created_at: "2026-10-06T09:00:00Z" },
+                    ],
+                };
+            }
+            if (path === "/actions/runs/4/jobs?per_page=100") {
+                return { jobs: earlier.map((name) => ({ name, conclusion: "failure" })) };
+            }
+            throw new Error(`unexpected ${path}`);
+        };
+        return examineRed(gh, run);
+    };
+    // The Links job of master run 37444427406: GitHub answered 502 for a linked Actions run page.
+    const LINKS_502 = [
+        "Checking github.com/graphty-org links",
+        "[502] https://github.com/graphty-org/graphty-monorepo/actions/runs/35316416067 (at 109:186) | Rejected status code: 502 Bad Gateway",
+        "[502] https://github.com/graphty-org/graphty-monorepo/actions/runs/35316416067 (at 53:153) | Rejected status code: 502 Bad Gateway",
+        "Dead links found (see above). Fix the link, or publish what it points to.",
+        "##[error]Process completed with exit code 1.",
+    ];
+
+    it("opens no revert when every failed job failed from outside", async () => {
+        const { failed, outside } = await redRun({ Links: LINKS_502 });
+        assert.deepEqual(failed, ["Links"]);
+        assert.equal(outside.length, 1);
+        assert.match(outside[0], /^Links: `\[502\] https:\/\/github.com\/.*502 Bad Gateway` \(and 1 more like it\)$/);
+        // npm and DNS errors, a lost runner, and a job that also failed on an earlier commit
+        assert.ok(
+            (await redRun({ Build: ["npm error code E503", "##[error]Process completed with exit code 1."] })).outside,
+        );
+        assert.ok((await redRun({ Build: ["getaddrinfo EAI_AGAIN registry.npmjs.org"] })).outside);
+        const lost = await redRun({ Build: [] }, ["Build"]);
+        assert.deepEqual(lost.outside, [`Build also failed on the earlier master commit ${"a".repeat(40)}.`]);
+    });
+
+    it("still opens a revert when a failure may be the commit's own", async () => {
+        // a dead relative link beside the 502s, a type error, or a failure with no outside error at all
+        assert.equal(
+            (await redRun({ Links: [...LINKS_502, "[ERROR] file:///docs/x.md#gone | Cannot find fragment"] })).outside,
+            null,
+        );
+        assert.equal((await redRun({ Links: LINKS_502, Build: ["src/a.ts(1,2): error TS2322: no"] })).outside, null);
+        assert.equal((await redRun({ Build: ["##[error]Process completed with exit code 1."] })).outside, null);
+        // an outside error printed by an earlier step of the job does not count
+        assert.equal((await redRun({ Build: ["vite build failed"] })).outside, null);
+        // a job that failed earlier in a window does not excuse a different job
+        assert.equal((await redRun({ Build: ["vite build failed"] }, ["Links"])).outside, null);
+    });
+
+    // A fake repository holding one open revert pull request of commit `reverted`, which failed `jobs`.
+    const withRevert = (status, jobs = ["Links"]) => {
+        const reverted = "c".repeat(40);
+        const writes = [];
+        const gh = async (path, init = {}) => {
+            if ((init.method ?? "GET") !== "GET") {
+                writes.push([init.method, path, init.body ? JSON.parse(init.body) : undefined]);
+                return {};
+            }
+            if (path.startsWith("/pulls?")) {
+                return [
+                    { number: 3, head: { ref: "fix/thing" }, body: "Fixes it" },
+                    {
+                        number: 1203,
+                        head: { ref: "revert/ccccccc" },
+                        body: `${revertBody(reverted, "https://run/1", [1118])}\n\n<!-- master-guard failed jobs: ${JSON.stringify(jobs)} -->`,
+                    },
+                ];
+            }
+            assert.equal(path, `/compare/${reverted}...${"d".repeat(40)}`);
+            return { status };
+        };
+        return { gh, writes };
+    };
+    const at = { sha: "d".repeat(40), url: "https://run/2" };
+
+    it("closes its open revert once master CI is green at or after the reverted commit", async () => {
+        const { gh, writes } = withRevert("ahead");
+        assert.deepEqual(await closeStaleReverts(gh, { ...at, green: true }), [1203]);
+        assert.match(writes[0][2].body, /^Master CI is green at d{40} \(https:\/\/run\/2\), which contains c{40}/);
+        assert.deepEqual(writes.slice(1), [
+            ["PATCH", "/pulls/1203", { state: "closed" }],
+            ["DELETE", "/git/refs/heads/revert/ccccccc", undefined],
+        ]);
+        // green on a commit without the reverted one says nothing about it
+        assert.deepEqual(await closeStaleReverts(withRevert("behind").gh, { ...at, green: true }), []);
+    });
+
+    it("closes its open revert when the same job fails on another commit", async () => {
+        const { gh, writes } = withRevert("behind");
+        assert.deepEqual(await closeStaleReverts(gh, { ...at, green: false, failed: ["Links"] }), [1203]);
+        assert.match(writes[0][2].body, /^Links failed again at d{40} .*on a commit without c{40}/);
+        // after the reverted commit, only an outside cause clears it; a different job never does
+        assert.deepEqual(
+            await closeStaleReverts(withRevert("ahead").gh, { ...at, green: false, failed: ["Links"] }),
+            [],
+        );
+        const outside = { ...at, green: false, failed: ["Links"], outside: true };
+        assert.deepEqual(await closeStaleReverts(withRevert("ahead").gh, outside), [1203]);
+        assert.deepEqual(
+            await closeStaleReverts(withRevert("behind").gh, { ...at, green: false, failed: ["Build"] }),
+            [],
+        );
+    });
 });
 
 describe("release.yml", () => {
@@ -1499,7 +1653,7 @@ describe("release.yml", () => {
     });
 
     it("tries a release on dispatch, from master's newest commit, with no GitHub cron", () => {
-        // the external scheduler (cron-job.org) dispatches with scheduled=true; GitHub's cron would fire twice a slot
+        // the release scheduler Worker (tools/release-scheduler/) dispatches with scheduled=true; GitHub's cron would fire twice a slot
         const on = /^on:\n([\s\S]*?)\n\S/m.exec(release)[1];
         assert.doesNotMatch(on, /^\s*schedule:/m);
         assert.doesNotMatch(release, /^\s*- cron:/m);
@@ -1620,10 +1774,6 @@ describe("release.yml", () => {
 
     it("holds the whole release when anything fails: no pull request, no builds kept, nothing published, one issue", () => {
         assert.match(held, /needs: \[pick, ci, t4, hosts, audit, train\]/);
-        assert.match(
-            held,
-            /if: \$\{\{ !cancelled\(\) && needs.pick.outputs.release == 'true' && \(contains\(needs.\*.result, 'failure'\) \|\| contains\(needs.\*.result, 'cancelled'\)\) \}\}/,
-        );
         assert.doesNotMatch(held, /gh pr create|git push|nx release|upload-artifact|id-token/);
         // the publish job finds only builds the train kept, and only the train keeps them
         assert.equal(release.match(/name: release-builds-/g).length, 2);
@@ -1633,12 +1783,14 @@ describe("release.yml", () => {
         // one issue naming what failed: found by its title prefix and updated, else created with the labels
         // githerd and triage read
         for (const [result, name] of [
+            ["PICK", "candidate pick"],
             ["CI", "CI"],
             ["T4", "T4 GPU"],
             ["HOSTS", "Hosts"],
             ["AUDIT", "security audit"],
+            ["TRAIN", "release pull request"],
         ]) {
-            assert.ok(held.includes(`[ "$${result}_RESULT" != failure ] || what+=("${name}")`), name);
+            assert.ok(held.includes(`"${name}=$${result}_RESULT"`), name);
         }
         assert.match(held, /title="Release held: \$\{what\} failed on \$\{SHA:0:7\}"/);
         assert.match(held, /open=\$\(tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md"\)/);
@@ -1648,13 +1800,212 @@ describe("release.yml", () => {
         assert.match(helper, /gh issue comment "\$open"/);
         assert.match(helper, /--label bug --label priority:high --label effort:medium/);
         assert.match(held, /::error::release held/);
-        // a lane only cancelled: a red run, no issue (nothing to fix; the next attempt retries)
-        assert.match(held, /if \[ "\$\{#what\[@\]\}" = 0 \]; then\n(\s+#[^\n]*\n)+\s+echo "::error::[^\n]*\n\s+exit 1/);
+        // the only way out without an issue is the T4 runner loss the re-run repeats (tested with it)
+        assert.equal(held.match(/\n\s+exit [0-9]/g).length, 1);
         // a refused or lost T4 runner has no code fix: the issue says so
         assert.match(held, /if \[ "\$T4_RESULT" = failure \]; then\n\s+echo\n\s+echo "If the T4 job was refused/);
         // and the next train that passes closes it, as its last step
         const close = train.indexOf("tools/release-held.sh close");
         assert.ok(close > train.indexOf("gh pr create"), "closed only after the release pull request");
+    });
+
+    // A train attempt ends with a release pull request or a "Release held" issue, never with neither. Run
+    // 37635516841 (2026-10-07) ended with neither: a GitHub Actions outage left CI's "All Checks Pass" queued for
+    // good, its result "abandoned", and held's `if` listed only failure and cancelled.
+    describe("never ends a train attempt without a pull request or a held issue", () => {
+        const trainNeeds = /\n {8}needs: \[([^\]]*)\]/.exec(train)[1].split(", ");
+        const condition = /\n {8}if: \$\{\{ (.*) \}\}\n/.exec(held)[1];
+        // the condition as JavaScript: GitHub's expression syntax here is a subset of it
+        const runs = (results, release = "true") =>
+            new Function(
+                "needs",
+                `return ${condition.replace(/\balways\(\)/g, "true").replace(/!cancelled\(\)/g, "true")};`,
+            )(
+                Object.fromEntries(
+                    ["pick", "ci", "t4", "hosts", "audit", "train"].map((j) => [
+                        j,
+                        { result: results[j] ?? "success", outputs: { release: j === "pick" ? release : undefined } },
+                    ]),
+                ),
+            );
+        // every result a job can end with, including the ones GitHub does not document
+        const NOT_SUCCESS = ["failure", "cancelled", "skipped", "abandoned", "timed_out", "a-result-not-yet-invented"];
+
+        it("needs every job the train needs, and the train", () => {
+            assert.deepEqual(trainNeeds, ["pick", "ci", "t4", "hosts", "audit"]);
+            assert.match(held, new RegExp(`needs: \\[${[...trainNeeds, "train"].join(", ")}\\]`));
+        });
+
+        it("runs whatever the run's state: always(), never a list of red results", () => {
+            assert.match(condition, /^always\(\) && /);
+            assert.doesNotMatch(condition, /cancelled\(\)|contains\(|== 'failure'|== 'cancelled'/);
+        });
+
+        it("runs for every non-success result of every lane the train needs", () => {
+            for (const lane of trainNeeds.filter((j) => j !== "pick")) {
+                for (const result of NOT_SUCCESS) {
+                    // a lane that did not succeed skips the train
+                    assert.equal(runs({ [lane]: result, train: "skipped" }), true, `${lane} ${result}`);
+                }
+            }
+            for (const result of NOT_SUCCESS) {
+                assert.equal(runs({ train: result }), true, `train ${result}`);
+            }
+        });
+
+        it("runs when the pick itself did not finish, but not when it skipped by design", () => {
+            for (const result of NOT_SUCCESS.filter((r) => r !== "skipped")) {
+                assert.equal(
+                    runs(
+                        {
+                            pick: result,
+                            ci: "skipped",
+                            t4: "skipped",
+                            hosts: "skipped",
+                            audit: "skipped",
+                            train: "skipped",
+                        },
+                        "",
+                    ),
+                    true,
+                    result,
+                );
+            }
+            // a push (the publish job's run) and a restart whose build failed skip the pick
+            assert.equal(
+                runs(
+                    {
+                        pick: "skipped",
+                        ci: "skipped",
+                        t4: "skipped",
+                        hosts: "skipped",
+                        audit: "skipped",
+                        train: "skipped",
+                    },
+                    "",
+                ),
+                false,
+            );
+        });
+
+        it("stays quiet when the train opened its pull request, or the pick found nothing to release", () => {
+            assert.equal(runs({}), false);
+            const none = { ci: "skipped", t4: "skipped", hosts: "skipped", audit: "skipped", train: "skipped" };
+            assert.equal(runs(none, "false"), false);
+        });
+
+        // The issue step, run in a scratch directory with stubs: gh lists this attempt's jobs (run 37635516841's
+        // shape: CI's "All Checks Pass" never ran, "Queue Checks Pass" failed on it) and tools/release-held.sh
+        // records the issue it would open.
+        const issue = (env, jobs) => {
+            const script = /- name: Open or update the held-release issue\n\s+run: \|\n([\s\S]*?)\n\n/.exec(held)[1];
+            const dir = mkdtempSync(join(tmpdir(), "release-held-"));
+            try {
+                mkdirSync(join(dir, "tools"));
+                mkdirSync(join(dir, "bin"));
+                writeFileSync(join(dir, "jobs.json"), JSON.stringify({ jobs }));
+                // `gh api .../jobs --jq <filter>` answers from jobs.json through the real jq; a job log is empty
+                writeFileSync(
+                    join(dir, "bin", "gh"),
+                    `#!/bin/bash\ncase "$2" in */jobs\\?*) jq -r "$4" "${join(dir, "jobs.json")}";; esac\n`,
+                    { mode: 0o755 },
+                );
+                writeFileSync(join(dir, "tools", "gpu-runner-lost.sh"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+                writeFileSync(
+                    join(dir, "tools", "release-held.sh"),
+                    `#!/bin/sh\necho "$2" > "${join(dir, "title")}"\ncp "$3" "${join(dir, "body")}"\necho 42\n`,
+                    { mode: 0o755 },
+                );
+                const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: {
+                        ...process.env,
+                        PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                        GITHUB_SERVER_URL: "https://github.com",
+                        GITHUB_REPOSITORY: "o/r",
+                        GITHUB_RUN_ID: "37635516841",
+                        GITHUB_RUN_ATTEMPT: "1",
+                        RUNNER_TEMP: dir,
+                        TRIGGER: "schedule",
+                        SHA: "44ab26d10658f95c66025ab391219e2865b94aa8",
+                        PICK_RESULT: "success",
+                        CI_RESULT: "success",
+                        T4_RESULT: "success",
+                        HOSTS_RESULT: "success",
+                        AUDIT_RESULT: "success",
+                        TRAIN_RESULT: "skipped",
+                        ...env,
+                    },
+                });
+                assert.equal(run.status, 0, run.stderr);
+                return {
+                    title: readFileSync(join(dir, "title"), "utf8"),
+                    body: readFileSync(join(dir, "body"), "utf8"),
+                };
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+        const JOBS = [
+            { id: 1, name: "Pick the release candidate", status: "completed", conclusion: "success", steps: [] },
+            { id: 2, name: "CI / Build", status: "completed", conclusion: "success", steps: [] },
+            { id: 3, name: "CI / All Checks Pass", status: "queued", conclusion: null, steps: [] },
+            {
+                id: 4,
+                name: "CI / Queue Checks Pass",
+                status: "completed",
+                conclusion: "failure",
+                steps: [{ name: "Check the run passed, and was the full suite in the queue", conclusion: "failure" }],
+            },
+            { id: 5, name: "Coverage", status: "completed", conclusion: "skipped", steps: [] },
+            { id: 6, name: "Hold the release", status: "in_progress", conclusion: null, steps: [] },
+        ];
+
+        it("opens the issue for an abandoned CI call, naming the job that never ran", () => {
+            const { title, body } = issue({ CI_RESULT: "abandoned" }, JOBS);
+            assert.equal(title, "Release held: CI failed on 44ab26d\n");
+            assert.match(body, /Results: candidate pick success, CI abandoned, T4 GPU success, /);
+            assert.match(body, /Jobs that did not pass: CI \/ All Checks Pass, CI \/ Queue Checks Pass\n/);
+            assert.match(body, /\nCI \/ All Checks Pass: never finished \(still queued\)/);
+            assert.match(body, /\nCI \/ Queue Checks Pass \(failure\): Check the run passed/);
+            assert.match(body, /githubstatus\.com/);
+            assert.doesNotMatch(body, /Hold the release|Coverage/);
+        });
+
+        it("opens the issue when a lane was only cancelled", () => {
+            const { title } = issue({ T4_RESULT: "cancelled" }, []);
+            assert.equal(title, "Release held: T4 GPU failed on 44ab26d\n");
+        });
+
+        it("opens the issue when the pick itself failed", () => {
+            const { title } = issue(
+                {
+                    PICK_RESULT: "failure",
+                    CI_RESULT: "skipped",
+                    T4_RESULT: "skipped",
+                    HOSTS_RESULT: "skipped",
+                    AUDIT_RESULT: "skipped",
+                },
+                [],
+            );
+            assert.equal(title, "Release held: candidate pick failed on 44ab26d\n");
+        });
+
+        it("names a failed train, and holds the outage hint back when a job failed on its own", () => {
+            const { title, body } = issue({ TRAIN_RESULT: "failure" }, [
+                {
+                    id: 7,
+                    name: "Open the release pull request",
+                    status: "completed",
+                    conclusion: "failure",
+                    steps: [{ name: "Version the packages", conclusion: "failure" }],
+                },
+            ]);
+            assert.equal(title, "Release held: release pull request failed on 44ab26d\n");
+            assert.match(body, /Open the release pull request \(failure\): Version the packages/);
+            assert.doesNotMatch(body, /githubstatus/);
+        });
     });
 
     describe("restarts a held release on a master push whose build passed", () => {
@@ -1770,12 +2121,114 @@ describe("release.yml", () => {
         assert.match(publish, /issues: write/);
         assert.match(
             publish,
-            /- name: Report a failed publish\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*tools\/release-held.sh open "Release held: publish failed on \$\{GITHUB_SHA:0:7\}"/,
+            /- name: Report a failed publish\n\s+if: \$\{\{ failure\(\) \}\}[\s\S]*title="Release held: publish failed on \$\{GITHUB_SHA:0:7\}"[\s\S]*tools\/release-held.sh open "\$title"/,
         );
         assert.match(
             publish,
             /- name: Close the failed-publish issue\n\s+run: \|\n\s+tools\/release-held.sh close[\s\S]*"Release held: publish failed"\n/,
         );
+    });
+
+    // The failed-publish report, run in a scratch directory with stubs: the publish step's output (run
+    // 37691314850's shape, colors and all), `pnpm exec nx show project` answering each project's root, and
+    // tools/release-held.sh recording the issue it would open.
+    const publishReport = (log) => {
+        const script = /- name: Report a failed publish\n\s+if: [^\n]*\n\s+run: \|\n([\s\S]*?)\n\n/.exec(publish)[1];
+        const dir = mkdtempSync(join(tmpdir(), "release-publish-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "bin"));
+            for (const project of ["cytoscape-extensions", "layout"]) {
+                mkdirSync(join(dir, project));
+                writeFileSync(join(dir, project, "package.json"), JSON.stringify({ name: `@graphty/${project}` }));
+            }
+            writeFileSync(join(dir, "bin", "pnpm"), '#!/bin/sh\necho "{\\"root\\": \\"$5\\"}"\n', { mode: 0o755 });
+            writeFileSync(
+                join(dir, "tools", "release-held.sh"),
+                `#!/bin/sh\necho "$2" > "${join(dir, "title")}"\ncp "$3" "${join(dir, "body")}"\necho 42\n`,
+                { mode: 0o755 },
+            );
+            if (log !== undefined) writeFileSync(join(dir, "publish.log"), log);
+            const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                    GITHUB_SERVER_URL: "https://github.com",
+                    GITHUB_REPOSITORY: "graphty-org/graphty-monorepo",
+                    GITHUB_RUN_ID: "37691314850",
+                    GITHUB_SHA: "e140ea5c8358785f46e6a671172c30a361c6ded4",
+                    RUNNER_TEMP: dir,
+                },
+            });
+            assert.equal(run.status, 0, run.stderr);
+            return { title: readFileSync(join(dir, "title"), "utf8"), body: readFileSync(join(dir, "body"), "utf8") };
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    };
+    const task = (ok, project, output) =>
+        `##[group]${ok ? "✅" : "❌"} \x1b[2m> \x1b[22m\x1b[2mnx run\x1b[22m ${project}:nx-release-publish\n\n${output}\n##[endgroup]\n`;
+    const LOGIN =
+        "pnpm publish error:\nThis command requires you to be logged in to https://registry.npmjs.org/\nYou need to authorize this machine using `npm adduser`";
+    const FAILED = "\x1b[2mFailed tasks:\x1b[22m\n\n\x1b[2m-\x1b[22m cytoscape-extensions:nx-release-publish\n";
+
+    it("keeps the publish output for the report and still lets the registry check decide", () => {
+        assert.match(
+            publish,
+            /set -o pipefail\n\s+pnpm exec nx release publish --projects="\$PROJECTS" --nxBail=false 2>&1 \| tee "\$RUNNER_TEMP\/publish.log" \|\|\n\s+echo "::warning::/,
+        );
+        assert.match(
+            publish,
+            /- name: Check every version is on npm\n[\s\S]*?::error::\$\{spec\} is versioned on master but not on npm[\s\S]*?exit 1\n/,
+        );
+    });
+
+    it("makes a package with no npm trusted publisher an owner item naming its settings, the fields and the re-run", () => {
+        const { title, body } = publishReport(
+            task(true, "graph-format", 'Published to https://registry.npmjs.org/ with tag "latest"') +
+                task(false, "cytoscape-extensions", LOGIN) +
+                task(true, "graphty-element", "{") +
+                FAILED,
+        );
+        assert.equal(
+            title.trim(),
+            "Release held: publish failed on e140ea5: owner must create the npm trusted publisher for @graphty/cytoscape-extensions",
+        );
+        assert.ok(title.startsWith("Release held: publish failed"), "the close step still finds it");
+        assert.match(body, /^## OWNER ITEM: create the npm trusted publisher for @graphty\/cytoscape-extensions\n/);
+        assert.match(body, /This is not a code defect/);
+        assert.match(
+            body,
+            /- @graphty\/cytoscape-extensions: https:\/\/www.npmjs.com\/package\/@graphty\/cytoscape-extensions\/access\n/,
+        );
+        assert.match(
+            body,
+            /Organization or user `graphty-org`, Repository `graphty-monorepo`, Workflow filename `release.yml`, Environment left empty/,
+        );
+        assert.match(body, /within 2 days/);
+        assert.match(body, /`gh run rerun 37691314850 --failed`/);
+        assert.doesNotMatch(body, /graph-format|graphty-element/);
+    });
+
+    it("names every package that hit the login error, and only those", () => {
+        const { title, body } = publishReport(
+            task(false, "layout", LOGIN) +
+                task(false, "graph-io", "npm error code E403") +
+                task(false, "cytoscape-extensions", LOGIN),
+        );
+        assert.match(title, /trusted publisher for @graphty\/cytoscape-extensions @graphty\/layout\n$/);
+        assert.doesNotMatch(body, /graph-io/);
+    });
+
+    it("reports any other failed publish as before, with no owner item", () => {
+        for (const log of [task(false, "graph-io", "npm error code E403\nnpm error 403 Forbidden"), undefined]) {
+            const { title, body } = publishReport(log);
+            assert.equal(title.trim(), "Release held: publish failed on e140ea5");
+            assert.doesNotMatch(body, /OWNER ITEM/);
+            assert.match(body, /^The publish job failed on master /);
+        }
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {

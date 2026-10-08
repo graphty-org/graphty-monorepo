@@ -145,6 +145,10 @@ export default defineConfig({
             },
             // Browser project - runs in real Chromium via Playwright
             {
+                // Bundled before the run starts. Discovered mid-run (the stories render through
+                // react/jsx-dev-runtime), Vite re-optimizes and reloads, and every story rendered
+                // after that comes out empty.
+                optimizeDeps: { include: ["react/jsx-dev-runtime"] },
                 test: {
                     name: "browser",
                     globals: true,

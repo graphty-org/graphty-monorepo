@@ -34,7 +34,8 @@ interface XRSessionConfig {
  * (snippet.babylonjs.com), which breaks on an offline, intranet or CSP-restricted page.
  *
  * - Controllers use the motion controller classes built into Babylon instead of the online
- *   profile repository.
+ *   profile repository, and draw no model: Babylon's built-in classes download their models
+ *   from controllers.babylonjs.com. The controllers still track, point and select.
  * - Hands draw as Babylon's tracked joint spheres. The rigged hand meshes are glTF files, and
  *   graphty-element ships no glTF loader, so they never loaded even online: the joint spheres are
  *   what a headset showed before this change too.
@@ -45,7 +46,7 @@ const OFFLINE_XR_OPTIONS = {
     // The element draws its own XR controls (opt-in, `xr.ui.enabled`); Babylon's enter/exit
     // button would otherwise stay on the canvas after the first session request.
     disableDefaultUI: true,
-    inputOptions: { disableOnlineControllerRepository: true },
+    inputOptions: { disableOnlineControllerRepository: true, doNotLoadControllerMeshes: true },
     handSupportOptions: {
         jointMeshes: { enablePhysics: false },
         handMeshes: { disableDefaultMeshes: true },

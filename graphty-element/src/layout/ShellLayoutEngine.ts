@@ -45,6 +45,7 @@ const shellLayoutOptionsSchema = defineOptions({
 
 const ShellLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(100),
     nlist: z.array(z.array(z.number())).or(z.null()).default(null),
     groupBy: z.string().nullable().default(null),
     dim: z.number().default(2),
@@ -61,8 +62,6 @@ export class ShellLayout extends SnapshotLayoutEngine {
     static type = "shell";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = shellLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: ShellLayoutConfigType;
 
@@ -121,7 +120,7 @@ export class ShellLayout extends SnapshotLayoutEngine {
                 center: this.config.center ?? undefined,
                 dim: layoutDim(this.config.dim),
             }),
-            ShellLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

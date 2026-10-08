@@ -2,6 +2,7 @@ import type { F64, GraphSnapshot, NumericVector, U32 } from "@graphty/graph-form
 
 import { withCode } from "../errors.js";
 import type { PageRankResult } from "./pagerank.js";
+import { IndexedMaxHeap } from "./structures/max-heap.js";
 
 /**
  * The delta PageRank engines over snapshots: the `useDelta` path of the legacy `pageRank`
@@ -364,69 +365,11 @@ export class DeltaPageRank {
 }
 
 /**
- * A binary max-heap of node indices that allows duplicates and breaks ties exactly as the legacy
- * `PriorityQueue` with comparator `(a, b) => b - a` does, so both dequeue in the same order.
- */
-class DuplicateMaxHeap {
-    private readonly node: number[] = [];
-    private readonly key: number[] = [];
-
-    isEmpty(): boolean {
-        return this.node.length === 0;
-    }
-
-    push(node: number, key: number): void {
-        this.node.push(node);
-        this.key.push(key);
-        let i = this.node.length - 1;
-        while (i > 0) {
-            const p = (i - 1) >> 1;
-            if (!(this.key[p] - this.key[i] < 0)) {
-                break;
-            }
-            this.swap(i, p);
-            i = p;
-        }
-    }
-
-    pop(): number {
-        const top = this.node[0];
-        const lastNode = this.node.pop() as number;
-        const lastKey = this.key.pop() as number;
-        if (this.node.length === 0) {
-            return top;
-        }
-        this.node[0] = lastNode;
-        this.key[0] = lastKey;
-        let i = 0;
-        for (;;) {
-            const l = 2 * i + 1;
-            const r = l + 1;
-            let t = i;
-            if (l < this.node.length && this.key[t] - this.key[l] < 0) {
-                t = l;
-            }
-            if (r < this.node.length && this.key[t] - this.key[r] < 0) {
-                t = r;
-            }
-            if (t === i) {
-                return top;
-            }
-            this.swap(i, t);
-            i = t;
-        }
-    }
-
-    private swap(i: number, j: number): void {
-        [this.node[i], this.node[j]] = [this.node[j], this.node[i]];
-        [this.key[i], this.key[j]] = [this.key[j], this.key[i]];
-    }
-}
-
-/**
  * Delta PageRank processed one node at a time, largest pending delta first, keeping its state
- * between calls. `maxIterations` counts processed nodes; every 1000 of them the run stops if no
- * pending delta reaches `tolerance`. At the end each pending delta of at least `deltaThreshold` is
+ * between calls. A node is queued at most once: a delta that reaches a queued node raises its key
+ * instead of adding a second entry, so a pop always carries the node's whole pending delta.
+ * `maxIterations` counts processed nodes; every 1000 of them the run stops if no pending delta
+ * reaches `tolerance`. At the end each pending delta of at least `deltaThreshold` is
  * added to its score (and stays pending), and the scores are normalised.
  *
  * The starting deltas are the teleport share, so the scores converge to `pageRank`'s and no
@@ -442,7 +385,7 @@ export class PriorityDeltaPageRank {
     private readonly outW: F64;
     private readonly scores: F64;
     private readonly deltas: F64;
-    private readonly heap = new DuplicateMaxHeap();
+    private readonly heap: IndexedMaxHeap;
 
     /**
      * Start every node at score 0 with a pending delta of 1 / n, queued in index order.
@@ -459,6 +402,7 @@ export class PriorityDeltaPageRank {
         this.outW = outWeights(s, this.order, this.weights);
         this.scores = new Float64Array(s.nodeCount);
         this.deltas = new Float64Array(s.nodeCount).fill(1 / s.nodeCount);
+        this.heap = new IndexedMaxHeap(s.nodeCount);
         for (let u = 0; u < s.nodeCount; u++) {
             this.heap.push(u, 1 / s.nodeCount);
         }
@@ -495,7 +439,7 @@ export class PriorityDeltaPageRank {
                     const pending = deltas[v] + d * delta * ((weights === null ? 1 : weights[a]) / ow);
                     deltas[v] = pending;
                     if (Math.abs(pending) >= threshold) {
-                        heap.push(v, Math.abs(pending));
+                        heap.pushOrIncrease(v, Math.abs(pending));
                     }
                 }
             }

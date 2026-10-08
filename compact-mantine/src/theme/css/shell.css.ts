@@ -92,8 +92,8 @@ const css = `
     vertical-align: middle;
 }
 .cm-kbd[data-active] {
-    border-color: var(--mantine-color-brand-2);
-    background-color: var(--mantine-color-brand-2);
+    border-color: var(--mantine-primary-color-2);
+    background-color: var(--mantine-primary-color-2);
     color: var(--cm-bg-menu);
 }
 .cm-kbd[data-variant="inline"] {
@@ -556,7 +556,7 @@ const css = `
     line-height: 15.6px;
     color: var(--cm-text-menu-secondary);
 }
-.cm-sheet-row[data-highlighted] .cm-sheet-row-label { color: var(--mantine-color-brand-2); }
+.cm-sheet-row[data-highlighted] .cm-sheet-row-label { color: var(--mantine-primary-color-2); }
 .cm-sheet-keys {
     display: inline-flex;
     gap: 3px;
@@ -747,8 +747,10 @@ const css = `
     line-height: 24px;
     color: var(--cm-text-tertiary);
 }
+/* Drawn above the (empty) list rather than inside it, so it adds the list's own 4px 8px inset. */
 .cm-qa-empty {
-    padding: 8px 16px;
+    display: block;
+    padding: 12px 24px 0;
     ${cmFont("body")}
     color: var(--cm-text-secondary);
 }

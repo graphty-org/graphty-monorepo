@@ -127,50 +127,26 @@ function midpointOf(element: Graphty, src: string | number, dst: string | number
 }
 
 /**
- * WCAG relative luminance of one pixel.
- * @param rgb - The pixel's channels, 0 to 255.
- * @returns The luminance, 0 to 1.
- */
-function luminanceOf(rgb: readonly number[]): number {
-    const [r, g, b] = rgb.map((byte) => {
-        const c = byte / 255;
-        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    });
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/**
- * The contrast ratio of two luminances.
- * @param a - One.
- * @param b - The other.
- * @returns The ratio.
- */
-function ratio(a: number, b: number): number {
-    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-}
-
-/**
- * The darkest pixel drawn in a small square around a point: on the light canvas, the line's color.
+ * The pixels drawn in a one-pixel column across a point, top to bottom.
  * @param element - The element.
  * @param point - The point, in CSS pixels.
- * @returns Its luminance.
+ * @returns Each pixel's red, green and blue, 0 to 255.
  */
-async function darkestNear(element: Graphty, point: { x: number; y: number }): Promise<number> {
+async function columnAt(element: Graphty, point: { x: number; y: number }): Promise<number[][]> {
     const { graph } = element;
     await element.waitForStableFrame();
     graph.scene.render();
     const { engine } = graph;
-    const half = 3;
+    const half = 12;
     // readPixels counts rows from the bottom.
-    const x = Math.round(point.x) - half;
     const y = engine.getRenderHeight() - Math.round(point.y) - half;
-    const pixels = (await engine.readPixels(x, y, half * 2, half * 2)) as unknown as Uint8Array;
-    let darkest = 1;
-    for (let at = 0; at < pixels.length; at += 4) {
-        darkest = Math.min(darkest, luminanceOf([pixels[at], pixels[at + 1], pixels[at + 2]]));
+    const pixels = (await engine.readPixels(Math.round(point.x), y, 1, half * 2)) as unknown as Uint8Array;
+    const column: number[][] = [];
+    for (let at = pixels.length - 4; at >= 0; at -= 4) {
+        column.push([pixels[at], pixels[at + 1], pixels[at + 2]]);
     }
 
-    return darkest;
+    return column;
 }
 
 describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
@@ -218,7 +194,11 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
 
         const mid = midpointOf(element, "a", "b");
         assert.deepStrictEqual(element.elementAt(mid), { kind: "edge", id: ab });
-        assert.deepStrictEqual(element.elementAt({ x: mid.x, y: mid.y + 3 }), { kind: "edge", id: ab }, "within a few pixels");
+        assert.deepStrictEqual(
+            element.elementAt({ x: mid.x, y: mid.y + 3 }),
+            { kind: "edge", id: ab },
+            "within a few pixels",
+        );
 
         await userEvent.click(element, { position: { ...mid } });
         assert.deepStrictEqual(element.session.selection.edges, [ab]);
@@ -235,20 +215,33 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.strictEqual(element.session.selection.edges.length, 0);
     }, 60_000);
 
-    it("draws a selected edge marked at 3:1 against the canvas and its unselected line", async () => {
+    it("draws a selected edge with a band of the selection color at the selection opacity", async () => {
         const element = await mounted(viewMode);
         const ab = edgeBetween(element, "a", "b");
         const mid = midpointOf(element, "a", "b");
+        const { color, opacity } = element.session.config.selectionStyle;
+        const gold = [1, 3, 5].map((at) => Number.parseInt(color.slice(at, at + 2), 16));
 
-        const canvas = await darkestNear(element, { x: 6, y: 6 });
-        const plain = await darkestNear(element, mid);
+        const before = await columnAt(element, mid);
         await element.graph.select({ edges: [ab] });
-        const marked = await darkestNear(element, mid);
+        const after = await columnAt(element, mid);
 
-        assert.isAtLeast(ratio(marked, canvas), 3, `marked ${String(marked)} on canvas ${String(canvas)}`);
-        assert.isAtLeast(ratio(marked, plain), 3, `marked ${String(marked)} against plain ${String(plain)}`);
+        // Across the line at its midpoint: canvas before, and inside the band now. The band is
+        // the selection color laid over the canvas at the configured opacity, as a node's halo is.
+        const canvas = before[0];
+        const want = canvas.map((channel, at) => channel * (1 - opacity) + gold[at] * opacity);
+        const banded = after.filter(
+            (pixel, row) =>
+                before[row].every((channel, at) => Math.abs(channel - canvas[at]) <= 2) &&
+                pixel.every((channel, at) => Math.abs(channel - want[at]) <= 8),
+        );
+        assert.isAtLeast(
+            banded.length,
+            2,
+            `a band of ${String(want.map(Math.round))} beside the line; across it: ${JSON.stringify(after)}`,
+        );
 
         await element.graph.select({ edges: [] });
-        assert.closeTo(await darkestNear(element, mid), plain, 0.01, "deselected, the edge is drawn plain again");
+        assert.deepStrictEqual(await columnAt(element, mid), before, "deselected, the edge is drawn plain again");
     }, 60_000);
 });

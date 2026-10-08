@@ -14,6 +14,7 @@
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { GraphSelectionStyleInput } from "../src/config";
+import type { Graphty } from "../src/graphty-element";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
 import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
@@ -226,5 +227,40 @@ export const RestyledWhileSelected: Story = {
         await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 
         await assertHalo(scene, { color: "#7CB342", alpha: 0.7, clearance: 2 });
+    },
+};
+
+/**
+ * A selected EDGE: the line keeps its own paint, with a band of the selection colour at the
+ * selection opacity along it -- the same three settings a node's halo reads.
+ */
+export const SelectedEdge: Story = {
+    render: (args: HighlightArgs) => {
+        const element = render(args) as Graphty;
+
+        // The edge into the node the other stories select, in place of that node.
+        element.addEventListener("graph-settled", () => {
+            const edge = [...element.graph.getDataManager().edges.values()].find(
+                (candidate) => candidate.srcId === "beta" && candidate.dstId === SELECTED,
+            );
+
+            if (edge) {
+                void element.graph.select({ nodes: [], edges: [edge.id] });
+            }
+        });
+
+        return element;
+    },
+    play: async ({ canvasElement }) => {
+        await waitForGraphSettled(canvasElement);
+        const element = await renderedElement(canvasElement, "SelectedEdge: no <graphty-element> rendered");
+        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+
+        const { selection } = element.session;
+        await holds(
+            selection.edges.length === 1 && selection.nodes.length === 0,
+            `SelectedEdge: the selection is ${String(selection.nodes.length)} nodes and ` +
+                `${String(selection.edges.length)} edges, not the one edge`,
+        );
     },
 };

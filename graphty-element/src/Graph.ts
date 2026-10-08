@@ -789,8 +789,8 @@ export class Graph implements GraphContext {
                 }
             }
 
-            // A selected edge's mark is worked out from both: redraw it.
-            if (changed("selectionStyle") || changed("background")) {
+            // A selected edge's halo is drawn from the selection style: redraw it.
+            if (changed("selectionStyle")) {
                 for (const edge of this.dataManager.edges.values()) {
                     if (edge.isSelected()) {
                         edge.updateStyle();

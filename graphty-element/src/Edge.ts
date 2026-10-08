@@ -5,7 +5,6 @@ import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
 
 import { type AdHocData, DEFAULT_SELECTION_STYLE, type EdgeStyleConfig, type RichTextStyleType } from "./config";
-import { colorToHex } from "./config/common";
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
@@ -18,8 +17,6 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
-import { luminance } from "./session/styles/legend";
-import { hexToRgb, rgbToHex } from "./utils/styleHelpers/color/interpolation";
 
 interface InterceptPoint {
     srcPoint: Vector3 | null;
@@ -146,56 +143,6 @@ export function adoptEdgeRecord(edge: Edge, record: AdHocData): void {
     writeRecord(edge, record);
 }
 
-/** The contrast a selected edge's mark keeps against the canvas and its own unselected line (WCAG 1.4.11). */
-const SELECTION_MARK_CONTRAST = 3;
-
-/**
- * The WCAG contrast ratio of two colours.
- * @param a - One colour, as hex.
- * @param b - The other.
- * @returns The ratio, 1 to 21; 21 when either is not a colour, so nothing is adjusted for it.
- */
-function contrast(a: string, b: string): number {
-    const x = hexToRgb(colorToHex(a)?.toLowerCase());
-    const y = hexToRgb(colorToHex(b)?.toLowerCase());
-    if (x === null || y === null) {
-        return 21;
-    }
-
-    const [hi, lo] = [luminance(x), luminance(y)].sort((m, n) => n - m);
-    return (hi + 0.05) / (lo + 0.05);
-}
-
-/**
- * The colour a selected edge is drawn in: the configured selection colour, darkened (on a light
- * canvas) or lightened (on a dark one) until it stands at 3:1 from the canvas and, where that is
- * reachable, from the line it replaces.
- * @param selection - The configured selection colour, as hex.
- * @param canvas - The canvas colour, or undefined when the background is not a plain colour.
- * @param line - The edge's unselected line colour.
- * @returns The mark's colour, as hex.
- */
-function selectionMarkColor(selection: string, canvas: string | undefined, line: string): string {
-    const rgb = hexToRgb(selection.toLowerCase());
-    if (canvas === undefined || rgb === null) {
-        return selection;
-    }
-
-    const pole = luminance(hexToRgb(colorToHex(canvas)?.toLowerCase()) ?? rgb) > 0.5 ? 0 : 255;
-    let firstOnCanvas: string | undefined;
-    for (let t = 0; t <= 1; t += 0.05) {
-        const mixed = rgbToHex(rgb.r + (pole - rgb.r) * t, rgb.g + (pole - rgb.g) * t, rgb.b + (pole - rgb.b) * t);
-        if (contrast(mixed, canvas) >= SELECTION_MARK_CONTRAST) {
-            firstOnCanvas ??= mixed;
-            if (contrast(mixed, line) >= SELECTION_MARK_CONTRAST) {
-                return mixed;
-            }
-        }
-    }
-
-    return firstOnCanvas ?? selection;
-}
-
 /**
  * Represents a directed edge between two nodes in the graph visualization.
  * Handles rendering of edge lines, arrow heads/tails, and labels with support for various styles.
@@ -310,6 +257,18 @@ export class Edge {
 
     /** Whether this edge's line is a curve, drawn as a run of slots rebuilt as its ends move. */
     private lineIsCurve = false;
+
+    /** The batch this edge's selection halo is drawn from while it is selected; see `paintHalo`. */
+    private haloBatch: EdgeLineBatch | null = null;
+
+    /** Which slots of {@link Edge.haloBatch} draw the halo, as {@link Edge.lineSlots} do the line. */
+    private haloSlots: number[] = [];
+
+    /** Whether the halo follows a curve. */
+    private haloIsCurve = false;
+
+    /** What the halo was drawn from, or null when none is drawn; see `paintHalo`. */
+    private haloKey: string | null = null;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -807,33 +766,73 @@ export class Edge {
     }
 
     /**
-     * Draw a paint, marked as selected when this edge is.
+     * Draw a paint, with the selection halo over it when this edge is selected.
      *
-     * THE MARK IS A SECOND APPEARANCE, not a mesh edit: a selected edge is drawn from the batch
-     * of its style with the line recoloured and doubled in width, keyed apart from the unselected
-     * one, the way any restyle moves an edge between batches. Like a node's halo it is drawn from
-     * the selection mask, never from a layer (see `GraphSelectionStyle`).
+     * The line keeps its own paint, as a selected node keeps its own: like a node's halo the mark
+     * is drawn from the selection mask, never from a layer (see `GraphSelectionStyle`).
      * @param paint - The paint the style stack resolved.
      */
     private paintMarked(paint: EdgePaint): void {
-        if (!this.selected) {
-            this.paintFrom(paint.meshKey, paint.style);
+        this.paintFrom(paint.meshKey, paint.style);
+        this.paintHalo(paint.style);
+    }
+
+    /**
+     * Draw, move or drop the band of the configured selection colour, at the configured opacity,
+     * along this edge's line: the edge's halo.
+     *
+     * THE SAME THREE SETTINGS A NODE'S HALO READS. The band is `scale` times twice the line's
+     * width, so the default 1.45 stands visibly clear of a thin line on both sides. It replaced a
+     * mark that recoloured the line itself, darkened until it stood 3:1 from the canvas and from
+     * the line: on a light canvas that turned gold into a dark olive nobody had configured, and
+     * opacity was never read at all.
+     * @param style - The line's resolved style; the band follows its width and its curve.
+     */
+    private paintHalo(style: EdgeStyleConfig): void {
+        const selection = this.selected
+            ? (this.context.getStyles().config.graph.selection ?? DEFAULT_SELECTION_STYLE)
+            : null;
+        const width = (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2 * (selection?.scale ?? 0);
+        const curve = style.line?.bezier === true;
+        const key =
+            selection === null
+                ? null
+                : `selection-halo|${selection.color}|${String(selection.opacity)}|${String(width)}|${String(curve)}`;
+        const gone = this.haloBatch?.mesh.isDisposed() ?? true;
+
+        if (key === this.haloKey && (key === null || !gone)) {
             return;
         }
 
-        const { graph } = this.context.getStyles().config;
-        const canvas = graph.background.backgroundType === "color" ? graph.background.color : undefined;
-        const line = paint.style.line?.color ?? "#FFFFFF";
-        const color = selectionMarkColor((graph.selection ?? DEFAULT_SELECTION_STYLE).color, canvas, line);
-        const width = (paint.style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) * 2;
-        const style: EdgeStyleConfig = {
-            ...paint.style,
-            line: { ...paint.style.line, color, width },
-            ...(paint.style.arrowHead && { arrowHead: { ...paint.style.arrowHead, color } }),
-            ...(paint.style.arrowTail && { arrowTail: { ...paint.style.arrowTail, color } }),
-        };
+        this.releaseHalo();
+        this.haloKey = key;
 
-        this.paintFrom(`${paint.meshKey}|selected|${color}|${String(width)}`, style);
+        if (selection === null || key === null) {
+            return;
+        }
+
+        const { color, opacity } = selection;
+        this.haloBatch = EdgeMesh.lineBatch(
+            this.context.getMeshCache(),
+            { styleId: key, width, color },
+            { line: { type: "solid", color, opacity, width, bezier: curve } },
+            this.context.getScene(),
+        );
+        this.haloSlots = this.haloBatch ? [this.haloBatch.acquire()] : [];
+        this.haloIsCurve = curve;
+        // The band has no place until the next update puts it on the line.
+        this.invalidatePositionCache();
+    }
+
+    /** Hand the halo's slots back to its batch, so a deselected edge draws no band. */
+    private releaseHalo(): void {
+        for (const slot of this.haloSlots) {
+            this.haloBatch?.release(slot);
+        }
+
+        this.haloBatch = null;
+        this.haloSlots = [];
+        this.haloKey = null;
     }
 
     /**
@@ -1116,6 +1115,7 @@ export class Edge {
         this.disposed = true;
 
         this.releaseLine();
+        this.releaseHalo();
 
         if (this.arrowCap && !this.arrowCap.isDisposed()) {
             this.arrowCap.dispose();
@@ -1233,6 +1233,10 @@ export class Edge {
 
         const drawn = this.renderVisible;
 
+        for (const slot of this.haloSlots) {
+            this.haloBatch?.setDrawn(slot, drawn);
+        }
+
         if (this.lineBatch) {
             for (const slot of this.lineSlots) {
                 this.lineBatch.setDrawn(slot, drawn);
@@ -1273,12 +1277,18 @@ export class Edge {
         // A batched line is sixteen floats in a shared buffer, and this is the write that moves
         // it. The whole buffer reaches the GPU once a frame, from the batch itself.
         if (this.lineBatch && this.lineIsCurve) {
-            this.placeCurve(this.lineBatch, srcPoint, dstPoint);
+            this.placeCurve(this.lineBatch, this.lineSlots, srcPoint, dstPoint);
         } else if (this.lineBatch) {
             this.lineBatch.place(this.lineSlots[0], srcPoint, dstPoint);
         } else if (this.mesh instanceof PatternedLineMesh) {
             // Pattern lines: Update element positions in world space
             this.mesh.update(srcPoint, dstPoint);
+        }
+
+        if (this.haloBatch && this.haloIsCurve) {
+            this.placeCurve(this.haloBatch, this.haloSlots, srcPoint, dstPoint);
+        } else if (this.haloBatch) {
+            this.haloBatch.place(this.haloSlots[0], srcPoint, dstPoint);
         }
     }
 
@@ -1291,31 +1301,32 @@ export class Edge {
      * every time an endpoint moved; now the run grows or shrinks to the curve's point count and
      * each segment is a matrix write.
      * @param batch - The batch the run is in.
+     * @param slots - The run's slots, grown or shrunk in place.
      * @param srcPoint - Where the curve starts.
      * @param dstPoint - Where it ends.
      */
-    private placeCurve(batch: EdgeLineBatch, srcPoint: Vector3, dstPoint: Vector3): void {
+    private placeCurve(batch: EdgeLineBatch, slots: number[], srcPoint: Vector3, dstPoint: Vector3): void {
         const flat = EdgeMesh.createBezierLine(srcPoint, dstPoint);
         const segments = flat.length / 3 - 1;
 
         // Grow before shrinking, and never below one slot: the batch disposes itself when its last
         // slot goes, which must not happen in the middle of re-sizing a run.
-        while (this.lineSlots.length < segments) {
-            this.lineSlots.push(batch.acquire());
+        while (slots.length < segments) {
+            slots.push(batch.acquire());
         }
 
-        while (this.lineSlots.length > Math.max(1, segments)) {
-            const slot = this.lineSlots.pop();
+        while (slots.length > Math.max(1, segments)) {
+            const slot = slots.pop();
 
             if (slot !== undefined) {
                 batch.release(slot);
             }
         }
 
-        for (let i = 0; i < this.lineSlots.length; i++) {
+        for (let i = 0; i < slots.length; i++) {
             curveFrom.fromArray(flat, i * 3);
             curveTo.fromArray(flat, i * 3 + 3);
-            batch.place(this.lineSlots[i], curveFrom, curveTo);
+            batch.place(slots[i], curveFrom, curveTo);
         }
     }
 

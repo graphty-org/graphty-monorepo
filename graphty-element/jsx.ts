@@ -385,10 +385,6 @@ export interface GraphtyElementJSXProps {
     "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
-    /**
-     * Emitted when the running layout has taken in nodes added to the graph since it started.
-     */
-    "onlayout-updated"?: (event: CustomEvent<EventOfType<"layout-updated">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;

@@ -521,16 +521,9 @@ export class EventManager implements Manager {
             case "selection-changed":
             case "graph-started":
             case "layout-changed":
-            case "layout-updated":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
-            case "input-initialized":
-            case "input-config-updated":
-            case "input-pointer-lock-changed":
-            case "input-recording-started":
-            case "input-recording-stopped":
-            case "input-playback-completed":
             case "ai-status-change":
             case "ai-command-start":
             case "ai-command-complete":

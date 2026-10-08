@@ -258,7 +258,6 @@ export type {
     GraphtyForwardedEventMap,
     InputEnabledChangedEvent,
     LayoutChangedEvent,
-    LayoutUpdatedEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,

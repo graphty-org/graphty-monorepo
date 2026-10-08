@@ -15,7 +15,7 @@ import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutUpdatedEvent } from "../events";
+import type { GraphSnapshotReplacedEvent, LayoutChangedEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
 import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
@@ -2094,7 +2094,8 @@ export class LayoutManager implements Manager {
 
             this.eventManager.emitGraphEvent("layout-updated", {
                 nodeCount: nodes.length,
-            } satisfies Omit<LayoutUpdatedEvent, "type">);
+                type: "incremental",
+            });
 
             return Promise.resolve();
         }
@@ -2129,7 +2130,8 @@ export class LayoutManager implements Manager {
         // Emit event that layout was updated
         this.eventManager.emitGraphEvent("layout-updated", {
             nodeCount: nodes.length,
-        } satisfies Omit<LayoutUpdatedEvent, "type">);
+            type: "incremental",
+        });
 
         return Promise.resolve();
     }

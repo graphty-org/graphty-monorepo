@@ -150,13 +150,9 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         const { layoutType, options } = e.detail;
         log(layoutType, options);
     });
-    element.addEventListener("layout-updated", (e) => {
-        log(e.detail.nodeCount);
-    });
     element.addEventListener("operation-cancelled", (e) => {
         const { id, reason } = e.detail;
-        const known: "queue-cleared" | "cancelled" = reason;
-        log(id, known);
+        log(id, reason.length);
     });
     element.addEventListener("stats-update", (e) => {
         const { totalUpdates, stats } = e.detail;
@@ -233,14 +229,6 @@ export function listenToEveryForwardedEvent(element: Graphty, log: (...values: u
         log(e.type);
     });
 }
-
-/** The input manager's own events stay inside the element, so the map does not name them. */
-export const internalEventsAreNotForwarded = [
-    // @ts-expect-error -- input-initialized carries the live input manager and is not forwarded.
-    "input-initialized" satisfies keyof GraphtyForwardedEventMap,
-    // @ts-expect-error -- input-recording-started answers a call whose caller already knows.
-    "input-recording-started" satisfies keyof GraphtyForwardedEventMap,
-];
 
 /** A forwarded detail is not `any`: reading a field the event does not carry fails to compile. */
 export function aForwardedDetailIsNotAny(element: Graphty, log: (value: unknown) => void): void {

@@ -851,7 +851,7 @@ export class OperationQueueManager implements Manager {
                 controller.abort();
                 this.eventManager.emitGraphEvent("operation-cancelled", {
                     id,
-                    reason: "queue-cleared",
+                    reason: "Queue cleared",
                 } satisfies Omit<OperationCancelledEvent, "type">);
             }
         });
@@ -1005,7 +1005,7 @@ export class OperationQueueManager implements Manager {
             // Emit cancellation event
             this.eventManager.emitGraphEvent("operation-cancelled", {
                 id: operationId,
-                reason: "cancelled",
+                reason: "Manual cancellation",
             } satisfies Omit<OperationCancelledEvent, "type">);
 
             return true;

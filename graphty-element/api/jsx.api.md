@@ -142,7 +142,6 @@ export interface GraphtyElementJSXProps {
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     // (undocumented)
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
-    "onlayout-updated"?: (event: CustomEvent<EventOfType<"layout-updated">>) => void;
     // (undocumented)
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)

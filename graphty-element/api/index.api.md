@@ -1868,7 +1868,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutUpdatedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | InputInternalEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -2849,13 +2849,6 @@ export class LayoutManager implements Manager {
 }
 
 // @public
-export interface LayoutUpdatedEvent {
-    nodeCount: number;
-    // (undocumented)
-    type: "layout-updated";
-}
-
-// @public
 export interface Limits {
     approximateAboveNodes: number;
     edgesDrawn: number;
@@ -3641,7 +3634,7 @@ export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072
 // @public
 export interface OperationCancelledEvent {
     id: string;
-    reason: "queue-cleared" | "cancelled";
+    reason: string;
     // (undocumented)
     type: "operation-cancelled";
 }

@@ -56,15 +56,12 @@ export type GraphEvent =
     | SelectionChangedEvent
     | GraphStartedEvent
     | LayoutChangedEvent
-    | LayoutUpdatedEvent
     | OperationCancelledEvent
     | StatsUpdateEvent
-    | InputEnabledChangedEvent
-    | InputInternalEvent;
+    | InputEnabledChangedEvent;
 
 /** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
-export type InternalEventType =
-    GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"] | InputInternalEvent["type"];
+export type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
 
 /**
  * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event
@@ -99,12 +96,6 @@ export type GraphtyForwardedEventMap = {
 export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>([
     "snapshot-replaced",
     "snapshot-dropped",
-    "input-initialized",
-    "input-config-updated",
-    "input-pointer-lock-changed",
-    "input-recording-started",
-    "input-recording-stopped",
-    "input-playback-completed",
 ] satisfies InternalEventType[]);
 
 /**
@@ -415,20 +406,16 @@ export interface LayoutChangedEvent {
     options: Record<string, unknown>;
 }
 
-/** Emitted when the running layout has taken in nodes added to the graph since it started. */
-export interface LayoutUpdatedEvent {
-    type: "layout-updated";
-    /** How many nodes the layout was handed. */
-    nodeCount: number;
-}
-
 /** Emitted when a queued operation is aborted before it finished. */
 export interface OperationCancelledEvent {
     type: "operation-cancelled";
     /** The operation's id, as `operation-start` carried it. */
     id: string;
-    /** `queue-cleared` when the whole queue was cleared, `cancelled` when this one operation was. */
-    reason: "queue-cleared" | "cancelled";
+    /**
+     * Why it was aborted, as the queue words it: `"Queue cleared"` when the whole queue was
+     * cleared, `"Manual cancellation"` when this one operation was cancelled.
+     */
+    reason: string;
 }
 
 /** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
@@ -445,23 +432,6 @@ export interface InputEnabledChangedEvent {
     type: "input-enabled-changed";
     /** Whether the canvas now takes user input. */
     enabled: boolean;
-}
-
-/**
- * The input manager's own bookkeeping: its start-up, a configuration change, pointer lock, and the
- * recording and playback of input for tests. Element-internal (see {@link INTERNAL_EVENT_TYPES}):
- * the first carries the live manager, and every other one answers a call whose caller already has
- * the outcome.
- */
-export interface InputInternalEvent {
-    type:
-        | "input-initialized"
-        | "input-config-updated"
-        | "input-pointer-lock-changed"
-        | "input-recording-started"
-        | "input-recording-stopped"
-        | "input-playback-completed";
-    [key: string]: unknown;
 }
 
 // Selection events

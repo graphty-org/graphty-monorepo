@@ -481,6 +481,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 
 **graphty:**
 - `browser` - Browser-based tests (Playwright)
+- `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
+- `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`)
 - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
 **graphty-element:**
@@ -665,12 +667,12 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 22 test shards on a merge-queue run, a manual dispatch or the release train (a push
+The CI runs 23 test shards on a merge-queue run, a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 13 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
 layout, algorithms-default) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
-graphty, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
+graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
@@ -680,7 +682,7 @@ shard. The shards:
 - `cytoscape-extensions`, `cytoscape-extensions-cytoscape-versions` (the suite on the oldest and newest Cytoscape 3.x)
 - `algorithms-default`, `algorithms-browser`
 - `layout`
-- `graphty`
+- `graphty`, `graphty-storybook`
 - `remote-logger`
 - `visual-review`
 - `compact-mantine`
@@ -851,6 +853,23 @@ Each package has its own CLAUDE.md with package-specific guidance:
 
 ### Testing
 
+- **UI tests drive real input.** A test of something a reader does -- click, drag, scroll, type,
+  pinch -- makes the browser do it and asserts what the reader would see, read through the public
+  API (the camera moved, the node is selected and not pinned, the field holds the text, the
+  sheet opened). Never `notifyObservers`, a controller's private state, `fireEvent.change` or a
+  fake session standing in for the element.
+  - Why: six UI bugs passed every gate because their tests reached the state another way: a
+    click that pinned every node (32ab43099), Cmd+Z ignored on macOS and the element stealing
+    focus on load (5f3bd991f), a search field that discarded every keystroke and a palette that
+    opened unfocused (1d81de253), runs that deleted each other's layers and a Present panel with
+    no handlers (a25fe32e5), single-key shortcuts switched off by a hidden list (4e07ebf42), and
+    a node left off the plane in 2D (#1341). Each now has a test that fails when it comes back.
+  - How: in graphty-element, `test/helpers/real-input.ts` (mouse, wheel, touch and device pixel
+    ratio through the DevTools protocol) and `userEvent` from `vitest/browser` for keys, as in
+    `test/interactions/real-input.test.ts`. In graphty, `userEvent` from `vitest/browser` in a
+    `*.real-element.test.tsx`. A story that exists to show an interaction reaches its state by
+    that interaction in its play function (pointer events on the canvas, clicks on the controls),
+    and graphty's play functions run as tests in the `storybook` project.
 - Use `assert` instead of `expect` in layout tests
 - Visual tests run sequentially (`--workers=1`) to avoid resource contention
 - Use `./tools/run-tests.sh <shard>` to run a CI shard (with its coverage thresholds) before pushing

@@ -51,8 +51,10 @@ import type {
     RunId,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { englishRunLabel } from "../english";
 import { nearestNames } from "../results/ResultsApi";
 import { fieldMeasurement, resultPath, resultShapeContract, type RunRef } from "../results/types";
+import type { RunDistinction } from "../runs/types";
 import type { CodedFact, ColumnRef } from "../shared";
 import type { ChannelDescriptor, ChannelValueKind } from "./channels";
 import { DEFAULT_SIZE_RANGE } from "./derive";
@@ -179,8 +181,25 @@ export type EncodingProposal =
 export interface EncodingRun {
     /** The run id, which is the path segment under `results`. */
     readonly id: RunId;
-    /** What to call the run, which becomes half of the layer's name. */
+    /**
+     * What to call the run, which becomes half of the layer's name.
+     * @deprecated Word the run from its `algorithm`, {@link EncodingRun.distinguishedBy} and
+     *   {@link EncodingRun.siblingsDifferBy} yourself. Removed in the next major.
+     */
     readonly label: string;
+    /**
+     * The option the run's name was suggested by, once it left its default. See
+     * {@link Run.distinguishedBy}.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells the run apart from other listed runs of its algorithm sharing its name. See
+     * {@link Run.siblingsDifferBy}.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm produced it, recorded on the layer so the layer can be re-run. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it ran with, recorded for the same reason. */
@@ -525,7 +544,7 @@ export function planEncoding(spec: EncodingSpec, source: EncodingSource): LayerS
     const binding = buildBinding(ranged, path, scale, descriptor);
 
     return {
-        name: spec.name ?? `${run.label} - ${descriptor.plainName}`,
+        name: spec.name ?? `${englishRunLabel(run)} - ${descriptor.plainName}`,
         target: descriptor.target,
         kind: "encoding",
         selector: { match: "has", path },

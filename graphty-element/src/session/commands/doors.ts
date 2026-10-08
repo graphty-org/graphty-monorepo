@@ -1125,6 +1125,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             id: READ,
             label: READ,
+            distinguishedBy: READ,
+            siblingsDifferBy: READ,
             algorithm: READ,
             params: READ,
             scope: READ,

@@ -49,6 +49,8 @@ function runOf(
     return {
         id,
         label: `The ${id} run`,
+        distinguishedBy: null,
+        siblingsDifferBy: null,
         algorithm: id,
         params: {},
         shape,

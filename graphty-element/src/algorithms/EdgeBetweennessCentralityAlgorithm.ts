@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -107,11 +108,11 @@ export class EdgeBetweennessCentralityAlgorithm extends DeclaredAlgorithm<EdgeBe
                 precision,
                 exact: !sampled,
                 ...(sampled ? { sampleSize: drawn } : {}),
-                notes: [
+                facts: [
                     sampled
-                        ? `Estimated from the shortest paths of ${String(drawn)} sampled sources of ${String(snapshot.nodeCount)} nodes, unscaled.`
-                        : "Every shortest path is counted exactly, over the graph read as undirected.",
-                    "Path lengths count edges; edge weights are not read.",
+                        ? caveat("edge-betweenness.sampled", { sources: drawn, nodes: snapshot.nodeCount })
+                        : caveat("paths.counted-exactly"),
+                    caveat("paths.hop-lengths"),
                 ],
             }),
         };

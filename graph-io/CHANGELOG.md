@@ -1,3 +1,17 @@
+## 0.3.31 (2026-10-08)
+
+### 🩹 Fixes
+
+- **graph-io:** stop reporting an OBO edge label as renamed to name ([#1396](https://github.com/graphty-org/graphty-monorepo/issues/1396))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.30 (2026-10-08)
 
 ### 🩹 Fixes

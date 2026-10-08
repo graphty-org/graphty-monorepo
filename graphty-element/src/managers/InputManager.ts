@@ -1,6 +1,7 @@
 import type { Vector2 } from "@babylonjs/core/Maths/math.vector";
 import { Observable } from "@babylonjs/core/Misc/observable";
 
+import type { InputEnabledChangedEvent } from "../events";
 import { BabylonInputSystem } from "../input/babylon-input-system";
 import { MockDeviceInputSystem } from "../input/mock-device-input-system";
 import type { KeyboardInfo, MouseButton, PointerInfo, TouchPoint, WheelInfo } from "../input/types";
@@ -162,7 +163,10 @@ export class InputManager implements Manager {
             this.inputSystem.attach(this.context.canvas);
         }
 
-        this.context.eventManager.emitGraphEvent("input-enabled-changed", { enabled });
+        this.context.eventManager.emitGraphEvent("input-enabled-changed", { enabled } satisfies Omit<
+            InputEnabledChangedEvent,
+            "type"
+        >);
     }
 
     /**

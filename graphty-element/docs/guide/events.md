@@ -28,6 +28,12 @@ Graphty uses an event-driven architecture. Subscribe to events for user interact
 | `data-loading-complete` | A load finished                                                                    | `{ nodesLoaded, edgesLoaded, report, loadId, ... }`              |
 | `data-loading-error`    | A load failed                                                                      | `{ error, format, loadId, ... }`                                 |
 | `layout-progress`       | A layout reported how far its arrangement has got                                  | `{ layoutType, fraction, message? }`                             |
+| `graph-started`         | The render loop started                                                            | `{ timestamp }`                                                  |
+| `layout-changed`        | A new layout is now running                                                        | `{ layoutType, options }`                                        |
+| `layout-updated`        | The running layout took in newly added nodes                                       | `{ nodeCount }`                                                  |
+| `operation-cancelled`   | A queued operation was aborted                                                     | `{ id, reason }` (`"queue-cleared"` or `"cancelled"`)            |
+| `stats-update`          | Every 60 graph updates, with the performance counters                              | `{ totalUpdates, stats }`                                        |
+| `input-enabled-changed` | `setInputEnabled()` switched canvas input on or off                                | `{ enabled }`                                                    |
 | `error`                 | Error occurred                                                                     | `{ error, context }`                                             |
 
 `cause` on the three data events is set when undo, redo, a restore or a rolled-back change added

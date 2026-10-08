@@ -7,6 +7,7 @@ import type { NodeIdType } from "./config";
 import type { ImportReport } from "./data/report";
 import type { Edge } from "./Edge";
 import type { Graph } from "./Graph";
+import type { StatsManager } from "./managers/StatsManager";
 import type { Node } from "./Node";
 import type { StyleChange } from "./session/styles/StylesApi";
 import type { HistoryCause } from "./session/types";
@@ -52,10 +53,18 @@ export type GraphEvent =
     | DataLoadingCompleteEvent
     | ElementsRemovedEvent
     | StyleChangedEvent
-    | SelectionChangedEvent;
+    | SelectionChangedEvent
+    | GraphStartedEvent
+    | LayoutChangedEvent
+    | LayoutUpdatedEvent
+    | OperationCancelledEvent
+    | StatsUpdateEvent
+    | InputEnabledChangedEvent
+    | InputInternalEvent;
 
 /** A graph event type that stays inside the element: see {@link INTERNAL_EVENT_TYPES}. */
-export type InternalEventType = GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"];
+export type InternalEventType =
+    GraphSnapshotReplacedEvent["type"] | GraphSnapshotDroppedEvent["type"] | InputInternalEvent["type"];
 
 /**
  * The unprefixed events `<graphty-element>` forwards to the DOM, by name: every graph and AI event
@@ -90,6 +99,12 @@ export type GraphtyForwardedEventMap = {
 export const INTERNAL_EVENT_TYPES: ReadonlySet<GraphEventType> = new Set<GraphEventType>([
     "snapshot-replaced",
     "snapshot-dropped",
+    "input-initialized",
+    "input-config-updated",
+    "input-pointer-lock-changed",
+    "input-recording-started",
+    "input-recording-stopped",
+    "input-playback-completed",
 ] satisfies InternalEventType[]);
 
 /**
@@ -382,6 +397,71 @@ export interface ElementsRemovedEvent {
     edges: EdgeId[];
     /** What removed them; absent for a removal that does not yet come through the history. */
     cause?: HistoryCause;
+}
+
+/** Emitted once the render loop has started, after the element finished initializing. */
+export interface GraphStartedEvent {
+    type: "graph-started";
+    /** When the loop started, in milliseconds since the epoch. */
+    timestamp: number;
+}
+
+/** Emitted when a new layout engine has been built and is now the running layout. */
+export interface LayoutChangedEvent {
+    type: "layout-changed";
+    /** The layout type that is now running, as `setLayout` was given it. */
+    layoutType: string;
+    /** The options the layout was built with: the caller's, filled in with the layout's defaults. */
+    options: Record<string, unknown>;
+}
+
+/** Emitted when the running layout has taken in nodes added to the graph since it started. */
+export interface LayoutUpdatedEvent {
+    type: "layout-updated";
+    /** How many nodes the layout was handed. */
+    nodeCount: number;
+}
+
+/** Emitted when a queued operation is aborted before it finished. */
+export interface OperationCancelledEvent {
+    type: "operation-cancelled";
+    /** The operation's id, as `operation-start` carried it. */
+    id: string;
+    /** `queue-cleared` when the whole queue was cleared, `cancelled` when this one operation was. */
+    reason: "queue-cleared" | "cancelled";
+}
+
+/** Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns. */
+export interface StatsUpdateEvent {
+    type: "stats-update";
+    /** How many graph updates have run since the counters were last reset. */
+    totalUpdates: number;
+    /** The counters as they stand now. */
+    stats: ReturnType<StatsManager["getStats"]>;
+}
+
+/** Emitted when user input on the canvas is switched on or off, by `setInputEnabled`. */
+export interface InputEnabledChangedEvent {
+    type: "input-enabled-changed";
+    /** Whether the canvas now takes user input. */
+    enabled: boolean;
+}
+
+/**
+ * The input manager's own bookkeeping: its start-up, a configuration change, pointer lock, and the
+ * recording and playback of input for tests. Element-internal (see {@link INTERNAL_EVENT_TYPES}):
+ * the first carries the live manager, and every other one answers a call whose caller already has
+ * the outcome.
+ */
+export interface InputInternalEvent {
+    type:
+        | "input-initialized"
+        | "input-config-updated"
+        | "input-pointer-lock-changed"
+        | "input-recording-started"
+        | "input-recording-stopped"
+        | "input-playback-completed";
+    [key: string]: unknown;
 }
 
 // Selection events

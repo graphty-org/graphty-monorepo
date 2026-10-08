@@ -254,7 +254,11 @@ export type {
     GraphGenericEvent,
     GraphLayoutInitializedEvent,
     GraphSettledEvent,
+    GraphStartedEvent,
     GraphtyForwardedEventMap,
+    InputEnabledChangedEvent,
+    LayoutChangedEvent,
+    LayoutUpdatedEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,
@@ -266,6 +270,8 @@ export type {
     NodeEventType,
     NodeGenericEvent,
     NodeHoverEvent,
+    OperationCancelledEvent,
+    StatsUpdateEvent,
     StyleChangedEvent,
 } from "./src/events";
 

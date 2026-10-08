@@ -966,7 +966,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     for (const gen of checkCapabilities(snapshot, CYS_CAPABILITIES, common, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
-        positionDtype: "f32",
+        positionDtype: "f64",
     })) {
         // json is reported per column below; ids by the SUID rule (positive integers)
         if (gen.code !== LOSS.JSON && gen.code !== LOSS.ID_CHARSET && gen.code !== LOSS.ID_MANGLED) {
@@ -1224,8 +1224,9 @@ function viewCoords(p: Plan, i: number): string[] {
     const coords: string[] = [];
     if (p.position?.isSet(i) === true) {
         const [x, y, z] = Array.from(p.position.value(i) as ArrayLike<number>);
+        const fmt = p.position.dtype === "f32" ? formatF32 : formatF64;
         if (Number.isFinite(x) && Number.isFinite(y)) {
-            coords.push(`x="${formatF32(x)}"`, `y="${formatF32(y === 0 ? 0 : -y)}"`);
+            coords.push(`x="${fmt(x)}"`, `y="${fmt(y === 0 ? 0 : -y)}"`);
         }
         if (
             Number.isFinite(x) &&
@@ -1235,7 +1236,7 @@ function viewCoords(p: Plan, i: number): string[] {
             z !== 0 &&
             Number.isFinite(z)
         ) {
-            coords.push(`z="${formatF32(z)}"`);
+            coords.push(`z="${fmt(z)}"`);
         }
     }
     if (p.z?.isSet(i) === true) {

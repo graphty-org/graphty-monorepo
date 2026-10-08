@@ -490,7 +490,7 @@ describe("xgmmlImporter graph metadata and graphics", () => {
         expect(codes(report)).toContain(XGMML_ISSUE.DOCUMENT_VERSION);
     });
 
-    it("stores positions y-up in an f32 x3 column, z in its own column, graphics as json without x y z", async () => {
+    it("stores positions y-up in an f64 x3 column, z in its own column, graphics as json without x y z", async () => {
         const { snapshot } = await load(
             cy3(`<node id="a"><graphics type="ELLIPSE" x="10" y="20" z="3" fill="#fff"><att name="NODE_LABEL" value="A" type="string"/><att name="lockedVisualProperties" type="list"><att name="NODE_SHAPE" value="TRIANGLE" type="string"/><att name="NODE_SIZE" value="9" type="string"/></att></graphics></node>
 <node id="b"><graphics x="0" y="0"/></node>
@@ -498,7 +498,7 @@ describe("xgmmlImporter graph metadata and graphics", () => {
         );
         const position = snapshot.nodes.byRole("position");
         expect(position?.meta.name).toBe("position");
-        expect(position?.dtype).toBe("f32");
+        expect(position?.dtype).toBe("f64");
         expect(position?.meta.extra).toMatchObject({ sourceDims: 2, units: "file" });
         expect(cell(snapshot, "nodes", "position", "a")).toEqual([10, -20, 0]);
         expect(Object.is((cell(snapshot, "nodes", "position", "b") as number[])[1], 0)).toBe(true);

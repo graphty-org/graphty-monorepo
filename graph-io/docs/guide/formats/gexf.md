@@ -317,7 +317,7 @@ The codes `checkExport(snapshot, "gexf", options)` can return before a save, als
 - `W_DECLARED_TYPE` (warning): An attribute type that this GEXF version does not have (GEXF 1.2 has no date, dateTime or typed lists) is written as the nearest type it has.
 - `W_ID_TEXT_TYPE` (warning): A node id that reads back as a different type: a number that is not an integer comes back as text, and text that looks like an integer ("42") comes back as a number, unless you read the file with `ids: "string"` or `ids: "keep"`.
 - `W_GEXF_EDGE_ID_TEXT` (warning): A numeric edge id column: GEXF edge ids read back as strings.
-- `W_GEXF_VIZ_DTYPE` (warning): A visual attribute (position, color, size, thickness) is stored at more precision than GEXF keeps; it reads back as a 32-bit float.
+- `W_GEXF_VIZ_DTYPE` (warning): A visual attribute (position, color, size, thickness) is stored at another precision than the importer gives it; a position reads back as a 64-bit float, a color, size or thickness as a 32-bit float.
 - `W_WEIGHT_KEY_CLASH` (warning): An attribute named `weight` without the weight role reads back as the edge weight, because GEXF reads weights from `weight` by default.
 - `W_OPTIONS_GAINED` (warning): A text attribute stored as a dictionary, without a declared list of allowed values, reads back with its distinct values as that list.
 - `E_XML_ILLEGAL_CHAR` (error, the save throws): A text value holds a character XML 1.0 forbids (most control characters); the save fails with `E_COLUMN_TYPE`.

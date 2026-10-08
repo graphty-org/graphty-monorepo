@@ -233,7 +233,8 @@ export async function acquire({
  */
 function labelOf(argv) {
     const words = argv.map((a) => basename(a)).join(" ");
-    return `${basename(process.cwd())}: ${words.length > 100 ? `${words.slice(0, 97)}...` : words}`;
+    const short = words.length > 100 ? words.slice(0, 97) + "..." : words;
+    return `${basename(process.cwd())}: ${short}`;
 }
 
 const off = () => process.env.GITHUB_ACTIONS === "true";

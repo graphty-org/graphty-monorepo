@@ -15,6 +15,13 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **Study tool trust (real.mjs).** A hover prints only its own tooltip: tooltips on the
+  page before the pointer moved are marked and skipped (one still showing after 2 s is the same
+  control's, so hovering a control twice still reads it). The socket server handles a client that
+  left (EPIPE killed the session process, r1-s05/s06). A click timeout prints Playwright's call log
+  ("element is not enabled", "... intercepts pointer events"). A setup ends with focus released
+  (the Size box wore a ring at 01.png). Sessions call real.mjs directly, never through a shared
+  helper (launch prompt, workflow RULES, README). Evidence `tmp/r1-dry1-study-tool/`.
 0. (2026-10-08) **The drawing stays put (element + app, team door).** Three pilot defects, two
    mechanisms. (a) A run grew the legend card; the app reported a bigger top inset and the element
    re-framed (`viewInsets` setter called `zoomToFit` under `autoFrame`) and the orbit camera
@@ -49,21 +56,11 @@ acceptance test. "The studio worktree" is
    find pick -> Degree; Degree -> first neighbor, else Hops; saved note -> "+"; project open and
    leaving Data -> the place's rail button (`focusCurrentPlace`). Evidence
    `tmp/r1-dry1-focus-placement/`.
-3. (2026-10-08) **Inspector polish (app + compact-mantine).** Kind and origin as stat rows,
-   Results its own section, one neighbor heading form (`neighborhoodWords`), empty number box with
-   words (`StyleNumberInput.emptyText`), header right-click opens its menu, label lines carry a
-   72px `labelStyle` in one undo step. OPEN: label size is world-space; a screen-fixed size needs an
-   element option. Evidence `tmp/r1-dry1-inspector-polish/`.
-4. (2026-10-08) **Filter rows keep their sentence (app).** Outcome as the row description; Save
-   step disabled until changed; neighbor filter `aria-pressed`. Evidence `tmp/r1-dry1-filters-polish/`.
-5. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()`, roles
-   "From"/"To", `meaningGloss`, role box `aria-label`. Open: hint 11px vs labels 9px. Evidence
-   `tmp/r1-dry1-import-*`.
-6. (2026-10-08) Earlier, in place: SegmentedControl `flex-basis: auto`; find hints are
-   `Input.Description`; stat readings and PageList descriptions wrap; a reopened run keeps its
-   summary (`projectFile.ts`); highlight `#332288` and the selected-edge band (owner doors);
-   histogram bands. OPEN: T21 Replace relayouts every node; neighborhood filter has no
-   `direction`; Dijkstra always undirected.
+3. (2026-10-08) Earlier polish, in place (details under Decisions): inspector rows and one
+   neighbor heading form; filter rows keep their sentence; import page in reader words; segmented
+   `flex-basis: auto`; readings wrap; a reopened run keeps its summary; highlight `#332288` and the
+   selected-edge band. OPEN: label size is world-space (needs an element option); T21 Replace
+   relayouts every node; neighborhood filter has no `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
@@ -230,9 +227,8 @@ acceptance test. "The studio worktree" is
   (`cp` to `tmp/<task>/base/`), so "fails without the change" is copy base -> run -> copy mine back,
   and my patch is `diff base mine`. Keep any file my new exports are imported from at mine, or the
   whole test file fails on import instead of on the assertion.
-- (2026-10-08) A Mantine tooltip in a full browser-project run: `findByRole("tooltip")` missed one
-  that was in the page with its text (testing-library judged it inaccessible); alone it passed.
-  `findByText(...)` then `closest('[role="tooltip"]')` holds in both.
+- (2026-10-08) Mantine tooltip in a full browser run: use `findByText(...)` then
+  `closest('[role="tooltip"]')`, not `findByRole("tooltip")`.
 
 - (2026-10-08) While other agents edit the same worktree, stage only your hunks by writing the
   index blob from HEAD plus your own edits (`git hash-object -w` + `update-index --cacheinfo`);
@@ -240,31 +236,20 @@ acceptance test. "The studio worktree" is
   for minutes: wait for a clean `tsc` before building. A setup's Shift+A missed in a WIP build;
   `--click Analyze` works the same.
 
-- (2026-10-08) Flex intrinsic sizing: a track with no width and `flex: 1 1 0` options sums their
-  max-content then splits it EQUALLY, so the widest option is cut. A content floor
-  (`min-width: auto`) fixes it but overflows any set-width track whose options are wider than
-  their share; `flex-basis: auto` fixes it and still shrinks into a set width.
-- (2026-10-08) A standalone `Input.Description` takes the theme's `InputWrapper` classNames
-  (`cm-field-description`): the way to write a hint that is not attached to one field.
-- (2026-10-08) Worked: measuring before fixing. The "free space" beside a cut stat value was three
-  stacked 8px end paddings, and the text was 8px short -- wrapping, not padding, is the fix.
-  Proving a test fails without the change with no stash: `git diff -- <src> > p.patch`,
-  `git apply -R`, run, `git apply`. Did not work: putting an attribute's fill in `count` (its
-  description already reads the fill; a test caught the doubled reading).
+- (2026-10-08) Flex: `flex: 1 1 0` options split max-content EQUALLY (widest cut);
+  `flex-basis: auto` fixes it and still shrinks. A standalone `Input.Description` is the hint not
+  tied to one field.
+- (2026-10-08) Measure before fixing (a cut stat was 8px short: wrap, not padding). "Fails
+  without" with no stash: `git diff > p.patch`, `git apply -R`, run, `git apply`.
 
 - (2026-10-08) Worked: canvas `measureText` for a DataTable column's content width, once the
   font weight and `letterSpacing` match the cell's (400 weight measured 3px short at 450). A
   Mantine Tooltip in jsdom never opens (use a `.browser.test.tsx`); the theme's open delay is
   1000 ms, so `findByRole("tooltip", {}, { timeout: 3000 })`. The study tool cannot click a role
   box named only "km" when the grid header is also "km" (pilots used `--click-at`); "Role of km" fixes it.
-- (2026-10-08) Worked: comparing `run.record.summary` before save and after open in a node test.
-  Comparing the whole summary did NOT work: caveats and durationMs differ because the file saves
-  the record's merged caveats and wall time, not the executor's raw ones -- compare the counts.
-- (2026-10-08) Choose a default color by measuring (`default-palette-quality.test.ts`: OKLab,
-  Machado CVD), never by eye.
-- (2026-10-08) Drawing one line mesh behind another at the same depth: `material.zOffset` did
-  NOTHING (it is slope-scaled; a screen-facing quad has slope 0); `zOffsetUnits` worked. Probe:
-  a one-pixel column of `engine.readPixels` across the line, before and after.
+- (2026-10-08) Save/open round trip: compare summary counts, not the whole summary (caveats and
+  durationMs differ by design). Choose colors by measuring (`default-palette-quality.test.ts`).
+- (2026-10-08) A line behind another at the same depth: `zOffsetUnits`, not `zOffset` (slope 0).
 - (2026-10-08) real.mjs: `--key Shift+A` after a setup that ends with focus on a tree row types
   nothing (focus is a treeitem). To capture a second analysis, start a separate setup for it.
 - (2026-10-08) Check a dry-run finding against the frozen build before building a fix: sweep
@@ -275,22 +260,15 @@ acceptance test. "The studio worktree" is
   `within(tree)`, not `within(parentRow)`. A new graph's name change moves the Data page heading
   ("Add to people and ties"): grep tests for "Add to " after renaming.
 - (2026-10-07, condensed) Contrast in a browser test: blend alpha over the first opaque ancestor
-  (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone;
-  concurrent `--prove` runs need `REAL_PROVE_DIR`. "New from data..." opens no file chooser: click
+  (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone (beside it in
+  `tool/`, so its relative paths hold; delete after); concurrent `--prove` runs need `REAL_PROVE_DIR`. "New from data..." opens no file chooser: click
   "Add a table" > "File..." first.
-- (2026-10-07) A partial-hunk commit by another agent can leave HEAD broken (`isLoadedSource`
-  cut off; fixed 0c12c233b). `api:report` reads `dist/` types: build the element first, stage
-  only my hunks. Bars: 41 app words at rest (limit 50); axe 0 on 13 screens (`tool/bars.mjs`).
-- (2026-10-07) Study prep: `project.open(file)` does NOT load into the element; `tmp/` is
-  gitignored (copy evidence under `rounds/`). Tool: Find `=id == 'A' || id == 'B'`; freeze with
-  `REAL_DIST`; add a file to an open project with `--key Control+o --upload`.
+- (2026-10-07) Another agent's partial-hunk commit can leave HEAD broken. `api:report` reads
+  `dist/` types. `tmp/` is gitignored (copy evidence under `rounds/`). Bars: 41 words, axe 0.
 
-- (2026-10-07, condensed) A list that closes on blur moved Find path from under the pointer (now
-  floats). `autoFocus` loses to Mantine's focus trap (`data-autofocus`). Keep a `role=status`
-  mounted, change its text. Re-grep my hunks in shared files before committing (another agent's
-  write can undo them). Prettier from the worktree root. CSV whole numbers are type "integer".
-  `selection.apply` THROWS SYNCHRONOUSLY on a bad selector (element defect, unfiled). Mantine
-  TextInput: `error={text}` + `errorProps={{ role: "alert" }}`; selector `position` is 0-based after "=".
+- (2026-10-07, condensed) `autoFocus` loses to Mantine's focus trap (`data-autofocus`). Keep a
+  `role=status` mounted, change its text. Re-grep my hunks in shared files before committing.
+  `selection.apply` THROWS SYNCHRONOUSLY on a bad selector (element defect, unfiled).
 
 - (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Others stage and commit
   here continuously: commit from an empty `git diff --cached`, check `git show --stat HEAD` lists
@@ -319,6 +297,13 @@ Infinity, columns: [runId] })` (not `node.data`, not `results.get(run).nodes`). 
   JMESPath (numbers in backticks). Rerunning an algorithm replaces its run id. Single-table source:
   `session.project.open(file)` then `draft.load()`. Audit a tier by grepping the app's command ids
   (`grep -rhn -A1 'id: "' --include=commands.ts`): no command, no door.
+
+- (2026-10-08) real.mjs evidence: Undo -> Redo hovers did NOT reproduce the stale tooltip (that
+  one closes before the first poll); "Local only" -> the Everything row did (its tooltip fades
+  slowly), so the self-check uses that pair. A killed client gives EPIPE on the server's reply; the
+  nofix copy's session died and every later check failed with ECONNREFUSED. Playwright's call log
+  carries terminal color codes: strip `\x1b[...m`. The tool's own ESLint run reports node globals
+  (`console`, `process`) as undefined, 89 before this change: the tool is not in a linted project.
 
 ## Thinking
 

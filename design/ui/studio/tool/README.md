@@ -28,12 +28,18 @@ Every command prints what a participant would notice, then the path of the new s
 - `--start <folder> empty` opens the app as a first-time visitor sees it.
 - `--start <folder> setup:<file>` runs the setup file's steps first and never shows them: one step
   per line, unquoted (`--click Open the Zachary's karate club sample`); `#` lines are comments. A
-  setup step that misses fails the start with `SETUP FAILED`, which is itself a finding.
+  setup step that misses fails the start with `SETUP FAILED`, which is itself a finding. When the
+  setup ends, nothing has focus, as when a saved project is reopened: the participant does not
+  arrive to a focus ring on the control the setup used last.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json` (the commit and build under study, the
   start), `session.log` (the session process's own log), `setup.log`, and `downloads/`.
 - A session nobody steps for 15 minutes closes itself, so a forgotten one cannot hold a browser.
+- Call `real.mjs` directly, with your own session folder, for every step. Do not write a helper
+  script that wraps it: a script shared between sessions sends one participant's steps into
+  another's browser. A client stopped mid-step (its agent was stopped) does not end the session;
+  the step still runs and the next one works.
 
 ## Steps
 
@@ -44,7 +50,7 @@ Several steps may follow one `--step`; they run in order, and one screenshot is 
 | `--click "<name>"`                                                                  | Clicks the control with that name: what it says, its accessible name or its label; a text box with none of those matching, by its placeholder (`--click "Find nodes, edges, values"`). Exact names before partial ones. `"<name>#2"` takes the second of that name; `"role=tab:Style"` only that role. A name several controls share prints `ambiguous`. |
 | `--rclick`, `--dblclick`, `--shift-click`, `--ctrl-click`, `--alt-click`, `--hover` | The same, with that button or key held. A hover prints the tooltip.                                                                                                                                                                                                                                                                                      |
 | `--click "<node name>"`                                                             | With no control of that name, clicks a node whose label is drawn on the canvas and is on screen, at its center, and says where. A node with no label drawn cannot be named, as for a person.                                                                                                                                                             |
-| `--click-at x,y` (`--rclick-at`, `--dblclick-at`, `--hover-at`)                     | A point on the last screenshot. Prints what is there: a node (by its label), empty canvas, or the control. `--hover-at` also prints the pointer's shape there (`cursor: pointer`), which a screenshot never shows.                                                                                                                                                                                                                                               |
+| `--click-at x,y` (`--rclick-at`, `--dblclick-at`, `--hover-at`)                     | A point on the last screenshot. Prints what is there: a node (by its label), empty canvas, or the control. `--hover-at` also prints the pointer's shape there (`cursor: pointer`), which a screenshot never shows.                                                                                                                                       |
 | `--hover-icon <n>`                                                                  | Hovers the nth control that has a name but no visible text, and prints its tooltip.                                                                                                                                                                                                                                                                      |
 | `--drag x1,y1 x2,y2`                                                                | Presses at the first point, moves to the second, releases (pan, or move a node).                                                                                                                                                                                                                                                                         |
 | `--wheel x,y,delta`                                                                 | Turns the wheel at a point; a negative delta zooms in.                                                                                                                                                                                                                                                                                                   |
@@ -106,8 +112,12 @@ node $T/real.mjs --step $S --click "<project name>"       # reopens the saved fi
 
 - Only the screenshot path when a step just opens or closes something (a menu, a dialog, a panel)
   and nothing else happened: look at the screenshot.
-- `tooltip: "..."` after every hover, or `tooltip: null`.
+- `tooltip: "..."` after every hover, or `tooltip: null`. A tooltip still fading out from the last
+  hover is not this hover's and is never printed.
 - Misses: `nothing on screen is called "..."`, `only 2 controls are called ...`.
+- `could not click "...": ... Timeout 3000ms exceeded.` when a control is there but cannot take the
+  click, followed by the browser's own reason, indented (`element is not enabled`, `element is not
+stable`, `<div ...> intercepts pointer events` when something covers it).
 - `ambiguous: ...` when a name is shared.
 - `at x,y: node "Medici"` (or `empty canvas`, or the control there) for every point step.
 - `a file chooser is open` when a click opened one.
@@ -171,11 +181,13 @@ node design/ui/studio/tool/real.mjs --prove
 ```
 
 Runs real sessions against the build: a start, clicks by control name and by a node's drawn
-label, a click at a point, a hover tooltip, typing, an upload, a download, a name inside an open
+label, a click at a point, a hover tooltip (and one right after another, while the first fades
+out), a click on a disabled control that must print its reason, a client killed mid-step that must
+leave the session running, typing, an upload, a download, a name inside an open
 dialog and one behind it, a save, a reopened tab that reopens the save from Recent projects, a
 planted spin (a camera key held on the canvas) that must be reported, typing into an open popover
 whose box keeps repainting over a still drawing, which must not be, setup starts (one that works,
-one that fails), a screen-reader session (a focus line after every step, a live region's new
+one that fails), a screen-reader session (nothing focused after its setup, a focus line after every step, a live region's new
 text, the highlighted option of the find box, a planted region that arrives filled marked
 unconfirmed, `--read` in the Export dialog) and an end. It prints `ok` or `FAIL` per check and exits 1 on any failure.
 Its sessions are written under `design/ui/studio/tmp/prove/`, which it clears first; set

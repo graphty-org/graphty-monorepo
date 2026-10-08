@@ -348,6 +348,8 @@ async function serve(dir, sr) {
         }, IDLE_MS);
     };
     const server = netServer({ allowHalfOpen: true }, (c) => {
+        // a client that went away before its answer (its agent was stopped) must not kill the session
+        c.on("error", (e) => console.log(`a client left before its answer: ${e.code || e.message}`));
         let buf = "";
         c.on("data", (d) => {
             buf += d;
@@ -662,6 +664,8 @@ async function opStart(s, setup) {
         // and anything that does not work fails the start loudly
         const said = [];
         const r = await run(s, setup, said);
+        // a reopened project has nothing focused: the last setup step's control must not wear a focus ring
+        await s.page.evaluate(`${FOCUSED}?.blur()`);
         await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
         if (r.code || r.missed) {
             out.push(`SETUP FAILED: a setup step did not work (setup.log):`, ...said.map((l) => "  " + l));
@@ -1005,6 +1009,18 @@ async function cursorAt(page, x, y) {
         [x, y],
     );
 }
+// The "Call log:" lines of a Playwright error, the last 8 (the retries repeat the same reason)
+const callLog = (e) => {
+    const lines = e.message.replace(/\x1b\[[0-9;]*m/g, "").split("\n"); // without the terminal colors
+    const i = lines.findIndex((l) => /^Call log:/.test(l.trim()));
+    return i < 0
+        ? []
+        : lines
+              .slice(i + 1)
+              .filter((l) => l.trim())
+              .slice(-8)
+              .map((l) => "    " + l.trim());
+};
 async function act(page, f, verb, opt) {
     if (f.el) return f.el[verb](Object.assign({ timeout: 3000 }, opt));
     const [x, y] = f.at;
@@ -1013,11 +1029,21 @@ async function act(page, f, verb, opt) {
     await page.mouse.click(x, y, { button: opt.button || "left", clickCount: verb === "dblclick" ? 2 : 1 });
     for (const m of opt.modifiers || []) await page.keyboard.up(m);
 }
-const tipNow = (page) =>
-    page.evaluate((tip) => {
-        const t = [...document.querySelectorAll(tip)].find((e) => e.checkVisibility());
-        return t ? t.innerText.replace(/\s+/g, " ").trim() : null;
-    }, TIP);
+// A tooltip already on the page before a hover (the last one, still fading out) is not this hover's:
+// forgetTips marks them before the pointer moves and tipNow skips the marked ones. One still showing
+// after the wait is not fading out: the pointer stayed on its control, so it is this hover's.
+const forgetTips = (page) =>
+    page.evaluate((tip) => document.querySelectorAll(tip).forEach((e) => (e.dataset.realStale = "")), TIP);
+const tipNow = (page, stale = false) =>
+    page.evaluate(
+        ([tip, stale]) => {
+            const t = [...document.querySelectorAll(tip)].find(
+                (e) => (stale || !("realStale" in e.dataset)) && e.checkVisibility(),
+            );
+            return t ? t.innerText.replace(/\s+/g, " ").trim() : null;
+        },
+        [TIP, stale],
+    );
 // The tooltip of what the pointer rests on: the shared theme opens one 1000 ms after the pointer
 // arrives (compact-mantine TOOLTIP_OPEN_DELAY), so this waits up to 2 s for it, or null
 async function tooltip(page) {
@@ -1026,7 +1052,7 @@ async function tooltip(page) {
         if (t) return t;
         await page.waitForTimeout(100);
     }
-    return null;
+    return tipNow(page, true);
 }
 
 // Runs the steps; pushes what a participant would notice onto out; returns { code, missed }
@@ -1084,8 +1110,10 @@ async function run(s, steps, out) {
                 missed++;
             } else {
                 if (f.at) out.push(`${verb === "hover" ? "hovered" : "clicked"} ${f.desc}`);
+                if (verb === "hover") await forgetTips(page);
                 await act(page, f, verb, CLICKS[a]).catch((e) => {
-                    out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`);
+                    // Playwright's call log names the actionability check that failed (covered, not stable, ...)
+                    out.push(`could not ${verb} "${v}": ${e.message.split("\n")[0]}`, ...callLog(e));
                     missed++;
                 });
             }
@@ -1095,6 +1123,7 @@ async function run(s, steps, out) {
             const [x, y] = v.split(",").map(Number);
             out.push(`at ${x},${y}: ${await whatIsAt(page, x, y)}`);
             if (a === "--hover-at") {
+                await forgetTips(page);
                 await page.mouse.move(x, y);
                 out.push(`cursor: ${await cursorAt(page, x, y)}`);
                 out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
@@ -1126,6 +1155,7 @@ async function run(s, steps, out) {
             }
             const [x, y] = icons[+v - 1];
             out.push(`icon ${v} of ${icons.length}, at ${x},${y}`);
+            await forgetTips(page);
             await page.mouse.move(x, y);
             out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
         } else if (a === "--drag") {
@@ -1305,6 +1335,37 @@ async function prove() {
         );
         x = step(A, "--hover", "Undo");
         check("a hover prints the tooltip", x.code === 0 && /^tooltip: "Undo/m.test(x.out), x.out);
+        // the "Local only" tooltip is still fading out when the pointer reaches the Everything row,
+        // which has none of its own: the line must not be the fading one
+        step(A, "--hover", "Local only");
+        x = step(A, "--hover", "Everything");
+        check(
+            "a hover right after another prints its own tooltip, not the one fading out",
+            x.code === 0 && /^tooltip: /m.test(x.out) && !/Nothing is sent/.test(x.out),
+            x.out,
+        );
+        x = step(A, "--hover", "Redo");
+        check("hovering the same control again prints its tooltip", /^tooltip: "Nothing to redo"$/m.test(x.out), x.out);
+        // nothing to redo yet, so Redo is disabled: Playwright's call log says why the click failed
+        x = step(A, "--click", "Redo");
+        check(
+            "a click that times out prints the reason from Playwright's call log",
+            /could not click "Redo"/.test(x.out) && /not enabled/.test(x.out),
+            x.out,
+        );
+        // a client stopped mid-step (its agent was stopped): the session answers the next step
+        const gone = spawn(process.execPath, [self, "--step", A, "--wait", "2000"], { stdio: "ignore" });
+        await new Promise((ok) => setTimeout(ok, 600));
+        gone.kill("SIGKILL");
+        await new Promise((ok) => setTimeout(ok, 2500));
+        x = step(A, "--wait", "10");
+        check(
+            "a client killed mid-step leaves the session running",
+            x.code === 0 &&
+                existsSync(sockOf(A)) &&
+                /a client left before its answer/.test(readFileSync(join(A, "session.log"), "utf8")),
+            x.out,
+        );
         // Tornabuoni: the label legend lists the first twelve names, so this one is only on the canvas
         x = step(A, "--click", "Tornabuoni");
         check(
@@ -1450,8 +1511,8 @@ async function prove() {
     await writeFile(srSetup, "--click No thanks\n--click Open project or file\n--upload florentine.gml\n");
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
-        "an --sr start prints what has focus and no screenshot path",
-        r.status === 0 && /^focus: /m.test(r.stdout) && !/\.png$/m.test(r.stdout),
+        "an --sr start prints what has focus and no screenshot path; a setup leaves nothing focused",
+        r.status === 0 && /^focus: nothing \(the page itself\)$/m.test(r.stdout) && !/\.png$/m.test(r.stdout),
         `exit ${r.status} ${r.stdout}${r.stderr}`,
     );
     if (r.status === 0) {

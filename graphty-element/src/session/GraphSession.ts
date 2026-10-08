@@ -2294,7 +2294,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     const canned: CannedOutcomes = new Map();
     // What a run compares to tell "the data changed under me" from "my scope moved".
-    const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot());
+    const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot);
     const runs = createRunsApi({
         queue,
         // Finished runs are the `runs` slice, recorded in this session's history.

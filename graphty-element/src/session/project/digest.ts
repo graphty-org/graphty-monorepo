@@ -152,25 +152,27 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
     return stableDigest(parts.join("\n"));
 }
 
-/** The data digest of each graph slice, with the snapshot it was read beside. */
-const dataDigests = new WeakMap<object, { readonly snapshot: GraphSnapshot; readonly digest: string }>();
+/** The data digest of each graph slice. */
+const dataDigests = new WeakMap<object, string>();
 
 /**
  * The digest of the graph's data alone: its node and edge records, and its rows (ids, endpoints,
  * weights and columns). Equal for two loads of the same data, whatever else the project holds, so
  * a run can tell that the numbers it was computed from have changed under it.
  *
- * Memoised per slice and snapshot, both of which are replaced, never edited, when data moves.
+ * Memoised per `graph` slice, which is replaced, never edited, when data moves. The snapshot is
+ * read only on a miss: a layout replaces it every frame (positions are lane columns, which the
+ * digest leaves out), so keying on it re-hashed the whole graph on every frame of a layout.
  * ponytail: hashes the whole graph once per data change; hash per column if a large graph's edits
  * make it show up in a profile.
  * @param graph - The `graph` slice.
- * @param snapshot - The snapshot of its rows.
+ * @param readSnapshot - Reads the snapshot of its rows.
  * @returns The digest.
  */
-export function dataDigest(graph: ProjectState["graph"], snapshot: GraphSnapshot): string {
+export function dataDigest(graph: ProjectState["graph"], readSnapshot: () => GraphSnapshot): string {
     const held = dataDigests.get(graph);
-    if (held?.snapshot === snapshot) {
-        return held.digest;
+    if (held !== undefined) {
+        return held;
     }
 
     const path = new WeakSet();
@@ -178,9 +180,9 @@ export function dataDigest(graph: ProjectState["graph"], snapshot: GraphSnapshot
     // file names the same edges afresh.
     const edges = [...graph.edges.values()].map((edge) => canonical(edge, path)).sort();
     const digest = stableDigest(
-        `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(snapshot, path, NOT_DATA)}`,
+        `graph=${canonical({ nodes: graph.nodes, edges }, path)}\nrows=${rowsDigest(readSnapshot(), path, NOT_DATA)}`,
     );
-    dataDigests.set(graph, { snapshot, digest });
+    dataDigests.set(graph, digest);
 
     return digest;
 }

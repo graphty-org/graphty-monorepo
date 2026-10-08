@@ -19,6 +19,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
+import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -293,6 +294,8 @@ export interface PlanningContext {
     readonly runOf?: (path: string) => string | undefined;
     /** What a filter-steps list would leave visible, step by step. */
     readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
+    /** The weight the graph was loaded with, for the weight a run would read. */
+    readonly loadedWeight?: () => LoadedWeightFact | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -560,6 +563,33 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
     }
 
     const descriptor = context.algorithms().find((candidate) => candidate.key === command.algorithm);
+    // The weight the run would read, by the same rule the run reads it with.
+    let weighed: Caveats;
+    try {
+        const reading = resolveRunWeight(
+            descriptor?.weightMeaning ?? null,
+            command.params?.weight,
+            context.loadedWeight?.() ?? null,
+        );
+        weighed = Object.freeze({
+            ...context.defaultCaveats,
+            weight: reading.weight,
+            ...(reading.skipped === undefined ? {} : { weightSkipped: reading.skipped }),
+        });
+    } catch (error) {
+        if (!(error instanceof GraphtyError)) {
+            throw error;
+        }
+
+        return Object.freeze({
+            ok: false,
+            blocked: Object.freeze({ code: error.code, reason: error.message }),
+            cost: estimateCommand(context, command),
+            effect: Object.freeze({ kind: "none" as const }),
+            caveats: context.defaultCaveats,
+        });
+    }
+
     const built = costInput(context, command, descriptor);
 
     if ("unresolvableScope" in built) {
@@ -568,7 +598,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             blocked: Object.freeze({ code: "E_UNSUPPORTED", reason: built.unresolvableScope.reason }),
             cost: unavailableEstimate(descriptor, built.unresolvableScope),
             effect: Object.freeze({ kind: "none" as const }),
-            caveats: context.defaultCaveats,
+            caveats: weighed,
         });
     }
 
@@ -589,7 +619,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             blocked: Object.freeze({ code: decision.error.code, reason: decision.error.message }),
             cost: estimateCommand(context, command),
             effect,
-            caveats: context.defaultCaveats,
+            caveats: weighed,
         });
     }
 
@@ -599,7 +629,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
             cost: decision.estimate,
             effect,
             caveats: Object.freeze({
-                ...context.defaultCaveats,
+                ...weighed,
                 method: descriptor?.technicalName ?? context.defaultCaveats.method,
                 ...(command.seed === undefined ? {} : { seed: command.seed }),
             }),
@@ -611,7 +641,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
         cost: decision.estimate,
         effect,
         caveats: Object.freeze({
-            ...context.defaultCaveats,
+            ...weighed,
             exact: false,
             sampleSize: decision.sampleSize,
             seed: decision.seeded ? (command.seed ?? null) : null,

@@ -168,6 +168,30 @@ describe("every run reads the loaded weight", () => {
         TEST_TIMEOUT_MS,
     );
 
+    it(
+        "plan() says before a run which weight it would read, as the run then does",
+        async () => {
+            const element = await loaded();
+            const params = { source: "p01", target: "p12" };
+
+            const unread = await element.session.plan({ op: "algo.run", algorithm: "shortest-path", params });
+            const ran = await run(element, "shortest-path", params);
+            assert.deepStrictEqual(unread.caveats.weightSkipped, {
+                code: "weight.meaning-mismatch",
+                params: { attribute: "emails", meaning: null, reads: "distance" },
+            });
+            assert.deepStrictEqual(unread.caveats.weightSkipped, ran.caveats.weightSkipped);
+            assert.isNull(unread.caveats.weight ?? null);
+
+            const read = await (
+                await loaded("distance")
+            ).session.plan({ op: "algo.run", algorithm: "shortest-path", params });
+            assert.deepStrictEqual(read.caveats.weight, EMAILS_AS_DISTANCE);
+            assert.isUndefined(read.caveats.weightSkipped);
+        },
+        TEST_TIMEOUT_MS,
+    );
+
     it("the catalog says which meaning each algorithm reads", async () => {
         const element = await loaded();
         const algorithms = element.session.catalog.algorithms();

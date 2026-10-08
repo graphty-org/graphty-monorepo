@@ -1,5 +1,5 @@
-The study runs on build 3dfe7daf9e45 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d1-3dfe7daf9/`
-(graphty@0.8.56, commit 3dfe7daf9), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+The study runs on build 909b19b578d4 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d2-909b19b57/`
+(graphty@0.8.56, commit 909b19b57), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
 (`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
@@ -386,3 +386,12 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   tier 1 grades neighbors read from the ties) and B's setup ending on the PageRank inspector.
   `tasks.md` T20 records the "longer trail" line as a possible echo of prompt B. No bar and no
   prompt changed.
+- **2026-10-08, before round 1: the second dry run build.** The study build moved from
+  3dfe7daf9e45 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d1-3dfe7daf9/`) to
+  909b19b578d4 (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1d2-909b19b57/`), a
+  fresh build of the worktree's current commit, which holds the fixes found in the first dry run
+  (a neighborhood shown as a node's connections, a find rule saying what it selected, selected
+  edges listed, filter steps showing on and off, truthful import checks, focus on the inspector
+  title after a run or a find pick, one Escape closing only an open list, a saved note taking
+  focus with no tooltip over it, a shortest path saying which method it used, and setups handing
+  over with the pointer off the page). `tool/real.mjs --prove` passed on it. No bar changed.

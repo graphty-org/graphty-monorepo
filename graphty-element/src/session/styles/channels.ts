@@ -328,7 +328,9 @@ export interface ChannelDescriptor {
      * The value the element draws when no layer sets the channel: the element's own default
      * style where it states one, and otherwise what the renderer draws for an unset value. A
      * colour is `#RRGGBB`. Absent when an unset channel draws nothing at all -- no label, no
-     * outline, no glow -- or when the renderer decides per element, as the pattern count does.
+     * tooltip -- or when the renderer decides per element, as the pattern count does. An effect
+     * that is off until a layer switches it on (the outline, the glow) states what it is drawn
+     * with once on and its own value is unset: the renderer's built-in colour and strength.
      * An arrow cap's colour is the one channel that leans on another: unset, a cap is drawn in its
      * line's colour, so its default is the line's default and a layer that sets `edge.color`
      * moves it too.
@@ -364,6 +366,17 @@ export interface ChannelDescriptor {
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+/** The colour an outline is drawn in when a style switches one on without naming a colour. */
+export const DEFAULT_OUTLINE_COLOR = "#FFFF00";
+
+/**
+ * The colour a glow is drawn in when a style switches one on without naming a colour.
+ * Cyan rather than white: the glow is added onto what is behind it, so on the element's light
+ * (#F5F5F5) canvas and over a white node a white glow saturates to white and nothing is seen.
+ * A saturated cyan tints the node and leaves a visible halo on the light background.
+ */
+export const DEFAULT_GLOW_COLOR = "#00B4FF";
 
 /**
  * Why an outline is a colour and nothing else, written once and read in two places.
@@ -638,6 +651,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Outline",
         shortName: "Outline",
         group: "effects",
+        // The colour an outline is drawn in when a style switches one on without naming one.
+        default: DEFAULT_OUTLINE_COLOR,
         accepts: "color",
         stylePath: "effect.outline.color",
         renderable: true,
@@ -649,6 +664,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Glow",
         shortName: "Glow",
         group: "effects",
+        // The colour a glow is drawn in when a style switches one on without naming one.
+        default: DEFAULT_GLOW_COLOR,
         accepts: "color",
         stylePath: "effect.glow.color",
         renderable: true,

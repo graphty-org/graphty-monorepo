@@ -90,3 +90,38 @@ drawn with a gold band (`rewalk/A/06.png`); B "13 edges selected", Edges 13 (`re
 
 The answer key still quotes the old header ("0 nodes, 3 edges"); the screen now says "3 edges
 selected".
+
+## Re-pilot on the rebuilt app
+
+The original pilot steps were walked again, in the same order and from the same starts, with
+`tool/real.mjs` on a frozen copy of the served build (graphty 0.8.55, build 75cbc3a9a0e9, commit
+c16465e7a plus the uncommitted work then in the worktree). Session A is in `A-2/`, session B in
+`B-2/`, each with `steps.log`. No step printed a miss, a script error, a console error, a failed
+request or "the drawing is still moving".
+
+**Result: reached on both versions.** A: "3 edges selected", Summary Edges 3, the three slow links
+drawn with a gold band, all 10 stops still drawn (`A-2/06.png`). B: "13 edges selected", Edges 13,
+all 77 characters still drawn (`B-2/03.png`).
+
+| Shot | Step | What the screen shows |
+| ---- | ---- | --------------------- |
+| `A-2/03.png` | `--type "=minutes >= 10"` | red "Put numbers in backticks: weight > `3`" while typing, before Enter |
+| `A-2/04.png`, `A-2/05.png` | `--key Enter`, then the rule retyped with backticks | nothing selected on the bare number; the backticked rule is accepted |
+| `A-2/06.png` | `--key Enter` | "3 edges selected", Selection 3, gold band on the three links |
+| `A-2/07.png` | `--click "Everything"` | Everything's Style page opens; Selection still 3, the links stay marked |
+| `A-2/08.png` | `--click "Selection"` | Selection's Style page: Highlight FFD700 at 40%, size 1.45 |
+| `B-2/02.png`, `B-2/03.png` | `--key / --type "=shared_chapters >= \`10\`"`, `--key Enter` | "13 edges selected" |
+| `B-2/04.png` | `--type "="` | Columns: id, name (node columns), shared_chapters (edge column), and "Type a rule after =, such as weight > `3`"; the selection (13) is kept |
+| `B-2/05.png` | `--key Escape --key Escape` | box cleared, selection kept (13) |
+
+| Original finding | Now |
+| ---------------- | --- |
+| 1. Clicking Everything was said to replace the selection | It does not: Selection still 3 (`A-2/07.png`). The answer key's warning and the "marking lost and redone" detour can be dropped |
+| 2. The hint approved a bare number until Enter | Fixed: the backticks complaint shows while typing (`A-2/03.png`) |
+| 3. Nothing showed which names a rule can use | Fixed: a lone "=" lists the columns with their kind (`B-2/04.png`) |
+| 4. Marked lines drawn dark olive, hard to see | Drawn as a gold band (`A-2/06.png`). On the dense B drawing the 13 ties are still thin gold lines, several hard to pick out in the middle (`B-2/03.png`) |
+| 5. "Edges among them 0" beside "Edges 13" | Fixed: the Summary lists only Edges 13 |
+| 6. Overview rows cut off at the panel edge | Still cut off, now with an ellipsis: "Undirected, from the ..." and "1 to 36, mean ..." (`B-2/01.png`) |
+
+Still open for the answer key: it quotes the old inspector header ("0 nodes, 3 edges"); the screen
+now says "3 edges selected" (and "13 edges selected" in B).

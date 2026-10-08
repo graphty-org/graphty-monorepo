@@ -74,6 +74,19 @@ describe("getActivationMeta", () => {
         expect(meta).toStrictEqual({ source: "keyboard" });
     });
 
+    it("reports a keyboard source for Chromium's key click: a PointerEvent with no pointer type", () => {
+        const onActivate = vi.fn<(event: ActivationEvent, meta: ActivationMeta) => void>();
+        render(<ActivationProbe onActivate={onActivate} />);
+
+        fireEvent(
+            screen.getByRole("button"),
+            new PointerEvent("click", { bubbles: true, cancelable: true, pointerType: "", detail: 0 }),
+        );
+
+        const [, meta] = onActivate.mock.calls[0];
+        expect(meta).toStrictEqual({ source: "keyboard" });
+    });
+
     it("reports a pointer source for a click that carries a click count", () => {
         const onActivate = vi.fn<(event: ActivationEvent, meta: ActivationMeta) => void>();
         render(<ActivationProbe onActivate={onActivate} />);

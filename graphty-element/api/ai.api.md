@@ -307,6 +307,7 @@ export interface LlmProvider {
     configure(options: ProviderOptions): void;
     generate(messages: Message[], tools: ToolDefinition[], options?: {
         signal?: AbortSignal;
+        toolChoice?: "auto" | "none";
     }): Promise<LlmResponse>;
     generateStream(messages: Message[], tools: ToolDefinition[], callbacks: StreamCallbacks, signal?: AbortSignal): Promise<void>;
     readonly name: string;
@@ -540,6 +541,7 @@ export class VercelAiProvider implements LlmProvider {
     configure(options: ProviderOptions): void;
     generate(messages: Message[], tools: ToolDefinition[], options?: {
         signal?: AbortSignal;
+        toolChoice?: "auto" | "none";
     }): Promise<LlmResponse>;
     generateStream(messages: Message[], tools: ToolDefinition[], callbacks: StreamCallbacks, signal?: AbortSignal): Promise<void>;
     // (undocumented)

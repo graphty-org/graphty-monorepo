@@ -95,6 +95,12 @@ export class MockLlmProvider implements LlmProvider {
      * @returns Matching response or default response
      */
     private findResponse(messages: Message[]): LlmResponse {
+        // Asked again with the results of the tools it called: answer without calling them again,
+        // so one configured response is one round of tool calls, not one per ask.
+        if (messages.at(-1)?.role === "tool") {
+            return { text: "", toolCalls: [] };
+        }
+
         // Find the last user message
         const userMessage = [...messages].reverse().find((m) => m.role === "user");
         if (!userMessage) {

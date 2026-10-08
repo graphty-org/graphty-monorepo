@@ -1521,17 +1521,13 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
-                    // Check if layout has settled
-                    if (
-                        this.#labelAnimationsOwed &&
-                        !this.layoutManager.running &&
-                        !this.layoutManager.building
-                    ) {
+                    if (this.#labelAnimationsOwed && !this.layoutManager.running && !this.layoutManager.building) {
                         // The layout is at rest with nodes to show, so no settlement is coming.
                         this.#labelAnimationsOwed = false;
                         this.dataManager.startLabelAnimations();
                     }
 
+                    // Check if layout has settled
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;

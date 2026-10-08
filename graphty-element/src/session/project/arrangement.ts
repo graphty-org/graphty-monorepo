@@ -405,6 +405,36 @@ export class Arrangement {
     }
 
     /**
+     * The rows of some nodes as the lane holds them now, as a row patch from unplaced: what a step
+     * that created their rows records, so no arrangement taken before it places them.
+     * @param ids - The nodes.
+     * @returns The patch, or null when the graph holds none of them or there is no lane.
+     */
+    rowsNow(ids: readonly NodeId[]): RowPatch | null {
+        const { source } = this;
+        if (source === null) {
+            return null;
+        }
+
+        const snapshot = source.snapshot();
+        const held: NodeId[] = [];
+        const rows: number[] = [];
+        const values: number[] = [];
+        const at = { x: 0, y: 0, z: 0 };
+        for (const id of ids) {
+            const row = rowOf(snapshot, id, 0);
+            if (row !== INVALID_INDEX) {
+                source.positions.read(row, at);
+                held.push(id);
+                rows.push(row);
+                values.push(Number.NaN, Number.NaN, Number.NaN, at.x, at.y, at.z);
+            }
+        }
+
+        return held.length === 0 ? null : rowPatch(held, rows, values);
+    }
+
+    /**
      * Whether a `positions.set` wrote so much of the lane that a capture is cheaper to keep than
      * its row patch: more than a third of the rows.
      * @param patch - What it wrote.

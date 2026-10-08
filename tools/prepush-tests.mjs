@@ -19,7 +19,8 @@
  *
  * Shards run side by side: browser shards each take one slot of <main checkout>/tmp/with-browser.sh
  * (the machine's shared cap of four browsers) when it exists, and at most two shards without a
- * browser run at once. Two things CI's separate runners give each shard are reproduced here:
+ * browser run at once. Every shard then takes one machine-wide test slot (tools/test-slots.mjs), which
+ * ad-hoc test runs share, so a shard may wait for runs of other sessions. Two things CI's separate runners give each shard are reproduced here:
  *  - The shards of one package share its Vite dependency caches (node_modules/.vite/vitest/<hash>,
  *    one per vitest project, plus Storybook's sb-vitest cache and the root project's). On a cold or
  *    stale cache each vitest optimizes and swaps a cache directory in under the others: four browser
@@ -36,7 +37,7 @@
  * Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
- * its wait for a browser slot) fails; tools/prepush.sh bounds the whole stage, waits included.
+ * its wait for a browser or test slot) fails; tools/prepush.sh bounds the whole stage, waits included.
  */
 
 import { spawn, execFileSync } from "node:child_process";
@@ -242,7 +243,11 @@ async function main() {
     const start = (shard) => {
         const log = join(logs, `${shard.shard}.log`);
         const out = createWriteStream(log);
+        // A machine-wide test slot (tools/test-slots.mjs) for the whole shard, taken outside `timeout` so the wait
+        // does not count against the shard, and after the browser slot: nothing holding a test slot ever waits for
+        // a browser slot, so the two cannot wait on each other.
         const cmd = ["timeout", "--kill-after=30s", timeout, "bash", "tools/run-tests.sh", shard.shard];
+        cmd.unshift(process.execPath, "tools/test-slots.mjs");
         if (shard["needs-browser"] && existsSync(gate)) {
             cmd.unshift(gate);
         }

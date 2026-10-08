@@ -606,8 +606,9 @@ await element.session.styles.encode({ run, channel: "node.color", palette: "viri
 `encode()` replaces the layer already painting that channel from that run, so running the
 algorithm again leaves one layer and one legend block rather than two.
 
-On `node.size` or `edge.width`, a measurement is drawn from 1 (the default size) to 3 unless you
-pass `range` -- the same default a column of amounts gets -- and that range is written into the
+On `node.size`, a measurement is drawn from 1 (the default size) to 3, and on `edge.width` from
+the default edge width to twice it, unless you pass `range` -- the same defaults a column of
+amounts gets -- and that range is written into the
 layer, so `styles.get(layer.id)` and a saved project show it:
 
 ```typescript

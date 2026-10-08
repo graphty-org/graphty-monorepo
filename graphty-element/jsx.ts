@@ -358,6 +358,10 @@ export interface GraphtyElementJSXProps {
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
+    /**
+     * Emitted once the render loop has started, after the element finished initializing.
+     */
+    "ongraph-started"?: (event: CustomEvent<EventOfType<"graph-started">>) => void;
     "ongraphty-capabilities-change"?: (event: GraphtyElementEventMap["graphty-capabilities-change"]) => void;
     "ongraphty-history-change"?: (event: GraphtyElementEventMap["graphty-history-change"]) => void;
     "ongraphty-label-change"?: (event: GraphtyElementEventMap["graphty-label-change"]) => void;
@@ -371,12 +375,24 @@ export interface GraphtyElementJSXProps {
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    /**
+     * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.
+     */
+    "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
+    /**
+     * Emitted when a new layout engine has been built and is now the running layout.
+     */
+    "onlayout-changed"?: (event: CustomEvent<EventOfType<"layout-changed">>) => void;
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
+    /**
+     * Emitted when a queued operation is aborted before it finished.
+     */
+    "onoperation-cancelled"?: (event: CustomEvent<EventOfType<"operation-cancelled">>) => void;
     "onoperation-complete"?: (event: CustomEvent<EventOfType<"operation-complete">>) => void;
     "onoperation-obsoleted"?: (event: CustomEvent<EventOfType<"operation-obsoleted">>) => void;
     "onoperation-progress"?: (event: CustomEvent<EventOfType<"operation-progress">>) => void;
@@ -388,6 +404,10 @@ export interface GraphtyElementJSXProps {
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
+    /**
+     * Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns.
+     */
+    "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     /**
      * Emitted after the style stack changed and the graph was repainted for it.
      */

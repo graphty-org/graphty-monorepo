@@ -499,6 +499,8 @@ export const TOOLS = [
             "(with its issue or commit when there is one; one with neither goes to the owner). " +
             "deferred is for an issue job that cannot be acted on now (such as a proposal the owner declined): it needs " +
             "a reason, closes nothing, and the issue is not offered again until it changes (a comment, an edit or a label). " +
+            "An issue job whose fix rides in a pull request you did not push (another session's) names that pr and sets " +
+            "commits to the fix commit(s) it contains; its description need not name the issue. " +
             "githerd verifies the claim against GitHub before accepting it and says what is missing.",
         inputSchema: object(
             {
@@ -507,6 +509,7 @@ export const TOOLS = [
                 reason: { type: "string", minLength: 1 },
                 pr: NUMBER,
                 pushedHead: SHA,
+                commits: { type: "array", minItems: 1, items: { type: "string", pattern: "^[0-9a-f]{7,40}$" } },
                 findings: { type: "string", minLength: 1, maxLength: 4000 },
                 theory: { type: "string" },
                 defects: {

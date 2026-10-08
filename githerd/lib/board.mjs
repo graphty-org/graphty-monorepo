@@ -560,9 +560,9 @@ export function death(job, { capture = null }, now) {
 /**
  * Applies one poll's verification answer to a `verifying` job (design 5.3): it holds, only CI is
  * pending, or something is missing. No answer for two polls sends it back to work. Three failed
- * verifications in a row end the attempt.
+ * verifications in a row end the attempt; a `fixable` one (a gap in the report itself) is not counted.
  * @param {Job} job the job
- * @param {{holds: true} | {ciPending: string} | {missing: string[]} | null} answer the answer;
+ * @param {{holds: true} | {ciPending: string} | {missing: string[], fixable?: true} | null} answer the answer;
  *   `ciPending` names the head sha whose checks are running; null when this poll could not decide
  * @param {Date} now the current time
  * @returns {{action: string, job: string, missing?: string[]} | null} what follows, null while
@@ -587,7 +587,8 @@ export function verifyResult(job, answer, now) {
         move(job, "waiting", now, { waitingFor: { checks: answer.ciPending } });
         return { action: "waiting", job: job.id };
     }
-    job.verifyFailures += 1;
+    // A gap in the report the session can close is answered, not counted.
+    if (!("fixable" in answer && answer.fixable)) job.verifyFailures += 1;
     if (job.verifyFailures >= VERIFY_FAILS_TO_END) {
         return endAttempt(job, { outcome: `done failed to verify ${job.verifyFailures} times` }, now);
     }

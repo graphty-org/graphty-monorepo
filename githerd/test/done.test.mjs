@@ -6,6 +6,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { git, isolateGit } from "../../visual-review/test/helpers.mjs";
 import { claimJob, move, newJob } from "../lib/board.mjs";
 import { doneIo, githerdDone, pollVerifying, recheckRefused, verifyClaim } from "../lib/done.mjs";
+import { accumulateMerged } from "../lib/merged.mjs";
+import { masterRefs, readyIssues } from "../lib/queue.mjs";
 import { statusData, statusText } from "../lib/tools.mjs";
 import { commitAll, makeRepo, put } from "./helpers/git-repo.mjs";
 
@@ -913,6 +915,117 @@ describe("githerdDone", () => {
     });
 });
 
+describe("an issue fix carried by a pull request the session did not push (#1570 in #739)", () => {
+    /** #739, the feature branch the session's fix branch merged into: open, naming no issue. */
+    const carrier = pr({ headSha: OTHER, headRef: "feat/githerd", references: [] });
+    const open = (/** @type {string} */ head) => ({
+        state: "open",
+        merged: false,
+        body: "githerd",
+        base: { ref: "master", repo: { full_name: "o/r" } },
+        head: { sha: head, repo: { full_name: "o/r" } },
+    });
+    /**
+     * A reader whose #739 is open at `head`, and contains FIX only at OTHER.
+     * @param {string} head #739's head
+     * @returns {any} the reader
+     */
+    const io = (head) =>
+        fakeIo({
+            pull: async () => open(head),
+            pullContains: async (/** @type {string} */ c, /** @type {number} */ n, /** @type {string} */ sha) =>
+                c.startsWith(FIX.slice(0, 9)) && n === 739 && sha === OTHER,
+        });
+
+    it("answers a pull request that does not name the issue with what to add, without ending the attempt", async () => {
+        const s = state({ prs: { 739: carrier } });
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const { ctx } = setup(s, Object.assign(io(OTHER), { remoteHead: async () => OTHER }));
+        for (let i = 0; i < 4; i++) {
+            const r = JSON.parse((await githerdDone(ctx, job, report({ pr: 739, pushedHead: FIX }), "w1")).text);
+            expect(r.missing.join(" ")).toContain("does not reference #1570");
+            expect(r.missing.join(" ")).toContain("commits set to the fix commit");
+            expect(r.ended).toBeUndefined();
+            expect(r.attempts).toContain("does not count against the attempt");
+        }
+        expect([job.state, job.verifyFailures, job.attempts]).toEqual(["working", 0, []]);
+    });
+
+    it("accepts the pull request and the fix commits it contains, and records the link", async () => {
+        const s = state({ prs: { 739: carrier } });
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const { ctx } = setup(s, io(OTHER));
+        const r = await githerdDone(ctx, job, report({ pr: 739, commits: [FIX.slice(0, 9)] }), "w1");
+        expect(r.isError).toBeUndefined();
+        expect(job.state).toBe("done");
+        expect(s.merged.carried["1570"]).toEqual({
+            pr: 739,
+            commits: [FIX.slice(0, 9)],
+            job: "issue-1570",
+            at: NOW.toISOString(),
+        });
+        // While #739 is open it works on #1570; its merge makes #1570 a reference on master to verify.
+        s.issues = {
+            byNumber: { 1570: { state: "open", author: "owner", labels: ["bug", "priority:high", "effort:low"] } },
+        };
+        const ranked = () => readyIssues(s, { labels: LABELS }, NOW).ranked.map((i) => i.number);
+        expect(ranked()).toEqual([]);
+        s.merged = accumulateMerged(s.merged, [
+            {
+                number: 739,
+                title: "githerd",
+                headRef: "feat/githerd",
+                base: "master",
+                mergedAt: "2026-10-05T00:00:00Z",
+                mergeSha: GREEN,
+                closes: [],
+                mentions: [],
+                paths: [],
+                truncated: false,
+            },
+        ]);
+        expect(masterRefs(s, 1570)).toEqual(["#739"]);
+        delete s.prs[739];
+        expect(ranked()).toEqual([1570]);
+        expect(s.merged.carried).toEqual({});
+    });
+
+    it("keeps the job with the session while the pull request lacks a commit, and accepts once it has it", async () => {
+        const s = state({ prs: { 739: pr({ headSha: HEAD, headRef: "feat/githerd", references: [] }) } });
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const reader = io(HEAD);
+        const { ctx } = setup(s, reader);
+        const r = JSON.parse((await githerdDone(ctx, job, report({ pr: 739, commits: [FIX] }), "w1")).text);
+        expect(r.missing).toEqual([expect.stringContaining(`does not contain ${FIX.slice(0, 9)}: push it`)]);
+        expect([job.state, job.verifyFailures]).toEqual(["working", 0]);
+        // The fix is merged into #739's branch: the kept report is accepted without a new claim.
+        s.prs[739] = carrier;
+        reader.pull = async () => open(OTHER);
+        expect(await recheckRefused(s, ctx)).toEqual([expect.objectContaining({ job: "issue-1570" })]);
+        expect(s.merged.carried["1570"].pr).toBe(739);
+    });
+
+    it("makes a carrier that already merged a reference at once, and refuses one closed unmerged", async () => {
+        const s = state();
+        const merged = { ...open(OTHER), state: "closed", merged: true };
+        const job = (s.jobs["issue-1570"] = working("issue", "1570"));
+        const reader = Object.assign(io(OTHER), { pull: async () => merged });
+        expect(await verifyClaim(job, report({ pr: 739, commits: [FIX] }), view(s, reader))).toEqual({
+            holds: true,
+            merged: true,
+        });
+        const { ctx } = setup(s, reader);
+        await githerdDone(ctx, job, report({ pr: 739, commits: [FIX] }), "w1");
+        expect(s.merged.refs["1570"]).toEqual(["#739"]);
+        const closed = fakeIo({ pull: async () => ({ ...merged, merged: false }), pullContains: async () => true });
+        expect(
+            await verifyClaim(working("issue", "1570"), report({ pr: 739, commits: [FIX] }), view(s, closed)),
+        ).toEqual({
+            missing: [expect.stringContaining("not an open pull request")],
+        });
+    });
+});
+
 describe("recheckRefused", () => {
     /**
      * A reader that counts its pull request reads.
@@ -1149,6 +1262,16 @@ describe("doneIo", () => {
         expect(await io.contains("e".repeat(40), sha.master)).toBe(false);
         expect(io.releaseOpen()).toBeNull();
         expect(io.localGate()).toBeNull();
+    });
+
+    it("fetches a pull request's head to tell whether it contains a commit", async () => {
+        git(repo.root, "push", "-q", "origin", `${sha.extra}:refs/pull/9/head`);
+        const clone = join(repo.tmp, "clone");
+        git(repo.tmp, "clone", "-q", repo.remote, clone);
+        const io = doneIo({ root: clone, repo: "o/r", github: {} });
+        expect(await io.pullContains(sha.pushed.slice(0, 9), 9, sha.extra)).toBe(true);
+        expect(await io.pullContains("e".repeat(40), 9, sha.extra)).toBe(false);
+        expect(await io.pullContains(sha.extra, 9, sha.master)).toBe(false);
     });
 
     it("reads GitHub, with a 404 as absent and any other failure thrown", async () => {

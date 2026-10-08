@@ -134,18 +134,22 @@ export async function searchMerged(gitHub, repo, since) {
  * the record are kept. One merged into a branch other than `branch` lands nowhere yet: it goes to
  * `stacked`, not to `refs`, `closed` or `pending`.
  * @param {{lastScanAt?: string | null, pending?: PendingMerge[], closed?: number[],
- *   count?: number, refs?: Record<string, string[]>, stacked?: MergedPr[]}} saved `state.merged`
+ *   count?: number, refs?: Record<string, string[]>, stacked?: MergedPr[],
+ *   carried?: Record<string, {pr: number}>}} saved `state.merged`
  * @param {MergedPr[]} prs from `parseMerged`
  * @param {string} [branch] the default branch
  * @returns {{lastScanAt: string | null, pending: PendingMerge[], closed: number[], count: number,
- *   refs: Record<string, string[]>, stacked: MergedPr[]}}
+ *   refs: Record<string, string[]>, stacked: MergedPr[], carried: Record<string, {pr: number}>}}
  *   the new record; `pending` holds the merges since the last refresh job, `closed` the issues the
  *   merged pull requests close, `count` every merge seen, which the triage passes count (jobs.mjs),
  *   and `refs` every issue a merged pull request closes or mentions, with its `#pr`, kept for good
- *   so an issue job knows its issue may already be fixed; `stacked` the merges not landed yet
+ *   so an issue job knows its issue may already be fixed; `stacked` the merges not landed yet.
+ * `carried` (done.mjs) links an issue to an open pull request that carries its fix without naming
+ * it: that pull request's landing counts as a mention of the issue, and the link is dropped.
  */
 export function accumulateMerged(saved, prs, branch = "master") {
     const refs = Object.fromEntries(Object.entries(saved.refs ?? {}).map(([n, list]) => [n, [...list]]));
+    const carried = { ...saved.carried };
     const stacked = [...(saved.stacked ?? [])];
     const pending = [...(saved.pending ?? [])];
     const closed = new Set(saved.closed ?? []);
@@ -159,14 +163,31 @@ export function accumulateMerged(saved, prs, branch = "master") {
             if (!stacked.some((p) => p.number === pr.number)) stacked.push(pr);
             continue;
         }
-        addRefs(refs, pr);
+        const mentions = takeCarried(carried, pr);
+        addRefs(refs, { ...pr, mentions });
         for (const n of pr.closes) closed.add(n);
         if (!pending.some((p) => p.number === pr.number)) {
             const { number, title, mergeSha, paths, truncated } = pr;
-            pending.push({ number, title, mergeSha, paths, truncated, mentions: pr.mentions ?? [] });
+            pending.push({ number, title, mergeSha, paths, truncated, mentions });
         }
     }
-    return { ...saved, lastScanAt, pending, closed: [...closed].sort((a, b) => a - b), count, refs, stacked };
+    const sorted = [...closed].sort((a, b) => a - b);
+    return { ...saved, lastScanAt, pending, closed: sorted, count, refs, stacked, carried };
+}
+
+/**
+ * A landed merge's mentions, with the issues whose fix it carried (`carried`, done.mjs) that it does
+ * not close; their links are dropped.
+ * @param {Record<string, {pr: number}>} carried issue number to the pull request carrying its fix,
+ *   changed in place
+ * @param {MergedPr} pr the landed merge
+ * @returns {number[]} the mentions, ascending
+ */
+function takeCarried(carried, pr) {
+    const fixes = Object.keys(carried).filter((n) => carried[n].pr === pr.number);
+    for (const n of fixes) delete carried[n];
+    const extra = fixes.map(Number).filter((n) => !pr.closes.includes(n));
+    return [...new Set([...(pr.mentions ?? []), ...extra])].sort((a, b) => a - b);
 }
 
 /**

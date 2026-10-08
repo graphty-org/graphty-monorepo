@@ -1162,7 +1162,7 @@ githerd_read: { issue?: integer, pr?: integer, include?: ("body"|"comments"|"rev
 
 // 9. Report the end of an attempt. Verified before it is accepted.
 githerd_done: { job: string, outcome: "done"|"split"|"not-needed"|"failed",
-                pr?: integer, pushedHead?: string /*40 hex*/,
+                pr?: integer, pushedHead?: string /*40 hex*/, commits?: string[] /*7-40 hex*/,
                 findings: string /*<=4000*/, theory?: string,
                 defects: [{ summary: string, issue?: integer, commit?: string }],
                 children?: integer[], evidence?: string,
@@ -1176,6 +1176,13 @@ githerd_done: { job: string, outcome: "done"|"split"|"not-needed"|"failed",
 // merge from master (the daemon's update-branch call, Mergify's update and the review tool all add
 // one). A merge is recognized by its shape: on the first-parent line, its other parents on master.
 // -> { verified: true, attempts } | { verified: false, missing: string[], ended?: true, attempts }
+// An issue job whose fix rides in a pull request the worker did not push (another session's
+// branch its fix merged into) names that pr and the fix `commits`: accepted when the pull request,
+// open or merged into master, contains them, whatever its description says. githerd keeps the link
+// in state.merged.carried; while that pull request is open the issue is not offered, and its merge
+// becomes a reference of the issue, so an issue job verifies and closes what GitHub left open.
+// A refusal whose every gap is one the worker closes without new work (a pr or commit to name, a
+// push to make, the issue reference to add) is `fixable`: it never counts toward ending the attempt.
 // `ended` is set when this was the third refused claim in a row and the attempt ended. `attempts`
 // says in plain words whether the worker may retry, how many refused claims end this attempt, how
 // many attempts the job has left, and what ending means (back to the queue for a fresh session, or

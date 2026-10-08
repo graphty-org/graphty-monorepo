@@ -17,7 +17,12 @@
  *   from master (the ancestor rule: the daemon's update-branch call, Mergify's update and the review
  *   tool's `update` all add such a merge). Its required checks are green, or the only failing one is
  *   the owner's visual review, and `githerd/merge` does not fail on a line the worker can fix. An
- *   `issue` job's pull request must reference the issue.
+ *   `issue` job's pull request must reference the issue. An `issue` job whose fix rides in a pull
+ *   request it did not push (another session's, such as a feature branch its fix branch merged
+ *   into) names that pull request and the fix commits instead: the pull request, open or merged
+ *   into master, must contain each of them, whatever its description says. The link (issue, pull
+ *   request, commits) is kept in `state.merged.carried`, so the merge of that pull request becomes a
+ *   reference of the issue (merged.mjs) and an issue job verifies and closes it (`masterRefs`).
  * - `incident`: a verdict job needs Claude's verdict on its key recorded; master and low-priority
  *   scopes need the lane's newest master run green at a commit
  *   containing the fix; a shared key also needs one canary pull request green on a head containing
@@ -60,8 +65,11 @@ const NOT_NEEDED_KINDS = new Set(["issue", "pr"]);
 const BOOT = randomUUID();
 
 /**
- * @typedef {{holds: true} | {ciPending: string} | {missing: string[]} | null} Answer what a check
- *   found: the done-condition holds, only CI on that sha is pending, what is missing, or undecided
+ * @typedef {{holds: true, merged?: boolean} | {ciPending: string} | {missing: string[], fixable?: true} | null}
+ *   Answer what a check found: the done-condition holds (`merged` when a carried fix's pull request
+ *   already merged), only CI on that sha is pending, what is missing, or undecided. A `fixable`
+ *   refusal names only gaps in the report itself that the session can close (a commit or pull
+ *   request to name, a push to make): it does not count toward ending the attempt.
  * @typedef {object} DoneIo what verification reads, outside the state
  * @property {(ref: string) => Promise<string>} remoteHead `git ls-remote` of a branch: its sha, or
  *   "" when the branch is gone
@@ -69,6 +77,8 @@ const BOOT = randomUUID();
  *   whether `head` is `pushed` plus only merges from master (the ancestor rule)
  * @property {(commit: string, sha: string) => Promise<boolean>} contains whether `commit` is an
  *   ancestor of (or is) `sha`
+ * @property {(commit: string, n: number, sha: string) => Promise<boolean>} pullContains whether
+ *   `commit` is an ancestor of (or is) `sha`, the head of pull request `n`, fetching that head
  * @property {(n: number) => Promise<any>} issue an issue (or pull request) from GitHub, null when
  *   it does not exist
  * @property {(sha: string) => Promise<boolean>} commitExists whether GitHub has the commit
@@ -159,9 +169,50 @@ async function mergedAnswer(number, view, issue) {
         return { missing: [`#${number} is not an open pull request of this repository, nor merged into ${branch}`] };
     }
     if (issue !== null && !new RegExp(String.raw`#${issue}(?!\d)`).test(pull.body ?? "")) {
-        return { missing: [`#${number} merged but does not name #${issue} in its description`] };
+        return {
+            missing: [`#${number} merged but does not name #${issue} in its description: ${COMMITS_HINT}`],
+            fixable: true,
+        };
     }
     return { holds: true };
+}
+
+/** How a session names a fix that rides in a pull request it did not push. */
+const COMMITS_HINT = "if your fix is in it, call githerd_done again with commits set to the fix commit(s) it contains";
+
+/**
+ * The done-condition of an issue job whose fix rides in a pull request the session did not push:
+ * the pull request, open or merged into the default branch, contains every named commit. Its
+ * description and its checks are not the session's to answer for.
+ * @param {number} number the pull request
+ * @param {string[]} commits the fix commits
+ * @param {View} view what the check reads
+ * @returns {Promise<Answer>} the answer; a gap the session can close is `fixable`
+ */
+async function carriedAnswer(number, commits, view) {
+    const pull = await view.io.pull(number);
+    const branch = view.state.master?.branch ?? "master";
+    if (!pull)
+        return { missing: [`#${number} is not a pull request: name the one that carries the fix`], fixable: true };
+    const ownRepo = pull.head?.repo?.full_name === pull.base?.repo?.full_name;
+    if (pull.base?.ref !== branch || !ownRepo || (pull.state !== "open" && !pull.merged)) {
+        return {
+            missing: [`#${number} is not an open pull request of this repository into ${branch}, nor merged into it`],
+        };
+    }
+    const head = pull.head?.sha;
+    if (!head) return null;
+    const gaps = [];
+    for (const c of commits) {
+        if (!SHA.test(c)) gaps.push(`commits: ${c} is not a commit sha`);
+        else if (!(await view.io.pullContains(c, number, head))) {
+            gaps.push(
+                `#${number}'s head ${head.slice(0, 9)} does not contain ${c.slice(0, 9)}: push it, or merge your branch into #${number}'s, then call githerd_done again`,
+            );
+        }
+    }
+    if (gaps.length) return { missing: gaps, fixable: true };
+    return { holds: true, merged: Boolean(pull.merged) };
 }
 
 /**
@@ -204,23 +255,26 @@ async function prAnswer(number, pushed, view, issue = null) {
     if (!rec) return mergedAnswer(number, view, issue);
     const branch = view.state.master?.branch ?? "master";
     const gaps = [];
+    // Gaps in the report or the push, which the session closes without new work: they do not count.
+    const fix = [];
     if (rec.baseRef !== branch) gaps.push(`#${number} is based on ${rec.baseRef}, not ${branch}`);
     if (rec.draft) gaps.push(`#${number} is a draft`);
     if (issue !== null && !(await mentions(rec, number, issue, view))) {
-        gaps.push(
-            `#${number} does not reference #${issue}: add "Fixes #${issue}" to its description, or "Refs #${issue}" when it does part of the issue and the issue stays open`,
+        fix.push(
+            `#${number} does not reference #${issue}: add "Fixes #${issue}" to its description, or "Refs #${issue}" when it does part of the issue and the issue stays open; or, ${COMMITS_HINT}`,
         );
     }
     const head = await headIsPushed(rec, pushed, view.io);
     if (head === null) return null;
-    if (head !== true) gaps.push(head);
+    if (head !== true) fix.push(head);
     const required = Object.entries(rec.required ?? {});
     const failing = required.filter(([, s]) => s === "FAILURE").map(([n]) => n);
     if (rec.ownerRejected) gaps.push("the owner rejected images: fix the captures he named");
     else if (failing.length && !rec.ownerGate) gaps.push(`required checks failing: ${failing.join(", ")}`);
     const gate = rec.mergeStatus;
     if (gate?.state === "failure" && WORKER_LINES.has(gate.line)) gaps.push(`githerd/merge: ${gate.description}`);
-    if (gaps.length) return { missing: gaps };
+    if (gaps.length) return { missing: [...fix, ...gaps] };
+    if (fix.length) return { missing: fix, fixable: true };
     // A cancelled check is no result yet: githerd re-runs it, or someone pushes again.
     if (required.some(([, s]) => s === "PENDING" || s === "MISSING" || s === "CANCELLED"))
         return { ciPending: rec.headSha };
@@ -523,7 +577,8 @@ export async function verifyClaim(job, report, view) {
             return prAnswer(job.pr ?? numberOf(job.target), pushed, view);
         case "issue": {
             const pr = report.pr ?? job.pr;
-            if (!pr) return { missing: ["pr: the pull request that fixes the issue"] };
+            if (!pr) return { missing: ["pr: the pull request that fixes the issue"], fixable: true };
+            if (report.commits?.length) return carriedAnswer(pr, report.commits, view);
             return prAnswer(pr, pushed, view, numberOf(job.target));
         }
         case "incident":
@@ -586,9 +641,12 @@ function toolAnswer(answer, after, error, job) {
             attempts: "this is not a refusal and costs nothing: githerd decides on its own and rings you",
         };
     }
-    const missing = /** @type {{missing: string[]}} */ (answer).missing;
+    const { missing, fixable } = /** @type {{missing: string[], fixable?: true}} */ (answer);
     const ended = after?.action !== "working";
-    return { verified: false, missing, ...(ended ? { ended: true } : {}), attempts: attemptsText(job, after) };
+    const attempts = fixable
+        ? "refused, but this does not count against the attempt: the job stays yours. Fix what is missing and call githerd_done again"
+        : attemptsText(job, after);
+    return { verified: false, missing, ...(ended ? { ended: true } : {}), attempts };
 }
 
 /**
@@ -758,7 +816,7 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
     board.move(job, "verifying", now);
     const after = board.verifyResult(job, answer, now);
     if (after?.action === "waiting") job.waitingFor.verify = true;
-    if (after?.action === "done") applyDone(job, report, view, now);
+    if (after?.action === "done") applyDone(job, report, view, now, answer);
     keepRefused(ctx.state, job, answer, after, now);
     afterSettle(ctx.state, job, holder, after, now);
     await ctx.commit({
@@ -773,16 +831,43 @@ async function settleVerified(ctx, job, report, { holder, answer, error, view })
 
 /**
  * What an accepted `done` report leaves on the job: a triage batch's verdicts, a split's children,
- * and the issues a bundle left out.
+ * the issues a bundle left out, and a carried fix's link.
  * @param {any} job the job, now done
  * @param {any} report the report
  * @param {View} view what the check read
  * @param {Date} now the current time
+ * @param {Answer} answer the answer that accepted it
  */
-function applyDone(job, report, view, now) {
+function applyDone(job, report, view, now, answer) {
     if (job.kind === "triage") recordVerdicts(job, report, view, now);
     if (report.children) job.children = report.children;
     if (job.kind === "issue" && job.facts?.batch?.length) recordLeftOut(job, report, view.state);
+    if (job.kind === "issue" && report.commits?.length) recordCarried(job, report, view.state, now, answer);
+}
+
+/**
+ * Records that a pull request the session did not push carries an issue job's fix. While it is
+ * open, `state.merged.carried` holds the link, and its merge becomes a reference of the issue
+ * (`accumulateMerged`); one that already merged is a reference at once. Either way, an issue
+ * GitHub left open is then verified and closed by an issue job (`masterRefs`, job-text.mjs).
+ * @param {any} job the issue job, now done
+ * @param {any} report the report
+ * @param {any} state the daemon state, changed in place
+ * @param {Date} now the current time
+ * @param {Answer} answer the answer that accepted it
+ */
+function recordCarried(job, report, state, now, answer) {
+    const issue = String(numberOf(job.target));
+    const pr = Number(report.pr ?? job.pr);
+    const merged = (state.merged ??= {});
+    if (answer && "merged" in answer && answer.merged) {
+        merged.refs ??= {};
+        merged.refs[issue] ??= [];
+        if (!merged.refs[issue].includes(`#${pr}`)) merged.refs[issue].push(`#${pr}`);
+        return;
+    }
+    merged.carried ??= {};
+    merged.carried[issue] = { pr, commits: report.commits, job: job.id, at: now.toISOString() };
 }
 
 /**
@@ -886,7 +971,7 @@ export async function recheckRefused(state, { config, io, now }) {
         j.refused = null;
         board.move(j, "verifying", now);
         const after = board.verifyResult(j, answer, now);
-        applyDone(j, r.report, view, now);
+        applyDone(j, r.report, view, now, answer);
         j.news.push({
             at: now.toISOString(),
             text: `githerd checked your refused githerd_done report of ${r.report.at} again and accepted it: ${j.id} is done`,
@@ -1164,6 +1249,10 @@ export function doneIo({
         },
         async contains(commit, sha) {
             if (!(await known(sha))) await fetchRefs([branch]);
+            return (await known(commit)) && (await known(sha)) && ancestor(commit, sha);
+        },
+        async pullContains(commit, n, sha) {
+            if (!(await known(sha))) await fetchRefs([`refs/pull/${n}/head`]);
             return (await known(commit)) && (await known(sha)) && ancestor(commit, sha);
         },
         issue: (n) => get(`repos/${repo}/issues/${n}`),

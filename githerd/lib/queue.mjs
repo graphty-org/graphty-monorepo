@@ -70,8 +70,8 @@ export function missingLabelKinds(labels, config) {
 }
 
 /**
- * The open PR that is already working on an issue: it closes it, names it in its title, or is its
- * githerd branch.
+ * The open PR that is already working on an issue: it closes it, names it in its title, is its
+ * githerd branch, or carries its fix (`state.merged.carried`, done.mjs).
  * @param {any} state the daemon state
  * @param {number} number the issue
  * @returns {number | null} the PR number, or null
@@ -83,7 +83,9 @@ function openPrFor(state, number) {
             new RegExp(String.raw`#${number}(?!\d)`).test(p.title ?? "") ||
             p.headRef === `githerd/issue-${number}`,
     );
-    return hit ? Number(hit[0]) : null;
+    if (hit) return Number(hit[0]);
+    const carrier = state.merged?.carried?.[number]?.pr;
+    return carrier && state.prs?.[carrier] ? carrier : null;
 }
 
 /**

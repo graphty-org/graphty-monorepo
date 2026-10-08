@@ -1,4 +1,4 @@
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { ABSENT, createProjectStore, deepFreezeArgs } from "../../../src/session/project/draft";
 import { createCounter, createProjectState } from "../../../src/session/project/state";
@@ -179,6 +179,68 @@ describe("two open drafts writing one key", () => {
 
         assert.isFalse(store.state.config.has("background.color"));
         assert.strictEqual(store.state.config.get("selection.color"), "blue");
+    });
+});
+
+describe("a checkpoint", () => {
+    it("puts back what was written since, and leaves earlier writes and keys handed over", () => {
+        const store = createProjectStore(createProjectState());
+        const draft = store.open();
+        draft.config.set("kept", 1);
+        draft.config.set("changed", 1);
+        draft.config.set("handed", 1);
+        const revert = draft.checkpoint();
+        draft.config.set("changed", 2);
+        draft.config.set("added", 2);
+        draft.config.set("handed", 2);
+        const other = store.open();
+        other.config.set("handed", 3);
+
+        assert.sameMembers([...revert()], ["config"]);
+        assert.deepEqual(Object.fromEntries(store.state.config), { kept: 1, changed: 1, handed: 3 });
+        assert.deepEqual(
+            draft.seal().entries.map((entry) => [entry.key, entry.prior, entry.next]),
+            [
+                ["kept", ABSENT, 1],
+                ["changed", ABSENT, 1],
+            ],
+        );
+    });
+
+    it("costs the same however many keys the draft holds: it walks none of them", () => {
+        // A transaction takes one per member, so a walk here costs the square of its writes.
+        const store = createProjectStore(createProjectState());
+        const draft = store.open();
+        for (let i = 0; i < 1_000; i++) {
+            draft.config.set(`k${i}`, i);
+        }
+
+        const walks = vi.spyOn(Map.prototype, Symbol.iterator);
+        try {
+            draft.checkpoint();
+            assert.strictEqual(walks.mock.calls.length, 0);
+        } finally {
+            walks.mockRestore();
+        }
+    });
+
+    it("reverts to its own moment when checkpoints overlap", () => {
+        const store = createProjectStore(createProjectState());
+        const draft = store.open();
+        draft.config.set("x", 1);
+        const outer = draft.checkpoint();
+        draft.config.set("x", 2);
+        const inner = draft.checkpoint();
+        draft.config.set("x", 3);
+        draft.config.set("y", 3);
+
+        inner();
+        assert.deepEqual(Object.fromEntries(store.state.config), { x: 2 });
+        draft.config.set("y", 4);
+        outer();
+        assert.deepEqual(Object.fromEntries(store.state.config), { x: 1 });
+        draft.rollback();
+        assert.strictEqual(store.state.config.size, 0);
     });
 });
 

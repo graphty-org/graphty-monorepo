@@ -341,12 +341,44 @@ interface OpenEntry {
     next: unknown;
 }
 
+/** What one key of a draft held just before a write changed it: its entry's next, if it had one. */
+interface Touch {
+    readonly id: string;
+    readonly had: boolean;
+    readonly next: unknown;
+}
+
 /** The mutable side of one open draft. */
 interface OpenDraft {
     readonly entries: Map<string, OpenEntry>;
     readonly log: OpLogEntry[];
     rows: RowPatch | null;
     closed: boolean;
+    /**
+     * Each key's state before its first change after each checkpoint, in order, so a checkpoint is
+     * a position here and costs nothing however many keys the draft holds.
+     */
+    readonly journal: Touch[];
+    /** Checkpoints taken; a key is journaled once per checkpoint. */
+    epoch: number;
+    /** The epoch each key was last journaled in. */
+    readonly journaled: Map<string, number>;
+}
+
+/**
+ * Journal a key's state before a change, unless it was journaled since the last checkpoint: the
+ * first change after a checkpoint is the only one a revert to it needs.
+ * @param draft - The draft whose `entries` is about to change at the key.
+ * @param id - The `slice/key`.
+ */
+function touch(draft: OpenDraft, id: string): void {
+    if (draft.journaled.get(id) === draft.epoch) {
+        return;
+    }
+
+    draft.journaled.set(id, draft.epoch);
+    const entry = draft.entries.get(id);
+    draft.journal.push({ id, had: entry !== undefined, next: entry?.next });
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -425,9 +457,11 @@ export function createProjectStore(
             } else {
                 // Hand-over: the earlier open draft gives up the key and its prior.
                 prior = holder.entries.get(id)?.prior;
+                touch(holder, id);
                 holder.entries.delete(id);
             }
 
+            touch(draft, id);
             entry = { slice, key, prior, next: value };
             draft.entries.set(id, entry);
             owners.set(id, draft);
@@ -437,6 +471,10 @@ export function createProjectStore(
                     throw strictViolation(`after a hand-over, ${id} is in ${holders} open patches, not one`);
                 }
             }
+        }
+
+        if (entry.next !== value) {
+            touch(draft, id);
         }
 
         entry.next = value;
@@ -467,7 +505,15 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false };
+            const draft: OpenDraft = {
+                entries: new Map(),
+                log: [],
+                rows: null,
+                closed: false,
+                journal: [],
+                epoch: 0,
+                journaled: new Map(),
+            };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -524,7 +570,10 @@ export function createProjectStore(
                     return patch;
                 },
                 checkpoint() {
-                    const saved = new Map([...draft.entries].map(([id, entry]) => [id, entry.next]));
+                    // A position in the journal, not a copy of the entries: a transaction's members
+                    // each take one, and a copy made every member costs the square of its writes.
+                    draft.epoch++;
+                    const mark = draft.journal.length;
                     const logged = draft.log.length;
 
                     return () => {
@@ -534,14 +583,30 @@ export function createProjectStore(
                             changed.add(entry.slice);
                         }
 
-                        for (const [id, entry] of draft.entries) {
-                            if (!saved.has(id)) {
+                        // Each key's first journal record since the mark is what it held then; a key
+                        // with none is unchanged since.
+                        const saved = new Map<string, Touch>();
+                        for (const record of draft.journal.slice(mark)) {
+                            if (!saved.has(record.id)) {
+                                saved.set(record.id, record);
+                            }
+                        }
+
+                        for (const [id, record] of saved) {
+                            const entry = draft.entries.get(id);
+                            if (entry === undefined) {
+                                continue;
+                            }
+
+                            if (!record.had) {
+                                touch(draft, id);
                                 put(entry.slice, entry.key, entry.prior);
                                 draft.entries.delete(id);
                                 owners.delete(id);
                                 changed.add(entry.slice);
-                            } else if (saved.get(id) !== entry.next) {
-                                entry.next = saved.get(id);
+                            } else if (record.next !== entry.next) {
+                                touch(draft, id);
+                                entry.next = record.next;
                                 put(entry.slice, entry.key, entry.next);
                                 changed.add(entry.slice);
                             }

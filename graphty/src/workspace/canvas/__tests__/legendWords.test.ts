@@ -5,6 +5,7 @@ import {
     factSentence,
     imageLegend,
     keyBlocks,
+    keySections,
     overflowLine,
     paintWords,
     sectionTitle,
@@ -28,6 +29,8 @@ function block(over: Partial<LegendBlock>): LegendBlock {
         ...over,
     };
 }
+
+const byLayer = { row: (b: LegendBlock) => b.layerId, entry: (b: LegendBlock) => b.layerId };
 
 const swatch = (over: Partial<LegendSwatch>): LegendSwatch => ({ label: "x", value: 0, ...over });
 
@@ -104,21 +107,18 @@ describe("the legend card's words", () => {
             }),
         ];
         const names: Record<string, string> = { below: "PageRank", size: "Degree", above: "Louvain" };
-        assert.deepEqual(
-            imageLegend(blocks, (b) => names[b.layerId]),
-            [
-                {
-                    title: "Color: Louvain",
-                    rows: [
-                        { label: "1", color: "#4e79a7", value: (1200).toLocaleString() },
-                        { label: "Other", color: "#cccccc", value: "4" },
-                    ],
-                    note: "28 more",
-                },
-                { title: "Size: Degree", ramp: { min: "1", max: "36" } },
-                { title: "Color: PageRank", ramp: { min: "0.01", max: "0.09", colors: ["#ffffff", "#000080"] } },
-            ],
-        );
+        assert.deepEqual(imageLegend(blocks, { row: (b) => names[b.layerId], entry: (b) => names[b.layerId] }), [
+            {
+                title: "Color: Louvain",
+                rows: [
+                    { label: "1", color: "#4e79a7", value: (1200).toLocaleString() },
+                    { label: "Other", color: "#cccccc", value: "4" },
+                ],
+                note: "28 more",
+            },
+            { title: "Size: Degree", ramp: { min: "1", max: "36" } },
+            { title: "Color: PageRank", ramp: { min: "0.01", max: "0.09", colors: ["#ffffff", "#000080"] } },
+        ]);
     });
 
     it("keys neither a label, its look, nor a size that does not vary, a highlight's included", () => {
@@ -136,7 +136,7 @@ describe("the legend card's words", () => {
         ];
         assert.deepEqual(keyBlocks(blocks), [color, bound]);
         assert.deepEqual(
-            imageLegend(blocks, (b) => b.layerId).map((section) => section.title),
+            imageLegend(blocks, byLayer).map((section) => section.title),
             ["Size: sized", "Color: color"],
         );
     });
@@ -149,8 +149,50 @@ describe("the legend card's words", () => {
         const top = block({ layerId: "louvain", kind: "categorical" });
         assert.deepEqual(keyBlocks([covered, top]), [top]);
         assert.deepEqual(
-            imageLegend([covered, top], (b) => b.layerId).map((section) => section.title),
+            imageLegend([covered, top], byLayer).map((section) => section.title),
             ["Color: louvain"],
         );
+    });
+
+    it("keys a run's node and edge highlight in one color as one section, in the app's words", () => {
+        const black = [swatch({ value: "#000000", color: "#000000" })];
+        const ranked = block({ layerId: "pagerank" });
+        const edges = block({
+            layerId: "route-e",
+            runId: "r2",
+            channel: "edge.color",
+            kind: "highlight",
+            swatches: black,
+        });
+        const nodes = block({
+            layerId: "route-n",
+            runId: "r2",
+            channel: "node.color",
+            kind: "highlight",
+            swatches: black,
+        });
+        const names = {
+            row: (b: LegendBlock) => (b.runId === "r2" ? "Shortest path" : "PageRank"),
+            entry: (b: LegendBlock) => (b.kind === "highlight" ? "On the path" : b.layerId),
+        };
+        const sections = keySections([ranked, edges, nodes], names);
+        assert.deepEqual(
+            sections.map(({ title, entry }) => [title, entry]),
+            [
+                ["Shortest path", "On the path"],
+                ["Color: PageRank", "pagerank"],
+            ],
+        );
+        assert.deepEqual(imageLegend([ranked, edges, nodes], names)[0], {
+            title: "Shortest path",
+            rows: [{ label: "On the path", color: "#000000" }],
+        });
+        // Two colors, or two runs, stay two sections, each with its property.
+        const red = block({ ...edges, swatches: [swatch({ value: "#ff0000", color: "#ff0000" })] });
+        assert.deepEqual(
+            keySections([red, nodes], names).map((section) => section.title),
+            ["Color: Shortest path", "Edge color: Shortest path"],
+        );
+        assert.lengthOf(keySections([{ ...edges, runId: "r3" }, nodes], names), 2);
     });
 });

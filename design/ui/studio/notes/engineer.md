@@ -15,6 +15,16 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **The key speaks the app's words for a run's highlight (app only, no API change).**
+  `keySections` (legendWords.ts) merges a run's node and edge color highlight with one swatch into
+  one section titled by the run alone ("Shortest path"); its entry is `highlightEntry(run.shape)`
+  (analyze/words.ts: path "On the path", pair-list "In a pair", else "In the result"), never the
+  element's layer name ("Shortest route (edges)"). The card and the exported image key share it
+  (`keyNames(session)`). Two colors or two runs stay two sections with their property. Story
+  `PathOverRanking`. Re-pilot: T18A/07, T18B/07, T20A/14, T20B/14 in `tmp/r1-dry2-key-words/`
+  show one "Shortest path" / "On the path" section (above Size and Color: PageRank where ranked)
+  and `--expect-not route` passed. The run's Style tab may still list layer names; not checked.
+
 - (2026-10-08) **Shared rows, lists and menus (compact-mantine only, no API change).** (1) A tree
   row's count yields to its name: `.cm-tree-count` shrinks 1000x faster, floor 2.5em with its
   ellipsis, `text-align: end` ("friends-v2.csv 20 nodes, 41 ..."). (2) A selected expanded parent
@@ -56,42 +66,19 @@ acceptance test. "The studio worktree" is
   s11 has no node row; from s04, ...") because the narrow inspector cuts the line's end. Evidence
   `tmp/r1-dry2-missing-end/` (T4B/05, 07; T4A/05, 07). OPEN: `door-surface.test.ts` fails on HEAD
   (`Graphty.nodesInRect` not in `doors.ts`).
-- (2026-10-08) **Study tool trust (real.mjs).** Hover prints only its own tooltip; EPIPE from a
-  client that left no longer kills the session; click timeouts print Playwright's reason; a setup
-  ends with focus released. Evidence `tmp/r1-dry1-study-tool/`.
-
-0. (2026-10-08) **The drawing stays put (element + app, team door).** Three pilot defects, two
-   mechanisms. (a) A run grew the legend card; the app reported a bigger top inset and the element
-   re-framed (`viewInsets` setter called `zoomToFit` under `autoFrame`) and the orbit camera
-   re-centered on the new free area: every node moved and shrank. Now insets never move the
-   camera (`OrbitCameraController.setViewInsets` shifts the pivot by the change in lens shift),
-   and the app's legend calls `zoomToFit()` only when `element.nodesInRect(cardBox)` is not empty
-   (new additive element API). (b) Find's pick called `zoomToSelection`, which TURNS the camera to
-   look at the node (pivotRotation x 0.26): the top of the drawing left the canvas and stayed out.
-   Now the camera turns only for a pick that is off screen (`nodeScreenPosition().visible`). (c) The
-   "empty canvas below the Save dialog" was (b): after the turn, the drawing ended at y 490 and the
-   dialog covered it. Evidence `tmp/r1-dry1-view-stays-put/` (T18B/03-04, T20B/04-05, T19A/02-04).
-
-- (2026-10-08) **Find rules and edge names (element + app + compact-mantine, team door).**
-  `FindOptions.edgeNameJoiner` (element, optional, default unchanged) finds an edge by its name,
-  ranked with node names, `match.path` "ends"; the app passes `edgeJoiner(session)` (words.ts), the
-  same text the inspector title uses, so "Station -> Stadium" or "Stadium" lists the edge. Rule
-  example from the data (`exampleRule`: an imported number column, its rounded midpoint); a rule
-  stays in the box after Enter, selected; Columns wear `GLYPHS.attribute`. ResultRow names turn off
-  Inter's `calt` so "->" is not drawn as an arrow (the inspector header already showed "->").
-  Evidence `tmp/r1-dry1-find-rules-polish/` (T22A/02, 03, 05, 06; T22B/02, 04; T24B/02-05).
-  OPEN: inspector names an edge's ends by id, Find by name (#895); Columns after "=" omit run
-  results (PageRank not offered on Les Miserables).
-
-1. (2026-10-08) **Path form names and Made with rows (app + element, team door).** From/To named
-   "From node"/"To node" (visible text kept); Made with lists Analysis, Ran, From, To, Weight as
-   rows; element `WeightMeaning.assumed`. Evidence `tmp/r1-dry1-path-form-made-with/`.
-2. (2026-10-08) **Focus lands on a control (app).** Find path -> the route's first node in Values;
-   find pick -> Degree; Degree -> first neighbor, else Hops; saved note -> "+"; project open and
-   leaving Data -> the place's rail button (`focusCurrentPlace`). Evidence
-   `tmp/r1-dry1-focus-placement/`.
-3. (2026-10-08) Earlier polish in place (see Decisions). OPEN: label size is world-space; T21
-   Replace relayouts every node; neighborhood filter has no `direction`; Dijkstra always undirected.
+- (2026-10-08) **Study tool trust (real.mjs).** Hover prints only its own tooltip; EPIPE no longer
+  kills a session; click timeouts print the reason; a setup ends with focus released.
+- (2026-10-08) **The drawing stays put (element + app).** View insets never move the camera
+  (`OrbitCameraController.setViewInsets` shifts the pivot); the legend calls `zoomToFit()` only
+  when `element.nodesInRect(cardBox)` is not empty; Find turns the camera only for an off-screen
+  pick. Evidence `tmp/r1-dry1-view-stays-put/`.
+- (2026-10-08) **Find rules and edge names.** `FindOptions.edgeNameJoiner` (element) finds an edge
+  by its name; rule example from the data; ResultRow turns off Inter's `calt`. OPEN: inspector names
+  an edge's ends by id (#895); Columns after "=" omit run results.
+- (2026-10-08) **Path form and focus.** From/To "From node"/"To node"; Made with rows Analysis, Ran,
+  From, To, Weight; `WeightMeaning.assumed`. Focus lands on a control after each action
+  (`focusCurrentPlace`). OPEN: label size is world-space; T21 Replace relayouts every node;
+  neighborhood filter has no `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
@@ -143,6 +130,13 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-08) **One key section per highlight color, titled by the run.** A node and an edge
+  section with the same chip told a reader nothing the one does not; the property word ("Color",
+  "Edge color") is dropped only when merged, since the one entry then covers both. Entry words
+  live by result shape in analyze/words.ts beside the run names, so a new highlight shape gets
+  "In the result" until it gets its own words. Rejected: renaming the element's layers (its English
+  layer name is a default, the app replaces words by id).
 
 - (2026-10-08) **The name wins the room fight, the count yields.** Reverses the earlier "count stays
   whole up to half the row": the name says which row it is, and two versions of a file differ at
@@ -241,6 +235,10 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: re-piloting T20A/T20B from empty with the load-time weight steps of
+  answers.md T20 in one shell function, and T18A/T18B from `friends-ranked.txt` and
+  `florentine-ranked.txt` with `--key p`, type, click, Find path; `--expect-not route` as the check.
+
 - (2026-10-08) Did not work: a contrast assertion alone for the "looks disabled" segment -- the old
   gray already passed 4.5:1; the test that fails without the fix compares the unchosen label's
   color to the chosen one's. Worked: nesting the test rows one level (`Sources` parent) to match
@@ -308,12 +306,8 @@ acceptance test. "The studio worktree" is
   run's per-node values via `session.data.nodePage({ columns: [runId] })`; queries are JMESPath.
   `selection.apply` throws synchronously on a bad selector (element defect, unfiled).
 
-- (2026-10-08) real.mjs: stale tooltip reproduces with "Local only" -> Everything row (slow fade);
-  a killed client gives EPIPE; strip `\x1b[...m` from Playwright call logs.
-
-- (2026-10-06 to 10-07) Grep every route of a value before calling a change done (see Top of
-  mind 11). Untraced: header "Untitled" after New from data; `notReadSentence` words only
-  `E_PARSE_FAILED`, other open refusals show element English.
+- (2026-10-06 to 10-08) Grep every route of a value before calling a change done. Untraced: header
+  "Untitled" after New from data; `notReadSentence` words only `E_PARSE_FAILED`.
 
 - **Open project or file... reopening a project.** #913 closed in the element with "one intake
   verb"; the app still imports a `.graphty.json` as data. A tier 1 task (save, close, reopen) only

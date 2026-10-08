@@ -221,6 +221,22 @@ export function runName(session: GraphSession, run: Pick<Run, "algorithm" | "lab
     return wordsFor(descriptor).name + run.label.slice(descriptor.plainName.length);
 }
 
+/** What the key calls the elements a run's highlight marks, by the run's result shape. */
+const HIGHLIGHT_ENTRIES: Partial<Record<Run["shape"], string>> = {
+    path: "On the path",
+    "pair-list": "In a pair",
+};
+
+/**
+ * The key's entry for a run's highlight: "On the path" for a path, "In the result" for a set.
+ * Never the element's layer name ("Shortest route (edges)").
+ * @param shape - the run's result shape.
+ * @returns the words.
+ */
+export function highlightEntry(shape: Run["shape"]): string {
+    return HIGHLIGHT_ENTRIES[shape] ?? "In the result";
+}
+
 /** One heading with the entries under it. */
 interface HeadingEntries {
     readonly heading: Heading;

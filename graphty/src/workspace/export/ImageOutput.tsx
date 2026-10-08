@@ -4,7 +4,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { imageLegend, rowName } from "../canvas/legendWords";
+import { imageLegend, keyNames } from "../canvas/legendWords";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     backgroundRefusal,
@@ -53,9 +53,7 @@ const SIZE_REFUSED = "this browser cannot make an image this size";
  * @returns the sections; none when the card is hidden.
  */
 function imageKey(session: GraphSession | null, legendShown: boolean): ScreenshotLegendSection[] {
-    return legendShown && session !== null
-        ? imageLegend(session.styles.legend(), (block) => rowName(session, block))
-        : [];
+    return legendShown && session !== null ? imageLegend(session.styles.legend(), keyNames(session)) : [];
 }
 
 /** Props for ImageOutput. */

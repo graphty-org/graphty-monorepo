@@ -6,6 +6,7 @@ import {
     costLine,
     groupAlgorithms,
     HEADINGS,
+    highlightEntry,
     isSlow,
     matches,
     meaningGloss,
@@ -106,10 +107,8 @@ describe("the Analyze popover's words", () => {
             return;
         }
         const ran = (used: string): string =>
-            ranOptionWords(
-                { algorithm: "shortest-path", status: "succeeded", caveats: { method: used } },
-                method,
-            ).empty;
+            ranOptionWords({ algorithm: "shortest-path", status: "succeeded", caveats: { method: used } }, method)
+                .empty;
         assert.equal(ran("dijkstra"), "Dijkstra, chosen automatically");
         assert.equal(ran("bellman-ford"), "Bellman-Ford, chosen automatically");
         assert.equal(optionWords("shortest-path", method).empty, "Chosen automatically");
@@ -176,6 +175,13 @@ describe("the Analyze popover's words", () => {
         }
         for (const text of [skipped, unset, weightName("x", "capacity"), meaningGloss(null)]) {
             assert.notMatch(text, /strength|stronger/i);
+        }
+    });
+
+    it("names what a highlight marks in its own words, never the element's layer name", () => {
+        assert.equal(highlightEntry("path"), "On the path");
+        for (const shape of RESULT_SHAPES) {
+            assert.notMatch(highlightEntry(shape), /route|\(/i);
         }
     });
 });

@@ -133,6 +133,20 @@ export const LouvainOpen: Story = {
     },
 };
 
+/**
+ * A shortest path over PageRank: the path's node and edge highlight share one key section,
+ * "Shortest path", with one entry, "On the path", above "Color: PageRank".
+ */
+export const PathOverRanking: Story = {
+    args: { initialState: OPEN },
+    play: async ({ canvasElement }) => {
+        const element = await loadKarate(canvasElement);
+        await element.session.runs.start("pagerank");
+        await element.session.runs.start("shortest-path", { source: "17", target: "26" });
+        await settle(canvasElement, element, "Shortest path");
+    },
+};
+
 /** `#/toolbar/legend-off`: the legend switched off, the drawing alone. */
 export const LegendOff: Story = {
     args: { initialState: { ...OPEN, legendShown: false } },

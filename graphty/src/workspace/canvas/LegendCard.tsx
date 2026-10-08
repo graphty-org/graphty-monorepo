@@ -4,7 +4,7 @@ import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
 import React, { useLayoutEffect, useRef } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-import { isSizeBlock, overflowLine, paintWords, rowName, sectionTitle, swatchName, swatchText } from "./legendWords";
+import { isSizeBlock, keyNames, keySections, overflowLine, paintWords, swatchName, swatchText } from "./legendWords";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -47,16 +47,16 @@ function Ramp({ block, title }: Readonly<{ block: LegendBlock; title: string }>)
  * it, when the element can say.
  * @param props - Component props
  * @param props.block - the block
- * @param props.layerName - the name of the layer behind the block, for a fixed-value row
+ * @param props.entry - the entry of a fixed-value row ("On the path")
  * @returns the rows
  */
-function List({ block, layerName }: Readonly<{ block: LegendBlock; layerName?: string }>): React.JSX.Element {
+function List({ block, entry }: Readonly<{ block: LegendBlock; entry: string }>): React.JSX.Element {
     return (
         <>
             {block.swatches.map((swatch, index) => (
                 <DataRow
-                    key={`${String(index)}-${swatchText(block, swatch, layerName)}`}
-                    name={swatchName(block, swatch, layerName)}
+                    key={`${String(index)}-${swatchText(block, swatch, entry)}`}
+                    name={swatchName(block, swatch, entry)}
                     value={paintWords(swatch) ?? swatch.count}
                     icon={swatch.color === undefined ? undefined : <ColorSwatch color={swatch.color} size={12} />}
                 />
@@ -127,7 +127,8 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
 
 /**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
- * from the data, the row that wins on top. Each section is titled "<Property>: <row>".
+ * from the data, the row that wins on top. Each section is titled "<Property>: <row>"; a run's
+ * node and edge highlight in one color share one section titled by the run.
  *
  * Not drawn yet: the sentence saying what a higher value means and the bound size range, which
  * the element does not publish (#912); and the element's departures (`block.facts`).
@@ -139,7 +140,7 @@ function useReservedMargin(): React.RefObject<HTMLElement | null> {
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
     const ref = useReservedMargin();
     // The element lists the stack bottom first; the card reads top first, the winner first.
-    const ordered = [...blocks].reverse();
+    const sections = keySections(blocks, keyNames(session));
     return (
         <Paper
             ref={ref}
@@ -151,8 +152,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             p="xs"
         >
             <Stack gap="xs">
-                {ordered.map((block) => {
-                    const title = sectionTitle(block, rowName(session, block));
+                {sections.map(({ title, block, entry }) => {
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
                         <fieldset
@@ -163,11 +163,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                             <Text size="xs" fw={500}>
                                 {title}
                             </Text>
-                            {continuous ? (
-                                <Ramp block={block} title={title} />
-                            ) : (
-                                <List block={block} layerName={session.styles.get(block.layerId)?.name} />
-                            )}
+                            {continuous ? <Ramp block={block} title={title} /> : <List block={block} entry={entry} />}
                         </fieldset>
                     );
                 })}

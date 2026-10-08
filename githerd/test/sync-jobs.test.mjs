@@ -593,6 +593,24 @@ describe("syncJobs: issues", () => {
         expect(state.jobs["issue-3"].facts.order).toBe(0);
     });
 
+    it("keeps one issue job queued per session githerd may invite, so one every session passes on starves none", () => {
+        // 2026-10-07: issue-1229 sat queued from 21:30 past midnight, heard and passed on by all
+        // three sessions, and while it did no other issue job was made for any of them.
+        const config = normalizeConfig({
+            repo: "o/r",
+            lanes: { ci: { workflow: "ci.yml", gating: "required" } },
+            labels: CONFIG.labels,
+            workers: { slots: 0, sessions: ["a", "b", "c"] },
+        });
+        const state = base();
+        for (const n of [11, 12, 13, 14]) issue(state, n, LABELED);
+        const run = () => syncJobs(state, { config, now: NOW }).created;
+        expect([...run(), ...run(), ...run(), ...run()]).toEqual(["issue-11", "issue-12", "issue-13"]);
+        move(state.jobs["issue-12"], "starting", NOW, { holder: { session: "b", startedBy: "owner" } });
+        expect(run()).toEqual(["issue-14"]);
+        expect(run()).toEqual([]);
+    });
+
     it("offers bugs, then infrastructure, each by priority and effort, and never an enhancement", () => {
         const state = base();
         issue(state, 40, ["enhancement", "priority:critical", "effort:low"]);

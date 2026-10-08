@@ -152,22 +152,32 @@ function localNews(job, task, output) {
     return exited ? `task ${task} finished with exit code ${exited[1]}` : null;
 }
 
+/** Required-check states that are not a result yet: a summary check is MISSING until its jobs end. */
+const UNSETTLED = new Set(["PENDING", "MISSING", "CANCELLED", "EXPECTED"]);
+
 /**
- * The news of a wait on a pull request head's required checks, or null while they run.
+ * The news of a wait on a pull request's required checks, or null while they run. The wait names
+ * a head sha, or the pull request's number (`1451` or `#1451`), which sessions pass; a wait on the
+ * number follows the pull request across pushes.
  * @param {any} state the daemon state
  * @param {any} job the waiting job
- * @param {string} sha the head the job waits on
+ * @param {string} target the head or the pull request the job waits on
  * @returns {string | null} the news line, or null
  */
-function checksNews(state, job, sha) {
-    const pr = Object.entries(state.prs ?? {}).find(([n, p]) => p.headSha === sha || Number(n) === job.pr);
-    if (!pr) return `the pull request of ${String(sha).slice(0, 9)} is no longer open`;
+function checksNews(state, job, target) {
+    const t = String(target);
+    const number = /^#?\d+$/.test(t) ? t.replace("#", "") : null;
+    const pr = Object.entries(state.prs ?? {}).find(([n, p]) =>
+        number ? n === number : p.headSha === t || Number(n) === job.pr,
+    );
+    if (!pr) return number ? `#${number} is no longer open` : `the pull request of ${t.slice(0, 9)} is no longer open`;
     const [n, rec] = pr;
-    if (rec.headSha !== sha) return `#${n}'s head moved to ${String(rec.headSha).slice(0, 9)}`;
+    if (!number && rec.headSha !== t) return `#${n}'s head moved to ${String(rec.headSha).slice(0, 9)}`;
     const states = Object.entries(rec.required ?? {});
-    if (!states.length || states.some(([, s]) => s === "PENDING" || s === "EXPECTED")) return null;
+    if (!states.length || states.some(([, s]) => UNSETTLED.has(s))) return null;
     const results = states.map(([k, s]) => `${k} ${s}`).join(", ");
-    return `checks on ${String(sha).slice(0, 9)} finished: ${results}`;
+    const where = number ? "#" + n : t.slice(0, 9);
+    return `checks on ${where} finished: ${results}`;
 }
 
 /**

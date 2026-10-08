@@ -3509,7 +3509,8 @@ export class Graphty extends LitElement {
      * and hands the smaller box to the view, so a view frames a selection with no code of its own.
      * @param id - The view's name.
      * @param options - The scope to frame, the view's own options, and how to get there.
-     * @param options.scope - What to frame. Absent frames the whole graph.
+     * @param options.scope - What to frame. Absent frames the whole graph. `"selection"` frames the
+     *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @returns A promise that resolves once the camera has arrived.
      * @since 1.5.0

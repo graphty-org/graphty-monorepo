@@ -4374,7 +4374,12 @@ export class Graph implements GraphContext {
                     continue;
                 }
 
-                const distance = distanceToSegment(px, py, this.worldToScreen(points[i - 1]), this.worldToScreen(points[i]));
+                const distance = distanceToSegment(
+                    px,
+                    py,
+                    this.worldToScreen(points[i - 1]),
+                    this.worldToScreen(points[i]),
+                );
                 if (distance <= best) {
                     best = distance;
                     found = edge.id;
@@ -5904,17 +5909,7 @@ export class Graph implements GraphContext {
      * ```
      */
     async zoomToSelection(options?: import("./screenshot/types.js").CameraAnimationOptions): Promise<void> {
-        const { selection, data } = this.session;
-        const nodes = new Set<string | number>(selection.nodes);
-        for (const id of selection.edges) {
-            const edge = data.edge(id);
-            if (edge !== undefined) {
-                nodes.add(edge.source);
-                nodes.add(edge.target);
-            }
-        }
-
-        const bounds = this.boundsToFrame(nodes);
+        const bounds = this.boundsToFrame(this.selectionToFrame());
         if (bounds.measured === 0) {
             return undefined;
         }
@@ -5971,6 +5966,24 @@ export class Graph implements GraphContext {
      * @param nodeIds - The nodes to measure over. Undefined means every node in the graph.
      * @returns The box, marked with how many nodes it was measured over.
      */
+    /**
+     * What the selection covers on screen: the selected nodes and both ends of every selected edge.
+     * @returns The node ids to frame.
+     */
+    private selectionToFrame(): Set<string | number> {
+        const { selection, data } = this.session;
+        const nodes = new Set<string | number>(selection.nodes);
+        for (const id of selection.edges) {
+            const edge = data.edge(id);
+            if (edge !== undefined) {
+                nodes.add(edge.source);
+                nodes.add(edge.target);
+            }
+        }
+
+        return nodes;
+    }
+
     private boundsToFrame(nodeIds?: Iterable<string | number>): GraphBounds {
         const nodes =
             nodeIds === undefined
@@ -6068,7 +6081,8 @@ export class Graph implements GraphContext {
      * @param id - The view's name.
      * @param options - The scope to frame, the view's own options, and how to get there.
      *   Animation follows the same rules as `setCameraState`.
-     * @param options.scope - What to frame. Absent frames the whole graph.
+     * @param options.scope - What to frame. Absent frames the whole graph. `"selection"` frames the
+     *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
@@ -6085,7 +6099,13 @@ export class Graph implements GraphContext {
         const resolver = scopeResolverOfSession(this.getSession());
         // Read from the scope's node bitmap, so framing a subset never builds an id Set. An inline
         // definition may name edges by session id, as at every door that takes a scope.
-        const nodes = scope === undefined ? undefined : resolver.nodeIdsOf(resolver.canonical(resolver.admit(scope)));
+        let nodes: Iterable<string | number> | undefined;
+        if (scope === "selection") {
+            // The selection frames its edges' ends too: a selected edge is on screen as much as a node.
+            nodes = this.selectionToFrame();
+        } else if (scope !== undefined) {
+            nodes = resolver.nodeIdsOf(resolver.canonical(resolver.admit(scope)));
+        }
         const state = this.resolveCameraPreset(id, {
             ...(nodes === undefined ? {} : { nodes }),
             ...(options?.params === undefined ? {} : { params: options.params }),

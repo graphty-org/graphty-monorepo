@@ -7,12 +7,24 @@ import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
 /**
- * Why Frame selection and Neighborhood cannot run: they act on a selected node.
+ * Why Neighborhood cannot run: it acts on a selected node.
  * @param session - the element's session, or null.
  * @returns the reason, or null when a node is selected.
  */
 function noNodeSelected(session: GraphSession | null): string | null {
     return nothingDrawn(session) ?? (session?.selection.nodes.length ? null : "Select a node first");
+}
+
+/**
+ * Why Frame selection cannot run: nothing is selected. The element frames a selected edge's ends.
+ * @param session - the element's session, or null.
+ * @returns the reason, or null when a node or an edge is selected.
+ */
+function nothingSelected(session: GraphSession | null): string | null {
+    return (
+        nothingDrawn(session) ??
+        (session?.selection.nodes.length || session?.selection.edges.length ? null : "Select something first")
+    );
 }
 
 /**
@@ -119,7 +131,7 @@ export const registration = defineRegistration({
             label: "Frame selection",
             group: "View",
             keys: ["F"],
-            disabled: ({ session }) => noNodeSelected(session),
+            disabled: ({ session }) => nothingSelected(session),
             run: async ({ element }) => {
                 await element?.applyCameraView("fitToGraph", { scope: "selection", animate: true });
             },

@@ -234,6 +234,26 @@ describe("camera doors", () => {
     );
 
     it(
+        "applyCameraView with the selection scope frames a selected edge's ends",
+        async () => {
+            const graph = await loadedGraph("3d");
+            const session = graph.getSession();
+            const [edge] = session.data.edges();
+            await session.selection.apply({ edges: [edge.id] });
+            assert.lengthOf(session.selection.nodes, 0, "only the edge is selected");
+            const ends = graph.resolveCameraPreset("fitToGraph", { nodes: [edge.source, edge.target] });
+            assert.notDeepEqual(ends, graph.resolveCameraPreset("fitToGraph"), "the ends frame differently");
+            await compare(
+                graph,
+                "applyCameraView selection on an edge",
+                () => graph.setCameraState(ends),
+                () => graph.applyCameraView("fitToGraph", { scope: "selection" }),
+            );
+        },
+        TEST_TIMEOUT_MS,
+    );
+
+    it(
         "zoomToSelection with nothing selected leaves the camera where it is",
         async () => {
             const graph = await loadedGraph("3d");

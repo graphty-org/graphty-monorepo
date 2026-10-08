@@ -272,6 +272,60 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
     );
 
     it(
+        "frames a selected edge's two ends with Frame selection, and disables it with nothing selected",
+        async () => {
+            const session = await openKarate();
+            const element = document.querySelector("graphty-element");
+            assert.isNotNull(element);
+            if (element === null) {
+                return;
+            }
+            await element.waitForSettled();
+            const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+                name: "View",
+            });
+            const frameRow = async (): Promise<HTMLElement> => {
+                await userEvent.click(view);
+                const menu = await screen.findByRole("menu", { name: "View" });
+                return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
+            };
+
+            assert.equal((await frameRow()).getAttribute("aria-disabled"), "true", "nothing selected");
+            await userEvent.keyboard("{Escape}");
+
+            const edge = session.data.edges()[0];
+            await session.selection.apply({ edges: [edge.id] });
+            assert.lengthOf(session.selection.nodes, 0, "only the edge is selected");
+            const ends = { nodes: [edge.source, edge.target] };
+            assert.notDeepEqual(
+                element.resolveCameraPreset("fitToGraph", ends),
+                element.resolveCameraPreset("fitToGraph"),
+                "the ends frame differently",
+            );
+
+            const row = await frameRow();
+            assert.notEqual(row.getAttribute("aria-disabled"), "true", "an edge is selected");
+            await userEvent.click(row);
+            await waitFor(
+                () => {
+                    // Measured when compared, so a canvas resized by the inspector opening counts.
+                    const expected = element.resolveCameraPreset("fitToGraph", ends);
+                    const now = element.getCameraState();
+                    for (const key of ["position", "target"] as const) {
+                        const [a, b] = [now[key], expected[key]];
+                        assert.isDefined(b, key);
+                        for (const axis of ["x", "y", "z"] as const) {
+                            assert.closeTo(a?.[axis] ?? Number.NaN, b?.[axis] ?? 0, 1e-3, `${key}.${axis}`);
+                        }
+                    }
+                },
+                { timeout: 10_000 },
+            );
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
         "switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it",
         async () => {
             const session = await openKarate();

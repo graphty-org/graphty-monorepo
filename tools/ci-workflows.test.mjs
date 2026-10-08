@@ -2166,9 +2166,10 @@ describe("release.yml", () => {
     describe("restarts a held release on a master push whose build passed", () => {
         // The pick job's "Skip while the previous release is pending" step, run in a scratch directory with
         // stubs for gh (no release pull request, or one still pending), git (no release yet) and
-        // tools/release-held.sh (the held issue, or none). `trigger` is the workflow's TRIGGER: "schedule" for a
-        // scheduler dispatch (scheduled=true), "workflow_dispatch" for one by hand.
-        const pending = (trigger, heldIssue, trainPr = false) => {
+        // tools/release-held.sh (the held train issue, or none; `publishHold` an open publish hold, which only a
+        // plain `find` returns). `trigger` is the workflow's TRIGGER: "schedule" for a scheduler dispatch
+        // (scheduled=true), "workflow_dispatch" for one by hand.
+        const pending = (trigger, heldIssue, trainPr = false, publishHold = "") => {
             const script = /- name: Skip while the previous release is pending[\s\S]*?run: \|\n([\s\S]*?)\n\n/.exec(
                 pick,
             )[1];
@@ -2181,7 +2182,11 @@ describe("release.yml", () => {
                 writeFileSync(join(dir, "bin", "gh"), `#!/bin/sh\n${gh}\n`, { mode: 0o755 });
                 // no release commit yet, so no tag to wait for
                 writeFileSync(join(dir, "bin", "git"), "#!/bin/sh\n", { mode: 0o755 });
-                writeFileSync(join(dir, "tools", "release-held.sh"), `#!/bin/sh\necho ${heldIssue}\n`, { mode: 0o755 });
+                writeFileSync(
+                    join(dir, "tools", "release-held.sh"),
+                    `#!/bin/sh\nif [ "$2" = --train ]; then echo ${heldIssue}; else echo ${heldIssue || publishHold}; fi\n`,
+                    { mode: 0o755 },
+                );
                 const output = join(dir, "output");
                 writeFileSync(output, "");
                 const run = spawnSync("bash", ["-c", script.replace(/^ {18}/gm, "")], {
@@ -2230,6 +2235,15 @@ describe("release.yml", () => {
             assert.equal(pending("schedule", ""), "pending=false\nsha=abc123\n");
             assert.equal(pending("schedule", "1234"), "pending=true\n");
             assert.equal(pending("workflow_dispatch", "1234"), "pending=false\nsha=abc123\n");
+        });
+
+        it("never restarts a train for a publish hold, which only a re-run publish clears; the schedule still skips", () => {
+            assert.equal(pending("workflow_run", "", false, "1440"), "pending=true\n");
+            assert.equal(pending("schedule", "", false, "1440"), "pending=true\n");
+            // a train hold beside it still restarts
+            assert.equal(pending("workflow_run", "1234", false, "1440"), "pending=false\nsha=abc123\n");
+            assert.match(pick, /\[ -z "\$\(tools\/release-held.sh find --train\)" \]/);
+            assert.match(pick, /held=\$\(tools\/release-held.sh find\)\n/);
         });
 
         it("skips a scheduler dispatch while a train pull request or a held issue is open; runs one by hand", () => {
@@ -2384,6 +2398,110 @@ describe("release.yml", () => {
             assert.doesNotMatch(body, /OWNER ITEM/);
             assert.match(body, /^The publish job failed on master /);
         }
+    });
+
+    // tools/release-held.sh itself, against a stub gh whose open issues are `issues` (the real --jq runs over
+    // them with jq) and which records every other call. #1440: a train that failed during a publish hold
+    // retitled the publish issue, and the next passing train closed it before the owner had acted.
+    describe("keeps a publish hold separate from train holds", () => {
+        const PUBLISH = { number: 1440, title: "Release held: publish failed on ecb1ba1" };
+        const TRAIN = { number: 1500, title: "Release held: T4 GPU failed on 719db7f" };
+        const held = (issues, ...args) => {
+            const dir = mkdtempSync(join(tmpdir(), "release-held-sh-"));
+            try {
+                mkdirSync(join(dir, "bin"));
+                writeFileSync(join(dir, "issues.json"), JSON.stringify(issues));
+                writeFileSync(join(dir, "body.md"), "body\n");
+                writeFileSync(
+                    join(dir, "bin", "gh"),
+                    [
+                        "#!/bin/sh",
+                        `if [ "$1 $2" = "issue list" ]; then`,
+                        '    while [ $# -gt 0 ]; do [ "$1" = --jq ] && exec jq -r "$2" "' +
+                            join(dir, "issues.json") +
+                            '"; shift; done',
+                        "fi",
+                        'printf "%s\\n" "$*" >> "' + join(dir, "calls") + '"',
+                        '[ "$1 $2" != "issue create" ] || echo https://github.com/o/r/issues/99',
+                        "",
+                    ].join("\n"),
+                    { mode: 0o755 },
+                );
+                const run = spawnSync(
+                    "bash",
+                    [
+                        new URL("./release-held.sh", import.meta.url).pathname,
+                        ...args.map((a) => a.replace("BODY", join(dir, "body.md"))),
+                    ],
+                    {
+                        encoding: "utf8",
+                        env: {
+                            ...process.env,
+                            PATH: `${join(dir, "bin")}:${process.env.PATH}`,
+                            GITHUB_REPOSITORY: "o/r",
+                        },
+                    },
+                );
+                assert.equal(run.status, 0, run.stderr);
+                const calls = existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "";
+                return { out: run.stdout.trim(), calls: calls.replaceAll(join(dir, "body.md"), "BODY") };
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        };
+
+        it("opens a separate train issue when a train fails during a publish hold, leaving the publish issue alone", () => {
+            const { out, calls } = held([PUBLISH], "open", "Release held: CI failed on 44ab26d", "BODY");
+            assert.equal(out, "https://github.com/o/r/issues/99");
+            assert.match(calls, /^issue create -R o\/r --title Release held: CI failed on 44ab26d /);
+            assert.doesNotMatch(calls, /1440/);
+        });
+
+        it("retitles and comments on the train issue, never the publish issue, when both are open", () => {
+            const { out, calls } = held([PUBLISH, TRAIN], "open", "Release held: CI failed on 44ab26d", "BODY");
+            assert.equal(out, "1500");
+            assert.equal(
+                calls,
+                "issue edit 1500 -R o/r --title Release held: CI failed on 44ab26d\nissue comment 1500 -R o/r --body-file BODY\n",
+            );
+        });
+
+        it("closes only the train hold when a train passes", () => {
+            assert.equal(held([PUBLISH, TRAIN], "close", "passed").calls, "issue close 1500 -R o/r --comment passed\n");
+            assert.equal(held([PUBLISH], "close", "passed").calls, "");
+        });
+
+        it("finds a publish hold for the schedule but not for the restart gate", () => {
+            assert.equal(held([PUBLISH], "find").out, "1440");
+            assert.equal(held([PUBLISH], "find", "--train").out, "");
+            assert.equal(held([PUBLISH, TRAIN], "find", "--train").out, "1500");
+        });
+
+        it("comments on an open publish hold without retitling it when the publish fails again", () => {
+            const prefix = "Release held: publish failed";
+            const title =
+                "Release held: publish failed on ecb1ba1: owner must create the npm trusted publisher for @graphty/x";
+            const { out, calls } = held([TRAIN, PUBLISH], "open", title, "BODY", prefix);
+            assert.equal(out, "1440");
+            assert.equal(calls, "issue comment 1440 -R o/r --body-file BODY\n");
+            // with none open, it opens one; the passing re-run closes it and leaves the train hold
+            assert.match(
+                held([TRAIN], "open", title, "BODY", prefix).calls,
+                /^issue create -R o\/r --title Release held: publish failed/,
+            );
+            assert.equal(
+                held([TRAIN, PUBLISH], "close", "published", prefix).calls,
+                "issue close 1440 -R o/r --comment published\n",
+            );
+        });
+
+        it("is wired that way in release.yml", () => {
+            assert.match(
+                publish,
+                /tools\/release-held.sh open "\$title" "\$RUNNER_TEMP\/body.md" "Release held: publish failed"\)/,
+            );
+            assert.match(publish, /until that run is re-run and passes/);
+        });
     });
 
     it("lets Mergify take the release pull request alone, ahead of the default rule", () => {

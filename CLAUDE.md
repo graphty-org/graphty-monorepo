@@ -600,16 +600,18 @@ publishing from the builds of the run that tested it. An attempt does nothing wh
 release is pending: a release pull request is open (one that conflicts with master, has a failed
 check or left the merge queue is closed and re-cut from the newest commit; one labelled `hold`
 waits), a "Release held" issue is open, the last release is not tagged yet, or nothing releasable
-changed. A held release restarts itself: after every push to master whose build passes, while a
-"Release held" issue is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
-attempt on that pushed commit at once; with no held issue it does nothing, and the scheduled
-attempts keep skipping while the issue is open. A failed publish opens a `Release held: publish failed on <sha>` issue; re-running the
-publish run's failed jobs publishes what is missing and closes it. A
-red lane holds the whole release: no pull request, nothing published, and one `Release held: <what>
-failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that githerd picks up. Its
-fix pull request should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the
-fix's merge restarts the release. A passing train closes it; a restart that fails again comments on
-it. Never edit or push to a release branch, and never close one
+changed. There are two kinds of hold, each its own issue, and neither touches the other. A
+red lane holds the whole release: no pull request, nothing published, and one train hold, a
+`Release held: <what> failed on <sha>` issue (labels `bug`, `priority:high`, `effort:medium`) that
+githerd picks up. A held train restarts itself: after every push to master whose build passes,
+while a train hold is open, `release.yml` (triggered by `workflow_run` of CI) runs the same full
+attempt on that pushed commit at once; with no train hold it does nothing. Its fix pull request
+should say `Refs #<issue>`, not `Fixes #<issue>`: the issue must stay open so the fix's merge
+restarts the release. A passing train closes the train hold; a restart that fails again retitles
+and comments on it. A failed publish opens a publish hold, a `Release held: publish failed on
+<sha>` issue that names the run: no train retitles, closes or is restarted for it, and it lasts
+until that run is re-run (`gh run rerun <run id> --failed`), which publishes what is missing and
+closes it. The scheduled attempts skip while either hold is open. Never edit or push to a release branch, and never close one
 unless it must be replaced: while one is open, no new train runs. An ad hoc release cuts the same
 pull request at once, for the owner or an agent the owner asked:
 `gh workflow run release.yml --ref master`, optionally `-f packages=<nx project names>`. Never

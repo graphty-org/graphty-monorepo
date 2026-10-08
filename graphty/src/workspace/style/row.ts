@@ -144,7 +144,7 @@ export const LABEL_SIZE_PX = 72;
  * on every label line it adds.
  * @returns the label style.
  */
-export function appLabelLook(): LabelStyle {
+function appLabelLook(): LabelStyle {
     return { font: getComputedStyle(document.body).fontFamily, sizePx: LABEL_SIZE_PX, onTop: true };
 }
 

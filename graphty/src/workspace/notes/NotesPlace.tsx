@@ -117,10 +117,10 @@ function Chips({ session, targets, states, onOpen, tabbable = true }: ChipsProps
  * The editor at the top of the list: what the note is about, the text, Save and Cancel. Mod+Enter
  * saves; Esc closes an empty one and leaves a written one open with its text.
  * @param props - Component props
- * @param props.onSaved - Called once the note is saved
+ * @param props.onSaved - Called with the new note's id once it is saved
  * @returns The editor, or null when no note is being written
  */
-function Editor({ onSaved }: Readonly<{ onSaved: () => void }>): React.JSX.Element | null {
+function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
     const [error, setError] = useState<string | null>(null);
@@ -135,15 +135,16 @@ function Editor({ onSaved }: Readonly<{ onSaved: () => void }>): React.JSX.Eleme
             setError("Write something first");
             return;
         }
+        let id: string;
         try {
-            session.notes.add({ text: draft.text, targets: draft.targets });
+            id = session.notes.add({ text: draft.text, targets: draft.targets });
         } catch {
             setError("This note could not be saved");
             return;
         }
         setError(null);
         store.set({ noteDraft: null, announcement: `Note added about ${aboutWords(session, draft.targets)}` });
-        onSaved();
+        onSaved(id);
     };
     return (
         <Stack gap={6} px="md" py="xs" className="nt-editor">
@@ -189,7 +190,8 @@ function Editor({ onSaved }: Readonly<{ onSaved: () => void }>): React.JSX.Eleme
 /**
  * The Notes place (tier2-design.md section 3): the editor when a note is being written, then the
  * notes, newest first. The list is one Tab stop; Up and Down move between notes, Delete removes
- * the focused one, and focus then goes to the next note, or to "+" when none is left.
+ * the focused one, and focus then goes to the next note, or to "+" when none is left. A saved
+ * note takes focus itself.
  * @returns The Notes place
  */
 export function NotesPlace(): React.JSX.Element {
@@ -248,13 +250,9 @@ export function NotesPlace(): React.JSX.Element {
                     </span>
                 }
             >
-                {/* A saved note hands focus to "+", the panel's own control, not to the new note's
-                    whole card; the note is announced, and Tab from "+" reaches the list. */}
-                <Editor
-                    onSaved={() => {
-                        plus.current?.querySelector("button")?.focus();
-                    }}
-                />
+                {/* A saved note takes focus itself, so it reads whole: focus on "+" opened its
+                    tooltip over the note just written. */}
+                <Editor onSaved={focusWhenDrawn} />
                 {notes.length === 0 ? (
                     !editing && (
                         <Text size="sm" c="dimmed" px="md" py="xs">
@@ -328,7 +326,7 @@ export function NotesPlace(): React.JSX.Element {
                                                             remove(index);
                                                         }}
                                                     >
-                                                        <GLYPHS.remove size={14} aria-hidden />
+                                                        <GLYPHS.delete size={14} aria-hidden />
                                                     </ActionIcon>
                                                 </Tooltip>
                                             </Group>

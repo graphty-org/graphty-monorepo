@@ -1,6 +1,6 @@
 /**
  * Notes on the REAL graphty-element: N on a selected node opens the editor in the Notes place
- * about that node; Ctrl+Enter saves it, lists it with the node's chip, says so on the status line
+ * about that node; Ctrl+Enter saves it, lists it (focused, with no tooltip over it) with the node's chip, says so on the status line
  * and counts it on the node's inspector header. A saved project brings the note back on reopen.
  * Deleting a focused note hands focus to the next note, and to "+" when none is left.
  */
@@ -86,8 +86,14 @@ describe("Notes, on the real element", () => {
             assert.isNotNull(within(note).getByRole("button", { name }));
             assert.equal(store.get().announcement, `Note added about ${name}`);
             assert.isNull(screen.queryByRole("textbox", { name: "Note" }));
-            // Saving hands focus to "+", the panel's control, not to the new note's whole card.
-            assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Add note" }));
+            // The saved note takes focus, and no tooltip ("Add note") opens over it.
+            await waitFor(() => {
+                assert.strictEqual(document.activeElement, note);
+            });
+            assert.isNull(screen.queryByRole("tooltip"));
+            // Its delete control is the trash glyph, not the minus that reads as collapse.
+            const remove = within(note).getByRole("button", { name: "Delete note" });
+            assert.isNotNull(remove.querySelector("svg.lucide-trash-2"));
             assert.deepEqual(
                 session.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
                 [{ text: "Ask about the bank", targets: [{ node: first.id }] }],

@@ -55,6 +55,7 @@ import {
     Spline,
     SquareDashed,
     StickyNote,
+    Trash2,
     TriangleAlert,
     Undo2,
     Upload,
@@ -107,7 +108,10 @@ export const GLYPHS = {
     undo: Undo2,
     redo: Redo2,
     add: Plus,
+    // Take a value or a row out of a list.
     remove: Minus,
+    // Delete a thing for good (a note).
+    delete: Trash2,
     link: Link2,
     back: ChevronLeft,
     // The current choice in a list.

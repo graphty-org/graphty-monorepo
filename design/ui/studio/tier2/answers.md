@@ -46,6 +46,13 @@ citation is kept only where its screen still matches. Across tasks on this build
 is drawn with a blue band (not gold); a run's Made with lists "From" and "To" (not "Source" and
 "Target"); picking an option in the Path popover's From with a click moves focus on to To.
 
+**Where each setup leaves the screen.** A ranked setup (`friends-ranked.txt`, `team-ranked.txt`,
+`bus-stops-ranked.txt`, `lesmis-ranked.txt`, `florentine-ranked.txt`) ends on the PageRank run's
+inspector with its Style tab chosen, the run just styled; it does not end on Everything. A names
+setup (`friends-ranked-names.txt`, `bus-stops-ranked-names.txt`) adds a label line on Everything
+afterwards, so it ends on the Everything inspector, Style tab. Every setup hands over with nothing
+focused and the pointer off the page, so no control is lit by a hover on the first screen.
+
 **Tool faults seen in the round 1 pilots, not participant misses.** A click that times out
 (`elementHandle.click: Timeout 3000ms exceeded`) with no change on screen is the tool's: it
 happened once on a setup start (`lesmis-ranked.txt`, which still reached its end state) and once
@@ -443,9 +450,8 @@ the box and keeps the selection (`T22B/07.png`). A second Enter on the accepted 
   20 nodes; 15 shown now", B "Ran on 15 nodes; 12 shown now") and still reads 20 (B 15), though
   only the drawing narrowed; the drawing is not refit (`rounds/r1d1/pilot/T23A/09.png`,
   `T23B/08.png`). The ranking is not stale for this task: record any participant who reruns it or
-  reads the mark as a problem. On A the first screens can show a hover the participant never made
-  (the Sana row in `rounds/r1d1/pilot/T23A/05.png`, left by the setup's last click): do not read
-  it as the participant's pointer.
+  reads the mark as a problem. The setup hands over with the pointer off the page; a lit row on
+  the first screens is the participant's own hover.
 - **S:** the count read from the screen and the drawing narrowed to exactly those people and the
   starting one (the chip). **SD:** right after a detour (Hops 1 first, a filter on an attribute
   undone), or counted by hand from the list. **F:** a wrong count, the drawing not narrowed, narrowed
@@ -475,8 +481,8 @@ the box and keeps the selection (`T22B/07.png`). A second Enter on the accepted 
   on this build (`02.png`), with no change on screen and no near-miss help. After the line click the
   Selection row reads 1 and the inspector opens on its Values; the Summary counts after Select
   endpoints are the same on B as on A.
-  The setups end with the Everything inspector open; the line click does not need it closed (no
-  Escape first).
+  Both T24 setups (the names setups) end with the Everything inspector open (Style tab); the line
+  click does not need it closed (no Escape first).
 - **Other routes, graded by the end state:** typing a name in the find box lists that node and
   its ties (B: "Stadium" lists the node and School -> Stadium, Stadium -> Harbor and Station ->
   Stadium, `rounds/r1d1/pilot/T24B/06.png`; A not re-walked), and typing the inspector's title
@@ -521,7 +527,7 @@ ArrowDown`; `--key Enter`; `--click "Degree"` (the row's name is "Degree 17", B 
   row is cut by the list's edge. Reading the neighbors from that list of ties is graded as tier
   1's key grades neighbors read from the ties (SD). A participant who picks a tie instead of the
   node by mistake has taken a detour.
-- **The B setup ends on the PageRank inspector (Style tab), not on Everything**
-  (`rounds/r1d1/pilot/T12RB/01.png`); it does not change this task.
+- **Both setups end on the PageRank inspector (Style tab), not on Everything**
+  (`rounds/r1d1/pilot/T12RB/01.png`), as every ranked setup does; it does not change this task.
 - **The ranked starts draw no names,** so the dots cannot be matched to names on the drawing: the
   names come from the list, and a route by clicking dots one at a time is not workable by name.

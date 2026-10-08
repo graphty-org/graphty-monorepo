@@ -367,6 +367,7 @@ async function serve(dir, sr) {
                     else if (req.op === "plant-spin") r = await plantSpin(s, req.on);
                     else if (req.op === "plant-live") r = await plantLive(s);
                     else if (req.op === "plant-ticker") r = await plantTicker(s);
+                    else if (req.op === "hovered") r = await hovered(s);
                     else if (req.op === "end") r = { out: [`session ended: ${dir}`], code: 0, end: true };
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
@@ -666,6 +667,8 @@ async function opStart(s, setup) {
         const r = await run(s, setup, said);
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring
         await s.page.evaluate(`${FOCUSED}?.blur()`);
+        // nor a hover: the setup's last click left the pointer on a control (a row stays lit in 01.png)
+        await s.page.mouse.move(-1, -1);
         await writeFile(join(s.dir, "setup.log"), said.join("\n") + "\n");
         if (r.code || r.missed) {
             out.push(`SETUP FAILED: a setup step did not work (setup.log):`, ...said.map((l) => "  " + l));
@@ -701,6 +704,16 @@ async function plantTicker(s) {
         document.activeElement.parentElement.append(t);
     });
     return { out: [], code: 0 };
+}
+
+// --prove only: the innermost element under the pointer, as CSS :hover sees it ("" when none)
+async function hovered(s) {
+    const at = await s.page.evaluate(() => {
+        const all = [...document.querySelectorAll(":hover")];
+        const el = all[all.length - 1];
+        return el && el !== document.documentElement && el !== document.body ? el.outerHTML.slice(0, 120) : "";
+    });
+    return { out: [at], code: 0 };
 }
 
 // --prove only: a status region added with its text already in it, and one added empty and then filled
@@ -1495,6 +1508,8 @@ async function prove() {
     );
     const y = step(B, "--expect", "role=button:Project: Zachary's karate club");
     check("the setup's sample is open when the participant arrives", y.code === 0, y.out);
+    const lit = (await ask(B, { op: "hovered" })).out[0];
+    check("a setup leaves the pointer over nothing, so no control is lit by a hover", lit === "", lit);
     node(["--end", B]);
     await writeFile(setup, "--click A control that does not exist\n");
     const C = join(base, "session-c");

@@ -11,6 +11,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **A setup hands over a clean start (study tool).** After setup, `real.mjs` blurs
+  focus AND moves the pointer to (-1,-1), so 01.png shows no hover the participant never made
+  (`--prove` check "a setup leaves the pointer over nothing", via the prove-only `hovered` op;
+  fails without the move: the pointer sat on the canvas). Ranked setups end on the PageRank run's
+  inspector (Style); the names setups end on Everything (Style); answers.md says so once, up top.
+  T24B tie point 752,170 selects edge 15 on the local and the frozen build; 753,258 is empty
+  canvas. Evidence `tmp/r1-dry2-study-tool-handover/` (T23A/01-05, T12RB/01, T24B/01-03).
 - (2026-10-08) **A saved note takes focus; delete note is a trash glyph (app only, no API).**
   `Editor.onSaved(id)` -> `focusWhenDrawn(id)` (NotesPlace.tsx): Control+Enter focuses the new note
   (index 0, newest first), so no "Add note N" tooltip opens over it. `GLYPHS.delete` = lucide
@@ -63,14 +70,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   selection); a weighted one hop keeps its tie values. "Filter to neighbors": `default` Button at
   rest, `filled` when on, Tooltip says what it does and, on, "Press again to show every node".
   Evidence `tmp/r1-dry2-neighborhood-view/` (T23B/04-08, T12RA/04-06, T23A/04, 07, 08).
-- (2026-10-08) **The key speaks the app's words for a run's highlight (app only).** One section per
-  run color titled by the run ("Shortest path" / "On the path", `highlightEntry`), never the
-  element's layer name; card and exported key share `keyNames`. Evidence `tmp/r1-dry2-key-words/`.
-
-- (2026-10-08) **Shared rows, lists and menus (compact-mantine).** A tree row's count yields to its
-  name; a selected expanded parent fills `bg-selected-hover`; unchosen segment label in `--cm-text`;
-  only a keyboard open focuses a ContextMenu's first row; list fields consume their Escape (a
-  Popover with `closeOnEscape` still wins). Evidence `tmp/r1-dry2-rows-shared-controls/`.
+- (2026-10-08) Key sections are titled by the run (`highlightEntry`, `keyNames`); shared rows,
+  lists and menus fixed in compact-mantine (`tmp/r1-dry2-key-words/`, `r1-dry2-rows-shared-controls/`).
 - (2026-10-08) **A run says which method it used (element + app, team door).** Unset `method` ->
   Dijkstra, Bellman-Ford on a negative read weight; option meta `choiceLabels`; Made with says
   "Dijkstra, chosen automatically". OPEN: explicit dijkstra over a negative undirected weight
@@ -109,6 +110,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **The pointer leaves the page after setup, not to a "quiet" spot on it.** Every
+  point in the 1440 x 900 window is a control, a panel or the canvas (where a node can light up);
+  (-1,-1) is over nothing and Chromium clears `:hover`. Rejected: a fixed in-page point.
 - (2026-10-08) **A saved note takes focus, not "+".** Focus on "+" opened its tooltip over the
   note just written (items 40, 44); the note itself reads whole and Tab/Arrow move on from it.
   Rejected: suppressing the tooltip on "+" (a shared component's behavior, every icon button).
@@ -207,6 +211,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: proving a tool fix by commenting the line out in place, running `--prove`
+  with its own `REAL_PROVE_DIR`, restoring (no copy of real.mjs needed for a one-line change).
 - (2026-10-08) Did not work: reading "tooltip under the key" from a screenshot -- two dark
   surfaces abutting look like clipping. Worked: a probe (`tmp/r1-dry2-notes-polish/probe.mjs`)
   printing the tooltip's ancestor chain and z-index, plus a zoomed crop showing what covers what.
@@ -235,9 +241,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   a headless test sets it. Did not work: `max-height` from row bottoms alone; border-box counts
   the list's 1 px border, so the list ended 1 px above the row.
 
-- (2026-10-08) Did not work: piloting on `graphty/dist` while others rebuild (their `vite build`
-  empties it: "no production build"). Worked: copy dist into the task's tmp folder after the
-  build, grep its JS for the new words, serve the copy. Run prettier on an index-built blob.
+- (2026-10-08) Others' rebuilds empty `graphty/dist`: pilot on a copy in tmp. Prettier an index-built blob.
 
 - (2026-10-08) A test must fail without the fix: a contrast check passed on the old gray (compare
   to the chosen label instead); unnested rows fit at 240 px and proved nothing.

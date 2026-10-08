@@ -29,8 +29,9 @@ Every command prints what a participant would notice, then the path of the new s
 - `--start <folder> setup:<file>` runs the setup file's steps first and never shows them: one step
   per line, unquoted (`--click Open the Zachary's karate club sample`); `#` lines are comments. A
   setup step that misses fails the start with `SETUP FAILED`, which is itself a finding. When the
-  setup ends, nothing has focus, as when a saved project is reopened: the participant does not
-  arrive to a focus ring on the control the setup used last.
+  setup ends, nothing has focus and the pointer is off the page, as when a saved project is
+  reopened: the participant does not arrive to a focus ring or a hover on the control the setup
+  used last.
 - `--start <folder> empty --sr` (or `setup:<file> --sr`) starts a session in screen-reader mode;
   see below.
 - The folder gets `01.png`, `02.png`, ..., `session.json` (the commit and build under study, the

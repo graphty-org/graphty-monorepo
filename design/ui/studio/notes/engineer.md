@@ -15,6 +15,18 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+000000. (2026-10-08) **Shared controls: no clipped segment, one focus ring, legible find hints.**
+        (a) SegmentedControl: `.cm-sc-control { flex: 1 1 0 }` in a content-sized track gave every
+        option the AVERAGE width, so "Leave out" beside "Add" lost its padding and end. Fix:
+        `.cm-sc:not([data-full-width]) .cm-sc-control { flex-basis: auto }` (a set-width track with
+        equal content still splits equally; `min-width: auto` was tried first and broke the 88px
+        glyph track: 3 x 32 > 88). (b) VariablePill: the field's `:focus-within` ring AND the pill's
+        own ring; now the field drops its outline while the pill or Detach has `:focus-visible`.
+        Detach still shows on focus (keyboard reach). (c) Find hints were the app's `Text size="xs"`
+        (9px caption); now `Input.Description` = the theme's field hint (11/16, text-secondary,
+        7.6:1 on the dark panel). Theme `fontSizes.xs` left at 9 (243 app uses). Tests:
+        `compact-mantine/tests/theme/shared-controls.browser.test.tsx`, `GraphPlace.test.tsx`.
+        Evidence `tmp/r1-dry1-shared-controls/` (A/02, A/03, A/04, B/05, B/06; before/).
 00000. (2026-10-08) **Row text fits; a cut row's tooltip carries the whole row (compact-mantine).**
        The inspector row is 216px inside the 240px panel (section padding 16/8, row 16/8, value 8),
        so "Edges per node 3 to 6, mean 3.667" truly did not fit (184 needed, 176 free): no padding
@@ -48,39 +60,21 @@ acceptance test. "The studio worktree" is
      `tmp/r1-dry1-marks-visible/` (T18A/05, T18B/05, T20B/05, T22B/04, T22B-middle-x3.png).
      The app's Highlight color still writes only the node halo `color`.
 00. (2026-10-08) **A continuous measure's histogram is banded (element `buildHistogram`).** Per-value
-    bars only for an integer field, all-whole values, a single value, or repeats (distinct * 2 <=
-    measured); else bands. Owner door already listed in `owner-decisions.md` (built rule added).
-    PageRank Values chart now uneven bands; Degree stays one bar per value. Evidence:
-    `tmp/r1-dry1-histogram-bands/T21A/02.png`, `T21B/02.png`, `D21A/02.png`, `D21B/02.png`.
-    Tests: `statistics.test.ts` (12 PageRank-like values -> banded; counts and repeated decimals
-    per-value); `column-histogram.test.ts` score expectation is now "banded".
-0. (2026-10-08) **A line says it can be clicked (graphty-element, no door).** The 6 px screen-space
-   edge pick with closest-wins (`EDGE_PICK_TOLERANCE_PX`, `Graph.pickEdgeId`) was ALREADY in the
-   frozen tier 2 build: on it a click 4-5 px off Gus-Ivan, near Gus, selects Gus -> Ivan (sweep at
-   x=755: y 582-594 all hit edge 13). The dry-run finding "edges are 1-pixel targets" was a
-   cursor problem, not a pick problem. Fix: `setupBackgroundClickHandler` adds a POINTERMOVE
-   observer on `scene.onPointerObservable` that sets `hoverCursor` on the input element when
-   `pickEdgeId` finds a line (Babylon restores `defaultCursor` on every move and already sets
-   `hoverCursor` over a node, whose mesh has pointer triggers; lines are an unpickable thin-instance
-   batch). Skipped while a button is down, in XR, and when Babylon already set it. Test:
-   `element-at.test.ts` "shows the pointer cursor..." (fails without: '' over the line).
-   `real.mjs --hover-at` now prints `cursor: <shape>` (screenshots never draw the pointer).
-   Frozen build: line `auto`, node `pointer`; fixed build: line `pointer`. Evidence
-   `design/ui/studio/tmp/r1-dry1-edge-picking/` (A, B, before-A, before-B).
-   Ceiling: the hover runs the linear edge walk per move (a spatial index for huge graphs).
+    bars only for integer / all-whole / single / repeated values; else bands. Owner door listed.
+    Tests `statistics.test.ts`, `column-histogram.test.ts`; evidence `tmp/r1-dry1-histogram-bands/`.
+0. (2026-10-08) **A line says it can be clicked (graphty-element, no door).** The 6 px edge pick
+   was already there; the defect was the cursor. A POINTERMOVE observer sets `hoverCursor` when
+   `pickEdgeId` finds a line (`element-at.test.ts`). `real.mjs --hover-at` prints `cursor:`.
+   Ceiling: linear edge walk per move. Evidence `tmp/r1-dry1-edge-picking/`.
 1. (2026-10-08) **Tier 2 pilot fixes (58f02b5d0 element, a2bbb2248 compact-mantine, 32c645e6b app).**
    `LoadedSource.leftOut.edges` (owner door) replaces the app's "Show the left-out row";
    `endpointsFor` stores declared ends; path run opens on Values, "4 hops"; Weight box names what
    the run reads ("None" + reason when the loaded weight is not read); Higher means has "Not set";
    "Date or time"; `EllipsizedName` tooltip shuts on pointerdown. OPEN: T21 Replace relayouts
    every node; `real.mjs --prove` failed once in 4 on the first save (cause not found).
-2. (2026-10-07) **Tier 2 re-walk: all 12 pilots reach the answer (647ba88b2).** Regression fixed
-   (1c723b415): only a `.cm-tree-actions` slot with pinned text and no button/input shrinks.
-   `:has()` does NOT nest (a `:has(:not(:has()))` selector is dropped whole, silently).
-3. (2026-10-07, condensed) Input.Wrapper themed (aaf5ef737); weight read-or-not from the element's
-   `plan()`; older fixes each have a proof test. Still open: Edit source... ADDS (41 -> 82); a
-   reopened project's Direction row shows raw text; neighborhood filter has no `direction`;
-   Dijkstra always undirected; `selection.apply` throws synchronously on a bad selector (unfiled).
+2. (2026-10-07, condensed) Re-walk passed (647ba88b2); `:has()` does NOT nest (dropped silently).
+   Still open: Edit source... ADDS (41 -> 82); reopened Direction row raw; neighborhood filter has
+   no `direction`; Dijkstra always undirected; `selection.apply` throws synchronously (unfiled).
 
 ## Priorities and values
 
@@ -215,6 +209,12 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Flex intrinsic sizing: a track with no width and `flex: 1 1 0` options sums their
+  max-content then splits it EQUALLY, so the widest option is cut. A content floor
+  (`min-width: auto`) fixes it but overflows any set-width track whose options are wider than
+  their share; `flex-basis: auto` fixes it and still shrinks into a set width.
+- (2026-10-08) A standalone `Input.Description` takes the theme's `InputWrapper` classNames
+  (`cm-field-description`): the way to write a hint that is not attached to one field.
 - (2026-10-08) Worked: measuring before fixing. The "free space" beside a cut stat value was three
   stacked 8px end paddings, and the text was 8px short -- wrapping, not padding, is the fix.
   Proving a test fails without the change with no stash: `git diff -- <src> > p.patch`,

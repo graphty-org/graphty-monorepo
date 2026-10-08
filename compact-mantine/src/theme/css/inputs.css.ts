@@ -452,6 +452,11 @@ const css = `
     gap: 0;
     padding-inline-end: 3px;
 }
+/* The pill and Detach ring themselves on keyboard focus, so the field around them does not ring
+   too: one ring, on the control that has focus. The field still rings for its own input. */
+.cm-var-field.cm-field:has(.cm-var-pill:focus-visible, .cm-var-detach:focus-visible) {
+    outline-color: transparent;
+}
 .cm-var-field .cm-var-pill-slot {
     display: flex;
     flex: 1 1 auto;

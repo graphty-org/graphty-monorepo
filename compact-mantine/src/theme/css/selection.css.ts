@@ -264,6 +264,11 @@ const css = `
 }
 .cm-sc-indicator { display: none; }
 .cm-sc-control { flex: 1 1 0; min-width: 0; }
+/* A track that is not fullWidth starts each option at its content: sized by its content, the
+   track fits every label with its padding (with a 0 basis each option got the average width, so
+   "Leave out" beside "Add" lost its padding and its end); given a width, options with equal
+   content still share it equally. A full-width track keeps the equal 0 basis. */
+.cm-sc:not([data-full-width]) .cm-sc-control { flex-basis: auto; }
 .cm-sc[data-content-width] .cm-sc-control { flex: 1 1 auto; min-width: 24px; }
 .cm-sc[data-content-width] .cm-sc-label { padding-inline: 0; }
 .cm-sc .cm-sc-label {

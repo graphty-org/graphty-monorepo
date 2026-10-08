@@ -1,7 +1,7 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, quotePath } from "@graphty/graphty-element/session";
-import { Text } from "@mantine/core";
+import { Input, Text } from "@mantine/core";
 import React, { useEffect, useId, useMemo, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -425,9 +425,10 @@ export function FindBox(): React.JSX.Element {
                 </div>
             ) : null}
             {found !== null && (options.length === 0 || isRule) && refusal === null && emptyLine !== null ? (
-                <Text role="status" size="xs" c="dimmed" className="ws-find-empty">
+                // The theme's hint under a field: the size and color of every other field hint.
+                <Input.Description role="status" className="ws-find-empty">
                     {emptyLine}
-                </Text>
+                </Input.Description>
             ) : null}
         </div>
     );

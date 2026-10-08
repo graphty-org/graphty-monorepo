@@ -214,7 +214,10 @@ describe("the Graph place", () => {
         const box = screen.getByRole("combobox", { name: "Find" });
 
         await userEvent.type(box, "=");
-        assert.isNotNull(await screen.findByText("Type a rule after =, such as weight > `3`"));
+        const hint = await screen.findByText("Type a rule after =, such as weight > `3`");
+        // The theme's field hint (11px, secondary ink), not a 9px caption.
+        assert.isTrue(hint.classList.contains("cm-field-description"));
+        assert.equal(getComputedStyle(hint).fontSize, "11px");
         assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
 
         await userEvent.type(box, "minutes >= 10");

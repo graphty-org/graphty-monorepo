@@ -153,6 +153,7 @@
         "Styles/Label::Location",
         "Styles/Label::Margin",
         "Styles/Label::MaxNumber",
+        "Styles/Label::OnTop",
         "Styles/Label::OverflowSuffix",
         "Styles/Label::Pointer",
         "Styles/Label::SmartOverflow",

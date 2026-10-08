@@ -91,11 +91,6 @@ interface InternalBadgeProperties {
 interface RuntimeProperties {
     attachTo?: AbstractMesh | Vector3;
     /**
-     * Draw over the whole graph instead of sorting by depth with it. A tooltip sets this; an
-     * ordinary label does not, so a node or an edge nearer the camera passes in front of it.
-     */
-    onTop?: boolean;
-    /**
      * Draw the text as its characters, every one of them, never as label markup (`<bold>`,
      * `<color='...'>`). Set for words a note supplied (design/notes 6.3).
      */
@@ -935,9 +930,9 @@ export class RichTextLabel {
 
         this.mesh.material = this.material;
         this.mesh.billboardMode = this.options.billboardMode;
-        // A label sorts by depth with the nodes and edges it belongs to. A tooltip asks to be
-        // drawn on top: group 1 is drawn after group 0 with the depth buffer cleared, so nothing
-        // in the graph can cover what the reader pointed at.
+        // A label sorts by depth with the nodes and edges it belongs to unless its style sets
+        // `onTop` (a tooltip always does). On top, it is drawn in group 1, after group 0 with
+        // the depth buffer cleared, so nothing in the graph can cover it.
         if (this.options.onTop === true) {
             this.mesh.renderingGroupId = ON_TOP_RENDERING_GROUP;
         }

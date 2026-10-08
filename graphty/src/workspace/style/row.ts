@@ -137,13 +137,15 @@ const LABEL_STYLE_CHANNEL: Partial<Readonly<Record<Channel, Channel>>> = {
 export const LABEL_SIZE_PX = 72;
 
 /**
- * The app's look for a label: the font the app itself is set in, at a size a reader can read.
- * graphty-element leaves both to its consumer (its own default face is often missing, and then
- * the browser falls back to a serif), so the app states its choice on every label line it adds.
+ * The app's look for a label: the font the app itself is set in, at a size a reader can read,
+ * drawn over the graph so a nearer node or a selected edge's band never cuts a name.
+ * graphty-element leaves all three to its consumer (its own default face is often missing, and
+ * then the browser falls back to a serif; its labels sort by depth), so the app states its choice
+ * on every label line it adds.
  * @returns the label style.
  */
 export function appLabelLook(): LabelStyle {
-    return { font: getComputedStyle(document.body).fontFamily, sizePx: LABEL_SIZE_PX };
+    return { font: getComputedStyle(document.body).fontFamily, sizePx: LABEL_SIZE_PX, onTop: true };
 }
 
 /**

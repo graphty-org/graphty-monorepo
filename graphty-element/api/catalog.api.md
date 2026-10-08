@@ -860,6 +860,7 @@ export interface LabelStyle {
     marginRight?: number;
     marginTop?: number;
     maxNumber?: number;
+    onTop?: boolean;
     outline?: string;
     outlineWidth?: number;
     overflowSuffix?: string;

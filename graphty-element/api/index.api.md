@@ -941,6 +941,7 @@ export const EdgeStyle: z.ZodObject<{
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1104,6 +1105,7 @@ export const EdgeStyle: z.ZodObject<{
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            onTop: z.ZodOptional<z.ZodBoolean>;
             textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -1266,6 +1268,7 @@ export const EdgeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -3252,6 +3255,7 @@ export const NodeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -3394,6 +3398,7 @@ export const NodeStyle: z.ZodObject<{
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        onTop: z.ZodOptional<z.ZodBoolean>;
         textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
@@ -3992,6 +3997,7 @@ export const RichTextStyle: z.ZodObject<{
     depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    onTop: z.ZodOptional<z.ZodBoolean>;
     textOutline: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     textOutlineWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     textOutlineColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;

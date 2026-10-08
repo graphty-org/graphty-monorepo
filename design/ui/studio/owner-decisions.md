@@ -4,6 +4,30 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a label can be drawn over the graph (`LabelStyle.onTop`)
+
+**What.** graphty-element's label style (`node.labelStyle`, `edge.labelStyle`, the `LabelStyle`
+type) gains `onTop?: boolean`, and the renderer's schema `RichTextStyle` gains the same optional
+field. Unset or false, a label sorts by depth with the nodes and edges, exactly as before. True, the
+label is drawn after the graph with the depth buffer cleared (the way a tooltip already is), so no
+node, edge or selected edge's band covers it. The graphty app's label look (`appLabelLook`, written
+on every label line the app adds) sets it on.
+
+**Why.** On a drawing with names on, a nearer node's sphere hid the name of the node behind it
+("Hana" read "H..a" under Ivan), and a selected tie's blue band cut "Stadium" to "Stadi m". Whether
+a name may be covered is a reader's choice: a dense 3D scene may want depth cues, a reading app wants
+every name whole, so it is an option with the neutral default (depth sorted, today's behavior). Not
+breaking: a new optional field whose default keeps today's drawing. Named `onTop` after the
+renderer's existing tooltip option, short and plain. Tests:
+`graphty-element/test/browser/label-drawn-over-edges.test.ts` (a nearer edge crosses a default
+label and does not cross an `onTop` one; an edge label moves to the top group only with the
+option), `graphty-element/test/session/styles/label-style.test.ts`, story `Styles/Label OnTop`.
+
+**Alternatives.** Labels always on top (changes every consumer's drawing, an opinion as a default);
+an element-wide switch instead of a style field (cannot differ per layer, so a reader could not put
+only some names on top); a depth offset toward the camera (still cut by any node nearer than the
+offset).
+
 ## 2026-10-08 -- Decided by the team: view insets never move the drawing, and `nodesInRect` says what an overlay hides
 
 **What.** Setting graphty-element's `viewInsets` (and `Graph.setViewInsets`) no longer moves the

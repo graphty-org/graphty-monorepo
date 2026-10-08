@@ -15,6 +15,12 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **Labels on top (element + app, team door).** `LabelStyle.onTop` (and
+  `RichTextStyle.onTop`), optional, default depth sorted; on, the label goes to rendering group 1
+  (drawn after the graph, depth cleared), as tooltips already did. The app's `appLabelLook` sets it,
+  so every label line the app adds is never cut by a nearer sphere or a selected tie's band.
+  Re-pilot on a fresh build: "Hana" under Ivan and "Stadium" over the blue band read whole.
+  Evidence `tmp/r1-dry2-labels-on-top/` (T24A/02-04, T24B/02-04, story capture, accept.sh).
 - (2026-10-08) **Route color is black (element default, owner door).** `DEFAULT_HIGHLIGHT.color`
   `#332288` -> `#000000`. Indigo passed every swatch check but, rendered as lit spheres, sat Delta E
   19.5 / 2.1:1 from the default nodes (pilots T20A/T20B read the route's nodes as ordinary). Black:
@@ -120,6 +126,11 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **A label's draw order is a style field, not an element switch.** `onTop` lives on
+  the label style so a layer can lift some names and not others; the default stays depth sorted
+  (another consumer may want the depth cue). Wired by one row in `StylePainter.RICH_TEXT_KEYS`:
+  Node and Edge spread the resolved block into `RichTextLabel`, which already honored `onTop`.
+  Rejected: always on top (an opinion as a default), a depth offset (still cut by nearer nodes).
 - (2026-10-08) **A route is told apart by color, not by a second cue.** Searched the color space
   under the shading model against the default node, the measurement ramp, edge grey, background
   and the selection band (normal, protan, deutan): black wins by far (min Delta E 22 vs 14 for
@@ -206,6 +217,11 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: `label-drawn-over-edges.test.ts`'s fixture (a red edge in front of a green
+  label, pixels read off the frame) proves draw order with no camera guessing; 282 edge pixels over
+  the label without the change, 0 with it. A story scene that puts a far label behind a near sphere
+  needs a capture to check (`visual-review capture --stories styles-label--on-top`): the fixed
+  layout's camera did not frame it the way I guessed, but it still shows one cut and one whole label.
 - (2026-10-08) Worked: re-walking the pilots with a copy of `tier2/pilot/rewalk.sh` whose `SET`
   is overridable and setup files rebuilt from each pilot's `session.json` "setup" list (the r1d1
   T18 pilots started with PageRank run and sized, not the plain friends setup). Did not work:
@@ -243,28 +259,21 @@ acceptance test. "The studio worktree" is
   for minutes: wait for a clean `tsc` before building. A setup's Shift+A missed in a WIP build;
   `--click Analyze` works the same.
 
-- (2026-10-08) Flex: `flex: 1 1 0` options split max-content EQUALLY (widest cut);
-  `flex-basis: auto` fixes it and still shrinks. A standalone `Input.Description` is the hint not
-  tied to one field.
-- (2026-10-08) Measure before fixing (a cut stat was 8px short: wrap, not padding). "Fails
-  without" with no stash: `git diff > p.patch`, `git apply -R`, run, `git apply`.
+- (2026-10-08) Flex: `flex-basis: auto`, not `1 1 0`, to split by content. Measure before fixing.
+  "Fails without" with no stash: `git diff > p.patch`, `git apply -R`, run, `git apply`.
 
-- (2026-10-08) Worked: canvas `measureText` for a column width once weight and `letterSpacing`
-  match the cell's. Mantine Tooltip: never opens in jsdom (use `.browser.test.tsx`), open delay
-  1000 ms; in a full run use `findByText` + `closest('[role="tooltip"]')`. The study tool cannot click a role
-  box named only "km" when the grid header is also "km" (pilots used `--click-at`); "Role of km" fixes it.
+- (2026-10-08) Canvas `measureText` sizes a column once weight and `letterSpacing` match. Mantine
+  Tooltip never opens in jsdom (`.browser.test.tsx`, 1000 ms delay). Name role boxes uniquely ("Role of km").
+
 - (2026-10-08) Save/open round trip: compare summary counts, not the whole summary (caveats and
   durationMs differ by design). Choose colors by measuring (`default-palette-quality.test.ts`).
 - (2026-10-08) A line behind another at the same depth: `zOffsetUnits`, not `zOffset` (slope 0).
 - (2026-10-08) real.mjs: `--key Shift+A` after a setup that ends with focus on a tree row types
   nothing (focus is a treeitem). To capture a second analysis, start a separate setup for it.
-- (2026-10-08) Check a dry-run finding against the frozen build before building a fix: sweep
-  `--hover-at` points across the target (it prints what `elementAt` finds). Half of the edge-picking
-  item already worked. A cursor is invisible in screenshots: read `getComputedStyle(el).cursor`
-  (through shadow roots), now printed by `--hover-at`.
-- (2026-10-08) A Tree child row is NOT inside its parent's treeitem in the DOM: query children with
-  `within(tree)`, not `within(parentRow)`. A new graph's name change moves the Data page heading
-  ("Add to people and ties"): grep tests for "Add to " after renaming.
+- (2026-10-08) Check a dry-run finding on the frozen build first (`--hover-at` sweeps print
+  `elementAt` and the cursor). A Tree child row is not inside its parent treeitem: use `within(tree)`.
+
+
 - (2026-10-07, condensed) Contrast in a browser test: blend alpha over the first opaque ancestor
   (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone (beside it in
   `tool/`, so its relative paths hold; delete after); concurrent `--prove` runs need `REAL_PROVE_DIR`. "New from data..." opens no file chooser: click
@@ -304,14 +313,8 @@ Infinity, columns: [runId] })` (not `node.data`, not `results.get(run).nodes`). 
   `session.project.open(file)` then `draft.load()`. Audit a tier by grepping the app's command ids
   (`grep -rhn -A1 'id: "' --include=commands.ts`): no command, no door.
 
-- (2026-10-08) real.mjs evidence: Undo -> Redo hovers did NOT reproduce the stale tooltip (that
-  one closes before the first poll); "Local only" -> the Everything row did (its tooltip fades
-  slowly), so the self-check uses that pair. A killed client gives EPIPE on the server's reply; the
-  nofix copy's session died and every later check failed with ECONNREFUSED. Playwright's call log
-  carries terminal color codes: strip `\x1b[...m`. The tool's own ESLint run reports node globals
-  (`console`, `process`) as undefined, 89 before this change: the tool is not in a linted project.
-
-## Thinking
+- (2026-10-08) real.mjs: stale tooltip reproduces with "Local only" -> Everything row (slow fade);
+  a killed client gives EPIPE; strip `\x1b[...m` from Playwright call logs.
 
 - (2026-10-06 to 10-07) Grep every route of a value before calling a change done (see Top of
   mind 11). Untraced: header "Untitled" after New from data; `notReadSentence` words only

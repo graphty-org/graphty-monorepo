@@ -54,6 +54,7 @@ describe("a label line the app adds", () => {
         assert.deepEqual(layer?.set?.["node.labelStyle"], {
             font: getComputedStyle(document.body).fontFamily,
             sizePx: LABEL_SIZE_PX,
+            onTop: true,
         });
         assert.equal(on.history.steps.length, before + 1);
     });

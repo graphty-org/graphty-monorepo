@@ -189,6 +189,46 @@ describe("text is drawn over the edges of the graph", () => {
         assert.isAbove(inside, 20, `only ${String(inside)} pixels of the nearer edge cross the label`);
     });
 
+    // A reader who wants every name whole asks for it: `onTop` lifts a label over the graph the
+    // way a tooltip is lifted, and the default above stays depth sorted.
+    it("draws a node's label over an edge in front of it when its style sets onTop", async () => {
+        await graph.getSession().styles.add({
+            name: "a label on top",
+            selector: { match: "ids", nodes: ["alpha"] },
+            set: { "node.label": WORDS, "node.labelStyle": { ...LABEL_STYLE, onTop: true } },
+        });
+
+        const { inside, outside } = await redAcrossLabel(() => graph.getNode("alpha")?.label);
+        assert.isAbove(outside, 20, "the edge is drawn on this row beside the label");
+        assert.strictEqual(inside, 0, `${String(inside)} pixels of the edge were drawn over the label's words`);
+    });
+
+    it("lifts an edge's label over the graph only when its style sets onTop", async () => {
+        const session = graph.getSession();
+        await session.styles.add({
+            name: "edge words",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.label": "E" },
+        });
+        await graph.waitForStableFrame();
+        const edge = [...graph.getDataManager().edges.values()][0];
+        assert.strictEqual(edge.label?.labelMesh?.renderingGroupId, 0, "an edge label sorts by depth by default");
+
+        await session.styles.add({
+            name: "edge words on top",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.labelStyle": { onTop: true } },
+        });
+        await graph.waitForStableFrame();
+        assert.strictEqual(
+            edge.label?.labelMesh?.renderingGroupId,
+            1,
+            "onTop draws the edge label in the group over the graph",
+        );
+    });
+
     it("draws a node's tooltip over an edge that passes in front of it", async () => {
         await graph.getSession().styles.add({
             name: "a tooltip",

@@ -77,6 +77,7 @@ function fakeResult(published: Published): RunResult {
             weight: null,
             precision: "f64",
             method: "exact",
+            facts: [],
             notes: [],
         },
         durationMs: 0,

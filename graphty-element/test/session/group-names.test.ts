@@ -46,7 +46,7 @@ async function partition(context: RunExecutionContext): Promise<RunOutcome> {
             ],
             measured: { nodes: MEMBERSHIP.length, edges: 0 },
             nodes: MEMBERSHIP.map(([id, group]) => ({ id, values: { group } })),
-            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", notes: [] },
+            caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", facts: [], notes: [] },
             durationMs: 1,
         }),
     };
@@ -89,6 +89,11 @@ describe("the names of a partition's groups", () => {
             groups.map((group) => [group.rank, group.group]),
             "the legend carries the same rank for the same group",
         );
+        assert.deepStrictEqual(
+            groups.map((group) => group.name),
+            groups.map((group) => `Group ${String(group.rank)}`),
+            "the deprecated English name is worded from the rank, the neutral fact (#866)",
+        );
         const sizes = result.graph.sizes as readonly { readonly group: unknown }[];
         assert.deepStrictEqual(
             sizes.map((row) => row.group),
@@ -116,7 +121,14 @@ describe("the names of a partition's groups", () => {
                     fields: result.fields,
                     measured: { nodes: MEMBERSHIP.length, edges: 0 },
                     nodes: MEMBERSHIP.map(([id, group]) => ({ id, values: { group: `g${String(group)}` } })),
-                    caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "louvain", notes: [] },
+                    caveats: {
+                        exact: true,
+                        direction: "as-loaded",
+                        precision: "f64",
+                        method: "louvain",
+                        facts: [],
+                        notes: [],
+                    },
                     durationMs: 1,
                 }),
             };

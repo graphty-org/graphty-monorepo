@@ -1,3 +1,18 @@
+## 2.2.10 (2026-10-08)
+
+### 🩹 Fixes
+
+- **layout:** resolve the published typings under nodenext ([#958](https://github.com/graphty-org/graphty-monorepo/issues/958))
+- **layout:** kamadaKawai rejects a dist matrix with no finite distance ([#965](https://github.com/graphty-org/graphty-monorepo/issues/965))
+
+### 🧱 Updated Dependencies
+
+- Updated algorithms to 3.3.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.2.9 (2026-10-07)
 
 ### 🧱 Updated Dependencies

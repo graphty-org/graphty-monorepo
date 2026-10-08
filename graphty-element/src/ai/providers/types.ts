@@ -109,9 +109,15 @@ export interface LlmProvider {
      * @param tools - Available tools for the LLM to use
      * @param options - Optional settings
      * @param options.signal - Optional abort signal for cancellation
+     * @param options.toolChoice - "none" asks for a text answer only: the tools stay declared (the history may
+     *   hold their calls) but the model may not call one. "auto", the default, lets it choose.
      * @returns Promise resolving to the LLM response
      */
-    generate(messages: Message[], tools: ToolDefinition[], options?: { signal?: AbortSignal }): Promise<LlmResponse>;
+    generate(
+        messages: Message[],
+        tools: ToolDefinition[],
+        options?: { signal?: AbortSignal; toolChoice?: "auto" | "none" },
+    ): Promise<LlmResponse>;
 
     /**
      * Generate a streaming response from the LLM.

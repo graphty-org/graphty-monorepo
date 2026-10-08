@@ -51,7 +51,8 @@ export function formatSchemaForPrompt(schema: SchemaSummary): string {
 function formatHeader(schema: SchemaSummary): string {
     return `## Data Schema
 - Nodes: ${schema.nodeCount}
-- Edges: ${schema.edgeCount}`;
+- Edges: ${schema.edgeCount}
+- In a selector, read a property below as data.<name>, for example data.type`;
 }
 
 /**

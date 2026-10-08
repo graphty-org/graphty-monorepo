@@ -305,7 +305,11 @@ describe.skipIf(!(await figmaAvailable()))("Tree rows against Figma", () => {
         const lock = screen.getByRole("button", { name: "Lock" });
         const hide = screen.getByRole("button", { name: "Hide" });
         expectMeasured(lock, { x: figLock.box[0] - 57, y: 4, width: 24, height: 24, opacity: "1" }, { origin: a });
-        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: "0" }, { origin: a });
+        // Hidden until hover on a pointer that hovers. Once any test in the run has sent a touch,
+        // Chromium answers `(hover: none)` for the rest of it, and the toggles stay visible, as on
+        // a touch screen (vitest.config.ts, touchDrag).
+        const hovers = !matchMedia("(hover: none)").matches;
+        expectMeasured(hide, { x: figLock.box[0] - 57 + 20, opacity: hovers ? "0" : "1" }, { origin: a });
         await drive(a, "hover");
         await new Promise((resolve) => setTimeout(resolve, 150));
         expectMeasured(hide, { opacity: "1" });

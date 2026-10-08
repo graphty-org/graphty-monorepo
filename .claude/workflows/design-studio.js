@@ -56,8 +56,8 @@ RULES FOR EVERY AGENT:
 - Generality: a change must serve every user and every domain, not the one persona, dataset or task wording that exposed the problem. No concept the product's model does not have, no domain special case (e.g. currency words because one fixture holds dollars).
 - Never mention a review, a device or owner feedback in commits or files. Never dismiss a failure as flaky or as timing: name the mechanism.
 `;
-const TEAM = Object.assign(
-    {
+const TEAM = {
+    ...{
         director: "Design Director",
         user: "User Advocate",
         researcher: "UX Researcher",
@@ -70,8 +70,8 @@ const TEAM = Object.assign(
         redteam: "Red Team Critic",
         engineer: "Design Engineer",
     },
-    A.team || {},
-);
+    ...A.team,
+};
 for (const r of A.teamRemove || []) if (!["director", "researcher", "redteam", "engineer"].includes(r)) delete TEAM[r];
 const ROLES = Object.keys(TEAM);
 const asRole = (r) =>
@@ -222,14 +222,15 @@ const CHECK = {
 let alive = 0;
 const waiting = [];
 async function slot(fn) {
-    while (alive >= SLOTS) await new Promise((r) => waiting.push(r));
-    alive++;
+    // A finishing agent hands its slot straight to the next waiter, so a waiter never re-checks.
+    if (alive < SLOTS) alive++;
+    else await new Promise((r) => waiting.push(r));
     try {
         return await fn();
     } finally {
-        alive--;
-        const n = waiting.shift();
-        if (n) n();
+        const next = waiting.shift();
+        if (next) next();
+        else alive--;
     }
 }
 
@@ -411,8 +412,14 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
     const P = `Round ${r}`;
     const RD = `${T}/rounds/round-${r}`;
     phase("Round");
+    const reweight =
+        r > 1
+            ? " Weight sessions toward tasks that missed their bar in round " +
+              (r - 1) +
+              ` (${T}/rounds/round-${r - 1}/scores.md) and tasks whose path changed, while covering every task. A task that re-tests a fix must not use any word the fix put on screen.`
+            : "";
     const plan = await agent(
-        `${RULES}\n${asRole("researcher")}\nPlan ${NAME} round ${r} per ${T}/criteria.md (frozen) and ${T}/roster.md, on the frozen build at the top of criteria.md.${r > 1 ? ` Weight sessions toward tasks that missed their bar in round ${r - 1} (${T}/rounds/round-${r - 1}/scores.md) and tasks whose path changed, while covering every task. A task that re-tests a fix must not use any word the fix put on screen.` : ""} Each session names its start (setup or saved project${USERS === "returning" ? " reflecting the returning user's history" : ""}). At most ${MAX_SESSIONS} sessions. Session ids r${r}-s01... Write ${RD}/plan.md. Return the sessions.`,
+        `${RULES}\n${asRole("researcher")}\nPlan ${NAME} round ${r} per ${T}/criteria.md (frozen) and ${T}/roster.md, on the frozen build at the top of criteria.md.${reweight} Each session names its start (setup or saved project${USERS === "returning" ? " reflecting the returning user's history" : ""}). At most ${MAX_SESSIONS} sessions. Session ids r${r}-s01... Write ${RD}/plan.md. Return the sessions.`,
         { label: `${P}: plan`, phase: "Round", schema: PLAN, effort: "high" },
     );
     const sessions = (plan?.sessions || []).slice(0, MAX_SESSIONS);
@@ -429,7 +436,8 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
             USERS === "returning"
                 ? `a RETURNING user of this app. Become this person: read ONLY your persona (find "${s.persona}" in ${T}/roster.md and the persona files it points to) including your history with the app`
                 : `a FIRST-TIME user: you have never seen this app. Become this person: read ONLY your persona (find "${s.persona}" in ${T}/roster.md and the persona file it points to)`;
-        const prompt = `${RULES}\nYOU ARE A STUDY PARTICIPANT, ${who}, and your task ${s.task}${s.dataset ? ` (dataset ${s.dataset})` : ""} in ${T}/tasks.md (only that section). OFF LIMITS: app source, ${T}/answers.md, other tasks or sessions, the designers' notes and all other studio files.\nUse the app only through ${SD}/tool/real.mjs with REAL_DIST set to the frozen build named on the first line of ${T}/criteria.md (read only that first line): --start ${RD}/sessions/${s.id} ${s.start || "<the task's start>"}, then --step one action at a time, LOOKING at each new screenshot before deciding the next action (you may point at a spot on the last screenshot with --click-at). Before each step, say in one or two sentences, in character, what you see and what you will try next. Stop when you are done, would give up, or keep repeating without progress (no step limit), then --end.\nWrite ${RD}/sessions/${s.id}/transcript.md as you go (append after every step, so nothing is lost if the session stops): your per-step notes, every command, and at the end in character: did you finish, how easy or difficult it was from 1 (very difficult) to 7 (very easy), what confused you. Return the transcript path.`;
+        const dataset = s.dataset ? " (dataset " + s.dataset + ")" : "";
+        const prompt = `${RULES}\nYOU ARE A STUDY PARTICIPANT, ${who}, and your task ${s.task}${dataset} in ${T}/tasks.md (only that section). OFF LIMITS: app source, ${T}/answers.md, other tasks or sessions, the designers' notes and all other studio files.\nUse the app only through ${SD}/tool/real.mjs with REAL_DIST set to the frozen build named on the first line of ${T}/criteria.md (read only that first line): --start ${RD}/sessions/${s.id} ${s.start || "<the task's start>"}, then --step one action at a time, LOOKING at each new screenshot before deciding the next action (you may point at a spot on the last screenshot with --click-at). Before each step, say in one or two sentences, in character, what you see and what you will try next. Stop when you are done, would give up, or keep repeating without progress (no step limit), then --end.\nWrite ${RD}/sessions/${s.id}/transcript.md as you go (append after every step, so nothing is lost if the session stops): your per-step notes, every command, and at the end in character: did you finish, how easy or difficult it was from 1 (very difficult) to 7 (very easy), what confused you. Return the transcript path.`;
         const attempts = [
             [prompt, { label: `${P}: ${s.id} ${s.task} ${s.persona}`.slice(0, 80), phase: "Round" }],
             [
@@ -507,21 +515,18 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         { label: `${P}: verified insights`, phase: "Round" },
     );
     log(`${NAME} round ${r} insights:\n${(insights || "").slice(0, 1500)}`);
+    const previous = r > 1 ? ", and round " + (r - 1) + "'s scores" : "";
     const verdict = await agent(
-        `${RULES}\nRead ${T}/criteria.md (bars, when the studio stops) and ${RD}/scores.md and insights.md${r > 1 ? `, and round ${r - 1}'s scores` : ""}. Do all the bars hold? Did this round make progress over the last (more tasks at their bar, fewer severe problems)? Does any problem need a one-way-door decision from the owner (a BREAKING published API change, or a product decision the design does not settle)? Return bars_met, progressed, needs_owner (empty if none) and a short summary with numbers.`,
+        `${RULES}\nRead ${T}/criteria.md (bars, when the studio stops) and ${RD}/scores.md and insights.md${previous}. Do all the bars hold? Did this round make progress over the last (more tasks at their bar, fewer severe problems)? Does any problem need a one-way-door decision from the owner (a BREAKING published API change, or a product decision the design does not settle)? Return bars_met, progressed, needs_owner (empty if none) and a short summary with numbers.`,
         { label: `${P}: verdict`, phase: "Round", schema: VERDICT },
     );
     rounds.push({ round: r, sessions: sessions.length, voids, build: build?.sha, verdict });
     log(`${NAME} round ${r}: bars ${verdict?.bars_met ? "MET" : "not met"}; ${(verdict?.summary || "").slice(0, 300)}`);
-    const stop = verdict?.bars_met
-        ? "bars met"
-        : r > START_ROUND && verdict && !verdict.progressed
-          ? `no progress over round ${r - 1}`
-          : verdict?.needs_owner
-            ? `needs an owner decision: ${verdict.needs_owner}`
-            : r === SAFETY_ROUNDS
-              ? `reached the ${SAFETY_ROUNDS}-round safety cap without meeting the bars`
-              : "";
+    let stop = "";
+    if (verdict?.bars_met) stop = "bars met";
+    else if (r > START_ROUND && verdict && !verdict.progressed) stop = `no progress over round ${r - 1}`;
+    else if (verdict?.needs_owner) stop = `needs an owner decision: ${verdict.needs_owner}`;
+    else if (r === SAFETY_ROUNDS) stop = `reached the ${SAFETY_ROUNDS}-round safety cap without meeting the bars`;
     if (stop) {
         await parallel(
             ROLES.map(

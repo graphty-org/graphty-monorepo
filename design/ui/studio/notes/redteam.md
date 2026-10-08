@@ -16,47 +16,37 @@ served at `/?next`.
 
 ## Top of mind
 
-1. (2026-10-07) Round 3 measures fixes, not a redesign. The pilots on build b7590f8de reach every
-   tier 1 end state with no blocker (T6, T7, T9, T10, T11, T12, T13, T15, T16). So round 3's
-   failures, if any, are about words, perception and legibility -- not dead controls. Grade those.
-2. (2026-10-07) New top risk: perspective lies about size. In 3D, a nearer dot looks bigger:
-   on friends.csv Ava (0.06423) draws larger than Farah (0.06608), in the export too (T15, T9
-   pilots). A "biggest dot" answer can be wrong from a screen that looks right. Fix belongs in the
-   element (a size encoding that survives perspective) or as a 2D default the app passes; trace
-   before choosing. Do not add a notice.
-3. (2026-10-07) Element English keeps leaking to first-time readers: layout refusals ('"planar"
-   ... G is not planar', '"bipartite" ... "results.louvain.group"'), "centre", CSV warnings from
-   graph-io, run.label. Fix = codes plus parameters from the element, words in the app. Never
-   rewrite the strings in the app.
-4. (2026-10-07) Watch the group named three ways (run "Louvain", groups "Group 1-6", layout form
-   "Communities"). One word per thing; the form should name the run. Columns by group ignores the
-   groups' order (6,1,5,3,4,2): element defect.
-5. (2026-10-07) "Show all labels" (a checkbox, not a switch) works: 5 steps to every name. Now
-   watch the cost it buys -- overlapping, tiny, soft names (T10, export blur). Judge legibility
-   only on real-size renders, never on downscaled shots. No zoom hint under the count.
-6. (2026-10-07) Everything's Style tab shows base Color 6366F1 and Size 1 while every dot is
-   orange and sized by the run row above (T15). Watch for "my sizing was lost". Answer is the
-   layer list reading true, not a second readout.
-7. (2026-10-07) Key over nodes is now on three tasks (T9 Florentine, T11, T13 ok). Fitting around
-   it needs a new public element option (inset/padding) -- an owner one-way door. Count it once
-   per dataset; raise it only with that framing.
-8. (2026-10-07) Overview row "Undirected, from the file: directed 0" overflows and leaks file
-   syntax: seen on four pilots, deferred twice. Fix by deleting the raw half, not adding words.
-9. (2026-10-07) Study tool: "ambiguous" prints on a checkbox and its own label, and on labeled
-   selects. Graders must not score them as wrong turns. Answer key says "switch", build draws a
-   checkbox -- fix the key's word.
-10. (2026-10-07) Still owed before round 3 fixes are judged: axe and app-words-at-rest on the
-    round 2 build (decision 11). Without the baseline no word or a11y claim is comparable.
-11. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
-    repro or code cause solid. Count deterministic layout events once per dataset.
-12. (2026-10-06) Fix by removing, not adding. One door per job. No persona features, first-run
+1. (2026-10-08) Tier 2 measures first discovery of new features by people who know the shell, not
+   repeat work: every history ends "as new to you as it was the first day" and only T21 repeats
+   anything. Push for a second, shorter instance of the same job inside core-four sessions, with
+   its own step target. Repeat cost is the returning persona's stated reason to stop.
+2. (2026-10-08) Tier 2 setups are bare files (friends.txt, florentine.txt): no run, style or
+   label from the history. Bar 2 ("earlier work kept") is then nearly vacuous, and nobody tests a
+   filter or a path against a sized-by-rank drawing. Setups must carry the history's work.
+3. (2026-10-08) The per-round expert walkthrough and screenshot audit feed no bar. Pilots already
+   filed a cut Sources line and the rejected word "route" (element layer names in the legend) as
+   "watch items". A deterministic screenshot finding is confirmed by its one capture; give it a bar.
+4. (2026-10-08) "All bars hold in one round" contradicts re-running only failing tasks; define the
+   carry-forward rule, T4's 3-per-half floor, and "not scored = not passed" before round 1.
+5. (2026-10-08) Pre-register decisions that the study is meant to make (T22's "select where"
+   dialog, the stall rule) before the data exists. "Reported, no target" is a post-hoc door.
+6. (2026-10-07) Perspective lies about size in 3D (Ava draws larger than Farah). Fix in the
+   element or a 2D default the app passes; never a notice.
+7. (2026-10-07) Element English keeps leaking (layout refusals, CSV warnings, run.label, layer
+   names "Shortest route"). Fix = codes and ids from the element, words in the app.
+8. (2026-10-07) One word per thing: the group is named three ways; "route" vs "path".
+9. Rounds are one model playing every participant: a failure is strong, a pass weak, a scripted
+   repro or code cause solid. Count deterministic layout events once per dataset.
+10. (2026-10-06) Fix by removing, not adding. One door per job. No persona features, first-run
     UI, suggestion cards, tours (owner, v1 lesson).
-13. (2026-10-06) Overfitting guard: task words never echo a fix's screen words ("Show all
-    labels", "picker"); answer key fixed before the round; report both scorings.
-14. (2026-10-06) Graph logic in the element, words in the app; check existing element API before
-    proposing new API (three times now it already existed: legend cover, run.fields, declutter).
-15. (2026-10-07) Screen-reader findings need a tool with active-option and browse mode, or a real
-    user; do not fix to the tool's blind spots.
+11. (2026-10-06) Overfitting guard: task words never echo a fix's screen words; answer key and
+    decision thresholds fixed before the round; report both scorings.
+12. (2026-10-06) Graph logic in the element, words in the app; check existing element API before
+    proposing new API (three times it already existed).
+13. (2026-10-08) Tier 2 grows exactly where clutter creeps: the inspector (edge, path run), the
+    Data place (Filters, Sources), the neighbor list (Hops, Follow). Budget their words.
+14. (2026-10-07) Key over nodes needs a new element option (inset): additive, team's call now.
+15. (2026-10-07) Screen-reader findings need a real tool or user; tier 2 has none (owner).
 
 ## Priorities and values
 
@@ -106,55 +96,19 @@ served at `/?next`.
 
 ## Decisions and reasons
 
-- 2026-09-26 -- Personas and workflows validate the design; they never generate features. Reason:
-  generating from personas produced v1's clutter. Decided by the owner.
-- 2026-09-26 -- No wizards, suggestion cards or first-run interface; "key functionality" is loading
-  data and analysis/visualization features, not cards that suggest runs. Decided by the owner.
-- 2026-09-29 -- Overfitting rule: task words never reuse a fix's on-screen words; two-domain test
-  for every label change; currency special case dropped ("Total <column> in/out"). Evidence: round 6
-  money task 2.00 -> 5.00 after the screens named money. Decided by the owner.
-- 2026-09-29 -- Fold style files into recipes rather than adding a route to them (I withdrew my
-  "delete Main menu > Recipes" for this). Reason: removes a concept instead of adding a door.
-  Decided by the studio. Note: "Apply recipe or style file..." later drifted back into the spec;
-  still unresolved.
-- 2026-09-29 -- Delete "Undo back to here" rather than rename it; selection changes are not undo
-  steps; a cleared selection comes back with Ctrl+Z from one slot via the existing notice line.
-  Evidence: round 6, notice-only lost the selection in 5 of 8 (ease 3.62 vs 5.12). Studio.
-- 2026-09-29 -- Rejected as invented features: "Keep for referral" (a case-management verb; named
-  sets already exist), a tie stepper nobody asked for (kept only when a tie actually exists),
-  per-seed counts for multi-seed runs that do not exist, a "no change" band in the Print look,
-  a spread-per-column statistical comparison ("graphty is not a statistics package"), "offer to put
-  the name on earlier notes" (rewrites a recorded author). Studio, on my challenge.
-- 2026-09-29 -- Palette suggestion and partition color matching are real algorithms: they go to the
-  element backlog, not into app chrome. Studio (I conceded they are real, not cuts).
-- 2026-09-29 -- Do not rescore a missed bar after seeing the data; a new answer key applies only to
-  the next round and is fixed before it runs; report both scorings. Studio.
-- 2026-09-30 -- A run paints as soon as it finishes; several runs may fight over color; the eye
-  hides. "Measures don't paint on their own" called a fatal flaw. Decided by the owner.
-- 2026-09-30 -- The app adds no look of its own; styling is unopinionated and left to the user.
-  Owner.
-- 2026-10-03 -- Round 8 triage: fix the mock defects first (runs finish, rows repaint, size
-  commits, dead label routes work), then re-score. Studio, on my position.
-- 2026-10-03 -- Neighbors: one surface, not three. Selecting the neighbors lands on the existing
-  several-selected list; degree and the "N connections" chip select them. Rejected: a new
-  Connections list, "Edges of Javert", a filtered table dock. Studio. (Tier 1 design later titles
-  the list "Javert's 17 connections" with tie values.)
-- 2026-10-03 -- "Show labels" is not deleted: it is a real element setting that hides labels a lower
-  row draws. It is offered only when some lower row sets a label; otherwise the Label "+" adds an
-  empty label line at once and opens its picker. Studio, on my check of the mock's code.
-- 2026-10-03 -- Sample opens with nothing run; no second "Worked examples" sample mode. Reason: the
-  pre-run PageRank hid participants' own results in the color and size tasks. Studio.
-- 2026-10-03 -- Hold Size as its own heading until the wiring alone is re-tested (11 of 12 reached
-  the right control). The tiny default size goes to the element as a default fix. Studio.
-- 2026-10-03 -- Deferred as not tier 1: filter chip removal, "Use as edge weight..." door, a scope
-  header from two participants, notes stamped with data version, "Rerun all", folding settings under
-  More, leading-zero key matching, a value-and-count Select where builder. Studio.
-- 2026-10-03 -- Stop mocking; build tier 1 as the real app and study that. Owner.
-- 2026-10-03 -- graphty-element is presentation-neutral: facts and codes, no English, headings or
-  groupings; the app writes every word. Owner.
-- 2026-10-03 -- Tier 1 design adversarial review: SVG not drawn rather than drawn disabled; facts a
-  browser cannot know are removed (save folder, "to Downloads"); the inspector's "label hidden" note
-  and the data export's hidden-label warning dropped. Studio.
+- 2026-09-26 to 2026-10-03 (summarized 2026-10-08) -- Owner: personas validate, never generate
+  features; no wizards, suggestion cards or first-run UI; a run paints when it finishes; the app
+  adds no look of its own; stop mocking and build tier 1; the element is presentation-neutral.
+  Studio, on my positions: overfitting rule (task words never reuse a fix's words; round 6 money
+  task 2.00 -> 5.00 after screens named money); fold style files into recipes; delete "Undo back
+  to here" (selection is not an undo step); rejected invented features (Keep for referral, tie
+  stepper, per-seed counts, Print "no change" band, per-column statistics, rewriting note
+  authors); palette suggestion and partition matching go to the element backlog; never rescore a
+  missed bar after seeing data; round 8: fix mock defects first, then re-score; neighbors one
+  surface, not three; "Show labels" kept only when a lower row sets a label; sample opens with
+  nothing run; SVG not drawn rather than drawn disabled; facts a browser cannot know removed.
+  Deferred as not tier 1: chip removal, "Use as edge weight...", notes stamped with data version,
+  "Rerun all", leading-zero key matching, a value-and-count Select where builder.
 
 - 2026-10-06 -- Round 1 (folded): first-time bar not lower than all-sessions bar; reference
   values recorded for every graded answer; T4 two-file join not tier 1; neighbors fixed by
@@ -205,6 +159,24 @@ served at `/?next`.
   defect, reversing my earlier "remove if it cannot land"), key placement and seed (owner),
   "Javert and his 17", zoom hint. My positions were all adopted except 4x removal. Reason for the
   reversal: removing an app choice to hide an element defect is the workaround pattern.
+
+- 2026-10-08 -- Tier 2 criteria review (my positions, returned to the studio): (1) define the
+  carry-forward rule for "all bars in one round", T4's 3-per-half floor, and "not scored = not
+  passed"; (2) a second, shorter instance of the job in each core-four session, target steps <=
+  1.25x the success path and 0 wrong turns, reported; (3) setups carry the history's work (a rank
+  run sized, names on) so bar 2 has something to lose; (4) new bar: 0 confirmed severity 3-4
+  screenshot-audit findings, confirmed by one full-size capture, at 1440x900 and 1280x800 with
+  long-name data, auditors blind to the pilot's watch items, rejected-synonym check scripted from
+  the preflight text dump; (5) words budget for the edge inspector, the path run inspector and
+  the Data place with a filter on (<= 40 per inspector, <= 50 at rest with the chip); (6) spend
+  the 2 spare slots on tier 1 T12, because tier 2 added Hops and Follow to the list that won T12;
+  (7) stall rule on core-four success counts and closed severity 3-4 findings, not ease; (8)
+  pre-register T22's "select where" dialog rule (find-box words fixed first; the dialog only if
+  T22 fails both halves and 3+ sessions looked in one named place). Evidence: criteria.md, tasks.md
+  setups, rounds/tier-2/setups/*.txt (friends.txt and florentine.txt open a file and nothing
+  else), roster.md histories, pilot/final.md watch items, answers.md T18 "Shortest route" layer
+  names, launch-prompt.md walkthrough and audit paragraph, tier2-design.md section 2 ("Never
+  route").
 
 ## Tried: worked / did not work
 
@@ -292,6 +264,12 @@ served at `/?next`.
   as a second recipient and drove refusals. The words are the owner's; the tightened draft goes to
   him. Not a studio rewrite.
 
+- (2026-10-08) A simulated returning user is a fresh agent with a briefing. Its first moves on
+  tier 2 features are a newcomer's moves inside a known shell. The only honest way to see repeat
+  cost inside one session is to have it do the job twice. Real weekly users remain the confirmation.
+- (2026-10-08) Watch items in a pilot are the polite name for defects nobody is required to fix.
+  If the audit has no bar, truncation and wrong words will ride through all three rounds again.
+
 ## Sources
 
 - `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,
@@ -300,6 +278,8 @@ served at `/?next`.
   "Adversarial review changes")
 - `design/ui/framework/principles.md`, `research/graphty-today.md` (v1 app concepts, insights strip)
 - `CLAUDE.md` (Architectural Principles; presentation neutrality; Algorithm Styles)
+- `design/ui/studio/tier2/` (criteria, tasks, answers, roster, pilot/final.md),
+  `next-steps/tier2-design.md`, `report.md`, `rounds/tier-2/setups/` (2026-10-08)
 - `.claudehistory/3a19ea55-f3cc-4fc0-b85f-842243f52536/subagents/workflows/wf_6818e34f-76d/`
   agent-ac9e91d557cc3b736.jsonl, agent-aa30730227c88a984.jsonl (Red Team, round 4 triage,
   2026-09-29)

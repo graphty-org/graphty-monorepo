@@ -1333,6 +1333,15 @@ export const EdgeStyle: z.ZodObject<{
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
+export type ElementAtResult = {
+    readonly kind: "node";
+    readonly id: NodeId;
+} | {
+    readonly kind: "edge";
+    readonly id: EdgeId;
+};
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -1531,6 +1540,10 @@ export class Graph implements GraphContext {
     dispose(): void;
     // (undocumented)
     element: Element;
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
@@ -1899,6 +1912,9 @@ export class Graphty extends LitElement {
     }>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions & QueueableOptions): Promise<void>;
     addEdges(edges: AdHocData[], options?: AddEdgesOptions & QueueableOptions): Promise<void>;
+    addEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
     addListener(type: EventType, callback: EventCallbackType): void;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
@@ -1946,6 +1962,10 @@ export class Graphty extends LitElement {
     set edgeSrcIdPath(value: string | undefined);
     get edgeWeightPath(): string | undefined;
     set edgeWeightPath(value: string | undefined);
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
@@ -2050,6 +2070,9 @@ export class Graphty extends LitElement {
     set positionScale(value: number | undefined);
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
+    removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
     render(): Element;
     get renderer(): RendererRequest;
@@ -2159,6 +2182,11 @@ export class Graphty extends LitElement {
 
 // @public
 export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
+
+// @public
+export interface GraphtyCapabilitiesChangeDetail {
+    readonly capabilities: AccelerationCapabilities;
+}
 
 // @public
 export type GraphtyElementEventMap = {
@@ -2571,6 +2599,27 @@ export type GraphtyErrorTarget = {
 };
 
 // @public
+export type GraphtyForwardedEventMap = {
+    [K in Exclude<GraphEventType | AiEventType, InternalEventType>]: CustomEvent<EventOfType<K>>;
+};
+
+// @public
+export interface GraphtyHistoryChangeDetail {
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    readonly position: number;
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    readonly steps: number;
+    readonly version: number;
+}
+
+// @public
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+// @public
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+// @public
 export type GraphtyWarningCode =
 /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
 "W_UNKNOWN_MEMBER"
@@ -2698,6 +2747,7 @@ export abstract class LayoutEngine {
     // @deprecated
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null;
     protected abstract pin(n: Node_2): void;
+    protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     readNodePosition(n: Node_2, out: {
         x: number;

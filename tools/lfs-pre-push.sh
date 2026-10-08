@@ -11,11 +11,16 @@
 #
 # git-lfs's other hooks (post-checkout, post-commit, post-merge) only make "lockable" files
 # read-only, for LFS file locking, which this repository does not use, so they are not called.
+#
+# For the same reason the upload skips git-lfs's lock check (lfs.locksverify=false, for this one
+# command only; no config file changes). git-lfs turns the check on by default for github.com and
+# fails the whole push when GitHub's /locks/verify endpoint answers 500 ("Fatal error: Unable to
+# verify locks"), which it did for hours on 2026-10-07 (issue #1414). The objects still upload.
 set -e
 refs=$(cat)
 
 if git lfs version >/dev/null 2>&1; then
-    printf '%s\n' "$refs" | git lfs pre-push "$@"
+    printf '%s\n' "$refs" | git -c lfs.locksverify=false lfs pre-push "$@"
     exit
 fi
 

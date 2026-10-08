@@ -518,6 +518,26 @@ describe("LogStorage", () => {
             envStorage.stopCleanupTimer();
         });
 
+        test("refuses a non-numeric REMOTE_LOG_RETENTION_DAYS instead of using NaN", () => {
+            const originalEnv = process.env.REMOTE_LOG_RETENTION_DAYS;
+            try {
+                process.env.REMOTE_LOG_RETENTION_DAYS = "seven";
+                expect(() => new LogStorage()).toThrow(
+                    'REMOTE_LOG_RETENTION_DAYS must be an integer of at least 1, got "seven"',
+                );
+                process.env.REMOTE_LOG_RETENTION_DAYS = "0";
+                expect(() => new LogStorage()).toThrow("REMOTE_LOG_RETENTION_DAYS");
+                process.env.REMOTE_LOG_RETENTION_DAYS = "1.5";
+                expect(() => new LogStorage()).toThrow("REMOTE_LOG_RETENTION_DAYS");
+            } finally {
+                if (originalEnv === undefined) {
+                    delete process.env.REMOTE_LOG_RETENTION_DAYS;
+                } else {
+                    process.env.REMOTE_LOG_RETENTION_DAYS = originalEnv;
+                }
+            }
+        });
+
         test("default retention is 7 days", () => {
             // Save original env
             const originalEnv = process.env.REMOTE_LOG_RETENTION_DAYS;

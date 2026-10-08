@@ -1100,6 +1100,9 @@ cannot:
   other role is written as a plain attribute and noted `W_ROLE_DROPPED`.
 - `roleNames`: the name your importer gives each role's column, so a label column called `Name`
   is noted as coming back as `label`.
+- `nodeRoleNames`, `edgeRoleNames`: `roleNames` for one kind only, for a slot only nodes (or only
+  edges) have. `edgeRoleNames: {}` says an edge label keeps its own name (or has no slot at all),
+  so only the node label is noted as renamed.
 - `writtenColumns`: columns you write by name although `attributes` is false, such as the column
   a format option of yours names (`{ edge: [options.edgeLabelColumn] }`). They get no
   `W_COLUMN_DROPPED` note.

@@ -546,7 +546,7 @@ jobs:
                       echo "This pull request changes only version fields and changelogs (tools/release-diff.mjs). When it merges, release.yml tags each package, creates its GitHub release and publishes it to npm from the builds that run tested. Opened by ${run_url}."
                   } > "$RUNNER_TEMP/body.md"
                   gh pr create --base master --head "$branch" --title "$title" --body-file "$RUNNER_TEMP/body.md"
-                  for context in "All Checks Pass" "Lint PR Title"; do
+                  for context in "All Checks Pass" "Lint PR Title" "Link PR Issue"; do
                       gh api "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT}" -f state=success -f context="$context" \
                           -f description="release train: versions and changelogs only, on a commit that passed the full suite, the T4, Hosts, the audit and the LLM regression tests" \
                           -f target_url="$run_url" >/dev/null

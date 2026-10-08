@@ -214,6 +214,11 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
     it(
         "writes the karate NETWORKX trace (50 iterations) and its f64 reference as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                // ones on every run (issue #455)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const { s, start, options, tuning } = noiseInputs(NETWORKX, "karate");
             try {
@@ -253,6 +258,11 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
     it(
         "writes the unscaled random1k NETWORKX traces (10 and 50 iterations) and the f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
         async (t) => {
+            if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                // ones on every run (issue #455)
+                t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+            }
             requireGpu(t);
             const { s, start, options, tuning } = noiseInputs(NETWORKX);
             try {
@@ -308,6 +318,11 @@ describe("FA2 trace parity: 50 x step(1) vs the f32 / f64 oracles (spec 11.4)", 
         it(
             `writes the unscaled ${graph} PAPER re-synchronised trace and its per-adapter f32 / f64 references as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
             async (t) => {
+                if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
+                    // a writer regenerates fixtures nobody asked for; test/noise-floor.test.ts checks the committed
+                    // ones on every run (issue #455)
+                    t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
+                }
                 requireGpu(t);
                 const { s, start, options, tuning } = noiseInputs(PAPER, graph);
                 try {

@@ -12,6 +12,7 @@ import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { CAPACITY_COLUMN } from "../data/GraphStore";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -240,17 +241,10 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
                 direction: "directed",
                 weight: { attribute: "capacity", meaning: "strength" },
                 precision,
-                notes: [
-                    `Flow from ${String(source)} to ${String(sink)}.`,
-                    ...(sourceOption === null || sinkOption === null
-                        ? [
-                              "The source or sink was chosen automatically (the first and last node); " +
-                                  "set the source and sink options to measure between the nodes you mean.",
-                          ]
-                        : []),
-                    ...(result.maxFlow === 0
-                        ? [`There is no directed path from ${String(source)} to ${String(sink)}, so no flow can run.`]
-                        : []),
+                facts: [
+                    caveat("flow.ends", { source, sink }),
+                    ...(sourceOption === null || sinkOption === null ? [caveat("flow.ends-chosen")] : []),
+                    ...(result.maxFlow === 0 ? [caveat("flow.no-path", { source, sink })] : []),
                 ],
             }),
         };

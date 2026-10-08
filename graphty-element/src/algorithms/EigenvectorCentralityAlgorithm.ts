@@ -6,6 +6,7 @@ import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import { GraphtyError } from "../errors";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -246,17 +247,11 @@ export class EigenvectorCentralityAlgorithm extends MetricAlgorithm<EigenvectorC
                 // Measured, not assumed: the algorithm throws when it hits its iteration cap, and
                 // that becomes E_NOT_CONVERGED above, so a result exists only when it converged.
                 converged: true,
-                notes: [
-                    `Power iteration reached a tolerance of ${String(tolerance)} within ${String(maxIterations)} passes.`,
-                    ...(directed
-                        ? [
-                              mode === "in"
-                                  ? "A node is scored by the nodes whose edges point at it."
-                                  : "A node is scored by the nodes its edges point at.",
-                          ]
-                        : []),
-                    "Edge weights are not read.",
-                ],
+                ...noted([
+                    caveat("eigenvector.converged", { tolerance, maxIterations }),
+                    ...(directed ? [caveat("eigenvector.scored-by", { mode })] : []),
+                    caveat("weights.unread"),
+                ]),
             },
         };
     }

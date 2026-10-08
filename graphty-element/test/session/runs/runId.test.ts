@@ -13,6 +13,7 @@ import {
     type RunIdentity,
     stableDigest,
 } from "../../../src/session/runs";
+import { mintLayerId } from "../../../src/session/styles/Layer";
 
 const OPTIONS: readonly OptionDescriptor[] = [
     { name: "resolution", plainName: "Resolution", type: "number", default: 1 },
@@ -178,6 +179,20 @@ describe("algorithmSlug", () => {
         assert.strictEqual(algorithmSlug("2-hop"), "hop");
         assert.strictEqual(algorithmSlug("---"), "run");
         assert.strictEqual(algorithmSlug("123"), "run");
+    });
+
+    it("trims trailing separators in linear time", () => {
+        assert.strictEqual(algorithmSlug("acme-_-"), "acme");
+        // `/[-_]+$/` took about 2.4 s on this input and 300 s at ten times the length.
+        const long = `a${"-_".repeat(50_000)}a`;
+        const start = performance.now();
+        assert.strictEqual(algorithmSlug(long), long);
+        assert.isBelow(performance.now() - start, 200);
+    });
+
+    it("gives a layer id the same trimming", () => {
+        assert.strictEqual(mintLayerId("Hubs -_", new Set()), "hubs_1");
+        assert.strictEqual(mintLayerId("-_", new Set()), "layer_1");
     });
 });
 

@@ -592,6 +592,8 @@ export class DataManager implements Manager {
         nodes: number;
         edges: number;
     };
+    // @internal
+    get holdsNoRows(): boolean;
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;
@@ -1869,7 +1871,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -1898,6 +1900,13 @@ export interface GraphSettledEvent {
     graph: Graph;
     // (undocumented)
     type: "graph-settled";
+}
+
+// @public
+export interface GraphStartedEvent {
+    timestamp: number;
+    // (undocumented)
+    type: "graph-started";
 }
 
 // @public
@@ -2658,6 +2667,13 @@ export { ImageData_2 as ImageData }
 export const INFERNO_COLORS: readonly ["#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", "#cf4446", "#ed6925", "#fb9b06", "#f7d13d"];
 
 // @public
+export interface InputEnabledChangedEvent {
+    enabled: boolean;
+    // (undocumented)
+    type: "input-enabled-changed";
+}
+
+// @public
 export class InputManager implements Manager {
     constructor(context: ManagerContext, config?: InputManagerConfig);
     dispose(): void;
@@ -2704,6 +2720,14 @@ export function isGraphtyErrorCode(value: unknown): value is GraphtyErrorCode;
 
 // @public
 export function isViewMode(value: string): value is ViewMode;
+
+// @public
+export interface LayoutChangedEvent {
+    layoutType: string;
+    options: Record<string, unknown>;
+    // (undocumented)
+    type: "layout-changed";
+}
 
 // @public
 export abstract class LayoutEngine {
@@ -3611,6 +3635,14 @@ export interface NoteTargetStatus {
 export const OKABE_ITO_COLORS: readonly ["#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7", "#000000", "#F0E442"];
 
 // @public
+export interface OperationCancelledEvent {
+    id: string;
+    reason: string;
+    // (undocumented)
+    type: "operation-cancelled";
+}
+
+// @public
 export class OperationQueueManager implements Manager {
     constructor(eventManager: EventManager, options?: {
         concurrency?: number;
@@ -4317,6 +4349,14 @@ export class StatsManager implements Manager {
     totalUpdates: number;
     updateCacheStats(hits: number, misses: number): void;
     updateCounts(nodeCount: number, edgeCount: number): void;
+}
+
+// @public
+export interface StatsUpdateEvent {
+    stats: ReturnType<StatsManager["getStats"]>;
+    totalUpdates: number;
+    // (undocumented)
+    type: "stats-update";
 }
 
 // @public

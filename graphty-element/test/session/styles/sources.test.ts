@@ -32,6 +32,7 @@ const CAVEATS: Caveats = {
     direction: "as-loaded",
     precision: "f64",
     method: "test",
+    facts: [],
     notes: [],
 };
 

@@ -297,6 +297,8 @@ function capabilityNotes(
     for (const gen of checkCapabilities(snapshot, CX2_CAPABILITIES, common, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
+        // only the node label is written into the "n" slot; an edge label keeps its own name
+        edgeRoleNames: {},
     })) {
         if (!keepGenericNote(gen, bypassNames)) {
             continue;
@@ -335,10 +337,6 @@ function capabilityNotes(
  */
 function keepGenericNote(gen: LossNote, bypassNames: ReadonlySet<string>): boolean {
     if (gen.column !== null && bypassNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
-        return false;
-    }
-    if (gen.code === LOSS.COLUMN_NAME_CHANGED && gen.message.startsWith("edge column")) {
-        // only the node label is written into the "n" slot; an edge label keeps its own name
         return false;
     }
     // ids are counted by planNodeIds(): CX2 also keeps integer ids beyond 2^53, which the generic rule refuses

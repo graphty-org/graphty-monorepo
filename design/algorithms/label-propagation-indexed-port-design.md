@@ -96,8 +96,11 @@ Added alongside the default, as separate functions:
   issue #694 the GPU kernel follows the same rules (scrambled order, a tied label kept, the first
   pass moving up), so the two agree label for label except on a run that cycles.
 - **Semi-supervised input, `labelPropagationSemiSupervised`.** One seed per node, a fixed label or
-  `INVALID_INDEX`. Fixed nodes never enter the queue of the FLPA kernel above; with no seed it is
-  `labelPropagation` bit for bit.
+  `INVALID_INDEX`. Fixed nodes never enter the queue of the FLPA kernel above. Free nodes start
+  unlabeled and cast no vote until a seed label reaches them, as igraph's `initial` / `fixed` do
+  (issue #959; they used to start with a label of their own, which outvoted lone seeds). Each
+  connected group of nodes no seed reaches becomes a community of its own, as igraph labels them,
+  so with no seed the result is the connected components.
 
 Not implemented, and why:
 

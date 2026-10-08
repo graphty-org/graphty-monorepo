@@ -1,3 +1,17 @@
+## 2.0.11 (2026-10-08)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.10 (2026-10-08)
+
+### 🩹 Fixes
+
+- **remote-logger:** refuse a non-numeric port, retention or line count instead of using NaN ([#1229](https://github.com/graphty-org/graphty-monorepo/issues/1229))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.0.9 (2026-10-07)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.

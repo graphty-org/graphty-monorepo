@@ -1,3 +1,37 @@
+## 0.3.31 (2026-10-08)
+
+### 🩹 Fixes
+
+- **graph-io:** stop reporting an OBO edge label as renamed to name ([#1396](https://github.com/graphty-org/graphty-monorepo/issues/1396))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.3.9
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.30 (2026-10-08)
+
+### 🩹 Fixes
+
+- **graph-io:** import positions as f64 so exact values round-trip ([#963](https://github.com/graphty-org/graphty-monorepo/issues/963))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.3.29 (2026-10-08)
+
+### 🚀 Features
+
+- **graph-io:** name every column of a loss note, scope CSV node notes ([#876](https://github.com/graphty-org/graphty-monorepo/issues/876))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.28 (2026-10-07)
 
 ### 🩹 Fixes

@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -155,11 +156,9 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
             edges.push({ id: edge.id, values: { onPath: routeEdges.has(merged) } });
         });
 
-        const notes = [`Route from ${String(source)} to ${String(target)}.`];
+        const facts = [caveat("route.found", { source, target })];
         if (value.hasNegativeCycle) {
-            notes.push(
-                "A loop that costs less every time round was found, so no distance past it is meaningful and no route is marked.",
-            );
+            facts.push(caveat("negative-cycle.no-route"));
         }
 
         return {
@@ -182,7 +181,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
                 precision,
-                notes,
+                facts,
             }),
         };
     }

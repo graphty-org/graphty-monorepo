@@ -115,6 +115,7 @@ import {
     type RendererStatus,
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
+import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { MeshCache } from "./meshes/MeshCache";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { Node } from "./Node";
@@ -1479,15 +1480,6 @@ export class Graph implements GraphContext {
             window.addEventListener("resize", this.resizeHandler);
 
             this.initialized = true;
-
-            // For layouts that settle immediately, start animations after a short delay
-            setTimeout(() => {
-                if (!this.layoutManager.running) {
-                    for (const node of this.dataManager.nodes.values()) {
-                        node.label?.startAnimation();
-                    }
-                }
-            }, 100);
         } catch (error) {
             // Emit error event for user handling
             this.eventManager.emitGraphError(this, error instanceof Error ? error : new Error(String(error)), "init", {
@@ -1521,15 +1513,21 @@ export class Graph implements GraphContext {
                 // Only process settlement events if there are nodes - an empty graph
                 // has nothing to settle, so we shouldn't emit events or log
                 if (this.dataManager.nodes.size > 0) {
+                    // A label built while the layout is at rest -- by the load, a style layer or
+                    // any later write -- has no settlement coming to start its animation, so the
+                    // first frame at rest does. See `oweLabelAnimations`.
+                    if (!this.layoutManager.running && !this.layoutManager.building && payLabelAnimations(this.scene)) {
+                        this.dataManager.startLabelAnimations();
+                    }
+
                     // Check if layout has settled
                     if (this.layoutManager.isSettled && this.layoutManager.running) {
                         this.eventManager.emitGraphSettled(this);
                         this.layoutManager.running = false;
 
                         // Start label animations after layout has settled
-                        for (const node of this.dataManager.nodes.values()) {
-                            node.label?.startAnimation();
-                        }
+                        payLabelAnimations(this.scene);
+                        this.dataManager.startLabelAnimations();
 
                         // Only zoom to fit on FIRST settlement after data load.
                         // Subsequent settlements (e.g., after node selection/style change)

@@ -15,13 +15,21 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-07) **Left-out rows kept per load DONE (0c12c233b, OWNER DOOR: hold + needs-decision).**
+1. (2026-10-07) **Selected edge = halo band, not a recolored line (288624ad1, no door).** `Edge.paintHalo`:
+   the line keeps its paint; a band of `selection.color` at `selection.opacity`, width = line width
+   x 2 x `scale`, in its own line batch (`selection-halo|...` key), curved with the line, hidden with
+   it. Replaced the 3:1 darkening (`selectionMarkColor`) that made gold dark olive. Proof: pixel
+   column in `element-at.test.ts` (band = canvas*(1-a)+gold*a exactly; old code drew #665600), story
+   `Styles/Selection Highlight::SelectedEdge` (new baseline), `tmp/t2pilotfix-element-selected-edge-color/B`.
+   CAVEAT: at the default 40% the band is paler than the olive was (no 3:1 against a light canvas,
+   like the node halo); the knob is `selectionStyle.opacity`, a consumer choice.
+2. (2026-10-07) **Left-out rows kept per load DONE (0c12c233b, OWNER DOOR: hold + needs-decision).**
    `LoadedSource.leftOut?: { rows, values }` (= `LoadReport.unmatched`) only when a load under
    `unmatched: "leave-out"` dropped rows; set in `ingest.ts importSource` from the report that
    `addDataFromSource` now returns. Saved, undone, redone with the entry. App does NOT show it yet
    (next: a "1 row left out" line under the source row). Proof: `data-sources.test.ts`,
    `tmp/t2pilotfix-element-source-left-out/probe.out`.
-2. (2026-10-07) **Tier 2 study prep DONE (no door): tasks, answers, personas, preflight.**
+3. (2026-10-07) **Tier 2 study prep DONE (no door): tasks, answers, personas, preflight.**
    `tasks.md` and `answers.md` "Tier 2" sections: T4 (two sheets), T17 filter, T18 fewest in
    between, T19 reminders, T20 farther weight, T21 updated list; two datasets each; new files in
    `tool/files` (bus-stops, trails, players+passes, team, team-v2; `rounds/tier-2/preflight/
@@ -29,56 +37,52 @@ reference/gen.py`). Values read from the element (`reference/probe.mjs`), all 12
    the answer. Preflight `rounds/tier-2/preflight.md`: every tier2-design decision built / not /
    differs. Not built: "No filters.", Follow in Path popover, path row summary (shows 61), never
    "route"; Edit source... still ADDS (41 -> 82). Owner starts the study; wording check not run.
-3. (2026-10-07) **Replace with file + out-of-date runs DONE (ca8b3b916, no door).** Offered when
+4. (2026-10-07) **Replace with file + out-of-date runs DONE (ca8b3b916, no door).** Offered when
    `canReplace(data.sources())` (one load, <= 1 table); Data page intent `"replace"` ("Replace:
    <file>", `replaceWords` "Was ...; now ...", roles and meaning carried). Stale row: `rows.ts`
    state `"stale"`, `GLYPHS.outOfDate`, label "<name>, out of date"; `RunStateBar` Rerun =
    `runs.start(algorithm, params, { as: id, scope })`. Open: positions not kept; focus lands on
    Everything after Load. Proof: `Replace.real-element.test.tsx`.
-4. (2026-10-07) **Neighborhood header DONE (no door).** `NodeValues.tsx NeighborList`: Hops
+5. (2026-10-07) **Neighborhood header DONE (no door).** `NodeValues.tsx NeighborList`: Hops
    1|2|3, Follow Out|In|All only when directed; a change = `selection.apply({ neighborsOf, depth,
 direction })` + one status line; "Filter to neighbors" appends a `neighborhood` step. ELEMENT
    GAP: that filter rule has no `direction` (button hidden unless All). Proof: toolbar
    `tasks.real-element.test.tsx`, `tmp/t2feat-app-neighborhood/s1/`.
-5. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** One row per
+6. (2026-10-07) **Sources per load + Edit source DONE (8569342f6, no door).** One row per
    `data.sources()` entry (ids `source:<i>[:<j>]`), header `sourcesWords` ("From 2 files");
    `request.ts` remembers each load's files + `PageChoices` in a WeakMap keyed by `LoadedSource`
    (`rememberLoad`). ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles. Load on
    an edited source ADDS again. Proof: `DataPage.real-element.test.tsx`, `tmp/t2feat-app-sources/`.
-6. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
+7. (2026-10-07) **Path popover DONE (587e2930e, 88749291a; no door).** P / "Path between..." /
    Analyze > Shortest path open one popover (`analyze/PathForm.tsx`); pick button = capture-phase
    swallow + `elementAt`; status from `pathAnnouncement` reading `session.runs.get(id)`. Open:
    no Follow (Dijkstra always undirected; would be an owner door); same From/To reuses its run id.
    Proof: `PathForm.real-element.test.tsx`, `tmp/t2feat-app-path-popover/`.
-7. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
+8. (2026-10-07) **Filters in the app DONE (7742cd688, no door).** `data-place/Filters.tsx`,
    `filterWords.ts`, `filterSteps.ts`; editor = inspected kind `filter-step`; counts from
    `plan({ op: "visibility.steps" })`; `FilterChip` in Header; read a step BEFORE undoing it.
    `keys.isTypingTarget` no longer swallows shortcuts on checkbox/radio. Open: row name truncates
    at 240px. Proof: `Filters.real-element.test.tsx`, `tmp/t2feat-app-filters/s2`.
-8. (2026-10-07) **Tier 2 element work landed (owner doors, hold + needs-decision):** edge pick
+9. (2026-10-07) **Tier 2 element work landed (owner doors, hold + needs-decision):** edge pick
    (5a2b3b605), filter steps (8966b0888), stale runs (ce34f31f3; edge-metric runs keyed by old
    edge ids), every load a source (f141b1283), loaded weight + meaning, edge-attribute filter
    (559f5dcb2), coded selector refusals (3d89d43c3). App sides all done. CSV intake: a data file opened into an open project goes through the Data page
    (52ae4b683; tests click "Add" in the Match report).
-9. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
+10. (2026-10-07) **Edge select in the app DONE (e666ae17d, no door).** Canvas click on an edge ->
    edge inspector (`edgeName()`, ends, attributes, per-run `result.edge(id)`), "Select
    endpoints"; status line announces every selection. Open: Frame selection disabled in the edge
    menu (unchecked whether `scope: "selection"` frames an edge). Proof: `tmp/t2feat-app-edge-select/`.
-10. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
+11. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
    `graph-place/rows.ts`), header calls a path "Measure"; picking From by keys leaves focus in From;
    Edit source... ADDS (41 -> 82); adding a file of all-new people defaults to "Leave out" (adds
    nothing); a reopened project's Direction row shows raw `"directed": f...`; Find framing leaves the
    graph off-canvas; element caps a load at one node + one edge table.
-11. (2026-10-07) **Remaining element plan:** a run result says each field's type (fixes (a) at the
+12. (2026-10-07) **Remaining element plan:** a run result says each field's type (fixes (a) at the
     root); several node types / Links to / One edge per Pair is the largest item -- last.
     Undecided by the design: OR/NOT between steps (keep "all"), Path popover grouping key.
-12. (2026-10-07) Element English still on screen: Analyze's algorithm refusals (codes exist,
+13. (2026-10-07) Element English still on screen: Analyze's algorithm refusals (codes exist,
     `AnalyzePopover.tsx` `estimate.reason`), `MetricAvailability.reason`, layout descriptions,
     `run.label`, partition choice labels. Fix = codes from the element, words in the app.
-13. (2026-10-07) Focus after close FIXED (element `delegatesFocus` + app targets +
-    compact-mantine Menu). A control that removes itself names where focus goes
-    (`frame/focus.ts focusIsLost()`); never `returnFocus={false}`. Keyboard repro scripts must
-    count Tabs from the drawing, not the page body.
 14. (2026-10-06) Graph logic goes in graphty-element; an app comment explaining why the element
     could not be used is an element bug report. Neutral facts from the element, words in the app,
     style only through layers (selection is the documented exception: drawn from the mask).
@@ -167,8 +171,9 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
   `result.ranking("order")` finite, ascending. Algorithm key `shortest-path`.
 
 - (2026-10-07) **Selected edges drawn from the mask, not a style layer** (selection is
-  deliberately not a layer, `config/GraphStyle.ts`); own batch key, contrast checked by pixel
-  reads in `test/browser/element-at.test.ts`.
+  deliberately not a layer, `config/GraphStyle.ts`). Since 288624ad1 a selected edge is a halo
+  band read from the same three settings as a node halo; the earlier 3:1 recolor was dropped
+  because it showed a color nobody configured and ignored opacity (T22 pilot: "dark olive").
 
 - (2026-10-07) **Staleness compares a content digest** with edges hashed by value (ids are
   reassigned per load); `staleOf` reads `run.dataDigest`, never `run.record` (recursion).
@@ -215,9 +220,9 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
   `nx run graphty:build` empties `graphty/dist` before tsc fails, leaving :9366 with no index.html:
   rebuild with `NODE_OPTIONS=--max-old-space-size=16384 npx vite build` at once. `api:report`
   reads `dist/` types: build the element first, then stage only my hunks (private index).
-- (2026-10-07) Bars (moved from Top of mind): 41 app words at rest (limit 50); axe 0 on all 13 screens in both schemes
-  (`tool/bars.mjs <out> --scheme light`). New `c="dimmed"` text sits on panel/field/menu. Small open defects: Columns by group order; Circle
-  draws a sphere in 3D; group named three ways; truncated labels; Id/id.
+- (2026-10-07) Bars: 41 app words at rest (limit 50); axe 0 on all 13 screens in both schemes
+  (`tool/bars.mjs <out> --scheme light`). Small open defects: Columns by group order; Circle draws a
+  sphere in 3D; group named three ways; truncated labels; Id/id.
 - (2026-10-07) **Neighborhood header: what bit.** A header above a list moves Tab counts (tests
   now Tab until focus is on the row) and adds a button that list-collecting tests must skip.
   `real.mjs --click "2"` says ambiguous ("2" vs "Dev 2") but takes the exact radio;
@@ -236,23 +241,15 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
   On the Data page `--click "name"` is ambiguous (column header button + combobox); pick a role
   by clicking the combobox's shown value instead. The Sources "+" is not drawn (the `data.add-*`
   commands are not registered): add a file to an open project with `--key Control+o --upload`.
-- (2026-10-07) **A list that closes on blur moved Find path from under the pointer.** The
-  pointer's press blurred the field, the in-flow list closed, the popover shrank before Floating
-  UI re-placed it, and the release landed off the button (first click lost). Fix: the list floats
-  (`analyze/path.css`, absolute). Also: `autoFocus` loses to Mantine's focus trap -- use
-  `data-autofocus`; a focused ToggleIconButton's tooltip takes the first Esc; a `role=status`
-  mounted with its text is "unconfirmed" -- keep it mounted, change its text. Never wait on a
-  build with `pgrep -f '<words in my own command>'` (matched itself; hung 10 min).
-
-- (2026-10-07) **Filters (7742cd688): worked, three traps.** (1) A Mantine Select is role
-  `combobox` in tests, not `textbox`. (2) Ctrl+Z after clicking a checkbox did nothing: the
-  shortcut handler treated every INPUT as a typing target -- fixed at the root in
-  `keys.isTypingTarget`, not in the Filters row. (3) Staging one hunk of a file another agent
-  has dirty: `git apply --cached --unidiff-zero` put my line after `};` in glyphs.ts; building
-  the staged blob from `git show HEAD:<file>` + my edit, then `git hash-object -w` and
-  `git update-index --cacheinfo`, was exact. `react-refresh/only-export-components` wants
-  helpers out of a component file (`filterSteps.ts`).
-
+- (2026-10-07) **A list that closes on blur moved Find path from under the pointer** (first click
+  lost): the list now floats (`analyze/path.css`). Also: `autoFocus` loses to Mantine's focus trap
+  (use `data-autofocus`); a focused ToggleIconButton's tooltip takes the first Esc; keep a
+  `role=status` mounted and change its text. Never wait with `pgrep -f '<my own words>'`.
+- (2026-10-07) **Filters (7742cd688): three traps.** A Mantine Select is role `combobox`; Ctrl+Z
+  after a checkbox click was swallowed (`keys.isTypingTarget`, fixed at the root); one hunk of a
+  file others have dirty: build the blob from `git show HEAD:<file>` + my edit, `git hash-object
+  -w`, `git update-index --cacheinfo` (`--unidiff-zero` misplaced a line). Helpers out of
+  component files (`react-refresh/only-export-components`).
 - (2026-10-07) **Another agent's write can silently undo my edit** in a shared file (RunValues
   lost my hunks when 2df88ddef landed). Re-grep my changes in every touched file just before
   committing. Prettier from the worktree ROOT (`npx prettier --write graphty/...`), not from
@@ -267,11 +264,9 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
   `nx run graphty:build` often fails on another agent's test type error: build the served dist
   with `NODE_OPTIONS=--max-old-space-size=16384 npx vite build` in `graphty/`.
 
-- (2026-10-07) **Checking on :9366: worked.** A Playwright probe under `with-browser.sh`
-  (`tmp/t2feat-el-edge-pick/probe.mjs`: `page.evaluate` on the element, `elementAt`) for facts,
-  then real.mjs at the same point for what a person sees. real.mjs answers a dynamically created
-  file input (`pickFile`) with `--click ... --upload <file>` (2026-10-07, replace walk).
-
+- (2026-10-07) **Checking on :9366: worked.** Playwright probe under `with-browser.sh` for facts
+  (`tmp/t2feat-el-edge-pick/probe.mjs`), then real.mjs for what a person sees; `--click ... --upload`
+  answers a dynamically created file input. Crop + upscale a screenshot with PIL to judge thin lines.
 - (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Others stage and commit
   here continuously: commit from an empty `git diff --cached`, check `git show --stat HEAD` lists
   only my files. For a file others have dirty: a private index (`GIT_INDEX_FILE=<sp>/x.index git
@@ -285,9 +280,9 @@ reset -q HEAD -- <my paths>` in the real index). Never commit `npm run api:repor
   (2026-10-07) `nx run graphty:build` runs `tsc` first and fails on other agents' half-done edits
   (e.g. `choices.test.ts`, `QuickActionsPalette.tsx`): worked around by `NODE_OPTIONS=...16384 npx
 vite build --outDir <session>/dist` + `REAL_DIST` (plain heap OOMs and drops `core.*` files).
-- (2026-10-07) **Pixel assertions in browser tests: worked.** `waitForStableFrame()`, then
-  `graph.scene.render()`, then `engine.readPixels(x, h - y - half, ...)` (rows from the bottom);
-  take the darkest pixel in a 6x6 square to read a thin line's color on a light canvas.
+- (2026-10-07) **Pixel assertions in browser tests: worked.** `waitForStableFrame()`, `scene.render()`,
+  `engine.readPixels(x, h - y - half, ...)` (rows from the bottom). A 1-px column across a line
+  (`columnAt`, element-at.test.ts) shows core and band exactly; darkest-in-6x6 reads a thin line.
 - (2026-10-07) **Edge rebuilt outside a style pass is never placed** unless the next frame walks
   edges: `updateManager.forceEdgeWalk()` (a style pass does it; the mask path now does on select).
 - (2026-10-07) **Tests.** A `Run` is thenable: return `{ caveats: run.caveats, result: run.result }`

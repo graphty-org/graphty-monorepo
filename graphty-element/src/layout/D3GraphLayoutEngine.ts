@@ -140,6 +140,8 @@ export class D3GraphEngine extends LayoutEngine {
     edgeMapping = new Map<Edge, D3Edge>();
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
+    /** Each node id's edges, so removing a node visits only its own edges (issue #1425). */
+    private edgesByNode = new Map<Edge["srcId"], Set<Edge>>();
     reheat = false;
 
     /**
@@ -303,6 +305,15 @@ export class D3GraphEngine extends LayoutEngine {
             source: e.srcId,
             target: e.dstId,
         });
+        for (const id of [e.srcId, e.dstId]) {
+            let incident = this.edgesByNode.get(id);
+            if (!incident) {
+                incident = new Set();
+                this.edgesByNode.set(id, incident);
+            }
+
+            incident.add(e);
+        }
     }
 
     /**
@@ -463,29 +474,14 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
-        for (const edge of this.nodeEdges(n)) {
+        for (const edge of [...(this.edgesByNode.get(n.id) ?? [])]) {
             this.removeEdge(edge);
         }
 
+        this.edgesByNode.delete(n.id);
         this.nodeMapping.delete(n);
         this.newNodeMap.delete(n);
         this.reheat = true;
-    }
-
-    /**
-     * Every edge this engine holds that touches one node.
-     * @param n - the node
-     * @returns the incident edges, as a fresh array so the caller may delete while it walks
-     */
-    private nodeEdges(n: Node): Edge[] {
-        const incident: Edge[] = [];
-        for (const edge of [...this.edgeMapping.keys(), ...this.newEdgeMap.keys()]) {
-            if (edge.srcId === n.id || edge.dstId === n.id) {
-                incident.push(edge);
-            }
-        }
-
-        return incident;
     }
 
     /**
@@ -495,6 +491,8 @@ export class D3GraphEngine extends LayoutEngine {
     override removeEdge(e: Edge): void {
         this.edgeMapping.delete(e);
         this.newEdgeMap.delete(e);
+        this.edgesByNode.get(e.srcId)?.delete(e);
+        this.edgesByNode.get(e.dstId)?.delete(e);
         this.reheat = true;
     }
 

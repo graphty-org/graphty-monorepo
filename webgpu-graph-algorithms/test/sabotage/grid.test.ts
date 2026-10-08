@@ -268,6 +268,7 @@ describe("sabotage coverage of the P4 LAW table (PD-21, PD-22)", () => {
 });
 
 describe("sabotage: the grid far field, near field and K1 grid block against the grid-inspect checks (spec 11.9 item 1)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the pristine kernels pass every row's check (the baseline the mutants are measured against)",
         async (t) => {
@@ -299,6 +300,7 @@ describe("sabotage: the grid far field, near field and K1 grid block against the
 
     for (const { id, rows } of GRID_ROWS) {
         for (const row of rows) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`,
                 async (t) => {
@@ -316,6 +318,7 @@ describe("sabotage: the grid far field, near field and K1 grid block against the
 
     for (const id of Object.keys(SABOTAGE_P4_LAW) as KernelId[]) {
         for (const row of SABOTAGE_P4_LAW[id] ?? []) {
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(
                 `${id}/${row.name} (LAW): fails its check by >= ${row.minFactor}x the tolerance`,
                 async (t) => {

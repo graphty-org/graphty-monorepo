@@ -61,6 +61,7 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
             throw new Error("the PageRank run named in the load-time list never succeeded");
         }
 
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 20));
     }
 
@@ -69,6 +70,7 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
 
     for (let frame = 0; frame < 10; frame++) {
         element.graph.scene.render();
+        // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
         await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
@@ -105,6 +107,7 @@ describe("run options in the load-time algorithm list", () => {
         container = null;
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "colours AND sizes the nodes for an entry carrying style: { size: [1, 5] }",
         async () => {
@@ -140,6 +143,7 @@ describe("run options in the load-time algorithm list", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "takes a bare catalogue key, and hands the run its id and its default size range",
         async () => {
@@ -160,6 +164,7 @@ describe("run options in the load-time algorithm list", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "colours without sizing for a plain name, as it always did",
         async () => {

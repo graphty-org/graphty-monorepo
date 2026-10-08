@@ -350,6 +350,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         expect(open.counters).toMatchObject({ done: 0, level: 2, frontierCount: 1, path: PATH.twoPhase });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the sabotage check passes on the real kernel (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await frontierReport(ctx);

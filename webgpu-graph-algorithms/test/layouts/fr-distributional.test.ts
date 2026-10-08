@@ -119,6 +119,7 @@ async function runLayout(
 }
 
 describe("FR distributional parity: the admission rule (the f64 oracle alone, no GPU)", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `every candidate's oracle spread under ${PERTURBATIONS} one-ulp start perturbations is printed; the admitted ones are under a third of the cap`,
         async () => {
@@ -170,6 +171,7 @@ describe("FR distributional parity: 100 iterations, metrics within the traced 10
 
     for (const c of ADMITTED) {
         const label = labelOf(c);
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(
             `${label}: layoutMetrics of the GPU layout vs the f64 oracle's, coordinates never compared, twice bitwise`,
             async (t) => {
@@ -205,6 +207,7 @@ describe("FR distributional parity: 100 iterations, metrics within the traced 10
         );
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         `writes the UNSCALED ${labelOf(MEMBER)} metrics after 100 iterations and the f64 reference's as noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)`,
         async (t) => {

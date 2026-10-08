@@ -122,6 +122,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
     // The slowest fixture, grid30/integer, takes 6.3-6.9 s alone on lavapipe with coverage (18.6 s before it stopped
     // sweeping a second Floyd-Warshall), nearly all of it the blocked f32 reference; 120 s covers a busy machine.
     for (const fixture of FIXTURES) {
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
             const s = snapshotOf(typeof fixture.edges === "function" ? fixture.edges(big()) : fixture.edges, {
@@ -329,6 +330,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("the sabotage report passes on the real kernels (factor 0)", async (t) => {
         requireGpu(t);
         const report = await allPairsReport(ctx);

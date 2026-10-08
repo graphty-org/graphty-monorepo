@@ -193,6 +193,7 @@ describe("data.import", () => {
         });
         // The choice is made once the rows are in, and joins the import's step.
         for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 10));
         }
 
@@ -213,6 +214,7 @@ describe("data.import", () => {
 
         await session.data.import({ type: "json", config: { data: DOCUMENT } }, { layout: "recommended" });
         for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 10));
         }
 
@@ -231,6 +233,7 @@ describe("data.import", () => {
             await tx.data.import({ type: "json", config: { data: DOCUMENT } }, { layout: "recommended" });
         });
         for (let wait = 0; wait < 100 && session.history.pending.length > 0; wait++) {
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 10));
         }
 

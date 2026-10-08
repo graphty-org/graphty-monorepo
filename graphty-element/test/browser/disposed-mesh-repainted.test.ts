@@ -65,6 +65,7 @@ describe("a node whose mesh has been disposed", () => {
     async function frames(): Promise<void> {
         for (let frame = 0; frame < 5; frame++) {
             graph.scene.render();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise<void>((done) => {
                 setTimeout(done, 10);
             });

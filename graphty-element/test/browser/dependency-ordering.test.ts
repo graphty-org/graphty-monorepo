@@ -36,6 +36,7 @@ const NODE_COLOR = { r: 76, g: 175, b: 80, a: 1 };
 
 // Helper to wait for a delay
 function delay(ms: number): Promise<void> {
+    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -160,10 +161,12 @@ describe("Dependency Ordering", () => {
         while (Date.now() - startTime < maxWaitMs) {
             if (layoutManager.isSettled) {
                 // Give one more frame for mesh positions to sync
+                // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
                 await delay(16);
                 return;
             }
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(16); // Poll every frame (~60fps)
         }
 
@@ -374,6 +377,7 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([TEST_NODES[0], TEST_NODES[1]]);
             await styleEveryNode(graph, NODE_STYLE); // Style set AFTER initial data
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             await graph.addNodes([...TEST_NODES.slice(0, 2), ...TEST_NODES.slice(2)]);
             await graph.addEdges(TEST_EDGES); // Add edges after all nodes are present
@@ -436,6 +440,7 @@ describe("Dependency Ordering", () => {
             await graph.setLayout("random");
             await graph.setLayout("circular"); // Final
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -487,13 +492,16 @@ describe("Dependency Ordering", () => {
         it("should handle interleaved layout and data changes correctly", async () => {
             await graph.setLayout("random");
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await graph.addNodes([TEST_NODES[0], TEST_NODES[1]]);
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await graph.setLayout("circular"); // Final
             await styleEveryNode(graph, NODE_STYLE); // Style interleaved with operations
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await graph.addNodes(TEST_NODES); // Final
             await graph.addEdges(TEST_EDGES);
@@ -515,10 +523,12 @@ describe("Dependency Ordering", () => {
             await graph.addNodes([TEST_NODES[0]]);
             await graph.setLayout("random");
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await styleEveryNode(graph, NODE_STYLE);
             await graph.addNodes([TEST_NODES[1], TEST_NODES[2]]);
 
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(5);
             await graph.setLayout("circular");
             await graph.addNodes([TEST_NODES[3]]);
@@ -584,6 +594,7 @@ describe("Dependency Ordering", () => {
             await styleEveryNode(graph, NODE_STYLE);
 
             // Data added after layout is set
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             await graph.addNodes(TEST_NODES);
             await graph.addEdges(TEST_EDGES);
@@ -609,6 +620,7 @@ describe("Dependency Ordering", () => {
             await graph.addEdges(TEST_EDGES);
 
             // Then add nodes
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await delay(10);
             await graph.addNodes(TEST_NODES);
 
@@ -677,6 +689,7 @@ describe("Dependency Ordering", () => {
             assert.equal(graph.getNodeCount(), 2, "Should have 2 unique nodes");
         });
 
+        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         it("should handle rapid successive operations without race conditions", async () => {
             await styleEveryNode(graph, NODE_STYLE);
             await graph.setLayout("circular");

@@ -617,6 +617,7 @@ function calibrationAt(speed: number): MachineCalibration {
 /** This process's CPU affinity before the guard pinned it, restored afterwards; undefined if unpinned. */
 let affinity: string | undefined;
 
+// eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
 beforeAll(async () => {
     const cpus = process.env.COST_GUARD === "1" ? fastestCoreCpus() : undefined;
     if (cpus !== undefined) {
@@ -646,6 +647,7 @@ describe.runIf(process.env.COST_GUARD === "1")(
         for (const row of ROWS) {
             const bounds =
                 row.optimismOnly === undefined ? `[${MAX_OPTIMISM}, ${MAX_PESSIMISM}]` : `at least ${MAX_OPTIMISM}`;
+            // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
             it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async () => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));

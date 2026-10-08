@@ -40,6 +40,7 @@ async function emptyGraph(): Promise<Graph> {
 }
 
 describe("the project file on a renderer", () => {
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "opens a saved project with its layout, positions, runs and layers",
         async () => {
@@ -88,6 +89,7 @@ describe("the project file on a renderer", () => {
         TEST_TIMEOUT_MS,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "runs the guide's canonical example: save downloads a file, opening it restores the project",
         async () => {
@@ -140,6 +142,7 @@ describe("the project file on a renderer", () => {
             assert.strictEqual(document.title, "* Pioneers");
 
             save.click();
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 50));
             assert.strictEqual(downloads.length, 1);
             assert.strictEqual(downloads[0].download, "Pioneers.graphty.json");
@@ -152,6 +155,7 @@ describe("the project file on a renderer", () => {
             transfer.items.add(new File([text], "Pioneers.graphty.json"));
             open.files = transfer.files;
             open.dispatchEvent(new Event("change"));
+            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
             await new Promise((resolve) => setTimeout(resolve, 500));
 
             assert.deepStrictEqual(confirmed, ["Discard unsaved changes?"]);

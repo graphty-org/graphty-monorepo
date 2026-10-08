@@ -318,6 +318,7 @@ describe("spring-electrical behaviour pins (spec 11.4, 7.20)", () => {
         });
     });
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "the same seed gives the same layout bitwise on the same device; a different seed gives a different layout",
         async (t) => {

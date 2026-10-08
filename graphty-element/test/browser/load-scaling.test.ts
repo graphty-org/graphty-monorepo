@@ -338,6 +338,7 @@ describe("the scene-wide work of a load", () => {
         }
     }
 
+    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it("grows roughly linearly with the edge count between 500 and 2000 edges, default arrowheads on", async () => {
         const small = await workOfLoad(500);
         const large = await workOfLoad(2000);

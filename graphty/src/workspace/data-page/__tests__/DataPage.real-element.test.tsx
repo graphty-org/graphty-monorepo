@@ -34,6 +34,8 @@ const GML = `graph [
 const PEOPLE = "id,name,team\na,Ann,red\nb,Bo,blue\nc,Cy,red\n";
 /** One edge names `z`, which the node file does not hold. */
 const TIES = "source,target,weight\na,b,2\nb,c,5\nc,z,1\n";
+/** Three edges name `y` or `z`, neither of which the node file holds. */
+const TIES_SEVERAL_UNMATCHED = "source,target,weight\na,b,2\nc,z,1\nz,a,4\nb,y,3\n";
 /** Trips between stations, under linking columns the element does not recognize. */
 const TRIPS = "from_station,to_station,trips\nx,y,10\ny,z,3\nz,x,7\n";
 
@@ -154,7 +156,7 @@ describe("the Data page on the real element", () => {
             // Leave out is the default: the edge to z is dropped.
             assert.equal(strip.textContent, "node (3) --ties (2)--> node");
             const report = screen.getByRole("region", { name: "Match report" });
-            assert.include(report.textContent, "1 edge row name 1 node no node row holds.");
+            assert.include(report.textContent, "1 edge row names 1 node no node row holds.");
 
             await userEvent.click(within(report).getByRole("button", { name: "Show the 1 unmatched row" }));
             await screen.findByText("1 unmatched row");
@@ -176,6 +178,19 @@ describe("the Data page on the real element", () => {
             assert.equal(session.data.lastImport()?.counts.nodes, 4);
             assert.deepEqual(session.data.lastImport()?.unmatched, { rows: 1, values: 1 });
             assert.equal(session.data.node("a")?.name, "Ann");
+        },
+        TIMEOUT_MS * 2,
+    );
+
+    it(
+        "the match report's verb agrees with several unmatched edge rows",
+        async () => {
+            await openFromEmptyApp();
+            await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES_SEVERAL_UNMATCHED], "ties.csv"));
+
+            await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+            const report = screen.getByRole("region", { name: "Match report" });
+            assert.include(report.textContent, "3 edge rows name 2 nodes no node row holds.");
         },
         TIMEOUT_MS * 2,
     );

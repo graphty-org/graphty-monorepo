@@ -1008,8 +1008,8 @@ function UnmatchedLine({
     return (
         <Group gap="xs">
             <Text size="xs">
-                {plural(report.unmatched.rows, "edge row")} name {plural(report.unmatched.values, "node")} no node row
-                holds.{" "}
+                {plural(report.unmatched.rows, "edge row")} {report.unmatched.rows === 1 ? "names" : "name"}{" "}
+                {plural(report.unmatched.values, "node")} no node row holds.{" "}
                 <Anchor component="button" size="xs" onClick={onShow}>
                     Show the {plural(report.unmatched.rows, "unmatched row")}
                 </Anchor>

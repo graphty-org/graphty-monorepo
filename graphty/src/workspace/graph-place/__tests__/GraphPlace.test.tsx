@@ -207,15 +207,52 @@ describe("the Graph place", () => {
         });
     });
 
-    it("hints a rule while typing and words a refused rule from its reason, without an uncaught error", async () => {
+    it("checks a rule while typing: a bare number is refused before Enter, a lone = is not approved", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "=");
+        assert.isNotNull(await screen.findByText("Type a rule after =, such as weight > `3`"));
+        assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
+
+        await userEvent.type(box, "minutes >= 10");
+        assert.isNotNull(await screen.findByText("Put numbers in backticks: weight > `3`"));
+        assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
+        assert.equal(session.selection.size, 0);
+
+        await userEvent.clear(box);
+        await userEvent.type(box, "=minutes >= `10`");
+        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
+        assert.isNull(screen.queryByRole("alert"));
+    });
+
+    it("offers the columns that hold the word typed after =, and picking one puts it in the box", async () => {
+        const session = await sessionWithGraph();
+        await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
+        renderPlace(session);
+        const box = screen.getByRole("combobox", { name: "Find" });
+
+        await userEvent.type(box, "=min");
+        const columns = within(await screen.findByRole("listbox", { name: "Find results" })).getByRole("group", {
+            name: "Columns",
+        });
+        const option = within(columns).getByRole("option", { name: /^minutes/ });
+        assert.isNull(within(columns).queryByRole("option", { name: /^side/ }));
+        await userEvent.click(option);
+        assert.equal((box as HTMLInputElement).value, "=minutes");
+        assert.equal(document.activeElement, box);
+        assert.equal(session.selection.size, 0);
+    });
+
+    it("words a rule refused on Enter from its reason, without an uncaught error", async () => {
         const session = await sessionWithGraph();
         await session.data.addEdges([{ source: "b", target: "c", weight: 5 }]);
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
 
-        await userEvent.type(box, "=weight > 3");
-        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
-        await userEvent.keyboard("{Enter}");
+        await userEvent.type(box, "=weight > 3{Enter}");
         const line = await screen.findByText("Put numbers in backticks: weight > `3`");
         assert.equal(box.getAttribute("aria-invalid"), "true");
         assert.notEqual(line.id, "");

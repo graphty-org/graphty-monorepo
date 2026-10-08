@@ -189,6 +189,8 @@ function algorithmInputs(cy: Core, algorithm: string): { options: Record<string,
         case "spectralClustering":
             return { options: { k: 4 } };
         case "syncClustering":
+        case "teraHAC":
+            // teraHAC merges everything into one cluster unless told when to stop
             return { options: { numClusters: 4 } };
         case "modularity":
             return { options: { clusters: cy.elements().graphtyLouvain() } };
@@ -385,7 +387,11 @@ export async function runAlgorithm(cy: Core, algorithm: string, run: AlgorithmRu
         r = eles[method](options);
     }
     const ms = performance.now() - t0;
-    const note = paint(cy, r);
+    // a cluster count the demo chose, said beside the result so the picture is not read as the algorithm's own
+    const asked = ["k", "numClusters"]
+        .filter((k) => typeof options[k] === "number")
+        .map((k) => `${k}: ${String(options[k])}`);
+    const note = paint(cy, r) + (asked.length > 0 ? ` (${asked.join(", ")})` : "");
     const b = (r as AnyResult | null)?.backend;
     if (!b) {
         return { ran: "cpu", detail: "no GPU implementation of this algorithm", note, ms };

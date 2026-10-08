@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { SimplifyPolicy } from "./input/derivedInputs";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
@@ -203,10 +204,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
                 precision,
-                notes:
-                    path.length === 0
-                        ? [`No route runs from ${String(source)} to ${String(target)}.`]
-                        : [`Route from ${String(source)} to ${String(target)}.`],
+                facts: [caveat(path.length === 0 ? "route.none" : "route.found", { source, target })],
             }),
         };
     }

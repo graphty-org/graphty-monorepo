@@ -58,7 +58,7 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
 export const ENDS_LINE = "Keeps edges that pass and the nodes at their ends.";
 
 /**
- * A step's outcome, its row's description: "22 to 9 nodes", or "off" for a step that is off.
+ * A step's outcome, shown after its sentence: "22 to 9 nodes", or "off" for a step that is off.
  * @param on - whether the step is on.
  * @param before - the nodes left before it, or undefined until counted.
  * @param after - the nodes left after it, or undefined until counted.
@@ -72,13 +72,25 @@ export function outcomeWords(on: boolean, before: number | undefined, after: num
 }
 
 /**
- * The status line after the step editor saves a step: 'Saved "weight is at least 4" (off).'
+ * The status line after the step editor saves a step, which turns it on:
+ * 'Saved "weight is at least 4". The step is on.'
  * @param words - the step's sentence.
- * @param on - whether the step is on.
  * @returns the words.
  */
-export function savedWords(words: string, on: boolean): string {
-    return `Saved "${words}"${on ? "" : " (off)"}.`;
+export function savedWords(words: string): string {
+    return `Saved "${words}". The step is on.`;
+}
+
+/**
+ * The header chip's tooltip: the steps that are on, and where to turn them off.
+ * @param on - the sentences of the steps that are on.
+ * @returns the words.
+ */
+export function chipTip(on: readonly string[]): string {
+    const named = on.map((words) => `"${words}"`).join(", ");
+    return on.length === 1
+        ? `Step on: ${named}. Turn it off in the Filters list.`
+        : `Steps on: ${named}. Turn them off in the Filters list.`;
 }
 
 /**

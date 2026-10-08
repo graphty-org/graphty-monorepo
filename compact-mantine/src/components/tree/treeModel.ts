@@ -66,6 +66,13 @@ export interface TreeNodeData {
      */
     description?: string;
     /**
+     * Draw `description` as a second line under the name, in the secondary ink, instead of only
+     * reading it; the row grows from 32 to 44. For a state the reader must see beside a long
+     * name (a filter step's "77 to 26 nodes", "off") where a count would cut the name. Default
+     * false.
+     */
+    descriptionVisible?: boolean;
+    /**
      * Whether the item can be picked up and moved (a drag, Alt+ArrowUp / Alt+ArrowDown).
      * Default true. Where an item may land is `Tree`'s `canDrop`.
      */

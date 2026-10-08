@@ -11,6 +11,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Filter steps show on/off and what they keep (compact-mantine + app, team door).**
+  A step row's outcome ("77 to 26 nodes", "off") is a second line under the condition through the
+  new shared `TreeNodeData.descriptionVisible` (row 44 tall); the count slot cut both in the
+  240-wide list. Saving a step from the editor turns it on (Undo restores the old rule, off);
+  status "Saved "x". The step is on."; header chip Tooltip names the steps on ("Turn it off in the
+  Filters list", `chipTip`). Off-row dimming left as is: under the app's high-contrast theme
+  tertiary == secondary (70% white, the AA floor), so the word "off" carries the state. Evidence
+  `tmp/r1-dry2-filters/` (T17A/07-12, T17B/07-12). OPEN: once, T17B's "Attribute actions" click
+  timed out with the button "visible, enabled and stable"; the rerun passed. Mechanism not found.
 - (2026-10-08) **Focus after an action goes to the inspector's title (app + element, no API
   change).** A run or a find pick focuses the inspector title (`focusInspectorTitle`, id
   `INSPECTOR_TITLE_ID` in `frame/focus.ts`, `tabIndex -1`, shared ring class `cm-focus-outside`),
@@ -75,12 +84,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   (`OrbitCameraController.setViewInsets` shifts the pivot); the legend calls `zoomToFit()` only
   when `element.nodesInRect(cardBox)` is not empty; Find turns the camera only for an off-screen
   pick. Evidence `tmp/r1-dry1-view-stays-put/`.
-- (2026-10-08) **Find rules and edge names.** `FindOptions.edgeNameJoiner` (element) finds an edge
-  by its name; rule example from the data; ResultRow turns off Inter's `calt`. OPEN: Columns after "="
-  omit run results. (Edge ends are named by name since 2026-10-08.)
-- (2026-10-08) **Path form.** From/To "From node"/"To node"; Made with rows Analysis, Ran, From,
-  To, Weight; `WeightMeaning.assumed`. OPEN: label size is world-space; neighborhood filter has no
-  `direction`; Dijkstra always undirected.
+- (2026-10-08) **Find and path form.** `FindOptions.edgeNameJoiner`; Made with rows Analysis, Ran,
+  From, To, Weight. OPEN: Columns after "=" omit run results; label size is world-space;
+  neighborhood filter has no `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
@@ -185,8 +191,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08) **Facts are rows, not chips** (a badge looks clickable); a header's right-click opens
   its menu.
 
-- (2026-10-08) **A filter step row shows only its sentence and checkbox**; its count is in the row
-  description, totals in the header chip and Overview (counts cut long attribute names).
+- (2026-10-08) **A filter step row: sentence, then its outcome on a second line.** Replaces "only its
+  sentence and checkbox" (the outcome was hidden and readers could not tell on from off). A
+  second line, not the count slot: in 240 px the condition alone fills the row.
+- (2026-10-08) **Saving a step turns it on.** A save with no visible effect read as a failed edit
+  (dry run); the reader edited it to use it, and Undo restores the old rule and state.
 
 - (2026-10-08) **A stat's reading and a list row's second line wrap; never cut** (a tooltip is not
   reading).
@@ -217,6 +226,10 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: a tree row's count slot for a filter outcome. The slot yields to the
+  name but keeps a 2.5em stub, so "weight is at least 4" + "20 to 19 nodes" became "weight is at
+  least..." + "20 to ...". An old test passed because `textContent` includes a `hidden` span:
+  assert `checkVisibility()` on visible words.
 - (2026-10-08) Did not work: `focus({ focusVisible: false })` (HTML standard) -- Chrome 143
   ignores it, still draws the ring. Worked: a plain probe page (`fv-probe3.mjs`: input, key,
   click a canvas in a delegatesFocus shadow root) showed every script focus inherits the
@@ -228,9 +241,7 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   differently" in one run. Did not work: `graph.waitForSettled()` right after a second load -- it
   resolves on the OLD settlement; poll `isSettled && !running`. A column label click already opened
   its role list on this build (the pilot's miss did not reproduce at 728,205 or 662,201); a test pins it.
-- (2026-10-08) Worked: staging only my hunks in a shared worktree: `git diff -U0` per file, drop
-  foreign hunks by header, `git apply --cached --unidiff-zero`
-  (`tmp/r1-dry2-find-and-selection/stage.py`). Did not work: expecting `data.name()` to read a
+- (2026-10-08) Did not work: expecting `data.name()` to read a
   `name` field -- it returns the id until `knownFields.nodeLabelPath` is set (an import sets it);
   a headless test sets it. Did not work: `max-height` from row bottoms alone; border-box counts
   the list's 1 px border, so the list ended 1 px above the row.
@@ -249,7 +260,6 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08, condensed) A fact at the END of a narrow inspector row is cut: lead with it.
   `while pgrep -f` matches its own shell: wait by PID. Session-entry public types are listed in
   `graphty-element/session.ts`. `getByText` misses text split across a glyph span.
-- (2026-10-08) Worked: proving draw order from frame pixels (`label-drawn-over-edges.test.ts`).
 - (2026-10-08) Worked: re-walking the pilots with a copy of `tier2/pilot/rewalk.sh` whose `SET`
   is overridable and setup files rebuilt from each pilot's `session.json` "setup" list (the r1d1
   T18 pilots started with PageRank run and sized, not the plain friends setup). Did not work:
@@ -271,14 +281,9 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   plain button (rail). A project that opens ON the Data page (New from data...) must not take
   focus from that page: the open effect runs only when `page === "panels"`.
 
-- (2026-10-08) Worked: snapshot every shared file another agent has dirty BEFORE editing
-  (`cp` to `tmp/<task>/base/`), so "fails without the change" is copy base -> run -> copy mine back,
-  and my patch is `diff base mine`. Keep any file my new exports are imported from at mine, or the
-  whole test file fails on import instead of on the assertion.
-
-- (2026-10-08) While other agents edit the same worktree, stage only your hunks by writing the
-  index blob from HEAD plus your own edits (`git hash-object -w` + `update-index --cacheinfo`);
-  a shared file's other hunks stay unstaged. Their half-saved files can break `tsc` and the build
+- (2026-10-08, condensed) Shared worktree: snapshot a file another agent has dirty BEFORE editing
+  (`tmp/<task>/base/`); stage only my hunks (`git apply --cached --unidiff-zero`, or
+  `hash-object -w` + `update-index --cacheinfo`). Their half-saved files can break `tsc` and the build
   for minutes: wait for a clean `tsc` before building. A setup's Shift+A missed in a WIP build;
   `--click Analyze` works the same.
 

@@ -25,7 +25,7 @@ import React, { useEffect, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
-import { applyName, chipWords, ENDS_LINE, outcomeWords, savedWords, statusWords } from "./filterWords";
+import { applyName, chipTip, chipWords, ENDS_LINE, outcomeWords, savedWords, statusWords } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
 /** Nodes left before the first step and after each step that is on, by step id. */
@@ -64,7 +64,7 @@ function useOutcomes(session: GraphSession | null, version: number): Outcomes | 
 }
 
 /**
- * The Filters section: one row per step, as a sentence (its outcome as the row's description)
+ * The Filters section: one row per step, as a sentence (its outcome on the row's second line)
  * and its Apply this step checkbox. "+" opens the step editor; a row opens it on that step; the
  * row menu deletes.
  * @returns the section.
@@ -97,9 +97,10 @@ export function FiltersSection(): React.JSX.Element {
             id: step.id,
             name: words,
             icon: <GLYPHS.filter size={14} aria-hidden />,
-            // The sentence keeps the whole row (its threshold is what the reader set); the
-            // outcome is the row's description, and the header chip and Overview count what shows.
+            // The outcome ("77 to 26 nodes", "off") is the row's second line: beside the sentence
+            // it would cut the threshold the reader set, in a 240-wide list.
             description: outcome,
+            descriptionVisible: true,
             dimmed: !step.on,
             strong: false,
             actions: (
@@ -287,7 +288,7 @@ function sameRule(a: RuleTree, b: RuleTree): boolean {
 
 /**
  * The step editor, drawn in the inspector: Keep, then the attribute, the comparison and the
- * value. Committing adds the step, on, or saves the edited one.
+ * value. Committing adds the step or saves the edited one, on either way.
  * @param props - Component props
  * @param props.id - the step id, `NEW`, or `NEW:<kind>:<path>`.
  * @returns the editor.
@@ -337,17 +338,15 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         if (rule === null) {
             return;
         }
+        // A saved step is on: the reader edited it to use it (Undo restores it as it was).
         const next =
             step === undefined
                 ? [...steps, { id: newId(steps), on: true, rule }]
-                : steps.map((s) => (s.id === step.id ? { ...s, rule } : s));
+                : steps.map((s) => (s.id === step.id ? { ...s, rule, on: true } : s));
         if (await writeSteps(session, store, next)) {
-            // An edit of a step that is off changes nothing on screen, so the save is said.
             store.set({
                 inspected: null,
-                ...(step === undefined
-                    ? {}
-                    : { announcement: savedWords(stepWords(session, { ...step, rule }), step.on) }),
+                ...(step === undefined ? {} : { announcement: savedWords(stepWords(session, { ...step, rule })) }),
             });
         }
     };
@@ -444,8 +443,8 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
 }
 
 /**
- * The header's filter chip, "9 of 22 nodes", drawn only while a step is on; it opens the Data
- * place, where the Filters section is. It also puts each steps change on the status line.
+ * The header's filter chip, "9 of 22 nodes", drawn only while a step is on; its tooltip names the
+ * steps that are on, and it opens the Data place, where the Filters section is. It also puts each steps change on the status line.
  * @returns the chip, or nothing.
  */
 export function FilterChip(): React.JSX.Element | null {
@@ -470,17 +469,20 @@ export function FilterChip(): React.JSX.Element | null {
         return null;
     }
     const words = chipWords(session.visibility.summary);
+    const on = session.visibility.steps.filter((step) => step.on).map((step) => stepWords(session, step));
     return (
-        <Button
-            variant="subtle"
-            size="compact-xs"
-            aria-label={`Filter: ${words}`}
-            leftSection={<GLYPHS.filter size={12} aria-hidden />}
-            onClick={() => {
-                store.set({ page: "panels", place: "data" });
-            }}
-        >
-            {words}
-        </Button>
+        <Tooltip label={chipTip(on)} multiline maw={280}>
+            <Button
+                variant="subtle"
+                size="compact-xs"
+                aria-label={`Filter: ${words}`}
+                leftSection={<GLYPHS.filter size={12} aria-hidden />}
+                onClick={() => {
+                    store.set({ page: "panels", place: "data" });
+                }}
+            >
+                {words}
+            </Button>
+        </Tooltip>
     );
 }

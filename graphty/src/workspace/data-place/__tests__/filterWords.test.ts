@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import {
     applyName,
+    chipTip,
     chipWords,
     historyNotice,
     type Namer,
@@ -65,8 +66,18 @@ describe("the Filters words", () => {
         assert.isNull(historyNotice("visibility.filter", "x", true));
     });
 
-    it("says a save", () => {
-        assert.equal(savedWords("weight is at least 4", false), 'Saved "weight is at least 4" (off).');
-        assert.equal(savedWords("weight is at least 4", true), 'Saved "weight is at least 4".');
+    it("says a save, which turns the step on", () => {
+        assert.equal(savedWords("weight is at least 4"), 'Saved "weight is at least 4". The step is on.');
+    });
+
+    it("names the steps that are on in the chip's tooltip", () => {
+        assert.equal(
+            chipTip(["weight is at least 4"]),
+            'Step on: "weight is at least 4". Turn it off in the Filters list.',
+        );
+        assert.equal(
+            chipTip(["weight is at least 4", "in the largest component"]),
+            'Steps on: "weight is at least 4", "in the largest component". Turn them off in the Filters list.',
+        );
     });
 });

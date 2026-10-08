@@ -90,6 +90,8 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
     progress?: number | "indeterminate";
     /** The row's state in words, read after its name. See TreeNodeData.description. */
     description?: string;
+    /** Draw the description as a second line. See TreeNodeData.descriptionVisible. */
+    descriptionVisible?: boolean;
     /** Drawn in place of the name, e.g. an InlineRename. */
     nameSlot?: React.ReactNode;
     /** Called when the caret is clicked. */
@@ -126,6 +128,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         count,
         progress,
         description,
+        descriptionVisible = false,
         onExpandToggle,
         className,
         onClick,
@@ -176,6 +179,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
             data-tone={tone === "component" ? "component" : undefined}
             data-dimmed={dimmed ? "" : undefined}
             data-strong={isStrong ? "" : undefined}
+            data-two-line={hasDescription && descriptionVisible ? "" : undefined}
             className={className ? `cm-tree-row ${className}` : "cm-tree-row"}
             tabIndex={tabIndex}
             onKeyDown={onKeyDown}
@@ -206,14 +210,25 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
                     {swatch}
                 </span>
             )}
-            {nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} detail={hasCount ? count : undefined} />}
+            {hasDescription && descriptionVisible ? (
+                <span className="cm-tree-lines">
+                    {nameSlot ?? <EllipsizedName className="cm-tree-name" name={name} />}
+                    <span className="cm-tree-description" id={descriptionId}>
+                        {description}
+                    </span>
+                </span>
+            ) : (
+                (nameSlot ?? (
+                    <EllipsizedName className="cm-tree-name" name={name} detail={hasCount ? count : undefined} />
+                ))
+            )}
             {hasCount && (
                 <span className="cm-tree-count" id={countId} data-testid="tree-count" data-row-detail="">
                     {count}
                 </span>
             )}
             {hasActions && <span className="cm-tree-actions">{actions}</span>}
-            {hasDescription && (
+            {hasDescription && !descriptionVisible && (
                 <span id={descriptionId} hidden>
                     {description}
                 </span>
@@ -785,6 +800,7 @@ export function Tree({
                 count={row.node.count}
                 progress={row.node.progress}
                 description={row.node.description}
+                descriptionVisible={row.node.descriptionVisible}
                 posInSet={row.posInSet}
                 setSize={row.setSize}
                 tabIndex={id === tabId ? 0 : -1}

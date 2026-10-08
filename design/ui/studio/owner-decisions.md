@@ -4,6 +4,22 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a tree row can show its description as a second line (`descriptionVisible`)
+
+**What.** compact-mantine's `TreeNodeData` (and `TreeItem`) gains an optional `descriptionVisible`
+flag. Set, the row draws its `description` as a second 16px line under the name, in the secondary
+ink, and the row grows from 32 to 44 (its hover pill and focus ring from 24 to 36). Unset, the
+description is only read by a screen reader, as before. Additive: no prop changes meaning and no
+default changes.
+
+**Why.** A filter step's row must show both the condition the reader set ("shared_chapters is at
+least 5") and what it keeps ("77 to 26 nodes", or "off"). In the 240-wide Data list the condition
+alone fills the row, so the outcome in the row's count slot cut the condition to "weight is at
+least..." and the outcome to "20 to ...". A second line keeps both whole; the screen reader hears
+the same words through the row's existing description. Test:
+`compact-mantine/tests/components/tree/Tree.browser.test.tsx` ("draws a visible description as a
+whole second line under a long name").
+
 ## 2026-10-08 -- Decided by the team: a load says what each of its tables held (`LoadedSource.tableRows`)
 
 **What.** graphty-element adds one optional field, additive: `LoadedSource.tableRows?: readonly

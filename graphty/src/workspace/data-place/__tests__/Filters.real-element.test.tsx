@@ -78,12 +78,17 @@ describe("Filters on the real element", () => {
             assert.deepEqual([visibleNodes, totalNodes, visibleEdges], [5, 8, 4]);
 
             const stepRow = await within(filters()).findByRole("treeitem", { name: "value is at least 9" });
-            // The sentence has the row to itself; the outcome is its description.
+            // The outcome shows under the sentence, on the row's second line.
             await waitFor(() => {
-                assert.isNull(within(stepRow).queryByTestId("tree-count"));
-                assert.include(stepRow.textContent, "8 to 5 nodes");
+                const outcome = within(stepRow).getByText("8 to 5 nodes");
+                assert.isTrue(outcome.checkVisibility());
             });
-            assert.isNotNull(screen.getByRole("button", { name: "Filter: 5 of 8 nodes" }));
+            assert.isNull(stepRow.getAttribute("data-dimmed"));
+            // The chip's tooltip names the step that is on.
+            const chip = screen.getByRole("button", { name: "Filter: 5 of 8 nodes" });
+            await userEvent.hover(chip);
+            await screen.findByText('Step on: "value is at least 9". Turn it off in the Filters list.');
+            await userEvent.unhover(chip);
             await waitFor(() => {
                 assert.equal(store.get().announcement, "Filter on: 5 of 8 nodes, 4 edges");
             });
@@ -104,11 +109,13 @@ describe("Filters on the real element", () => {
             assert.equal(session.visibility.summary.visibleNodes, 8);
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("button", { name: /^Filter: / }));
-                assert.include(within(filters()).getByRole("treeitem").textContent, "off");
+                const offRow = within(filters()).getByRole("treeitem");
+                assert.isTrue(within(offRow).getByText("off").checkVisibility());
+                assert.equal(offRow.getAttribute("data-dimmed"), "");
             });
             assert.equal(store.get().announcement, "Filter off");
 
-            // Editing the step while it is off: Save step waits for a change, and the save is said.
+            // Editing the step while it is off: Save step waits for a change, and saving turns it on.
             act(() => {
                 store.set({ inspected: { kind: "filter-step", id: step.id } });
             });
@@ -122,11 +129,14 @@ describe("Filters on the real element", () => {
             });
             await userEvent.click(save);
             await waitFor(() => {
-                assert.equal(store.get().announcement, 'Saved "value is at least 10" (off).');
+                assert.equal(store.get().announcement, 'Saved "value is at least 10". The step is on.');
+                assert.isTrue(session.visibility.steps[0]?.on);
             });
             await within(filters()).findByRole("treeitem", { name: "value is at least 10" });
+            // Undo restores the step as it was: the old rule, off.
             await userEvent.click(screen.getByRole("button", { name: "Undo" }));
             await within(filters()).findByRole("treeitem", { name: "value is at least 9" });
+            assert.isFalse(session.visibility.steps[0]?.on);
 
             // Undo puts the step back on and the notice names it.
             await userEvent.click(screen.getByRole("button", { name: "Undo" }));

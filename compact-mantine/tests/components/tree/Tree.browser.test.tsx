@@ -78,6 +78,31 @@ describe("Tree: semantics", () => {
         expect(item).toHaveTextContent("value");
     });
 
+    it("draws a visible description as a whole second line under a long name", async () => {
+        const name = "shared_chapters is at least 5";
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <Tree
+                    items={[
+                        { id: "s", name, description: "77 to 26 nodes", descriptionVisible: true },
+                        { id: "h", name: "hidden", description: "Running" },
+                    ]}
+                />
+            </div>,
+        );
+        const item = row(name);
+        expect(item).toHaveAccessibleDescription("77 to 26 nodes");
+        expect(item.getBoundingClientRect().height).toBe(44);
+        const line = within(item).getByText("77 to 26 nodes");
+        expect(line.checkVisibility()).toBe(true);
+        const shown = within(item).getByText(name);
+        expect(shown.scrollWidth).toBeLessThanOrEqual(shown.clientWidth);
+        expect(line.getBoundingClientRect().top).toBeGreaterThanOrEqual(shown.getBoundingClientRect().bottom);
+        // Without the flag the description is only read.
+        expect(within(row("hidden")).getByText("Running").checkVisibility()).toBe(false);
+        expect(row("hidden").getBoundingClientRect().height).toBe(32);
+    });
+
     it("has one Tab stop, on the selected row", async () => {
         await renderThemed(
             <>

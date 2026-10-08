@@ -240,7 +240,13 @@ describe("the pre-push gate matches CI", () => {
         const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
         try {
             mkdirSync(join(dir, "tools"));
-            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
+            // The runner starts every shard through tools/test-slots.mjs, so it is copied too. Its slots
+            // stay on: their ticket directory is this throwaway repository's own tmp/test-slots, so the
+            // fake shards never take or wait for a machine-wide slot, and the stop path through the
+            // slot wrapper is the one a real push takes.
+            for (const file of ["prepush-tests.mjs", "test-slots.mjs"]) {
+                copyFileSync(new URL(`./${file}`, import.meta.url), join(dir, "tools", file));
+            }
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),

@@ -231,6 +231,12 @@ direction })` + one status line; "Filter to neighbors" appends a `neighborhood` 
 
 ## Tried: worked / did not work
 
+- (2026-10-07) **Unmatched-rows verb agrees (f1f041a40, graphty, no door).** `DataPage.tsx
+  UnmatchedLine`: "1 edge row names ...", "4 edge rows name ...". Real-element test T4 pins the
+  singular (failed on the old source), a new case the plural. Live check in real.mjs: "New from
+  data..." opens the Data page but NO file chooser, so `--upload` right after it misses (the T4
+  path in `answers.md` says to do exactly that); click "Add a table" > "File..." first. Proof:
+  `tmp/t2pilotfix-app-unmatched-grammar/single/03.png`, `several/04.png`.
 - (2026-10-07) **compact-mantine browser suite is file-order dependent (not fixed).** The color
   test's `touchDrag` leaves `(hover: none)` on for later files, so `figma/tree.browser` hover test
   fails when color runs first. Nothing tried resets it; idea: touch test in its own browser project.

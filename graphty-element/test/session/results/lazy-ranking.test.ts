@@ -17,7 +17,14 @@ vi.mock("../../../src/session/results/statistics", async (actual) => {
     return { ...real, rankOrder: vi.fn(real.rankOrder) };
 });
 
-const CAVEATS: Caveats = { exact: true, direction: "undirected", precision: "f64", method: "degree", notes: [] };
+const CAVEATS: Caveats = {
+    exact: true,
+    direction: "undirected",
+    precision: "f64",
+    method: "degree",
+    facts: [],
+    notes: [],
+};
 const COUNT = 1_000;
 
 /**

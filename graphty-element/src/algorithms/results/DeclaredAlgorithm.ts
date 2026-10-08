@@ -240,7 +240,8 @@ export abstract class DeclaredAlgorithm<
                 // Read through the snapshot's own id index, rather than a copy, when the nodes match it.
                 snapshotIds: input.graph.ids,
                 edges: output.edges,
-                caveats: weight === undefined ? output.caveats : { ...output.caveats, weight },
+                // An output written without `facts` (an extension's own literal) has none.
+                caveats: { facts: [], ...output.caveats, ...(weight === undefined ? {} : { weight }) },
                 durationMs: Date.now() - startedAt,
             }),
         );

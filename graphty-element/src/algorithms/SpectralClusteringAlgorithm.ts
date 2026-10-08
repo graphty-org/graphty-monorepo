@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -141,7 +142,7 @@ export class SpectralClusteringAlgorithm extends DeclaredAlgorithm<SpectralClust
                 weight: { attribute: "weight", meaning: "strength" },
                 converged: value.converged,
                 seed,
-                notes: ["Spectral clustering does not score its own partition, so it reports no modularity."],
+                facts: [caveat("partition.unscored", { algorithm: "spectral-clustering" })],
             }),
         };
     }

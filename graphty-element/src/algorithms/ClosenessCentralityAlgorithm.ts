@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -124,10 +125,7 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });
 
-        const notes = [
-            "Distance counts edges; edge weights are not read.",
-            "A score is the reciprocal of the total distance to the nodes this one can reach, with no correction for how many that is, so a node in a small component scores as though it reached the whole graph.",
-        ];
+        const facts = [caveat("closeness.hop-distances"), caveat("closeness.reciprocal")];
 
         return {
             nodes,
@@ -140,12 +138,12 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
                 weight: null,
                 precision,
                 method: sampled ? "closeness-bfs-sampled" : "closeness-bfs",
-                notes: sampled
-                    ? [
-                          `Estimated from ${String(value.sourcesUsed)} sampled sources of ${String(snapshot.nodeCount)} nodes, over the graph read as undirected: each node's distances are summed to those sources only, unscaled, so multiply by ${String(value.sourcesUsed)} / ${String(snapshot.nodeCount)} to estimate the exact score.`,
-                          ...notes,
-                      ]
-                    : ["Distances are exact, measured over the graph read as undirected.", ...notes],
+                ...noted([
+                    sampled
+                        ? caveat("closeness.sampled", { sources: value.sourcesUsed, nodes: snapshot.nodeCount })
+                        : caveat("closeness.exact"),
+                    ...facts,
+                ]),
             },
         };
     }

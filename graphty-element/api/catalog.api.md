@@ -308,8 +308,10 @@ export type Encoding = Partial<Record<Channel, Binding>>;
 export interface FieldBand {
     above?: number;
     atLeast?: number;
+    // @deprecated
     description: string;
     id: string;
+    // @deprecated
     plainName: string;
 }
 
@@ -339,6 +341,7 @@ export interface FieldDescriptor {
 export interface FieldInterpretation {
     bands: readonly FieldBand[];
     source: string;
+    // @deprecated
     summary: string;
 }
 

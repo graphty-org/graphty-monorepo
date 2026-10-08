@@ -3369,7 +3369,7 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
     const positionColumn = ctx.nodes.declareIf(
         {
             name: POSITION_COLUMN,
-            dtype: "f32",
+            dtype: "f64",
             components: 3,
             role: "position",
             mutable: true,
@@ -3450,7 +3450,7 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
                     report.error(
                         "validation-error",
                         JSON_ISSUE.BAD_VALUE,
-                        `${element}: position must be an object with numeric x and y (and z) that are finite and within the f32 range`,
+                        `${element}: position must be an object with numeric x and y (and z) that are finite numbers`,
                         { element },
                     );
                 }
@@ -3656,16 +3656,13 @@ function hasPositionZ(element: unknown): boolean {
     return isJsonObject(element) && isJsonObject(element.position) && typeof element.position.z === "number";
 }
 
-/** The largest finite f32, the bound of a position coordinate. */
-const F32_MAX = 3.4028234663852886e38;
-
 /**
- * Whether a value is a coordinate the f32 position column holds: a finite number within the f32 range.
+ * Whether a value is a coordinate the position column holds: a finite number.
  * @param value - the value
  * @returns true for a storable coordinate
  */
 function isCoordinate(value: unknown): value is number {
-    return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= F32_MAX;
+    return typeof value === "number" && Number.isFinite(value);
 }
 
 /**

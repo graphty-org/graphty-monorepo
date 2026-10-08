@@ -24,7 +24,17 @@ import { describe, it } from "node:test";
 
 import { GROUPS, groupEntry, plan, SHARDS } from "./ci-test-matrix.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
-import { decide, fileIssue, FREEZE_PREFIX, frozenSha, mergedPrs, revertBody, revertTitle } from "./master-guard.mjs";
+import {
+    closeStaleReverts,
+    decide,
+    examineRed,
+    fileIssue,
+    FREEZE_PREFIX,
+    frozenSha,
+    mergedPrs,
+    revertBody,
+    revertTitle,
+} from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
@@ -231,13 +241,13 @@ describe("the pre-push gate matches CI", () => {
             shards.filter((s) => !running.includes(s) && canStart(s, running, new Set(warmed))).map((s) => s.shard);
         // Cold: one warm-up per package (the shortest command of a family), and nothing else.
         assert.deepEqual(startable([], []).sort(), [
-            "graphty-element-browser-2",
+            "graphty-element-browser-1",
             "graphty-element-default",
             "graphty-element-storybook-1",
             "layout",
         ]);
         // While one warm-up of graphty-element runs, no other shard of graphty-element may start.
-        assert.deepEqual(startable([pick("graphty-element-browser-2")], []), ["layout"]);
+        assert.deepEqual(startable([pick("graphty-element-browser-1")], []), ["layout"]);
         // A warmed family's siblings still wait for the package's other families.
         const afterBrowser = startable([], ["graphty-element-browser"]);
         assert.ok(!afterBrowser.includes("graphty-element-browser-3"));
@@ -496,6 +506,17 @@ describe("ci.yml", () => {
 
     it("keeps the benchmarks advisory", () => {
         assert.match(job(ci, "performance"), /continue-on-error: true/);
+    });
+
+    it("runs every benchmark, and the browser set-up the last one needs, after an earlier benchmark fails", () => {
+        const steps = job(ci, "performance")
+            .split(/\n {12}- /)
+            .slice(1);
+        const first = steps.findIndex((step) => /vitest run --project=bench/.test(step));
+        assert.ok(first > 0, "the performance job runs the graphty-element benchmarks");
+        for (const step of steps.slice(first)) {
+            assert.match(step, /\n\s+if: \$\{\{ !cancelled\(\) \}\}\n/, `this step runs after a failure:\n${step}`);
+        }
     });
 
     it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {
@@ -1477,6 +1498,139 @@ describe("master-guard", () => {
         }
         // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
         assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
+    });
+
+    // A red CI run on master as the jobs API and the logs show it. `logs` maps a failed job's name to the lines
+    // its failed step printed; `earlier` lists the jobs that failed on a master run an hour before.
+    const redRun = (logs, earlier = []) => {
+        const at = (s) => `2026-10-06T09:51:${s}Z`;
+        const jobs = [
+            { id: 1, name: "Build", conclusion: "success", steps: [] },
+            ...Object.keys(logs).map((name, i) => ({
+                id: 10 + i,
+                name,
+                conclusion: "failure",
+                steps: [{ name: "Run it", conclusion: "failure", started_at: at(26), completed_at: at(30) }],
+            })),
+            { id: 99, name: "All Checks Pass", conclusion: "failure", steps: [] },
+        ];
+        const run = { id: 5, run_attempt: 1, head_sha: "b".repeat(40), created_at: "2026-10-06T10:00:00Z" };
+        const gh = async (path) => {
+            if (path === "/actions/runs/5/attempts/1/jobs?per_page=100") {
+                return { jobs };
+            }
+            const log = /^\/actions\/jobs\/(\d+)\/logs$/.exec(path);
+            if (log) {
+                const job = jobs.find((j) => j.id === Number(log[1]));
+                // a line of the step before, which must not count
+                return [`${at(20)} ETIMEDOUT in an earlier step`, ...logs[job.name].map((l) => `${at(27)} ${l}`)].join(
+                    "\n",
+                );
+            }
+            if (path.startsWith("/actions/workflows/ci.yml/runs?")) {
+                return {
+                    workflow_runs: [
+                        { id: 4, head_sha: "a".repeat(40), conclusion: "failure", created_at: "2026-10-06T09:00:00Z" },
+                    ],
+                };
+            }
+            if (path === "/actions/runs/4/jobs?per_page=100") {
+                return { jobs: earlier.map((name) => ({ name, conclusion: "failure" })) };
+            }
+            throw new Error(`unexpected ${path}`);
+        };
+        return examineRed(gh, run);
+    };
+    // The Links job of master run 37444427406: GitHub answered 502 for a linked Actions run page.
+    const LINKS_502 = [
+        "Checking github.com/graphty-org links",
+        "[502] https://github.com/graphty-org/graphty-monorepo/actions/runs/35316416067 (at 109:186) | Rejected status code: 502 Bad Gateway",
+        "[502] https://github.com/graphty-org/graphty-monorepo/actions/runs/35316416067 (at 53:153) | Rejected status code: 502 Bad Gateway",
+        "Dead links found (see above). Fix the link, or publish what it points to.",
+        "##[error]Process completed with exit code 1.",
+    ];
+
+    it("opens no revert when every failed job failed from outside", async () => {
+        const { failed, outside } = await redRun({ Links: LINKS_502 });
+        assert.deepEqual(failed, ["Links"]);
+        assert.equal(outside.length, 1);
+        assert.match(outside[0], /^Links: `\[502\] https:\/\/github.com\/.*502 Bad Gateway` \(and 1 more like it\)$/);
+        // npm and DNS errors, a lost runner, and a job that also failed on an earlier commit
+        assert.ok(
+            (await redRun({ Build: ["npm error code E503", "##[error]Process completed with exit code 1."] })).outside,
+        );
+        assert.ok((await redRun({ Build: ["getaddrinfo EAI_AGAIN registry.npmjs.org"] })).outside);
+        const lost = await redRun({ Build: [] }, ["Build"]);
+        assert.deepEqual(lost.outside, [`Build also failed on the earlier master commit ${"a".repeat(40)}.`]);
+    });
+
+    it("still opens a revert when a failure may be the commit's own", async () => {
+        // a dead relative link beside the 502s, a type error, or a failure with no outside error at all
+        assert.equal(
+            (await redRun({ Links: [...LINKS_502, "[ERROR] file:///docs/x.md#gone | Cannot find fragment"] })).outside,
+            null,
+        );
+        assert.equal((await redRun({ Links: LINKS_502, Build: ["src/a.ts(1,2): error TS2322: no"] })).outside, null);
+        assert.equal((await redRun({ Build: ["##[error]Process completed with exit code 1."] })).outside, null);
+        // an outside error printed by an earlier step of the job does not count
+        assert.equal((await redRun({ Build: ["vite build failed"] })).outside, null);
+        // a job that failed earlier in a window does not excuse a different job
+        assert.equal((await redRun({ Build: ["vite build failed"] }, ["Links"])).outside, null);
+    });
+
+    // A fake repository holding one open revert pull request of commit `reverted`, which failed `jobs`.
+    const withRevert = (status, jobs = ["Links"]) => {
+        const reverted = "c".repeat(40);
+        const writes = [];
+        const gh = async (path, init = {}) => {
+            if ((init.method ?? "GET") !== "GET") {
+                writes.push([init.method, path, init.body ? JSON.parse(init.body) : undefined]);
+                return {};
+            }
+            if (path.startsWith("/pulls?")) {
+                return [
+                    { number: 3, head: { ref: "fix/thing" }, body: "Fixes it" },
+                    {
+                        number: 1203,
+                        head: { ref: "revert/ccccccc" },
+                        body: `${revertBody(reverted, "https://run/1", [1118])}\n\n<!-- master-guard failed jobs: ${JSON.stringify(jobs)} -->`,
+                    },
+                ];
+            }
+            assert.equal(path, `/compare/${reverted}...${"d".repeat(40)}`);
+            return { status };
+        };
+        return { gh, writes };
+    };
+    const at = { sha: "d".repeat(40), url: "https://run/2" };
+
+    it("closes its open revert once master CI is green at or after the reverted commit", async () => {
+        const { gh, writes } = withRevert("ahead");
+        assert.deepEqual(await closeStaleReverts(gh, { ...at, green: true }), [1203]);
+        assert.match(writes[0][2].body, /^Master CI is green at d{40} \(https:\/\/run\/2\), which contains c{40}/);
+        assert.deepEqual(writes.slice(1), [
+            ["PATCH", "/pulls/1203", { state: "closed" }],
+            ["DELETE", "/git/refs/heads/revert/ccccccc", undefined],
+        ]);
+        // green on a commit without the reverted one says nothing about it
+        assert.deepEqual(await closeStaleReverts(withRevert("behind").gh, { ...at, green: true }), []);
+    });
+
+    it("closes its open revert when the same job fails on another commit", async () => {
+        const { gh, writes } = withRevert("behind");
+        assert.deepEqual(await closeStaleReverts(gh, { ...at, green: false, failed: ["Links"] }), [1203]);
+        assert.match(writes[0][2].body, /^Links failed again at d{40} .*on a commit without c{40}/);
+        // after the reverted commit, only an outside cause clears it; a different job never does
+        assert.deepEqual(
+            await closeStaleReverts(withRevert("ahead").gh, { ...at, green: false, failed: ["Links"] }),
+            [],
+        );
+        const outside = { ...at, green: false, failed: ["Links"], outside: true };
+        assert.deepEqual(await closeStaleReverts(withRevert("ahead").gh, outside), [1203]);
+        assert.deepEqual(
+            await closeStaleReverts(withRevert("behind").gh, { ...at, green: false, failed: ["Build"] }),
+            [],
+        );
     });
 });
 

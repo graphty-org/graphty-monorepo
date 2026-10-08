@@ -592,6 +592,8 @@ export class DataManager implements Manager {
         nodes: number;
         edges: number;
     };
+    // @internal
+    get holdsNoRows(): boolean;
     init(): Promise<void>;
     get isLoading(): boolean;
     get lastImport(): LoadReport | null;

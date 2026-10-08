@@ -132,6 +132,8 @@ The element records each change and owns the history; the app never keeps its ow
   `env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run storybook`
 - Stories are in `src/stories/`
 - Visual regression via Chromatic
+- The eruda debug console is off in Storybook; append `&eruda` to a story URL to switch it on
+  (it never loads under Chromatic or an automated browser)
 
 ## graphty-element Feedback
 

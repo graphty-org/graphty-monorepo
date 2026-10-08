@@ -361,8 +361,9 @@ week before this decision. Instead:
   exactly that commit: the same job, tests and benchmarks. Only when it passes does the train
   open the release pull request.
 - A red T4 holds the WHOLE release: no release pull request, nothing published, no partial
-  release. The train opens, or retitles and comments on, ONE issue "Release held: T4 GPU
-  failed on <sha>" (labels `bug`, `priority:high`, `gpu`, `effort:medium`) with the run link and
+  release. The train opens, or retitles and comments on, its one train hold, an issue "Release
+  held: T4 GPU failed on <sha>" (a separate publish hold, "Release held: publish failed", is
+  never touched by a train) (labels `bug`, `priority:high`, `gpu`, `effort:medium`) with the run link and
   the failing steps and tests, and the run carries an error annotation naming the lane, which
   is what githerd reads for a blocked release. The fix lands on master like any other change;
   the next train (the 14:00 UTC cron or an ad hoc dispatch) re-runs the T4 and, when it passes,
@@ -515,13 +516,13 @@ Three costs at 30 to 50 merges a day:
    pull request, nothing published, and one "Release held: <what> failed on <sha>" issue
    (`bug`, `priority:high`, `effort:medium`) that githerd turns into a fix. **A held release
    restarts itself** (owner decision, 2026-10-06): release.yml also runs on `workflow_run` of
-   CI, and after every push to master whose build passed, while a "Release held" issue is open,
-   it takes that pushed commit at once through the same path (pick, full suite, T4, Hosts,
-   audit, LLM regression, release pull request). With no held issue open, or a red build, it does nothing; the
-   schedule still skips while the issue is open, so a push (or a dispatch) is how a held release
+   CI, and after every push to master whose build passed, while a train hold is open (a
+   "Release held" issue other than a publish hold, below), it takes that pushed commit at once through the same path (pick, full suite, T4, Hosts,
+   audit, LLM regression, release pull request). With no train hold open, or a red build, it does nothing; the
+   schedule still skips while any hold is open, so a push (or a dispatch) is how a held release
    resumes. The fix pull request names the issue without closing it (`Refs #<issue>`, not
-   `Fixes #<issue>`), so its merge restarts the release. A train that passes closes the issue;
-   one that fails again comments on it, saying it was a restart. Two pushes in a row never start
+   `Fixes #<issue>`), so its merge restarts the release. A train that passes closes the train
+   hold; one that fails again retitles and comments on it, saying it was a restart. Two pushes in a row never start
    two trains: every attempt shares the one `release-train` concurrency group, so the second
    waits for the first and then finds its release pull request (it skips) or its held issue (it
    tries the newer commit). Coverage goes to Coveralls from the same CI run. A lane that was only
@@ -538,9 +539,12 @@ Three costs at 30 to 50 merges a day:
 4. When it merges, release.yml (same file name, so the ten trusted-publisher entries on npm
    stay valid) publishes from the release branch's head, tags each package as
    `{projectName}@{version}` as today, and keeps the existing "is it on npm yet" idempotence
-   check. A failed publish opens or updates a "Release held: publish failed on <sha>" issue
-   (until the tags exist every attempt skips, so it must not fail silently); re-running the
-   failed jobs publishes what is missing and closes it.
+   check. A failed publish opens a "Release held: publish failed on <sha>" issue (until the tags
+   exist every attempt skips, so it must not fail silently), a hold of its own beside any train
+   hold: a train never retitles or closes it, a master push never restarts a train for it (no
+   train can clear it), and a second failure of the same run only comments on it. It lasts until
+   the original publish run is re-run (`gh run rerun <run id> --failed`), which publishes what is
+   missing and closes it.
 5. The deploy key and the direct push are removed.
 
 This is the pattern of Vite and Vitest (a release commit landed by pull request, then

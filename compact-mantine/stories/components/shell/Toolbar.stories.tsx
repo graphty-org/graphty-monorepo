@@ -1,4 +1,4 @@
-import { SegmentedControl, Stack, Text } from "@mantine/core";
+import { SegmentedControl, Stack, Text, VisuallyHidden } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 import { useState } from "react";
@@ -104,9 +104,33 @@ function EditorToolbar(props: ToolbarProps): React.JSX.Element {
                 value={mode}
                 onChange={setMode}
                 data={[
-                    { value: "draw", label: icons.pen },
-                    { value: "design", label: icons.frame },
-                    { value: "dev", label: icons.text },
+                    {
+                        value: "draw",
+                        label: (
+                            <>
+                                {icons.pen}
+                                <VisuallyHidden>Draw</VisuallyHidden>
+                            </>
+                        ),
+                    },
+                    {
+                        value: "design",
+                        label: (
+                            <>
+                                {icons.frame}
+                                <VisuallyHidden>Design</VisuallyHidden>
+                            </>
+                        ),
+                    },
+                    {
+                        value: "dev",
+                        label: (
+                            <>
+                                {icons.text}
+                                <VisuallyHidden>Dev</VisuallyHidden>
+                            </>
+                        ),
+                    },
                 ]}
             />
         </Toolbar>

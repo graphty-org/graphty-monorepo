@@ -32,6 +32,10 @@ export function fixture(name) {
  * @returns {{code: number, stdout: string, stderr: string}} an exec result
  */
 export function httpOutput({ status, headers = {}, body }) {
+    const typed =
+        body !== undefined && typeof body !== "string" && !Object.keys(headers).some((k) => /^content-type$/i.test(k));
+    // A body given as a value is JSON: said here, so `fetch` need not parse it to find out.
+    if (typed) headers = { ...headers, "Content-Type": "application/json; charset=utf-8" };
     const lines = [`HTTP/2.0 ${status} X`, ...Object.entries(headers).map(([k, v]) => `${k}: ${v}`)];
     const text = body === undefined ? "" : typeof body === "string" ? body : JSON.stringify(body);
     return { code: status > 299 ? 1 : 0, stdout: `${lines.join("\r\n")}\r\n\r\n${text}`, stderr: "" };

@@ -598,6 +598,8 @@ function commentBody(item) {
 export async function postItems({ api, repo, state, acting, now, ledger }) {
     /** @type {OwnerItem[]} */
     const items = Object.values(state.ownerItems ?? {});
+    /** Targets with an open item, which keep their label when another item on them ends. */
+    const openTargets = new Set(items.filter((o) => !o.endedAt).map((o) => o.target));
     for (const item of items) {
         const n = targetNumber(item.target);
         if (n === null) continue;
@@ -616,8 +618,7 @@ export async function postItems({ api, repo, state, acting, now, ledger }) {
         const labels = `repos/${repo}/issues/${n}/labels`;
         try {
             if (item.endedAt) {
-                const others = items.some((o) => o !== item && !o.endedAt && o.target === item.target);
-                await unlabel(item, others, () =>
+                await unlabel(item, openTargets.has(item.target), () =>
                     write("DELETE", `labels/${LABEL}`, undefined, { path: labels, lacks: [{ name: LABEL }] }),
                 );
                 continue;

@@ -124,6 +124,15 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
     }
 
     /**
+     * Whether a weight this run reads is below zero, which Dijkstra cannot answer.
+     * @returns True when the run's input carries a negative weight.
+     * @internal
+     */
+    readsNegativeWeight(): boolean {
+        return this.input("undirected").derived().snapshot.weights?.some((weight) => weight < 0) ?? false;
+    }
+
+    /**
      * Find the cheapest route from the source to the target.
      *
      * Publishes the path shape's uniform fields: whether each node and edge is on the route,

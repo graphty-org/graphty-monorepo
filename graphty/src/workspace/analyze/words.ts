@@ -332,6 +332,7 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     // The Path popover's own words for its ends, so Made with names them the same way.
     "shortest-path.source": { label: "From" },
     "shortest-path.target": { label: "To" },
+    "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
     "edge-betweenness.k": SAMPLE_SIZE,
@@ -544,4 +545,23 @@ export function runRefusalWords(estimate: CostEstimate): string {
         default:
             return "Cannot run on this graph";
     }
+}
+
+/**
+ * An option's words for a run that has finished: a choice of method left unset reads as the
+ * method the run used (`caveats.method`), chosen automatically.
+ * @param run - the run.
+ * @param option - the element's option descriptor.
+ * @returns the option's words, with what empty means for this run.
+ */
+export function ranOptionWords(
+    run: Readonly<{ algorithm: string; status: Run["status"]; caveats: Pick<Caveats, "method"> }>,
+    option: OptionDescriptor,
+): ReturnType<typeof optionWords> {
+    const words = optionWords(run.algorithm, option);
+    const used = run.status === "succeeded" ? run.caveats.method : undefined;
+
+    return used !== undefined && option.type === "enum" && option.values?.some((choice) => choice.value === used)
+        ? { ...words, empty: `${words.choice(used)}, chosen automatically` }
+        : words;
 }

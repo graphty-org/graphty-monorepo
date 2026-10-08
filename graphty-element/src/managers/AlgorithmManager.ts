@@ -1,6 +1,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { Algorithm } from "../algorithms/Algorithm";
+import { DijkstraAlgorithm } from "../algorithms/DijkstraAlgorithm";
 import type { SimplifyPolicy } from "../algorithms/input/derivedInputs";
 import { checkNodeOptions } from "../algorithms/input/maskBack";
 import { type ResolvedInputScope, withRunInput } from "../algorithms/input/ScopedInput";
@@ -185,7 +186,18 @@ export class AlgorithmManager implements Manager {
             descriptor === undefined && registered !== undefined
                 ? { namespace: registered.namespace, type: registered.type, options: context.params }
                 : this.targetFor(descriptor as BuiltInAlgorithmDescriptor, context.params);
-        const algorithm = Algorithm.get(this.graph, target.namespace, target.type, target.options);
+        let algorithm = Algorithm.get(this.graph, target.namespace, target.type, target.options);
+
+        // The shortest path's method left unset is Dijkstra, unless a weight the run reads is
+        // negative, which Dijkstra cannot answer: then Bellman-Ford. `caveats.method` says which.
+        if (
+            descriptor?.key === "shortest-path" &&
+            (context.params.method ?? null) === null &&
+            algorithm instanceof DijkstraAlgorithm &&
+            algorithm.readsNegativeWeight()
+        ) {
+            algorithm = Algorithm.get(this.graph, BUILT_IN_NAMESPACE, "bellman-ford", target.options);
+        }
 
         if (algorithm === null) {
             throw new GraphtyError({

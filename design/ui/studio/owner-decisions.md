@@ -29,6 +29,33 @@ undo, redo, save and reopen).
 came from when both ends hold the same text; the missing column names on `DraftRow`, which a
 `LeftOutEdge` cannot carry the same way (its ends are not columns when read by an expression).
 
+## 2026-10-08 -- Decided by the team: a shortest path left to choose its method says which it used, and a choice can carry its own name
+
+**What.** Three changes in graphty-element. (1) The shortest path's `method` option, left unset,
+now does what its description always said: Dijkstra when every weight the run reads is zero or
+above, Bellman-Ford when one is negative. Before, an unset method always ran Dijkstra. (2) The
+method that ran is the run's existing `caveats.method` ("dijkstra" or "bellman-ford"); no new field.
+(3) An option's UI metadata (`defineOptions` meta) gains `choiceLabels?: Record<string, string>`,
+the name of each choice by value, read into the catalog's `OptionDescriptor.values[].label`; the
+method option sets "Bellman-Ford", which the catalog spelled "Bellman Ford" (the value made
+readable). The graphty app shows an unset method in Made with as "Dijkstra, chosen automatically"
+(the run's `caveats.method` under the app's words) and, before a run, as "Chosen automatically".
+
+**Why.** A finished path showed an empty Method box, so a reader could not tell which method made
+the result. The record already existed in `caveats.method`; what was missing was the switch the
+description promised, and without it an unset method over a negative weight ran Dijkstra, whose
+relaxation never ends on an undirected negative edge and froze the page. Not breaking: the switch
+makes documented behavior true and only changes runs that froze before; `choiceLabels` is a new
+optional field whose absence keeps today's labels, and it is not in the public API report (the
+option metadata type is internal). Tests: `graphty-element/test/browser/shortest-path-method.test.ts`,
+`graphty-element/test/catalog/algorithms.test.ts` ("Bellman-Ford"),
+`graphty/src/workspace/analyze/__tests__/words.test.ts`.
+
+**Alternatives.** A new `resolvedParams` record on the run (a second place for a fact
+`caveats.method` already states); writing the resolved method back into the run's params (a rerun
+would then pin it, and the reader's "left unset" would be lost); fixing the spelling in the app's
+words only (every other consumer would still read "Bellman Ford").
+
 ## 2026-10-08 -- Decided by the team: a label can be drawn over the graph (`LabelStyle.onTop`)
 
 **What.** graphty-element's label style (`node.labelStyle`, `edge.labelStyle`, the `LabelStyle`

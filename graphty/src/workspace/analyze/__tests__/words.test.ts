@@ -10,6 +10,7 @@ import {
     matches,
     meaningGloss,
     optionWords,
+    ranOptionWords,
     runName,
     weightName,
     weightReadWords,
@@ -94,6 +95,25 @@ describe("the Analyze popover's words", () => {
             assert.isNull(k?.default, key);
             assert.equal(k === undefined ? undefined : optionWords(key, k).empty, "Every node", key);
         }
+    });
+
+    it("says which method a finished path used when the reader left it unset, spelled Bellman-Ford", () => {
+        const method = BUILT_IN_ALGORITHMS.find((d) => d.key === "shortest-path")?.options.find(
+            (o) => o.name === "method",
+        );
+        assert.isDefined(method);
+        if (method === undefined) {
+            return;
+        }
+        const ran = (used: string): string =>
+            ranOptionWords(
+                { algorithm: "shortest-path", status: "succeeded", caveats: { method: used } },
+                method,
+            ).empty;
+        assert.equal(ran("dijkstra"), "Dijkstra, chosen automatically");
+        assert.equal(ran("bellman-ford"), "Bellman-Ford, chosen automatically");
+        assert.equal(optionWords("shortest-path", method).empty, "Chosen automatically");
+        assert.equal(optionWords("shortest-path", method).choice("bellman-ford"), "Bellman-Ford");
     });
 
     it("calls an estimate slow at ten seconds or more, or when it cannot be bounded", () => {

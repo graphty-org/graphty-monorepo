@@ -288,6 +288,8 @@ function OptionField({
                     size="xs"
                     label={label}
                     value={typeof value === "string" ? value : fallback}
+                    // A default of no value says what empty means, like a number's empty box.
+                    placeholder={option.default === null ? (empty ?? "Not set") : undefined}
                     data={(option.values ?? []).map(({ value: v }) => ({ value: v, label: choice(v) }))}
                     allowDeselect={false}
                     comboboxProps={{ withinPortal: false }}

@@ -376,6 +376,7 @@ const shortestPathEngineOptions = defineOptions({
                 "Which engine computes the paths. Left unset, the element uses Dijkstra when every weight is zero or above and Bellman-Ford when any weight is negative.",
             advanced: true,
             group: "engine",
+            choiceLabels: { dijkstra: "Dijkstra", "bellman-ford": "Bellman-Ford" },
         },
     },
 });

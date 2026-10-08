@@ -322,6 +322,11 @@ describe("built-in algorithm catalogue", () => {
                 method?.values?.map((choice) => choice.value),
                 ["dijkstra", "bellman-ford"],
             );
+            // Each choice by its name, not its value made readable ("Bellman Ford").
+            assert.deepEqual(
+                method?.values?.map((choice) => choice.label),
+                ["Dijkstra", "Bellman-Ford"],
+            );
             assert.isNull(method?.default);
             assert.isTrue(method?.advanced);
         });

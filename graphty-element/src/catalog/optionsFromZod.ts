@@ -243,7 +243,7 @@ function resolve(node: JsonSchemaNode, root: JsonSchemaNode): JsonSchemaNode {
  */
 function describeNode(name: string, node: JsonSchemaNode, meta: Partial<OptionUiMeta>): OptionDescriptor {
     const union = flatten(node, 0);
-    const classified = classify(union);
+    const classified = classify(union, meta.choiceLabels);
 
     const descriptor: OptionDescriptor = {
         name,
@@ -381,9 +381,10 @@ interface Classification {
 /**
  * Decide which control an option asks for, from the arms that survived flattening.
  * @param union - The flattened union.
+ * @param labels - The authored name of each choice, by value.
  * @returns The option type, plus the bounds source and any enumerated values.
  */
-function classify(union: FlatUnion): Classification {
+function classify(union: FlatUnion, labels?: Readonly<Record<string, string>>): Classification {
     if (union.arms.length === 0) {
         if (union.unresolvedRef) {
             return {
@@ -400,7 +401,7 @@ function classify(union: FlatUnion): Classification {
         };
     }
 
-    const choices = choicesFrom(union.arms);
+    const choices = choicesFrom(union.arms, labels);
     if (choices !== undefined) {
         return { type: "enum", node: union.arms[0], values: choices };
     }
@@ -460,9 +461,13 @@ function classifyLeaf(node: JsonSchemaNode): Classification {
 /**
  * Read the enumerated values out of a set of union arms, when every arm is enumerated.
  * @param arms - The arms to read.
+ * @param labels - The authored name of each choice, by value; a value left out is humanized.
  * @returns The choices, or undefined when the arms are not all enumerations or literals.
  */
-function choicesFrom(arms: readonly JsonSchemaNode[]): readonly OptionChoice[] | undefined {
+function choicesFrom(
+    arms: readonly JsonSchemaNode[],
+    labels?: Readonly<Record<string, string>>,
+): readonly OptionChoice[] | undefined {
     const values: unknown[] = [];
     for (const arm of arms) {
         if (arm.enum !== undefined) {
@@ -485,7 +490,7 @@ function choicesFrom(arms: readonly JsonSchemaNode[]): readonly OptionChoice[] |
         }
 
         const text = String(value);
-        choices.push({ value: text, label: humanize(text) });
+        choices.push({ value: text, label: labels?.[text] ?? humanize(text) });
     }
 
     return choices;

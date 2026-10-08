@@ -15,6 +15,15 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **A run says which method it used (element + app, team door).** The fact was
+  already `caveats.method`; the missing piece was the switch the `method` description promised:
+  unset -> Dijkstra, Bellman-Ford when a read weight is negative (`AlgorithmManager.execute`,
+  `DijkstraAlgorithm.readsNegativeWeight`). Option meta `choiceLabels` names a choice
+  ("Bellman-Ford"). App: an enum whose default is null shows its `empty` words as a placeholder;
+  Made with's words for a finished run (`ranOptionWords`) say "Dijkstra, chosen automatically".
+  OPEN: explicit `method: "dijkstra"` over a negative undirected weight still freezes the page
+  (`algorithms/src/indexed/dijkstra.ts` relaxes with no settled set). Evidence
+  `tmp/r1-dry2-run-record-method/` (T18A/05, 07, 08; T20A/12; T20B/12).
 - (2026-10-08) **Labels on top (element + app, team door).** `LabelStyle.onTop` (and
   `RichTextStyle.onTop`), optional, default depth sorted; on, the label goes to rendering group 1
   (drawn after the graph, depth cleared), as tooltips already did. The app's `appLabelLook` sets it,
@@ -130,6 +139,10 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **The run record of a resolved option is the caveat that names it, not a new field.**
+  `caveats.method` already said "dijkstra"; a `resolvedParams` record would state it twice. The app
+  matches it against the option's choice values only for an enum left unset. Writing the resolved
+  value into params was rejected: a rerun would pin it and lose "left unset".
 - (2026-10-08) **A row says which END is missing, not which value.** Ends stay exact when both ends
   hold the same text and match `LeftOutEdge.source/target`; the app maps an end to its column with
   `draft.resolve(loadChoices(...))` (grid) or `leftOut.endColumns` (inspector). The ingest test is
@@ -226,6 +239,10 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: a browser test asserting explicit Dijkstra over a negative weight --
+  the page froze (no test timeout fires on a synchronous loop); the vitest run sat at "RUN" 12 min.
+  A hung browser test with no output means a sync infinite loop: rerun with `-t` to bisect. Another
+  agent's `nx run graphty:build` emptied `graphty/dist` mid-start: copy dist to `tmp/<task>/dist`.
 - (2026-10-08) Did not work: a value marked at the END of an inspector DataRow ("to s11 (no node
   row)") -- the row is cut at 1440 px wide; the fact must lead. Did not work (again): `while pgrep
   -f <pattern>` waiting on a build matches its own shell and never ends; wait by PID. The session
@@ -273,49 +290,24 @@ acceptance test. "The studio worktree" is
   for minutes: wait for a clean `tsc` before building. A setup's Shift+A missed in a WIP build;
   `--click Analyze` works the same.
 
-- (2026-10-08) Flex: `flex-basis: auto`, not `1 1 0`, to split by content. Measure before fixing.
-  "Fails without" with no stash: `git diff > p.patch`, `git apply -R`, run, `git apply`.
-
-- (2026-10-08) Canvas `measureText` sizes a column once weight and `letterSpacing` match. Mantine
-  Tooltip never opens in jsdom (`.browser.test.tsx`, 1000 ms delay). Name role boxes uniquely ("Role of km").
-
-- (2026-10-08) Save/open: compare summary counts. Colors by measuring. Same-depth line: `zOffsetUnits`.
-- (2026-10-08) real.mjs: `--key Shift+A` after a setup that ends with focus on a tree row types
-  nothing (focus is a treeitem). To capture a second analysis, start a separate setup for it.
-- (2026-10-08) Check a dry-run finding on the frozen build first (`--hover-at` sweeps print
-  `elementAt` and the cursor). A Tree child row is not inside its parent treeitem: use `within(tree)`.
+- (2026-10-08, condensed) Flex: `flex-basis: auto` to split by content. "Fails without" with no
+  stash: `git diff > p.patch`, `git apply -R`, run, `git apply`. Canvas `measureText` sizes a column
+  once weight and `letterSpacing` match. Mantine Tooltip never opens in jsdom. Same-depth line:
+  `zOffsetUnits`. real.mjs: `--key Shift+A` after a setup ending on a tree row types nothing; check
+  a dry-run finding on the frozen build first; a Tree child row is not inside its parent treeitem.
 
 - (2026-10-07, condensed) Contrast in a browser test: blend alpha over the first opaque ancestor
   (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone (beside it in
   `tool/`, so its relative paths hold; delete after); concurrent `--prove` runs need `REAL_PROVE_DIR`. "New from data..." opens no file chooser: click
   "Add a table" > "File..." first.
-- (2026-10-07) Another agent's partial-hunk commit can leave HEAD broken. `api:report` reads
-  `dist/` types. `tmp/` is gitignored (copy evidence under `rounds/`). Bars: 41 words, axe 0.
-
-- (2026-10-07, condensed) `autoFocus` loses to Mantine's focus trap (`data-autofocus`). Keep a
-  `role=status` mounted, change its text. Re-grep my hunks in shared files before committing.
-  `selection.apply` THROWS SYNCHRONOUSLY on a bad selector (element defect, unfiled).
-
-- (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Commit from an empty
-  `git diff --cached`; for a file others have dirty use a private index (`GIT_INDEX_FILE`, `read-tree
-  HEAD`, `apply --cached` my hunks). Never commit `api:report` output wholesale; check
-  `git show --stat HEAD`.
-- (2026-10-06 to 10-07) **Builds and runs (condensed).** `nx run graphty:build` can OOM at 4 GB and
-  empty `graphty/dist`: rebuild with `NODE_OPTIONS=--max-old-space-size=8192 npx vite build` in
-  `graphty/` (`--outDir <dir>` + `REAL_DIST=<dir>` for a private build). The app reads compact-mantine
-  from its `dist/`. Real-element tests: `npx vitest run --project=real-element <file>`; a first run
-  after another agent's may fail "Failed to fetch dynamically imported module" (vite re-optimizing).
-  `with-browser.sh bash -c` is refused: pass a script. Add a file: "Add a table" > "File...".
-- (2026-10-07) Pixel assertions: `waitForStableFrame()`, `scene.render()`, `engine.readPixels` (rows
-  from the bottom); a 1-px column across a line (`columnAt`, element-at.test.ts).
-- (2026-10-07) **Tests (condensed).** A `Run` is thenable (return plain fields from async helpers).
-  Mock graphs have no session. An order-dependent browser test means leaked page state. Real-element
-  popover tests need `page.viewport(1366, 768)`. Never call an unexplained failure a flake.
-- (2026-10-07) **Reading the element.** A run's per-node values: `session.data.nodePage({ limit:
-Infinity, columns: [runId] })` (not `node.data`, not `results.get(run).nodes`). Query syntax is
-  JMESPath (numbers in backticks). Rerunning an algorithm replaces its run id. Single-table source:
-  `session.project.open(file)` then `draft.load()`. Audit a tier by grepping the app's command ids
-  (`grep -rhn -A1 'id: "' --include=commands.ts`): no command, no door.
+- (2026-10-06 to 10-07, condensed) Shared worktree: commit from an empty `git diff --cached`; for a
+  file others have dirty use a private index (`GIT_INDEX_FILE`, `read-tree HEAD`, `apply --cached`
+  my hunks); never commit `api:report` output wholesale (it reads `dist/` types). Builds: `nx run
+  graphty:build` can OOM and empty `graphty/dist` (`NODE_OPTIONS=--max-old-space-size=8192 npx vite
+  build --outDir <dir>`); the app reads compact-mantine from its `dist/`. Tests: a `Run` is thenable;
+  pixel checks via `waitForStableFrame()` + `engine.readPixels`; never call a failure a flake; a
+  run's per-node values via `session.data.nodePage({ columns: [runId] })`; queries are JMESPath.
+  `selection.apply` throws synchronously on a bad selector (element defect, unfiled).
 
 - (2026-10-08) real.mjs: stale tooltip reproduces with "Local only" -> Everything row (slow fade);
   a killed client gives EPIPE; strip `\x1b[...m` from Playwright call logs.

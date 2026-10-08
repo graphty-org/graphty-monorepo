@@ -9,7 +9,7 @@ import {
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef } from "react";
 
-import { optionWords, runName, weightReadWords, wordsFor } from "../analyze/words";
+import { ranOptionWords, runName, weightReadWords, wordsFor } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
@@ -166,7 +166,7 @@ function MadeWith({
                 session={session}
                 options={shown}
                 values={settings}
-                words={(option) => optionWords(run.algorithm, option)}
+                words={(option) => ranOptionWords(run, option)}
                 weightReads={descriptor.weightMeaning ?? null}
                 algorithm={run.algorithm}
                 canUseSelectedNode

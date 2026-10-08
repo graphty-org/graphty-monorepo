@@ -15,6 +15,13 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+00. (2026-10-08) **A continuous measure's histogram is banded (element `buildHistogram`).** Per-value
+    bars only for an integer field, all-whole values, a single value, or repeats (distinct * 2 <=
+    measured); else bands. Owner door already listed in `owner-decisions.md` (built rule added).
+    PageRank Values chart now uneven bands; Degree stays one bar per value. Evidence:
+    `tmp/r1-dry1-histogram-bands/T21A/02.png`, `T21B/02.png`, `D21A/02.png`, `D21B/02.png`.
+    Tests: `statistics.test.ts` (12 PageRank-like values -> banded; counts and repeated decimals
+    per-value); `column-histogram.test.ts` score expectation is now "banded".
 0. (2026-10-08) **A line says it can be clicked (graphty-element, no door).** The 6 px screen-space
    edge pick with closest-wins (`EDGE_PICK_TOLERANCE_PX`, `Graph.pickEdgeId`) was ALREADY in the
    frozen tier 2 build: on it a click 4-5 px off Gus-Ivan, near Gus, selects Gus -> Ivan (sweep at
@@ -169,6 +176,8 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) real.mjs: `--key Shift+A` after a setup that ends with focus on a tree row types
+  nothing (focus is a treeitem). To capture a second analysis, start a separate setup for it.
 - (2026-10-08) Check a dry-run finding against the frozen build before building a fix: sweep
   `--hover-at` points across the target (it prints what `elementAt` finds). Half of the edge-picking
   item already worked. A cursor is invisible in screenshots: read `getComputedStyle(el).cursor`

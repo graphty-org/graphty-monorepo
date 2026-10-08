@@ -21,6 +21,13 @@ documentation says the per-value shape exists "for a count metric".
 **Alternatives.** An option `binning: "bands"` the app passes (additive, but every consumer meets
 the same useless default first); leaving it (the chart stays on screen and misleads).
 
+**Built rule.** One bar per value when the field is integer-typed, when every value is a whole
+number, when there is only one value, or when values repeat (at least two elements per distinct
+value on average); otherwise bands. In `buildHistogram`, so `RunResult.histogram()`,
+`groupSizes()` and `data.histogram()` all follow it. Visible change: a decimal column with one
+value per element (`data.histogram` on a five-row `score` of 0, 0.5, ... 2) now reports
+`binning: "banded"` where it reported `"per-value"`.
+
 ## 2026-10-08 -- For the owner: the shortest path's node color no longer sits inside a ranking ramp
 
 **What.** The shortest path's suggested node color (the "Shortest route" layer) changes to a color

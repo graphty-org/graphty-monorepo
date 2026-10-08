@@ -1,6 +1,6 @@
-The study runs on build e2ccec0e9304 (graphty@0.8.56, commit e2ccec0e9) served from
-`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-e2ccec0e9/`, with
-`REAL_DIST=<that folder>` on every `tool/real.mjs` command (`../tool/README.md`).
+The study runs on build 16dcf3494700 served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1-16dcf3494/`
+(graphty@0.8.56, commit 16dcf3494), with `REAL_DIST=<that folder>` on every `tool/real.mjs` command
+(`../tool/README.md`).
 
 Frozen on 2026-10-08 for the tier 2 rounds. Nothing below changes while a round runs; between
 rounds a change is allowed only with its reason in the change log.
@@ -324,3 +324,7 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   save alone counts as kept (T19), the PageRank click before Rerun is optional (T21), screenshot
   numbers depend on step grouping (T23). `tasks.md` T20 lists the new control words it avoids
   ("set", "date", "time"). No prompt changed.
+- **2026-10-08, before round 1: the round 1 build.** The study build moved from e2ccec0e9304
+  (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-e2ccec0e9/`) to 16dcf3494700
+  (`/home/apowers/Projects/graphty-monorepo/.study-builds/tier2-r1-16dcf3494/`), a fresh build of the worktree's current commit, so round 1 runs on what the worktree
+  holds now. No bar changed.

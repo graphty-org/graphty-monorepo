@@ -113,6 +113,8 @@ function field(
 const BETWEENNESS: EncodingRun = {
     id: "betweenness",
     label: "Betweenness",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "betweenness",
     params: { normalized: true },
     shape: "node-metric",
@@ -123,6 +125,8 @@ const BETWEENNESS: EncodingRun = {
 const ROUTE: EncodingRun = {
     id: "route",
     label: "Shortest Path",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "shortest-path",
     params: {},
     shape: "path",
@@ -137,6 +141,8 @@ const ROUTE: EncodingRun = {
 const INFLUENCERS: EncodingRun = {
     id: "influencers",
     label: "Influencers",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "dominating-set",
     params: {},
     shape: "node-set",

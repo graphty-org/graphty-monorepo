@@ -201,6 +201,9 @@ jobs:
         permissions:
             contents: read
             actions: read
+            # ci.yml asks for it (a failed job marks the summary checks failed at once on a pull request);
+            # a called workflow cannot ask for more than its caller grants.
+            checks: write
         uses: ./.github/workflows/ci.yml
         with:
             ref: ${{ needs.pick.outputs.sha }}

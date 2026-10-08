@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
+import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     type AttributeRow,
@@ -179,7 +180,10 @@ function isMenuKey(event: React.KeyboardEvent): boolean {
  */
 function attributeTree(session: GraphSession | null, needle: string): TreeNodeData[] {
     const attributes = session?.data.attributes() ?? [];
-    const runLabel = (runId: string): string | undefined => session?.runs.get(runId)?.label;
+    const runLabel = (runId: string): string | undefined => {
+        const run = session?.runs.get(runId);
+        return session === null || run === undefined ? undefined : runName(session, run);
+    };
     const subheads = [
         { id: "nodes", name: "Nodes", label: "Node attributes", kind: "node" },
         { id: "edges", name: "Edges", label: "Edge attributes", kind: "edge" },

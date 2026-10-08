@@ -736,6 +736,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             batchOperations: BATCH,
             on: LISTEN,
             addListener: LISTEN,
+            addEventListener: LISTEN,
+            removeEventListener: LISTEN,
             listenerCount: READ,
             is2D: READ,
             setXRConfig: XR,

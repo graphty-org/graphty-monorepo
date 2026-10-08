@@ -64,6 +64,8 @@ import { connect, createServer as netServer } from "node:net";
 import { basename, dirname, extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { PNG } from "pngjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../../../..");
 // REAL_DIST serves a copy of a build instead, one a rebuild cannot replace mid-session
@@ -362,6 +364,7 @@ async function serve(dir, sr) {
                     else if (req.op === "step") r = await opStep(s, req.steps);
                     else if (req.op === "plant-spin") r = await plantSpin(s, req.on);
                     else if (req.op === "plant-live") r = await plantLive(s);
+                    else if (req.op === "plant-ticker") r = await plantTicker(s);
                     else if (req.op === "end") r = { out: [`session ended: ${dir}`], code: 0, end: true };
                     else r = { out: [`unknown request ${req.op}`], code: 2 };
                 } catch (e) {
@@ -684,6 +687,18 @@ async function plantSpin(s, on) {
     return { out: [], code: 0 };
 }
 
+// --prove only: a counter that changes every 100 ms, beside the focused box (in an open popover over
+// the canvas), standing in for a caret or a suggestion list that keeps repainting over a still drawing
+async function plantTicker(s) {
+    await s.page.evaluate(() => {
+        const t = document.createElement("span");
+        let n = 0;
+        setInterval(() => (t.textContent = `planted ${n++}`), 100);
+        document.activeElement.parentElement.append(t);
+    });
+    return { out: [], code: 0 };
+}
+
 // --prove only: a status region added with its text already in it, and one added empty and then filled
 async function plantLive(s) {
     await s.page.evaluate(() => {
@@ -751,7 +766,10 @@ async function settle(s, out, ms = 15000) {
         out.push("the drawing is still moving (the canvas kept changing for a second with no input)");
 }
 // Only a plain capture of the window: hiding the rest with a style would blur the canvas, which
-// lets go of a held camera key and so stops the very spin this looks for
+// lets go of a held camera key and so stops the very spin this looks for. So the captures include
+// whatever lies over the canvas (an open popover, its suggestion list, a caret, a notice), and only
+// the canvas's own pixels are compared: a cell of the canvas's area that something else covers,
+// in any of the captures, is left out.
 async function canvasMoves(page) {
     const clip = await page
         .locator("graphty-element")
@@ -759,7 +777,12 @@ async function canvasMoves(page) {
         .boundingBox()
         .catch(() => null);
     if (!clip || clip.width < 1 || clip.height < 1) return false;
-    const grab = () => page.screenshot({ clip, animations: "disabled", timeout: 5000 }).catch(() => null);
+    const covered = new Set();
+    const grab = async () => {
+        for (const i of await coveredCells(page, clip)) covered.add(i);
+        const png = await page.screenshot({ clip, animations: "disabled", timeout: 5000 }).catch(() => null);
+        return png && PNG.sync.read(png);
+    };
     // three captures, and moving only when each differs from the one before: a one-off change (a
     // notice arriving over the canvas, a late repaint) is not motion, a spin or a drift changes every time
     const shots = [];
@@ -768,7 +791,58 @@ async function canvasMoves(page) {
         shots.push(await grab());
     }
     const [a, b, c] = shots;
-    return !!a && !!b && !!c && !a.equals(b) && !b.equals(c);
+    return !!a && !!b && !!c && canvasDiffers(a, b, clip, covered) && canvasDiffers(b, c, clip, covered);
+}
+
+// Cells (CELL x CELL CSS pixels, row by row over the clip) where something other than the graph's
+// canvas is on top, with the cells around each, so an overlay's edge and shadow are left out too.
+// ponytail: hit testing misses overlays that take no pointer events (a tooltip); add their rects if one shows up
+const CELL = 16;
+async function coveredCells(page, clip) {
+    return page
+        .evaluate(
+            ({ x, y, width, height, cell }) => {
+                const host = document.querySelector("graphty-element");
+                const canvas = host?.querySelector("canvas") || host?.shadowRoot?.querySelector("canvas");
+                const cols = Math.ceil(width / cell),
+                    rows = Math.ceil(height / cell);
+                const out = [];
+                for (let r = 0; r < rows; r++)
+                    for (let c = 0; c < cols; c++) {
+                        const hit = document.elementFromPoint(
+                            x + Math.min(c * cell + cell / 2, width - 1),
+                            y + Math.min(r * cell + cell / 2, height - 1),
+                        );
+                        if (hit === host || hit === canvas) continue;
+                        for (let dr = -1; dr <= 1; dr++)
+                            for (let dc = -1; dc <= 1; dc++) {
+                                const rr = r + dr,
+                                    cc = c + dc;
+                                if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) out.push(rr * cols + cc);
+                            }
+                    }
+                return out;
+            },
+            { ...clip, cell: CELL },
+        )
+        .catch(() => []);
+}
+
+// Whether two decoded captures of the clip differ anywhere outside the covered cells
+function canvasDiffers(a, b, clip, covered) {
+    if (a.width !== b.width || a.height !== b.height) return true;
+    const scale = a.width / clip.width; // device pixels per CSS pixel
+    const cols = Math.ceil(clip.width / CELL);
+    for (let py = 0; py < a.height; py++) {
+        const row = Math.floor(py / scale / CELL) * cols;
+        for (let px = 0; px < a.width; px++) {
+            if (covered.has(row + Math.floor(px / scale / CELL))) continue;
+            const i = (py * a.width + px) * 4;
+            if (a.data[i] !== b.data[i] || a.data[i + 1] !== b.data[i + 1] || a.data[i + 2] !== b.data[i + 2])
+                return true;
+        }
+    }
+    return false;
 }
 
 // ---------- finding controls, nodes and points ----------
@@ -790,9 +864,8 @@ const ROLES = [
 ];
 const TIP = "[role=tooltip], .mantine-Tooltip-tooltip";
 // The control a click names: "<name>", "<name>#2" or "role=<role>:<name>". Exact names before partial
-// ones, controls before text, a text box's placeholder only when no name matches; a name several
-// controls share says so. With no control of that name, a node whose label is drawn on the canvas,
-// at its center.
+// ones, controls before text; a name several controls share says so. With no control of that name, a
+// node whose label is drawn on the canvas, at its center.
 async function find(page, raw, out) {
     let name = raw,
         role = null,
@@ -811,12 +884,7 @@ async function find(page, raw, out) {
               ];
         const seen = new Map(); // one entry per control: text inside a button is that button
         let behind = 0; // controls of that name behind an open modal dialog, which a person cannot reach
-        // a box is also named by the words it shows: its placeholder, when no accessible name matches
-        for (let loc of [...locs, ...(role ? [] : ["placeholder"])]) {
-            if (loc === "placeholder") {
-                if (seen.size || behind) break;
-                loc = page.getByPlaceholder(name, { exact });
-            }
+        for (const loc of locs) {
             for (const el of await loc.filter({ visible: true }).elementHandles()) {
                 const [key, desc] = await el.evaluate((e, tip) => {
                     // a tooltip bubble, hidden text and the graph's canvas are not controls
@@ -1155,7 +1223,8 @@ async function run(s, steps, out) {
 // ---------- --prove: the tool against the real app ----------
 async function prove() {
     const self = fileURLToPath(import.meta.url);
-    const base = join(repo, "design/ui/studio/tmp/prove");
+    // REAL_PROVE_DIR keeps two self-tests run at once from clearing each other's sessions
+    const base = resolve(process.env.REAL_PROVE_DIR || join(repo, "design/ui/studio/tmp/prove"));
     await rm(base, { recursive: true, force: true });
     let bad = 0;
     const node = (args) => spawnSync(process.execPath, [self, ...args], { encoding: "utf8", env: process.env });
@@ -1254,12 +1323,6 @@ async function prove() {
         );
         x = step(A, "--click", "Find", "--type", "Strozzi", "--expect", "Strozzi");
         check("a type goes into the focused box", x.code === 0, x.out);
-        x = step(A, "--key", "Escape", "--click", "Find nodes, edges, values", "--type", "Pazzi", "--expect", "Pazzi");
-        check(
-            "a click by a text box's placeholder focuses that box",
-            x.code === 0 && !/nothing on screen is called/.test(x.out),
-            x.out,
-        );
         x = step(A, "--key", "Escape", "--click", "Main menu", "--click", "Export...", "--click", "role=button:Export");
         check(
             "a download is saved into the session folder and printed",
@@ -1303,6 +1366,17 @@ async function prove() {
         check("a turning drawing is reported", /the drawing is still moving/.test(x.out), x.out);
         x = step(A, "--wait", "2000");
         check("a still drawing is not", !/the drawing is still moving/.test(x.out), x.out);
+        // what changes over the canvas is not the drawing moving: typing into an open popover whose
+        // box keeps repainting
+        x = step(A, "--key", "p");
+        await ask(A, { op: "plant-ticker" });
+        x = step(A, "--type", "Pazzi");
+        check(
+            "typing in an open popover over a still drawing is not motion",
+            x.code === 0 && !/the drawing is still moving/.test(x.out),
+            x.out,
+        );
+        x = step(A, "--key", "Escape", "--key", "Escape"); // the first clears the box, the second closes
         x = step(A, "--click", "No such control at all");
         check(
             "a miss says nothing on screen is called that",

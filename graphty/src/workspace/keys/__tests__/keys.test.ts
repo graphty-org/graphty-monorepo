@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { tabFor } from "../../state/store";
-import { firesWhileTyping, formatKey, isSingleKey, isTypingTarget, matchesKey, parseKey } from "../keys";
+import { firesWhileTyping, formatKey, isPanelEscape, isSingleKey, isTypingTarget, matchesKey, parseKey } from "../keys";
 
 /**
  * A key press with nothing held.
@@ -89,5 +89,16 @@ describe("inspector tab memory", () => {
     it("gives a kind with one body no tab", () => {
         assert.isNull(tabFor({ kind: "selection-row", tabs: [] }, {}));
         assert.isNull(tabFor(undefined, {}));
+    });
+
+    it("leaves a panel an Escape only when no inner control took it", () => {
+        const field = document.createElement("input");
+        assert.isTrue(isPanelEscape({ key: "Escape", defaultPrevented: false, target: field }));
+        assert.isFalse(isPanelEscape({ key: "Enter", defaultPrevented: false, target: field }));
+        // A list field that closed its list used the key up.
+        assert.isFalse(isPanelEscape({ key: "Escape", defaultPrevented: true, target: field }));
+        // A field whose list is still open closes it first.
+        field.setAttribute("data-expanded", "true");
+        assert.isFalse(isPanelEscape({ key: "Escape", defaultPrevented: false, target: field }));
     });
 });

@@ -134,3 +134,18 @@ export function isTypingTarget(target: EventTarget | null): boolean {
     }
     return target.isContentEditable || ["TEXTAREA", "SELECT"].includes(target.tagName);
 }
+
+/**
+ * Whether an Escape is still the panel's to act on: not used up by an inner control (a list
+ * field that closed its open list), and not pressed in a field whose list is still open. Escape
+ * closes the innermost thing first, so a panel's own Escape (step back, close) waits for these.
+ * @param event - the keydown that reached the panel.
+ * @returns true for an Escape no inner control took.
+ */
+export function isPanelEscape(event: Pick<KeyboardEvent, "key" | "defaultPrevented" | "target">): boolean {
+    if (event.key !== "Escape" || event.defaultPrevented) {
+        return false;
+    }
+    // A combobox field marks its open list with data-expanded (Mantine's Select, Autocomplete).
+    return !(event.target instanceof Element && event.target.hasAttribute("data-expanded"));
+}

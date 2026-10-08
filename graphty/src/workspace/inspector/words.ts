@@ -212,15 +212,22 @@ export function valueText(value: unknown): string {
 }
 
 /**
- * When a run started, as a short date ("Oct 3").
+ * When a run started, as a short date and a time to the second ("Oct 3, 2:14:07 PM"), so a rerun
+ * or a second run on the same day differs in its own record.
  * @param iso - the run's `startedAt`.
- * @returns the date, or null when it never started.
+ * @returns the date and time, or null when it never started.
  */
-export function runDate(iso: string | null): string | null {
+export function runTime(iso: string | null): string | null {
     if (iso === null) {
         return null;
     }
-    return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    return new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+    });
 }
 
 /** The named members of an open string union, without its `string & {}` catch-all. */

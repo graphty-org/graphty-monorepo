@@ -4,6 +4,20 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- For the owner: a compact-mantine fold's content is no longer a named region
+
+**What.** compact-mantine's `ControlSubGroup` drops `role="region"` and `aria-labelledby` from the
+content it opens. The header button keeps `aria-expanded` and `aria-controls` pointing at the
+content, so the APG accordion pattern holds (the pattern makes the region optional). No prop
+changes; what changes is the accessibility tree every caller exposes, so it is listed here as a
+change in behavior. Done on the studio branch; undoing it is a two-line revert.
+
+**Why.** Named by its button, the content took the button's name ("Collapse Advanced run
+settings"), so the word "Advanced" named two reachable things: a screen reader's landmark list and
+the study tool both found the fold twice, and a panel of folds became a list of landmarks. Test:
+`compact-mantine/tests/components/ControlSubGroup.test.tsx` ("follows the accordion pattern: an
+expanded button pointing at its content, the only thing of that name").
+
 ## 2026-10-08 -- Decided by the team: a tree row can show its description as a second line (`descriptionVisible`)
 
 **What.** compact-mantine's `TreeNodeData` (and `TreeItem`) gains an optional `descriptionVisible`

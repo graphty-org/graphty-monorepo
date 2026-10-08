@@ -14,7 +14,7 @@ import {
     ranOptionWords,
     runName,
     weightName,
-    weightReadWords,
+    weightRead,
     wordsFor,
 } from "../words";
 
@@ -145,29 +145,39 @@ describe("the Analyze popover's words", () => {
     });
 
     it("words the weight a run read, the one it skipped, and none, never as a strength", () => {
-        assert.equal(weightReadWords({ weight: { attribute: "emails", meaning: "strength" } }), "emails (closer)");
-        assert.equal(weightReadWords({ weight: null }), "none (each edge counts 1)");
-        const skipped = weightReadWords({
+        // A short value for the row; any explanation is a sentence of its own for a line under it.
+        assert.deepEqual(weightRead({ weight: { attribute: "km", meaning: "distance" } }), {
+            value: "km (farther)",
+            note: null,
+        });
+        assert.deepEqual(weightRead({ weight: null }), { value: "None", note: "Each edge counts as 1." });
+        const skipped = weightRead({
             weight: null,
             weightSkipped: {
                 code: "weight.meaning-mismatch",
                 params: { attribute: "emails", meaning: "strength", reads: "distance" },
             },
         });
-        assert.equal(skipped, "not read -- emails means closer, and a path needs a distance");
-        const unset = weightReadWords({
+        assert.deepEqual(skipped, {
+            value: "None",
+            note: "Not read -- emails means closer, and a path needs a distance.",
+        });
+        const unset = weightRead({
             weight: null,
             weightSkipped: {
                 code: "weight.meaning-mismatch",
                 params: { attribute: "w", meaning: null, reads: "distance" },
             },
         });
-        assert.equal(unset, "not read -- w's meaning is not set, and a path needs a distance");
-        // A meaning nobody set, which the run assumed, is said as the Data page says it.
-        assert.equal(
-            weightReadWords({ weight: { attribute: "w", meaning: "strength", assumed: true } }),
-            "w, meaning not set, read as closer",
-        );
+        assert.equal(unset.note, "Not read -- w's meaning is not set, and a path needs a distance.");
+        // A meaning nobody set: the value says how it was read, the note that it was assumed,
+        // never "meaning not set" and "closer" in one value.
+        const assumed = weightRead({ weight: { attribute: "w", meaning: "strength", assumed: true } });
+        assert.equal(assumed.value, "w (read as closer)");
+        assert.equal(assumed.note, "Its meaning was not set, so this run assumed a higher weight means closer.");
+        for (const read of [assumed, unset, skipped]) {
+            assert.notMatch(read.value, /not set|--|\)./, "the value is a short fact");
+        }
         assert.equal(weightName("weight", "distance", "loaded"), "weight (farther, loaded)");
         // A whole sentence in every state, never a fragment such as "smaller = closer".
         for (const meaning of ["strength", "distance", "capacity", null] as const) {

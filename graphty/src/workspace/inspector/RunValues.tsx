@@ -9,7 +9,7 @@ import {
 import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect } from "react";
 
-import { ranOptionWords, runName, weightReadWords, wordsFor } from "../analyze/words";
+import { ranOptionWords, runName, weightRead, wordsFor } from "../analyze/words";
 import { focusInspectorTitle } from "../frame/focus";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -31,8 +31,8 @@ import {
     queuedWords,
     rankedName,
     routeWords,
-    runDate,
     runFailureWords,
+    runTime,
     staleWords,
 } from "./words";
 
@@ -154,7 +154,7 @@ function MadeWith({
     const { session } = useWorkspace();
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
-    const date = runDate(run.startedAt);
+    const date = runTime(run.startedAt);
     const weighted = (descriptor?.weightMeaning ?? null) !== null;
     // The run's nodes (a path's From and To) are facts like Analysis and Ran: rows, in line with
     // them. The weight is one row too, saying what the run read, so it is stated once.
@@ -187,9 +187,7 @@ function MadeWith({
             />
             {date !== null && <DataRow stat name="Ran" value={date} />}
             {form(rows)}
-            {run.status === "succeeded" && weighted && (
-                <DataRow stat name="Weight" value={weightReadWords(run.caveats)} />
-            )}
+            {run.status === "succeeded" && weighted && <WeightRow run={run} />}
             {fields.length > 0 && (
                 <Stack gap={8} px="md">
                     {/* Named for the panel, so it is never taken for a popover's own Advanced. */}
@@ -197,6 +195,27 @@ function MadeWith({
                 </Stack>
             )}
         </ControlSection>
+    );
+}
+
+/**
+ * Made with's Weight: a short value in the row, and its explanation on a line of its own under
+ * it, so the value column never holds a wrapped sentence.
+ * @param props - Component props
+ * @param props.run - The run
+ * @returns The row and its note
+ */
+function WeightRow({ run }: Readonly<{ run: Run }>): React.JSX.Element {
+    const { value, note } = weightRead(run.caveats);
+    return (
+        <>
+            <DataRow stat name="Weight" value={value} />
+            {note !== null && (
+                <Text size="xs" c="dimmed" px="md" pb={8}>
+                    {note}
+                </Text>
+            )}
+        </>
     );
 }
 

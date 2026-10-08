@@ -27,7 +27,7 @@ import { EdgeValues, NeighborList, NodeValues, SeveralValues } from "./NodeValue
 import { type Draft, rowKindOf, swatchOf } from "./reads";
 import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
-import { count, edgeName, groupName, KIND_WORDS, PATH_WORD, runDate, selectionWords } from "./words";
+import { count, edgeName, groupName, KIND_WORDS, PATH_WORD, runTime, selectionWords } from "./words";
 
 /** A kind's two tab bodies, or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
@@ -257,7 +257,7 @@ export function Inspector(): React.JSX.Element {
 /**
  * The "from" line of a header: what made the thing, and when when that is known.
  * @param name - what made it.
- * @param date - the day it ran, or null.
+ * @param date - when it ran, or null.
  * @returns the words.
  */
 function fromWords(name: string, date: string | null): string {
@@ -276,7 +276,7 @@ function fromWords(name: string, date: string | null): string {
 function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefined, doors: Doors): Header {
     const { open, openData, openAnalyze } = doors;
     const from = (made: Run): Header["from"] => {
-        const date = runDate(made.startedAt);
+        const date = runTime(made.startedAt);
         return {
             words: fromWords(runName(session, made), date),
             open: () => {
@@ -309,7 +309,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             if (run === undefined) {
                 return { name: "Gone" };
             }
-            const date = runDate(run.startedAt);
+            const date = runTime(run.startedAt);
             const descriptor = session.catalog.algorithms().find((a) => a.key === run.algorithm);
             const name = runName(session, run);
             const made = descriptor === undefined ? run.algorithm : wordsFor(descriptor).name;

@@ -3,6 +3,7 @@ import { Badge, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { isPanelEscape } from "../keys/keys";
 import { LayoutForm } from "./LayoutForm";
 import { layoutChoices, useLayouts } from "./methods";
 
@@ -40,7 +41,7 @@ export function LayoutPopover({ session, onClose, initialPick }: Readonly<Layout
     }, [picked]);
 
     const onKeyDown = (event: React.KeyboardEvent): void => {
-        if (event.key !== "Escape") {
+        if (!isPanelEscape(event)) {
             return;
         }
         event.preventDefault();

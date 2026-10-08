@@ -272,7 +272,7 @@ describe("the Path popover, on the real element", () => {
         "the Weight box shows None before the run when a loaded weight with no meaning is not read, and Made with agrees",
         async () => {
             const { store, session, element } = await openFriends(null);
-            const why = "Not read -- weight's meaning is not set, and a path needs a distance";
+            const why = "Not read -- weight's meaning is not set, and a path needs a distance.";
             element.focus();
             await userEvent.keyboard("p");
             const form = await pathForm();
@@ -288,8 +288,12 @@ describe("the Path popover, on the real element", () => {
                 unread.hasAttribute("data-combobox-disabled"),
                 "listed, but not a choice that differs from None",
             );
-            // Closed again by its own box; Esc would also step the popover back.
-            await userEvent.click(weight);
+            // Esc closes only the open list: the form stays, with what was typed in it.
+            await userEvent.keyboard("{Escape}");
+            await waitFor(() => {
+                assert.isNull(screen.queryByRole("option", { name: "weight (loaded, not read)" }));
+            });
+            assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
             await userEvent.click(within(form).getByRole("combobox", { name: "From node" }));
 
             await userEvent.keyboard("Ava{Enter}Lee{Enter}{Enter}");
@@ -311,14 +315,16 @@ describe("the Path popover, on the real element", () => {
             for (const words of ["AnalysisShortest path", "FromAva", "ToLee"]) {
                 assert.include(text, words);
             }
-            assert.include(text, "Weightnot read -- weight's meaning is not set, and a path needs a distance");
+            // A short value in the row, the reason on a line of its own.
+            assert.include(text, "WeightNone");
+            assert.isNotNull(within(madeWith).getByText(why));
             assert.notInclude(text, "Source");
             assert.notInclude(text, "Target");
             assert.isNull(within(madeWith).queryByRole("combobox", { name: "Weight" }));
             assert.lengthOf(text.match(/weight's meaning/g) ?? [], 1, "the weight is stated once");
-            // The header names the run once: "ran <date>", never "Path from Shortest path".
+            // The header names the run once: "ran <date, time>", never "Path from Shortest path".
             const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-            assert.isNotNull(inspector.getByRole("button", { name: /^ran / }));
+            assert.isNotNull(inspector.getByRole("button", { name: /^ran .*\d:\d\d:\d\d/ }));
             assert.isNull(inspector.queryByText(/from Shortest path/));
         },
         TIMEOUT_MS,
@@ -335,7 +341,11 @@ describe("the Path popover, on the real element", () => {
             });
             const madeWith = await screen.findByRole("group", { name: "Made with" });
             await waitFor(() => {
-                assert.include(madeWith.textContent, "Weightweight, meaning not set, read as closer");
+                assert.include(madeWith.textContent, "Weightweight (read as closer)");
+                assert.include(
+                    madeWith.textContent,
+                    "Its meaning was not set, so this run assumed a higher weight means closer.",
+                );
             });
         },
         TIMEOUT_MS,

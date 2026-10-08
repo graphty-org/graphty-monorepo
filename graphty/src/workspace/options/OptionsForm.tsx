@@ -4,7 +4,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Checkbox, Select, Stack, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { type Meaning, weightName, weightReadWords } from "../analyze/words";
+import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 
 /** What the app calls one option, and each of its choices. */
@@ -171,7 +171,7 @@ function WeightField({
         }
         void session.plan({ op: "algo.run", algorithm, params: {} }).then(({ caveats }) => {
             if (live) {
-                setUnread(caveats.weightSkipped === undefined ? null : weightReadWords(caveats));
+                setUnread(caveats.weightSkipped === undefined ? null : weightRead(caveats).note);
             }
         });
         return () => {
@@ -215,8 +215,8 @@ function WeightField({
             size="xs"
             label={label}
             value={shown}
-            // "Not read -- weight has no meaning chosen, and a path needs a distance", under None.
-            description={unreadLoaded ? unread.replace(/^n/, "N") : undefined}
+            // "Not read -- weight's meaning is not set, and a path needs a distance.", under None.
+            description={unreadLoaded ? unread : undefined}
             data={data}
             allowDeselect={false}
             comboboxProps={{ withinPortal: false }}

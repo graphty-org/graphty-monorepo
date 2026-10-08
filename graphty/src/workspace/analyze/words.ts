@@ -471,29 +471,43 @@ function isMeaning(value: unknown): value is WeightMeaning["meaning"] {
     return typeof value === "string" && Object.hasOwn(MEANING_WORDS, value);
 }
 
+/** What a run read as its weight: a short value for a row, and the explanation for a line under it. */
+export interface WeightRead {
+    /** "km (farther)", "weight (read as closer)" or "None". */
+    readonly value: string;
+    /** Why, or how, when the value alone does not say it; null when it does. */
+    readonly note: string | null;
+}
+
 /**
  * What a run read as its weight, from its caveats (tier2-design.md section 5, "Made with").
  * @param caveats - the run's caveats.
- * @returns "emails (closer)", "weight, meaning not set, read as closer", "none (each edge counts
- *     1)", or "not read -- emails means closer, and a path needs a distance".
+ * @returns the value ("emails (closer)", "w (read as closer)", "None") and its note ("Its meaning
+ *     was not set, so this run assumed a higher weight means closer.", "Each edge counts as 1.",
+ *     "Not read -- emails means closer, and a path needs a distance."), or no note.
  */
-export function weightReadWords(caveats: Pick<Caveats, "weight" | "weightSkipped">): string {
+export function weightRead(caveats: Pick<Caveats, "weight" | "weightSkipped">): WeightRead {
     const skipped = caveats.weightSkipped;
     if (skipped !== undefined) {
         const { attribute, meaning, reads } = skipped.params;
         const column = String(attribute);
         // "Meaning not set" is the Data page's own word for a weight nobody gave a meaning.
         const has = isMeaning(meaning) ? `${column} means ${MEANING_WORDS[meaning]}` : `${column}'s meaning is not set`;
-        return `not read -- ${has}, and ${isMeaning(reads) ? NEEDS[reads] : "this analysis reads another kind"}`;
+        const needs = isMeaning(reads) ? NEEDS[reads] : "this analysis reads another kind";
+        return { value: "None", note: `Not read -- ${has}, and ${needs}.` };
     }
     const read = caveats.weight;
     if (read === null || read === undefined) {
-        return "none (each edge counts 1)";
+        return { value: "None", note: "Each edge counts as 1." };
     }
-    // A meaning nobody set, which the run assumed: said as such, and how this run read it.
+    // A meaning nobody set, which the run assumed: the value says how it was read, the note
+    // that it was assumed, so the two never read as "not set" and "closer" at once.
     return read.assumed === true
-        ? `${read.attribute}, meaning not set, read as ${MEANING_WORDS[read.meaning]}`
-        : weightName(read.attribute, read.meaning);
+        ? {
+              value: `${read.attribute} (read as ${MEANING_WORDS[read.meaning]})`,
+              note: `Its meaning was not set, so this run assumed a higher weight means ${MEANING_WORDS[read.meaning]}.`,
+          }
+        : { value: weightName(read.attribute, read.meaning), note: null };
 }
 
 /**

@@ -5,6 +5,7 @@ import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
+import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { PATH_ALGORITHM, PathForm } from "./PathForm";
 import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, runRefusalWords, wordsFor } from "./words";
@@ -143,7 +144,7 @@ export function AnalyzePopover({
     });
 
     const onKeyDown = (event: React.KeyboardEvent): void => {
-        if (event.key !== "Escape") {
+        if (!isPanelEscape(event)) {
             return;
         }
         event.preventDefault();

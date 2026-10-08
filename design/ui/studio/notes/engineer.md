@@ -11,6 +11,19 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Top of mind
 
+- (2026-10-08) **Path form and Made with (app + compact-mantine, no element API).** A panel's
+  Escape (Path, Analyze, Layout popovers) waits for inner controls: `isPanelEscape` (keys.ts) is
+  false when `defaultPrevented` or the target has `data-expanded`, so one Escape closes only the
+  Weight list and From/To stay. Made with's Weight is `weightRead(caveats)` -> `{ value, note }`:
+  "km (farther)", "weight (read as closer)" or "None" in the row, the reason on its own `xs`
+  line under it ("Its meaning was not set, so this run assumed a higher weight means closer.").
+  Runs show date and time to the second (`runTime`, header "ran Oct 8, 3:36:46 PM" and Ran row).
+  `ControlSubGroup` content is no longer a named region (it took the button's name; "Advanced"
+  named two things) -- for the owner. Made with rows: Analysis, Ran, From, To, Weight.
+  Evidence `tmp/r1-dry2-path-form-made-with/` (T18A/07-09, T18B/07 vs 14, T20A/14-17, T21A/02,
+  07, T21B/02, 07). OPEN: `--click "From"` with a path run inspected is ambiguous (Made with's
+  group "From Strozzi", the popover's "From"; the tool took the group); toolbar test "frames a
+  selected edge's two ends" still off in x (known before this, see Tried); Columns after "=" omit run results; Dijkstra always undirected.
 - (2026-10-08) **Filter steps show on/off and what they keep (compact-mantine + app, team door).**
   A step row's outcome ("77 to 26 nodes", "off") is a second line under the condition through the
   new shared `TreeNodeData.descriptionVisible` (row 44 tall); the count slot cut both in the
@@ -71,24 +84,11 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
   Dijkstra, Bellman-Ford on a negative read weight; option meta `choiceLabels`; Made with says
   "Dijkstra, chosen automatically". OPEN: explicit dijkstra over a negative undirected weight
   freezes the page (`algorithms/src/indexed/dijkstra.ts`). Evidence `tmp/r1-dry2-run-record-method/`.
-- (2026-10-08) **Labels on top (element + app, team door).** `LabelStyle.onTop` (default depth
-  sorted) draws a label after the graph; the app's `appLabelLook` sets it. Evidence
-  `tmp/r1-dry2-labels-on-top/`.
 - (2026-10-08) **Route color: element default stays indigo, the app sets black (owner decided).**
   Never change an element default for the app: the app calls `session.styles.setHighlightColor`
   with `APP_HIGHLIGHT_COLOR` (`graphty/src/constants/highlight.ts`) in BOTH hosts (`ElementHost.tsx`
   for `?next`, `Graphty.tsx`). Indigo read as ordinary on lit spheres; judge node colors at shaded
   tones and screenshot pixels (`tmp/r1-dry2-path-color/measure.py`). Cost: black is the 7th group color.
-- (2026-10-08) **Which end is missing (element + app, team door).** `LeftOutEdge.missingEnds` /
-  `DraftRow.missingEnds`; the app marks the cell, the caption and leads the inspector line with it.
-  Evidence `tmp/r1-dry2-missing-end/`.
-- (2026-10-08) **The drawing stays put (element + app).** View insets never move the camera
-  (`OrbitCameraController.setViewInsets` shifts the pivot); the legend calls `zoomToFit()` only
-  when `element.nodesInRect(cardBox)` is not empty; Find turns the camera only for an off-screen
-  pick. Evidence `tmp/r1-dry1-view-stays-put/`.
-- (2026-10-08) **Find and path form.** `FindOptions.edgeNameJoiner`; Made with rows Analysis, Ran,
-  From, To, Weight. OPEN: Columns after "=" omit run results; label size is world-space;
-  neighborhood filter has no `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
@@ -118,6 +118,15 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Decisions and reasons
 
+- (2026-10-08) **A run's time is shown to the second.** Two path runs in one minute (T18B) must
+  differ in their own record; minutes alone tie. Rejected: a relative "2 min ago" (goes stale on a
+  saved project), a run counter (not a fact the reader can check).
+- (2026-10-08) **The weight row holds a short fact; the why goes on a line under it.** Rejected:
+  "weight, meaning not set, read as closer" (read as a contradiction) and any sentence in the
+  value column (wraps, orphan "1)"). The select's description and Made with share one sentence.
+- (2026-10-08) **Escape guard is one helper for every popover form, not per caller.** The shared
+  list already consumes its Escape; the panel guard also covers a field that overrides the
+  theme's `onKeyDown` and the Layout popover (same pattern, not in the pilot).
 - (2026-10-08) **A replace is laid out as an open is, not framed differently.** The "small graph"
   after Replace was a correct fit of a deep layout (z extent 37 vs x 23; an explicit `zoomToFit()`
   changed nothing). Mechanism: the seeded restart skipped while "another graph write waits", and
@@ -228,6 +237,8 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Did not work: rerunning a path with the same From and To to show two times -- it
+  returns the same run (same time is then the truth). Use a different pair (T18B: Peruzzi, Ginori).
 - (2026-10-08) Did not work: a tree row's count slot for a filter outcome. The slot yields to the
   name but keeps a 2.5em stub, so "weight is at least 4" + "20 to 19 nodes" became "weight is at
   least..." + "20 to ...". An old test passed because `textContent` includes a `hidden` span:
@@ -261,21 +272,13 @@ test. "The studio worktree" is `.worktrees/design-studio-tier1` (branch `design/
 - (2026-10-08, condensed) A fact at the END of a narrow inspector row is cut: lead with it.
   `while pgrep -f` matches its own shell: wait by PID. Session-entry public types are listed in
   `graphty-element/session.ts`. `getByText` misses text split across a glyph span.
-- (2026-10-08) Worked: re-walking the pilots with a copy of `tier2/pilot/rewalk.sh` whose `SET`
-  is overridable and setup files rebuilt from each pilot's `session.json` "setup" list (the r1d1
-  T18 pilots started with PageRank run and sized, not the plain friends setup). Did not work:
-  flat-swatch Delta E as a proxy for what a reader sees on a 20 px shaded sphere.
-- (2026-10-06 to 10-08, condensed) Small facts: `--hover` rests on a row's center; a mesh toggled
-  outside an update pass needs `meshesShownOrHidden()`, an edge rebuilt outside a style pass
-  `forceEdgeWalk()`; a layer `set` channel can add a legend block (`keyBlocks` decides).
-- (2026-10-08) Worked: a probe script (`tmp/r1-dry1-view-stays-put/probe.mjs`, own static server,
-  through `with-browser.sh`) logging `getCameraState()`, canvas rect and `viewInsets` per step
-  named all three camera mechanisms in two runs. A real-element app test cannot measure the
-  legend (element 0 px wide there); a stand-in element with spies can.
-
-- (2026-10-08) Worked: a find option the caller fills with its own words (`edgeNameJoiner`).
-  Untraced: toolbar real test "frames a selected edge's two ends" lands at x 13.92/14.46 vs 14.07
-  with or without that change; TableDock's export preview fails only inside the full real run.
+- (2026-10-06 to 10-08, condensed) Re-walk pilots from their `session.json` setup lists, not the
+  plain setups. Flat-swatch Delta E is no proxy for a shaded sphere. `--hover` rests on a row's
+  center; toggled meshes need `meshesShownOrHidden()`, rebuilt edges `forceEdgeWalk()`. A camera
+  probe logging `getCameraState()`, canvas rect and `viewInsets` per step names camera mechanisms;
+  a real-element app test cannot measure the legend (element 0 px wide). Untraced: toolbar real
+  test "frames a selected edge's two ends" lands off in x (13.8 to 14.5 vs 14.07) with or without
+  unrelated changes; TableDock's export preview fails only inside the full real run.
 
 - (2026-10-08) Did not work: landing focus on the left panel's tree after open -- Tree typeahead
   claims every one-character key, so the study's single-key shortcuts typed nothing. Worked: a

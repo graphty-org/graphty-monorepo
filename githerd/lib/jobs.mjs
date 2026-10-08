@@ -604,17 +604,36 @@ function issueJobs(state, config, now, add, cancel) {
     for (const [n, revision] of Object.entries(state.unbundled ?? {}))
         if (state.issues?.byNumber?.[n]?.updatedAt !== revision) delete state.unbundled[n];
     // A promotion waits for an owner session and holds no place in the issue queue.
-    const queued = Object.values(state.jobs).filter(
+    let queued = Object.values(state.jobs).filter(
         (j) => j.kind === "issue" && j.state === "queued" && j.facts?.scope !== "promote",
     ).length;
     const priorities = config.labels?.priorities ?? [];
-    const candidates = issueCandidates(state, config, now, deferred);
-    const top = candidates[0];
     // One queued issue job per session githerd may invite (`workers.sessions`, one when it names
-    // none), so an issue every session passes on does not leave the others without work; a
-    // critical one never waits behind a lower one.
+    // none), all made in this pass, so an issue every session passes on does not leave the others
+    // without work; a critical one never waits behind a lower one.
     const room = Math.max(config.workers?.sessions?.length ?? 1, 1);
-    if (!top || (queued >= room && priorities[top.priority] !== CRITICAL)) return;
+    const tried = new Set();
+    for (;;) {
+        const candidates = issueCandidates(state, config, now, deferred);
+        const top = candidates[0];
+        if (!top || tried.has(top.number) || (queued >= room && priorities[top.priority] !== CRITICAL)) return;
+        tried.add(top.number);
+        addIssueJob(state, config, now, add, top, candidates);
+        queued += 1;
+    }
+}
+
+/**
+ * Makes the issue job for the issue at the front of the queue, with its bundle.
+ * @param {any} state the daemon state
+ * @param {any} config the normalized config
+ * @param {Date} now the clock
+ * @param {(spec: any, extra?: any) => any} add makes a job unless one is live
+ * @param {any} top the front issue (`issueCandidates`)
+ * @param {any[]} candidates every free issue, in queue order
+ */
+function addIssueJob(state, config, now, add, top, candidates) {
+    const priorities = config.labels?.priorities ?? [];
     const issue = state.issues.byNumber[top.number];
     const guard = guardIssue(state, String(issue.text ?? "").split("\n")[0]);
     const label = priorities[top.priority];

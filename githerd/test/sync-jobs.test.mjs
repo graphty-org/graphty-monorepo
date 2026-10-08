@@ -605,7 +605,9 @@ describe("syncJobs: issues", () => {
         const state = base();
         for (const n of [11, 12, 13, 14]) issue(state, n, LABELED);
         const run = () => syncJobs(state, { config, now: NOW }).created;
-        expect([...run(), ...run(), ...run(), ...run()]).toEqual(["issue-11", "issue-12", "issue-13"]);
+        // Every free place is filled in one pass, not one job per poll.
+        expect(run()).toEqual(["issue-11", "issue-12", "issue-13"]);
+        expect(run()).toEqual([]);
         move(state.jobs["issue-12"], "starting", NOW, { holder: { session: "b", startedBy: "owner" } });
         expect(run()).toEqual(["issue-14"]);
         expect(run()).toEqual([]);

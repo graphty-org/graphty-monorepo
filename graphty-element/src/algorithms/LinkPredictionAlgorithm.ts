@@ -10,6 +10,7 @@
 import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { type AlgorithmOutput, type AlgorithmRunContext, DeclaredAlgorithm, declaredCaveats } from "./results";
@@ -122,7 +123,7 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
                 method,
                 direction: "undirected",
                 weight: null,
-                notes: ["Only pairs that are not already joined, and that share at least one neighbour, are scored."],
+                facts: [caveat("link-prediction.candidates")],
                 precision,
             }),
         };

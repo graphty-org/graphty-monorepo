@@ -1,4 +1,5 @@
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -73,10 +74,7 @@ export class ClusteringCoefficientAlgorithm extends DeclaredAlgorithm {
                 direction: "undirected",
                 weight: null,
                 precision,
-                notes: [
-                    "Each node's value is its local clustering coefficient: the share of the pairs of its neighbours that are joined by an edge. A node with fewer than two neighbours scores 0.",
-                    "The graph is read as simple and undirected: direction is ignored, parallel edges count once and self-loops not at all.",
-                ],
+                facts: [caveat("clustering-coefficient.local"), caveat("clustering-coefficient.simple")],
             }),
         };
     }

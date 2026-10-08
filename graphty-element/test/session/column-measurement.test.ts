@@ -191,7 +191,14 @@ describe("encoding a column", () => {
                     edges: onEdges
                         ? graph.data.edges().map((edge, index) => ({ id: edge.id, values: { value: index } }))
                         : [],
-                    caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", notes: [] },
+                    caveats: {
+                        exact: true,
+                        direction: "as-loaded",
+                        precision: "f64",
+                        method: "test",
+                        facts: [],
+                        notes: [],
+                    },
                     durationMs: 1,
                 }),
             });

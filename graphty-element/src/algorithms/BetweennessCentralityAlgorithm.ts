@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -121,13 +122,13 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm<BetweennessO
                 weight: null,
                 precision,
                 method: sampled ? "brandes-sampled" : "brandes",
-                notes: [
+                ...noted([
                     sampled
-                        ? `Estimated from the shortest paths of ${String(drawn)} sampled sources of ${String(snapshot.nodeCount)} nodes, over the graph read as undirected, unscaled: multiply by ${String(snapshot.nodeCount)} / ${String(drawn)} to estimate the exact count.`
-                        : "Every shortest path is counted exactly, over the graph read as undirected.",
-                    "The raw counts are halved, because an undirected shortest path is reached from both ends.",
-                    "Path lengths count edges; edge weights are not read.",
-                ],
+                        ? caveat("betweenness.sampled", { sources: drawn, nodes: snapshot.nodeCount })
+                        : caveat("paths.counted-exactly"),
+                    caveat("betweenness.halved"),
+                    caveat("paths.hop-lengths"),
+                ]),
             },
         };
     }

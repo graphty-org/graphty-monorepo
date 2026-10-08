@@ -16,6 +16,8 @@ import {
     type SummaryGroup,
 } from "@graphty/graphty-element/session";
 
+import { runName } from "../runWords";
+
 /** Which records a table holds. */
 export type RecordKind = "node" | "edge";
 
@@ -108,7 +110,7 @@ export function columnChoices(session: GraphSession, kind: RecordKind): TableCol
         return [
             {
                 id: `r:${run.id}`,
-                header: run.label,
+                header: runName(session, run),
                 group: "result",
                 numeric: column.type === "number" || column.type === "integer",
                 grouping: run.result?.summary().groups !== undefined,

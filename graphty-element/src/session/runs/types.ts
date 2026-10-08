@@ -33,7 +33,9 @@ import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { JournalId } from "../journal";
 import type { ResultSummary, RunResult } from "../results/types";
+import type { CodedFact } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
+import type { CaveatCode, PartialCode } from "./caveatFacts";
 
 // ---------------------------------------------------------------------------------------------
 // Identity
@@ -232,12 +234,29 @@ export interface Caveats {
     /** Which method computed them, such as "dijkstra" or "brandes-sampled". */
     readonly method: string;
     /**
-     * Why a run stopped before it finished, when it did. Present exactly when the run resolved
-     * with `partial` set, whatever stopped it: a time box, a cancellation, or the algorithm's own
-     * iteration cap.
+     * Why a run stopped before it finished, when it did, as a code and its values. Present when
+     * the run resolved with `partial` set, whatever stopped it: a time box, a cancellation, a
+     * batch that did not finish, or the algorithm's own iteration cap. Absent for a run an
+     * extension stopped and explained only in words, in {@link Caveats.partialReason}.
+     * @since 3.18.0
+     */
+    readonly partialCause?: CodedFact<PartialCode>;
+    /**
+     * Why a run stopped before it finished, as an English sentence. Present exactly when the run
+     * resolved with `partial` set.
+     * @deprecated Word {@link Caveats.partialCause} yourself. Removed in the next major.
      */
     readonly partialReason?: string;
-    /** Anything else a reader should know, in sentences. */
+    /**
+     * Anything else a reader should know, one fact per remark, in the order a reader reads them.
+     * See {@link CaveatCode} for every code and its parameters.
+     * @since 3.18.0
+     */
+    readonly facts: readonly CodedFact<CaveatCode>[];
+    /**
+     * The same remarks as English sentences, followed by any sentence an extension wrote in words.
+     * @deprecated Word {@link Caveats.facts} yourself. Removed in the next major.
+     */
     readonly notes: readonly string[];
 }
 
@@ -470,6 +489,20 @@ export interface BatchResult {
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The one option an unnamed run's name was suggested by: a built-in algorithm names its result by
+ * one setting worth telling two of its results apart by (PageRank's `dampingFactor`, Louvain's
+ * `resolution`), once that setting leaves its default. A run's label is worded from it, the
+ * algorithm's catalog name and the value.
+ * @since 3.18.0
+ */
+export interface RunDistinction {
+    /** The option's name, as the algorithm's catalog `options` spell it. */
+    readonly option: string;
+    /** The value the run used, canonicalized. */
+    readonly value: unknown;
+}
+
+/**
  * A frozen, structured-cloneable snapshot of a run.
  *
  * This is what crosses a worker boundary, what an event carries, what the journal stores and
@@ -479,8 +512,28 @@ export interface BatchResult {
 export interface RunRecord {
     /** The run id. */
     readonly id: RunId;
-    /** What the run is called, computed by the element. */
+    /**
+     * What the run is called, computed by the element.
+     * @deprecated Word the run from its `algorithm`, {@link RunRecord.distinguishedBy} and
+     *   {@link RunRecord.siblingsDifferBy} yourself. Removed in the next major.
+     */
     readonly label: string;
+    /**
+     * The option this run's name was suggested by, once it left its default: what tells it apart
+     * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
+     * caller named with `as`, a batch, and a run of an algorithm registered with its own
+     * `suggestedName`.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells this run apart from the other listed runs of its algorithm that go by the same
+     * name: the names of the parameters whose values differ, sorted, or an empty list when only
+     * the scope differs. Null while no other run shares the name.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it ran with, canonicalised. */
@@ -531,7 +584,7 @@ export interface RunRecord {
  * - Everything else rejects with a {@link GraphtyError} carrying a code.
  *
  * A time boxed run that hits its box does not reject at all: it RESOLVES, with `partial` set and
- * `caveats.partialReason` saying why. A stopped-early result is data.
+ * `caveats.partialCause` saying why. A stopped-early result is data.
  */
 export interface Run<T = RunResult> extends PromiseLike<T> {
     /** The run id: stable, selector-safe, and author-assignable through `as`. */
@@ -543,8 +596,26 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      * while it is the only run of that algorithm, gaining the parameter that differs in
      * parentheses the moment a sibling exists. One string, used by the layer row, the legend,
      * the journal and every export.
+     * @deprecated Word the run from its `algorithm`, {@link Run.distinguishedBy} and
+     *   {@link Run.siblingsDifferBy} yourself. Removed in the next major.
      */
     readonly label: string;
+    /**
+     * The option this run's name was suggested by, once it left its default: what tells it apart
+     * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
+     * caller named with `as`, a batch, and a run of an algorithm registered with its own
+     * `suggestedName`.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells this run apart from the other listed runs of its algorithm that go by the same
+     * name: the names of the parameters whose values differ, sorted, or an empty list when only
+     * the scope differs. Null while no other run shares the name.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm is running. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it is running with, canonicalised. */

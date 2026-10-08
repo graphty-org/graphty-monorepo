@@ -156,7 +156,14 @@ function degreeRunner(): Runner {
                     measured: { nodes: snapshot.nodeCount, edges: snapshot.edgeCount },
                     graph: { normalization: "none" },
                     nodes,
-                    caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", notes: [] },
+                    caveats: {
+                        exact: true,
+                        direction: "as-loaded",
+                        precision: "f64",
+                        method: "degree",
+                        facts: [],
+                        notes: [],
+                    },
                     durationMs: 1,
                 }),
             };

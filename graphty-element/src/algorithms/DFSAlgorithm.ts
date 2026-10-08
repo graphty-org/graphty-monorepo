@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -202,9 +203,7 @@ export class DFSAlgorithm extends DeclaredAlgorithm<DFSOptions> {
                 direction: "undirected",
                 weight: null,
                 precision,
-                notes: [
-                    `Walked from ${String(source)}, ${preOrder ? "recording each node as it was reached" : "recording each node as it was left"}.`,
-                ],
+                facts: [caveat("dfs.walk", { source, order: preOrder ? "pre" : "post" })],
             }),
         };
     }

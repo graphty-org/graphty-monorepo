@@ -302,10 +302,14 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             }
             const date = runDate(run.startedAt);
             const descriptor = session.catalog.algorithms().find((a) => a.key === run.algorithm);
+            const name = runName(session, run);
+            const made = descriptor === undefined ? run.algorithm : wordsFor(descriptor).name;
+            // A row named after its analysis says only when it ran: "Path from Shortest path"
+            // would read as a path starting at a node called Shortest path.
             return {
-                name: runName(session, run),
+                name,
                 from: {
-                    words: fromWords(descriptor === undefined ? run.algorithm : wordsFor(descriptor).name, date),
+                    words: made === name && date !== null ? `ran ${date}` : fromWords(made, date),
                     open: openAnalyze,
                 },
             };

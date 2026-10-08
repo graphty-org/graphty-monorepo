@@ -143,7 +143,12 @@ describe("the Analyze popover's words", () => {
                 params: { attribute: "w", meaning: null, reads: "distance" },
             },
         });
-        assert.equal(unset, "not read -- w has no meaning chosen, and a path needs a distance");
+        assert.equal(unset, "not read -- w's meaning is not set, and a path needs a distance");
+        // A meaning nobody set, which the run assumed, is said as the Data page says it.
+        assert.equal(
+            weightReadWords({ weight: { attribute: "w", meaning: "strength", assumed: true } }),
+            "w, meaning not set, read as closer",
+        );
         assert.equal(weightName("weight", "distance", "loaded"), "weight (farther, loaded)");
         // A whole sentence in every state, never a fragment such as "smaller = closer".
         for (const meaning of ["strength", "distance", "capacity", null] as const) {

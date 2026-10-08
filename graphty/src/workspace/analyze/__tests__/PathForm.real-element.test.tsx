@@ -96,16 +96,20 @@ describe("the Path popover, on the real element", () => {
             await userEvent.keyboard("p");
 
             const form = await pathForm();
-            const from = within(form).getByRole("combobox", { name: "From" });
+            const from = within(form).getByRole("combobox", { name: "From node" });
             await waitFor(() => {
                 assert.equal(document.activeElement, from);
             });
-            // A partial name lists the nodes it matches; clicking one fills the field.
+            // A partial name lists the nodes it matches, the first marked as the one Enter picks;
+            // clicking one fills the field and moves on to To, as Enter does.
             await userEvent.type(from, "Av");
-            await userEvent.click(await within(form).findByRole("option", { name: "Ava" }));
+            const ava = await within(form).findByRole("option", { name: "Ava" });
+            assert.equal(from.getAttribute("aria-activedescendant"), ava.id);
+            await userEvent.click(ava);
             assert.equal((from as HTMLInputElement).value, "Ava");
             assert.isNull(within(form).queryByRole("listbox", { name: "From nodes" }));
-            const to = within(form).getByRole("combobox", { name: "To" });
+            const to = within(form).getByRole("combobox", { name: "To node" });
+            assert.equal(document.activeElement, to);
             await userEvent.type(to, "lee");
             await userEvent.click(within(form).getByRole("button", { name: "Find path" }));
 
@@ -140,8 +144,8 @@ describe("the Path popover, on the real element", () => {
             element.focus();
             await userEvent.keyboard("p");
             const form = await pathForm();
-            const from = within(form).getByRole<HTMLInputElement>("combobox", { name: "From" });
-            const to = within(form).getByRole<HTMLInputElement>("combobox", { name: "To" });
+            const from = within(form).getByRole<HTMLInputElement>("combobox", { name: "From node" });
+            const to = within(form).getByRole<HTMLInputElement>("combobox", { name: "To node" });
             await waitFor(() => {
                 assert.equal(document.activeElement, from);
             });
@@ -173,9 +177,9 @@ describe("the Path popover, on the real element", () => {
             await session.selection.apply({ nodes: ["Ben"] });
             await userEvent.keyboard("p");
             let form = await pathForm();
-            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "From" }).value, "Ben");
+            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "From node" }).value, "Ben");
             await waitFor(() => {
-                assert.equal(document.activeElement, within(form).getByRole("combobox", { name: "To" }));
+                assert.equal(document.activeElement, within(form).getByRole("combobox", { name: "To node" }));
             });
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
@@ -185,7 +189,7 @@ describe("the Path popover, on the real element", () => {
             await session.selection.apply({ nodes: ["Ben", "Dev"] });
             await userEvent.keyboard("p");
             form = await pathForm();
-            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "To" }).value, "Dev");
+            assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "To node" }).value, "Dev");
             await waitFor(() => {
                 assert.equal(document.activeElement, within(form).getByRole("button", { name: "Find path" }));
             });
@@ -206,7 +210,7 @@ describe("the Path popover, on the real element", () => {
                 assert.isTrue(dropdown.contains(document.activeElement), `Tab ${String(i + 1)} left the popover`);
             }
             // Esc in an empty field closes the popover (a filled one clears first).
-            within(form).getByRole("combobox", { name: "From" }).focus();
+            within(form).getByRole("combobox", { name: "From node" }).focus();
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
                 assert.isNull(store.get().dialog);
@@ -255,7 +259,7 @@ describe("the Path popover, on the real element", () => {
             element.dispatchEvent(new MouseEvent("click", init));
 
             await waitFor(() => {
-                assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "To" }).value, "Lee");
+                assert.equal(within(form).getByRole<HTMLInputElement>("combobox", { name: "To node" }).value, "Lee");
             });
             // The click was the pick's alone: the popover is open and the selection unchanged.
             assert.isNotNull(screen.queryByRole("form", { name: "Shortest path" }));
@@ -268,7 +272,7 @@ describe("the Path popover, on the real element", () => {
         "the Weight box shows None before the run when a loaded weight with no meaning is not read, and Made with agrees",
         async () => {
             const { store, session, element } = await openFriends(null);
-            const why = "Not read -- weight has no meaning chosen, and a path needs a distance";
+            const why = "Not read -- weight's meaning is not set, and a path needs a distance";
             element.focus();
             await userEvent.keyboard("p");
             const form = await pathForm();
@@ -286,7 +290,7 @@ describe("the Path popover, on the real element", () => {
             );
             // Closed again by its own box; Esc would also step the popover back.
             await userEvent.click(weight);
-            await userEvent.click(within(form).getByRole("combobox", { name: "From" }));
+            await userEvent.click(within(form).getByRole("combobox", { name: "From node" }));
 
             await userEvent.keyboard("Ava{Enter}Lee{Enter}{Enter}");
             let runId = "";
@@ -301,19 +305,61 @@ describe("the Path popover, on the real element", () => {
             act(() => {
                 store.set({ inspected: { kind: "measure-row", id: runId }, tabs: { "measure-row": "values" } });
             });
+            // Made with: the same rows as Analysis and Ran, in the form's words, the weight once.
             const madeWith = await screen.findByRole("group", { name: "Made with" });
-            assert.isNotNull(
-                within(madeWith).getByText(
-                    "Weight: not read -- weight has no meaning chosen, and a path needs a distance",
-                ),
-            );
-            await waitFor(() => {
-                assert.equal(
-                    within(madeWith).getByRole<HTMLInputElement>("combobox", { name: "Weight" }).value,
-                    "None",
-                );
+            const text = madeWith.textContent;
+            for (const words of ["AnalysisShortest path", "FromAva", "ToLee"]) {
+                assert.include(text, words);
+            }
+            assert.include(text, "Weightnot read -- weight's meaning is not set, and a path needs a distance");
+            assert.notInclude(text, "Source");
+            assert.notInclude(text, "Target");
+            assert.isNull(within(madeWith).queryByRole("combobox", { name: "Weight" }));
+            assert.lengthOf(text.match(/weight's meaning/g) ?? [], 1, "the weight is stated once");
+            // The header names the run once: "ran <date>", never "Path from Shortest path".
+            const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+            assert.isNotNull(inspector.getByRole("button", { name: /^ran / }));
+            assert.isNull(inspector.queryByText(/from Shortest path/));
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "a run that read a weight nobody gave a meaning says so in Made with, as the Data page does",
+        async () => {
+            const { store, session } = await openFriends(null);
+            const run = session.runs.start("pagerank", {});
+            await run;
+            act(() => {
+                store.set({ inspected: { kind: "measure-row", id: run.id }, tabs: { "measure-row": "values" } });
             });
-            assert.isNotNull(within(madeWith).getByText(why));
+            const madeWith = await screen.findByRole("group", { name: "Made with" });
+            await waitFor(() => {
+                assert.include(madeWith.textContent, "Weightweight, meaning not set, read as closer");
+            });
+        },
+        TIMEOUT_MS,
+    );
+
+    it(
+        "names the popover's Advanced fold and the right panel's apart, and keeps the chevron in the popover",
+        async () => {
+            const { store, session } = await openFriends("distance");
+            const run = session.runs.start("shortest-path", { source: "Ava", target: "Lee" });
+            await run;
+            act(() => {
+                store.set({ inspected: { kind: "measure-row", id: run.id }, tabs: { "measure-row": "values" } });
+            });
+            await screen.findByRole("group", { name: "Made with" });
+            await userEvent.keyboard("p");
+            const form = await pathForm();
+            const own = within(form).getByRole("button", { name: "Expand Advanced" });
+            const panel = screen.getByRole("button", { name: "Expand Advanced run settings" });
+            assert.notEqual(own, panel);
+            assert.lengthOf(screen.getAllByRole("button", { name: "Expand Advanced" }), 1);
+            // The chevron sits inside the popover's padding, not on its border.
+            const chevron = own.querySelector(".cm-subgroup-chevron");
+            assert.isAtLeast(chevron?.getBoundingClientRect().left ?? 0, form.getBoundingClientRect().left);
         },
         TIMEOUT_MS,
     );

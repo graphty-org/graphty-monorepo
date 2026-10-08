@@ -31,6 +31,9 @@ type End = "source" | "target";
 /** Each end's label. */
 const END_WORDS: Readonly<Record<End, string>> = { source: "From", target: "To" };
 
+/** Each end's hint, different for each so neither box can be taken for the other. */
+const END_HINTS: Readonly<Record<End, string>> = { source: "Where the path starts", target: "Where the path ends" };
+
 /**
  * The node hits for what was typed, from the element's find.
  * @param session - the element's session.
@@ -81,7 +84,7 @@ interface NodeFieldProps {
     error: string | null;
     autoFocus: boolean;
     inputRef: React.Ref<HTMLInputElement>;
-    onEnterPicked: () => void;
+    onPicked: () => void;
 }
 
 /**
@@ -97,7 +100,7 @@ interface NodeFieldProps {
  * @param props.error - Why it names no node, or null
  * @param props.autoFocus - Whether it takes focus as the form opens
  * @param props.inputRef - The text box
- * @param props.onEnterPicked - Called after Enter picks a node, to move focus on
+ * @param props.onPicked - Called after Enter or a click picks a node, to move focus on
  * @returns The field
  */
 function NodeField({
@@ -110,18 +113,21 @@ function NodeField({
     error,
     autoFocus,
     inputRef,
-    onEnterPicked,
+    onPicked,
 }: Readonly<NodeFieldProps>): React.JSX.Element {
     const label = END_WORDS[end];
     const listId = useId();
-    const [active, setActive] = useState(-1);
+    // The option Enter picks: the first until the arrows move it, and marked as such.
+    const [active, setActive] = useState(0);
     const [focused, setFocused] = useState(false);
     // The list shows while the text is typed in the field, not once a node is picked.
     const hits = value.node === null && focused ? nodeHits(session, value.text) : [];
     const optionId = (i: number): string => `${listId}-${String(i)}`;
+    // Enter and a click pick the same way, and both move on to what is left to do.
     const pick = (hit: { id: NodeId; name: string }): void => {
         onChange({ text: hit.name, node: hit.id });
-        setActive(-1);
+        setActive(0);
+        onPicked();
     };
 
     const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -131,14 +137,13 @@ function NodeField({
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
             const step = event.key === "ArrowDown" ? 1 : -1;
-            setActive((i) => (i < 0 && step < 0 ? hits.length - 1 : (i + step + hits.length) % hits.length));
+            setActive((i) => (i + step + hits.length) % hits.length);
         } else if (event.key === "Enter") {
             // Enter picks the active node, or the first, and moves on to what is left to do.
             event.preventDefault();
-            const hit = hits[Math.max(active, 0)];
+            const hit = hits.at(Math.min(active, hits.length - 1));
             if (hit !== undefined) {
                 pick(hit);
-                onEnterPicked();
             }
         }
     };
@@ -148,11 +153,13 @@ function NodeField({
             <SearchInput
                 ref={inputRef}
                 label={label}
-                placeholder="Type a node's name"
+                // The box's name says what it holds, so it is never taken for a "From" column.
+                aria-label={`${label} node`}
+                placeholder={END_HINTS[end]}
                 value={value.text}
                 onChange={(text) => {
                     onChange({ text, node: null });
-                    setActive(-1);
+                    setActive(0);
                 }}
                 onKeyDown={onKeyDown}
                 onFocus={() => {
@@ -165,7 +172,7 @@ function NodeField({
                 aria-autocomplete="list"
                 aria-expanded={hits.length > 0}
                 aria-controls={hits.length > 0 ? listId : undefined}
-                aria-activedescendant={active >= 0 ? optionId(active) : undefined}
+                aria-activedescendant={hits.length > 0 ? optionId(Math.min(active, hits.length - 1)) : undefined}
                 error={error ?? undefined}
                 clearLabel={`Clear ${label}`}
                 // The popover's focus trap takes the control marked data-autofocus.
@@ -197,7 +204,7 @@ function NodeField({
                             name={hit.name}
                             match={value.text}
                             icon={<GLYPHS.node size={14} />}
-                            current={i === active}
+                            current={i === Math.min(active, hits.length - 1)}
                             onClick={() => {
                                 pick(hit);
                             }}
@@ -336,7 +343,7 @@ export function PathForm({ session, descriptor, onBack, onClose, onRun }: Readon
             error={errors[end]}
             autoFocus={focus === end}
             inputRef={inputs[end]}
-            onEnterPicked={() => {
+            onPicked={() => {
                 // On to the other end while it is empty, else to Find path.
                 const other: End = end === "source" ? "target" : "source";
                 (ends[other].text.trim() === "" ? inputs[other] : runButton).current?.focus();

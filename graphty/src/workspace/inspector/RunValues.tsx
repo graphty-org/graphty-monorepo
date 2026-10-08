@@ -154,6 +154,28 @@ function MadeWith({
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
     const date = runDate(run.startedAt);
+    const weighted = (descriptor?.weightMeaning ?? null) !== null;
+    // The run's nodes (a path's From and To) are facts like Analysis and Ran: rows, in line with
+    // them. The weight is one row too, saying what the run read, so it is stated once.
+    const options = descriptor?.options ?? [];
+    const rows = options.filter((o) => o.type === "node-id" && o.advanced !== true && o.internal !== true);
+    const fields = options.filter((o) => !rows.includes(o) && !(weighted && o.name === "weight"));
+    const form = (shown: typeof options, advancedLabel?: string): React.JSX.Element | null =>
+        session === null || descriptor === undefined ? null : (
+            <OptionsForm
+                session={session}
+                options={shown}
+                values={settings}
+                words={(option) => optionWords(run.algorithm, option)}
+                weightReads={descriptor.weightMeaning ?? null}
+                algorithm={run.algorithm}
+                canUseSelectedNode
+                advancedLabel={advancedLabel}
+                onChange={(name, value) => {
+                    onDraft({ ...draft, [name]: value });
+                }}
+            />
+        );
 
     return (
         <ControlSection label="Made with" defaultOpened>
@@ -163,24 +185,14 @@ function MadeWith({
                 value={descriptor === undefined ? run.algorithm : wordsFor(descriptor).name}
             />
             {date !== null && <DataRow stat name="Ran" value={date} />}
-            {run.status === "succeeded" && (descriptor?.weightMeaning ?? null) !== null && (
-                // A sentence, not a stat row: "not read -- ..." is too long for a row's value.
-                <Text size="xs" px="md">{`Weight: ${weightReadWords(run.caveats)}`}</Text>
+            {form(rows)}
+            {run.status === "succeeded" && weighted && (
+                <DataRow stat name="Weight" value={weightReadWords(run.caveats)} />
             )}
-            {session !== null && descriptor !== undefined && (
+            {fields.length > 0 && (
                 <Stack gap={8} px="md">
-                    <OptionsForm
-                        session={session}
-                        options={descriptor.options}
-                        values={settings}
-                        words={(option) => optionWords(run.algorithm, option)}
-                        weightReads={descriptor.weightMeaning ?? null}
-                        algorithm={run.algorithm}
-                        canUseSelectedNode
-                        onChange={(name, value) => {
-                            onDraft({ ...draft, [name]: value });
-                        }}
-                    />
+                    {/* Named for the panel, so it is never taken for a popover's own Advanced. */}
+                    {form(fields, "Advanced run settings")}
                 </Stack>
             )}
         </ControlSection>

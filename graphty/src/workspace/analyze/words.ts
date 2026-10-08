@@ -127,7 +127,7 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
     },
     "shortest-path": {
         name: "Shortest path",
-        answers: "The fewest steps, or the lightest route, between two nodes.",
+        answers: "The fewest steps, or the shortest route by weight, between two nodes.",
         aliases: ["route", "dijkstra", "how are they connected"],
         startHere: true,
     },
@@ -329,6 +329,9 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
         choices: { "adamic-adar": "Adamic-Adar", "common-neighbors": "Common neighbors" },
     },
     "link-prediction.topK": { label: "Pairs" },
+    // The Path popover's own words for its ends, so Made with names them the same way.
+    "shortest-path.source": { label: "From" },
+    "shortest-path.target": { label: "To" },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
     "edge-betweenness.k": SAMPLE_SIZE,
@@ -454,21 +457,26 @@ function isMeaning(value: unknown): value is WeightMeaning["meaning"] {
 /**
  * What a run read as its weight, from its caveats (tier2-design.md section 5, "Made with").
  * @param caveats - the run's caveats.
- * @returns "emails (closer)", "none (each edge counts 1)", or "not read -- emails means closer,
- *     and a path needs a distance".
+ * @returns "emails (closer)", "weight, meaning not set, read as closer", "none (each edge counts
+ *     1)", or "not read -- emails means closer, and a path needs a distance".
  */
 export function weightReadWords(caveats: Pick<Caveats, "weight" | "weightSkipped">): string {
     const skipped = caveats.weightSkipped;
     if (skipped !== undefined) {
         const { attribute, meaning, reads } = skipped.params;
         const column = String(attribute);
-        const has = isMeaning(meaning)
-            ? `${column} means ${MEANING_WORDS[meaning]}`
-            : `${column} has no meaning chosen`;
+        // "Meaning not set" is the Data page's own word for a weight nobody gave a meaning.
+        const has = isMeaning(meaning) ? `${column} means ${MEANING_WORDS[meaning]}` : `${column}'s meaning is not set`;
         return `not read -- ${has}, and ${isMeaning(reads) ? NEEDS[reads] : "this analysis reads another kind"}`;
     }
     const read = caveats.weight;
-    return read === null || read === undefined ? "none (each edge counts 1)" : weightName(read.attribute, read.meaning);
+    if (read === null || read === undefined) {
+        return "none (each edge counts 1)";
+    }
+    // A meaning nobody set, which the run assumed: said as such, and how this run read it.
+    return read.assumed === true
+        ? `${read.attribute}, meaning not set, read as ${MEANING_WORDS[read.meaning]}`
+        : weightName(read.attribute, read.meaning);
 }
 
 /**

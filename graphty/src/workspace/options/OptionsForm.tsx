@@ -1,10 +1,11 @@
-import { ControlSubGroup, StyleNumberInput } from "@graphty/compact-mantine";
+import { ControlSubGroup, DataRow, StyleNumberInput } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Button, Checkbox, Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import { ActionIcon, Checkbox, Select, Stack, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightReadWords } from "../analyze/words";
+import { GLYPHS } from "../glyphs";
 
 /** What the app calls one option, and each of its choices. */
 interface OptionLabel {
@@ -36,6 +37,8 @@ interface OptionsFormProps {
     weightReads?: Meaning;
     /** The algorithm the form sets up: the element's plan for it says whether the loaded weight is read. */
     algorithm?: string;
+    /** The Advanced fold's name, when two folds can be on screen at once (the right panel's and a popover's). */
+    advancedLabel?: string;
 }
 
 /** The option types the form draws a control for; the rest keep their defaults. */
@@ -60,7 +63,7 @@ function num(value: unknown): number | undefined {
 }
 
 /** Props for one field. */
-interface FieldProps extends Omit<OptionsFormProps, "options" | "values" | "advanced"> {
+interface FieldProps extends Omit<OptionsFormProps, "options" | "values" | "advanced" | "advancedLabel"> {
     option: OptionDescriptor;
     value: unknown;
 }
@@ -342,21 +345,28 @@ function OptionField({
                 return null;
             }
             const name = id === undefined ? "None" : (session.data.name(id) ?? String(id));
+            // A node is a fact of the run, drawn as the same label and value row as the others.
             return (
-                <Group justify="space-between" wrap="nowrap" gap={8}>
-                    <Text size="xs" truncate>{`${label}: ${name}`}</Text>
-                    {offer ? (
-                        <Button
-                            size="compact-xs"
-                            variant="default"
-                            onClick={() => {
-                                set(selected);
-                            }}
-                        >
-                            Use selected node
-                        </Button>
-                    ) : null}
-                </Group>
+                <DataRow
+                    stat
+                    name={label}
+                    value={name}
+                    trailing={
+                        offer ? (
+                            <Tooltip label="Use selected node">
+                                <ActionIcon
+                                    variant="subtle"
+                                    aria-label={`Use selected node as ${label}`}
+                                    onClick={() => {
+                                        set(selected);
+                                    }}
+                                >
+                                    <GLYPHS.pick size={14} />
+                                </ActionIcon>
+                            </Tooltip>
+                        ) : undefined
+                    }
+                />
             );
         }
         default:
@@ -378,12 +388,14 @@ function OptionField({
  * @param props.weightReads - The meaning of weight the algorithm reads, or null
  * @param props.algorithm - The algorithm the form sets up
  * @param props.advanced - More controls at the end of the Advanced fold
+ * @param props.advancedLabel - The Advanced fold's name
  * @returns The fields
  */
 export function OptionsForm({
     options,
     values,
     advanced: more,
+    advancedLabel = "Advanced",
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
     const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -396,7 +408,7 @@ export function OptionsForm({
         <>
             {drawn.filter((o) => o.advanced !== true).map(field)}
             {advanced.length > 0 || more !== undefined ? (
-                <ControlSubGroup label="Advanced" opened={advancedOpen} onOpenChange={setAdvancedOpen}>
+                <ControlSubGroup label={advancedLabel} opened={advancedOpen} onOpenChange={setAdvancedOpen}>
                     {advancedOpen ? (
                         <Stack gap={8}>
                             {advanced.map(field)}

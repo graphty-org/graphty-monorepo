@@ -15,6 +15,15 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+0. (2026-10-08) **Path form names and Made with rows (app + element, team door).** From/To boxes
+   are named "From node"/"To node" (visible "From"/"To" kept), hints differ ("Where the path
+   starts/ends"); a click pick moves on like Enter; the first option is active (Enter's pick).
+   Popover fold "Advanced", panel fold "Advanced run settings" (`OptionsForm.advancedLabel`);
+   `.ws-analyze .cm-subgroup-control` keeps the chevron inside the popover. Made with: Analysis,
+   Ran, From, To, Weight as DataRows (node-id options are DataRows in `OptionsForm`); the weight
+   is one row of what the run read, no select. Element `WeightMeaning.assumed` (team decision):
+   "weight, meaning not set, read as closer". Header "Path ran Oct 8" when the row is named after
+   its analysis. Evidence `tmp/r1-dry1-path-form-made-with/` (A/02, 03, 08, 11, 13, 15; B/10).
 1. (2026-10-08) **Focus lands on a control (app, no door).** Find path -> the route's first node
    in Values (`focusPathValuesNext(run.id)` from the toolbar, taken in `PathValues`); find-pick
    Enter -> Degree (the Summary group lost `tabIndex=-1`); g / Degree -> the first neighbor, else the
@@ -57,13 +66,9 @@ acceptance test. "The studio worktree" is
    carries everything a live one does.
 8. (2026-10-08) **Marks visible on a colored drawing** (element; owner doors): highlight `#332288`;
    selected edge `edgeColor/edgeScale/edgeOpacity`, band behind via `zOffsetUnits`.
-9. (2026-10-08) **Histogram bands a continuous measure** (element `buildHistogram`); **a line says
-   it can be clicked** (POINTERMOVE sets `hoverCursor`; `--hover-at` prints `cursor:`).
-10. (2026-10-08) Tier 2 pilot fixes (58f02b5d0, a2bbb2248, 32c645e6b): `LoadedSource.leftOut.edges`
-   (owner door), path run opens on Values, Weight box names what the run reads. OPEN: T21 Replace
-   relayouts every node; `real.mjs --prove` failed once in 4 on the first save (cause not found).
-11. (2026-10-07) Still open: Edit source... ADDS (41 -> 82); neighborhood filter has no
-   `direction`; Dijkstra always undirected; `selection.apply` throws synchronously (unfiled).
+9. (2026-10-08) Earlier: histogram bands (`buildHistogram`); edge hover cursor; pilot fixes
+   (`LoadedSource.leftOut.edges`). OPEN: T21 Replace relayouts every node; Edit source... ADDS;
+   neighborhood filter has no `direction`; Dijkstra always undirected.
 
 ## Priorities and values
 
@@ -115,6 +120,17 @@ acceptance test. "The studio worktree" is
   equivalent; Esc closes the innermost thing first; focus never falls to the page body.
 
 ## Decisions and reasons
+
+- (2026-10-08) **Made with states facts as rows, and the weight once, as what the run read.**
+  The weight select left Made with: a rerun with another weight starts from Analyze. Reason: the
+  pilot saw the weight three times in three wordings (sentence, label, select). Whether a meaning
+  was assumed is the run's fact (`caveats.weight.assumed`), not `data.loadedWeight()`, which is
+  the data now and is wrong after a Replace. Rejected: keeping the select and dropping the line
+  (a select cannot say "not read -- ...").
+- (2026-10-08) **A visible label stays exactly "From"; only the accessible name grows.** Reason:
+  the study tool matches exact names first; "From node" as visible text would fall to its
+  partial pass and collide with the inspector's "from PageRank" link. Limit: with the edge
+  table's "From" header on screen, `--click From` still matches two (the header and the label).
 
 - (2026-10-08) **After a surface comes up (project open, Data page closed) focus goes to the open
   place's rail button, never a tree row and never the find box.** Reason: a focused tree row takes
@@ -176,6 +192,10 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) The study tool's `combobox ""` in an ambiguity line is its own description
+  (aria-label or innerText or value), not the accessible name: the From box WAS named "From" by
+  its label. The real defects were the shared placeholder and the shared "From" with the table.
+
 - (2026-10-08) Did not work: landing focus on the left panel's tree after open -- Tree typeahead
   claims every one-character key, so the study's single-key shortcuts typed nothing. Worked: a
   plain button (rail). A project that opens ON the Data page (New from data...) must not take
@@ -191,9 +211,8 @@ acceptance test. "The studio worktree" is
 - (2026-10-08) A Mantine tooltip in a full browser-project run: `findByRole("tooltip")` missed one
   that was in the page with its text (testing-library judged it inaccessible); alone it passed.
   `findByText(...)` then `closest('[role="tooltip"]')` holds in both.
-- (2026-10-08) A world-space label size cannot be "legible" everywhere: 96 read ~14 px on the
-  20-node friends file and ~30 px on 9-node trails. 72 is the compromise; the real fix is a
-  screen-space label size in the element.
+- (2026-10-08) A world-space label size is never legible everywhere (72 is the compromise; the
+  fix is a screen-space size in the element).
 - (2026-10-08) Adding a `set` channel to a layer can add a legend block: the element lists every
   literal set; the app's `keyBlocks` decides what is keyed (now skips `*.labelStyle`).
 - (2026-10-08) Unrelated and not mine: toolbar real-element "frames a selected edge's two ends"
@@ -216,9 +235,6 @@ acceptance test. "The studio worktree" is
   Proving a test fails without the change with no stash: `git diff -- <src> > p.patch`,
   `git apply -R`, run, `git apply`. Did not work: putting an attribute's fill in `count` (its
   description already reads the fill; a test caught the doubled reading).
-- (2026-10-08) compact-mantine full run: `toolbar.test.tsx` "keeps the last picked face" hit the
-  5 s test timeout (5.5 s) while the browser project shared the CPU; alone it passes in time. Not
-  touched by row changes; watch it if it recurs.
 
 - (2026-10-08) Worked: canvas `measureText` for a DataTable column's content width, once the
   font weight and `letterSpacing` match the cell's (400 weight measured 3px short at 450). A
@@ -228,9 +244,8 @@ acceptance test. "The studio worktree" is
 - (2026-10-08) Worked: comparing `run.record.summary` before save and after open in a node test.
   Comparing the whole summary did NOT work: caveats and durationMs differ because the file saves
   the record's merged caveats and wall time, not the executor's raw ones -- compare the counts.
-- (2026-10-08) Choosing a default color: measure it, never eyeball. `default-palette-quality.test.ts`
-  has the color science (OKLab, Machado CVD); a scratch copy in `tmp/r1-dry1-marks-visible/`
-  (`search.mjs` grid search, `pair.mjs` pairwise) found the feasible region in seconds.
+- (2026-10-08) Choose a default color by measuring (`default-palette-quality.test.ts`: OKLab,
+  Machado CVD), never by eye.
 - (2026-10-08) Drawing one line mesh behind another at the same depth: `material.zOffset` did
   NOTHING (it is slope-scaled; a screen-facing quad has slope 0); `zOffsetUnits` worked. Probe:
   a one-pixel column of `engine.readPixels` across the line, before and after.
@@ -252,9 +267,8 @@ none)` on; not fixed).
 - (2026-10-07) A partial-hunk commit by another agent can leave HEAD broken (`isLoadedSource`
   cut off; fixed 0c12c233b). `api:report` reads `dist/` types: build the element first, stage
   only my hunks. Bars: 41 app words at rest (limit 50); axe 0 on 13 screens (`tool/bars.mjs`).
-- (2026-10-07) A header above a list moves Tab counts (list-collecting tests must skip its buttons).
-- (2026-10-07) The element FREEZES Babylon's active-mesh list on a still frame: a mesh toggled
-  outside an update pass needs `getUpdateManager().meshesShownOrHidden()`.
+- (2026-10-07) A mesh toggled outside an update pass needs `meshesShownOrHidden()` (frozen
+  active-mesh list); an edge rebuilt outside a style pass needs `forceEdgeWalk()`.
 - (2026-10-07) Study prep: `project.open(file)` does NOT load into the element; `tmp/` is
   gitignored (copy evidence under `rounds/`). Tool: Find `=id == 'A' || id == 'B'`; freeze with
   `REAL_DIST`; add a file to an open project with `--key Control+o --upload`.
@@ -266,9 +280,8 @@ none)` on; not fixed).
   `selection.apply` THROWS SYNCHRONOUSLY on a bad selector (element defect, unfiled). Mantine
   TextInput: `error={text}` + `errorProps={{ role: "alert" }}`; selector `position` is 0-based after "=".
 
-- (2026-10-07) `--hover "<name>"` rests on the row's CENTER (often its count); `--hover-at` on a point.
-  Hovering a filter step by its checkbox name ("Apply step: ...") hits the checkbox, whose own
-  tooltip is none: hover the row's words ("weight is at least 4") to see the cut-name tooltip.
+- (2026-10-07) `--hover "<name>"` rests on the row's CENTER; hover a row's words, not its
+  checkbox name, to see a cut-name tooltip.
 - (2026-10-06 to 10-07) **Committing in the shared worktree (condensed).** Others stage and commit
   here continuously: commit from an empty `git diff --cached`, check `git show --stat HEAD` lists
   only my files. For a file others have dirty: a private index (`GIT_INDEX_FILE=<sp>/x.index git
@@ -285,7 +298,6 @@ reset -q HEAD -- <my paths>` in the real index). Never commit `npm run api:repor
   Sources "+" draws nothing (`data.add-*` unregistered); add a file with `--key Control+o --upload`.
 - (2026-10-07) Pixel assertions: `waitForStableFrame()`, `scene.render()`, `engine.readPixels` (rows
   from the bottom); a 1-px column across a line (`columnAt`, element-at.test.ts).
-- (2026-10-07) Edge rebuilt outside a style pass needs `updateManager.forceEdgeWalk()`.
 - (2026-10-07) **Tests.** A `Run` is thenable: return `{ caveats: run.caveats, result: run.result }`
   from async helpers. Mock graphs have no session (`?.`, or `createMockGraph({ loadedWeight })`).
   An order-dependent browser test means leaked page state (b40f264a9: CDP touch emulation left on).

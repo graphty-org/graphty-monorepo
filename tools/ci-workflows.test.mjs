@@ -233,6 +233,37 @@ describe("the pre-push gate matches CI", () => {
         }
     });
 
+    it("ends non-zero when a shard fails, even after its log stream ended and while another shard runs", () => {
+        // A copy of the runner beside a fake matrix and a fake run-tests.sh, in a throwaway repository:
+        // "broken" closes its output (so the log stream has finished) and then fails; "slow" is still
+        // running then and is stopped. The stopped shard closing last must still end the stage.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-tests-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
+            const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
+            writeFileSync(
+                join(dir, "tools/ci-test-matrix.mjs"),
+                `export const SHARDS = ${JSON.stringify([shard("broken"), shard("slow")])};\n`,
+            );
+            writeFileSync(
+                join(dir, "tools/run-tests.sh"),
+                'if [ "$1" = broken ]; then echo broken output; exec >&- 2>&-; sleep 1; exit 1; fi\nexec sleep 60\n',
+            );
+            assert.equal(spawnSync("git", ["init", "-q"], { cwd: dir }).status, 0);
+            const run = spawnSync(process.execPath, ["tools/prepush-tests.mjs", '["broken","slow"]'], {
+                cwd: dir,
+                encoding: "utf8",
+                timeout: 60_000,
+            });
+            assert.match(run.stdout, /\[FAIL\] broken \(exit 1/);
+            assert.match(run.stdout, /Stopped after broken failed/);
+            assert.equal(run.status, 1, run.stdout + run.stderr);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it("warms each package's caches one family at a time before the rest of the package starts", () => {
         const shards = localShards(["graphty-element", "layout"]);
         const pick = (n) => shards.find((s) => s.shard === n);

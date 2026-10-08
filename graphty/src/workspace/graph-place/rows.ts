@@ -7,6 +7,8 @@
 import type { LayerId, RunId } from "@graphty/graphty-element/catalog";
 import { type GraphSession, RESULT_SHAPE_CONTRACTS } from "@graphty/graphty-element/session";
 
+import { runName } from "../runWords";
+
 /** The kind of a row, which is also the inspected kind a click on it opens (the inspector's kinds). */
 export type RowKind = "selection-row" | "measure-row" | "run-row" | "group-row" | "layer-row" | "everything-row";
 
@@ -67,7 +69,7 @@ export function paintRows(session: GraphSession): PaintRow[] {
         const hidden = owned.length > 0 && owned.every((layer) => !layer.enabled);
         const base = {
             id: run.id,
-            name: run.label,
+            name: runName(session, run),
             state: stateOf(run.status, run.partial),
             problem: run.error?.message,
             layerIds: owned.map((layer) => layer.id),

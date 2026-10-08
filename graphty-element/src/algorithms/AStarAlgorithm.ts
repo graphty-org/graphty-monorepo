@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { SimplifyPolicy } from "./input/derivedInputs";
 import { scopeEdges, type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
@@ -183,15 +184,9 @@ export class AStarAlgorithm extends DeclaredAlgorithm<AStarOptions> {
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
                 exact: heuristic === "none",
-                notes: [
-                    found
-                        ? `Route from ${String(source)} to ${String(target)}.`
-                        : `No route runs from ${String(source)} to ${String(target)}.`,
-                    ...(heuristic === "none"
-                        ? []
-                        : [
-                              "Steered by the straight-line distance between the nodes' current positions: the route is the cheapest only when every edge weighs at least the distance it spans.",
-                          ]),
+                facts: [
+                    caveat(found ? "route.found" : "route.none", { source, target }),
+                    ...(heuristic === "none" ? [] : [caveat("astar.straight-line")]),
                 ],
             }),
         };

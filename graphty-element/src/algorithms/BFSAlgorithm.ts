@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -179,15 +180,11 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
             ...LAYERED_GROUPING_FIELD_SPECS,
             { name: "order", kind: "node", type: "integer" },
         ];
-        const notes = [`Walked outwards from ${String(source)}, which is level 0.`];
+        const facts = [caveat("bfs.origin", { source })];
 
         if (targetNode !== undefined) {
             fields.push({ name: "targetFound", kind: "graph", type: "boolean" });
-            notes.push(
-                stop === -1
-                    ? `The walk never reached ${String(targetNode)}, so it covered everything reachable.`
-                    : `The walk stopped at ${String(targetNode)}.`,
-            );
+            facts.push(caveat(stop === -1 ? "bfs.target-unreached" : "bfs.target-reached", { target: targetNode }));
         }
 
         return {
@@ -200,7 +197,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
                 direction: "undirected",
                 weight: null,
                 precision,
-                notes,
+                facts,
             }),
         };
     }

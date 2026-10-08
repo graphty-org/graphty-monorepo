@@ -68,13 +68,21 @@ function renderTable(ui: React.ReactElement): ReturnType<typeof render> {
     return render(<MantineProvider theme={compactTheme}>{ui}</MantineProvider>);
 }
 
+// The helpers below query with `hidden: true`, which skips testing-library's visibility check.
+// That check reads the computed style of every candidate and its ancestors, and after each DOM
+// change jsdom re-matches the whole package stylesheet for those reads: a sorting test made 200
+// of them and timed out in a loaded pre-push gate (issue #1514). For the same reason a header is
+// found by its text rather than by its accessible name, whose computation reads the display of
+// every node inside it. The helpers find cells and headers to read; whether those are visible,
+// and how they are named, is not what the tests using them ask (the structure tests do).
+
 /**
  * The rows currently drawn, read from the first cell of each.
  * @returns One string per drawn row
  */
 function drawnNames(): string[] {
     return screen.getAllByTestId("data-table-row").map((row) => {
-        const cells = within(row).getAllByRole("gridcell");
+        const cells = within(row).getAllByRole("gridcell", { hidden: true });
         return cells[0].textContent ?? "";
     });
 }
@@ -87,7 +95,7 @@ function drawnNames(): string[] {
 function rowNamed(name: string): HTMLElement {
     const row = screen
         .getAllByTestId("data-table-row")
-        .find((candidate) => within(candidate).getAllByRole("gridcell")[0].textContent === name);
+        .find((candidate) => within(candidate).getAllByRole("gridcell", { hidden: true })[0].textContent === name);
 
     if (row === undefined) {
         throw new Error(`no drawn row named ${name}`);
@@ -103,7 +111,7 @@ function rowNamed(name: string): HTMLElement {
  * @returns The cell element
  */
 function cellIn(name: string, column = 0): HTMLElement {
-    return within(rowNamed(name)).getAllByRole("gridcell")[column];
+    return within(rowNamed(name)).getAllByRole("gridcell", { hidden: true })[column];
 }
 
 /**
@@ -112,7 +120,15 @@ function cellIn(name: string, column = 0): HTMLElement {
  * @returns The column header element
  */
 function headerFor(header: string): HTMLElement {
-    return screen.getByRole("columnheader", { name: new RegExp(header) });
+    const cell = screen
+        .getAllByRole("columnheader", { hidden: true })
+        .find((candidate) => candidate.textContent?.includes(header));
+
+    if (cell === undefined) {
+        throw new Error(`no column header holding ${header}`);
+    }
+
+    return cell;
 }
 
 describe("DataTable structure", () => {

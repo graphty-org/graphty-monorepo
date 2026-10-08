@@ -14,9 +14,38 @@
 
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
-import { skipIfNoApiKey } from "../../helpers/llm-regression-env";
-import { LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
+import { getLlmRegressionCaseTimeoutMs, skipIfNoApiKey } from "../../helpers/llm-regression-env";
+import { type LlmRegressionResult, LlmRegressionTestHarness } from "../../helpers/llm-regression-harness";
 import { serverNetworkFixture } from "./fixtures/test-graph-fixtures";
+
+/** The built-in tools that only read: a model may call these to look before it acts. */
+const READ_ONLY_TOOLS = new Set([
+    "queryGraph",
+    "findNodes",
+    "getSchema",
+    "sampleData",
+    "describeProperty",
+    "listAlgorithms",
+]);
+
+/**
+ * The tools a prompt made the model call that change the graph, its styles or the view.
+ * @param result - The prompt's result.
+ * @returns Their names, in call order.
+ */
+function actionsOf(result: LlmRegressionResult): string[] {
+    return result.toolCalls.map((call) => call.name).filter((name) => !READ_ONLY_TOOLS.has(name));
+}
+
+/**
+ * Assert that a prompt changed nothing and that the model said something to the reader: what a
+ * prompt with nothing to act on, or asking for something the element cannot do, should get.
+ * @param result - The prompt's result.
+ */
+function assertAnsweredWithoutActing(result: LlmRegressionResult): void {
+    assert.deepStrictEqual(actionsOf(result), [], "Expected no tool that changes the graph or the view");
+    assert.ok(result.llmText && result.llmText.trim().length > 0, "Expected the model to answer in text");
+}
 
 describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
     let harness: LlmRegressionTestHarness;
@@ -35,59 +64,50 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
         it("handles 'change the view' with reasonable tool choice", async () => {
             const result = await harness.testPrompt("change the view");
 
-            // This is ambiguous - could be camera, layout, or dimension
-            // We accept any of these reasonable interpretations
-            if (result.toolWasCalled) {
-                const validTools = ["setCameraPosition", "setLayout", "setDimension", "zoomToNodes"];
-                assert.ok(
-                    result.toolName && validTools.includes(result.toolName),
-                    `Expected one of ${validTools.join(", ")} but got '${result.toolName}'`,
-                );
+            // Ambiguous: camera, layout or dimension are all reasonable, and so is asking which.
+            // What is not reasonable is changing anything else.
+            const validTools = ["setCameraPosition", "setLayout", "setDimension", "zoomToNodes"];
+            const actions = actionsOf(result);
+            for (const action of actions) {
+                assert.include(validTools, action, `Expected only view changes but got '${action}'`);
             }
 
-            // Also acceptable: LLM asks for clarification via text response
-            // In that case, toolWasCalled would be false and llmText would have content
             assert.ok(
-                result.toolWasCalled || (result.llmText !== null && result.llmText.length > 0),
-                "Expected either a tool call or a text response asking for clarification",
+                actions.length > 0 || (result.llmText !== null && result.llmText.length > 0),
+                "Expected either a view change or a text response asking for clarification",
             );
         });
 
         it("handles 'make it pretty' with style-related tool", async () => {
             const result = await harness.testPrompt("make it pretty");
 
-            // This is subjective - expect a styling-related tool
-            if (result.toolWasCalled) {
-                const styleTools = ["findAndStyleNodes", "findAndStyleEdges", "setLayout"];
-                assert.ok(
-                    result.toolName && styleTools.includes(result.toolName),
-                    `Expected a style-related tool but got '${result.toolName}'`,
-                );
+            // Subjective: restyling, re-laying-out and reframing the view are all reasonable, and so
+            // is asking what "pretty" means. Running algorithms or entering VR is not.
+            const styleTools = [
+                "findAndStyleNodes",
+                "findAndStyleEdges",
+                "clearStyles",
+                "setLayout",
+                "setCameraPosition",
+                "zoomToNodes",
+            ];
+            const actions = actionsOf(result);
+            for (const action of actions) {
+                assert.include(styleTools, action, `Expected only style or layout changes but got '${action}'`);
             }
 
-            // LLM might also just respond with text if it needs clarification
             assert.ok(
-                result.toolWasCalled || (result.llmText !== null && result.llmText.length > 0),
-                "Expected either a tool call or a text response",
+                actions.length > 0 || (result.llmText !== null && result.llmText.length > 0),
+                "Expected either a style change or a text response",
             );
         });
 
         it("handles 'analyze the graph' with query or algorithm tool", async () => {
             const result = await harness.testPrompt("analyze the graph");
 
-            // Could be interpreted as querying info or running an algorithm
-            if (result.toolWasCalled) {
-                const analysisTools = [
-                    "queryGraph",
-                    "runAlgorithm",
-                    "sampleData",
-                    "describeProperty",
-                    "listAlgorithms",
-                ];
-                assert.ok(
-                    result.toolName && analysisTools.includes(result.toolName),
-                    `Expected an analysis-related tool but got '${result.toolName}'`,
-                );
+            // Analysis reads the graph or runs an algorithm; it restyles and moves nothing.
+            for (const action of actionsOf(result)) {
+                assert.strictEqual(action, "runAlgorithm", `Expected only analysis but got '${action}'`);
             }
 
             assert.ok(
@@ -101,47 +121,30 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
         it("handles 'show me server nodes and make them blue'", async () => {
             const result = await harness.testPrompt("show me server nodes and make them blue");
 
-            // This has two parts: finding and styling
-            // LLM might call findAndStyleNodes (combines both) or findNodes first
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const validTools = ["findAndStyleNodes", "findNodes"];
+            // Two parts, finding and styling. The model may look first (findNodes), but the
+            // styling has to happen: a style layer on the server nodes with a color.
+            const styled = result.toolCalls.find((call) => call.name === "findAndStyleNodes");
+            assert.ok(styled, `Expected findAndStyleNodes among ${result.toolCalls.map((c) => c.name).join(", ")}`);
+            const selector = typeof styled.arguments.selector === "string" ? styled.arguments.selector : "";
+            const style = styled.arguments.style as Record<string, unknown> | undefined;
             assert.ok(
-                result.toolName && validTools.includes(result.toolName),
-                `Expected findAndStyleNodes or findNodes but got '${result.toolName}'`,
+                selector.toLowerCase().includes("server"),
+                `Expected selector to reference 'server' but got '${selector}'`,
             );
-
-            // If findAndStyleNodes, verify it has both selector and style
-            if (result.toolName === "findAndStyleNodes") {
-                assert.ok(result.toolParams, "Expected tool parameters");
-                const selector = result.toolParams.selector as string | undefined;
-                const style = result.toolParams.style as Record<string, unknown> | undefined;
-
-                // Should reference 'server' in selector
-                if (selector) {
-                    assert.ok(
-                        selector.toLowerCase().includes("server"),
-                        `Expected selector to reference 'server' but got '${selector}'`,
-                    );
-                }
-
-                // Should have color in style
-                if (style) {
-                    assert.ok(style.color !== undefined, "Expected style to include color property");
-                }
-            }
+            assert.ok(style?.color !== undefined, "Expected style to include color property");
         });
 
         it("handles 'highlight nodes with high weight connections'", async () => {
             const result = await harness.testPrompt("highlight nodes with high weight connections");
 
-            // This requires understanding edge weights and applying styles
-            // Could be findAndStyleNodes, findAndStyleEdges, or a query first
-            assert.ok(result.toolWasCalled, "Expected a tool to be called");
-            const validTools = ["findAndStyleNodes", "findAndStyleEdges", "findNodes", "runAlgorithm"];
-            assert.ok(
-                result.toolName && validTools.includes(result.toolName),
-                `Expected a relevant tool but got '${result.toolName}'`,
-            );
+            // Highlighting is styling (clearing earlier styles first included), after any looking the
+            // model needs to choose a threshold.
+            const actions = actionsOf(result);
+            assert.ok(actions.length > 0, "Expected the model to highlight something");
+            const validTools = ["findAndStyleNodes", "findAndStyleEdges", "clearStyles", "runAlgorithm"];
+            for (const action of actions) {
+                assert.include(validTools, action, `Expected a highlighting tool but got '${action}'`);
+            }
         });
     });
 
@@ -149,28 +152,22 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
         it("returns text response for 'hello'", async () => {
             const result = await harness.testPrompt("hello");
 
-            // A greeting should not trigger any graph tool
-            // LLM should respond with text
-            assert.ok(result.llmText, "Expected a text response");
-            assert.ok(result.llmText.length > 0, "Expected non-empty text response");
-
-            // It's acceptable if a tool was called, but typically greetings get text responses
-            // We're just verifying it doesn't crash and produces some output
+            // A greeting changes nothing and gets an answer.
+            assertAnsweredWithoutActing(result);
         });
 
         it("returns text response for 'what can you do?'", async () => {
             const result = await harness.testPrompt("what can you do?");
 
-            // Should explain capabilities, not call a tool
-            assert.ok(result.llmText, "Expected a text response");
-            assert.ok(result.llmText.length > 0, "Expected non-empty text response");
+            // Explaining what it can do changes nothing.
+            assertAnsweredWithoutActing(result);
         });
 
         it("returns text response for 'thanks!'", async () => {
             const result = await harness.testPrompt("thanks!");
 
-            // A simple acknowledgment should get text response
-            assert.ok(result.llmText, "Expected a text response");
+            // An acknowledgment changes nothing.
+            assertAnsweredWithoutActing(result);
         });
     });
 
@@ -178,30 +175,23 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
         it("handles gracefully when asked about non-existent features", async () => {
             const result = await harness.testPrompt("Enable the quantum entanglement mode for nodes");
 
-            // This feature doesn't exist - should handle gracefully
-            // Either explain it's not available or try closest match
-            assert.ok(result.llmText !== null || result.toolWasCalled, "Expected some response (text or tool attempt)");
-
-            // Should not throw an error
-            assert.ok(result.error === undefined, "Expected no error to be thrown");
+            // The element has no such mode. The model must say so rather than change something
+            // else in its place (setImmersiveMode is the tempting wrong answer).
+            assertAnsweredWithoutActing(result);
         });
 
         it("handles empty-ish prompts gracefully", async () => {
             const result = await harness.testPrompt("...");
 
-            // A minimal/unclear prompt should still get a response
-            assert.ok(result.llmText !== null || result.toolWasCalled, "Expected some response");
-            assert.ok(result.error === undefined, "Expected no error");
+            // Nothing was asked, so nothing may change; the model should ask what is wanted.
+            assertAnsweredWithoutActing(result);
         });
 
         it("handles prompts with only special characters", async () => {
             const result = await harness.testPrompt("??? !!! ###");
 
-            // Should handle gracefully without crashing
-            assert.ok(
-                result.llmText !== null || result.toolWasCalled || result.error === undefined,
-                "Expected graceful handling",
-            );
+            // Noise asks for nothing, so nothing may change; the model should ask what is wanted.
+            assertAnsweredWithoutActing(result);
         });
     });
 
@@ -210,7 +200,10 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             const result = await harness.testPrompt("do something interesting");
 
             // Should either take action or provide guidance
-            assert.ok(result.llmText && result.llmText.length > 5, "Expected informative response");
+            assert.ok(
+                actionsOf(result).length > 0 || (result.llmText !== null && result.llmText.length > 5),
+                "Expected an action or an informative response",
+            );
         });
 
         it("measures latency for complex prompts", async () => {
@@ -219,7 +212,7 @@ describe.skipIf(skipIfNoApiKey())("Edge Cases LLM Regression", () => {
             );
 
             assert.ok(result.latencyMs > 0, "Expected positive latency");
-            assert.ok(result.latencyMs < 60000, "Expected latency under 60 seconds");
+            assert.ok(result.latencyMs < getLlmRegressionCaseTimeoutMs(), "Expected latency under the per-case limit");
         });
     });
 });

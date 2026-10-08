@@ -1125,6 +1125,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             id: READ,
             label: READ,
+            distinguishedBy: READ,
+            siblingsDifferBy: READ,
             algorithm: READ,
             params: READ,
             scope: READ,
@@ -1224,6 +1226,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 ),
             ),
             snapshotStale: READ,
+            holdsNoRows: READ,
             // Strict state's check after every derivation pass.
             sliceProblems: READ,
             beginLoad: IN_FLIGHT,
@@ -1917,6 +1920,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPlaced: READ,
             read: READ,
             generation: READ,
+            changes: READ,
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,

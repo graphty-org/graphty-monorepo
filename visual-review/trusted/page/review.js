@@ -1028,8 +1028,13 @@ async function followTargets(seq, ask) {
             backgroundLine(list, net);
         }
         ask = "cached";
-        const busy = list.refreshing || !list.targets || list.targets.some((t) => t.downloading);
-        await sleep(busy ? 700 : 5000);
+        // With no list yet the reader is blocked on it: look again soon, so it shows when the
+        // first load ends, not up to 700 ms later (#1530).
+        let wait = 250;
+        if (list.targets) {
+            wait = list.refreshing || list.targets.some((t) => t.downloading) ? 700 : 5000;
+        }
+        await sleep(wait);
         if (seq !== nav) {
             box?.end();
             return;
@@ -4531,7 +4536,9 @@ async function watchFinish() {
                 spoken = step;
             }
             drawFinishPanel();
-            await sleep(1000);
+            // A quarter second: the status is an in-memory read, and a one-second wait left a job
+            // that ended just after a check unseen for up to a second (#1530).
+            await sleep(250);
             try {
                 track((await api("/api/finish-status")).job);
             } catch (err) {
@@ -4651,6 +4658,8 @@ function drawFinishPanel() {
             : "Publishing your decisions. Closing or reloading this page does not stop it.",
         body: panel,
         detail: `${Math.max(now, 0)} of ${plural(steps.length, "step")} done`,
+        // The server's step ends "(retrying after a network error, attempt 2 of 4)" while it retries.
+        net: /\((retrying after a network error[^)]*)\)$/.exec(step)?.[1].replace(/^r/, "R") ?? "",
         done: Math.max(now, 0),
         total: steps.length,
         since: state.finishSeen ?? performance.now(),

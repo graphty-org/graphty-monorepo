@@ -331,7 +331,7 @@ export function sourceName(session: GraphSession, binding: DataBinding): string 
 }
 
 /** The legend block of a run that paints a color. */
-export type ColorBlock = ReturnType<GraphSession["styles"]["legend"]>[number];
+type ColorBlock = ReturnType<GraphSession["styles"]["legend"]>[number];
 
 /**
  * The legend block through which a run paints its color, or undefined when it paints none (or
@@ -345,7 +345,7 @@ export function colorBlockOf(session: GraphSession, runId: string): ColorBlock |
 }
 
 /** Where a run binds its color: the layer, the channel and the binding, read from the style stack. */
-export interface RunColor {
+interface RunColor {
     readonly layerId: LayerId;
     readonly channel: Channel;
     readonly binding: DataBinding;

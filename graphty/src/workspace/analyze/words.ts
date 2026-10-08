@@ -398,7 +398,7 @@ const MEANING_GLOSS: Readonly<Record<WeightMeaning["meaning"] | "unset", string>
  * @param meaning - the meaning.
  * @returns "closer", "farther", "capacity", or null when none was chosen.
  */
-export function meaningWord(meaning: Meaning): string | null {
+function meaningWord(meaning: Meaning): string | null {
     return meaning === null ? null : MEANING_WORDS[meaning];
 }
 
@@ -467,7 +467,7 @@ export function weightReadWords(caveats: Pick<Caveats, "weight" | "weightSkipped
  * @param run - the run.
  * @returns the words, or null.
  */
-export function pathWords(session: GraphSession, run: Run): { from: string; to: string; hops: string | null } | null {
+function pathWords(session: GraphSession, run: Run): { from: string; to: string; hops: string | null } | null {
     const graph = run.result?.graph;
     if (run.shape !== "path" || graph === undefined) {
         return null;

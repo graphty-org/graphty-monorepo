@@ -169,7 +169,7 @@ export function unavailable(
 }
 
 /** One row of the Layout list. */
-export interface LayoutChoice {
+interface LayoutChoice {
     readonly descriptor: LayoutDescriptor;
     readonly name: string;
     readonly current: boolean;

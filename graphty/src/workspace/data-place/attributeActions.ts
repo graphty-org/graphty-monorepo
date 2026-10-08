@@ -38,7 +38,7 @@ function labelRefusalFor(session: GraphSession, column: ColumnRef): string | nul
  * @param tableBuilt - whether the table dock is built.
  * @returns the verbs, possibly none.
  */
-export function attributeActions(
+function attributeActions(
     column: ColumnRef,
     session: GraphSession | null,
     store: WorkspaceStore,

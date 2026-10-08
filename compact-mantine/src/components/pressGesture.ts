@@ -9,13 +9,13 @@
  */
 
 /** How long a press must be held still to count as a hold, in ms. */
-export const HOLD_MS = 500;
+const HOLD_MS = 500;
 
 /** How far a press may wander, in px, and still be held still. */
-export const HOLD_SLOP = 8;
+const HOLD_SLOP = 8;
 
 /** What a joined handler hears about the press. */
-export interface PressHandlers {
+interface PressHandlers {
     /** The press was held still for HOLD_MS. */
     onHold?: () => void;
     /** A held press moved more than HOLD_SLOP: it is now a drag. Called once. */
@@ -122,12 +122,4 @@ export function joinPress(down: PointerEvent, handlers: PressHandlers): void {
         press = fresh;
     }
     press.handlers.push(handlers);
-}
-
-/**
- * End a press early, as if the finger had lifted: its timer stops and every handler hears onEnd.
- * @param pointerId - the press's pointer
- */
-export function endPress(pointerId: number): void {
-    end(pointerId);
 }

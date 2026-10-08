@@ -63,8 +63,6 @@ import {
 
 import type { InspectedKindId } from "./inspector/inspected";
 
-export type { LucideIcon };
-
 /** The icon of each concept the workspace draws. */
 export const GLYPHS = {
     // Things in the graph.

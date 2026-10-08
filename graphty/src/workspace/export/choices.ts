@@ -40,7 +40,7 @@ export interface DataChoices {
 export const DEFAULT_DATA: DataChoices = { format: "graphty", values: {} };
 
 /** One row of the Data output's Format list: a format, or one of its export variants. */
-export interface FormatRow {
+interface FormatRow {
     /** `<format>` or `<format>/<variant>`. */
     readonly id: string;
     readonly format: string;
@@ -93,7 +93,7 @@ export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
  * @param row - the row.
  * @returns the key options.
  */
-export function keyOptions(row: FormatRow): readonly OptionDescriptor[] {
+function keyOptions(row: FormatRow): readonly OptionDescriptor[] {
     return row.options.filter((option) => option.advanced !== true && option.type === "enum");
 }
 

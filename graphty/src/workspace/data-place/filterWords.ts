@@ -81,7 +81,7 @@ export function applyName(words: string): string {
 }
 
 /** How much of the graph is showing, as the element's summary has it. */
-export interface Showing {
+interface Showing {
     readonly visibleNodes: number;
     readonly totalNodes: number;
     readonly visibleEdges: number;

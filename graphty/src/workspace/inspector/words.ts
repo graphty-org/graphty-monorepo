@@ -307,7 +307,7 @@ export function rankedName(group: SummaryGroup | undefined): string {
 }
 
 /** An immersive mode, or both of them in one row. */
-export type XrRowMode = "vr" | "ar" | "both";
+type XrRowMode = "vr" | "ar" | "both";
 
 const XR_MODE_WORDS: Readonly<Record<XrRowMode, string>> = { vr: "VR", ar: "AR", both: "VR or AR" };
 

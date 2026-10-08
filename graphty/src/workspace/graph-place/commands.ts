@@ -9,7 +9,7 @@ import { findRow, isMovable, layerAbove, type PaintRow, paintRows, type RowKind 
  * A command on one paint-tree row. Every door to it -- the row's context menu, the inspector
  * header's "...", the row's keys, Quick actions -- runs this one list, so they always agree.
  */
-export interface RowCommand {
+interface RowCommand {
     readonly id: string;
     readonly label: string;
     /** The keys that run it on the focused row, the first shown in menus. */

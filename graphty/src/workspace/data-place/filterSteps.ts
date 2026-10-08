@@ -9,7 +9,7 @@ import type { WorkspaceStore } from "../state/store";
 import { historyNotice, type Namer, ruleWords } from "./filterWords";
 
 /** The inspected kind of the step editor; its id is a step id, or `NEW` for a new step. */
-export const STEP_KIND = "filter-step";
+const STEP_KIND = "filter-step";
 /** The editor's id for a new step; `NEW:<node|edge>:<path>` opens it with an attribute filled. */
 export const NEW = "new";
 
@@ -18,7 +18,7 @@ export const NEW = "new";
  * @param session - the element's session.
  * @returns the namer.
  */
-export function namerOf(session: GraphSession): Namer {
+function namerOf(session: GraphSession): Namer {
     const attributes = session.data.attributes();
     return {
         attribute: (path) => attributes.find((a) => a.path === path)?.plainName ?? path.replace(/^data\./, ""),

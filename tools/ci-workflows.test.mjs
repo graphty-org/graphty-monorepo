@@ -36,7 +36,7 @@ import {
     revertTitle,
 } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
-import { fingerprint, outputHash } from "./prepush-inputs.mjs";
+import { fingerprint, inputKey, outputHash, partitionByPasses, passStore, related } from "./prepush-inputs.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
@@ -244,6 +244,7 @@ describe("the pre-push gate matches CI", () => {
             copyFileSync(new URL("./prepush-tests.mjs", import.meta.url), join(dir, "tools/prepush-tests.mjs"));
             // The runner wraps every shard in the machine-wide test slot (it imports only node builtins).
             copyFileSync(new URL("./test-slots.mjs", import.meta.url), join(dir, "tools/test-slots.mjs"));
+            copyFileSync(new URL("./prepush-inputs.mjs", import.meta.url), join(dir, "tools/prepush-inputs.mjs"));
             const shard = (name) => ({ shard: name, package: name, "test-command": "true", "needs-browser": false });
             writeFileSync(
                 join(dir, "tools/ci-test-matrix.mjs"),
@@ -2663,7 +2664,7 @@ describe("a failed pre-push test shard (#1562)", () => {
         try {
             mkdirSync(join(dir, "tools"));
             mkdirSync(join(dir, "tmp"));
-            for (const f of ["prepush-tests.mjs", "test-slots.mjs"]) {
+            for (const f of ["prepush-tests.mjs", "test-slots.mjs", "prepush-inputs.mjs"]) {
                 copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
             }
             const shard = { shard: "fake", package: "fake", "test-command": "true", "needs-browser": false };
@@ -2691,6 +2692,156 @@ describe("a failed pre-push test shard (#1562)", () => {
             assert.match(firstLog, /FAIL {2}src\/a\.test\.ts > draws the edge/);
             assert.match(firstLog, /Test timed out in 5000ms/);
             assert.equal(readdirSync(join(dir, "tmp/push-gate-logs")).length, 2);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("pre-push shards skipped on inputs that already passed (tools/prepush-inputs.mjs)", () => {
+    const shard = (name, pkg = name) => ({ shard: name, package: pkg, "test-command": "true", "needs-browser": false });
+    const roots = new Map([
+        ["graph-format", "graph-format"],
+        ["graphty-element", "graphty-element"],
+        ["graphty", "graphty"],
+    ]);
+    const files = (changes = {}) =>
+        new Map(
+            Object.entries({
+                "pnpm-lock.yaml": "a",
+                "tools/run-tests.sh": "a",
+                "graph-format/src/a.ts": "a",
+                "graphty-element/src/b.ts": "a",
+                "graphty/src/c.ts": "a",
+                ...changes,
+            }),
+        );
+    // graphty-element depends on graph-format; graphty is a dependent of graphty-element, not an input.
+    const include = related("graphty-element", new Map([["graphty-element", new Set(["graph-format"])]]));
+    const key = (changes, outputs = new Map([["graph-format/dist", "x"]])) =>
+        inputKey(shard("graphty-element-default", "graphty-element"), files(changes), roots, include, outputs, {});
+
+    it("runs a shard that never passed, and one whose key is unknown", () => {
+        const shards = [shard("a"), shard("b")];
+        const { run, skipped } = partitionByPasses(
+            shards,
+            new Map([
+                ["a", "k"],
+                ["b", null],
+            ]),
+            {
+                b: { key: null, sha: "s", at: "t" },
+            },
+        );
+        assert.deepEqual(run, shards);
+        assert.deepEqual(skipped, []);
+    });
+
+    it("skips only a shard whose recorded pass has exactly this key", () => {
+        const shards = [shard("same"), shard("changed")];
+        const passes = { same: { key: "k1", sha: "s", at: "t" }, changed: { key: "old", sha: "s", at: "t" } };
+        const { run, skipped } = partitionByPasses(
+            shards,
+            new Map([
+                ["same", "k1"],
+                ["changed", "new"],
+            ]),
+            passes,
+        );
+        assert.deepEqual(
+            run.map((s) => s.shard),
+            ["changed"],
+        );
+        assert.deepEqual(
+            skipped.map((s) => s.shard.shard),
+            ["same"],
+        );
+    });
+
+    it("re-runs when the package, a dependency, a root file or a dependency's build output changes", () => {
+        const base = key({});
+        assert.notEqual(key({ "graphty-element/src/b.ts": "b" }), base, "its own source");
+        assert.notEqual(key({ "graphty-element/test/new.test.ts": "n" }), base, "a new file");
+        assert.notEqual(key({ "graph-format/src/a.ts": "b" }), base, "a dependency's source");
+        assert.notEqual(key({ "pnpm-lock.yaml": "b" }), base, "a root file");
+        assert.notEqual(key({ "tools/run-tests.sh": "b" }), base, "a tool");
+        assert.notEqual(key({}, new Map([["graph-format/dist", "y"]])), base, "a dependency's dist");
+        const gone = files();
+        gone.delete("graphty-element/src/b.ts");
+        assert.notEqual(
+            inputKey(
+                shard("graphty-element-default", "graphty-element"),
+                gone,
+                roots,
+                include,
+                new Map([["graph-format/dist", "x"]]),
+                {},
+            ),
+            base,
+            "a deleted file",
+        );
+        assert.notEqual(
+            inputKey(
+                shard("graphty-element-default", "graphty-element"),
+                files(),
+                roots,
+                include,
+                new Map([["graph-format/dist", "x"]]),
+                { GRAPHTY_GPU_REQUIRE: "any" },
+            ),
+            base,
+            "the GRAPHTY_ environment",
+        );
+    });
+
+    it("keeps the key of a shard whose inputs a change does not touch", () => {
+        assert.equal(key({ "graphty/src/c.ts": "b" }), key({}), "a package that depends on it");
+        assert.equal(key({}), key({}));
+    });
+
+    it("follows dependencies and relative path references transitively", () => {
+        const deps = new Map([["graphty", new Set(["graphty-element"])]]);
+        const refs = new Map([["graphty-element", new Set(["graph-format"])]]);
+        assert.deepEqual([...related("graphty", deps, refs)].sort(), ["graph-format", "graphty", "graphty-element"]);
+        assert.deepEqual([...related("graph-format", deps, refs)], ["graph-format"]);
+    });
+
+    it("hashes the checkout as it is on disk: edits and untracked files count, ignored ones do not", () => {
+        const dir = mkdtempSync(join(tmpdir(), "prepush-inputs-"));
+        try {
+            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
+            git("init", "-q");
+            writeFileSync(join(dir, ".gitignore"), "dist/\n");
+            writeFileSync(join(dir, "a.ts"), "a\n");
+            git("add", ".");
+            git("commit", "-q", "-m", "a");
+            const before = fingerprint(dir);
+            mkdirSync(join(dir, "dist"));
+            writeFileSync(join(dir, "dist/out.js"), "x\n");
+            assert.equal(fingerprint(dir), before, "an ignored file");
+            writeFileSync(join(dir, "new.ts"), "n\n");
+            const untracked = fingerprint(dir);
+            assert.notEqual(untracked, before, "an untracked file");
+            writeFileSync(join(dir, "a.ts"), "b\n");
+            assert.notEqual(fingerprint(dir), untracked, "an edit");
+            assert.notEqual(outputHash(join(dir, "dist")), outputHash(join(dir, "missing")));
+            const out = outputHash(join(dir, "dist"));
+            writeFileSync(join(dir, "dist/out.js"), "y\n");
+            assert.notEqual(outputHash(join(dir, "dist")), out, "a changed build output");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("records passes per branch and reads them back", () => {
+        const dir = mkdtempSync(join(tmpdir(), "prepush-passes-"));
+        try {
+            const store = passStore(dir, "tools/x");
+            assert.deepEqual(store.read(), {});
+            store.record("a", { key: "k", sha: "s", at: "t" });
+            store.record("b", { key: "k2", sha: "s", at: "t" });
+            assert.deepEqual(Object.keys(passStore(dir, "tools/x").read()).sort(), ["a", "b"]);
+            assert.deepEqual(passStore(dir, "other").read(), {});
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

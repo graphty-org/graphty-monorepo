@@ -1487,6 +1487,9 @@ export class LayoutManager implements Manager {
             const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(choice.engine, dimension);
             const redraws = dimensionOpts !== null && Object.keys(dimensionOpts).length > 0;
             if (this.engineDimension === dimension || !redraws) {
+                // An engine that draws the same in both still holds its nodes on the plane in 2D.
+                this.engineDimension = dimension;
+                this.putOnPlane(this.layoutEngine);
                 this.#built = choice;
                 return;
             }

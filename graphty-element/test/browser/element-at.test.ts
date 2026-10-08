@@ -215,6 +215,22 @@ describe.each(["2d", "3d"] as const)("elementAt in %s", (viewMode) => {
         assert.strictEqual(element.session.selection.edges.length, 0);
     }, 60_000);
 
+    it("shows the pointer cursor over a node and over a line, and not over empty canvas", async () => {
+        const element = await mounted(viewMode);
+        const canvas = element.graph.scene.getEngine().getInputElement();
+        assert.isNotNull(canvas);
+        const cursorAt = async (point: { x: number; y: number }): Promise<string> => {
+            await userEvent.hover(element, { position: { ...point } });
+            return canvas.style.cursor;
+        };
+
+        const mid = midpointOf(element, "a", "b");
+        assert.strictEqual(await cursorAt({ x: 2, y: 2 }), "", "empty canvas");
+        assert.strictEqual(await cursorAt(centerOf(element, "a")), "pointer", "a node");
+        assert.strictEqual(await cursorAt({ x: mid.x, y: mid.y + 3 }), "pointer", "a few pixels off a line");
+        assert.strictEqual(await cursorAt({ x: 2, y: 2 }), "", "back on empty canvas");
+    }, 60_000);
+
     it("draws a selected edge with a band of the selection color at the selection opacity", async () => {
         const element = await mounted(viewMode);
         const ab = edgeBetween(element, "a", "b");

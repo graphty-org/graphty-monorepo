@@ -15,102 +15,39 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-0. (2026-10-08) **Left-out rows carry their line and column names; Sources counts; project named
-   for every file (element + app, additive, recorded "decided by the team" 2026-10-08).**
-    - ELEMENT: `LeftOutEdge.line?` (numbered as `DraftRow.line`: CSV line with header = 1, else
-      position from 1) and `LoadedSource.leftOut.endColumns?` `{source,target}`. Plumbing: the draft's
-      `plan()` passes the edge table's `lines` as internal `HeldRows.edgeLines`; ingest keeps
-      `loadEdgeLines` for the load and reads the row's index from `tally.edgeRecords` (the load's
-      running edge count, so chunking cannot shift it). A non-draft load gets no `line`. End columns
-      come from the load's endpoint expressions via `columnOf()` (plain identifier, or a quoted
-      JMESPath name unquoted); this also fixed the values filter, which compared quoted expressions
-      to keys and so kept a quoted end column in `values`. `isLoadedSource` checks both fields on
-      open. Test: `data-sources.test.ts` (from,to,emails; line 3; endColumns).
-    - APP: inspector line "Line 24: from p11, to p13, emails 6" (`leftOutRow(edge, endColumns)`;
-      without them "p11, p13, emails 6"). The left-out count is its OWN child row under the load
-      ("1 row left out", kind `left-out`, warning glyph, id `source:N:left-out`, opens the source,
-      never the table dock), because the quiet text is cut at 240 px. Quiet = nodes and edges added;
-      a lone edge list reads "12 nodes, 16 edges" (was "16 rows, 16 edges"). New graph name =
-      `data-page/words.ts graphName(sources)`: every table, extensions dropped, `Intl.ListFormat`
-      ("players and passes").
-    - SEEN, NOT MINE: a two-file load's row name takes the width, so its quiet still cuts to
-      "12 n..." (shared Tree slot sizing, the Rows fix in compact-mantine).
-    - Evidence: `tmp/r1-dry1-left-out-rows/T4A/09.png`, `14.png` (after save + reopen), `T4B/14.png`,
-      `T4B/11.png` (Recent projects "players and passes"), `T21B/05.png`.
-1. (2026-10-08) **Tier 2 pilot findings fixed; study build frozen e2ccec0e9304
-   (`.study-builds/tier2-e2ccec0e9/`, `REAL_DIST`).** Commits 58f02b5d0 (element), a2bbb2248
-   (compact-mantine), 32c645e6b (app). What and why:
-    - ELEMENT (owner door, `owner-decisions.md` 2026-10-08): `LoadedSource.leftOut.edges`
-      (`LeftOutEdge {source,target,values}`, first 100) so the left-out rows survive Load, save
-      and reopen; the app's "Show the left-out row" link (which reopened the Data page, only while
-      the app still held the file) is DELETED, the source inspector lists the rows. Second fix in
-      `ingest.ts endpointsFor`: declared ends (a draft's `from`/`to`) were never stored as
-      `loadEndpoints`, so `sealLoad` reported the configured `source`/`target` and `attributes()`
-      listed from/to as edge columns -- the bus-stops edge showed "from Station" under "From
-      Station". Tried an app filter on `roles` first: roles were empty because the report was
-      wrong, so the fix is the element's. Test `load-draft.test.ts` "reports the end columns...".
-    - APP: path run opens on Values (`Inspector.tsx`, `run.shape === "path"`, like a node's
-      alwaysOpenOn) and its kind word is "Path"; tree row count is `hops` ("4 hops", not
-      `summary.measured` = nodes + edges; "5 nodes, 4 edges" cut the row's name); legend drops a
-      highlight's fixed width ("24"); Values label "Path" (design: never "route").
-    - Weight box default DECIDED: show what the run will read. Loaded weight read -> "minutes
-      (farther, loaded)"; not read -> "None" with the plan's reason under it, the loaded entry
-      listed "(loaded, not read)" but disabled (choosing it runs exactly as None). Why: tier2-design
-      section 5 says the run reads the loaded weight by default and a distance reader counts hops
-      when the meaning is not farther; the box must name what happens, not what is loaded.
-    - Higher means gets a checked "Not set" segment (an unset SegmentedControl draws no choice, so
-      no state was visible); `setWeightMeaning(table, undefined)` unsets. Role word "Time" ->
-      "Date or time" (it is `edgeTimePath`, a timestamp; minutes read as it). Unmatched sentence:
-      "names a node missing from the node rows". Filter step editor header says On / Off
-      (`useVisibilityVersion` in Inspector).
-    - compact-mantine `EllipsizedName`: pointerdown shuts the cut-name tooltip (it covered the
-      child rows after a click).
-      OPEN, not fixed: T21 Replace relayouts every node (positions not kept: element capability);
-      `real.mjs --prove` failed once in 4 on the first save (cause not found).
-
-2. (2026-10-07) **Tier 2 re-walk DONE: all 12 pilots reach the answer (647ba88b2).** T4, T17, T18,
-   T20, T22, T24 x two datasets, `tier2/pilot/rewalk.sh`; each pilot.md has a "Re-walk" section with
-   a screenshot per fixed finding; no console error, failed request or false "still moving".
-   REGRESSION FOUND + FIXED (1c723b415, compact-mantine): 3ea9171e3 made every `.cm-tree-actions`
-   slot shrinkable, so a filter step's checkbox (`<span data-pinned><Checkbox>`, an input, not a
-   button) was cut (T17 A) or gone (T17 B: click timed out, panel scrolled, no way Back). Now only a
-   slot with pinned text and no button/input shrinks. `:has()` does NOT nest: a `:has(:not(:has()))`
-   selector is dropped whole, silently. Test: `Tree.browser.test.tsx` "keeps a pinned checkbox whole".
-   Build with `NODE_OPTIONS=--max-old-space-size=8192` first time (see Tried, "Builds and runs").
-   Open: answer key quotes old headers ("0 nodes, 3 edges"); an uncommitted element diff (types.ts,
-   doors.ts, GraphSession.ts) repairs syntax HEAD broke, owner unknown.
-3. (2026-10-07) **A bare `Input.Wrapper` is themed (aaf5ef737, compact-mantine, no door).**
-   Mantine sizes an unthemed wrapper's description as its size minus 2px: 7px at `size="xs"` (the
-   Data page's weight hint under "Higher means", the T20 pilot's "tiny text"). `InputWrapper.extend`
-   now gives every wrapper `cm-field-label/description/error` (11/16 secondary ink; none for
-   `variant="unstyled"`). Contrast was never the failure: 5.5:1 dimmed gray in dark before, 7.6:1
-   dark / 4.7:1 light now. Also re-skins "Each row is", Settings and Export wrappers' labels.
-   Proof: `css-inputs.browser.test.tsx` "Input.Wrapper" and `DataPage.real-element.test.tsx`
-   "11px and at 4.5:1" (both fail before: 22px line height, 7px), `tmp/t2pilotfix-app-hint-contrast/s2/07.png`.
-   real.mjs path: New from data... > choose a file... > `role=combobox:minutes` > `role=option:Weight`.
-4. (2026-10-07) **The Weight box says before a run whether the loaded weight is read
-   (0e2379250 element, 295d601b9 app; no door).** Element: `planCommand` (planning.ts) fills
-   `caveats.weight` / `weightSkipped` for `algo.run` with the run's own `resolveRunWeight`, reading
-   `PlanningContext.loadedWeight` (internal, set from `data.loadedWeight()`); before, plan returned
-   the default caveats. A malformed `weight` param now makes the plan blocked with the run's
-   E_OPTION_RANGE. App: `OptionsForm` takes `algorithm`; `WeightField` asks `session.plan(...)`
-   (params {} = loaded weight) and, when skipped, labels the loaded entry "weight (loaded, not
-   read)" with `weightReadWords` (capitalized) as the Select's description. Proof:
-   `runs-loaded-weight.test.ts` "plan() says before a run..." and `PathForm.real-element.test.tsx`
-   (two new; both fail before), `tmp/t2pilotfix-app-path-weight-truth/s1/02.png`, `05.png`.
-   SEEN: Made with now shows the "not read" sentence twice (its Weight line, then the box's
-   description); "Source: Chloe" sits tight under the Weight line (pre-existing spacing).
-5. (2026-10-07, condensed) Older fixes, each with a proof test: Enter in the Path popover moves
-   focus on (4c8d9eb2a); Frame selection frames a selected edge (c74a85615; two-node framing still
-   tucks an end under the toolbar); selection summary words (84bf6a791); Find checks a rule while
-   typing (`scope.count` vs `selection.apply` refuse "=" with different codes, unfiled); Overview
-   leads with "Nodes showing 19 of 20" under a filter; Find names edges by end names (inspector
-   `edgeName` still passes ids); compact-mantine long stat values and cut-name tooltips (a8dae1930);
-   real.mjs placeholder clicks and overlay-free motion check (bbf1c4738).
+0. (2026-10-08) **A line says it can be clicked (graphty-element, no door).** The 6 px screen-space
+   edge pick with closest-wins (`EDGE_PICK_TOLERANCE_PX`, `Graph.pickEdgeId`) was ALREADY in the
+   frozen tier 2 build: on it a click 4-5 px off Gus-Ivan, near Gus, selects Gus -> Ivan (sweep at
+   x=755: y 582-594 all hit edge 13). The dry-run finding "edges are 1-pixel targets" was a
+   cursor problem, not a pick problem. Fix: `setupBackgroundClickHandler` adds a POINTERMOVE
+   observer on `scene.onPointerObservable` that sets `hoverCursor` on the input element when
+   `pickEdgeId` finds a line (Babylon restores `defaultCursor` on every move and already sets
+   `hoverCursor` over a node, whose mesh has pointer triggers; lines are an unpickable thin-instance
+   batch). Skipped while a button is down, in XR, and when Babylon already set it. Test:
+   `element-at.test.ts` "shows the pointer cursor..." (fails without: '' over the line).
+   `real.mjs --hover-at` now prints `cursor: <shape>` (screenshots never draw the pointer).
+   Frozen build: line `auto`, node `pointer`; fixed build: line `pointer`. Evidence
+   `design/ui/studio/tmp/r1-dry1-edge-picking/` (A, B, before-A, before-B).
+   Ceiling: the hover runs the linear edge walk per move (a spatial index for huge graphs).
+1. (2026-10-08) **Tier 2 pilot fixes (58f02b5d0 element, a2bbb2248 compact-mantine, 32c645e6b app).**
+   `LoadedSource.leftOut.edges` (owner door) replaces the app's "Show the left-out row";
+   `endpointsFor` stores declared ends; path run opens on Values, "4 hops"; Weight box names what
+   the run reads ("None" + reason when the loaded weight is not read); Higher means has "Not set";
+   "Date or time"; `EllipsizedName` tooltip shuts on pointerdown. OPEN: T21 Replace relayouts
+   every node; `real.mjs --prove` failed once in 4 on the first save (cause not found).
+2. (2026-10-07) **Tier 2 re-walk: all 12 pilots reach the answer (647ba88b2).** Regression fixed
+   (1c723b415): only a `.cm-tree-actions` slot with pinned text and no button/input shrinks.
+   `:has()` does NOT nest (a `:has(:not(:has()))` selector is dropped whole, silently).
+3. (2026-10-07) Bare `Input.Wrapper` themed in compact-mantine (aaf5ef737): 11 px secondary ink.
+4. (2026-10-07) Weight read-or-not comes from the element's `plan()` (0e2379250, 295d601b9).
+5. (2026-10-07, condensed) Older fixes each with a proof test: Path popover Enter, Frame selection
+   frames a selected edge, selection summary words, Find rule checks, Overview "Nodes showing",
+   Find names edges by end names (inspector `edgeName` still passes ids), real.mjs placeholder
+   clicks and overlay-free motion check.
 6. (2026-10-07) Still open from the tier 2 preflight: Edit source... ADDS (41 -> 82); a reopened
    project's Direction row shows raw text; element gaps: neighborhood filter has no `direction`,
-   `LoadedSource` keeps neither input nor roles, one node + one edge table per load, Dijkstra always
-   undirected.
+   one node + one edge table per load, Dijkstra always undirected; `selection.apply` throws
+   synchronously on a bad selector (unfiled).
 
 ## Priorities and values
 
@@ -232,6 +169,10 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Check a dry-run finding against the frozen build before building a fix: sweep
+  `--hover-at` points across the target (it prints what `elementAt` finds). Half of the edge-picking
+  item already worked. A cursor is invisible in screenshots: read `getComputedStyle(el).cursor`
+  (through shadow roots), now printed by `--hover-at`.
 - (2026-10-08) A Tree child row is NOT inside its parent's treeitem in the DOM: query children with
   `within(tree)`, not `within(parentRow)`. A new graph's name change moves the Data page heading
   ("Add to people and ties"): grep tests for "Add to " after renaming.

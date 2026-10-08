@@ -3587,6 +3587,28 @@ export class Graph implements GraphContext {
                 }
             }
         });
+
+        // The pointer says a line can be clicked, as Babylon already says it over a node (each
+        // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin
+        // instances of an unpickable batch, so Babylon never sees them: on every move it has just
+        // restored `defaultCursor`, and this sets `hoverCursor` back when the pointer is over a line.
+        this.scene.onPointerObservable.add((pointerInfo) => {
+            const canvas = this.scene.getEngine().getInputElement();
+            const { buttons } = pointerInfo.event as { buttons?: number };
+            if (
+                !canvas ||
+                this.scene.doNotHandleCursors ||
+                (buttons ?? 0) !== 0 ||
+                canvas.style.cursor === this.scene.hoverCursor ||
+                this.scene.metadata?.xrHelper?.baseExperience?.state === 2
+            ) {
+                return;
+            }
+
+            if (this.pickEdgeId(this.scene.pointerX, this.scene.pointerY) !== undefined) {
+                canvas.style.cursor = this.scene.hoverCursor;
+            }
+        }, PointerEventTypes.POINTERMOVE);
     }
 
     /**

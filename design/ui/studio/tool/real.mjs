@@ -990,6 +990,21 @@ async function whatIsAt(page, x, y) {
         [x, y],
     );
 }
+// The pointer's shape at a point (a screenshot never draws the pointer), through open shadow roots
+async function cursorAt(page, x, y) {
+    return page.evaluate(
+        ([x, y]) => {
+            let el = document.elementFromPoint(x, y);
+            while (el?.shadowRoot) {
+                const inner = el.shadowRoot.elementFromPoint(x, y);
+                if (!inner || inner === el) break;
+                el = inner;
+            }
+            return el ? getComputedStyle(el).cursor : "none (outside the window)";
+        },
+        [x, y],
+    );
+}
 async function act(page, f, verb, opt) {
     if (f.el) return f.el[verb](Object.assign({ timeout: 3000 }, opt));
     const [x, y] = f.at;
@@ -1081,6 +1096,7 @@ async function run(s, steps, out) {
             out.push(`at ${x},${y}: ${await whatIsAt(page, x, y)}`);
             if (a === "--hover-at") {
                 await page.mouse.move(x, y);
+                out.push(`cursor: ${await cursorAt(page, x, y)}`);
                 out.push(`tooltip: ${JSON.stringify(await tooltip(page))}`);
             } else {
                 await page.mouse.click(x, y, { button: AT[a].button || "left", clickCount: AT[a].clickCount || 1 });

@@ -9,6 +9,7 @@
 
 import type { JsonlWriter } from "./jsonl-writer.js";
 import { extractMarkerFromSessionId } from "./marker-utils.js";
+import { parseIntegerSetting } from "./parse-integer.js";
 
 /**
  * A single log entry.
@@ -222,7 +223,7 @@ export class LogStorage {
         const envRetention = process.env.REMOTE_LOG_RETENTION_DAYS;
         this.retentionDays =
             options.retentionDays ??
-            (envRetention ? Number.parseInt(envRetention, 10) : undefined) ??
+            (envRetention ? parseIntegerSetting("REMOTE_LOG_RETENTION_DAYS", envRetention, 1) : undefined) ??
             DEFAULT_RETENTION_DAYS;
 
         // Start periodic cleanup timer

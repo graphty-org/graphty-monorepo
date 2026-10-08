@@ -173,11 +173,18 @@ Examples:
   npx remote-log-server --cert cert.pem --key key.pem  # Use HTTPS with custom certs
 ```
 
+`--port` must be a whole number from 1 to 65535. Any other value (for example `--port 90a0`)
+stops the server at startup with an error naming the option and the value, rather than
+listening on a different port.
+
 ### Environment Variables
 
-| Variable                    | Default | Description                                  |
-| --------------------------- | ------- | -------------------------------------------- |
-| `REMOTE_LOG_RETENTION_DAYS` | `7`     | Number of days to retain logs before cleanup |
+| Variable                    | Default | Description                                                     |
+| --------------------------- | ------- | --------------------------------------------------------------- |
+| `REMOTE_LOG_RETENTION_DAYS` | `7`     | Number of days to retain logs before cleanup (whole number, 1+) |
+
+A `REMOTE_LOG_RETENTION_DAYS` that is not a whole number of at least 1 (for example `seven` or
+`0`) stops the server at startup with an error naming the variable and the value.
 
 ## API Reference
 
@@ -323,7 +330,9 @@ Returns recent logs across all sessions, sorted by time.
 
 **Query parameters:**
 
-- `n` (optional): Number of logs to return (default: 50)
+- `n` (optional): Number of logs to return, a whole number of at least 1 (default: 50 when
+  missing or empty). Any other value (for example `n=abc` or `n=0`) answers `400` with a JSON
+  `error` message naming the parameter and the value.
 - `errors` (optional): Set to `true` to return only error-level logs
 
 **Response:**

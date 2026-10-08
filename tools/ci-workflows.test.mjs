@@ -1189,6 +1189,45 @@ echo "${aptSays}"`,
     });
 });
 
+describe("one Playwright", () => {
+    // CI installs browsers once, at the root, and every package's tests launch whatever build their own
+    // Playwright wants. With 1.57 at the root and 1.63 under graphty-element, a cache miss installed
+    // Chromium build 1200 and every graphty-element browser shard failed on a missing build 1243.
+    it("resolves a single version of playwright, playwright-core and @playwright/test", () => {
+        const lock = readFileSync(new URL("../pnpm-lock.yaml", import.meta.url), "utf8");
+        const versions = new Set(
+            [...lock.matchAll(/^ {2}'?(?:@playwright\/test|playwright|playwright-core)@([^':(]+)'?:/gm)].map(
+                (m) => m[1],
+            ),
+        );
+        assert.equal(versions.size, 1, `pnpm-lock.yaml resolves Playwright ${[...versions].join(", ")}`);
+    });
+
+    it("has every package take Playwright from the catalog", () => {
+        const root = new URL("../", import.meta.url);
+        const dirs = [".", ...readdirSync(root).filter((d) => existsSync(new URL(`${d}/package.json`, root)))];
+        let checked = 0;
+        for (const dir of dirs) {
+            const pkg = JSON.parse(readFileSync(new URL(`${dir}/package.json`, root), "utf8"));
+            for (const deps of [pkg.dependencies, pkg.devDependencies]) {
+                for (const name of ["playwright", "playwright-core", "@playwright/test"]) {
+                    if (!deps?.[name]) continue;
+                    assert.equal(deps[name], "catalog:", `${dir}/package.json ${name}`);
+                    checked++;
+                }
+            }
+        }
+        assert.ok(checked >= 5, `found the Playwright dependencies (${checked})`);
+    });
+
+    it("keys the test job's browser cache on the version the root installs with", () => {
+        const test = job(workflow("ci.yml").replace(/^\s*#.*$/gm, ""), "test");
+        assert.match(test, /id: playwright\n\s+run: echo "version=\$\(pnpm exec playwright --version/);
+        assert.match(test, /key: playwright-\$\{\{ runner\.os \}\}-\$\{\{ steps\.playwright\.outputs\.version \}\}\n/);
+        assert.match(test, /cache-hit != 'true'\n\s+run: pnpm exec playwright install chromium\n/);
+    });
+});
+
 describe(".mergify.yml", () => {
     it("merges every pull request, the release one included, with its own merge commit", () => {
         // Never merge-batch: marking the batch's draft ready starts a second CI run on the same commit, and the

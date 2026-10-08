@@ -24,6 +24,13 @@ catalog:
     "@vitest/browser-playwright": 4.1.11
     "@vitest/coverage-v8": 4.1.11
     "@vitest/ui": 4.1.11
+    # One Playwright, so one set of browser builds: `playwright install` at the root downloads the
+    # build every package's tests launch. Two versions once meant CI installed 1.57's Chromium (build
+    # 1200) while graphty-element's tests launched 1.63's (build 1243). The overrides below hold every
+    # transitive copy to the same version (each playwright pins its playwright-core exactly), and
+    # tools/ci-workflows.test.mjs fails on a second one.
+    playwright: 1.63.0
+    "@playwright/test": 1.63.0
 
 # Fixes to published packages, applied at install. Delete an entry once the catalog moves to a
 # release that has the fix (`pnpm install` then drops the patch).
@@ -65,3 +72,6 @@ overrides:
     "undici@<6.28.0": ^6.28.0
     # vitepress 1.x depends on vite 5, which the Vite 6.4.3 advisories do not patch.
     "vite@<6.4.3": ^6.4.3
+    # Not a security floor: the single Playwright of the catalog above, for transitive copies too.
+    playwright: "catalog:"
+    "@playwright/test": "catalog:"

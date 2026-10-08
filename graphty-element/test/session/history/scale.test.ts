@@ -333,7 +333,14 @@ describe("at a million nodes and five million edges, without a scene", () => {
                 ],
                 measured: { nodes: MILLION, edges: ARCS },
                 nodes: Array.from({ length: MILLION }, (_, at) => ({ id: at, values: { value: degrees[at] } })),
-                caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "degree", notes: [] },
+                caveats: {
+                    exact: true,
+                    direction: "as-loaded",
+                    precision: "f64",
+                    method: "degree",
+                    facts: [],
+                    notes: [],
+                },
                 durationMs: 1,
             });
             assert.isAtLeast(retentionOf(result).bytes, 24 * MILLION, "a value, a rank and a percentile per node");

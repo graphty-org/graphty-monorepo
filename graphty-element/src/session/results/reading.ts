@@ -23,7 +23,9 @@
  * the Node-safe `./session` entry point.
  */
 
-import type { ReadingOptions, ResultSummary, RunResult, SummaryEntry } from "./types";
+import { englishBandName } from "../english";
+import type { CodedFact, CodedFactParam } from "../shared";
+import type { ReadingCode, ReadingOptions, RunResult } from "./types";
 
 /** How many decimal places a fractional figure is printed to. */
 const DECIMALS = 3;
@@ -104,191 +106,260 @@ function graphNumber(result: RunResult, field: string): number | undefined {
     return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
+/** A reading fact's parameters. */
+type Params = CodedFact["params"];
+
 /**
- * What the highest-ranked element is called, and what it scored.
- * @param top - The summary's top entries.
- * @returns The entry, or undefined when nothing was measured.
+ * A parameter as a number, or undefined when it is not one.
+ * @param value - The parameter.
+ * @returns The number.
  */
-function best(top: readonly SummaryEntry[]): SummaryEntry | undefined {
-    return top[0];
+function numberOf(value: CodedFactParam | undefined): number | undefined {
+    return typeof value === "number" ? value : undefined;
 }
 
 /**
- * The sentence for a result that measured every element on one scale.
+ * What a result says, as a code and the figures it is about.
+ *
+ * ONE FACT PER SHAPE, not per algorithm. What a reader needs to hear about a measurement is the
+ * same whether the measurement was degree or betweenness -- which is the same reason the field
+ * NAMES are fixed by the shape rather than by the algorithm. An algorithm that wants to say
+ * something only it can say publishes a field and the fact picks it up, as modularity is picked up
+ * for a partition that scores itself. Every figure comes from the result.
  * @param result - The result.
- * @param summary - Its bounded form.
+ * @returns The fact.
+ */
+export function readingFactOf(result: RunResult): CodedFact<ReadingCode> {
+    const summary = result.summary();
+
+    switch (result.shape) {
+        case "node-metric":
+        case "edge-metric": {
+            const leader = summary.top[0];
+            if (leader === undefined || summary.median === null) {
+                return { code: "reading.metric-empty", params: { field: "value" } };
+            }
+
+            return {
+                code: "reading.metric",
+                params: {
+                    field: "value",
+                    leader: leader.id,
+                    leaderLabel: leader.label,
+                    highest: leader.value,
+                    median: summary.median,
+                    lowest: summary.min,
+                    tiedAtLowest: summary.tiedAtMin,
+                    measured: summary.measured,
+                    count: summary.count,
+                },
+            };
+        }
+        case "community":
+        case "layered-grouping":
+        case "category-table": {
+            const groups = summary.groups ?? [];
+            if (groups.length === 0) {
+                return { code: "reading.groups-empty", params: {} };
+            }
+
+            return {
+                code: "reading.groups",
+                params: {
+                    groups: groups.length,
+                    largest: groups[0].size,
+                    measured: summary.measured,
+                    modularity: graphNumber(result, "modularity") ?? null,
+                    band: result.band("modularity")?.id ?? null,
+                },
+            };
+        }
+        case "path": {
+            const hops = graphNumber(result, "hops") ?? null;
+            const cost = graphNumber(result, "cost") ?? null;
+
+            return hops === null && cost === null
+                ? { code: "reading.path-none", params: {} }
+                : { code: "reading.path", params: { hops, cost } };
+        }
+        case "node-set":
+        case "edge-set": {
+            return {
+                code: "reading.set",
+                params: {
+                    count: graphNumber(result, "count") ?? summary.measured,
+                    element: result.shape === "edge-set" ? "edge" : "node",
+                },
+            };
+        }
+        case "pair-list": {
+            const { pairs } = result.graph;
+
+            return { code: "reading.pairs", params: { count: Array.isArray(pairs) ? pairs.length : 0 } };
+        }
+        case "temporal": {
+            return { code: "reading.series", params: { steps: graphNumber(result, "steps") ?? 0 } };
+        }
+        default: {
+            // A fact publishes whatever single figure it established, under its own field name, so
+            // there is no shape-wide statement to make. Coverage is the honest thing left to say.
+            return { code: "reading.coverage", params: { measured: summary.measured, count: summary.count } };
+        }
+    }
+}
+
+/**
+ * The sentence for a measurement.
+ * @param params - The fact's figures.
+ * @param result - The result, for the field's names and unit.
  * @param options - Locale and audience.
  * @returns The sentence.
  */
-function metricReading(result: RunResult, summary: ResultSummary, options: ReadingOptions): string {
+function metricSentence(params: Params, result: RunResult, options: ReadingOptions): string {
     const { locale, audience } = options;
-    const words = fieldWords(result, "value", audience);
-    const leader = best(summary.top);
-
-    if (leader === undefined || summary.median === null) {
-        return `Nothing was measured, so there is no ${words} to report.`;
-    }
-
+    const field = String(params.field);
+    const words = fieldWords(result, field, audience);
+    const highest = Number(params.highest);
+    const median = Number(params.median);
+    const lowest = numberOf(params.lowest);
+    const tied = Number(params.tiedAtLowest);
+    const measured = Number(params.measured);
+    const count = Number(params.count);
     const parts = [
-        `${leader.label} has the highest ${words}, at ${figure(leader.value, locale)}${unitOf(result, "value", leader.value)}.`,
-        `The typical element sits at ${figure(summary.median, locale)}${unitOf(result, "value", summary.median)}.`,
+        `${String(params.leaderLabel)} has the highest ${words}, at ${figure(highest, locale)}${unitOf(result, field, highest)}.`,
+        `The typical element sits at ${figure(median, locale)}${unitOf(result, field, median)}.`,
     ];
 
     // Said only when it is a real share of the measured elements. A graph where one node scores
     // zero has not told the reader anything; a graph where a third of them do has.
-    if (summary.measured > 0 && summary.tiedAtMin / summary.measured >= TIE_SHARE && summary.min !== null) {
+    if (measured > 0 && tied / measured >= TIE_SHARE && lowest !== undefined) {
         parts.push(
-            `${figure(summary.tiedAtMin, locale)} of ${figure(summary.measured, locale)} sit at the lowest value, ${figure(summary.min, locale)}${unitOf(result, "value", summary.min)}.`,
+            `${figure(tied, locale)} of ${figure(measured, locale)} sit at the lowest value, ${figure(lowest, locale)}${unitOf(result, field, lowest)}.`,
         );
     }
 
     // The count the run did NOT reach, which is the difference between "every node scores low"
     // and "most nodes were never looked at".
-    if (summary.count > summary.measured) {
-        parts.push(`${figure(summary.count - summary.measured, locale)} were not measured.`);
+    if (count > measured) {
+        parts.push(`${figure(count - measured, locale)} were not measured.`);
     }
 
     return parts.join(" ");
 }
 
 /**
- * The sentence for a result that sorts elements into groups.
- * @param result - The result.
- * @param summary - Its bounded form.
- * @param options - Locale and audience.
+ * The sentence for a partition.
+ * @param params - The fact's figures.
+ * @param result - The result, for the band's words.
+ * @param locale - The locale to print numbers in.
  * @returns The sentence.
  */
-function groupingReading(result: RunResult, summary: ResultSummary, options: ReadingOptions): string {
-    const { locale } = options;
-    const groups = summary.groups ?? [];
-
-    if (groups.length === 0) {
-        return "Nothing was grouped, so there are no groups to report.";
-    }
-
-    const largest = groups[0];
+function groupsSentence(params: Params, result: RunResult, locale: string | undefined): string {
+    const groups = Number(params.groups);
     const parts = [
-        `${figure(groups.length, locale)} ${groups.length === 1 ? "group" : "groups"} were found,`,
-        `the largest holding ${figure(largest.size, locale)} of ${figure(summary.measured, locale)}.`,
+        `${figure(groups, locale)} ${groups === 1 ? "group" : "groups"} were found,`,
+        `the largest holding ${figure(Number(params.largest), locale)} of ${figure(Number(params.measured), locale)}.`,
     ];
-    const modularity = graphNumber(result, "modularity");
+    const modularity = numberOf(params.modularity);
 
     // Modularity is published by some partitioning algorithms and not others, so it is said only
     // when there is one. A partition with no score is not a worse partition; it is an unscored
-    // one, and inventing a word for how good it is would be the reading making a claim up. The
-    // word for a scored one comes from the field's own interpretation scale, never from here.
+    // one. The word for a scored one comes from the field's own interpretation scale.
     if (modularity !== undefined) {
-        const band = result.band("modularity");
-        const word = band === undefined ? "" : ` (${band.plainName.toLowerCase()})`;
-
-        parts.push(`Modularity is ${figure(modularity, locale)}${word}.`);
+        const words = bandWords(result, params.band);
+        parts.push(
+            `Modularity is ${figure(modularity, locale)}${words === undefined ? "" : ` (${words.toLowerCase()})`}.`,
+        );
     }
 
     return parts.join(" ");
 }
 
 /**
- * The sentence for a result that picked out a route.
- * @param result - The result.
- * @param options - Locale and audience.
+ * The English name of one band of the modularity scale.
+ * @param result - The result, whose modularity field carries the scale.
+ * @param id - The band's id, from the fact.
+ * @returns The band's plain name, or undefined for no band.
+ */
+function bandWords(result: RunResult, id: CodedFactParam | undefined): string | undefined {
+    const band = result.fields
+        .find((candidate) => candidate.name === "modularity" && candidate.kind === "graph")
+        ?.interpretation?.bands.find((candidate) => candidate.id === id);
+
+    return band === undefined ? undefined : englishBandName(band);
+}
+
+/**
+ * The English sentence the deprecated `reading()` returns for a reading fact.
+ * @param fact - The fact.
+ * @param result - The result it reads, for the names, units and band words of its fields.
+ * @param options - The locale to print numbers in, and whether to use plain or technical words.
  * @returns The sentence.
  */
-function pathReading(result: RunResult, options: ReadingOptions): string {
+export function readingSentence(fact: CodedFact<ReadingCode>, result: RunResult, options: ReadingOptions): string {
+    const { params } = fact;
     const { locale } = options;
-    const hops = graphNumber(result, "hops");
-    const cost = graphNumber(result, "cost");
+    const count = Number(params.count);
 
-    if (hops === undefined && cost === undefined) {
-        return "No route was found.";
+    switch (fact.code) {
+        case "reading.metric": {
+            return metricSentence(params, result, options);
+        }
+        case "reading.metric-empty": {
+            return `Nothing was measured, so there is no ${fieldWords(result, String(params.field), options.audience)} to report.`;
+        }
+        case "reading.groups": {
+            return groupsSentence(params, result, locale);
+        }
+        case "reading.groups-empty": {
+            return "Nothing was grouped, so there are no groups to report.";
+        }
+        case "reading.path": {
+            const hops = numberOf(params.hops);
+            const cost = numberOf(params.cost);
+
+            return [
+                ...(hops === undefined
+                    ? []
+                    : [`The route runs ${figure(hops, locale)} ${hops === 1 ? "hop" : "hops"}.`]),
+                ...(cost === undefined ? [] : [`Its total cost is ${figure(cost, locale)}.`]),
+            ].join(" ");
+        }
+        case "reading.path-none": {
+            return "No route was found.";
+        }
+        case "reading.set": {
+            const noun = String(params.element);
+
+            return count === 0
+                ? `No ${noun}s were selected.`
+                : `${figure(count, locale)} ${count === 1 ? noun : `${noun}s`} were selected.`;
+        }
+        case "reading.pairs": {
+            return count === 0
+                ? "No pairs were found."
+                : `${figure(count, locale)} ${count === 1 ? "pair was" : "pairs were"} found.`;
+        }
+        case "reading.series": {
+            const steps = Number(params.steps);
+
+            return steps === 0
+                ? "The series is empty."
+                : `The series covers ${figure(steps, locale)} ${steps === 1 ? "step" : "steps"}.`;
+        }
+        default: {
+            // `reading.coverage`, the statement of last resort.
+            const measured = Number(params.measured);
+
+            return measured === 0
+                ? "The run produced no values."
+                : `The run covered ${figure(measured, locale)} of ${figure(count, locale)}.`;
+        }
     }
-
-    const parts: string[] = [];
-
-    if (hops !== undefined) {
-        parts.push(`The route runs ${figure(hops, locale)} ${hops === 1 ? "hop" : "hops"}.`);
-    }
-
-    if (cost !== undefined) {
-        parts.push(`Its total cost is ${figure(cost, locale)}.`);
-    }
-
-    return parts.join(" ");
 }
 
 /**
- * The sentence for a result that chose a set of elements.
- * @param result - The result.
- * @param summary - Its bounded form.
- * @param options - Locale and audience.
- * @returns The sentence.
- */
-function setReading(result: RunResult, summary: ResultSummary, options: ReadingOptions): string {
-    const { locale } = options;
-    const chosen = graphNumber(result, "count") ?? summary.measured;
-    const noun = result.shape === "edge-set" ? "edge" : "node";
-
-    if (chosen === 0) {
-        return `No ${noun}s were selected.`;
-    }
-
-    return `${figure(chosen, locale)} ${chosen === 1 ? noun : `${noun}s`} were selected.`;
-}
-
-/**
- * The sentence for a result that is a list of pairs.
- * @param result - The result.
- * @param options - Locale and audience.
- * @returns The sentence.
- */
-function pairReading(result: RunResult, options: ReadingOptions): string {
-    const { pairs } = result.graph;
-    const count = Array.isArray(pairs) ? pairs.length : 0;
-
-    if (count === 0) {
-        return "No pairs were found.";
-    }
-
-    return `${figure(count, options.locale)} ${count === 1 ? "pair was" : "pairs were"} found.`;
-}
-
-/**
- * The sentence for a result that is a series over time.
- * @param result - The result.
- * @param options - Locale and audience.
- * @returns The sentence.
- */
-function temporalReading(result: RunResult, options: ReadingOptions): string {
-    const steps = graphNumber(result, "steps");
-
-    if (steps === undefined || steps === 0) {
-        return "The series is empty.";
-    }
-
-    return `The series covers ${figure(steps, options.locale)} ${steps === 1 ? "step" : "steps"}.`;
-}
-
-/**
- * How many elements a run covered, as a sentence of last resort.
- * @param summary - The bounded form.
- * @param options - Locale and audience.
- * @returns The sentence.
- */
-function coverageReading(summary: ResultSummary, options: ReadingOptions): string {
-    if (summary.measured === 0) {
-        return "The run produced no values.";
-    }
-
-    return `The run covered ${figure(summary.measured, options.locale)} of ${figure(summary.count, options.locale)}.`;
-}
-
-/**
- * Write one sentence saying what a result means.
- *
- * ONE SENTENCE PER SHAPE, not per algorithm. What a reader needs to hear about a measurement is
- * the same whether the measurement was degree or betweenness -- which is the same reason the
- * field NAMES are fixed by the shape rather than by the algorithm. An algorithm that wants to say
- * something only it can say publishes a field and the sentence picks it up, as modularity is
- * picked up for a partition that scores itself.
+ * Write one sentence saying what a result means: the English of {@link readingFactOf}.
  *
  * Every figure in the sentence comes from the result. Nothing is rounded to make a phrase read
  * better, no comparison is drawn that the numbers do not support, and a shape with nothing to say
@@ -297,40 +368,6 @@ function coverageReading(summary: ResultSummary, options: ReadingOptions): strin
  * @param options - The locale to print numbers in, and whether to use plain or technical words.
  * @returns The sentence.
  */
-export function defaultReading(result: RunResult, options: ReadingOptions): string {
-    const summary = result.summary();
-    const { shape } = result;
-
-    switch (shape) {
-        case "node-metric":
-        case "edge-metric": {
-            return metricReading(result, summary, options);
-        }
-        case "community":
-        case "layered-grouping":
-        case "category-table": {
-            return groupingReading(result, summary, options);
-        }
-        case "path": {
-            return pathReading(result, options);
-        }
-        case "node-set":
-        case "edge-set": {
-            return setReading(result, summary, options);
-        }
-        case "pair-list": {
-            return pairReading(result, options);
-        }
-        case "temporal": {
-            return temporalReading(result, options);
-        }
-        case "fact": {
-            // A fact publishes whatever single figure it established, under its own field name, so
-            // there is no shape-wide sentence to write. Coverage is the honest thing left to say.
-            return coverageReading(summary, options);
-        }
-        default: {
-            return coverageReading(summary, options);
-        }
-    }
+export function englishReading(result: RunResult, options: ReadingOptions): string {
+    return readingSentence(readingFactOf(result), result, options);
 }

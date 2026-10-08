@@ -39,7 +39,16 @@ function field(
  * @returns The run.
  */
 function runOf(id: RunId, shape: ResultShape, fields: readonly FieldDescriptor[]): EncodingRun {
-    return { id, label: `The ${id} run`, algorithm: id, params: {}, shape, fields };
+    return {
+        id,
+        label: `The ${id} run`,
+        distinguishedBy: null,
+        siblingsDifferBy: null,
+        algorithm: id,
+        params: {},
+        shape,
+        fields,
+    };
 }
 
 /** A centrality run: one number per node, and the graph half nothing paints. */

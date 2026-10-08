@@ -4,7 +4,7 @@
  */
 
 import { FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
-import { isGraphtyError, type TooLargeDetails } from "@graphty/graphty-element/session";
+import { isGraphtyError, type LoadedSource, type TooLargeDetails } from "@graphty/graphty-element/session";
 
 import type { PageRole } from "./choices";
 
@@ -84,6 +84,20 @@ export function replacedWords(name: string, now: Size, outOfDate: number): strin
  */
 export function baseName(name: string): string {
     return name.replace(/\.[^.]*$/, "") || name;
+}
+
+const AND = new Intl.ListFormat("en-US", { type: "conjunction" });
+
+/**
+ * What a new graph is called: every file its loads read, without extensions.
+ * @param sources - `data.sources()`.
+ * @returns "players and passes" for a load of players.csv and passes.csv; undefined when no load names a file.
+ */
+export function graphName(sources: readonly LoadedSource[]): string | undefined {
+    const files = sources
+        .flatMap((load): readonly (string | undefined)[] => (load.tables.length > 0 ? load.tables : [load.name]))
+        .filter((file): file is string => file !== undefined);
+    return files.length === 0 ? undefined : AND.format(files.map(baseName));
 }
 
 /** One problem block (section 4, "Problem"): what happened and what to do. */

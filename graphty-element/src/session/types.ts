@@ -1262,6 +1262,12 @@ export interface LeftOutEdge {
     readonly source: NodeId;
     /** The target end, as the load read it. */
     readonly target: NodeId;
+    /**
+     * Where the row was, numbered as `DraftRow.line` numbers it: for a CSV file the line it starts
+     * on, the header being line 1; for any other format the record's position in its table, from 1.
+     * Present for a load from a draft.
+     */
+    readonly line?: number;
     /** The row's other values, by column. */
     readonly values: Readonly<Record<string, unknown>>;
 }
@@ -1280,6 +1286,12 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly leftOut?: {
         readonly rows: number;
         readonly values: number;
+        /**
+         * The names of the columns the load read each row's two ends from. Absent when an end was
+         * read by an expression that is not a plain column name, or in a project saved before it
+         * was kept.
+         */
+        readonly endColumns?: { readonly source: string; readonly target: string };
         /**
          * The left-out rows themselves (the first 100), so they can be shown after the load and
          * after a project is saved and reopened: each row's two ends as the load read them, and

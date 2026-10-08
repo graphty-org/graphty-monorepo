@@ -380,7 +380,7 @@ describe("the Data page on the real element", () => {
             first.focus();
             await userEvent.keyboard("{Shift>}{F10}{/Shift}");
             await userEvent.click(await screen.findByRole("menuitem", { name: "Edit source..." }));
-            await screen.findByRole("heading", { name: "Add to people" });
+            await screen.findByRole("heading", { name: "Add to people and ties" });
             const tables = await screen.findByRole("region", { name: "Tables" }, { timeout: TIMEOUT_MS });
             assert.isNotNull(await within(tables).findByText("Nodes: people.csv", {}, { timeout: TIMEOUT_MS }));
             assert.isNotNull(within(tables).getByText("Edges: ties.csv"));
@@ -419,13 +419,16 @@ describe("the Data page on the real element", () => {
             });
             const sources = await screen.findByRole("tree", { name: "Sources" });
             const row = within(sources).getByRole("treeitem", { name: "people.csv and passes.csv" });
-            assert.include(row.textContent, "3 nodes, 2 edges, 1 row left out");
+            assert.include(row.textContent, "3 nodes, 2 edges");
+            // Its own row under the source, so a narrow panel cannot cut it off.
+            assert.isNotNull(within(sources).getByRole("treeitem", { name: "1 row left out" }));
+            assert.equal(store.get().project?.name, "people and passes", "named after both files");
 
             await userEvent.click(within(row).getAllByText("people.csv and passes.csv")[0]);
             const inspector = screen.getByRole("complementary", { name: "Inspector" });
             await within(inspector).findByText("1 edge row was left out: it names a node missing from the node rows.");
             // The row itself, kept by the element with the load: no file to reopen.
-            await within(inspector).findByText("c, z, 1");
+            await within(inspector).findByText("Line 4: source c, target z, weight 1");
         },
         TIMEOUT_MS * 3,
     );

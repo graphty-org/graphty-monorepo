@@ -48,9 +48,11 @@ export function SourceValues({ row }: Readonly<{ row: string }>): React.JSX.Elem
                     <Text size="xs" px="md" py={2}>
                         {leftOutSentence(leftOut)}
                     </Text>
-                    {keyedLines((leftOut.edges ?? []).map(leftOutRow)).map(({ key, line }) => (
-                        <DataRow key={key} name={line} />
-                    ))}
+                    {keyedLines((leftOut.edges ?? []).map((edge) => leftOutRow(edge, leftOut.endColumns))).map(
+                        ({ key, line }) => (
+                            <DataRow key={key} name={line} />
+                        ),
+                    )}
                 </>
             )}
         </ControlSection>

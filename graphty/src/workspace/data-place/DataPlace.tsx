@@ -27,6 +27,7 @@ const SOURCE_GLYPHS: Record<SourceKind, React.ReactNode> = {
     file: <GLYPHS.file size={14} aria-hidden />,
     nodes: <GLYPHS.node size={14} aria-hidden />,
     edges: <GLYPHS.edge size={14} aria-hidden />,
+    "left-out": <GLYPHS.warning size={14} aria-hidden />,
 };
 
 const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
@@ -269,7 +270,7 @@ export function DataPlace(): React.JSX.Element {
         if (row !== undefined) {
             store.set({ inspected: { kind: "source", id: row.id } });
         }
-        if (tableBuilt && row !== undefined && row.kind !== "file") {
+        if (tableBuilt && (row?.kind === "nodes" || row?.kind === "edges")) {
             store.set({ dockOpen: true, dockTab: row.kind });
         }
     };

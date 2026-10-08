@@ -714,6 +714,7 @@ export class Draft implements LoadDraft {
             held: {
                 nodes: key === null ? nodeRows.map((row, index) => ({ ...row, [ROW_ID]: String(index) })) : nodeRows,
                 edges,
+                edgeLines: edgeTable?.lines ?? null,
                 declaredDirection: readGephiTypeColumn(edges),
                 errors: read.errors,
                 errorLimit: read.errorLimit,

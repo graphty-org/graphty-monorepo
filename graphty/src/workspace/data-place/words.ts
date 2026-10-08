@@ -9,15 +9,15 @@ import type { CodedFact, ColumnRef, ImportReport, LeftOutEdge, LoadedSource } fr
 
 import { valueText } from "../inspector/words";
 
-/** What a Sources row's glyph shows: a graph file holding both tables, or one table. */
-export type SourceKind = "file" | "nodes" | "edges";
+/** What a Sources row's glyph shows: a graph file holding both tables, one table, or the rows a load left out. */
+export type SourceKind = "file" | "nodes" | "edges" | "left-out";
 
 /** One Sources row. */
 export interface SourceRow {
     readonly id: string;
     readonly kind: SourceKind;
     readonly name: string;
-    /** The quiet line: "34 nodes, 78 edges"; "254 rows, 254 edges"; "77 nodes"; "12 nodes, 22 edges, 1 row left out". */
+    /** The quiet line: "34 nodes, 78 edges"; "30 nodes, 254 edges"; "77 nodes"; a table's "254 rows, 254 edges". */
     readonly quiet: string;
     readonly children?: readonly SourceRow[];
 }
@@ -70,12 +70,16 @@ function addedWords(added: LoadedSource["added"]): string {
 }
 
 /**
- * What a load left out, appended to its row's quiet line.
+ * The row under a load that says how many edge rows it left out, so the count shows however
+ * narrow the panel is.
  * @param load - the load, an entry of `data.sources()`.
- * @returns such as ", 1 row left out", or "" when the load left nothing out.
+ * @param id - the load's row id.
+ * @returns the rows: one "1 row left out" row, or none when the load left nothing out.
  */
-function leftOutWords(load: LoadedSource): string {
-    return load.leftOut === undefined ? "" : `, ${count(load.leftOut.rows, "row")} left out`;
+function leftOutRows(load: LoadedSource, id: string): SourceRow[] {
+    return load.leftOut === undefined
+        ? []
+        : [{ id: `${id}:left-out`, kind: "left-out", name: `${count(load.leftOut.rows, "row")} left out`, quiet: "" }];
 }
 
 /**
@@ -98,14 +102,22 @@ export function leftOutSentence(leftOut: NonNullable<LoadedSource["leftOut"]>): 
 }
 
 /**
- * One left-out row as a line: its two ends, then its other values.
+ * One left-out row as a line: where it was in the file, its two ends under their column names,
+ * then its other values under theirs.
  * @param edge - the row, as its load kept it.
- * @returns such as "p11, p13, 6".
+ * @param ends - the columns the ends were read from, `LoadedSource.leftOut.endColumns`.
+ * @returns such as "Line 24: from p11, to p13, emails 6".
  */
-export function leftOutRow(edge: LeftOutEdge): string {
-    return [edge.source, edge.target, ...Object.values(edge.values)]
-        .map((value) => (value === null || value === undefined ? "" : valueText(value)))
-        .join(", ");
+export function leftOutRow(edge: LeftOutEdge, ends?: NonNullable<LoadedSource["leftOut"]>["endColumns"]): string {
+    const text = (value: unknown): string => (value === null || value === undefined ? "" : valueText(value));
+    const named = (name: string | undefined, value: unknown): string =>
+        name === undefined ? text(value) : `${name} ${text(value)}`;
+    const values = [
+        named(ends?.source, edge.source),
+        named(ends?.target, edge.target),
+        ...Object.entries(edge.values).map(([name, value]) => named(name, value)),
+    ].join(", ");
+    return edge.line === undefined ? values : `Line ${String(edge.line)}: ${values}`;
 }
 
 /**
@@ -143,8 +155,10 @@ function kindOf(added: LoadedSource["added"]): SourceKind {
 export function sourceRows(sources: readonly LoadedSource[], report: ImportReport | null): SourceRow[] {
     const [only] = sources;
     if (sources.length === 1 && only.tables.length <= 1 && report !== null) {
-        const rows = oneTableRows(only.name ?? "Untitled data", report);
-        return rows.map((row) => ({ ...row, quiet: row.quiet + leftOutWords(only) }));
+        return oneTableRows(only.name ?? "Untitled data", report).map((row) => {
+            const leftOut = leftOutRows(only, row.id);
+            return leftOut.length === 0 ? row : { ...row, children: [...(row.children ?? []), ...leftOut] };
+        });
     }
     return sources.map((load, index) => {
         const id = `source:${String(index)}`;
@@ -156,9 +170,22 @@ export function sourceRows(sources: readonly LoadedSource[], report: ImportRepor
                 name: table,
                 quiet: "",
             }));
-            return { id, kind: "file", name, quiet: addedWords(load.added) + leftOutWords(load), children };
+            return {
+                id,
+                kind: "file",
+                name,
+                quiet: addedWords(load.added),
+                children: [...children, ...leftOutRows(load, id)],
+            };
         }
-        return { id, kind: kindOf(load.added), name, quiet: addedWords(load.added) + leftOutWords(load) };
+        const leftOut = leftOutRows(load, id);
+        return {
+            id,
+            kind: kindOf(load.added),
+            name,
+            quiet: addedWords(load.added),
+            ...(leftOut.length === 0 ? {} : { children: leftOut }),
+        };
     });
 }
 
@@ -202,8 +229,11 @@ function oneTableRows(name: string, report: ImportReport): SourceRow[] {
             },
         ];
     }
-    // A lone node table reads "77 nodes"; only an edge table counts its rows (section 2.6).
-    const table = edgeRecords > 0 ? edgeTable : { ...nodeTable, quiet: count(nodes, "node") };
+    // A lone table reads what it made: "77 nodes", or "14 nodes, 16 edges" for an edge list.
+    const table =
+        edgeRecords > 0
+            ? { ...edgeTable, quiet: `${count(nodes, "node")}, ${count(edges, "edge")}` }
+            : { ...nodeTable, quiet: count(nodes, "node") };
     return [{ ...table, id: "source:0", name }];
 }
 

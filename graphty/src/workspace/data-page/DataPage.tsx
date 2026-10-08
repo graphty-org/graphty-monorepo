@@ -53,6 +53,7 @@ import {
     baseName,
     count,
     formatName,
+    graphName,
     plural,
     READABLE_FORMATS,
     type Refusal,
@@ -193,13 +194,14 @@ export function DataPage(): React.JSX.Element {
                 announcement: replacedWords(was.name, { nodes: nodeCount, edges: edgeCount }, outOfDate.length),
             });
         }
-        // A loaded new graph is named after its file; inside a project nothing is renamed.
+        // A loaded new graph is named after every file it read; inside a project nothing is renamed.
+        const named = session === null ? undefined : graphName(session.data.sources());
         store.set((state) => ({
             page: "panels",
             place: "graph",
             project:
                 request.intent === "new" && state.project !== null && source?.kind === "files"
-                    ? { ...state.project, name: baseName(source.files[0].name) }
+                    ? { ...state.project, name: named ?? baseName(source.files[0].name) }
                     : state.project,
         }));
     };

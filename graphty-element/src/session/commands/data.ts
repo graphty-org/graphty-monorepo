@@ -156,6 +156,8 @@ export interface HeldRows {
     readonly nodes: readonly Record<string, unknown>[];
     /** Edge records. */
     readonly edges: readonly Record<string, unknown>[];
+    /** Each edge record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
+    readonly edgeLines?: readonly number[] | null;
     /** The direction the file declared, read when the rows were. */
     readonly declaredDirection: DeclaredDirection | null;
     /** The rows reading the source refused. */

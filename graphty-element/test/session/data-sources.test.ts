@@ -75,15 +75,20 @@ describe("session.data.sources", () => {
         reopened.dispose();
     });
 
-    it("keeps the unmatched edge rows a load left out, and the rows themselves, through undo, redo, save and reopen", async () => {
+    it("keeps the unmatched edge rows a load left out, the rows themselves with their lines and end columns, through undo, redo, save and reopen", async () => {
         const session = createGraphSession();
         const people = new File(["id\nAva\nBen\n"], "people.csv");
-        const passes = new File(["source,target\nAva,Ben\nBen,Zed\n"], "passes.csv");
+        const passes = new File(["from,to,emails\nAva,Ben,2\nBen,Zed,6\n"], "passes.csv");
         const draft = await session.data.prepare({ config: { nodeFile: people, edgeFile: passes } });
         await draft.load({ unmatched: "leave-out" });
         await load(session, MESSAGES, "messages.csv", "merge");
         const [first, second] = session.data.sources();
-        const leftOut = { rows: 1, values: 1, edges: [{ source: "Ben", target: "Zed", values: {} }] };
+        const leftOut = {
+            rows: 1,
+            values: 1,
+            endColumns: { source: "from", target: "to" },
+            edges: [{ source: "Ben", target: "Zed", line: 3, values: { emails: 6 } }],
+        };
         assert.deepStrictEqual(first?.leftOut, leftOut, "the row itself is kept, not only its count");
         assert.notProperty(second, "leftOut", "a load that left nothing out says nothing");
 

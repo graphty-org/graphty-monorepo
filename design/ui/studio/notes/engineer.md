@@ -15,7 +15,29 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-0. (2026-10-08) **Tier 2 pilot findings fixed; study build frozen e2ccec0e9304
+0. (2026-10-08) **Left-out rows carry their line and column names; Sources counts; project named
+   for every file (element + app, additive, recorded "decided by the team" 2026-10-08).**
+    - ELEMENT: `LeftOutEdge.line?` (numbered as `DraftRow.line`: CSV line with header = 1, else
+      position from 1) and `LoadedSource.leftOut.endColumns?` `{source,target}`. Plumbing: the draft's
+      `plan()` passes the edge table's `lines` as internal `HeldRows.edgeLines`; ingest keeps
+      `loadEdgeLines` for the load and reads the row's index from `tally.edgeRecords` (the load's
+      running edge count, so chunking cannot shift it). A non-draft load gets no `line`. End columns
+      come from the load's endpoint expressions via `columnOf()` (plain identifier, or a quoted
+      JMESPath name unquoted); this also fixed the values filter, which compared quoted expressions
+      to keys and so kept a quoted end column in `values`. `isLoadedSource` checks both fields on
+      open. Test: `data-sources.test.ts` (from,to,emails; line 3; endColumns).
+    - APP: inspector line "Line 24: from p11, to p13, emails 6" (`leftOutRow(edge, endColumns)`;
+      without them "p11, p13, emails 6"). The left-out count is its OWN child row under the load
+      ("1 row left out", kind `left-out`, warning glyph, id `source:N:left-out`, opens the source,
+      never the table dock), because the quiet text is cut at 240 px. Quiet = nodes and edges added;
+      a lone edge list reads "12 nodes, 16 edges" (was "16 rows, 16 edges"). New graph name =
+      `data-page/words.ts graphName(sources)`: every table, extensions dropped, `Intl.ListFormat`
+      ("players and passes").
+    - SEEN, NOT MINE: a two-file load's row name takes the width, so its quiet still cuts to
+      "12 n..." (shared Tree slot sizing, the Rows fix in compact-mantine).
+    - Evidence: `tmp/r1-dry1-left-out-rows/T4A/09.png`, `14.png` (after save + reopen), `T4B/14.png`,
+      `T4B/11.png` (Recent projects "players and passes"), `T21B/05.png`.
+1. (2026-10-08) **Tier 2 pilot findings fixed; study build frozen e2ccec0e9304
    (`.study-builds/tier2-e2ccec0e9/`, `REAL_DIST`).** Commits 58f02b5d0 (element), a2bbb2248
    (compact-mantine), 32c645e6b (app). What and why:
     - ELEMENT (owner door, `owner-decisions.md` 2026-10-08): `LoadedSource.leftOut.edges`
@@ -46,7 +68,7 @@ acceptance test. "The studio worktree" is
       OPEN, not fixed: T21 Replace relayouts every node (positions not kept: element capability);
       `real.mjs --prove` failed once in 4 on the first save (cause not found).
 
-1. (2026-10-07) **Tier 2 re-walk DONE: all 12 pilots reach the answer (647ba88b2).** T4, T17, T18,
+2. (2026-10-07) **Tier 2 re-walk DONE: all 12 pilots reach the answer (647ba88b2).** T4, T17, T18,
    T20, T22, T24 x two datasets, `tier2/pilot/rewalk.sh`; each pilot.md has a "Re-walk" section with
    a screenshot per fixed finding; no console error, failed request or false "still moving".
    REGRESSION FOUND + FIXED (1c723b415, compact-mantine): 3ea9171e3 made every `.cm-tree-actions`
@@ -57,7 +79,7 @@ acceptance test. "The studio worktree" is
    Build with `NODE_OPTIONS=--max-old-space-size=8192` first time (see Tried, "Builds and runs").
    Open: answer key quotes old headers ("0 nodes, 3 edges"); an uncommitted element diff (types.ts,
    doors.ts, GraphSession.ts) repairs syntax HEAD broke, owner unknown.
-2. (2026-10-07) **A bare `Input.Wrapper` is themed (aaf5ef737, compact-mantine, no door).**
+3. (2026-10-07) **A bare `Input.Wrapper` is themed (aaf5ef737, compact-mantine, no door).**
    Mantine sizes an unthemed wrapper's description as its size minus 2px: 7px at `size="xs"` (the
    Data page's weight hint under "Higher means", the T20 pilot's "tiny text"). `InputWrapper.extend`
    now gives every wrapper `cm-field-label/description/error` (11/16 secondary ink; none for
@@ -66,7 +88,7 @@ acceptance test. "The studio worktree" is
    Proof: `css-inputs.browser.test.tsx` "Input.Wrapper" and `DataPage.real-element.test.tsx`
    "11px and at 4.5:1" (both fail before: 22px line height, 7px), `tmp/t2pilotfix-app-hint-contrast/s2/07.png`.
    real.mjs path: New from data... > choose a file... > `role=combobox:minutes` > `role=option:Weight`.
-3. (2026-10-07) **The Weight box says before a run whether the loaded weight is read
+4. (2026-10-07) **The Weight box says before a run whether the loaded weight is read
    (0e2379250 element, 295d601b9 app; no door).** Element: `planCommand` (planning.ts) fills
    `caveats.weight` / `weightSkipped` for `algo.run` with the run's own `resolveRunWeight`, reading
    `PlanningContext.loadedWeight` (internal, set from `data.loadedWeight()`); before, plan returned
@@ -78,75 +100,17 @@ acceptance test. "The studio worktree" is
    (two new; both fail before), `tmp/t2pilotfix-app-path-weight-truth/s1/02.png`, `05.png`.
    SEEN: Made with now shows the "not read" sentence twice (its Weight line, then the box's
    description); "Source: Chloe" sits tight under the Weight line (pre-existing spacing).
-4. (2026-10-07) **Enter in the Path popover moves on (4c8d9eb2a, app only, no door).**
-   `PathForm.tsx NodeField onEnterPicked`: after Enter picks a node, focus goes to the other end
-   while its text is empty, else to Find path (refs on the two `SearchInput`s and the Button).
-   A mouse pick in the list does not move focus (left as it was). Proof:
-   `PathForm.real-element.test.tsx` "Enter on a typed name..." (fails before: 'AvaLee'),
-   `tmp/t2pilotfix-app-path-enter-focus/s1/04-06.png` (florentine: Strozzi, Pazzi, Enter runs).
-5. (2026-10-07) **Frame selection frames a selected edge (c74a85615, element behavior + app, no door).**
-   Element `Graph.applyCameraView(id, { scope: "selection" })` now frames the selected nodes AND
-   both ends of every selected edge (`selectionToFrame()`, shared with `zoomToSelection`); before,
-   the scope resolver's "selection" is nodes only, so an edge-only selection framed an empty box.
-   Did NOT change `resolve.ts` "selection" (algorithm scopes stay node-only). App: Frame selection
-   disabled only with nothing selected ("Select something first"); Neighborhood keeps "Select a node
-   first". Proof: `camera-doors.test.ts` + `tasks.real-element.test.tsx` (both fail before),
-   `tmp/t2pilotfix-app-frame-edge-selection/s1/03.png` (disabled), `05.png`, `06.png` (framed).
-   SEEN, NOT FIXED: fitToGraph over two nodes measures centers, so the near end sits half under the
-   canvas toolbar (06.png); same for two selected nodes.
-6. (2026-10-07) **Sources says what a load left out (f79110b10 app, 3ea9171e3 compact-mantine; no
-   new door).** Reads `LoadedSource.leftOut` (element 0c12c233b, OWNER DOOR: hold + needs-decision):
-   row quiet "17 edges, 1 row left out" (a zero kind is no longer counted). Selecting a source or
-   table row opens inspected kind `source` (id = row id; `data-place/SourceValues.tsx`): Added
-   Nodes/Edges, "1 edge row was left out: it names 1 node no node row holds.", "Show the left-out
-   row" = `editSource(store, load, "unmatched")` -> `DataPageRequest.show`; the page jumps the grid
-   to the unmatched rows once the report is in; link only when `canReopen(load)`. FOUND + FIXED:
-   `useLoadDraft` called `draft.rows({ only })` WITHOUT `choices`, so an edge file added to a graph
-   listed 0 unmatched rows (the report's own link too). compact-mantine `.cm-tree-actions` was
-   `flex: none`: a long pinned text squeezed the name to 0px; now `flex: 0 4 auto` + ellipsis.
-   CAVEAT: at 240px both cut ("passes.c... 17 edges, 1 row left..."). Proof:
-   `DataPage.real-element.test.tsx` (3 new), `Tree.browser.test.tsx` "a long pinned text",
-   `tmp/t2pilotfix-app-source-left-out/s3/04-06.png`, `s4/03.png`.
-7. (2026-10-07) **Selection summary words (84bf6a791, app only, no door).** Header is
-   `words.ts selectionWords`: only the nonzero halves + "selected" ("2 nodes selected", "13 edges
-   selected"; was "2 nodes, 0 edges"). `NodeValues SeveralValues`: Nodes row only when nodes > 0;
-   "Edges joining these nodes" (`inducedEdges`, was "Edges among them") only for 2+ nodes, so an
-   edge-only selection and Select endpoints no longer read as extra selected edges. Proof:
-   `Inspector.test.tsx` (two new tests fail before), `tmp/t2pilotfix-app-selection-summary-words/s1/05.png`, `07.png`.
-8. (2026-10-07) **Find checks a rule while typing, offers columns after "=" (app, no door).**
-   `FindBox.tsx ruleVerdict` asks `session.scope.count({ where })` 200 ms after typing stops and
-   shows its refusal before Enter; a lone "=" is app text (element refuses it as E_BAD_COMMAND from
-   `scope.count` but E_BAD_SELECTOR from `selection.apply`: unfiled inconsistency). Columns group
-   from `data.attributes()` only where a column can start. Proof: `GraphPlace.test.tsx`.
-9. (2026-10-07) **Study tool (real.mjs, no door):** a click falls back to a text box's placeholder (bbf1c4738); overlays over the canvas are not motion.
-   `canvasMoves` compares only cells where `elementFromPoint` hits the element; `REAL_PROVE_DIR`
-   gives a self-test its own folder. Ceiling: a `pointer-events: none` overlay still counts.
-10. (2026-10-07) **Overview under a filter (app only, no door).** While any step is on,
-    `GraphValues.tsx Overview` leads with "Nodes showing 19 of 20" and "Edges showing 12 of 41"
-    (`visibility.summary`), then "The counts below are for the whole graph."; no step, unchanged.
-    Two rows, not one "19 of 20 nodes, 12 edges" value: that cut to "12 ed..." in the inspector.
-    `useVisibilityVersion` moved to `data-place/useVisibilityVersion.ts` (fast-refresh warning).
-    Proof: `Inspector.test.tsx` ("leads the Overview..."), `tmp/t2pilotfix-app-overview-under-filter/10.png`.
-11. (2026-10-07) **Find names an edge the way the inspector does (app, no door).** `FindBox hitName`
-    calls `inspector/words.ts edgeName` with the hit's end NAMES: "Market -> Library" on a directed
-    graph, "A -- B" otherwise (was a hardcoded "--"). OPEN: the inspector's `edgeName` callers pass
-    the record's source/target IDS, so on data whose ids differ from names the two still disagree.
-    Proof: `GraphPlace.test.tsx` "names an edge hit" (directed case fails before),
-    `tmp/t2pilotfix-app-edge-name-one-way/s1/05.png`, `06.png` (bus-stops).
-12. (2026-10-07) **compact-mantine row fixes (no door).** Long stat values stay in the row
-    (a8dae1930, `.cm-data-row-body` grid; tooltip mounted only while cut); a cut row name's tooltip
-    opens from anywhere on its row (`EllipsizedName` measures on the row's `pointerover`).
-    Selected edge = halo band (288624ad1, `Edge.paintHalo`, knob `selectionStyle.opacity`).
-13. (2026-10-07) **Tier 2 app features DONE (no door; proofs in each `*.real-element.test.tsx`):**
-    Replace with file + out-of-date runs ca8b3b916 (positions not kept); Neighborhood header
-    (ELEMENT GAP: neighborhood filter has no `direction`); Sources per load + Edit source 8569342f6
-    (ELEMENT GAP, unfiled: `LoadedSource` keeps neither input nor roles); Path popover 587e2930e
-    (no Follow: Dijkstra always undirected); Filters 7742cd688 (read a step BEFORE undoing it).
-14. (2026-10-07) **Open defects found by the tier 2 preflight:** path row counts 61 (`summary.measured`,
-    `graph-place/rows.ts`), header calls a path "Measure";
-    Edit source... ADDS (41 -> 82); adding a file of all-new people defaults to "Leave out" (adds
-    nothing); a reopened project's Direction row shows raw `"directed": f...`; Find framing leaves the
-    graph off-canvas; element caps a load at one node + one edge table.
+5. (2026-10-07, condensed) Older fixes, each with a proof test: Enter in the Path popover moves
+   focus on (4c8d9eb2a); Frame selection frames a selected edge (c74a85615; two-node framing still
+   tucks an end under the toolbar); selection summary words (84bf6a791); Find checks a rule while
+   typing (`scope.count` vs `selection.apply` refuse "=" with different codes, unfiled); Overview
+   leads with "Nodes showing 19 of 20" under a filter; Find names edges by end names (inspector
+   `edgeName` still passes ids); compact-mantine long stat values and cut-name tooltips (a8dae1930);
+   real.mjs placeholder clicks and overlay-free motion check (bbf1c4738).
+6. (2026-10-07) Still open from the tier 2 preflight: Edit source... ADDS (41 -> 82); a reopened
+   project's Direction row shows raw text; element gaps: neighborhood filter has no `direction`,
+   `LoadedSource` keeps neither input nor roles, one node + one edge table per load, Dijkstra always
+   undirected.
 
 ## Priorities and values
 
@@ -268,6 +232,9 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) A Tree child row is NOT inside its parent's treeitem in the DOM: query children with
+  `within(tree)`, not `within(parentRow)`. A new graph's name change moves the Data page heading
+  ("Add to people and ties"): grep tests for "Add to " after renaming.
 - (2026-10-07) Measuring text contrast in a browser test: walk up to the first opaque
   `backgroundColor`, blend the text's alpha over it (`contrastOnPage` in `DataPage.real-element.test.tsx`). Worked.
 - (2026-10-07) Proving a tool fix: copy `real.mjs` beside itself with the fix undone, run once,

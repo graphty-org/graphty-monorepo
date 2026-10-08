@@ -51,12 +51,31 @@ import { frozenRecord } from "./draft";
 const LEFT_OUT_KEPT = 100;
 
 /**
- * A left-out edge row as its source keeps it: the two ends, and the row's other values (the
- * columns the ends were read from left out, when they are plain column names).
+ * The column an endpoint expression reads: the name itself, or a quoted name unquoted (as a draft
+ * writes a column name that is not a plain identifier).
+ * @param expression - The JMESPath expression.
+ * @returns The column's name, or null for any other expression.
+ */
+function columnOf(expression: string): string | null {
+    if (/^[A-Za-z_]\w*$/.test(expression)) {
+        return expression;
+    }
+
+    if (/^"(?:[^"\\]|\\.)*"$/.test(expression)) {
+        return JSON.parse(expression) as string;
+    }
+
+    return null;
+}
+
+/**
+ * A left-out edge row as its source keeps it: the two ends, its line when a draft gave one, and the
+ * row's other values (the columns the ends were read from left out, when they are plain column names).
  * @param edge - the row.
  * @param source - its source end.
  * @param target - its target end.
  * @param endpoints - where the ends were read from.
+ * @param line - the row's line, or undefined.
  * @returns the frozen entry.
  */
 function leftOutEdge(
@@ -64,11 +83,11 @@ function leftOutEdge(
     source: NodeIdType,
     target: NodeIdType,
     endpoints: ResolvedEndpoints,
+    line: number | undefined,
 ): LeftOutEdge {
-    const values = Object.fromEntries(
-        Object.entries(edge).filter(([key]) => key !== endpoints.source && key !== endpoints.target),
-    );
-    return Object.freeze({ source, target, values: frozenRecord(values) });
+    const ends = [columnOf(endpoints.source), columnOf(endpoints.target)];
+    const values = Object.fromEntries(Object.entries(edge).filter(([key]) => !ends.includes(key)));
+    return Object.freeze({ source, target, ...(line === undefined ? {} : { line }), values: frozenRecord(values) });
 }
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -373,6 +392,12 @@ export class Ingest<K extends KnownEdge> {
     /** The edge rows the load in progress left out, up to {@link LEFT_OUT_KEPT}. */
     private leftOutEdges: LeftOutEdge[] = [];
 
+    /** The columns the load in progress read the left-out rows' ends from, when plain names. */
+    private leftOutEnds: { source: string; target: string } | null = null;
+
+    /** Each edge record's line in the draft the load in progress reads, or null when it reads no draft. */
+    private loadEdgeLines: readonly number[] | null = null;
+
     /** What the load in progress does with a node record repeating an id an earlier one gave. */
     private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
 
@@ -505,6 +530,8 @@ export class Ingest<K extends KnownEdge> {
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
         this.leftOutEdges = [];
+        this.leftOutEnds = null;
+        this.loadEdgeLines = command.held === undefined ? null : (command.held.edgeLines ?? []);
         this.duplicateIds = command.duplicateIds ?? "first";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
         // the graph is counted, so a measured merge matches its edges against the graph it counts
@@ -530,6 +557,7 @@ export class Ingest<K extends KnownEdge> {
                     ? {
                           leftOut: Object.freeze({
                               ...report.unmatched,
+                              ...(this.leftOutEnds === null ? {} : { endColumns: Object.freeze(this.leftOutEnds) }),
                               edges: Object.freeze(this.leftOutEdges),
                           }),
                       }
@@ -539,6 +567,8 @@ export class Ingest<K extends KnownEdge> {
         } finally {
             this.leaveOutUnmatched = false;
             this.leftOutEdges = [];
+            this.leftOutEnds = null;
+            this.loadEdgeLines = null;
             this.duplicateIds = "first";
             this.measure = null;
         }
@@ -716,9 +746,7 @@ export class Ingest<K extends KnownEdge> {
             const srcNodeId = readEndpoint(edge, endpoints.source) as NodeIdType;
             const dstNodeId = readEndpoint(edge, endpoints.target) as NodeIdType;
             if (this.loadTally !== null && this.isUnmatched(srcNodeId, dstNodeId, this.loadTally)) {
-                if (this.leftOutEdges.length < LEFT_OUT_KEPT) {
-                    this.leftOutEdges.push(leftOutEdge(edge, srcNodeId, dstNodeId, endpoints));
-                }
+                this.keepLeftOut(edge, srcNodeId, dstNodeId, endpoints, tally.edgeRecords);
                 continue;
             }
 
@@ -902,6 +930,34 @@ export class Ingest<K extends KnownEdge> {
             this.edgesAdded(edges, this.endpointsFor(edges, options), policy, true),
             DEFAULT_LIMITS.edgesDrawn,
         );
+    }
+
+    /**
+     * Keep one left-out edge row with its source (the first {@link LEFT_OUT_KEPT}), with its line
+     * when the load reads a draft, and note the columns its ends were read from.
+     * @param edge - the row.
+     * @param source - its source end.
+     * @param target - its target end.
+     * @param endpoints - where the ends were read from.
+     * @param ordinal - the row's position among the load's edge records, from 1.
+     */
+    private keepLeftOut(
+        edge: Readonly<Record<string | number, unknown>>,
+        source: NodeIdType,
+        target: NodeIdType,
+        endpoints: ResolvedEndpoints,
+        ordinal: number,
+    ): void {
+        if (this.leftOutEdges.length >= LEFT_OUT_KEPT) {
+            return;
+        }
+
+        const line = this.loadEdgeLines === null ? undefined : (this.loadEdgeLines[ordinal - 1] ?? ordinal);
+        this.leftOutEdges.push(leftOutEdge(edge, source, target, endpoints, line));
+        const [sourceColumn, targetColumn] = [columnOf(endpoints.source), columnOf(endpoints.target)];
+        if (this.leftOutEnds === null && sourceColumn !== null && targetColumn !== null) {
+            this.leftOutEnds = { source: sourceColumn, target: targetColumn };
+        }
     }
 
     /**

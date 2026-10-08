@@ -94,7 +94,7 @@ describe("the Data place's words", () => {
         );
         assert.deepEqual(
             rows.map((r) => [r.kind, r.name, r.quiet, r.children]),
-            [["edges", "edges.csv", "254 rows, 254 edges", undefined]],
+            [["edges", "edges.csv", "30 nodes, 254 edges", undefined]],
         );
     });
 
@@ -115,7 +115,17 @@ describe("the Data place's words", () => {
             leftOut: { rows: 1, values: 1 },
         };
         const [row] = sourceRows([load, loaded("more.csv", ["more.csv"], { nodes: 1, edges: 1 })], null);
-        assert.equal(row.quiet, "12 nodes, 22 edges, 1 row left out");
+        assert.equal(row.quiet, "12 nodes, 22 edges");
+        assert.deepEqual(
+            row.children?.map((t) => [t.id, t.kind, t.name]),
+            [
+                ["source:0:0", "file", "people.csv"],
+                ["source:0:1", "file", "passes.csv"],
+                ["source:0:left-out", "left-out", "1 row left out"],
+            ],
+        );
+        const [lone] = sourceRows([load], null);
+        assert.equal(lone.children?.at(-1)?.name, "1 row left out", "a lone load shows it too");
         assert.equal(
             sourceRows([load, loaded("passes.csv", ["passes.csv"], { nodes: 0, edges: 17 })], null)[1].quiet,
             "17 edges",
@@ -128,7 +138,18 @@ describe("the Data place's words", () => {
             leftOutSentence({ rows: 3, values: 2 }),
             "3 edge rows were left out: they name 2 nodes missing from the node rows.",
         );
-        assert.equal(leftOutRow({ source: "p11", target: "p13", values: { emails: 6 } }), "p11, p13, 6");
+        assert.equal(
+            leftOutRow(
+                { source: "p11", target: "p13", line: 24, values: { emails: 6 } },
+                { source: "from", target: "to" },
+            ),
+            "Line 24: from p11, to p13, emails 6",
+        );
+        assert.equal(
+            leftOutRow({ source: "p11", target: "p13", values: { emails: 6 } }),
+            "p11, p13, emails 6",
+            "a project saved before lines and end columns were kept",
+        );
         assert.equal(loadIndexOf("source:1:0"), 1);
         assert.isUndefined(loadIndexOf("node:age"));
     });

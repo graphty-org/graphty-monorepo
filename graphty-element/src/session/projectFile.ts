@@ -944,9 +944,18 @@ function isLoadedSource(value: unknown): value is LoadedSource {
             (isObject(leftOut) &&
                 typeof leftOut.rows === "number" &&
                 typeof leftOut.values === "number" &&
+                (leftOut.endColumns === undefined ||
+                    (isObject(leftOut.endColumns) &&
+                        typeof leftOut.endColumns.source === "string" &&
+                        typeof leftOut.endColumns.target === "string")) &&
                 (leftOut.edges === undefined ||
                     (Array.isArray(leftOut.edges) &&
-                        leftOut.edges.every((edge) => isObject(edge) && isObject(edge.values))))))
+                        leftOut.edges.every(
+                            (edge) =>
+                                isObject(edge) &&
+                                isObject(edge.values) &&
+                                (edge.line === undefined || typeof edge.line === "number"),
+                        )))))
     );
 }
 

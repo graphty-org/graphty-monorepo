@@ -1500,6 +1500,7 @@ export interface LayoutRecommendationOptions {
 
 // @public
 export interface LeftOutEdge {
+    readonly line?: number;
     readonly source: NodeId_2;
     readonly target: NodeId_2;
     readonly values: Readonly<Record<string, unknown>>;
@@ -1628,6 +1629,10 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly leftOut?: {
         readonly rows: number;
         readonly values: number;
+        readonly endColumns?: {
+            readonly source: string;
+            readonly target: string;
+        };
         readonly edges?: readonly LeftOutEdge[];
     };
     readonly tables: readonly string[];

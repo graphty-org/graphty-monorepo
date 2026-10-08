@@ -36,12 +36,13 @@
  *    thresholds that a --project run already switches off.
  * Each
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
- * prints the end of its log. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
+ * prints the end of its log. The failed shard's whole log is also copied to
+ * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
  * its wait for a browser or test slot) fails; tools/prepush.sh bounds the whole stage, waits included.
  */
 
 import { spawn, execFileSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -307,9 +308,26 @@ async function main() {
         }
     };
 
+    // The next push from this worktree overwrites tmp/prepush-tests/, so a failed shard's whole log is
+    // copied under a name of its own beside the push queue's saved gate logs (<main checkout>/tmp/
+    // push-gate-logs/, which keeps them 14 days), where a later run never writes over it.
+    const keepLog = (shard) => {
+        const log = join(logs, `${shard}.log`);
+        if (!existsSync(log)) {
+            return; // a signal, not a shard
+        }
+        const kept = join(main, "tmp/push-gate-logs");
+        const stamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
+        const copy = join(kept, `${stamp}-${process.pid}-${shard}.log`);
+        mkdirSync(kept, { recursive: true });
+        copyFileSync(log, copy);
+        console.log(`  [FAIL] ${shard}: its whole log is kept in ${copy}`);
+    };
+
     const finish = () => {
         const secs = Math.round((Date.now() - started) / 1000);
         if (failed) {
+            keepLog(failed);
             console.log(`Stopped after ${failed} failed (${secs}s); the other shards did not finish.`);
             process.exit(1);
         }

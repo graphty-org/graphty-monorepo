@@ -26,30 +26,7 @@ import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import { applyName, chipWords, ENDS_LINE, outcomeWords, statusWords } from "./filterWords";
-
-/**
- * Re-renders on every visibility or data change.
- * @param session - the element's session, or null.
- * @returns a number that changes with each.
- */
-function useVisibilityVersion(session: GraphSession | null): number {
-    const [version, setVersion] = useState(0);
-    useEffect(() => {
-        if (session === null) {
-            return undefined;
-        }
-        const bump = (): void => {
-            setVersion((v) => v + 1);
-        };
-        const offs = [session.on("visibility:changed", bump), session.on("project:changed", bump)];
-        return () => {
-            offs.forEach((off) => {
-                off();
-            });
-        };
-    }, [session]);
-    return version;
-}
+import { useVisibilityVersion } from "./useVisibilityVersion";
 
 /** Nodes left before the first step and after each step that is on, by step id. */
 interface Outcomes {

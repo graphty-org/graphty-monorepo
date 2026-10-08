@@ -4,16 +4,30 @@ import { Badge, Group, Stack, Text } from "@mantine/core";
 import type React from "react";
 
 import { weightName } from "../analyze/words";
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { count, directionWords, formatNumber, measurementWord } from "./words";
 
 /**
+ * "19 of 20", exact counts.
+ * @param part - how many are showing.
+ * @param whole - how many the graph holds.
+ * @returns the words.
+ */
+function ofWords(part: number, whole: number): string {
+    return `${part.toLocaleString()} of ${whole.toLocaleString()}`;
+}
+
+/**
  * The graph's Values tab, the Overview (tier1-design.md section 2.7, task T6): every count the
  * element publishes about the graph's shape, each that can be selected a link that selects it.
+ * While a filter step is on, it leads with the element's visible counts and says that the rest
+ * are for the whole graph, so a reader does not take them for what is showing.
  * @returns The Overview
  */
 export function Overview(): React.JSX.Element | null {
     const { session } = useWorkspace();
+    useVisibilityVersion(session);
     if (session === null) {
         return null;
     }
@@ -30,9 +44,20 @@ export function Overview(): React.JSX.Element | null {
     };
     const [low, high] = statistics.degreeRange;
     const weight = session.data.loadedWeight();
+    const filtered = session.visibility.steps.some((step) => step.on);
+    const showing = session.visibility.summary;
 
     return (
         <ControlSection label="Overview" defaultOpened>
+            {filtered && (
+                <>
+                    <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
+                    <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
+                    <Text size="xs" c="dimmed" px="md" py={2}>
+                        The counts below are for the whole graph.
+                    </Text>
+                </>
+            )}
             <DataRow stat name="Nodes" value={statistics.nodeCount} />
             <DataRow stat name="Edges" value={statistics.edgeCount} />
             <DataRow stat name="Direction" value={directionWords(statistics)} />

@@ -82,6 +82,39 @@ describe("the inspector", () => {
         assert.include(screen.getByRole("group", { name: "Components" }).textContent, "1");
     });
 
+    it("leads the Overview with the element's visible counts while a filter step is on", async () => {
+        const { session: on } = await renderInspector();
+        // No step: no showing rows, no whole-graph note.
+        assert.isNull(screen.queryByRole("group", { name: "Nodes showing" }));
+        assert.isNull(screen.queryByText(/whole graph/));
+
+        await act(async () => {
+            await on.visibility.setSteps([
+                { id: "s1", on: true, rule: { kind: "range", attribute: "data.shared", min: 5, nodes: "ends" } },
+            ]);
+        });
+        const { visibleNodes, visibleEdges } = on.status.counts;
+        assert.isBelow(visibleNodes, 12);
+        const nodes = await screen.findByRole("group", { name: "Nodes showing" });
+        assert.include(nodes.textContent, `${String(visibleNodes)} of 12`);
+        assert.include(
+            screen.getByRole("group", { name: "Edges showing" }).textContent,
+            `${String(visibleEdges)} of 13`,
+        );
+        assert.isNotNull(screen.getByText("The counts below are for the whole graph."));
+        assert.include(screen.getByRole("group", { name: "Nodes" }).textContent, "12");
+
+        // Off again: back to the plain Overview.
+        await act(async () => {
+            await on.visibility.setSteps([]);
+        });
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("group", { name: "Nodes showing" }));
+        });
+        assert.isNull(screen.queryByRole("group", { name: "Edges showing" }));
+        assert.isNull(screen.queryByText(/whole graph/));
+    });
+
     it("keeps the graph's tab, and always opens a single node on Values", async () => {
         const { session: on } = await renderInspector();
 

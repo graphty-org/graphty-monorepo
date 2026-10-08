@@ -1919,6 +1919,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPlaced: READ,
             read: READ,
             generation: READ,
+            changes: READ,
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,

@@ -19,6 +19,13 @@ import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./Layout
  * Zod-based options schema for D3 Force Layout
  */
 const d3LayoutOptionsSchema = defineOptions({
+    dim: {
+        schema: z.number().int().min(2).max(3).default(3),
+        meta: {
+            label: "Dimensions",
+            description: "Layout dimensionality (2D or 3D)",
+        },
+    },
     alphaMin: {
         schema: z.number().positive().default(0.1),
         meta: {
@@ -86,6 +93,7 @@ function isD3Node(n: unknown): n is D3Node {
 }
 
 const D3LayoutConfig = z.strictObject({
+    dim: z.number().int().min(2).max(3).default(3),
     alphaMin: z.number().positive().default(0.1),
     alphaTarget: z.number().min(0).default(0),
     alphaDecay: z.number().positive().default(0.0228),
@@ -131,6 +139,16 @@ export class D3GraphEngine extends LayoutEngine {
     static zodOptionsSchema: OptionsSchema = d3LayoutOptionsSchema;
     /** Accepts a scope: a held node is fixed through d3's own `fx`/`fy`/`fz`. */
     static override scoped = true;
+
+    /**
+     * Get dimension-specific options for the D3 layout
+     * @param dimension - The desired dimension (2 or 3)
+     * @returns Options object with dim parameter
+     */
+    static getOptionsForDimension(dimension: 2 | 3): object {
+        return { dim: dimension };
+    }
+
     d3ForceLayout: ReturnType<typeof forceSimulation>;
     d3AlphaMin: number;
     d3AlphaTarget: number;
@@ -141,6 +159,8 @@ export class D3GraphEngine extends LayoutEngine {
     newNodeMap = new Map<Node, D3InputNode>();
     newEdgeMap = new Map<Edge, D3InputEdge>();
     reheat = false;
+    /** 2 or 3: in 2D d3 moves nodes in X and Y only, and every node stays at Z = 0. */
+    private readonly dim: number;
 
     /**
      * Check if there are pending nodes or edges to be processed
@@ -162,6 +182,7 @@ export class D3GraphEngine extends LayoutEngine {
         this.d3AlphaTarget = opts.alphaTarget;
         this.d3AlphaDecay = opts.alphaDecay;
         this.d3VelocityDecay = opts.velocityDecay;
+        this.dim = opts.dim;
 
         // https://github.com/vasturiano/d3-force-3d?tab=readme-ov-file#links
         const fl = forceLink();
@@ -169,7 +190,7 @@ export class D3GraphEngine extends LayoutEngine {
         // Type assertions needed due to d3-force-3d type definition issues with strict mode
         /* eslint-disable @typescript-eslint/no-explicit-any -- d3-force-3d types are incompatible */
         this.d3ForceLayout = forceSimulation()
-            .numDimensions(3)
+            .numDimensions(this.dim)
             .alpha(1)
             .force("link", fl as any)
             .force("charge", forceManyBody() as any)
@@ -291,7 +312,8 @@ export class D3GraphEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
-        this.newNodeMap.set(n, { id: n.id });
+        // d3 gives a node no Z in 2D, so it starts on the plane.
+        this.newNodeMap.set(n, this.dim === 2 ? { id: n.id, z: 0, vz: 0 } : { id: n.id });
     }
 
     /**

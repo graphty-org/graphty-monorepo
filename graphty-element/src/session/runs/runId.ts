@@ -241,10 +241,24 @@ export function algorithmSlug(algorithm: AlgorithmKey): string {
     const slug = algorithm
         .toLowerCase()
         .replaceAll(/[^a-z0-9_-]+/g, "-")
-        .replace(/^[^a-z]+/, "")
-        .replace(/[-_]+$/, "");
+        .replace(/^[^a-z]+/, "");
 
-    return slug === "" ? "run" : slug;
+    return trimTrailingSeparators(slug) || "run";
+}
+
+/**
+ * Drop the dashes and underscores a slug ends with. A loop, not `/[-_]+$/`: that regex retries
+ * from every separator and takes quadratic time on a long run of them that does not end the text.
+ * @param slug - The slug.
+ * @returns The slug without trailing `-` and `_`.
+ */
+export function trimTrailingSeparators(slug: string): string {
+    let end = slug.length;
+    while (end > 0 && (slug[end - 1] === "-" || slug[end - 1] === "_")) {
+        end--;
+    }
+
+    return slug.slice(0, end);
 }
 
 /**

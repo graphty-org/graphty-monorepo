@@ -36,6 +36,7 @@ import {
     revertTitle,
 } from "./master-guard.mjs";
 import { summarize } from "./pr-status-broker.mjs";
+import { fingerprint, outputHash } from "./prepush-inputs.mjs";
 import { gateShards, localShards, shardEnv, startRule } from "./prepush-tests.mjs";
 import { strayChanges } from "./release-diff.mjs";
 import { changedFiles, skippedProjects } from "./visual-capture-plan.mjs";
@@ -2582,13 +2583,15 @@ describe("the commit and push hooks", () => {
         };
         const build = at('run_step "Build"');
         assert.ok(at("PROJECTS=$(") < build);
-        for (const step of ["Formatting", "ESLint root config", "Legacy graph API use", "Links"]) {
-            assert.ok(
-                at(`run_step "${step}"`) < at("PROJECTS=$("),
-                `${step} runs before the affected list and the build`,
-            );
+        assert.ok(at('source "$SCRIPT_DIR/prepush-source-checks.sh"') < at("PROJECTS=$("), "before the affected list");
+        const checks = repoFile("tools/prepush-source-checks.sh");
+        for (const step of ["Formatting", "ESLint root config", "Legacy graph API use", "Links", "CI workflow tests"]) {
+            assert.match(checks, new RegExp(`run_step "${step.replace(/[()]/g, "\\$&")}"`), step);
         }
-        const runStep = prepush.slice(at("run_step() {"), prepush.indexOf("\n}\n", at("run_step() {")) + 3);
+        const runStep = checks.slice(
+            checks.indexOf("run_step() {"),
+            checks.indexOf("\n}\n", checks.indexOf("run_step() {")) + 3,
+        );
         const r = spawnSync("bash", ["-c", `${runStep}\nrun_step one false\nrun_step two "echo SECOND"`], {
             encoding: "utf8",
         });
@@ -2688,6 +2691,63 @@ describe("a failed pre-push test shard (#1562)", () => {
             assert.match(firstLog, /FAIL {2}src\/a\.test\.ts > draws the edge/);
             assert.match(firstLog, /Test timed out in 5000ms/);
             assert.equal(readdirSync(join(dir, "tmp/push-gate-logs")).length, 2);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("the source-only checks before the queue (tools/prepush-source-checks.sh)", () => {
+    it("skip only on the exact checkout they passed on, and run again after any edit", () => {
+        // The script and the fingerprint tool in a throwaway repository, every check behind a fake
+        // pnpm (and check-links.sh) that logs its call and passes.
+        const dir = mkdtempSync(join(tmpdir(), "prepush-source-checks-"));
+        try {
+            mkdirSync(join(dir, "tools"));
+            mkdirSync(join(dir, "bin"));
+            mkdirSync(join(dir, "node_modules/.pnpm"), { recursive: true });
+            for (const f of ["prepush-source-checks.sh", "prepush-inputs.mjs"]) {
+                copyFileSync(new URL(`./${f}`, import.meta.url), join(dir, "tools", f));
+            }
+            writeFileSync(join(dir, "bin/pnpm"), `#!/bin/sh\necho "$*" >> ${dir}/calls\n`, { mode: 0o755 });
+            writeFileSync(join(dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> ${dir}/calls\n`, {
+                mode: 0o755,
+            });
+            writeFileSync(join(dir, "pnpm-lock.yaml"), "lock\n");
+            writeFileSync(join(dir, "node_modules/.pnpm/lock.yaml"), "lock\n");
+            writeFileSync(join(dir, ".gitignore"), "node_modules/\ncalls\n");
+            writeFileSync(join(dir, "a.ts"), "a\n");
+            const git = (...args) => assert.equal(spawnSync("git", args, { cwd: dir }).status, 0, args.join(" "));
+            git("init", "-q");
+            git("add", ".");
+            git("commit", "-q", "-m", "a");
+            const run = () => {
+                rmSync(join(dir, "calls"), { force: true });
+                const r = spawnSync("bash", ["tools/prepush-source-checks.sh"], {
+                    cwd: dir,
+                    encoding: "utf8",
+                    env: { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}` },
+                });
+                assert.equal(r.status, 0, r.stdout + r.stderr);
+                return {
+                    out: r.stdout,
+                    calls: existsSync(join(dir, "calls")) ? readFileSync(join(dir, "calls"), "utf8") : "",
+                };
+            };
+            const first = run();
+            assert.match(first.calls, /run format:check/);
+            assert.match(first.calls, /links/);
+            const second = run();
+            assert.equal(second.calls, "", "nothing changed: no check runs");
+            assert.match(second.out, /\[SKIP\] Source-only checks/);
+            writeFileSync(join(dir, "a.ts"), "b\n");
+            assert.match(run().calls, /run format:check/, "an edit runs them again");
+            writeFileSync(join(dir, "new.ts"), "n\n");
+            assert.match(run().calls, /run format:check/, "a new file runs them again");
+            git("add", ".");
+            git("commit", "-q", "-m", "b");
+            assert.match(run().calls, /run format:check/, "a commit runs them again");
+            assert.equal(run().calls, "");
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }

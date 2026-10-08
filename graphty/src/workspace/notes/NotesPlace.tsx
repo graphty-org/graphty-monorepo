@@ -117,10 +117,10 @@ function Chips({ session, targets, states, onOpen, tabbable = true }: ChipsProps
  * The editor at the top of the list: what the note is about, the text, Save and Cancel. Mod+Enter
  * saves; Esc closes an empty one and leaves a written one open with its text.
  * @param props - Component props
- * @param props.onSaved - Called with the new note's id
+ * @param props.onSaved - Called once the note is saved
  * @returns The editor, or null when no note is being written
  */
-function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React.JSX.Element | null {
+function Editor({ onSaved }: Readonly<{ onSaved: () => void }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const draft = useWorkspaceState((state) => state.noteDraft);
     const [error, setError] = useState<string | null>(null);
@@ -135,16 +135,15 @@ function Editor({ onSaved }: Readonly<{ onSaved: (id: string) => void }>): React
             setError("Write something first");
             return;
         }
-        let id: string;
         try {
-            id = session.notes.add({ text: draft.text, targets: draft.targets });
+            session.notes.add({ text: draft.text, targets: draft.targets });
         } catch {
             setError("This note could not be saved");
             return;
         }
         setError(null);
         store.set({ noteDraft: null, announcement: `Note added about ${aboutWords(session, draft.targets)}` });
-        onSaved(id);
+        onSaved();
     };
     return (
         <Stack gap={6} px="md" py="xs" className="nt-editor">
@@ -201,7 +200,7 @@ export function NotesPlace(): React.JSX.Element {
     const [active, setActive] = useState(0);
     const items = useRef<(HTMLLIElement | null)[]>([]);
     const plus = useRef<HTMLSpanElement>(null);
-    // The note to focus once the list has drawn it: the next one after a delete, a new one.
+    // The note to focus once the list has drawn it: the next one after a delete.
     const pending = useRef<string | null>(null);
     const current = Math.min(active, Math.max(notes.length - 1, 0));
     useEffect(() => {
@@ -249,7 +248,13 @@ export function NotesPlace(): React.JSX.Element {
                     </span>
                 }
             >
-                <Editor onSaved={focusWhenDrawn} />
+                {/* A saved note hands focus to "+", the panel's own control, not to the new note's
+                    whole card; the note is announced, and Tab from "+" reaches the list. */}
+                <Editor
+                    onSaved={() => {
+                        plus.current?.querySelector("button")?.focus();
+                    }}
+                />
                 {notes.length === 0 ? (
                     !editing && (
                         <Text size="sm" c="dimmed" px="md" py="xs">

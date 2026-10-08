@@ -112,10 +112,12 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
             degree.current?.querySelector("button")?.focus();
         }
     }, []);
-    // After every render, so a pick of the node already shown takes focus too.
+    // After every render, so a pick of the node already shown takes focus too. Focus goes to
+    // Degree, the Summary's one control (it opens the neighbors), never to the whole group: a ring
+    // around every row marks nothing the reader can act on.
     useEffect(() => {
         if (summary.current !== null && takeNodeValuesFocus()) {
-            summary.current.focus();
+            degree.current?.querySelector("button")?.focus();
         }
     });
     if (session === null) {
@@ -142,7 +144,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
     return (
         <>
             <ControlSection label="Summary" defaultOpened>
-                <div ref={summary} tabIndex={-1} role="group" aria-label="Summary values">
+                <div ref={summary} role="group" aria-label="Summary values">
                     <AttributeRows rows={fileAttributes(session, "node", session.data.node(id))} />
                     <div ref={degree} style={{ display: "contents" }}>
                         <DataRow
@@ -258,6 +260,7 @@ export function NeighborList({
     // The Filter to neighbors toggle reads the steps, so it follows each change to them.
     useVisibilityVersion(session);
     const heading = useRef<HTMLElement>(null);
+    const rowsRef = useRef<HTMLDivElement>(null);
     // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
     // shortcut on the region, so it is listened for on the region's own element. A Hops or
     // Follow change keeps focus on the control that made it.
@@ -266,8 +269,13 @@ export function NeighborList({
         if (region === null || session === null) {
             return undefined;
         }
+        // Focus goes to the first neighbor, else (no neighbors) to the checked Hops choice: a
+        // control, never a ring around the whole list.
         if (!region.contains(document.activeElement)) {
-            region.focus();
+            (
+                rowsRef.current?.querySelector<HTMLElement>("button") ??
+                region.querySelector<HTMLElement>("input:checked")
+            )?.focus();
         }
         const onKeyDown = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
@@ -336,7 +344,7 @@ export function NeighborList({
     const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
     return (
-        <section ref={heading} tabIndex={-1} aria-label={words}>
+        <section ref={heading} aria-label={words}>
             {/* The way back to the node's own Values, for a pointer; Esc is the keyboard's. */}
             <Button
                 variant="subtle"
@@ -419,7 +427,9 @@ export function NeighborList({
                     )}
                 </Stack>
                 {tie !== undefined && <DataRowHeader label="Neighbor" unit={tie} />}
-                {rows}
+                <div ref={rowsRef} style={{ display: "contents" }}>
+                    {rows}
+                </div>
             </ControlSection>
         </section>
     );

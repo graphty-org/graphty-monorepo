@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
-import { focusIsLost } from "./frame/focus";
+import { focusCurrentPlace, focusIsLost } from "./frame/focus";
 import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
 import { useCommandKeys } from "./keys/useCommandKeys";
@@ -78,15 +78,18 @@ export function Workspace({
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
     // Focus after the control that held it goes away. The project the workspace started with (a
     // story's, a test's) is left alone; every project opened since (a sample, a file, a recent
-    // project, New project) hands focus to its drawing as its element comes up, where the load is
-    // announced and keyboard node walking starts. Its element is keyed by project, so this runs
-    // once per project. Closing a project hands focus to the start screen's first way in.
+    // project, New project) hands focus to the rail button of the open place as its element
+    // comes up: one control, never the drawing's outline, and every single-key shortcut still
+    // works. Its element is keyed by project, so this runs once per project. Closing a project
+    // hands focus to the start screen's first way in.
     const [startProjectId] = useState(() => store.get().project?.id);
     const startDoor = useRef<HTMLButtonElement>(null);
     const projectWasOpen = useRef(false);
     useEffect(() => {
-        if (element.element !== null && store.get().project?.id !== startProjectId) {
-            element.element.focus();
+        // A project that opens on the Data page (New from data...) keeps focus on that page.
+        const { project, page } = store.get();
+        if (element.element !== null && project?.id !== startProjectId && page === "panels") {
+            focusCurrentPlace();
         }
     }, [element, store, startProjectId]);
     useEffect(() => {

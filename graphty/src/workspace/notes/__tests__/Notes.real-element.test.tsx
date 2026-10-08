@@ -86,6 +86,8 @@ describe("Notes, on the real element", () => {
             assert.isNotNull(within(note).getByRole("button", { name }));
             assert.equal(store.get().announcement, `Note added about ${name}`);
             assert.isNull(screen.queryByRole("textbox", { name: "Note" }));
+            // Saving hands focus to "+", the panel's control, not to the new note's whole card.
+            assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Add note" }));
             assert.deepEqual(
                 session.notes.list().map((saved) => ({ text: saved.text, targets: saved.targets })),
                 [{ text: "Ask about the bank", targets: [{ node: first.id }] }],

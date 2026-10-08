@@ -211,7 +211,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
                 .focus();
             await userEvent.keyboard("{Enter}");
             const list = await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
-            assert.equal(document.activeElement, list);
+            // Focus lands on the first neighbor, a control, not on the whole list.
+            assert.equal(document.activeElement, rowButtons(list)[0]);
 
             await userEvent.keyboard("{Escape}");
             await waitFor(() => {
@@ -223,12 +224,10 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             });
             await userEvent.keyboard("{Enter}");
             const again = await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
-            // Tab goes past the header (Hops, then Filter to neighbors) to the first name.
             const first = rowButtons(again)[0];
-            for (let tabs = 0; tabs < 6 && document.activeElement !== first; tabs++) {
-                await userEvent.tab();
-            }
-            assert.equal(document.activeElement, first);
+            await waitFor(() => {
+                assert.equal(document.activeElement, first);
+            });
             await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["n6"]);
@@ -238,7 +237,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     );
 
     it(
-        "T12 from the find box: a pick moves focus to the node's values, one Tab reaches Degree",
+        "T12 from the find box: a pick moves focus to Degree in the node's values",
         async () => {
             const { session } = await openRings();
             await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "Node 0");
@@ -247,12 +246,10 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["n0"]);
             });
+            // Degree, the Summary's one control, not a ring around the whole group.
             await waitFor(() => {
-                assert.equal(document.activeElement, inspector().getByRole("group", { name: "Summary values" }));
+                assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
             });
-
-            await userEvent.tab();
-            assert.equal(document.activeElement, inspector().getByRole("button", { name: /Degree/ }));
             await userEvent.keyboard("{Enter}");
             await inspector().findByRole("region", { name: "3 nodes within 1 hop of n0" });
         },

@@ -8,6 +8,7 @@ import React, { forwardRef, useRef } from "react";
 import { AnalyzePopover } from "../analyze/AnalyzePopover";
 import { CommandMenuItem, Sections } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
+import { focusPathValuesNext } from "../inspector/reads";
 import { xrRows } from "../inspector/words";
 import { formatKey } from "../keys/keys";
 import { LayoutPopover } from "../layout/LayoutPopover";
@@ -285,7 +286,9 @@ export function WorkspaceToolbar(): React.JSX.Element {
                                     store.set({ announcement: `${name} added, running` });
                                 }}
                                 onPathStarted={(run) => {
-                                    // The new row is selected, so the inspector shows its path.
+                                    // The new row is selected, so the inspector shows its path, and
+                                    // focus goes to the route's first node once it is drawn.
+                                    focusPathValuesNext(run.id);
                                     store.set({ inspected: { kind: "measure-row", id: run.id } });
                                 }}
                             />

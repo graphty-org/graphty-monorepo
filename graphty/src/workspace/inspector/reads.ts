@@ -45,12 +45,12 @@ export function selectNode(session: GraphSession, id: NodeId): void {
     void session.selection.apply({ nodes: [id] });
 }
 
-/** Set by a find pick, so the next node view takes keyboard focus on its Summary values. */
+/** Set by a find pick, so the next node view takes keyboard focus on its Degree row. */
 let nodeValuesFocus = false;
 
 /**
- * Asks the node view the next selection draws to take keyboard focus on its Summary values,
- * so typing after a find pick no longer lands in the find box.
+ * Asks the node view the next selection draws to take keyboard focus on its Degree row (the
+ * Summary's one control), so typing after a find pick no longer lands in the find box.
  */
 export function focusNodeValuesNext(): void {
     nodeValuesFocus = true;
@@ -63,6 +63,31 @@ export function focusNodeValuesNext(): void {
 export function takeNodeValuesFocus(): boolean {
     const asked = nodeValuesFocus;
     nodeValuesFocus = false;
+    return asked;
+}
+
+/** The path run whose Values should take keyboard focus once its route is drawn. */
+let pathValuesFocus: string | null = null;
+
+/**
+ * Asks a path run's Values to take keyboard focus on its first node in order once the route is
+ * there, so Find path leaves the reader on the result rather than on what opened the form.
+ * @param run - the path run's id.
+ */
+export function focusPathValuesNext(run: string): void {
+    pathValuesFocus = run;
+}
+
+/**
+ * Takes a pending request from `focusPathValuesNext` for this run, once.
+ * @param run - the run whose Values are drawn.
+ * @returns whether they should take focus now.
+ */
+export function takePathValuesFocus(run: string): boolean {
+    const asked = pathValuesFocus === run;
+    if (asked) {
+        pathValuesFocus = null;
+    }
     return asked;
 }
 

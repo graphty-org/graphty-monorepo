@@ -99,6 +99,12 @@ describe("Replace with file...", () => {
                 },
                 { timeout: TIMEOUT_MS },
             );
+            // Load hands focus to the open place's rail button, never to the drawing's outline.
+            await waitFor(() => {
+                const places = screen.getByRole("toolbar", { name: "Places" });
+                assert.isTrue(places.contains(document.activeElement), "focus is not on the rail");
+                assert.equal(document.activeElement?.getAttribute("aria-current"), "page");
+            });
             assert.isDefined(live.runs.get(run.id), "the run is kept");
             assert.strictEqual(live.runs.get(run.id)?.stale?.reason, "data-changed");
             const row = await screen.findByRole("treeitem", { name: "PageRank, out of date" });

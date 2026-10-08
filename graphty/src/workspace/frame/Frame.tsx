@@ -17,7 +17,7 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
-import { focusIsLost } from "./focus";
+import { focusCurrentPlace, focusIsLost } from "./focus";
 import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { Rail } from "./Rail";
@@ -50,15 +50,22 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
     const panels = page === "panels";
-    // Leaving the Data page (Load, Cancel, Esc) or closing the table dock takes away the control
-    // that had focus; focus goes to the drawing rather than the page. Not on the first render.
+    // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
+    // to the rail button of the open place, a control, not the page or the drawing's outline.
+    // Closing the table dock hands it to the drawing the table sat under. Not on the first render.
     const surfaces = useRef<string | null>(null);
     useEffect(() => {
         const now = `${String(panels)}:${String(dockOpen)}`;
-        if (surfaces.current !== null && surfaces.current !== now && focusIsLost()) {
+        const was = surfaces.current;
+        surfaces.current = now;
+        if (was === null || was === now || !focusIsLost()) {
+            return;
+        }
+        if (panels && was.startsWith("false")) {
+            focusCurrentPlace();
+        } else {
             element?.focus();
         }
-        surfaces.current = now;
     }, [panels, dockOpen, element]);
     // A note being written is about this project's graph: another project drops it.
     useEffect(() => {

@@ -7,14 +7,22 @@ import {
     type ScopeInput,
 } from "@graphty/graphty-element/session";
 import { Button, Group, Stack, Text } from "@mantine/core";
-import type React from "react";
+import React, { useEffect, useRef } from "react";
 
 import { optionWords, runName, weightReadWords, wordsFor } from "../analyze/words";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, nodeKey } from "./inspected";
-import { type Draft, measuredNoun, rowKindOf, selectNode, settingsChanged, settingsOf } from "./reads";
+import {
+    type Draft,
+    measuredNoun,
+    rowKindOf,
+    selectNode,
+    settingsChanged,
+    settingsOf,
+    takePathValuesFocus,
+} from "./reads";
 import {
     count,
     formatNumber,
@@ -312,6 +320,15 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
  * @returns The sections
  */
 function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run }>): React.JSX.Element | null {
+    const order = useRef<HTMLDivElement>(null);
+    // After Find path, focus goes to the route's first node, once it is drawn: the result the
+    // reader asked for, not the canvas or the control that opened the form.
+    useEffect(() => {
+        const first = order.current?.querySelector<HTMLElement>("button");
+        if (first !== null && first !== undefined && takePathValuesFocus(run.id)) {
+            first.focus();
+        }
+    });
     const { result } = run;
     if (result === undefined) {
         return null;
@@ -331,16 +348,18 @@ function PathValues({ session, run }: Readonly<{ session: GraphSession; run: Run
                 {distance && <DataRow stat name="Total distance" value={formatNumber(cost)} />}
             </ControlSection>
             <ControlSection label="Nodes in order" defaultOpened>
-                {nodes.map((entry) => (
-                    <DataRow
-                        key={nodeKey(entry.id)}
-                        name={String(entry.id)}
-                        value={formatNumber(entry.value + 1)}
-                        onClick={() => {
-                            selectNode(session, entry.id);
-                        }}
-                    />
-                ))}
+                <div ref={order} style={{ display: "contents" }}>
+                    {nodes.map((entry) => (
+                        <DataRow
+                            key={nodeKey(entry.id)}
+                            name={String(entry.id)}
+                            value={formatNumber(entry.value + 1)}
+                            onClick={() => {
+                                selectNode(session, entry.id);
+                            }}
+                        />
+                    ))}
+                </div>
             </ControlSection>
         </>
     );

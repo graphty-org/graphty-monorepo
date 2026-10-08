@@ -3,12 +3,14 @@
  * The drawing does not take focus on its own, so each of these used to drop focus to the page
  * itself, and a keyboard or screen-reader user had to start again from the top:
  *
- * - a graph opened (a sample, a recent project): the drawing, where keyboard node walking starts;
+ * - a graph opened (a sample, a recent project): the open place's rail button, a control (never
+ *   the drawing's outline), where every single-key shortcut still works;
  * - the usage data card answered: Open project or file..., the first way in;
  * - a file refused: Open project or file..., beside the reason that stays;
  * - Escape from a dialog opened from the drawing: the drawing again;
  * - a Recent projects row removed: the row now in its place, or Open project or file...;
  * - New from data... (the start screen goes): the Data page's first ask, "choose a file...";
+ *   Load (the Data page goes): the open place's rail button;
  * - the table closed, or a notice closed from inside it: the drawing.
  */
 
@@ -63,6 +65,16 @@ function assertFocusOnDrawing(host: HTMLElement): void {
 }
 
 /**
+ * Asserts that keyboard focus is on the rail button of the open place, not on the drawing.
+ */
+function assertFocusOnCurrentPlace(): void {
+    const places = screen.getByRole("toolbar", { name: "Places" });
+    const active = document.activeElement;
+    assert.isTrue(places.contains(active), "focus is not on the rail");
+    assert.equal(active?.getAttribute("aria-current"), "page", "focus is not on the open place");
+}
+
+/**
  * The start screen's first way in.
  * @returns Open project or file...
  */
@@ -81,14 +93,14 @@ afterEach(() => {
 
 describe("focus after the control holding it goes away, on the real element", () => {
     it(
-        "a sample opened with Enter hands focus to its drawing",
+        "a sample opened with Enter hands focus to the open place's rail button",
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             screen.getByRole("button", { name: "Open the Florentine families sample" }).focus();
             await userEvent.keyboard("{Enter}");
-            const { host } = await loaded(15);
+            await loaded(15);
             await waitFor(() => {
-                assertFocusOnDrawing(host);
+                assertFocusOnCurrentPlace();
             });
             unmount();
         },
@@ -156,7 +168,7 @@ describe("focus after the control holding it goes away, on the real element", ()
     );
 
     it(
-        "Enter on a recent project hands focus to its drawing",
+        "Enter on a recent project hands focus to the open place's rail button",
         async () => {
             // A project kept in this browser, so Recent projects lists it.
             const first = render(<Workspace store={createWorkspaceStore()} />);
@@ -172,11 +184,11 @@ describe("focus after the control holding it goes away, on the real element", ()
             const row = await screen.findByRole("gridcell", { name: /^Kept Florentine/ });
             row.focus();
             await userEvent.keyboard("{Enter}");
-            const { host } = await loaded(15);
+            await loaded(15);
             await waitFor(
                 () => {
                     assert.equal(store.get().project?.name, "Kept Florentine");
-                    assertFocusOnDrawing(host);
+                    assertFocusOnCurrentPlace();
                 },
                 { timeout: TIMEOUT_MS },
             );
@@ -236,7 +248,7 @@ describe("focus after the control holding it goes away, on the real element", ()
     );
 
     it(
-        "New from data... hands focus to the Data page's first ask, and Load to the drawing",
+        "New from data... hands focus to the Data page's first ask, and Load to the open place's rail button",
         async () => {
             const { unmount } = render(<Workspace store={createWorkspaceStore()} />);
             screen.getByRole("button", { name: /^New from data\.\.\./ }).focus();
@@ -246,7 +258,7 @@ describe("focus after the control holding it goes away, on the real element", ()
                 assert.strictEqual(document.activeElement, ask);
             });
 
-            // Load takes the Data page away: focus goes to the drawing of what was loaded.
+            // Load takes the Data page away: focus goes to the open place's rail button.
             vi.spyOn(HTMLInputElement.prototype, "click").mockImplementationOnce(function (this: HTMLInputElement) {
                 const transfer = new DataTransfer();
                 transfer.items.add(new File(["source,target\na,b\nb,c\n"], "abc.csv", { type: "text/csv" }));
@@ -263,10 +275,10 @@ describe("focus after the control holding it goes away, on the real element", ()
             );
             load.focus();
             await userEvent.keyboard("{Enter}");
-            const { host } = await loaded(3);
+            await loaded(3);
             await waitFor(() => {
                 assert.isNull(screen.queryByRole("region", { name: "Data page" }));
-                assertFocusOnDrawing(host);
+                assertFocusOnCurrentPlace();
             });
             unmount();
         },

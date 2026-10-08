@@ -163,7 +163,8 @@ describe("the inspector", () => {
         // A session with no view holds no records, so no labels and no edge weights: each
         // neighbor is named by its id, in name order, with no tie value.
         assert.deepEqual(names, ["n1", "n5", "n6"]);
-        assert.equal(document.activeElement, list);
+        // Focus lands on the first neighbor, a control, not on the whole list.
+        assert.equal(document.activeElement, within(list).getByRole("button", { name: "n1" }));
         assert.equal(on.selection.nodes.length, 4);
 
         await userEvent.keyboard("{Escape}");

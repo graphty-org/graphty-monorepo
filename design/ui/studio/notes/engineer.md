@@ -15,7 +15,16 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
-1. (2026-10-08) **Inspector polish (app + compact-mantine, no owner door).** Attribute kind and
+1. (2026-10-08) **Focus lands on a control (app, no door).** Find path -> the route's first node
+   in Values (`focusPathValuesNext(run.id)` from the toolbar, taken in `PathValues`); find-pick
+   Enter -> Degree (the Summary group lost `tabIndex=-1`); g / Degree -> the first neighbor, else the
+   checked Hops (section lost `tabIndex=-1`); a saved note -> "+" (not the card); a project opening
+   on the panels, and leaving the Data page -> the open place's rail button (`focusCurrentPlace`
+   in `frame/focus.ts`). The table dock closing still hands focus to the drawing. Tests:
+   `FocusAfterClose`, `Replace`, `Notes`, `PathForm`, inspector `tasks` (real-element) and
+   `Inspector.test.tsx`. Evidence `tmp/r1-dry1-focus-placement/` (T18B/07, T19A/13, T19B/06,
+   T19B/13, T21A/06, T23B/02-04, T12RA/02-03).
+2. (2026-10-08) **Inspector polish (app + compact-mantine, no owner door).** Attribute kind and
    origin are stat rows ("Kind Amount", "Origin From the file"), the kind's meaning in a tooltip
    (`measurementGloss`). Results is its own `ControlSection` (node and edge). The neighbor list's
    heading is the section title, one form at every reach ("6 nodes within 1 hop of Ava",
@@ -27,33 +36,33 @@ acceptance test. "The studio worktree" is
    `*.labelStyle`. Evidence `tmp/r1-dry1-inspector-polish/` (A/02, A/03, A/05, A/07, A/10, B/04,
    B/06, C/01). OPEN: label size is world-space (9-node file ~22px, 20-node ~10px); a size fixed on
    screen needs an element option.
-2. (2026-10-08) **Filter rows keep their sentence; editor and neighbor toggle answer back (app,
+3. (2026-10-08) **Filter rows keep their sentence; editor and neighbor toggle answer back (app,
    no door).** A step row has no visible count; its outcome ("77 to 44 nodes" / "off") is the
    row's description, the header chip and Overview carry what shows. Save step disabled until the
    rule differs; an edit-save announces itself; Filter to neighbors is `aria-pressed` and removes
    its step when pressed again; out-of-date words from `StaleNote`. Evidence
    `tmp/r1-dry1-filters-polish/`.
-3. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()` summary;
+4. (2026-10-08) **Import page in reader words (app + compact-mantine).** `modelWords()` summary;
    roles "From"/"To"; preview follows a table added through "+"; columns sized by `measureText`;
    `meaningGloss` a whole sentence; role box `aria-label="Role of km"` (StyleSelect prop, team
    decision); reset tooltips on the three Style* resets. Open: the hint's 11px vs the 9px labels
    (raised for the director). Evidence `tmp/r1-dry1-import-*`.
-4. (2026-10-08) **Shared controls (compact-mantine).** SegmentedControl `flex-basis: auto` in a
+5. (2026-10-08) **Shared controls (compact-mantine).** SegmentedControl `flex-basis: auto` in a
    content-sized track (no clipped segment); one focus ring on a bound field; find hints are
    `Input.Description` (11/16). Theme `fontSizes.xs` stays 9 (243 uses).
-5. (2026-10-08) **Row text fits.** A stat reading and a PageList description wrap (row grows); a
+6. (2026-10-08) **Row text fits.** A stat reading and a PageList description wrap (row grows); a
    Tree count gets at most half the row and a cut row's tooltip carries name and count (owner door
    listed: taller stat rows).
-6. (2026-10-08) **A reopened run keeps its summary** (element `projectFile.ts`): a canned outcome
+7. (2026-10-08) **A reopened run keeps its summary** (element `projectFile.ts`): a canned outcome
    carries everything a live one does.
-7. (2026-10-08) **Marks visible on a colored drawing** (element; owner doors): highlight `#332288`;
+8. (2026-10-08) **Marks visible on a colored drawing** (element; owner doors): highlight `#332288`;
    selected edge `edgeColor/edgeScale/edgeOpacity`, band behind via `zOffsetUnits`.
-8. (2026-10-08) **Histogram bands a continuous measure** (element `buildHistogram`); **a line says
+9. (2026-10-08) **Histogram bands a continuous measure** (element `buildHistogram`); **a line says
    it can be clicked** (POINTERMOVE sets `hoverCursor`; `--hover-at` prints `cursor:`).
-9. (2026-10-08) Tier 2 pilot fixes (58f02b5d0, a2bbb2248, 32c645e6b): `LoadedSource.leftOut.edges`
+10. (2026-10-08) Tier 2 pilot fixes (58f02b5d0, a2bbb2248, 32c645e6b): `LoadedSource.leftOut.edges`
    (owner door), path run opens on Values, Weight box names what the run reads. OPEN: T21 Replace
    relayouts every node; `real.mjs --prove` failed once in 4 on the first save (cause not found).
-10. (2026-10-07) Still open: Edit source... ADDS (41 -> 82); neighborhood filter has no
+11. (2026-10-07) Still open: Edit source... ADDS (41 -> 82); neighborhood filter has no
    `direction`; Dijkstra always undirected; `selection.apply` throws synchronously (unfiled).
 
 ## Priorities and values
@@ -107,6 +116,13 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **After a surface comes up (project open, Data page closed) focus goes to the open
+  place's rail button, never a tree row and never the find box.** Reason: a focused tree row takes
+  every printable key for type-to-find, so "/", "P", "N", "G" and Shift+A all died (the re-walk
+  typed nothing in 5 of 6 sessions); the find box takes them as text. Rejected: the drawing (a
+  ring around the whole canvas), the first tree row. Cost: after a mouse open the rail button
+  shows no ring (Chrome's focus-visible follows the last pointer input); a keyboard open does.
+
 - (2026-10-08) **The app states its label look on every label line it adds** (its own font from
   `getComputedStyle(document.body)`, 72 on the label canvas). Reason: the element's default face
   (Verdana) is missing on Linux, so labels fell back to a 6 px serif; the face and size are a
@@ -138,66 +154,35 @@ acceptance test. "The studio worktree" is
   a one-pixel line; changing the shared gold would move every node halo, and blue is too close to
   the default indigo node. Flat because `setSelectionStyle` merges one level deep. Rejected: a
   nested `edge` object, darkening the line (rejected before: unconfigured olive).
-- (2026-10-07) "Is the weight read?" is answered by the element's `plan()`, never re-derived from
-  meanings in the app; the plan reuses the run's resolver so the two cannot disagree. Tier 2 study
-  prep (T4, T17-T21 in `tasks.md`/`answers.md`, preflight `rounds/tier-2/preflight.md`) is done.
-- (2026-10-07) "The selection" frames its edges' ends at the camera door only, not in the scope
-  resolver: changing `resolve.ts` would also widen every algorithm run scoped to the selection.
-  Evidence: `zoomToSelection` already used the edge-ends rule, so the two camera doors now agree.
-- (2026-10-07) Tier 2 element work landed as owner doors (hold + needs-decision): edge pick
-  5a2b3b605, filter steps 8966b0888, stale runs ce34f31f3, every load a source f141b1283, loaded
-  weight + meaning, edge-attribute filter 559f5dcb2, coded selector refusals 3d89d43c3; app sides
-  done. Next element items: run results typed per field; several node types last. Undecided:
-  OR/NOT between steps, Path popover grouping key.
-- (2026-10-07) Edge select in the app (e666ae17d, no door): canvas click on an edge opens the edge
-  inspector; Frame selection for an edge is unchecked.
-- (2026-10-07) Element English still on screen (Analyze refusals `estimate.reason`,
-  `MetricAvailability.reason`, layout descriptions, `run.label`, partition labels): fix = codes from
-  the element, words in the app; a public element API change is an owner door.
-- (2026-10-07) **Direction row: "Undirected, from the file", never the file's syntax** (app, no
-  door; `directionWords.test.ts`). The element's `statedBy` stays a fact. Still cut at the default
-  inspector width.
-
-- (2026-10-06/07) No default layout seed in the element (owner): the app seeds (`LAYOUT_SEED`,
-  `takesSeed()`). Grep every route of a value; any NEW site showing a run calls `runName`.
-
-- (2026-10-07) **Replace reads `run.stale`, never reruns (no door).** One `outOfDate` glyph, words
-  in Tree's `label`; Rerun passes `stale.scopeSpec`; the weight meaning is re-applied in the page
-  (table ids are known only once read). Rejected: Rerun all, auto-rerun.
-
-- (2026-10-07, condensed) Notes: one command (`notes.add`), target decided at press time. Weight
-  meaning in the app: "Higher means" -> `TableMapping.weightMeaning`. A run's Values view is chosen
-  from its shape (`viewOf()`). Selected edges come from the mask, not a style layer.
-
-- (2026-10-07) **Filter steps: one list verb `setSteps`, counts only in `plan`** (8966b0888, owner
-  door); steps beside `filter` so an unticked rule survives undo and the file. Rejected: live counts
-  on `summary`, OR/NOT between steps.
-
-- (2026-10-07) **Edge-attribute filter (element, owner door):** a half speaks when its elements carry
-  the path (`halvesOf`); `nodes: "ends"`. Rejected: a new leaf kind, a required `on:`.
-
-- (2026-10-07) **Runs read the loaded weight (element, owner door).** One resolver for every
-  weighted algorithm; distance readers count hops on a strength. Proof:
-  `test/browser/runs-loaded-weight.test.ts`.
-- (2026-10-07) **Export Data warnings worded by the app (eef118341).** `export/lossWords.ts`, one
-  sentence per loss code; after merging master read `result.losses` (8a2450863).
-- (2026-10-07) **Focus after a control goes (element + app + compact-mantine; owner door).**
-  Element `delegatesFocus`, `render()` returns `nothing`; per-control focus targets in the app; a
-  deleted focused Tree row hands focus on. Rejected: autofocus on load, reaching into the shadow
-  root. Open: the WebGPU canvas swap may drop a focused canvas (unmeasured).
-
-- (2026-10-07) **Condensed element fixes (owner doors; proofs `tmp/r3fix-*`).** Force publishes
-  ngraph's real defaults; `node.depthIndependentSize`; other-size capture drawn at its size;
-  `fitToGraph` `keepAngle`; layout refusals as codes; `viewInsets` (`camera/insets.ts`).
-- (2026-10-07) A covered legend block is dropped by `styles.legend()`. Lesson: when the element
-  "already detects" something, check it does not say so only in words (the neutrality defect).
-
-- (2026-09-13 to 10-06) Older standing decisions (condensed): test the element before the app
-  ("No crossings" was already refused); a run paints when it finishes; the group-row color
-  fallback in `graph-place/rows.ts` stays until #1099; study APIs `nodeScreenPosition`,
-  `elementAt`, `labelOf` merged (owner to confirm names); the app seeds layouts.
+- (2026-10-07, condensed) **Tier 2 element work (owner doors, hold + needs-decision):** edge pick
+  5a2b3b605; filter steps `setSteps` with counts only in `plan` (8966b0888; rejected live counts,
+  OR/NOT); stale runs ce34f31f3 (Replace reads `run.stale`, never reruns; Rerun passes
+  `stale.scopeSpec`); every load a source f141b1283; runs read the loaded weight through one
+  resolver, "is it read?" answered by `plan()` only; edge-attribute filter 559f5dcb2 (`halvesOf`,
+  `nodes: "ends"`); coded selector refusals 3d89d43c3; focus after a control goes (element
+  `delegatesFocus`; open: WebGPU canvas swap may drop a focused canvas); force publishes ngraph's
+  defaults, `depthIndependentSize`, `fitToGraph keepAngle`, `viewInsets`; a covered legend block is
+  dropped by `styles.legend()`. Next: run results typed per field; several node types last.
+- (2026-10-07, condensed) **App-only (no door):** edge click opens the edge inspector (e666ae17d);
+  "the selection" frames edge ends at the camera door only (not `resolve.ts`, which would widen
+  scoped runs); Direction row "Undirected, from the file"; Export warnings worded by the app
+  (`export/lossWords.ts`); notes are one command (`notes.add`); a run's Values view comes from its
+  shape (`viewOf()`). Element English still on screen (estimate reasons, layout descriptions,
+  partition labels): codes from the element are an owner door.
+- (2026-09-13 to 10-07) Older standing decisions: no default layout seed in the element (the app
+  seeds, `LAYOUT_SEED`); any new site showing a run calls `runName`; test the element before the
+  app; a run paints when it finishes; group-row color fallback in `graph-place/rows.ts` stays until
+  #1099; study APIs `nodeScreenPosition`, `elementAt`, `labelOf` merged.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) Did not work: landing focus on the left panel's tree after open -- Tree typeahead
+  claims every one-character key, so the study's single-key shortcuts typed nothing. Worked: a
+  plain button (rail). A project that opens ON the Data page (New from data...) must not take
+  focus from that page: the open effect runs only when `page === "panels"`.
+- (2026-10-08) A programmatic `focus()` right after a mouse click on Degree DID show the ring on
+  the first neighbor (`T12RA/03.png`); after a mouse click on a Recent project the rail button
+  showed none.
 
 - (2026-10-08) Worked: snapshot every shared file another agent has dirty BEFORE editing
   (`cp` to `tmp/<task>/base/`), so "fails without the change" is copy base -> run -> copy mine back,
@@ -258,12 +243,10 @@ acceptance test. "The studio worktree" is
 - (2026-10-08) A Tree child row is NOT inside its parent's treeitem in the DOM: query children with
   `within(tree)`, not `within(parentRow)`. A new graph's name change moves the Data page heading
   ("Add to people and ties"): grep tests for "Add to " after renaming.
-- (2026-10-07) Measuring text contrast in a browser test: walk up to the first opaque
-  `backgroundColor`, blend the text's alpha over it (`contrastOnPage` in `DataPage.real-element.test.tsx`). Worked.
-- (2026-10-07) Proving a tool fix: copy `real.mjs` beside itself with the fix undone, run once,
-  delete. Concurrent `--prove` runs collide (use `REAL_PROVE_DIR`).
-- (2026-10-07) Unmatched-rows verb agrees (f1f041a40). real.mjs: "New from data..." opens NO file
-  chooser (the T4 path in `answers.md` assumes one); click "Add a table" > "File..." first.
+- (2026-10-07, condensed) Contrast in a browser test: blend alpha over the first opaque ancestor
+  (`contrastOnPage`). Prove a tool fix with a copy of `real.mjs` with the fix undone;
+  concurrent `--prove` runs need `REAL_PROVE_DIR`. "New from data..." opens no file chooser: click
+  "Add a table" > "File..." first.
 - (2026-10-07) compact-mantine browser suite is file-order dependent (color test leaves `(hover:
 none)` on; not fixed).
 - (2026-10-07) A partial-hunk commit by another agent can leave HEAD broken (`isLoadedSource`

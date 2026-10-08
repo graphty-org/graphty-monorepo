@@ -122,10 +122,12 @@ describe("the Path popover, on the real element", () => {
             );
             assert.deepEqual(store.get().inspected, { kind: "measure-row", id: runId });
             await screen.findByText("Shortest path added: Ava to Lee, 2 hops");
-            // Committing closes the popover and hands focus back to the drawing.
+            // Committing closes the popover and hands focus to the result: the route's first node
+            // in Values, a control, never the drawing's outline.
             assert.isNull(screen.queryByRole("form", { name: "Shortest path" }));
             await waitFor(() => {
-                assert.equal(document.activeElement, element);
+                const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+                assert.equal(document.activeElement, inspector.getByRole("button", { name: /^Ava/ }));
             });
         },
         TIMEOUT_MS,

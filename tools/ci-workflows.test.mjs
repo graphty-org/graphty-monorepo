@@ -141,7 +141,7 @@ describe("the pre-push gate matches CI", () => {
             /vitest|test:run|test:prepush|nx run-many -t test|:coverage/,
         );
         const ci = workflow("ci.yml");
-        assert.match(job(ci, "build"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
+        assert.match(job(ci, "packages"), /node tools\/ci-test-matrix.mjs "\$all" "\$affected"/);
         assert.match(job(ci, "test"), /run: \$\{\{ matrix.test-command \}\}/);
     });
 
@@ -515,7 +515,7 @@ describe("ci.yml", () => {
     it("starts a run when a draft is marked ready, and skips drafts except the merge queue's", () => {
         assert.match(ci, /types: \[opened, synchronize, reopened, ready_for_review\]/);
         assert.ok(
-            job(ci, "build").includes(
+            job(ci, "packages").includes(
                 `if: github.event_name != 'pull_request' || !github.event.pull_request.draft || (${QUEUE})\n`,
             ),
         );
@@ -550,10 +550,13 @@ describe("ci.yml", () => {
     });
 
     it("runs the full suite on a merge-queue branch", () => {
-        const step = job(ci, "build");
+        const step = job(ci, "packages");
         assert.match(step, /"\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true"/);
         assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
-        assert.match(step, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t lint/);
+        assert.match(
+            job(ci, "lint"),
+            /if: needs.packages.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t lint/,
+        );
     });
 
     it("holds the merge queue to master's rule that every job succeeds", () => {
@@ -570,7 +573,7 @@ describe("ci.yml", () => {
     it("gates every pull request that affects graphty-element on the cost estimates", () => {
         assert.match(
             job(ci, "cost-accuracy"),
-            /if: contains\(fromJSON\(needs.build.outputs.affected\), 'graphty-element'\)/,
+            /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
         assert.match(job(ci, "all-checks"), /\n\s+cost-accuracy,\n/);
     });
@@ -600,17 +603,17 @@ describe("ci.yml", () => {
     });
 
     it("runs no test, screenshot, link or cost job on a push to master, and still builds every package", () => {
-        const build = job(ci, "build");
+        const build = job(ci, "packages");
         // the plan: a push tests nothing (affected is empty, so the matrix is empty) and is marked light
         assert.match(
             build,
             /if \[\[ "\$EVENT" == "push" \]\]; then\n.*\n\s+\{ echo "full=true"; echo "light=true"; \} >> "\$GITHUB_OUTPUT"\n\s+affected='\[\]'\n/,
         );
         assert.equal(plan([]).length, 0, "an empty affected list runs no shard");
-        assert.match(job(ci, "test"), /if: needs.build.outputs.test-count != '0'\n/);
+        assert.match(job(ci, "test"), /if: needs.packages.outputs.test-count != '0'\n/);
         assert.match(
             job(ci, "cost-accuracy"),
-            /if: contains\(fromJSON\(needs.build.outputs.affected\), 'graphty-element'\)/,
+            /if: contains\(fromJSON\(needs.packages.outputs.affected\), 'graphty-element'\)/,
         );
         for (const name of ["links", "visual"]) {
             assert.match(
@@ -621,24 +624,32 @@ describe("ci.yml", () => {
         }
         // the benchmarks need the test job, so they are skipped with it
         assert.match(job(ci, "performance"), /needs: test\n/);
-        assert.match(build, /- name: CI workflow tests\n\s+if: steps.plan.outputs.light != 'true'\n/);
+        assert.match(job(ci, "checks"), /- name: CI workflow tests\n\s+if: needs.packages.outputs.light != 'true'\n/);
         // the build still runs, every project, with the uploads deploy-pages.yml reads
         assert.match(build, /if: steps.plan.outputs.full == 'true'\n\s+run: pnpm exec nx run-many -t build/);
-        assert.match(build, /name: build-docs\n/);
-        // the summary checks pass a light run whose skipped jobs were skipped on purpose, and Build must succeed
-        assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.build.outputs.light \}\}/);
-        assert.match(job(ci, "all-checks"), /\(.key == "build" and \$r != "success"\)/);
+        assert.match(job(ci, "docs"), /name: build-docs\n/);
+        assert.match(job(ci, "build"), /name: build-storybook-element\n/);
+        for (const name of ["build", "lint", "checks", "docs"]) {
+            assert.match(job(ci, name), /\n {8}needs: packages\n {8}runs-on:/, `${name} runs on master too`);
+        }
+        // the summary checks pass a light run whose skipped jobs were skipped on purpose, and the build
+        // jobs must succeed
+        assert.match(job(ci, "all-checks"), /LIGHT: \$\{\{ needs.packages.outputs.light \}\}/);
+        assert.match(
+            job(ci, "all-checks"),
+            /\(\(.key \| IN\("packages", "build", "lint", "checks", "docs"\)\) and \$r != "success"\)/,
+        );
         assert.match(job(ci, "queue-checks"), /"\$ALL_CHECKS" != "success"/);
     });
 
     it("still runs every test job on pull requests, merge-queue runs, dispatches and the release train", () => {
-        const build = job(ci, "build");
+        const build = job(ci, "packages");
         // light is set only on a push; every other event takes the affected (pull request) or full path
         assert.equal(build.match(/echo "light=true"/g).length, 1);
         assert.match(build, /elif \[\[ "\$EVENT" == "pull_request" && "\$MERGE_QUEUE" != "true" \]\]; then/);
         assert.equal(plan(PACKAGES).length, 13, "a full run is every shard");
         // no test-type job is limited to pushes or to master
-        for (const name of ["test", "links", "visual", "cost-accuracy", "performance"]) {
+        for (const name of ["test", "links", "visual", "cost-accuracy", "performance", "lint", "checks", "docs"]) {
             assert.doesNotMatch(job(ci, name), /event_name == 'push'|refs\/heads\/master/, name);
         }
         assert.match(job(ci, "performance"), /if: github.event_name != 'pull_request'\n/);
@@ -706,6 +717,9 @@ const requiredChecks = (jobs) => {
 };
 
 const DAY = 86_400_000;
+// The job that lists the advisory checks (its "List advisory checks" step) and that every other job
+// reads them from.
+const LIST_JOB = "packages";
 const idOf = (a) => (a.step === undefined ? a.job : `${a.job}/${a.step}`);
 
 // What is wrong with tools/ci-advisory-checks.json against ci.yml and against the base branch's copies of
@@ -733,12 +747,15 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
             registry.required.includes(job) || registry.advisory.some((a) => a.job === job && a.step === undefined),
             `${job}: unregistered: a new job goes into "advisory" first`,
         );
+    // A job that only holds steps the base branch already requires (a required job split in two) is not
+    // a new check: its steps were required yesterday, so they stay required without a warning period.
+    const baseSteps = new Set(Object.values(baseChecks).flat());
     for (const job of registry.required) {
         check(job in checks, `${job}: in "required" but not a required job of ci.yml`);
         if (baseRegistry && !baseRegistry.required.includes(job))
             check(
-                job in baseChecks,
-                `${job}: "required" only grows by jobs the base branch already runs; a new one goes into "advisory" first`,
+                job in baseChecks || (job in checks && checks[job].every((step) => baseSteps.has(step))),
+                `${job}: "required" only grows by jobs the base branch already runs, or jobs made of steps it already requires; a new one goes into "advisory" first`,
             );
     }
 
@@ -760,10 +777,13 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
         }
         const j = jobs[a.job];
         if (!check(a.job in checks, `${id}: a job "All Checks Pass" needs`)) continue;
-        const list = a.job === "build" ? "steps.advisory.outputs.checks" : "needs.build.outputs.advisory-checks";
+        const list = a.job === LIST_JOB ? "steps.advisory.outputs.checks" : `needs.${LIST_JOB}.outputs.advisory-checks`;
         const coe = `\${{ contains(fromJSON(${list}), '${id}') }}`;
-        if (a.job !== "build")
-            check(j.needs.includes("build"), `${id}: the job needs build directly (it lists the advisory checks)`);
+        if (a.job !== LIST_JOB)
+            check(
+                j.needs.includes(LIST_JOB),
+                `${id}: the job needs ${LIST_JOB} directly (it lists the advisory checks)`,
+            );
         let warn;
         if (a.step === undefined) {
             check(!registry.required.includes(a.job), `${id}: a job in "required" is not new`);
@@ -775,7 +795,7 @@ const advisoryProblems = ({ ci, registry, baseCi, baseRegistry, today }) => {
             const s = j.steps[i];
             check(s.coe === coe, `${id}: continue-on-error: ${coe}`);
             check(s.id !== undefined, `${id}: has an id`);
-            if (a.job === "build")
+            if (a.job === LIST_JOB)
                 check(i > j.steps.findIndex((x) => x.id === "advisory"), `${id}: comes after "List advisory checks"`);
             warn = { if: `\${{ steps.${s.id}.outcome == 'failure' }}`, step: j.steps[i + 1] };
         }
@@ -800,7 +820,8 @@ describe("new required checks start as warnings", () => {
 
     it("finds the required jobs and steps", () => {
         const checks = requiredChecks(parseJobs(ci));
-        assert.ok(checks.build.includes("Install dependencies"));
+        assert.ok(checks.packages.includes("Install dependencies"));
+        assert.ok(checks.lint.includes("Lint all (master, a manual dispatch or the merge queue)"));
         assert.ok(checks["all-checks"].includes("Check visual changes were accepted"));
         assert.ok(!("visual" in checks) && !("performance" in checks), "continue-on-error jobs never block");
         assert.ok(!checks["all-checks"].includes("Download visual captures"));
@@ -824,7 +845,7 @@ describe("new required checks start as warnings", () => {
     describe("the registry rules, on a small workflow", () => {
         const BASE_CI = `on: push
 jobs:
-    build:
+    packages:
         steps:
             - name: List advisory checks
               id: advisory
@@ -832,12 +853,12 @@ jobs:
             - name: Lint
               run: x
     test:
-        needs: build
+        needs: packages
         steps:
             - name: Unit
               run: x
     all-checks:
-        needs: [build, test]
+        needs: [packages, test]
         steps:
             - name: Check
               run: x
@@ -848,15 +869,15 @@ jobs:
               run: x
             - name: Types
               id: types
-              continue-on-error: \${{ contains(fromJSON(needs.build.outputs.advisory-checks), 'test/Types') }}
+              continue-on-error: \${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'test/Types') }}
               run: x
             - name: Warn that Types failed
               if: \${{ steps.types.outcome == 'failure' }}
               continue-on-error: true
               run: echo "::warning::advisory check test/Types failed"
     links:
-        needs: build
-        continue-on-error: \${{ contains(fromJSON(needs.build.outputs.advisory-checks), 'links') }}
+        needs: packages
+        continue-on-error: \${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'links') }}
         steps:
             - name: Check links
               run: x
@@ -865,8 +886,8 @@ jobs:
               continue-on-error: true
               run: echo "::warning::advisory check links failed"
 `,
-        ).replace("needs: [build, test]", "needs: [build, test, links]");
-        const REQUIRED = ["build", "test", "all-checks"];
+        ).replace("needs: [packages, test]", "needs: [packages, test, links]");
+        const REQUIRED = ["packages", "test", "all-checks"];
         const entry = (job, step) => ({ job, step, added: "2026-10-01", enforce: "2026-10-15", issue: 1 });
         const ADVISORY = [entry("test", "Types"), entry("links")];
         const run = ({ ci = HEAD_CI, required = REQUIRED, advisory = ADVISORY, today = "2026-10-05" } = {}) =>
@@ -900,15 +921,34 @@ jobs:
         });
 
         it("refuses to put a check the base branch requires back into a warning period", () => {
-            const { problems } = run({ advisory: [...ADVISORY, entry("build", "Lint")] });
-            assert.ok(problems.some((p) => p.startsWith("build/Lint: the base branch already requires it")));
-            const job = run({ advisory: [...ADVISORY, entry("test")], required: ["build", "all-checks"] });
+            const { problems } = run({ advisory: [...ADVISORY, entry("packages", "Lint")] });
+            assert.ok(problems.some((p) => p.startsWith("packages/Lint: the base branch already requires it")));
+            const job = run({ advisory: [...ADVISORY, entry("test")], required: ["packages", "all-checks"] });
             assert.ok(job.problems.some((p) => p.startsWith("test: the base branch already requires it")));
         });
 
         it("refuses a new job that skips its warning period", () => {
             const { problems } = run({ required: [...REQUIRED, "links"], advisory: [entry("test", "Types")] });
             assert.ok(problems.some((p) => p.startsWith('links: "required" only grows')));
+        });
+
+        it("accepts a new job made only of steps the base branch already requires", () => {
+            // a required job split in two: the Lint step moves from packages into a job of its own
+            const split = BASE_CI.replace("            - name: Lint\n              run: x\n", "").replace(
+                "    all-checks:\n        needs: [packages, test]",
+                "    lint:\n        needs: packages\n        steps:\n            - name: Lint\n              run: x\n    all-checks:\n        needs: [packages, test, lint]",
+            );
+            const ok = run({ ci: split, required: [...REQUIRED, "lint"], advisory: [] });
+            assert.deepEqual(ok, { problems: [], warnings: [] });
+            const added = split.replace(
+                "            - name: Lint\n              run: x\n",
+                "            - name: Lint\n              run: x\n            - name: Types\n              run: x\n",
+            );
+            assert.ok(
+                run({ ci: added, required: [...REQUIRED, "lint"], advisory: [] }).problems.some((p) =>
+                    p.startsWith('lint: "required" only grows'),
+                ),
+            );
         });
 
         it("refuses an unregistered job and a stale entry", () => {
@@ -929,8 +969,8 @@ jobs:
                 ),
             );
             assert.ok(
-                unwired("    links:\n        needs: build", "    links:\n        needs: test").some((p) =>
-                    p.includes("needs build directly"),
+                unwired("    links:\n        needs: packages", "    links:\n        needs: test").some((p) =>
+                    p.includes("needs packages directly"),
                 ),
             );
             assert.ok(
@@ -946,7 +986,9 @@ jobs:
     });
 
     it("lists the entries before their enforce date, from the base branch on a pull request", () => {
-        const step = /- name: List advisory checks\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(job(ci, "build"))[1];
+        const step = /- name: List advisory checks\n[\s\S]*?\n {14}run: \|\n([\s\S]*?)\n\n/.exec(
+            job(ci, "packages"),
+        )[1];
         assert.match(step, /base=HEAD\^1/, "a pull request cannot loosen the list that judges it");
         const program = /jq -c --arg today "\$\(date -u \+%F\)" '([^']+)'/.exec(step);
         assert.ok(program, "the build job lists the advisory checks");
@@ -1053,11 +1095,13 @@ describe("screenshots of Storybooks a pull request cannot affect", () => {
     });
 
     it("is switched off in ci.yml until master's gate accepts the not-affected marker", () => {
-        const build = job(ci, "build");
+        const build = job(ci, "packages");
         assert.match(build, /\n {18}SKIP_UNAFFECTED_CAPTURES: "false"\n/);
         assert.match(build, /LABELS: \$\{\{ toJSON\(github\.event\.pull_request\.labels\.\*\.name\) \}\}/);
         assert.match(build, /node tools\/visual-capture-plan\.mjs "\$all" "\$affected" \| tee -a "\$GITHUB_OUTPUT"/);
         assert.match(build, /visual-skip: \$\{\{ steps\.plan\.outputs\.visual-skip \}\}/);
+        // the visual job needs build (the Storybooks), which hands the plan on
+        assert.match(job(ci, "build"), /visual-skip: \$\{\{ needs\.packages\.outputs\.visual-skip \}\}/);
     });
 
     it("writes the marker in place of a capture and skips every other step but the upload and the summary", () => {

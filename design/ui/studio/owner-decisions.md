@@ -4,6 +4,25 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a run says when it assumed its weight's meaning (`WeightMeaning.assumed`)
+
+**What.** graphty-element's `WeightMeaning` gains an optional `assumed?: true`. A run's
+`caveats.weight` carries it when the loaded weight had no stated meaning and the run read it as the
+meaning its algorithm reads (a strength reader reads an unstated weight as a strength). Absent when
+the meaning was stated, at load or in the run's `weight` option. Nothing else changes: `attribute`
+and `meaning` are what they were, and a run that read no weight still has `null`.
+
+**Why.** A run read a weight nobody gave a meaning as "closer", and the run's own record could not
+say so: `caveats.weight` looked exactly like a weight declared "closer". So the right panel said
+"Weight: weight (closer)" while the Data page said "Higher means: Not set" for the same column --
+two answers to one question. The only other source, the current `data.loadedWeight()`, describes the
+data as it is now, not the run, and is wrong for a run made before a Replace. The fact belongs to the
+run, so it is in the run's caveats. Tests: `graphty-element/test/browser/runs-loaded-weight.test.ts`,
+`graphty-element/test/algorithms/metrics/metric-results.test.ts`.
+
+**Alternatives.** A separate `caveats.weightAssumed` flag (two places to read one fact); the
+declared meaning (`null`) in `meaning` itself (changes what an existing field returns: breaking).
+
 ## 2026-10-08 -- Decided by the team: a number box can be empty with words, and a table header opens its menu on a right-click
 
 **What.** compact-mantine's `StyleNumberInput` gains an optional `emptyText` prop: while the reader

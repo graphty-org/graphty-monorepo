@@ -2004,6 +2004,7 @@ export interface ViewInsets {
 
 // @public
 export interface WeightMeaning {
+    readonly assumed?: true;
     readonly attribute: string;
     readonly meaning: "distance" | "strength" | "capacity";
 }

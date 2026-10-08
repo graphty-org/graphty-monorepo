@@ -208,6 +208,12 @@ export interface WeightMeaning {
      * OPEN UNION: later releases may add meanings.
      */
     readonly meaning: "distance" | "strength" | "capacity";
+    /**
+     * True when nobody stated the weight's meaning and the run read it as the meaning its
+     * algorithm reads (a strength reader reads an unstated weight as a strength). Absent when the
+     * meaning was stated, at load or in the run's `weight` option.
+     */
+    readonly assumed?: true;
 }
 
 /**

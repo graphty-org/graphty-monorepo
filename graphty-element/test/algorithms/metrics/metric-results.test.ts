@@ -265,9 +265,11 @@ describe("metric results", () => {
             const none = new PageRankAlgorithm(graph, { weight: null });
             await none.run();
 
+            // Loaded with no meaning: read as a strength, and marked as assumed.
             assert.deepStrictEqual(loaded.result?.summary().caveats.weight, {
                 attribute: "value",
                 meaning: "strength",
+                assumed: true,
             });
             assert.isNull(none.result?.summary().caveats.weight);
         });

@@ -3731,6 +3731,7 @@ export interface VisibilitySummary {
 
 // @public
 export interface WeightMeaning {
+    readonly assumed?: true;
     readonly attribute: string;
     readonly meaning: "distance" | "strength" | "capacity";
 }

@@ -108,7 +108,12 @@ describe("every run reads the loaded weight", () => {
 
             for (const key of ["pagerank", "louvain"]) {
                 const done = await run(element, key);
-                assert.deepStrictEqual(done.caveats.weight, { attribute: "emails", meaning: "strength" }, key);
+                // Nobody gave emails a meaning: the run read it as a strength, and says it assumed so.
+                assert.deepStrictEqual(
+                    done.caveats.weight,
+                    { attribute: "emails", meaning: "strength", assumed: true },
+                    key,
+                );
                 assert.isUndefined(done.caveats.weightSkipped, key);
             }
 

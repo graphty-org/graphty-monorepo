@@ -4442,6 +4442,7 @@ export const VIRIDIS_COLORS: readonly ["#440154", "#482878", "#3e4989", "#31688e
 
 // @public
 export interface WeightMeaning {
+    readonly assumed?: true;
     readonly attribute: string;
     readonly meaning: "distance" | "strength" | "capacity";
 }

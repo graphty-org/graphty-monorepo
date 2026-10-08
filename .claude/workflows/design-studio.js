@@ -57,19 +57,17 @@ RULES FOR EVERY AGENT:
 - Never mention a review, a device or owner feedback in commits or files. Never dismiss a failure as flaky or as timing: name the mechanism.
 `;
 const TEAM = {
-    ...{
-        director: "Design Director",
-        user: "User Advocate",
-        researcher: "UX Researcher",
-        ia: "Information Architect",
-        content: "Content Designer",
-        interaction: "Interaction Designer",
-        figma: "Figma Product Designer",
-        visual: "Visual Designer",
-        a11y: "Accessibility Specialist",
-        redteam: "Red Team Critic",
-        engineer: "Design Engineer",
-    },
+    director: "Design Director",
+    user: "User Advocate",
+    researcher: "UX Researcher",
+    ia: "Information Architect",
+    content: "Content Designer",
+    interaction: "Interaction Designer",
+    figma: "Figma Product Designer",
+    visual: "Visual Designer",
+    a11y: "Accessibility Specialist",
+    redteam: "Red Team Critic",
+    engineer: "Design Engineer",
     ...A.team,
 };
 for (const r of A.teamRemove || []) if (!["director", "researcher", "redteam", "engineer"].includes(r)) delete TEAM[r];

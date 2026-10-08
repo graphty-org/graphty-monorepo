@@ -477,6 +477,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     cap: READ,
     truncated: READ,
     origin: READ,
+    originPaths: READ,
     has: READ,
     nodeMask: READ,
     edgeMask: READ,
@@ -759,6 +760,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRunning: IN_FLIGHT,
             worldToScreen: READ,
             nodeScreenPosition: READ,
+            nodesInRect: READ,
             screenToWorld: READ,
             elementAt: READ,
             setData: calls(

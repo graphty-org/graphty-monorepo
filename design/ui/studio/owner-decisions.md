@@ -4,6 +4,27 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-08 -- Decided by the team: a selection made by a rule says which columns the rule tested (`selection.originPaths`)
+
+**What.** graphty-element adds one read-only property, additive: `SelectionApi.originPaths: readonly
+Path[]`. While the selection is still exactly a rule (`selection.origin` is `{ where }`, or `{ text }`
+starting with "="), it lists the columns that rule tests, as the attribute paths
+`data.attributes()` publishes (`["data.minutes"]` for the rule ``minutes >= `10` ``); otherwise it is
+empty. The graphty app lists each selected edge in the inspector by its two ends' names with the
+value of each tested column under that column's name ("School -> Harbor 12").
+
+**Why.** After a rule selected 3 slow bus links, the inspector said only "Edges 3": a reader could
+not tell which links, or check them against the rule. The element already knows which columns a
+rule reads (its query engine keeps them to key its cache), and the rule's own text is the only other
+source; the app would have had to parse the rule to find the column, which is reimplementing the
+element's parser. A bare column name in a rule is published as its attribute path, so a consumer
+looks it up in `data.attributes()` without knowing that a rule may leave out `data.`. Not breaking:
+a new property. Test: `graphty-element/test/session/selection-origin.test.ts`.
+
+**Alternatives.** The paths on the `selection:changed` delta, which a panel that did not make the
+call never sees and which would go stale with no change event; a general `scope.pathsOf(where)`,
+which is the same fact one step further from where a panel needs it.
+
 ## 2026-10-08 -- Decided by the team: which end of a left-out row has no node (`missingEnds`)
 
 **What.** graphty-element adds a type, `EdgeEnd = "source" | "target"`, and one optional field in

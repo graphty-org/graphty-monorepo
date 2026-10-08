@@ -23,7 +23,7 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
 import { groupKey, neighborhoodKey, nodeKey } from "./inspected";
 import { finishedRuns, selectNode, takeNodeValuesFocus } from "./reads";
-import { count, formatNumber, groupName, NEIGHBOR_FILTER_WORDS, neighborhoodWords, valueText } from "./words";
+import { count, edgeName, formatNumber, groupName, NEIGHBOR_FILTER_WORDS, neighborhoodWords, valueText } from "./words";
 
 /** How many of a node's attributes show before "N more attributes". */
 const ATTRIBUTES_SHOWN = 6;
@@ -495,6 +495,50 @@ function attributeSummary(attribute: SelectionAttributeStatistics): string | und
 }
 
 /**
+/** How many selected edges the list names before "N more edges". */
+const EDGES_LISTED = 20;
+
+/**
+ * The selected edges, each by its two ends' names and, when a rule selected them, the value of
+ * each column the rule tested: a list answers with names, not counts.
+ * @param props - Component props
+ * @param props.session - the element's session.
+ * @returns The section, or nothing with no edge selected
+ */
+function SelectedEdges({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element | null {
+    const ids = session.selection.edges;
+    if (ids.length === 0) {
+        return null;
+    }
+    const records = ids.slice(0, EDGES_LISTED).flatMap((id) => session.data.edge(id) ?? []);
+    const testedPaths = session.selection.originPaths;
+    const tested = session.data
+        .attributes()
+        .filter((column) => column.kind === "edge" && testedPaths.includes(column.path));
+    return (
+        <ControlSection label="Selected edges" defaultOpened>
+            {tested.length > 0 && <DataRowHeader label="Edge" unit={tested.map((c) => c.plainName).join(" / ")} />}
+            {records.map((edge) => (
+                <DataRow
+                    key={edge.id}
+                    stat
+                    name={edgeName(session, edge)}
+                    value={tested
+                        .map((c) =>
+                            edge[c.name] === undefined || edge[c.name] === null ? "" : valueText(edge[c.name]),
+                        )
+                        .join(" / ")}
+                />
+            ))}
+            {ids.length > records.length && (
+                <Text size="xs" c="dimmed" px="md" py={2}>
+                    {count(ids.length - records.length, "more edge")}
+                </Text>
+            )}
+        </ControlSection>
+    );
+}
+
  * Several elements' Values (tier1-design.md section 2.7): what the selection adds up to, from
  * graphty-element's `selection.statistics()`.
  * @param props - Component props
@@ -504,22 +548,27 @@ function attributeSummary(attribute: SelectionAttributeStatistics): string | und
 export function SeveralValues({ version }: Readonly<{ version: number }>): React.JSX.Element | null {
     const { session } = useWorkspace();
     const statistics = useAsyncValue(() => session?.selection.statistics() ?? null, version);
-    if (statistics === undefined) {
+    if (statistics === undefined || session === null) {
         return null;
     }
     return (
-        <ControlSection label="Summary" defaultOpened>
-            {statistics.nodes > 0 && <DataRow stat name="Nodes" value={statistics.nodes} />}
-            {statistics.edges > 0 && <DataRow stat name="Edges" value={statistics.edges} />}
-            {/* Edges that join two selected nodes, selected or not: only meaningful for two or more
+        <>
+            <ControlSection label="Summary" defaultOpened>
+                {statistics.nodes > 0 && <DataRow stat name="Nodes" value={statistics.nodes} />}
+                {statistics.edges > 0 && <DataRow stat name="Edges" value={statistics.edges} />}
+                {/* Edges that join two selected nodes, selected or not: only meaningful for two or more
                 nodes, and named so it is not read as more selected edges. */}
-            {statistics.nodes >= 2 && <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />}
-            {statistics.attributes.map((attribute) => {
-                const value = attributeSummary(attribute);
-                return value === undefined ? null : (
-                    <DataRow key={attribute.path} stat name={attribute.plainName} value={value} />
-                );
-            })}
-        </ControlSection>
+                {statistics.nodes >= 2 && (
+                    <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />
+                )}
+                {statistics.attributes.map((attribute) => {
+                    const value = attributeSummary(attribute);
+                    return value === undefined ? null : (
+                        <DataRow key={attribute.path} stat name={attribute.plainName} value={value} />
+                    );
+                })}
+            </ControlSection>
+            <SelectedEdges session={session} />
+        </>
     );
 }

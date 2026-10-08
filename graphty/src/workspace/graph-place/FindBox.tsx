@@ -2,11 +2,11 @@ import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
 import { type GraphSession, isGraphtyError, quotePath } from "@graphty/graphty-element/session";
 import { Input, Text } from "@mantine/core";
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { focusNodeValuesNext } from "../inspector/reads";
-import { edgeJoiner, edgeName } from "../inspector/words";
+import { edgeJoiner, edgeName, selectionWords } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useSessionVersion } from "./useSessionVersion";
 
@@ -15,6 +15,9 @@ export const FIND_BOX_ID = "ws-find";
 
 /** How many element hits the list shows. */
 const LIMIT = 20;
+
+/** The tallest the list grows before it scrolls; it is cut back to end on a whole row. */
+const LIST_MAX_PX = 320;
 
 /**
  * An example rule over the open data: a number column from the file (else any number column),
@@ -174,7 +177,7 @@ function attributeName(session: GraphSession, path: string): string {
  */
 function hitName(session: GraphSession, hit: FindHit): string {
     return hit.kind === "edge"
-        ? edgeName(session, { source: hit.ends.source.name, target: hit.ends.target.name })
+        ? edgeName(session, { source: hit.ends.source.id, target: hit.ends.target.id })
         : hit.name;
 }
 
@@ -207,9 +210,13 @@ export function FindBox(): React.JSX.Element {
         const _changeCount = version; // NOSONAR(S1481): reads the change count so a new column is offered
         return session !== null && isRule ? columnOptions(session, text) : { word: "", columns: [] };
     }, [session, text, isRule, version]);
+    // Nodes first, then edges, each under its own heading; the keyboard walks them in that order.
+    const nodeHits = found?.records.filter((hit) => hit.kind !== "edge") ?? [];
+    const edgeHits = found?.records.filter((hit) => hit.kind === "edge") ?? [];
+    const hits = [...nodeHits, ...edgeHits];
     const options: Option[] = found
         ? [
-              ...found.records.map((hit): Option => ({ type: "hit", hit })),
+              ...hits.map((hit): Option => ({ type: "hit", hit })),
               ...found.values.map((row): Option => ({ type: "value", row })),
               ...columns.map((column): Option => ({ type: "column", column })),
           ]
@@ -274,11 +281,11 @@ export function FindBox(): React.JSX.Element {
         }
     };
 
-    const runTyped = async (current: GraphSession, typed: string, box: HTMLInputElement): Promise<void> => {
+    const runTyped = async (current: GraphSession, typed: string): Promise<void> => {
+        // The rule stays in the box with the caret at its end, so it can be changed; the line under
+        // the box then says what it selected.
         try {
             await current.selection.apply({ text: typed });
-            // The rule stays, selected, so it can be changed or typed over.
-            box.select();
         } catch (error) {
             const words = ruleRefusalWords(current, error);
             if (words === null) {
@@ -302,7 +309,7 @@ export function FindBox(): React.JSX.Element {
                 void pick(chosen);
             } else if (found?.notSearchable !== undefined && session !== null && !(isRule && isEmptyRule(text))) {
                 // A regex or expression is not run while typing; Enter runs it as a selection.
-                void runTyped(session, text, event.currentTarget);
+                void runTyped(session, text);
             } else {
                 const option = options[Math.max(active, 0)];
                 if (option !== undefined) {
@@ -317,8 +324,35 @@ export function FindBox(): React.JSX.Element {
     };
 
     const open = found !== null;
+    // The list ends on a whole row: past the cap, its height is cut back to the last row that fits.
+    const listRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const { current: list } = listRef;
+        if (list === null) {
+            return;
+        }
+        list.style.maxHeight = "";
+        if (list.scrollHeight <= LIST_MAX_PX) {
+            return;
+        }
+        const { top } = list.getBoundingClientRect();
+        const fits = [...list.querySelectorAll<HTMLElement>("[role=option]")]
+            .map((row) => row.getBoundingClientRect().bottom - top + list.scrollTop)
+            .filter((bottom) => bottom <= LIST_MAX_PX);
+        // The max height counts the bottom border too (border-box).
+        list.style.maxHeight = `${String(Math.max(...fits, 0) + list.offsetHeight - list.clientHeight)}px`;
+    });
+    // A rule run with Enter is the selection's origin until anything else changes the selection.
+    const origin = session?.selection.origin;
+    const ran = isRule && origin !== null && origin !== undefined && "text" in origin && origin.text === text;
     let emptyLine: string | null = `No match for "${text}"`;
-    if (isRule) {
+    if (ran && session !== null) {
+        const { nodes, edges } = session.selection;
+        emptyLine =
+            nodes.length + edges.length === 0
+                ? "Nothing matches this rule"
+                : selectionWords(nodes.length, edges.length);
+    } else if (isRule) {
         // The press-Enter hint is only for a rule the element accepts.
         const ruleLines = {
             ok: "Rule: press Enter to select matches",
@@ -358,43 +392,52 @@ export function FindBox(): React.JSX.Element {
                     role="listbox"
                     aria-label="Find results"
                     className="ws-find-list"
+                    ref={listRef}
                 >
-                    {found.records.length > 0 ? (
-                        <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
-                            role="group"
-                            aria-label="Elements"
-                        >
-                            <Text component="div" className="ws-find-heading" aria-hidden="true">
-                                Elements
-                            </Text>
-                            {found.records.map((hit, i) => {
-                                if (session === null) {
-                                    return null;
-                                }
-                                const name = hitName(session, hit);
-                                const where =
-                                    String(hit.match.value) === name
-                                        ? undefined
-                                        : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
-                                return (
-                                    <ResultRow
-                                        key={optionId(i)}
-                                        id={optionId(i)}
-                                        name={name}
-                                        match={text}
-                                        path={where}
-                                        icon={
-                                            hit.kind === "edge" ? <GLYPHS.edge size={14} /> : <GLYPHS.node size={14} />
-                                        }
-                                        current={i === active}
-                                        onClick={() => {
-                                            void pick({ type: "hit", hit });
-                                        }}
-                                    />
-                                );
-                            })}
-                        </div>
-                    ) : null}
+                    {[
+                        { label: "Nodes", group: nodeHits, first: 0 },
+                        { label: "Edges", group: edgeHits, first: nodeHits.length },
+                    ].map(({ label, group, first }) =>
+                        group.length === 0 || session === null ? null : (
+                            <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
+                                key={label}
+                                role="group"
+                                aria-label={label}
+                            >
+                                <Text component="div" className="ws-find-heading" aria-hidden="true">
+                                    {label}
+                                </Text>
+                                {group.map((hit, j) => {
+                                    const i = first + j;
+                                    const name = hitName(session, hit);
+                                    const where =
+                                        String(hit.match.value) === name
+                                            ? undefined
+                                            : `${attributeName(session, hit.match.path)}: ${String(hit.match.value)}`;
+                                    return (
+                                        <ResultRow
+                                            key={optionId(i)}
+                                            id={optionId(i)}
+                                            name={name}
+                                            match={text}
+                                            path={where}
+                                            icon={
+                                                hit.kind === "edge" ? (
+                                                    <GLYPHS.edge size={14} />
+                                                ) : (
+                                                    <GLYPHS.node size={14} />
+                                                )
+                                            }
+                                            current={i === active}
+                                            onClick={() => {
+                                                void pick({ type: "hit", hit });
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        ),
+                    )}
                     {found.values.length > 0 && session !== null ? (
                         <div // NOSONAR(S6819): an option group inside a listbox; ARIA allows no native element there
                             role="group"

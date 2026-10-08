@@ -128,13 +128,15 @@ export function directionWords(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends: "Ava -> Kofi" on a directed graph, "Ava -- Kofi" otherwise.
- * @param session - the session, which says whether the graph is directed.
+ * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
+ * directed graph, "Ava -- Kofi" otherwise.
+ * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    return `${String(edge.source)}${edgeJoiner(session)}${String(edge.target)}`;
+    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
+    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
 }
 
 /**

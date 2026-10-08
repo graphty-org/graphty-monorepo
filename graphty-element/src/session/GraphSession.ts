@@ -2527,6 +2527,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         results,
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
+        // A rule reads a file column by its bare name ("minutes"); the published path is the
+        // attribute's ("data.minutes"), so a caller can look the column up in `data.attributes()`.
+        pathsOf: (where: Query) =>
+            engine.pathsOf(where).map((path) => {
+                const answered = (p: Path): boolean => paths.answers(p, "node") || paths.answers(p, "edge");
+                return !answered(path) && answered(ATTRIBUTE_PREFIX + path) ? ATTRIBUTE_PREFIX + path : path;
+            }),
         note: (id: NoteId, target: number | undefined) => {
             const status = notes.status(id);
             return noteMembers(notes.get(id)?.targets ?? [], status, snapshot(), target);

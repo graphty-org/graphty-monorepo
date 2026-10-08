@@ -2893,6 +2893,7 @@ export interface SelectionApi {
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
     readonly origin: SelectionTarget | null;
+    readonly originPaths: readonly Path[];
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;

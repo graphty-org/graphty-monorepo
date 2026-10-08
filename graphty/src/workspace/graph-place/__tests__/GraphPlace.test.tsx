@@ -102,7 +102,7 @@ describe("the Graph place", () => {
 
         await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "jav");
         const list = await screen.findByRole("listbox", { name: "Find results" });
-        const elements = within(list).getByRole("group", { name: "Elements" });
+        const elements = within(list).getByRole("group", { name: "Nodes" });
         assert.isNotNull(within(elements).getByRole("option", { name: /name: Javert/ }));
         assert.equal(session.selection.size, 0);
     });
@@ -287,12 +287,54 @@ describe("the Graph place", () => {
         await waitFor(() => {
             assert.equal(session.selection.size, 1);
         });
-        // The rule stays in the box, selected, to change or type over.
+        // The rule stays in the box, not selected, so a second Enter is not invited; the line under
+        // the box says what it selected.
         const input = box as HTMLInputElement;
         assert.equal(input.value, "=weight > `3`");
-        assert.deepEqual([input.selectionStart, input.selectionEnd], [0, input.value.length]);
+        assert.equal(input.selectionStart, input.selectionEnd);
+        assert.isNotNull(await screen.findByText("1 edge selected"));
+        assert.isNull(screen.queryByText("Rule: press Enter to select matches"));
         assert.isNull(screen.queryByRole("alert"));
         assert.notEqual(box.getAttribute("aria-invalid"), "true");
+    });
+
+    it("lists nodes and edges under their own headings, and ends the list on a whole row", async () => {
+        const session = createGraphSession();
+        sessions.push(session);
+        await session.config.set({ data: { directed: false } });
+        // Enough hits to scroll: every node and edge carries "x".
+        await session.data.addNodes(Array.from({ length: 8 }, (_, i) => ({ id: `x${String(i)}` })));
+        await session.data.addEdges(
+            Array.from({ length: 7 }, (_, i) => ({ source: `x${String(i)}`, target: `x${String(i + 1)}`, kind: "x" })),
+        );
+        renderPlace(session);
+
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "x");
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const nodes = within(list).getByRole("group", { name: "Nodes" });
+        const edges = within(list).getByRole("group", { name: "Edges" });
+        assert.isTrue(
+            within(nodes)
+                .getAllByRole("option")
+                .every((row) => !row.textContent.includes(" -- ")),
+        );
+        assert.isTrue(
+            within(edges)
+                .getAllByRole("option")
+                .every((row) => row.textContent.includes(" -- ")),
+        );
+        assert.isNull(within(list).queryByRole("group", { name: "Elements" }));
+
+        // The list scrolls, and its visible bottom is the bottom of an option row.
+        assert.isAbove(list.scrollHeight, list.clientHeight);
+        const bottom = list.getBoundingClientRect().top + list.clientHeight;
+        const rowBottoms = within(list)
+            .getAllByRole("option")
+            .map((row) => row.getBoundingClientRect().bottom);
+        assert.isTrue(
+            rowBottoms.some((b) => Math.abs(b - bottom) < 1),
+            `the list ends at ${String(bottom)}, not on a row (${rowBottoms.join(", ")})`,
+        );
     });
 
     it("words any other refused rule with where it went wrong", async () => {

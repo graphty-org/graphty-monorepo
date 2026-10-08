@@ -15,6 +15,17 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+- (2026-10-08) **Find confirms what it ran; selections list members (element + app, team door).**
+  After Enter a rule stays in the box unselected (caret at end) and the line under it reads the
+  live count ("3 edges selected", "Nothing matches this rule") while `selection.origin` is still
+  that rule. The list groups Nodes then Edges (keyboard order follows); a layout effect cuts its
+  height back to the last whole option row under 320 px (border counted). Inspector: "Selected
+  edges" lists each edge by its ends' names (`edgeName` reads `session.data.name`, so every edge
+  title names ends by name too) and, under a caption, each tested column's value, from the new
+  element fact `selection.originPaths` (a bare rule name published as `data.<name>`). Evidence
+  `tmp/r1-dry2-find-and-selection/` (T22A/03, T22B/03, T12RA/02, T12RB/02, T23B/03,
+  T12RA-long/02-03). OPEN: `edgePage({ scope: "selection" })` is empty for an edge-only selection
+  (the selection scope reads nodes only); changing it is behavior, an owner door.
 - (2026-10-08) **Neighborhood list (app only, no API change).** Heading and status line
   "Javert's 17 connections" at every hop count (`neighborhoodWords`, inspector/words.ts), named by
   `session.data.name()` (the old "#895, named by id" note was stale). Every hop count lists by
@@ -22,57 +33,27 @@ acceptance test. "The studio worktree" is
   selection); a weighted one hop keeps its tie values. "Filter to neighbors": `default` Button at
   rest, `filled` when on, Tooltip says what it does and, on, "Press again to show every node".
   Evidence `tmp/r1-dry2-neighborhood-view/` (T23B/04-08, T12RA/04-06, T23A/04, 07, 08).
-- (2026-10-08) **The key speaks the app's words for a run's highlight (app only, no API change).**
-  `keySections` (legendWords.ts) merges a run's node and edge color highlight with one swatch into
-  one section titled by the run alone ("Shortest path"); its entry is `highlightEntry(run.shape)`
-  (analyze/words.ts: path "On the path", pair-list "In a pair", else "In the result"), never the
-  element's layer name ("Shortest route (edges)"). The card and the exported image key share it
-  (`keyNames(session)`). Two colors or two runs stay two sections with their property. Story
-  `PathOverRanking`. Re-pilot: T18A/07, T18B/07, T20A/14, T20B/14 in `tmp/r1-dry2-key-words/`
-  show one "Shortest path" / "On the path" section (above Size and Color: PageRank where ranked)
-  and `--expect-not route` passed. The run's Style tab may still list layer names; not checked.
+- (2026-10-08) **The key speaks the app's words for a run's highlight (app only).** One section per
+  run color titled by the run ("Shortest path" / "On the path", `highlightEntry`), never the
+  element's layer name; card and exported key share `keyNames`. Evidence `tmp/r1-dry2-key-words/`.
 
-- (2026-10-08) **Shared rows, lists and menus (compact-mantine only, no API change).** (1) A tree
-  row's count yields to its name: `.cm-tree-count` shrinks 1000x faster, floor 2.5em with its
-  ellipsis, `text-align: end` ("friends-v2.csv 20 nodes, 41 ..."). (2) A selected expanded parent
-  fills `bg-selected-hover` (dark 1.6:1 from the band, was 1.2:1); a hovered child takes
-  `bg-selected`. (3) Unchosen segmented label in `--cm-text`, not `text-secondary` (passed 6.6:1
-  on paper and still read as disabled at 10px). (4) ContextMenu: only a keyboard open focuses the
-  first row; a pointer open focuses the dropdown (ArrowDown reaches row 1). (5) Select,
-  Autocomplete, MultiSelect, TagsInput default `onKeyDown: consumeListEscape` (stop + prevent while
-  `data-expanded`). Limit: a Mantine Popover with default `closeOnEscape` closes in its capture
-  phase before any field sees the key (the app uses `closeOnEscape={false}`). Figma departures
-  in `compact-mantine/design/figma-spec.md` 14. Evidence `tmp/r1-dry2-rows-shared-controls/`
-  (T4A/06, 08-10; T21A/02-03; T21A-after/06; T21B-after/06; T18A/06-08).
-- (2026-10-08) **A run says which method it used (element + app, team door).** The fact was
-  already `caveats.method`; the missing piece was the switch the `method` description promised:
-  unset -> Dijkstra, Bellman-Ford when a read weight is negative (`AlgorithmManager.execute`,
-  `DijkstraAlgorithm.readsNegativeWeight`). Option meta `choiceLabels` names a choice
-  ("Bellman-Ford"). App: an enum whose default is null shows its `empty` words as a placeholder;
-  Made with's words for a finished run (`ranOptionWords`) say "Dijkstra, chosen automatically".
-  OPEN: explicit `method: "dijkstra"` over a negative undirected weight still freezes the page
-  (`algorithms/src/indexed/dijkstra.ts` relaxes with no settled set). Evidence
-  `tmp/r1-dry2-run-record-method/` (T18A/05, 07, 08; T20A/12; T20B/12).
-- (2026-10-08) **Labels on top (element + app, team door).** `LabelStyle.onTop` (and
-  `RichTextStyle.onTop`), optional, default depth sorted; on, the label goes to rendering group 1
-  (drawn after the graph, depth cleared), as tooltips already did. The app's `appLabelLook` sets it,
-  so every label line the app adds is never cut by a nearer sphere or a selected tie's band.
-  Re-pilot on a fresh build: "Hana" under Ivan and "Stadium" over the blue band read whole.
-  Evidence `tmp/r1-dry2-labels-on-top/` (T24A/02-04, T24B/02-04, story capture, accept.sh).
-- (2026-10-08) **Route color is black (element default, owner door).** `DEFAULT_HIGHLIGHT.color`
-  `#332288` -> `#000000`. Indigo passed every swatch check but, rendered as lit spheres, sat Delta E
-  19.5 / 2.1:1 from the default nodes (pilots T20A/T20B read the route's nodes as ordinary). Black:
-  rendered Delta E 50 / 3.0:1 unranked, 44-50 over PageRank. Rule learned: judge node colors at the
-  shaded tones (`shaded()` x `NODE_TONES` in `default-palette-quality.test.ts`) and on screenshot
-  pixels (`tmp/r1-dry2-path-color/measure.py`), never on swatches alone. Known cost: black is the
-  7th default group color. Evidence `tmp/r1-dry2-path-color/walk/`.
-- (2026-10-08) **Which end is missing (element + app, team door).** `LeftOutEdge.missingEnds` and
-  `DraftRow.missingEnds` (`EdgeEnd[]`, only under `only: "unmatched"`) say which end names no node;
-  saved with the project. The app marks the cell ("s11 (no node row)" + warning glyph), the grid
-  caption says "1 unmatched row: s11 has no node row", the inspector line LEADS with it ("Line 17:
-  s11 has no node row; from s04, ...") because the narrow inspector cuts the line's end. Evidence
-  `tmp/r1-dry2-missing-end/` (T4B/05, 07; T4A/05, 07). OPEN: `door-surface.test.ts` fails on HEAD
-  (`Graphty.nodesInRect` not in `doors.ts`).
+- (2026-10-08) **Shared rows, lists and menus (compact-mantine).** A tree row's count yields to its
+  name; a selected expanded parent fills `bg-selected-hover`; unchosen segment label in `--cm-text`;
+  only a keyboard open focuses a ContextMenu's first row; list fields consume their Escape (a
+  Popover with `closeOnEscape` still wins). Evidence `tmp/r1-dry2-rows-shared-controls/`.
+- (2026-10-08) **A run says which method it used (element + app, team door).** Unset `method` ->
+  Dijkstra, Bellman-Ford on a negative read weight; option meta `choiceLabels`; Made with says
+  "Dijkstra, chosen automatically". OPEN: explicit dijkstra over a negative undirected weight
+  freezes the page (`algorithms/src/indexed/dijkstra.ts`). Evidence `tmp/r1-dry2-run-record-method/`.
+- (2026-10-08) **Labels on top (element + app, team door).** `LabelStyle.onTop` (default depth
+  sorted) draws a label after the graph; the app's `appLabelLook` sets it. Evidence
+  `tmp/r1-dry2-labels-on-top/`.
+- (2026-10-08) **Route color is black (element default, owner door).** Indigo passed swatch checks
+  but read as ordinary on lit spheres. Judge node colors at shaded tones and screenshot pixels
+  (`tmp/r1-dry2-path-color/measure.py`), never swatches. Cost: black is the 7th group color.
+- (2026-10-08) **Which end is missing (element + app, team door).** `LeftOutEdge.missingEnds` /
+  `DraftRow.missingEnds`; the app marks the cell, the caption and leads the inspector line with it.
+  Evidence `tmp/r1-dry2-missing-end/`.
 - (2026-10-08) **Study tool trust (real.mjs).** Hover prints only its own tooltip; EPIPE no longer
   kills a session; click timeouts print the reason; a setup ends with focus released.
 - (2026-10-08) **The drawing stays put (element + app).** View insets never move the camera
@@ -80,8 +61,8 @@ acceptance test. "The studio worktree" is
   when `element.nodesInRect(cardBox)` is not empty; Find turns the camera only for an off-screen
   pick. Evidence `tmp/r1-dry1-view-stays-put/`.
 - (2026-10-08) **Find rules and edge names.** `FindOptions.edgeNameJoiner` (element) finds an edge
-  by its name; rule example from the data; ResultRow turns off Inter's `calt`. OPEN: inspector names
-  an edge's ends by id (#895); Columns after "=" omit run results.
+  by its name; rule example from the data; ResultRow turns off Inter's `calt`. OPEN: Columns after "="
+  omit run results. (Edge ends are named by name since 2026-10-08.)
 - (2026-10-08) **Path form and focus.** From/To "From node"/"To node"; Made with rows Analysis, Ran,
   From, To, Weight; `WeightMeaning.assumed`. Focus lands on a control after each action
   (`focusCurrentPlace`). OPEN: label size is world-space; T21 Replace relayouts every node;
@@ -203,6 +184,10 @@ acceptance test. "The studio worktree" is
 - (2026-10-08) **The app states its label look on every label line it adds** (body font, 72 on the
   label canvas): the element's default Verdana is missing on Linux. One `session.transaction`, one
   undo step. Rejected: an app-wide base layer, changing the element default.
+- (2026-10-08) **What a rule tested is an element fact, not parsed from the rule text.** The query
+  engine already keeps a rule's paths; `selection.originPaths` publishes them as attribute paths.
+  Rejected: the app matching column names in the typed text (a second parser), paths on the
+  change delta (a panel that did not make the call never sees it).
 - (2026-10-08) **A neighborhood heading has one form** ("N nodes within K hop(s) of X") for the list
   and the status line. Rejected: "X's N connections" at 1 hop only (two forms read as two things).
 - (2026-10-08) **Facts are rows, not chips.** A badge looks clickable; the kind's meaning goes in a
@@ -248,6 +233,13 @@ acceptance test. "The studio worktree" is
 
 ## Tried: worked / did not work
 
+- (2026-10-08) Worked: staging only my hunks in a shared worktree: `git diff -U0` per file, drop
+  foreign hunks by header, `git apply --cached --unidiff-zero`
+  (`tmp/r1-dry2-find-and-selection/stage.py`). Did not work: expecting `data.name()` to read a
+  `name` field -- it returns the id until `knownFields.nodeLabelPath` is set (an import sets it);
+  a headless test sets it. Did not work: `max-height` from row bottoms alone; border-box counts
+  the list's 1 px border, so the list ended 1 px above the row.
+
 - (2026-10-08) Did not work: piloting on `graphty/dist` while others rebuild (their `vite build`
   empties it: "no production build"). Worked: copy dist into the task's tmp folder after the
   build, grep its JS for the new words, serve the copy. Run prettier on an index-built blob.
@@ -264,12 +256,9 @@ acceptance test. "The studio worktree" is
   the page froze (no test timeout fires on a synchronous loop); the vitest run sat at "RUN" 12 min.
   A hung browser test with no output means a sync infinite loop: rerun with `-t` to bisect. Another
   agent's `nx run graphty:build` emptied `graphty/dist` mid-start: copy dist to `tmp/<task>/dist`.
-- (2026-10-08) Did not work: a value marked at the END of an inspector DataRow ("to s11 (no node
-  row)") -- the row is cut at 1440 px wide; the fact must lead. Did not work (again): `while pgrep
--f <pattern>` waiting on a build matches its own shell and never ends; wait by PID. The session
-  entry's public types are listed in `graphty-element/session.ts`, not only `src/session/index.ts`:
-  a type missing there is absent from `api/session.api.md`. `getByText` misses text split across a
-  glyph span: read `.textContent` of the marked cell.
+- (2026-10-08, condensed) A fact at the END of a narrow inspector row is cut: lead with it.
+  `while pgrep -f` matches its own shell: wait by PID. Session-entry public types are listed in
+  `graphty-element/session.ts`. `getByText` misses text split across a glyph span.
 - (2026-10-08) Worked: `label-drawn-over-edges.test.ts` reads pixels off the frame to prove draw
   order (282 edge pixels over the label without the change, 0 with it); story scenes need a capture.
 - (2026-10-08) Worked: re-walking the pilots with a copy of `tier2/pilot/rewalk.sh` whose `SET`

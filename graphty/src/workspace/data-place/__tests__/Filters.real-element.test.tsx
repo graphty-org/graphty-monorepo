@@ -61,6 +61,8 @@ describe("Filters on the real element", () => {
             await userEvent.keyboard("{Shift>}{F10}{/Shift}");
             await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
             assert.deepEqual(store.get().inspected, { kind: "filter-step", id: "new:edge:data.value" });
+            // The attribute it was opened from stays marked.
+            assert.equal(row.getAttribute("aria-selected"), "true");
 
             // The editor says what an edge-attribute step keeps.
             await screen.findByText("Keeps edges that pass and the nodes at their ends.");
@@ -76,7 +78,9 @@ describe("Filters on the real element", () => {
             assert.deepEqual([visibleNodes, totalNodes, visibleEdges], [5, 8, 4]);
 
             const stepRow = await within(filters()).findByRole("treeitem", { name: "value is at least 9" });
+            // The sentence has the row to itself; the outcome is its description.
             await waitFor(() => {
+                assert.isNull(within(stepRow).queryByTestId("tree-count"));
                 assert.include(stepRow.textContent, "8 to 5 nodes");
             });
             assert.isNotNull(screen.getByRole("button", { name: "Filter: 5 of 8 nodes" }));
@@ -103,6 +107,26 @@ describe("Filters on the real element", () => {
                 assert.include(within(filters()).getByRole("treeitem").textContent, "off");
             });
             assert.equal(store.get().announcement, "Filter off");
+
+            // Editing the step while it is off: Save step waits for a change, and the save is said.
+            act(() => {
+                store.set({ inspected: { kind: "filter-step", id: step.id } });
+            });
+            const save = await inspector.findByRole("button", { name: "Save step" });
+            assert.isTrue(save.hasAttribute("disabled"));
+            const value = inspector.getByRole("textbox", { name: "Value" });
+            await userEvent.clear(value);
+            await userEvent.type(value, "10");
+            await waitFor(() => {
+                assert.isFalse(save.hasAttribute("disabled"));
+            });
+            await userEvent.click(save);
+            await waitFor(() => {
+                assert.equal(store.get().announcement, 'Saved "value is at least 10" (off).');
+            });
+            await within(filters()).findByRole("treeitem", { name: "value is at least 10" });
+            await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await within(filters()).findByRole("treeitem", { name: "value is at least 9" });
 
             // Undo puts the step back on and the notice names it.
             await userEvent.click(screen.getByRole("button", { name: "Undo" }));

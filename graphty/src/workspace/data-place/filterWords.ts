@@ -58,7 +58,7 @@ export function ruleWords(rule: RuleTree, names: Namer): string {
 export const ENDS_LINE = "Keeps edges that pass and the nodes at their ends.";
 
 /**
- * A step's outcome at the end of its row: "22 to 9 nodes", or "off" for a step that is off.
+ * A step's outcome, its row's description: "22 to 9 nodes", or "off" for a step that is off.
  * @param on - whether the step is on.
  * @param before - the nodes left before it, or undefined until counted.
  * @param after - the nodes left after it, or undefined until counted.
@@ -69,6 +69,16 @@ export function outcomeWords(on: boolean, before: number | undefined, after: num
         return "off";
     }
     return before === undefined || after === undefined ? "" : `${num(before)} to ${num(after)} nodes`;
+}
+
+/**
+ * The status line after the step editor saves a step: 'Saved "weight is at least 4" (off).'
+ * @param words - the step's sentence.
+ * @param on - whether the step is on.
+ * @returns the words.
+ */
+export function savedWords(words: string, on: boolean): string {
+    return `Saved "${words}"${on ? "" : " (off)"}.`;
 }
 
 /**

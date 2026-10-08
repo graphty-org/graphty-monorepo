@@ -274,7 +274,7 @@ describe("paintRows", () => {
             }),
         );
         assert.equal(findRow(rows, "a")?.state, "stale");
-        assert.equal(findRow(rows, "a")?.stale, "data-changed");
+        assert.equal(findRow(rows, "a")?.stale?.reason, "data-changed");
         assert.equal(findRow(rows, "b")?.state, "ready");
     });
 });

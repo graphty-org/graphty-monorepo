@@ -25,7 +25,7 @@ import React, { useEffect, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
-import { applyName, chipWords, ENDS_LINE, outcomeWords, statusWords } from "./filterWords";
+import { applyName, chipWords, ENDS_LINE, outcomeWords, savedWords, statusWords } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
 
 /** Nodes left before the first step and after each step that is on, by step id. */
@@ -64,8 +64,9 @@ function useOutcomes(session: GraphSession | null, version: number): Outcomes | 
 }
 
 /**
- * The Filters section: one row per step, as a sentence, its outcome and its Apply this step
- * checkbox. "+" opens the step editor; a row opens it on that step; the row menu deletes.
+ * The Filters section: one row per step, as a sentence (its outcome as the row's description)
+ * and its Apply this step checkbox. "+" opens the step editor; a row opens it on that step; the
+ * row menu deletes.
  * @returns the section.
  */
 export function FiltersSection(): React.JSX.Element {
@@ -96,8 +97,9 @@ export function FiltersSection(): React.JSX.Element {
             id: step.id,
             name: words,
             icon: <GLYPHS.filter size={14} aria-hidden />,
+            // The sentence keeps the whole row (its threshold is what the reader set); the
+            // outcome is the row's description, and the header chip and Overview count what shows.
             description: outcome,
-            count: outcome,
             dimmed: !step.on,
             strong: false,
             actions: (
@@ -268,6 +270,22 @@ function ruleOf(
 }
 
 /**
+ * Whether two rules say the same, whatever order their keys were written in.
+ * @param a - one rule.
+ * @param b - the other.
+ * @returns true when they match.
+ */
+function sameRule(a: RuleTree, b: RuleTree): boolean {
+    const text = (rule: RuleTree): string =>
+        JSON.stringify(rule, (_key, value: unknown) =>
+            value !== null && typeof value === "object" && !Array.isArray(value)
+                ? Object.fromEntries(Object.entries(value).sort(([x], [y]) => x.localeCompare(y)))
+                : value,
+        );
+    return text(a) === text(b);
+}
+
+/**
  * The step editor, drawn in the inspector: Keep, then the attribute, the comparison and the
  * value. Committing adds the step, on, or saves the edited one.
  * @param props - Component props
@@ -289,6 +307,8 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
     const kept = step?.rule.kind === "neighborhood" ? step.rule.seeds : [];
     const rule = ruleOf(fields, attribute, seeds.length > 0 ? seeds : kept);
+    // Save step waits for a change: a rule that is the step's own saves nothing.
+    const unchanged = step !== undefined && rule !== null && sameRule(rule, step.rule);
 
     if (session === null || (step === undefined && id !== NEW && filled === "")) {
         return (
@@ -322,7 +342,13 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                 ? [...steps, { id: newId(steps), on: true, rule }]
                 : steps.map((s) => (s.id === step.id ? { ...s, rule } : s));
         if (await writeSteps(session, store, next)) {
-            store.set({ inspected: null });
+            // An edit of a step that is off changes nothing on screen, so the save is said.
+            store.set({
+                inspected: null,
+                ...(step === undefined
+                    ? {}
+                    : { announcement: savedWords(stepWords(session, { ...step, rule }), step.on) }),
+            });
         }
     };
 
@@ -405,7 +431,7 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
             <Group gap="xs">
                 <Button
                     size="xs"
-                    disabled={rule === null}
+                    disabled={rule === null || unchanged}
                     onClick={() => {
                         void commit();
                     }}

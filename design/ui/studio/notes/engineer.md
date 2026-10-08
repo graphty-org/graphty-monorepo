@@ -15,6 +15,18 @@ acceptance test. "The studio worktree" is
 
 ## Top of mind
 
+0000000. (2026-10-08) **Filter rows keep their sentence; editor and neighbor toggle answer back
+         (app only, no door).** A step row has NO visible count now: "shared_chapters is at least
+         3" plus a count could not share the 240px panel (even "44" cut the threshold), so the
+         outcome ("77 to 44 nodes" / "off") is the row's description and the header chip and
+         Overview carry what shows. Save step is disabled until the rule differs (key-order-free
+         compare); an edit-save announces `Saved "..." (off).`; a step opened by Filter to...
+         keeps its attribute row marked (`stepSource`); "The counts below..." at 11px (row size);
+         Filter to neighbors is `aria-pressed` with the `light` (toggle-on) look and removes its
+         step when pressed again; out-of-date words come from `StaleNote` ("Ran on 20 nodes; 7
+         shown now"). Tests: `filterWords`, `staleWords`, `Filters.real-element`, toolbar
+         `tasks.real-element`. Evidence `tmp/r1-dry1-filters-polish/` (A/04, A/07, A/09, A/13,
+         B/07, B/08, C/05, C/09, D/07).
 0000000. (2026-10-08) **Import page in reader words (app + compact-mantine).** Summary line
          `modelWords()` ("people and messages: 12 nodes, 22 edges; each edge goes both ways" -- the
          direction clause only once Direction is chosen; the CSV report has no direction fact);
@@ -41,16 +53,9 @@ acceptance test. "The studio worktree" is
         `compact-mantine/tests/theme/shared-controls.browser.test.tsx`, `GraphPlace.test.tsx`.
         Evidence `tmp/r1-dry1-shared-controls/` (A/02, A/03, A/04, B/05, B/06; before/).
 00000. (2026-10-08) **Row text fits; a cut row's tooltip carries the whole row (compact-mantine).**
-       The inspector row is 216px inside the 240px panel (section padding 16/8, row 16/8, value 8),
-       so "Edges per node 3 to 6, mean 3.667" truly did not fit (184 needed, 176 free): no padding
-       trick. Fix: a `stat` DataRow's reading WRAPS (row min 32, grows; name start-aligned on the
-       first line); PageList `description` wraps; Tree `count` is `flex:none; max-width:50%`
-       (whole unless more than half the row) and `EllipsizedName` takes `detail` (the count,
-       marked `data-row-detail`) so the tooltip shows name AND count when either is cut. Sources
-       rows now pass `count` (not a pinned `actions` span). Attribute fill stays pinned text: its
-       description already says "25% have a value", and `count` joins aria-describedby (read twice).
-       Listed for the owner (stat rows can be taller). Evidence `tmp/r1-dry1-rows-fit/A/07.png`,
-       `A/10.png` (tooltip), `A/12.png` (recent), `B/04.png` (Direction).
+       The 216px row cannot hold "Edges per node 3 to 6, mean 3.667": a `stat` reading wraps,
+       PageList descriptions wrap, a Tree `count` takes at most half the row, and a cut row's
+       tooltip shows name and count. Evidence `tmp/r1-dry1-rows-fit/`.
 
 0000. (2026-10-08) **A reopened run keeps its summary (graphty-element `projectFile.ts`, no door).**
       Opening a project hands each saved result to its run as a canned outcome; that outcome had
@@ -134,6 +139,12 @@ acceptance test. "The studio worktree" is
 
 ## Decisions and reasons
 
+- (2026-10-08) **A filter step row shows only its sentence and checkbox.** Reason: the threshold
+  is what the reader set and must stay readable on and off; the per-step count lost every room
+  fight on long attribute names. The count stays one hover or one screen reader read away (row
+  description), and the totals live in the header chip and Overview. Rejected: "19 left" and a
+  bare number (both still cut "shared_chapters is at least 3").
+
 - (2026-10-08) **A stat's reading and a list row's second line wrap; they are never cut.** Reason:
   the reading is what the reader came for and a tooltip is not reading. A row's quiet text gets up
   to half the row, and a cut row's tooltip carries name and quiet text. Rejected: cutting the
@@ -207,6 +218,12 @@ acceptance test. "The studio worktree" is
   `elementAt`, `labelOf` merged (owner to confirm names); the app seeds layouts.
 
 ## Tried: worked / did not work
+
+- (2026-10-08) While other agents edit the same worktree, stage only your hunks by writing the
+  index blob from HEAD plus your own edits (`git hash-object -w` + `update-index --cacheinfo`);
+  a shared file's other hunks stay unstaged. Their half-saved files can break `tsc` and the build
+  for minutes: wait for a clean `tsc` before building. A setup's Shift+A missed in a WIP build;
+  `--click Analyze` works the same.
 
 - (2026-10-08) Flex intrinsic sizing: a track with no width and `flex: 1 1 0` options sums their
   max-content then splits it EQUALLY, so the widest option is cut. A content floor

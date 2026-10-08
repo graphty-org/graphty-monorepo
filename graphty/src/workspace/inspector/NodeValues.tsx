@@ -7,6 +7,7 @@ import {
     UiGlyph,
 } from "@graphty/compact-mantine";
 import type {
+    FilterStep,
     GraphSession,
     NodeId,
     SelectionAttributeStatistics,
@@ -16,6 +17,7 @@ import { Button, Group, Stack, Text } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { newId, writeSteps } from "../data-place/filterSteps";
+import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { useAsyncValue } from "./hooks";
@@ -237,6 +239,8 @@ export function NeighborList({
     direction = "all",
 }: Readonly<{ center: NodeId; hops?: number; direction?: SelectionDirection }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
+    // The Filter to neighbors toggle reads the steps, so it follows each change to them.
+    useVisibilityVersion(session);
     const heading = useRef<HTMLElement>(null);
     // The list takes focus as it opens, and Esc anywhere in it returns to the center node: a
     // shortcut on the region, so it is listened for on the region's own element. A Hops or
@@ -304,6 +308,14 @@ export function NeighborList({
             />
         ));
     }
+    // The step this neighborhood's Filter to neighbors added, if it is still there.
+    const filtered = session.visibility.steps.find(
+        (s) =>
+            s.rule.kind === "neighborhood" &&
+            s.rule.depth === reach &&
+            s.rule.seeds.length === 1 &&
+            s.rule.seeds[0] === center,
+    );
     const hopsLabel = `neighbor-hops-${nodeKey(center)}`;
     const followLabel = `neighbor-follow-${nodeKey(center)}`;
 
@@ -345,19 +357,29 @@ export function NeighborList({
                 )}
                 {follow === "all" && (
                     <Button
-                        variant="subtle"
+                        variant={filtered?.on === true ? "light" : "subtle"}
                         size="compact-xs"
+                        aria-pressed={filtered?.on === true}
                         style={{ alignSelf: "flex-start" }}
                         onClick={() => {
                             const { steps } = session.visibility;
-                            void writeSteps(session, store, [
-                                ...steps,
-                                {
-                                    id: newId(steps),
-                                    on: true,
-                                    rule: { kind: "neighborhood", seeds: [center], depth: reach },
-                                },
-                            ]);
+                            // Pressed again, the step it added goes; an off one is turned back on.
+                            let next: FilterStep[];
+                            if (filtered === undefined) {
+                                next = [
+                                    ...steps,
+                                    {
+                                        id: newId(steps),
+                                        on: true,
+                                        rule: { kind: "neighborhood", seeds: [center], depth: reach },
+                                    },
+                                ];
+                            } else if (filtered.on) {
+                                next = steps.filter((s) => s.id !== filtered.id);
+                            } else {
+                                next = steps.map((s) => (s.id === filtered.id ? { ...s, on: true } : s));
+                            }
+                            void writeSteps(session, store, next);
                         }}
                     >
                         Filter to neighbors

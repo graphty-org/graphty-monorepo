@@ -47,6 +47,19 @@ export function openStepEditor(store: WorkspaceStore, id: string): void {
 }
 
 /**
+ * The attribute a new step was opened from (its `Filter to...`), as `<node|edge>:<path>`, so
+ * the attribute's row stays marked while the editor is open.
+ * @param inspected - what the inspector shows.
+ * @returns the attribute, or undefined.
+ */
+export function stepSource(inspected: { readonly kind: string; readonly id?: string } | null): string | undefined {
+    const prefix = `${NEW}:`;
+    return inspected?.kind === STEP_KIND && inspected.id?.startsWith(prefix) === true
+        ? inspected.id.slice(prefix.length)
+        : undefined;
+}
+
+/**
  * A new step id, unique among the steps.
  * @param steps - the steps.
  * @returns the id.

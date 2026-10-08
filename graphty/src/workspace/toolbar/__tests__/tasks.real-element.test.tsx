@@ -386,6 +386,16 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 );
                 assert.equal(session.visibility.summary.visibleNodes, grown + 1);
             });
+            // It shows that it is on, and pressed again it takes its step away.
+            const toggle = screen.getByRole("button", { name: "Filter to neighbors" });
+            await waitFor(() => {
+                assert.equal(toggle.getAttribute("aria-pressed"), "true");
+            });
+            await userEvent.click(toggle);
+            await waitFor(() => {
+                assert.lengthOf(session.visibility.steps, 0);
+                assert.equal(toggle.getAttribute("aria-pressed"), "false");
+            });
         },
         TIMEOUT_MS,
     );

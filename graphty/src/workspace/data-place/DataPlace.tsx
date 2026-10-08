@@ -11,6 +11,7 @@ import { pickFile } from "../start/open";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useAttributeActions } from "./attributeActions";
 import { FiltersSection } from "./Filters";
+import { stepSource } from "./filterSteps";
 import { AttributeMenuItems, ItemLabel } from "./MenuItems";
 import {
     type AttributeRow,
@@ -198,7 +199,12 @@ function AttributesSection(): React.JSX.Element {
     // ponytail: a path names no kind, so where a node and an edge attribute share one the node's
     // row is the one shown selected.
     const attributes = session?.data.attributes() ?? [];
-    const shown = inspected?.kind === "attribute" ? attributes.find((a) => a.path === inspected.id) : undefined;
+    // A step opened from an attribute's Filter to... keeps that attribute marked.
+    const source = stepSource(inspected);
+    const shown =
+        inspected?.kind === "attribute"
+            ? attributes.find((a) => a.path === inspected.id)
+            : attributes.find((a) => `${a.kind}:${a.path}` === source);
     const selectedAttribute = shown === undefined ? [] : [`${shown.kind}:${shown.name}`];
     return (
         <ControlSection label="Attributes" empty={attributeItems.length === 0 && filter === ""}>

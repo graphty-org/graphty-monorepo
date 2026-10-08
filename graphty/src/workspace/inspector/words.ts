@@ -10,7 +10,7 @@ import type {
     GraphStatistics,
     GraphtyErrorCode,
     Measurement,
-    StaleReason,
+    StaleNote,
     SummaryGroup,
     XrCapability,
     XrUnavailableReason,
@@ -249,19 +249,16 @@ export function runFailureWords(code: GraphtyErrorCode | undefined): string {
     return reason === undefined ? "The run failed" : `The run failed: ${reason}`;
 }
 
-/** Why a run is out of date, by the element's reason code (tier2-design.md section 7). */
-const STALE_WORDS: Readonly<Record<StaleReason, string>> = {
-    "data-changed": "Data changed since this run",
-    "scope-changed": "What it ran on changed since this run",
-};
-
 /**
- * The state bar's words, and the paint row's description, for a run that is out of date.
- * @param reason - `run.stale.reason`.
+ * The state bar's words, and the paint row's description, for a run that is out of date: what
+ * changed, in the element's numbers ("Ran on 20 nodes; 15 shown now").
+ * @param note - `run.stale`.
  * @returns the words.
  */
-export function staleWords(reason: StaleReason): string {
-    return STALE_WORDS[reason];
+export function staleWords(note: Pick<StaleNote, "reason" | "ranOn" | "nowVisible">): string {
+    return note.reason === "data-changed"
+        ? "Data changed since this run"
+        : `Ran on ${count(note.ranOn, "node")}; ${COUNT.format(note.nowVisible)} shown now`;
 }
 
 const ORDINAL = new Intl.PluralRules("en-US", { type: "ordinal" });

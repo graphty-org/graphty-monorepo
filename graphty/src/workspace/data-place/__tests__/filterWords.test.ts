@@ -1,6 +1,15 @@
 import { assert, describe, it } from "vitest";
 
-import { applyName, chipWords, historyNotice, type Namer, outcomeWords, ruleWords, statusWords } from "../filterWords";
+import {
+    applyName,
+    chipWords,
+    historyNotice,
+    type Namer,
+    outcomeWords,
+    ruleWords,
+    savedWords,
+    statusWords,
+} from "../filterWords";
 
 const NAMES: Namer = { attribute: (path) => path.replace("data.", ""), node: (id) => String(id) };
 const SHOWING = { visibleNodes: 9, totalNodes: 22, visibleEdges: 14 };
@@ -54,5 +63,10 @@ describe("the Filters words", () => {
             'Redid adding "weight is at least 4".',
         );
         assert.isNull(historyNotice("visibility.filter", "x", true));
+    });
+
+    it("says a save", () => {
+        assert.equal(savedWords("weight is at least 4", false), 'Saved "weight is at least 4" (off).');
+        assert.equal(savedWords("weight is at least 4", true), 'Saved "weight is at least 4".');
     });
 });

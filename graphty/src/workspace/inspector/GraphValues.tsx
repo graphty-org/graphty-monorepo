@@ -53,7 +53,7 @@ export function Overview(): React.JSX.Element | null {
                 <>
                     <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
                     <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
-                    <Text size="xs" c="dimmed" px="md" py={2}>
+                    <Text size="sm" c="dimmed" px="md" py={2}>
                         The counts below are for the whole graph.
                     </Text>
                 </>

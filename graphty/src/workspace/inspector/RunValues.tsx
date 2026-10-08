@@ -92,7 +92,7 @@ export function RunStateBar({
     } else if (run.status === "succeeded" && run.stale !== null) {
         // Nothing reruns by itself (tier2-design.md section 7): the reader starts it, here.
         const { scopeSpec } = run.stale;
-        words = staleWords(run.stale.reason);
+        words = staleWords(run.stale);
         buttons = (
             <Button
                 size="compact-xs"

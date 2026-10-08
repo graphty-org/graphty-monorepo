@@ -23,10 +23,15 @@ export function loadRules(root = ROOT) {
     return readdirSync(dir)
         .filter((name) => name.endsWith(".md"))
         .map((name) => {
-            const [, front = "", body] = /^(?:---\n([\s\S]*?)\n---\n)?([\s\S]*)$/.exec(
-                readFileSync(join(dir, name), "utf8"),
-            );
-            const globs = [...front.matchAll(/^\s*-\s*"?([^"\n]+?)"?\s*$/gm)].map((m) => m[1]);
+            const raw = readFileSync(join(dir, name), "utf8");
+            const end = raw.startsWith("---\n") ? raw.indexOf("\n---\n", 4) : -1;
+            const front = end === -1 ? "" : raw.slice(4, end);
+            const body = end === -1 ? raw : raw.slice(end + 5);
+            const globs = front
+                .split("\n")
+                .map((line) => line.trim())
+                .filter((line) => line.startsWith("- "))
+                .map((line) => line.slice(2).trim().replaceAll('"', ""));
             return { name, globs, text: body.trim() };
         });
 }
@@ -66,7 +71,7 @@ export function matchRules(file, root = ROOT) {
 export function respond(input, root = ROOT, markerDir = tmpdir()) {
     const file = input.tool_input?.file_path;
     if (typeof file !== "string") return "";
-    const marker = join(markerDir, `claude-area-rules-${String(input.session_id).replace(/[^\w-]/g, "_")}.json`);
+    const marker = join(markerDir, `claude-area-rules-${String(input.session_id).replaceAll(/[^\w-]/g, "_")}.json`);
     const seen = existsSync(marker) ? JSON.parse(readFileSync(marker, "utf8")) : [];
     const fresh = matchRules(file, root).filter((rule) => !seen.includes(rule.name));
     if (fresh.length === 0) return "";

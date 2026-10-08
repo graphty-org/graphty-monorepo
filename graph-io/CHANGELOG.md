@@ -1,3 +1,13 @@
+## 0.3.29 (2026-10-08)
+
+### 🚀 Features
+
+- **graph-io:** name every column of a loss note, scope CSV node notes ([#876](https://github.com/graphty-org/graphty-monorepo/issues/876))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.28 (2026-10-07)
 
 ### 🩹 Fixes

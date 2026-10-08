@@ -4,7 +4,7 @@ import { move } from "../lib/board.mjs";
 import { normalizeConfig } from "../lib/config.mjs";
 import { jobText } from "../lib/job-text.mjs";
 import { syncJobs } from "../lib/jobs.mjs";
-import { jobInUse, jobOrder } from "../lib/queue.mjs";
+import { issueRefusal, jobInUse, jobOrder } from "../lib/queue.mjs";
 import { accumulateMerged, commitRefs } from "../lib/merged.mjs";
 
 const NOW = new Date("2026-10-04T12:00:00Z");
@@ -729,6 +729,27 @@ describe("syncJobs: issues", () => {
         expect(sync(state).created).toEqual(["issue-2"]);
         state.issues.byNumber[2].state = "closed";
         expect(sync(state).cancelled).toEqual([{ job: "issue-2", reason: "the issue closed" }]);
+    });
+
+    it("never makes a job of a tracking issue, and says why", () => {
+        // 2026-10-08 (#1570): #1183 "SonarQube burn-down" lists its stages as other issues, has no
+        // work of its own and must stay open, yet sat queued all day and was offered again and again.
+        const state = base();
+        issue(state, 1183, ["infrastructure", "priority:medium", "effort:high", "tracking"]);
+        expect(sync(state).created).toEqual([]);
+        expect(issueRefusal(state, 1183, CONFIG)).toBe("the issue is labelled tracking");
+    });
+
+    it("does not offer an issue again after a session reported it not-needed", () => {
+        const state = base();
+        issue(state, 1, LABELED);
+        expect(sync(state).created).toEqual(["issue-1"]);
+        move(state.jobs["issue-1"], "starting", NOW);
+        move(state.jobs["issue-1"], "working", NOW);
+        move(state.jobs["issue-1"], "verifying", NOW);
+        move(state.jobs["issue-1"], "done", NOW);
+        state.issues.byNumber[1].updatedAt = "2026-10-04T09:00:00Z";
+        expect(sync(state).created).toEqual([]);
     });
 
     it("holds a deferred issue while its revision is unchanged, and offers it again once it changes", () => {

@@ -1,6 +1,6 @@
 import { GraphBuilder, type GraphSnapshot, isGraphSnapshot } from "@graphty/graph-format";
 
-import type { Graph, Node } from "../types";
+import type { Graph, Node } from "../types/index.js";
 
 /** One undirected copy per directed snapshot, never two (graph-format design 14.3). */
 const undirectedCache = new WeakMap<GraphSnapshot, GraphSnapshot>();

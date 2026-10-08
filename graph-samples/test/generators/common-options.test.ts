@@ -100,9 +100,7 @@ describe("the weights option", () => {
             const w = withWeights(g, { kind: "column", column: "size", combine }).weights as Float32Array;
             expect(Array.from(w)).toEqual(expected[i]);
         });
-        expect(Array.from(withWeights(g, { kind: "column", column: "size" }).weights as Float32Array)).toEqual([
-            3, 7,
-        ]);
+        expect(Array.from(withWeights(g, { kind: "column", column: "size" }).weights as Float32Array)).toEqual([3, 7]);
         const g3: SampleGraph = { ...g, nodeColumns: { ...g.nodeColumns, z: new Float64Array([0, 0, 1]) } };
         expect(withWeights(g3, { kind: "euclidean" }).weights?.[1]).toBeCloseTo(Math.sqrt(17), 5);
     });

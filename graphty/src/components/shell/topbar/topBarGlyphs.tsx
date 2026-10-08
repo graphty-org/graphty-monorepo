@@ -20,14 +20,7 @@ import { TOP_BAR_GLYPH_SIZE, TOP_BAR_GLYPH_STROKE } from "./topBarGeometry";
  * Every verb the top bar draws.
  */
 export type TopBarGlyphName =
-    | "compare"
-    | "export"
-    | "redo"
-    | "search"
-    | "share"
-    | "splitCaret"
-    | "toggleSidebars"
-    | "undo";
+    "compare" | "export" | "redo" | "search" | "share" | "splitCaret" | "toggleSidebars" | "undo";
 
 /**
  * The inner SVG of each verb, inside the register's 16 x 16 viewBox. The wrapper --

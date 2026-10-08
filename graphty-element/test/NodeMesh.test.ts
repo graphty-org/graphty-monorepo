@@ -81,7 +81,7 @@ describe("NodeMesh", () => {
                 () =>
                     NodeMesh.createMeshWithoutCache(
                         { styleId: "test", is2D: false, size: 1 },
-                         
+
                         { shape: { type: "unknown-shape" as any, size: 1 } },
                     ),
                 "unknown shape: unknown-shape",
@@ -301,7 +301,6 @@ describe("NodeMesh", () => {
 
     describe("Shape Registry", () => {
         test("can register custom shape creator", () => {
-             
             const customCreator = (_size: number): Mesh => {
                 return new Mesh("custom-shape", scene);
             };
@@ -310,7 +309,7 @@ describe("NodeMesh", () => {
 
             const mesh = NodeMesh.createMeshWithoutCache(
                 { styleId: "test", is2D: false, size: 2 },
-                 
+
                 { shape: { type: "custom" as any, size: 2 } },
             );
 

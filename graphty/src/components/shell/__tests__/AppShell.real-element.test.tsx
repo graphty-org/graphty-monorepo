@@ -13,9 +13,10 @@ import "@graphty/graphty-element";
 
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { SAMPLE_MANIFEST, type SampleRecord } from "../../../data/sampleManifest";
-import { fireEvent, render } from "../../../test/test-utils";
+import { findSample, SAMPLE_MANIFEST, type SampleRecord } from "../../../data/sampleManifest";
+import { fireEvent, render, screen, waitFor, within } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
+import { COMMAND_PALETTE_PLACEHOLDER } from "../CommandPalette";
 
 /** The element itself, by its own published type; the import above registers it. */
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
@@ -56,9 +57,11 @@ async function countScreenshotColours(element: ElementUnderTest): Promise<number
  * Renders the shell, clicks a sample's Welcome row, and waits on the element's own load
  * events. Rejects when the element reports `data-loading-error` for the load.
  * @param record - the manifest row to click.
- * @returns what the element holds and draws once the load is complete and the frame stable.
+ * @returns the shell's container and the element, once the load is complete and the frame stable.
  */
-async function loadSampleThroughWelcome(record: SampleRecord): Promise<LoadedSample> {
+async function mountSampleThroughWelcome(
+    record: SampleRecord,
+): Promise<{ readonly container: HTMLElement; readonly element: ElementUnderTest }> {
     const { container } = render(<AppShell initialShellWidth={1440} measureViewport={false} persist={false} />);
     const element = container.querySelector<ElementUnderTest>("graphty-element");
 
@@ -86,6 +89,17 @@ async function loadSampleThroughWelcome(record: SampleRecord): Promise<LoadedSam
     fireEvent.click(row);
     await loaded;
     await element.waitForStableFrame();
+
+    return { container, element };
+}
+
+/**
+ * Loads a sample through Welcome and reports what the element holds and draws.
+ * @param record - the manifest row to click.
+ * @returns what the element holds and draws once the load is complete and the frame stable.
+ */
+async function loadSampleThroughWelcome(record: SampleRecord): Promise<LoadedSample> {
+    const { element } = await mountSampleThroughWelcome(record);
 
     return {
         nodes: element.getNodeCount(),
@@ -194,6 +208,205 @@ describe("AppShell with the real graphty-element", () => {
             const failure = await failureOf(expectSampleLoads(served));
 
             assert.include(failure.message, `the element rejected ${served.fileName}`);
+        },
+        LOAD_TEST_TIMEOUT_MS,
+    );
+});
+
+/**
+ * Every node within `depth` hops of `seed`, following edges either way. The test's own
+ * reference walk, which the element's filter is checked against.
+ * @param edges - the graph's edges.
+ * @param seed - the node to start from.
+ * @param depth - how many hops to take.
+ * @returns the ids reached, as strings, sorted.
+ */
+function hopsFrom(edges: readonly { source: unknown; target: unknown }[], seed: string, depth: number): string[] {
+    const reached = new Set([seed]);
+    let frontier = [seed];
+
+    for (let hop = 0; hop < depth; hop++) {
+        const next: string[] = [];
+
+        for (const edge of edges) {
+            const [source, target] = [String(edge.source), String(edge.target)];
+
+            for (const [from, to] of [
+                [source, target],
+                [target, source],
+            ]) {
+                if (frontier.includes(from) && !reached.has(to)) {
+                    reached.add(to);
+                    next.push(to);
+                }
+            }
+        }
+
+        frontier = next;
+    }
+
+    return [...reached].sort();
+}
+
+describe("the ego network with the real graphty-element", () => {
+    it(
+        "shows exactly a node's 2-hop neighborhood, and Clear shows the whole graph again",
+        async () => {
+            const karate = findSample("karate");
+            assert.isDefined(karate);
+            const { container, element } = await mountSampleThroughWelcome(karate);
+            const { session } = element;
+            const edges = session.data.edges();
+            const total = session.data.nodes().length;
+
+            // A node whose 2-hop neighborhood is wider than its 1-hop one and narrower than the
+            // graph, so the depth visibly matters.
+            const seedRecord = session.data.nodes().find((node) => {
+                const two = hopsFrom(edges, String(node.id), 2).length;
+
+                return two > hopsFrom(edges, String(node.id), 1).length && two < total;
+            });
+            assert.isDefined(seedRecord, "karate has no node whose 2-hop neighborhood is a strict subset");
+            const seed = String(seedRecord.id);
+
+            await session.selection.apply({ nodes: [seedRecord.id] });
+
+            const visible = (): string[] => [...session.visibility.nodes].map(String).sort();
+            const changed = (): Promise<void> =>
+                new Promise((resolve) => {
+                    const unwatch = session.on("visibility:changed", () => {
+                        unwatch();
+                        resolve();
+                    });
+                });
+
+            // G applies the element's neighborhood filter at the default depth of one hop.
+            let next = changed();
+            fireEvent.keyDown(window, { key: "g" });
+            await next;
+            assert.deepEqual(visible(), hopsFrom(edges, seed, 1));
+
+            // The depth control moves the same filter to two hops.
+            const control = await within(container).findByTestId("ego-network-control");
+            next = changed();
+            fireEvent.click(within(control).getByLabelText("2 hop"));
+            await next;
+            assert.deepEqual(session.visibility.filter, { kind: "neighborhood", seeds: [seedRecord.id], depth: 2 });
+            assert.deepEqual(visible(), hopsFrom(edges, seed, 2));
+
+            next = changed();
+            fireEvent.click(within(control).getByRole("button", { name: "Clear" }));
+            await next;
+            assert.isNull(session.visibility.filter);
+            assert.strictEqual(session.visibility.nodes.size, total);
+        },
+        LOAD_TEST_TIMEOUT_MS,
+    );
+});
+
+describe("the inspector's Pin verb on the real graphty-element", () => {
+    /* Karate's GML ids are integers, so the element holds node 34 under the number while the
+       shell prints and passes "34". The Pinned badge reads the element's own pinned set, which
+       is the only thing that answers for either spelling. */
+    it(
+        "pins a numeric node by its printed id and draws the Pinned badge",
+        async () => {
+            const karate = SAMPLE_MANIFEST.find((record) => record.id === "karate");
+
+            if (karate === undefined) {
+                throw new Error("the manifest has no karate sample");
+            }
+
+            const { container } = render(<AppShell initialShellWidth={1440} measureViewport={false} persist={false} />);
+            const element = container.querySelector<ElementUnderTest>("graphty-element");
+
+            if (element === null) {
+                throw new Error("the shell mounted no graphty-element");
+            }
+
+            const loaded = new Promise<void>((resolve) => {
+                element.addEventListener("data-loading-complete", () => {
+                    resolve();
+                });
+            });
+
+            fireEvent.click(container.querySelector<HTMLElement>(`[data-sample-row="karate"]`) ?? container);
+            await loaded;
+            await element.waitForStableFrame();
+
+            assert.isTrue(element.selectNode(34), "the element holds node 34");
+            fireEvent.click(await screen.findByTestId("inspector-actions-more"));
+            fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+
+            assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
+            assert.deepEqual([...element.session.positions.pinned], [34], "pinned under the id the graph holds");
+
+            fireEvent.click(screen.getByTestId("node-unpin"));
+            await waitFor(() => {
+                assert.isNull(screen.queryByTestId("node-pinned-badge"));
+            });
+            assert.strictEqual(element.session.positions.pinned.size, 0);
+        },
+        LOAD_TEST_TIMEOUT_MS,
+    );
+});
+
+describe("the command palette's node and edge search on the real graphty-element", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    /**
+     * Opens the palette from the top bar's trigger and types into its field.
+     * @param text - what to type.
+     */
+    async function typeInPalette(text: string): Promise<void> {
+        fireEvent.click(screen.getByRole("button", { name: new RegExp(COMMAND_PALETTE_PLACEHOLDER) }));
+        fireEvent.change(await screen.findByLabelText(COMMAND_PALETTE_PLACEHOLDER), { target: { value: text } });
+    }
+
+    it(
+        "selects a node typed by its id and frames it",
+        async () => {
+            const cat = findSample("cat-social-network");
+            assert.isDefined(cat);
+            const { element } = await mountSampleThroughWelcome(cat);
+            const framed = vi.spyOn(element, "zoomToNodes");
+
+            await typeInPalette("Mr_Whiskers");
+            const rows = await screen.findAllByRole("option", { name: /^Nodes/ });
+            // The exact id match sorts first.
+            assert.strictEqual(rows[0]?.textContent, "NodesMr_Whiskers");
+            fireEvent.click(rows[0]);
+
+            await waitFor(() => {
+                assert.deepEqual([...element.session.selection.nodes], ["Mr_Whiskers"]);
+            });
+            await waitFor(() => {
+                assert.deepEqual(framed.mock.calls[0]?.[0], "Mr_Whiskers");
+            });
+        },
+        LOAD_TEST_TIMEOUT_MS,
+    );
+
+    it(
+        "selects an edge found by one of its values",
+        async () => {
+            const cat = findSample("cat-social-network");
+            assert.isDefined(cat);
+            const { element } = await mountSampleThroughWelcome(cat);
+            const [expected] = element.session.find("rivals", { kinds: ["edge"], limit: 1 }).records;
+            assert.isDefined(expected, "the cat sample has a rivals edge");
+
+            await typeInPalette("rivals");
+            const [row] = await screen.findAllByRole("option", { name: /^Edges/ });
+            assert.isDefined(row);
+            fireEvent.click(row);
+
+            await waitFor(() => {
+                assert.deepEqual([...element.session.selection.edges], [expected.id]);
+            });
+            assert.strictEqual(element.session.selection.nodes.length, 0);
         },
         LOAD_TEST_TIMEOUT_MS,
     );

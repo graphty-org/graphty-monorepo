@@ -42,6 +42,9 @@ export const COMMANDS: Readonly<{
     readonly "data.declare": {
         readonly undo: "undoable";
     };
+    readonly "data.setSource": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };

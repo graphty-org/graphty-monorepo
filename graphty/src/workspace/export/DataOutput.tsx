@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type DataChoices, fileName, SAVED_LOCALLY } from "./choices";
+import { lossWords } from "./lossWords";
 
 /** How many lines of the file the preview shows. */
 const PREVIEW_LINES = 6;
@@ -54,7 +55,7 @@ function download(text: string, name: string, type: string): void {
 
 /**
  * The Data output: the format from graphty-element's catalog (CSV first), the table a CSV file
- * holds, what the format cannot hold (the export's loss notes), and a preview of the file's first
+ * holds, what the format cannot hold (the export's losses, worded here), and a preview of the file's first
  * lines. Every run's results are columns headed by their result path, so a readable run id
  * reads as a readable header.
  * @param props - Component props
@@ -91,9 +92,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
             .then(async (result) => {
                 const lines = await firstLines(result);
                 if (live) {
-                    // ponytail: the element's own sentences; the app words them once LossNote
-                    // carries neutral facts only (gap recorded with the Export dialog package).
-                    setPreview({ lines, notes: result.lossNotes.map((note) => note.message) });
+                    setPreview({ lines, notes: [...new Set(result.losses.map(lossWords))] });
                     setFailure(null);
                 }
             })

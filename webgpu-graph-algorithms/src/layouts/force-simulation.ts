@@ -69,18 +69,17 @@ export interface ModelResources {
     readonly caps: PlanCaps;
     readonly pipelines: PipelineCache;
     readonly core: CoreBinding;
-    /** `tiers.perm`, or null when no row has degree >= 32 (P4 PD-7: the rowPtr dummy is bound and USE_PERM is false). */
-    readonly perm: Binding | null;
     /**
      * The degree tiers of the snapshot's degreeOrder view (the perm binding and the CPU-side segment offsets
      * [0, hiEnd, midEnd, lowEnd, n]), or null when no row has degree >= 32 -- then every K2 dispatch is the
-     * thread-per-row TIER 0 over node indices, as before P4.
+     * thread-per-row TIER 0 over node indices, as before P4, and the rowPtr dummy is bound with USE_PERM false
+     * (P4 PD-7). `tiers?.perm ?? null` is the one source of the permutation binding.
      */
     readonly tiers: DegreeTiers | null;
     /**
      * The RESOLVED weights binding (model.inputs(): source "arcs" -> core.weights (null on an unweighted snapshot),
      * "column" -> the registered ArrayBinding's binding, "none" -> null); group 0 is built as
-     * graphBindings(core, perm, weights) (3.10).
+     * graphBindings(core, tiers?.perm ?? null, weights) (3.10).
      */
     readonly weights: Binding | null;
     readonly n: number;
@@ -1310,7 +1309,7 @@ export class ForceSimulation<
         if (this.stateValue === "loaded" && resources !== null && core !== null && before !== after) {
             const overrides = {
                 ...this.model.overrides(next),
-                ...graphOverrides(core, resources.perm, resources.weights),
+                ...graphOverrides(core, resources.tiers?.perm ?? null, resources.weights),
             };
             this.startBind(resources, overrides);
         }
@@ -1999,7 +1998,6 @@ export class ForceSimulation<
             caps: this.ctx.caps,
             pipelines: this.ctx.pipelines,
             core,
-            perm: tiers?.perm ?? null,
             tiers,
             weights,
             n: this.n,

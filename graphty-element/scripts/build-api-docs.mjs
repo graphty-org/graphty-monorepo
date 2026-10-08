@@ -87,7 +87,7 @@ const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
  * @returns {string} The same line with escape sequences removed.
  */
 function plain(line) {
-    return line.replace(ANSI, "");
+    return line.replaceAll(ANSI, "");
 }
 
 const { code, lines } = await runTypedoc();

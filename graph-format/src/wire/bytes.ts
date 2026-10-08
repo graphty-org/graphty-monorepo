@@ -225,7 +225,7 @@ function readHeader(head: Uint8Array, totalLength: number): ContainerHeader {
 }
 
 /**
- * Parse the manifest bytes: a fatal UTF-8 decode, the guarding JSON reviver, then the version check
+ * Parse the manifest bytes: a fatal UTF-8 decode, JSON.parse with the prototype-pollution key guard, then the version check
  * against the header.
  * @param bytes - the manifest bytes
  * @param header - the header the manifest must agree with

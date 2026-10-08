@@ -133,7 +133,7 @@ export class SetsNotifier {
      */
     subscribe<R>(watch: SetWatch<R>): () => void {
         const entry: Entry = {
-            watch: watch as SetWatch<unknown>,
+            watch: watch,
             applied: this.#disposed ? undefined : watch.signature(),
             moved: [],
         };

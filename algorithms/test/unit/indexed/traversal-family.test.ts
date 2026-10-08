@@ -2,6 +2,7 @@ import { GraphBuilder, type GraphSnapshot, INVALID_INDEX, maskToIndices } from "
 import { describe, expect, it } from "vitest";
 
 import { accelerated, type AlgorithmAccelerator, type BfsResultLike, indexed } from "../../../src/index.js";
+import { mulberry32 } from "../../../src/utils/math-utilities.js";
 import { Graph } from "../../helpers/legacy-graph.js";
 import { legacyArcOrder } from "../../helpers/to-snapshot.js";
 
@@ -272,6 +273,103 @@ describe("indexed.directionOptimizedBfs", () => {
             expect([...r.depth]).toEqual([0, 1, INVALID_INDEX, 1, 2, 2]);
         }
         s.validate({ checksum: true });
+    });
+});
+
+/**
+ * The snapshot behind a proxy that counts the arc reads of a traversal: every index read of
+ * `colIdx`, and of `reverse().colIdx` for a bottom-up step.
+ * @param s - The snapshot
+ * @returns The proxy, and a function returning the reads so far
+ */
+function countArcReads(s: GraphSnapshot): { s: GraphSnapshot; reads: () => number } {
+    let reads = 0;
+    const counting = (arr: Uint32Array): Uint32Array =>
+        new Proxy(arr, {
+            get(t, p) {
+                if (typeof p === "string" && /^\d+$/.test(p)) {
+                    reads++;
+                }
+                return Reflect.get(t, p, t) as unknown;
+            },
+        });
+    const forward = <T extends object>(target: T, colIdx: Uint32Array, extra: Record<string, unknown> = {}): T =>
+        new Proxy({} as T, {
+            get(_unused, p) {
+                if (p === "colIdx") {
+                    return counting(colIdx);
+                }
+                if (typeof p === "string" && p in extra) {
+                    return extra[p];
+                }
+                const v = Reflect.get(target, p, target) as unknown;
+                return typeof v === "function" ? (v as (...args: unknown[]) => unknown).bind(target) : v;
+            },
+        });
+    const reverse = (): ReturnType<GraphSnapshot["reverse"]> => {
+        const r = s.reverse();
+        return forward(r, r.colIdx);
+    };
+    return { s: forward(s, s.colIdx, { reverse }), reads: () => reads };
+}
+
+/** A complete binary tree over n nodes, node i's children 2i + 1 and 2i + 2. */
+function binaryTree(directed: boolean, n: number): GraphSnapshot {
+    const edges: [number, number][] = [];
+    for (let i = 1; i < n; i++) {
+        edges.push([(i - 1) >> 1, i]);
+    }
+    return snap(directed, n, edges);
+}
+
+/** An undirected preferential-attachment graph: each new node attaches to m endpoints of earlier edges. */
+function powerLaw(n: number, m: number): GraphSnapshot {
+    const rand = mulberry32(11);
+    const edges: [number, number][] = [];
+    const ends = [0];
+    for (let i = 1; i < n; i++) {
+        for (let j = 0; j < Math.min(m, i); j++) {
+            const t = ends[Math.floor(rand() * ends.length)];
+            edges.push([i, t]);
+            ends.push(t, i);
+        }
+    }
+    return snap(false, n, edges);
+}
+
+/** An undirected Watts-Strogatz ring: each node links to its next k neighbours, a fraction p rewired at random. */
+function smallWorld(n: number, k: number, p: number): GraphSnapshot {
+    const rand = mulberry32(7);
+    const edges: [number, number][] = [];
+    for (let i = 0; i < n; i++) {
+        for (let j = 1; j <= k; j++) {
+            edges.push([i, rand() < p ? Math.floor(rand() * n) : (i + j) % n]);
+        }
+    }
+    return snap(false, n, edges);
+}
+
+describe("indexed.directionOptimizedBfs arc reads", () => {
+    it("stays top-down on a binary tree, reading each arc about once", () => {
+        for (const directed of [true, false]) {
+            const tree = binaryTree(directed, 10_000);
+            const counted = countArcReads(tree);
+            const r = indexed.directionOptimizedBfs(counted.s, 0);
+            expect(r.visitedCount).toBe(10_000);
+            expect(counted.reads(), directed ? "directed" : "undirected").toBeLessThanOrEqual(1.1 * tree.arcCount);
+        }
+    });
+
+    it("switches to bottom-up on a power-law and a small-world graph and reads fewer arcs than top-down", () => {
+        for (const g of [powerLaw(10_000, 4), smallWorld(10_000, 8, 0.1)]) {
+            const plain = countArcReads(g);
+            const topDown = indexed.breadthFirstSearch(plain.s, 0);
+            const counted = countArcReads(g);
+            const r = indexed.directionOptimizedBfs(counted.s, 0);
+            expect(Array.from(r.depth)).toEqual(Array.from(topDown.depth));
+            expect(plain.reads()).toBe(g.arcCount);
+            expect(counted.reads()).toBeLessThan(0.7 * g.arcCount);
+        }
     });
 });
 

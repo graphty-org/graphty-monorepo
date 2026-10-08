@@ -302,16 +302,6 @@ describe("FilledArrowRenderer - 3D Shader Application", () => {
 
         result.dispose();
     });
-
-    test("setLineDirection updates shader uniform", () => {
-        const mesh = FilledArrowRenderer.createTriangle(false, scene);
-        const result = FilledArrowRenderer.applyShader(mesh, { size: 1.0, color: "#ff0000", opacity: 1.0 }, scene);
-
-        // Should not throw
-        FilledArrowRenderer.setLineDirection(result, { x: 1, y: 0, z: 0 } as never);
-
-        result.dispose();
-    });
 });
 
 describe("FilledArrowRenderer - XZ Plane Geometry Verification (CRITICAL)", () => {
@@ -547,12 +537,8 @@ describe("FilledArrowRenderer.applyShader and the size of the scene", () => {
 
         assert.isBelow(getMaterial.mock.calls.length, bystanders, "no scene-wide walk of the existing submeshes");
         assert.instanceOf(mesh.material, ShaderMaterial);
-        assert.strictEqual((mesh.material).backFaceCulling, false, "the setter still took effect");
-        assert.strictEqual(
-            (mesh.material).blockDirtyMechanism,
-            true,
-            "and stays blocked for the material's life",
-        );
+        assert.strictEqual(mesh.material.backFaceCulling, false, "the setter still took effect");
+        assert.strictEqual(mesh.material.blockDirtyMechanism, true, "and stays blocked for the material's life");
         assert.instanceOf(mesh, Mesh);
     });
 });

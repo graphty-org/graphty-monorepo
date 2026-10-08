@@ -70,14 +70,7 @@ export interface CoreBinding {
  */
 export interface ViewBinding {
     readonly view:
-        | "reverse"
-        | "coo"
-        | "edgeList"
-        | "outDegree"
-        | "inDegree"
-        | "degreeOrder"
-        | "reverseDegreeOrder"
-        | "mate";
+        "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate";
     readonly bindings: Readonly<Record<string, Binding>>;
     readonly scalars: Readonly<Record<string, readonly number[]>>;
 }
@@ -349,9 +342,13 @@ export class GraphResidency {
                 );
                 record.arena = { buffer: resident.buffer, segments: plan.segments };
             }
-            if (plan.kind === "windowed") {
-                record.windows = plan.windows;
-            }
+        }
+        if (plan.kind === "windowed" && record.windows === null) {
+            // also the upgrade of a record planned by a narrower first call (rowPtr alone fits; the arc arrays this
+            // call adds do not): the windows depend only on rowPtr and the limits, and every arc array bound from
+            // here on goes through bindWindowed, so none is ever bound whole above the binding limit
+            record.plan = "windowed";
+            record.windows = plan.windows;
         }
         for (const name of names) {
             if (!record.bindings.has(name)) {

@@ -54,13 +54,13 @@ import { PANEL_INK } from "@graphty/compact-mantine";
 import React from "react";
 
 import { keyChipFor } from "../bindings";
-import { CANVAS_TOOLBAR_Z_INDEX,type CanvasToolbarProfile } from "../constants";
+import { CANVAS_TOOLBAR_Z_INDEX, type CanvasToolbarProfile } from "../constants";
 import type { CanvasToolbarProps } from "../types";
 import { ToolbarGlyph } from "./toolbarGlyphs";
 import { ToolbarItem } from "./ToolbarItem";
 import { canvasToolbarProfileFor, toolbarItemTitle } from "./toolbarMetrics";
 import { ViewModeSegment } from "./ViewModeSegment";
-import { ViewsMenu,type ViewsMenuProps } from "./ViewsMenu";
+import { ViewsMenu, type ViewsMenuProps } from "./ViewsMenu";
 
 /** The bar's accessible name -- the name the spec and the palette row both use. */
 export const CANVAS_TOOLBAR_LABEL = "Canvas toolbar";
@@ -282,12 +282,7 @@ export function CanvasToolbar(props: CanvasToolbarComponentProps): React.JSX.Ele
 
             <ToolbarDivider profile={profile} />
 
-            <ViewsMenu
-                {...views}
-                opened={viewsMenuOpen}
-                onOpenChange={onViewsMenuOpenChange}
-                profile={profile}
-            />
+            <ViewsMenu {...views} opened={viewsMenuOpen} onOpenChange={onViewsMenuOpenChange} profile={profile} />
         </div>
     );
 }

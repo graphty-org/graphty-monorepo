@@ -308,3 +308,13 @@ describe("sniffJsonDialectHead", () => {
         expect(sniffJsonDialectHead('{"graph": {"name": "g"}, "nodes": [], "links": []}')).toBe("node-link");
     });
 });
+
+describe("the JSON dialect of a head cut inside the nodes", () => {
+    it("is null rather than node-link, since node-link and d3 differ only in keys after the nodes", () => {
+        const nodes = Array.from({ length: 400 }, (_, i) => `{"id":"n${i}"}`).join(",");
+        const d3 = `{"nodes":[${nodes}],"links":[{"source":"n0","target":"n1","value":2}]}`;
+        expect(sniffJsonDialectHead(d3.slice(0, 4096))).toBeNull();
+        expect(sniffJsonDialectHead(d3)).toBe("d3");
+        expect(sniffJsonDialectHead(`{"directed":true,"nodes":[${nodes}`.slice(0, 4096))).toBe("node-link");
+    });
+});

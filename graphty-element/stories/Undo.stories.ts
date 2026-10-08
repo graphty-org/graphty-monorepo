@@ -8,21 +8,20 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 import { dispatcherOf } from "../src/session/GraphSession";
 import { stateDigest } from "../src/session/project/digest";
 import { assertBackgroundColour, assertSkyboxDrawn, assertViewMode, type Drawn, drawn, holds } from "./assertions";
+import { catSocialNetwork2Url, data3Url, skyboxUrl } from "./datasets";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 /**
  * The graph every story here starts from: twenty cats and who they know, in a circle, which
  * places every node from the node set alone and so draws the same picture every time.
  */
-const CATS =
-    "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json";
+const CATS = catSocialNetwork2Url;
 
 /** A second, larger graph the import story merges in. */
-const DATA3 = "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json";
+const DATA3 = data3Url;
 
 /** The image the skybox story puts behind the graph. */
-const SKYBOX =
-    "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/rolling_hills_equirectangular_skybox.png";
+const SKYBOX = skyboxUrl;
 
 /** The background every story is drawn against, so the skybox story's undo has a colour to return to. */
 const PAPER = "#f5f5f5";

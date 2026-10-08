@@ -35,6 +35,8 @@ const NODE_SAFE_ENTRIES = [
     "format.ts",
     "logging.ts",
     "react.ts",
+    // Types only: its emitted JavaScript is empty, and must stay so.
+    "jsx.ts",
     // Not an entry point yet, but the headless session's data write verbs will reach it, so it
     // is held to the same rule now: ingest must never need a renderer.
     "src/session/project/ingest.ts",

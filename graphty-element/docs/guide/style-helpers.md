@@ -100,13 +100,13 @@ number look like equal steps in the colour, which a rainbow ramp does not.
 
 ### Categorical -- groups with no order
 
-| Id            | Plain name             | Capacity | Safe for                             |
-| ------------- | ---------------------- | -------- | ------------------------------------ |
-| `okabe-ito`   | Eight Distinct Colours | 8        | deuteranopia, protanopia, tritanopia |
-| `tol-vibrant` | Seven Bright Colours   | 7        | deuteranopia, protanopia, tritanopia |
-| `tol-muted`   | Nine Soft Colours      | 9        | deuteranopia, protanopia, tritanopia |
-| `pastel`      | Eight Pale Colours     | 8        | deuteranopia, protanopia, tritanopia |
-| `carbon`      | Five Enterprise Colours| 5        | not checked safe                     |
+| Id            | Plain name              | Capacity | Safe for                             |
+| ------------- | ----------------------- | -------- | ------------------------------------ |
+| `okabe-ito`   | Eight Distinct Colours  | 8        | deuteranopia, protanopia, tritanopia |
+| `tol-vibrant` | Seven Bright Colours    | 7        | deuteranopia, protanopia, tritanopia |
+| `tol-muted`   | Nine Soft Colours       | 9        | deuteranopia, protanopia, tritanopia |
+| `pastel`      | Eight Pale Colours      | 8        | deuteranopia, protanopia, tritanopia |
+| `carbon`      | Five Enterprise Colours | 5        | not checked safe                     |
 
 `okabe-ito` is the default for groups: the eight colours Okabe and Ito published in 2008, black
 included, with yellow in the last slot because it barely shows on a light background. Capacity is a real limit: a community detection that finds
@@ -134,17 +134,17 @@ neutral one, for "this element is in the result, that one is not".
 
 A scale decides how a number travels from the data's extent to the channel's range.
 
-| Name          | Plain name            | For                                            |
-| ------------- | --------------------- | ---------------------------------------------- |
-| `linear`      | Even Steps            | the default for a measure                       |
-| `log`         | By Order of Magnitude | power-law data: degree, followers, file sizes   |
-| `sqrt`        | By Area               | sizes, where area rather than radius is read    |
-| `pow`         | Curved                | when neither end needs the resolution           |
-| `neglog10`    | By Significance       | p-values and similar                            |
-| `quantile`    | Equal Counts          | equal numbers of elements per band              |
-| `bins`        | Equal Ranges          | explicit thresholds                             |
-| `ordinal`     | One Colour per Value  | groups, which have no distance between them     |
-| `passthrough` | Use the Value As It Is| values already in the channel's own units       |
+| Name          | Plain name             | For                                           |
+| ------------- | ---------------------- | --------------------------------------------- |
+| `linear`      | Even Steps             | the default for a measure                     |
+| `log`         | By Order of Magnitude  | power-law data: degree, followers, file sizes |
+| `sqrt`        | By Area                | sizes, where area rather than radius is read  |
+| `pow`         | Curved                 | when neither end needs the resolution         |
+| `neglog10`    | By Significance        | p-values and similar                          |
+| `quantile`    | Equal Counts           | equal numbers of elements per band            |
+| `bins`        | Equal Ranges           | explicit thresholds                           |
+| `ordinal`     | One Colour per Value   | groups, which have no distance between them   |
+| `passthrough` | Use the Value As It Is | values already in the channel's own units     |
 
 ```typescript
 import { SCALE_DESCRIPTORS, scalesForDomain } from "@graphty/graphty-element/catalog";

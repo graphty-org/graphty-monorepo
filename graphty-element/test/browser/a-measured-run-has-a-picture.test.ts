@@ -48,6 +48,7 @@ const PARAMS: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
     "shortest-path": { source: "A", target: "F" },
     dijkstra: { source: "A", target: "F" },
     "bellman-ford": { source: "A", target: "F" },
+    astar: { source: "A", target: "F" },
     bfs: { source: "A" },
     dfs: { source: "A" },
     "max-flow": { source: "A", sink: "F" },

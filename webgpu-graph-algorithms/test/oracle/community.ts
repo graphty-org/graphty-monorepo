@@ -1,9 +1,11 @@
 /**
  * The CPU references of label propagation (design 8.6, 9.7; the P11 plan's P11-T2) and the modularity function the
  * label-propagation floor on karate uses. `labelPropagationOracle` is synchronous label propagation with the rules
- * the device follows: the weighted mode of the neighbours' labels (the lowest label on a tie, through
- * `groupByKeyOracle`), the alternating direction rule (even passes move labels down only, odd passes up only), and a
- * stop after two consecutive passes that move nothing or after `maxIterations` passes; labels renumbered first-seen.
+ * the device follows, which are those of `@graphty/algorithms`' `labelPropagationSynchronous`: node `i` starts with
+ * the label `fmix32(i)` (the murmur3 32-bit finalizer, the CPU port's priority), the weighted mode of the neighbours'
+ * labels (a node's own label when it ties for the lead, else the lowest, through `groupByKeyOracle`), the alternating
+ * direction rule (even passes move labels up only, odd passes down only), and a stop after two consecutive passes
+ * that move nothing or after `maxIterations` passes; labels renumbered first-seen.
  */
 
 import { type U32 } from "@graphty/graph-format";
@@ -31,7 +33,19 @@ function firstSeen(raw: ArrayLike<number>): { readonly labels: U32; readonly cou
 }
 
 /**
- * Synchronous label propagation with the lowest-label tie-break and the alternating direction rule.
+ * The murmur3 32-bit finalizer, written here independently of the kernel's host code.
+ * @param x - a node index
+ * @returns its initial label
+ */
+export function fmix32(x: number): number {
+    let h = x >>> 0;
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    return (h ^ (h >>> 16)) >>> 0;
+}
+
+/**
+ * Synchronous label propagation with the scrambled-label tie-break and the alternating direction rule.
  * @param csr - the simple symmetric graph
  * @param options - the pass cap and whether the weights count
  * @param options.maxIterations - the pass cap
@@ -45,18 +59,18 @@ export function labelPropagationOracle(
     const { n } = csr;
     let labels = new Uint32Array(n);
     for (let v = 0; v < n; v++) {
-        labels[v] = v;
+        labels[v] = fmix32(v);
     }
     let passes = 0;
     let quiet = 0;
     while (passes < options.maxIterations && quiet < 2) {
         const { bestKey } = groupByKeyOracle(csr.rowPtr, csr.colIdx, options.weighted ? csr.weights : null, labels);
         const next = labels.slice();
-        const down = passes % 2 === 0;
+        const up = passes % 2 === 0;
         let moved = 0;
         for (let v = 0; v < n; v++) {
             const best = bestKey[v];
-            if (best !== 0xffffffff && best !== labels[v] && best < labels[v] === down) {
+            if (best !== 0xffffffff && best !== labels[v] && best > labels[v] === up) {
                 next[v] = best;
                 moved++;
             }

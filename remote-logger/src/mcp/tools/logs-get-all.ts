@@ -43,10 +43,7 @@ export interface LogsGetAllOutput {
  * @param input - Input parameters
  * @returns Logs grouped by session
  */
-export function logsGetAllHandler(
-    storage: LogStorage,
-    input: Partial<LogsGetAllInput>,
-): Promise<LogsGetAllOutput> {
+export function logsGetAllHandler(storage: LogStorage, input: Partial<LogsGetAllInput>): Promise<LogsGetAllOutput> {
     const sessions = storage.getAllLogsBySession({
         projectMarker: input.projectMarker,
     });

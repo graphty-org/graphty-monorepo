@@ -71,7 +71,7 @@ interface LogicalSets {
 function slugOf(name: string): string {
     const slug = name
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
+        .replaceAll(/[^a-z0-9]+/g, "-")
         .replace(/^-+/, "")
         .replace(/-+$/, "");
 

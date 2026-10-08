@@ -133,7 +133,7 @@ function scanStoredWeights(edgeWeights: F32 | F64, edgeCount: number, bounds: F6
     let max = -Infinity;
     for (let e = 0; e < edgeCount; e++) {
         const w = Math.fround(edgeWeights[e]);
-        if (w !== w) {
+        if (Number.isNaN(w)) {
             throw nanWeight(e, edgeWeights[e]);
         }
         if (w < min) {

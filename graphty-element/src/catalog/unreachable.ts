@@ -183,7 +183,7 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "colour and its width, which are what a reader can see at any size a graph is read at.",
     textPath:
         "The data column a label's words are read from. That is what binding the channel that " +
-        "carries those words to a path already does -- `{by: \"data.name\"}\" -- so a second " +
+        'carries those words to a path already does -- `{by: "data.name"}" -- so a second ' +
         "route would be two spellings of one thing, and the two could disagree.",
     "backgroundColor.colorType":
         "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
@@ -259,7 +259,7 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
             "The source mesh's material is painted a neutral solid so that each node's own " +
                 "instance colour can show -- one material per colour would be one source mesh " +
                 "per colour, fifty thousand of them for a continuous ramp. So the paint path " +
-                "pins this to \"solid\" on every node and no channel can choose otherwise, " +
+                'pins this to "solid" on every node and no channel can choose otherwise, ' +
                 "which is why a gradient node fill cannot survive a repaint even though " +
                 "`NodeMesh` still builds one. Register row 24, which is open: a channel " +
                 "carrying an advanced colour, or the renderer branch deleted.",
@@ -360,7 +360,7 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "here paints a channel into a RESTING scene and compares frames, and a tooltip is " +
             "hover-only by design -- a resting scene is exactly the moment it must NOT be on " +
             "screen -- so nothing changes and nothing should. Waiving it is how this file says " +
-            "\"proved somewhere this gate cannot look\", and the named test is where. What a " +
+            '"proved somewhere this gate cannot look", and the named test is where. What a ' +
             "tooltip says is one of two things a channel carries: `node.tooltipStyle`, below, " +
             "carries how it looks, and the two together leave the same sixteen-leaf residue a " +
             "label leaves.",
@@ -424,7 +424,7 @@ export const WITHDRAWN_CAPABILITIES: readonly WithdrawnCapability[] = [
             "`src/Edge.ts` sets `isPickable = false` in three places and `PatternedLineMesh` " +
             "declares it false as a field, which is the same fact that leaves the element with " +
             "no `edge-click` event. The channel was nonetheless published `renderable: true` and " +
-            "sold in the styling guide as \"the words to show on hover\", so a consumer wrote a " +
+            'sold in the styling guide as "the words to show on hover", so a consumer wrote a ' +
             "layer, got nothing, and had nowhere to read why -- which is what `src/events.ts` " +
             "calls a documented lie. The whole `tooltip` block went from `EdgeStyle` with the " +
             "channel: sixty-two settings that reached no pixel.",

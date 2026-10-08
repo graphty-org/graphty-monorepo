@@ -2,7 +2,7 @@ import { PopoutManager } from "@graphty/compact-mantine";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { render, screen, within } from "../../../../test/test-utils";
+import { fireEvent, render, screen, within } from "../../../../test/test-utils";
 import { ShellProvider } from "../../ShellContext";
 import { ResultInspector, type ResultInspectorProps } from "../ResultInspector";
 
@@ -210,6 +210,64 @@ describe("ResultInspector", () => {
             expect(screen.getByText(BASE.reading)).toBeInTheDocument();
             expect(screen.getByText("Approximate (sample of 200).")).toBeInTheDocument();
             expect(screen.getByText(BASE.runRecord)).toBeInTheDocument();
+        });
+    });
+    describe("the member verbs", () => {
+        const members = () => ({
+            topLimit: 5000,
+            threshold: 3,
+            thresholdNote: "Starting where the result is drawable: 3 of 20 nodes.",
+            onSelectTop: vi.fn(),
+            onSelectAbove: vi.fn(),
+            onFilterAbove: vi.fn(),
+        });
+
+        it("selects the top N, and selects or filters above the threshold the field opened at", () => {
+            const given = members();
+            renderResult({ distribution: DISTRIBUTION, members: given });
+
+            fireEvent.click(screen.getByRole("button", { name: "Select top 10" }));
+            fireEvent.click(screen.getByRole("button", { name: "Select above threshold" }));
+            fireEvent.click(screen.getByRole("button", { name: "Filter above threshold" }));
+
+            expect(given.onSelectTop).toHaveBeenCalledWith(10);
+            expect(given.onSelectAbove).toHaveBeenCalledWith(3);
+            expect(given.onFilterAbove).toHaveBeenCalledWith(3);
+            expect(screen.getByTestId("result-threshold-note")).toHaveTextContent(given.thresholdNote);
+        });
+
+        it("never opens Select top N above the selection cap", () => {
+            renderResult({ members: { ...members(), topLimit: 4 } });
+
+            expect(screen.getByRole("button", { name: "Select top 4" })).toBeInTheDocument();
+        });
+
+        it("draws no member verb on a result that offers none", () => {
+            renderResult({ distribution: DISTRIBUTION });
+
+            expect(screen.queryByRole("button", { name: /Select top/ })).toBeNull();
+            expect(screen.queryByRole("button", { name: "Export groups" })).toBeNull();
+            expect(screen.queryByTestId("result-histogram-brush")).toBeNull();
+        });
+
+        it("brushes the bars and selects what the brushed bars counted when let go", () => {
+            const onSelectBins = vi.fn();
+            renderResult({ distribution: DISTRIBUTION, onSelectBins });
+
+            const [from] = screen.getAllByRole("slider");
+            from.focus();
+            fireEvent.keyDown(from, { key: "ArrowRight" });
+
+            expect(onSelectBins).toHaveBeenCalledWith(1, 2);
+        });
+
+        it("exports a grouping result's groups", () => {
+            const onExportGroups = vi.fn();
+            renderResult({ onExportGroups });
+
+            fireEvent.click(screen.getByRole("button", { name: /Export groups/ }));
+
+            expect(onExportGroups).toHaveBeenCalledOnce();
         });
     });
 });

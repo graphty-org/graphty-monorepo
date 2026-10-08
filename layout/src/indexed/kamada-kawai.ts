@@ -1,13 +1,13 @@
 import { expandEdges, type F32, type GraphSnapshot, type NumericVector } from "@graphty/graph-format";
 
-import { _kamadaKawaiSolve } from "../algorithms/optimization";
-import { type LayoutResult, rescaleInPlace } from "../positions";
-import { resolveWeights } from "../simulation/inputs";
-import { seedPositions } from "../simulation/seed";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import type { CommonLayoutOptions } from "../simulation/types";
-import { np } from "../utils/numpy";
-import { layoutDim } from "./start";
+import { _kamadaKawaiSolve } from "../algorithms/optimization/index.js";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { resolveWeights } from "../simulation/inputs.js";
+import { seedPositions } from "../simulation/seed.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import type { CommonLayoutOptions } from "../simulation/types.js";
+import { np } from "../utils/numpy.js";
+import { layoutDim } from "./start.js";
 
 /** The ideal distance of a pair with no path between them, as networkx fills its matrix. */
 const UNREACHABLE = 1e6;
@@ -19,8 +19,9 @@ const START_SEED = 42;
 export interface KamadaKawaiOptions extends CommonLayoutOptions {
     /**
      * The ideal distance of every pair, `n * n` values row by row (for example `allPairsShortestPath(s).dist`
-     * from `@graphty/algorithms`). The diagonal is read as 0 and a non-finite entry as unreachable (1e6). Absent: the
-     * shortest paths of the graph, with its weights read as distances.
+     * from `@graphty/algorithms`). The diagonal is read as 0 and a non-finite entry as unreachable (1e6); at least one
+     * pair of different nodes must have a finite entry. Absent: the shortest paths of the graph, with its weights read
+     * as distances.
      */
     readonly dist?: Float32Array | Float64Array | null | undefined;
     /** Start positions, `dim` values per node in index order (NaN reads as 0); absent: a circle in 2D, a seeded random cube in 3D. */
@@ -55,6 +56,8 @@ function arcDistances(s: GraphSnapshot, spec: boolean | string | null): NumericV
  * @param s - the undirected snapshot
  * @param options - the options
  * @returns n rows of n distances
+ * @throws RangeError when `dist` does not hold n * n values, when it has no finite distance between two different
+ * nodes (n >= 2), and when a weight is negative
  */
 export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): number[][] {
     const n = s.nodeCount;
@@ -62,6 +65,13 @@ export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): n
     if (options.dist !== null && options.dist !== undefined) {
         if (options.dist.length !== n * n) {
             throw new RangeError(`kamadaKawai: dist has ${options.dist.length} values, expected ${n * n} (n * n)`);
+        }
+        // the diagonal sits at every (n + 1)th index
+        if (n >= 2 && !options.dist.some((v, at) => Number.isFinite(v) && at % (n + 1) !== 0)) {
+            throw new RangeError(
+                "kamadaKawai: dist has no finite distance between two different nodes; " +
+                    "was it computed from a graph without edges?",
+            );
         }
         d = options.dist;
     } else {
@@ -143,6 +153,9 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
  * @param options - the options
  * @returns `dim` values per node
+ * @throws RangeError when `dist` does not hold n * n values, or (for two or more nodes) has no finite distance
+ * between two different nodes, as a matrix computed from a graph without edges has; when a weight is negative; when
+ * `pos` does not hold `dim` values per node
  */
 export function kamadaKawai(g: GraphSnapshot, options: KamadaKawaiOptions = {}): LayoutResult {
     const s = toLayoutSnapshot(g);

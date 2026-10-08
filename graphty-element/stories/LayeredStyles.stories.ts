@@ -568,10 +568,7 @@ export const ArrowSizeVariations: Story = {
         // the mesh's name carries only its shape, so nothing else in the scene can see it. Measured:
         // 0.466, 0.933 and 1.865 across. Without the top layer's size the edges leaving A keep 0.5
         // and 2 and only two sizes are drawn.
-        const spans = scene.graph.scene.meshes
-            .filter((mesh) => mesh.name.includes("arrow"))
-            .map((mesh) => mesh.getBoundingInfo().boundingBox.extendSizeWorld.length())
-            .sort((first, second) => second - first);
+        const spans = scene.arrowCaps.map((cap) => cap.span).sort((first, second) => second - first);
         const sizes = new Set(spans.map((span) => span.toFixed(2)));
 
         await holds(

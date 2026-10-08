@@ -130,7 +130,7 @@ await graph.enableAiControl({
     keyPersistence: {
         enabled: true,
         encryptionKey: "user-provided-secret",
-    }
+    },
 });
 ```
 
@@ -143,7 +143,7 @@ const keyManager = Graph.createApiKeyManager();
 // Configure persistence
 keyManager.enablePersistence({
     encryptionKey: userSecret,
-    storage: "localStorage"
+    storage: "localStorage",
 });
 
 // Store keys from settings form
@@ -156,7 +156,7 @@ await graph.enableAiControl({
     keyPersistence: {
         enabled: true,
         encryptionKey: userSecret,
-    }
+    },
     // No apiKey needed - will load from persisted storage
 });
 ```
@@ -171,11 +171,11 @@ const providers = keyManager?.getConfiguredProviders() ?? [];
 
 ## Files to Modify
 
-| File | Changes |
-|------|---------|
+| File                  | Changes                                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
 | `src/ai/AiManager.ts` | Add `KeyPersistenceConfig`, extend `AiManagerConfig`, add `getApiKeyManager()`, update `init()` |
-| `src/ai/index.ts` | Export `KeyPersistenceConfig` type |
-| `src/Graph.ts` | Add `getApiKeyManager()` method, add static `createApiKeyManager()` |
+| `src/ai/index.ts`     | Export `KeyPersistenceConfig` type                                                              |
+| `src/Graph.ts`        | Add `getApiKeyManager()` method, add static `createApiKeyManager()`                             |
 
 ## Test Plan
 
@@ -198,7 +198,7 @@ describe("AiManager key persistence", () => {
             keyPersistence: {
                 enabled: true,
                 encryptionKey: "test-secret-key",
-            }
+            },
         });
 
         const keyManager = manager.getApiKeyManager();
@@ -214,7 +214,7 @@ describe("AiManager key persistence", () => {
                 enabled: true,
                 encryptionKey: "test-secret-key",
                 storage: "sessionStorage",
-            }
+            },
         });
 
         const keyManager = manager.getApiKeyManager();
@@ -230,7 +230,7 @@ describe("AiManager key persistence", () => {
                 enabled: true,
                 encryptionKey: "test-secret-key",
                 prefix: "@my-app-keys",
-            }
+            },
         });
 
         // Verify prefix is used (may need to check localStorage directly)
@@ -245,7 +245,7 @@ describe("AiManager key persistence", () => {
             keyPersistence: {
                 enabled: true,
                 encryptionKey: "test-secret-key",
-            }
+            },
         });
         manager1.dispose();
 
@@ -256,7 +256,7 @@ describe("AiManager key persistence", () => {
             keyPersistence: {
                 enabled: true,
                 encryptionKey: "test-secret-key",
-            }
+            },
         });
 
         const keyManager = manager2.getApiKeyManager();
@@ -318,7 +318,7 @@ describe("AI key persistence integration", () => {
             keyPersistence: {
                 enabled: true,
                 encryptionKey: "my-secret",
-            }
+            },
         });
         graph1.dispose();
 
@@ -329,7 +329,7 @@ describe("AI key persistence integration", () => {
             keyPersistence: {
                 enabled: true,
                 encryptionKey: "my-secret",
-            }
+            },
         });
 
         const keyManager = graph2.getApiKeyManager();
@@ -347,7 +347,7 @@ describe("AI key persistence integration", () => {
             keyPersistence: {
                 enabled: true,
                 encryptionKey: "correct-secret",
-            }
+            },
         });
         graph1.dispose();
 
@@ -358,7 +358,7 @@ describe("AI key persistence integration", () => {
             keyPersistence: {
                 enabled: true,
                 encryptionKey: "wrong-secret",
-            }
+            },
         });
 
         const keyManager = graph2.getApiKeyManager();
@@ -387,6 +387,7 @@ describe("AI key persistence integration", () => {
 ## Export Changes
 
 Add to `src/ai/index.ts`:
+
 ```typescript
 export type { KeyPersistenceConfig } from "./AiManager";
 ```

@@ -11,6 +11,7 @@ import oboGraphsUrl from "../../graph-io/test/conformance/fixtures/json/obograph
 import oboUrl from "../../graph-io/test/conformance/fixtures/obo/go/goslim_generic.obo?url";
 import xgmmlUrl from "../../graph-io/test/conformance/fixtures/xgmml/efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml?url";
 import { assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
+import { data2Url, data3Url, karateGraphmlUrl } from "./datasets";
 import {
     edgeData,
     eventWaitingDecorator,
@@ -92,7 +93,7 @@ export const Json: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         layout: "ngraph",
         layoutConfig: {
@@ -109,7 +110,7 @@ export const ModifiedJson: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data2.json",
+            data: data2Url,
             edge: {
                 path: "links",
             },
@@ -132,7 +133,7 @@ export const GraphML: Story = {
         setup: storySetup({ preSteps: 1000 }),
         dataSource: "graphml",
         dataSourceConfig: {
-            url: "https://raw.githubusercontent.com/chengw07/NetWalk/master/data/karate.GraphML",
+            url: karateGraphmlUrl,
         },
     },
     play: async ({ canvasElement }) => {

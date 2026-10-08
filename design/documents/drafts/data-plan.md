@@ -426,49 +426,49 @@ A data plan applied while no data is loaded is held for the next import only whe
 
 ## Conformance
 
-| Input                                                                                                                                             | Required result                                                                               |
+| Input | Required result |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| a plan with only `kind` and `version`                                                                                                             | accepted; every default applies                                                               |
-| `knownFields: { repeatedEdges: "sum-weights" }` (the withdrawn design spelling)                                                                   | refused with `E_BAD_COMMAND`, naming the accepted values                                      |
-| `"repeatedEdge": "max"` at the top level                                                                                                          | refused with `E_BAD_COMMAND`, suggesting `knownFields.repeatedEdges`                          |
-| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "score", role: "weight" }`                                       | accepted                                                                                      |
-| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "cost", role: "weight" }`                                        | refused: two fields claim the weight role                                                     |
-| an attribute `{ element: "edge", name: "corr", weightRole: "distance" }` where some `corr` < 0                                                    | import reports the negative distances; nothing is silently made positive                      |
-| an attribute `{ element: "edge", name: "w", signed: true }`                                                                                       | that declaration ignored with `E_BAD_COMMAND`; fails the schema                               |
-| `knownFields.nodeIdPath: "emp_id"` on records that have `employee_id` and a row-counter `id`                                                      | import refused, naming `nodeIdPath`                                                           |
-| `edgeWeightPath` left out, and an attribute `{ element: "edge", name: "cost", role: "weight" }`                                                   | accepted; `cost` is the weight                                                                |
-| `edgeWeightPath: null` on records with a numeric `value`                                                                                          | graph weighted by `value` today; `fieldsUsed.edgeWeightPath` says `value`                     |
-| a top-level `edgeKeyPath` with `features: ["edge-keys"]`, on a reader that does not know the feature                                              | refused with `E_UNSUPPORTED_FEATURE`, not `E_BAD_COMMAND`                                     |
-| `formatOptions: { "sourceColumn": "a" }`                                                                                                          | refused: endpoint columns are named only in `knownFields`                                     |
-| `constraints: { pattern: "^(a                                                                                                                     | aa)+$" }`and a 41-character cell`aaaa...ab`                                                   | evaluated in linear time; the violation reported |
-| `type: "date"` and the cell `03/04/2026`                                                                                                          | coercion failure reported; no month guessed                                                   |
-| `derive: { from: "combined_score", transform: "one-minus" }` on `distance`                                                                        | the distance column computed; zero-valued inputs reported only for `reciprocal` and `neg-log` |
-| an HR table joined with `on: "originalId"`, `type: "person"`, onto typed nodes `person:E123`                                                      | matched                                                                                       |
-| typed identity; types `ex:Person` with id `1` and `ex` with id `Person:1`                                                                         | two nodes, `ex%3APerson:1` and `ex:Person:1`                                                  |
-| typed identity; a node record with an empty type                                                                                                  | record rejected and reported                                                                  |
-| typed identity; an edge end typed `person` where the node file says `Person`                                                                      | reported under `unmatchedTypes`; no silent node unless `missingEndpoints: "create"` was set   |
-| a typed graph exported to each format and re-imported through its regenerated plan (`idsQualified: true`)                                         | equal node counts; `account:123` and `device:123` stay two nodes; the graph is still typed    |
-| `repeatedEdges: "first"`, `edgeTypePath: "predicate"`, a pair with `worksFor` and `advises`                                                       | both edges kept                                                                               |
-| a STRING TSV whose header line is `#node1<TAB>node2<TAB>...`                                                                                      | the header read as the header, `#node1` a column key (depends on the graph-io change below)   |
-| `knownFields.nodeIdPath: "(((id)))"`                                                                                                              | refused: no column has that key                                                               |
-| a join on `gene` where 37 genes have no node                                                                                                      | 37 unmatched, listed in the import report; no node created                                    |
-| `runOnLoad` present (an element API design draft field)                                                                                           | refused as an unknown top-level member, with the reason "load-time runs belong in a recipe"   |
-| applied after a graph is loaded                                                                                                                   | `needsReimport`; the loaded graph is unchanged                                                |
-| `nodeTypePath` set, listing the feature `typed-identity`, on a reader without it                                                                  | refused with `E_UNSUPPORTED_FEATURE`                                                          |
-| `nodeTypePath` set without listing `typed-identity`                                                                                               | refused with `E_BAD_COMMAND`: the member needs its feature                                    |
-| `knownFields.nodeTypePath: null`                                                                                                                  | valid; the documented default                                                                 |
-| `edgeTypePath: { "value": "worksFor" }` on a file holding one predicate                                                                           | every edge has type `worksFor`                                                                |
-| `{ element: "node", name: "email", types: ["Person"], constraints: { required: true, onViolation: "fail" } }` and no record has `email`           | import refused, every in-scope record violating                                               |
-| a declaration naming a missing column, no constraints                                                                                             | ignored; `counts.ignoredDeclarations` 1                                                       |
-| `constraints: { onviolation: "fail" }`                                                                                                            | declaration disabled, the member unknown in a closed place                                    |
-| `term: "http://purl.org/dc/terms/title"`                                                                                                          | valid; the declaration applies                                                                |
-| label declarations `fullName` for `Person` and `legalName` for `Org`, both `role: "label"`                                                        | accepted; one label column filled per type                                                    |
-| a join with `key: ""` on an R `write.csv` table                                                                                                   | the empty-header column is the key                                                            |
-| plan `missingValues: ["NA"]` and a joined `log2FoldChange` column holding `NA`                                                                    | the column is numeric; `NA` cells missing                                                     |
-| a plan carrying `createdAt`                                                                                                                       | valid; shared metadata                                                                        |
-| `data.checkImport` on a 2-million-row file with `sampleRows: 1000`                                                                                | report and 1,000 records returned; the session's graph unchanged                              |
-| a typed export's regenerated plan (`nodeTypePath: "idSpace"`, `idsQualified: true`) re-imported                                                   | the same typed nodes and edges; per-type constraints still in scope                           |
-| typed identity; an edge row with `account_id: "123"`, `device_id: "123"`, `edgeSrcType: { value: "account" }`, `edgeDstType: { value: "device" }` | two distinct ends, `account:123` and `device:123`                                             |
+| a plan with only `kind` and `version` | accepted; every default applies |
+| `knownFields: { repeatedEdges: "sum-weights" }` (the withdrawn design spelling) | refused with `E_BAD_COMMAND`, naming the accepted values |
+| `"repeatedEdge": "max"` at the top level | refused with `E_BAD_COMMAND`, suggesting `knownFields.repeatedEdges` |
+| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "score", role: "weight" }` | accepted |
+| `knownFields.edgeWeightPath: "score"` and an attribute `{ element: "edge", name: "cost", role: "weight" }` | refused: two fields claim the weight role |
+| an attribute `{ element: "edge", name: "corr", weightRole: "distance" }` where some `corr` < 0 | import reports the negative distances; nothing is silently made positive |
+| an attribute `{ element: "edge", name: "w", signed: true }` | that declaration ignored with `E_BAD_COMMAND`; fails the schema |
+| `knownFields.nodeIdPath: "emp_id"` on records that have `employee_id` and a row-counter `id` | import refused, naming `nodeIdPath` |
+| `edgeWeightPath` left out, and an attribute `{ element: "edge", name: "cost", role: "weight" }` | accepted; `cost` is the weight |
+| `edgeWeightPath: null` on records with a numeric `value` | graph weighted by `value` today; `fieldsUsed.edgeWeightPath` says `value` |
+| a top-level `edgeKeyPath` with `features: ["edge-keys"]`, on a reader that does not know the feature | refused with `E_UNSUPPORTED_FEATURE`, not `E_BAD_COMMAND` |
+| `formatOptions: { "sourceColumn": "a" }` | refused: endpoint columns are named only in `knownFields` |
+| `constraints: { pattern: "^(a                                                                                                                     | aa)+$" }`and a 41-character cell`aaaa...ab` | evaluated in linear time; the violation reported |
+| `type: "date"` and the cell `03/04/2026` | coercion failure reported; no month guessed |
+| `derive: { from: "combined_score", transform: "one-minus" }` on `distance` | the distance column computed; zero-valued inputs reported only for `reciprocal` and `neg-log` |
+| an HR table joined with `on: "originalId"`, `type: "person"`, onto typed nodes `person:E123` | matched |
+| typed identity; types `ex:Person` with id `1` and `ex` with id `Person:1` | two nodes, `ex%3APerson:1` and `ex:Person:1` |
+| typed identity; a node record with an empty type | record rejected and reported |
+| typed identity; an edge end typed `person` where the node file says `Person` | reported under `unmatchedTypes`; no silent node unless `missingEndpoints: "create"` was set |
+| a typed graph exported to each format and re-imported through its regenerated plan (`idsQualified: true`) | equal node counts; `account:123` and `device:123` stay two nodes; the graph is still typed |
+| `repeatedEdges: "first"`, `edgeTypePath: "predicate"`, a pair with `worksFor` and `advises` | both edges kept |
+| a STRING TSV whose header line is `#node1<TAB>node2<TAB>...` | the header read as the header, `#node1` a column key (depends on the graph-io change below) |
+| `knownFields.nodeIdPath: "(((id)))"` | refused: no column has that key |
+| a join on `gene` where 37 genes have no node | 37 unmatched, listed in the import report; no node created |
+| `runOnLoad` present (an element API design draft field) | refused as an unknown top-level member, with the reason "load-time runs belong in a recipe" |
+| applied after a graph is loaded | `needsReimport`; the loaded graph is unchanged |
+| `nodeTypePath` set, listing the feature `typed-identity`, on a reader without it | refused with `E_UNSUPPORTED_FEATURE` |
+| `nodeTypePath` set without listing `typed-identity` | refused with `E_BAD_COMMAND`: the member needs its feature |
+| `knownFields.nodeTypePath: null` | valid; the documented default |
+| `edgeTypePath: { "value": "worksFor" }` on a file holding one predicate | every edge has type `worksFor` |
+| `{ element: "node", name: "email", types: ["Person"], constraints: { required: true, onViolation: "fail" } }` and no record has `email` | import refused, every in-scope record violating |
+| a declaration naming a missing column, no constraints | ignored; `counts.ignoredDeclarations` 1 |
+| `constraints: { onviolation: "fail" }` | declaration disabled, the member unknown in a closed place |
+| `term: "http://purl.org/dc/terms/title"` | valid; the declaration applies |
+| label declarations `fullName` for `Person` and `legalName` for `Org`, both `role: "label"` | accepted; one label column filled per type |
+| a join with `key: ""` on an R `write.csv` table | the empty-header column is the key |
+| plan `missingValues: ["NA"]` and a joined `log2FoldChange` column holding `NA` | the column is numeric; `NA` cells missing |
+| a plan carrying `createdAt` | valid; shared metadata |
+| `data.checkImport` on a 2-million-row file with `sampleRows: 1000` | report and 1,000 records returned; the session's graph unchanged |
+| a typed export's regenerated plan (`nodeTypePath: "idSpace"`, `idsQualified: true`) re-imported | the same typed nodes and edges; per-type constraints still in scope |
+| typed identity; an edge row with `account_id: "123"`, `device_id: "123"`, `edgeSrcType: { value: "account" }`, `edgeDstType: { value: "device" }` | two distinct ends, `account:123` and `device:123` |
 
 ## Worked examples
 

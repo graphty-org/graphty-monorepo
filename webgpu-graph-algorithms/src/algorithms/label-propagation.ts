@@ -1,11 +1,19 @@
 /**
  * Label propagation (design 8.6, 3.3 line 807; the P11 plan's P11-T6) over the simple symmetric graph of the
- * snapshot (`buildSimpleSymmetric`). Every vertex starts with its own index as its label; each pass,
- * `group-by-key-row` finds every vertex's weighted mode of its neighbours' labels (the lowest label on a tie) and
- * `lpa-step` adopts it synchronously -- but only in the pass's direction: down to a lower label on even passes, up to
- * a higher one on odd passes (cuGraph's swap-avoidance rule), which is what stops two neighbours trading labels
- * forever. A pass that moves nothing in either direction after one that moved nothing in the other is a fixed point,
- * and the run stops there or at `maxIterations` passes.
+ * snapshot (`buildSimpleSymmetric`), with the rules of `@graphty/algorithms`' `labelPropagationSynchronous`. Vertex
+ * `i` starts with the label `fmix32(i)`, the murmur3 32-bit finalizer of its index: a one-to-one scramble, so comparing
+ * two labels compares the priorities the CPU port gives them. Each pass, `group-by-key-row` finds every vertex's
+ * weighted mode of its neighbours' labels -- its own label when that ties for the lead, else the lowest on a tie --
+ * and `lpa-step` adopts it synchronously, but only in the pass's direction: up to a higher label on even passes (the
+ * first is pass 0), down to a lower one on odd passes (cuGraph's swap-avoidance rule), which is what stops two
+ * neighbours trading labels forever. A pass that moves nothing in either direction after one that moved nothing in
+ * the other is a fixed point, and the run stops there or at `maxIterations` passes.
+ *
+ * Ranking labels by node index instead ties the outcome to the numbering: on a path numbered in order every interior
+ * vertex is tied between its two neighbours, the lowest index wins every tie, and it creeps one vertex per two passes
+ * (issue #694). Under the scramble the winners are spread along the chain and a 1,000-node path settles in about ten
+ * passes. One difference from the CPU port remains: a run whose labels cycle with period two runs to `maxIterations`
+ * here, where the port stops at the first repeat.
  *
  * Passes are recorded LABEL_PROP_PASSES_PER_SUBMIT to a submit with one readback of their move counts, because a
  * readback per pass costs more than the passes on a small graph; the passes after the fixed point inside the last
@@ -23,7 +31,7 @@ import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
 import { CommandBatch } from "../kernel/batch.js";
 import { plan1d } from "../kernel/dispatch.js";
-import { FILL_PARAMS, kernelSpec, LPA_PARAMS } from "../kernels.js";
+import { kernelSpec, LPA_PARAMS } from "../kernels.js";
 import { planGroupRows, prepareGroupByKeyRow } from "../primitives/group-by-key.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type GpuLabelResult } from "../types/algorithms.js";
@@ -39,6 +47,36 @@ const ALGORITHM = "labelPropagation";
 const DEFAULT_MAX_ITERATIONS = 100;
 /** Params slots of the largest batch: the graph build's second submit plus one batch of passes. */
 const RING_SLOTS = 1024;
+/** The one node index whose scrambled label would be INVALID_INDEX, the group-by's empty key. */
+const SCRAMBLE_LIMIT = 857_579_651;
+
+/**
+ * The murmur3 32-bit finalizer: a one-to-one scramble of a u32, the CPU port's label priority.
+ * @param x - a node index
+ * @returns its initial label
+ */
+function fmix32(x: number): number {
+    x ^= x >>> 16;
+    x = Math.imul(x, 0x85ebca6b);
+    x ^= x >>> 13;
+    x = Math.imul(x, 0xc2b2ae35);
+    x ^= x >>> 16;
+    return x >>> 0;
+}
+
+/**
+ * The inverse of fmix32.
+ * @param x - a label
+ * @returns the node index it scrambles
+ */
+function unfmix32(x: number): number {
+    x ^= x >>> 16;
+    x = Math.imul(x, 0x7ed1b41d);
+    x ^= (x >>> 13) ^ (x >>> 26);
+    x = Math.imul(x, 0xa5cb9243);
+    x ^= x >>> 16;
+    return x >>> 0;
+}
 
 /**
  * Validates `options.dest` for a label result of `n` elements.
@@ -103,20 +141,23 @@ function neighbourBound(s: GraphSnapshot): Uint32Array {
 }
 
 /**
- * The labels as a result: every label must be a node index (a device bug otherwise), then renumbered first-seen.
- * @param raw - the labels the device produced
+ * The labels as a result: every label must be the scramble of a node index (a device bug otherwise), then
+ * renumbered first-seen.
+ * @param raw - the labels the device produced (overwritten with the node indices they scramble)
  * @param dest - the caller's destination, if any
  * @returns the result
  */
 function resultOf(raw: U32, dest: U32 | null): GpuLabelResult {
     const n = raw.length;
     for (let v = 0; v < n; v++) {
-        if (raw[v] >= n) {
-            throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: labels[${v}] = ${raw[v]} is not a node index`, {
+        const index = unfmix32(raw[v]);
+        if (index >= n) {
+            throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: labels[${v}] = ${raw[v]} is not a node's label`, {
                 label: `${ALGORITHM}/labels`,
-                message: `the device produced a label outside [0, ${n})`,
+                message: `the device produced a label that scrambles no index in [0, ${n})`,
             });
         }
+        raw[v] = index;
     }
     const { labels, count } = renumberPartition(raw, dest ?? undefined);
     return labelResult(labels, count);
@@ -161,6 +202,18 @@ export async function labelPropagation(
         options?.onProgress?.(1, 1);
         return identityResult(n, dest);
     }
+    if (n > SCRAMBLE_LIMIT) {
+        throw new WebGpuGraphError(
+            "E_TOO_LARGE",
+            `${ALGORITHM}: ${n} nodes, above the ${SCRAMBLE_LIMIT} the labels allow`,
+            {
+                needed: n,
+                limit: SCRAMBLE_LIMIT,
+                path: "the scrambled labels",
+                algorithm: ALGORITHM,
+            },
+        );
+    }
     // the hash region of the workgroup tier is bound whole: refuse a graph it outgrows before any device work
     const plan = planGroupRows(neighbourBound(s));
     assertBindable(ctx, 4 * plan.regionWords, "the group-by hash region", ALGORITHM);
@@ -195,8 +248,12 @@ export async function labelPropagation(
         queue.writeBuffer(region.buffer, 0, new Uint32Array(1));
         const groupBy = await prepareGroupByKeyRow(scope);
         const step = await ctx.pipelines.kernel(kernelSpec("lpa-step"));
-        const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
         const nodePlan = plan1d(n, wg, ctx.caps);
+        const initial = new Uint32Array(n);
+        for (let v = 0; v < n; v++) {
+            initial[v] = fmix32(v);
+        }
+        queue.writeBuffer(labelsA.buffer, 0, initial);
 
         let { batch } = build;
         let first = true;
@@ -208,10 +265,6 @@ export async function labelPropagation(
             const k = Math.min(LABEL_PROP_PASSES_PER_SUBMIT, maxIterations - done);
             queue.writeBuffer(counters.buffer, 0, new Uint32Array(k));
             const pass = batch.pass("passes");
-            if (first) {
-                const iota = scope.params(FILL_PARAMS, { count: n, value: 0, mode: 1, pad0: 0 });
-                fill.dispatch(pass, fill.bind({ dst: labelsA, P: iota.binding }), nodePlan, [iota.offset]);
-            }
             for (let i = 0; i < k; i++) {
                 groupBy.record(pass, {
                     rowPtr: graph.rowPtr,
@@ -226,7 +279,7 @@ export async function labelPropagation(
                 });
                 const params = scope.params(LPA_PARAMS, {
                     n,
-                    direction: (done + i) % 2,
+                    direction: (done + i + 1) % 2, // pass 0 moves up, as the CPU port's does
                     counterIndex: i,
                     pad0: 0,
                 });

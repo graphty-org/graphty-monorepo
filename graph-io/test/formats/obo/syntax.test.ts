@@ -98,19 +98,20 @@ describe("OBO lexical layer (research-obo.md 4.1)", () => {
             id: "NIST Chemistry WebBook:110-63-4",
             description: "CAS Registry Number",
             qualifiers: null,
+            unterminated: false,
         });
         expect(parseXref("http://ecoliwiki.net/colipedia/index.php/Category\\:Cryptic_Prophage.w")?.id).toBe(
             "http://ecoliwiki.net/colipedia/index.php/Category:Cryptic_Prophage.w",
         );
         expect(parseXref("  ")).toBeNull();
         expect(parseXrefList('A:1, B:2 "d, e", C\\,D:3 {q="1, 2"}, ')).toEqual([
-            { id: "A:1", description: null, qualifiers: null },
-            { id: "B:2", description: "d, e", qualifiers: null },
-            { id: "C,D:3", description: null, qualifiers: { q: "1, 2" } },
+            { id: "A:1", description: null, qualifiers: null, unterminated: false },
+            { id: "B:2", description: "d, e", qualifiers: null, unterminated: false },
+            { id: "C,D:3", description: null, qualifiers: { q: "1, 2" }, unterminated: false },
         ]);
         expect(parseXrefList("")).toEqual([]);
         expect(parseXrefList("KEGG COMPOUND:")).toEqual([
-            { id: "KEGG COMPOUND:", description: null, qualifiers: null },
+            { id: "KEGG COMPOUND:", description: null, qualifiers: null, unterminated: false },
         ]);
     });
 

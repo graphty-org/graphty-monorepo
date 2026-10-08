@@ -1665,10 +1665,11 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
 
         const mine = inFlight.then(body, body);
 
-        // Counted down on the chain the next pass waits on, not on `mine`. A `finally` on the
-        // caller's promise moves the microtask every caller resumes on, and a layer added before
-        // a load and not awaited then goes unpainted (test/browser/first-paint-after-load.test.ts
-        // and style-layer-ordering.test.ts both catch it).
+        // Counted down on the chain the next pass waits on, so the caller's promise is `mine`
+        // itself. Nothing depends on that any more: a style edit writes the stack when it is
+        // dispatched, before any pass is asked for, and passes run in the order they were asked
+        // for, so no pass paints a stack older than one already painted. Which microtask a caller
+        // resumes on cannot leave a layer unpainted (test/browser/layer-before-load-resume-points).
         const finished = (): void => {
             unfinished--;
         };

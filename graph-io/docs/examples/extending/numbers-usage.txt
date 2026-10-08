@@ -1,0 +1,9 @@
+[ 'E_ID_CHARSET' ]
+undirected
+node 0 "alice"
+node 1 "bob"
+node 7
+edge 0 1
+edge 1 7
+
+[ 'alice', 'bob', 7 ]

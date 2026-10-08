@@ -284,7 +284,7 @@ export function maxFlow(
         for (let v = sink; v !== source; v = colIdx[twin[predGroup[v]]]) {
             bottleneck = Math.min(bottleneck, r.capacity[predGroup[v]]);
         }
-        for (let v = sink; v !== source; ) {
+        for (let v = sink; v !== source;) {
             const g = predGroup[v];
             const t = twin[g];
             r.capacity[g] -= bottleneck;

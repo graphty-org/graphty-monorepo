@@ -28,12 +28,8 @@ describe("logs_status tool", () => {
     });
 
     test("returns session count", async () => {
-        storage.addLogs("session-1", [
-            { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" },
-        ]);
-        storage.addLogs("session-2", [
-            { time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Test 2" },
-        ]);
+        storage.addLogs("session-1", [{ time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test" }]);
+        storage.addLogs("session-2", [{ time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Test 2" }]);
 
         const result = await logsStatusHandler(storage);
 
@@ -45,9 +41,7 @@ describe("logs_status tool", () => {
             { time: "2024-01-15T10:00:00.000Z", level: "INFO", message: "Test 1" },
             { time: "2024-01-15T10:00:01.000Z", level: "INFO", message: "Test 2" },
         ]);
-        storage.addLogs("session-2", [
-            { time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "Test 3" },
-        ]);
+        storage.addLogs("session-2", [{ time: "2024-01-15T10:00:02.000Z", level: "INFO", message: "Test 3" }]);
 
         const result = await logsStatusHandler(storage);
 

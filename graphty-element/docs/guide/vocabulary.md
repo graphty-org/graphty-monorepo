@@ -52,7 +52,14 @@ await run;
 await element.session.selection.apply({ top: { run, n: 10 } });
 // Or name a field outright.
 await element.session.selection.apply({ above: { run, field: "value", threshold: 0.05 } });
+// Every element from one value to another, both ends included -- what a histogram brush selects.
+const { bins } = (await run).histogram("value");
+await element.session.selection.apply({ range: { run, min: bins[2].from, max: bins[4].to } });
 ```
+
+To open a threshold control where the result is still drawable, ask the run for the top that fits
+the render ceiling: `result.top("value", DEFAULT_LIMITS.renderCeiling).threshold` is the lowest
+`above` threshold that selects no more than that, or `null` when everything fits.
 
 `run` can be the handle `runs.start()` returned, its awaited result, or its id.
 
@@ -109,8 +116,29 @@ element.addEventListener("graphty-progress-change", (e) => {
 session.on("progress:changed", (change) => console.log(change.task, change.phase, change.completed));
 ```
 
-`task` is `"load"` or `"run"` (more may be added, so handle one you do not know); a run's report
+`task` is `"load"`, `"prepare"` (reading a load draft) or `"run"` (more may be added, so handle one
+you do not know); a run's report
 also carries `run`, the run's id. Every task sends `phase: "end"` once when it stops, whether it
 succeeded, failed or was cancelled. A load cannot know its size in advance, so `completed` counts
 the node and edge records read so far and `total` and `fraction` are `null`. On the element,
-steps are sent at most every 100 ms per task; the end always arrives.
+steps are sent at most every 100 ms per task; the first change and the end always arrive.
+
+A load says more, so a view that did not start it -- a canvas beside a separate file picker --
+can follow it from start to finish:
+
+- The first change (`phase: "progress"`, `completed: 0`) arrives as the load begins, before the
+  file or URL is read. Show the loading state from here, not from the first record.
+- `source` is on every load change: `{ name, url }`, the name the load was given or the file's
+  name or the URL's last part, and the URL when it came from one. Either may be absent.
+- `outcome` is on the end: `"succeeded"`, `"failed"` or `"cancelled"`. A failure that carried a
+  code also has `error: { code, details }`, the same code and details the call that started the
+  load rejected with -- for `E_TOO_LARGE`, the `limit`, the `count` and what it counted (`of`).
+
+```ts
+session.on("progress:changed", (change) => {
+    if (change.task !== "load") return;
+    if (change.phase === "progress") card.show("reading", change.source?.name, change.completed);
+    else if (change.error?.code === "E_TOO_LARGE") card.show("too-large", change.error.details);
+    else card.hide();
+});
+```

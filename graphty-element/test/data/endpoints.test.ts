@@ -68,7 +68,13 @@ describe("choosing which keys name an edge's endpoints", () => {
     it("needs BOTH halves of a pair before it will choose that pair", () => {
         // A record carrying `source` and `to` answers neither pair completely. Choosing on one
         // half would pair a real column with a guessed one and then reject every record.
-        const resolved = resolveEndpoints([{ source: "a", to: "b" }, { from: "c", to: "d" }], NOTHING_DECLARED);
+        const resolved = resolveEndpoints(
+            [
+                { source: "a", to: "b" },
+                { from: "c", to: "d" },
+            ],
+            NOTHING_DECLARED,
+        );
 
         assert.strictEqual(resolved.resolvedFrom, "from/to", "the only pair some record answers in full");
     });

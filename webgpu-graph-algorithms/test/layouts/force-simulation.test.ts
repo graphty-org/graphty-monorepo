@@ -160,7 +160,11 @@ class FakeModel implements ForceModel<FakeOptions, FakeStats> {
     /** What inputs() returns as `fixed` (the FR `fixed` option seam, PD-6); null = absent. */
     private readonly fixed: NodeMask | null;
 
-    constructor(blocks?: { readonly params?: UniformBlock; readonly state?: UniformBlock; readonly fixed?: NodeMask | null }) {
+    constructor(blocks?: {
+        readonly params?: UniformBlock;
+        readonly state?: UniformBlock;
+        readonly fixed?: NodeMask | null;
+    }) {
         this.params = blocks?.params ?? FAKE_PARAMS;
         this.state = blocks?.state ?? FAKE_STATE;
         this.fixed = blocks?.fixed ?? null;

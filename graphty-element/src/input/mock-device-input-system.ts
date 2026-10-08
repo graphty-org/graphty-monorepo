@@ -335,7 +335,6 @@ export class MockDeviceInputSystem {
      */
     public attach(_element?: HTMLElement): void {
         // Mock system doesn't need the element, but accept it for interface consistency
-        void _element; // Explicitly acknowledge unused parameter
         this.attached = true;
     }
 

@@ -55,7 +55,7 @@ type Story = StoryObj<typeof Slider>;
 export const Default: Story = {
     args: {
         defaultValue: 40,
-        "aria-label": "Amount",
+        thumbLabel: "Amount",
     },
 };
 
@@ -66,17 +66,18 @@ export const States: Story = {
         <StateGrid
             columns={220}
             cells={[
-                ["rest", <Slider defaultValue={40} />],
+                ["rest", <Slider defaultValue={40} thumbLabel="Rest" />],
                 [
                     "focus",
                     <div data-story-focus>
-                        <Slider defaultValue={60} />
+                        <Slider defaultValue={60} thumbLabel="Focus" />
                     </div>,
                 ],
                 [
                     "with marks",
                     <Slider
                         defaultValue={50}
+                        thumbLabel="With marks"
                         marks={[
                             { value: 0, label: "0" },
                             { value: 50, label: "50" },
@@ -84,7 +85,7 @@ export const States: Story = {
                         ]}
                     />,
                 ],
-                ["disabled", <Slider defaultValue={40} disabled />],
+                ["disabled", <Slider defaultValue={40} disabled thumbLabel="Disabled" />],
             ]}
         />
     ),
@@ -98,6 +99,7 @@ export const States: Story = {
 export const WithMarks: Story = {
     args: {
         defaultValue: 50,
+        thumbLabel: "Opacity",
         marks: [
             { value: 0, label: "0%" },
             { value: 50, label: "50%" },
@@ -117,6 +119,7 @@ export const WithMarks: Story = {
 export const WithSteps: Story = {
     args: {
         defaultValue: 25,
+        thumbLabel: "Opacity",
         min: 0,
         max: 100,
         step: 25,

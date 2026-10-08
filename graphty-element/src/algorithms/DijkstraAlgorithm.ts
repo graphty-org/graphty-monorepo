@@ -16,6 +16,7 @@ import {
     PATH_FIELD_SPECS,
 } from "./results";
 import { type OptionsSchema } from "./types/OptionSchema";
+import { routeEdgeRows } from "./utils/routeEdges";
 
 /**
  * Zod-based options schema for Dijkstra algorithm
@@ -178,31 +179,9 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
             });
         });
 
-        /* The route names edges of the UNDIRECTED, simplified view, so each of the element's own
-           edges is mapped onto that space. A merged route edge stands for every parallel edge
-           between its pair, and the walk took ONE of them: the cheapest, the lowest row on a tie.
-           Only that edge is on the route, so a path set made from the run names one edge per step
-           (design/sets 4.4). A reciprocal pair read undirected is one step taken over both
-           directions, so the cheapest edge of EACH direction is on it. */
+        // The element's own edges on the route: see routeEdgeRows.
         const scoped = scopeEdges(input);
-        const { src, weights } = input.graph.edgeList();
-        const taken = new Map<string, { row: number; weight: number }>();
-        for (const edge of scoped) {
-            const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
-            if (!routeEdges.has(merged)) {
-                continue;
-            }
-
-            // A declared undirected edge has no direction to tell apart: one key per merged edge.
-            const key = input.graph.directed ? `${String(merged)}>${String(src[edge.row])}` : String(merged);
-            const weight = weights === null ? 1 : weights[edge.row];
-            const best = taken.get(key);
-            if (best === undefined || weight < best.weight) {
-                taken.set(key, { row: edge.row, weight });
-            }
-        }
-
-        const onRoute = new Set([...taken.values()].map((entry) => entry.row));
+        const onRoute = routeEdgeRows(input, scoped, edgeRemap, routeEdges);
         const edges: ResultElementValues<EdgeId>[] = [];
         await forEachChunked(context, "Marking the route", scoped, (edge) => {
             // The id PUBLISHED is the element's own, which a style layer can name.

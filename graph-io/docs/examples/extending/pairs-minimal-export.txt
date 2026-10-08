@@ -1,0 +1,7 @@
+[ 'W_WEIGHTS_DROPPED', 'W_DIRECTION_DROPPED' ]
+a
+b
+c
+a b
+b c
+

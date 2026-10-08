@@ -32,16 +32,22 @@ graph-io/
 +-- scripts/entries.js            # the bundle entries: graph-io + one per format (shared by both scripts below)
 +-- scripts/build-bundle.js       # one multi-entry vite lib build -> dist/graph-io.js, dist/<format>.js, dist/chunks/*
 +-- scripts/bundle-types.js       # dist/graph-io.d.ts and dist/<format>.d.ts, one-line re-exports of dist/src/**
++-- scripts/docs-reference.ts     # renders the generated blocks of docs/ (npm run docs:reference; --check verifies)
++-- typedoc.json                  # the API reference (root `pnpm run docs:api:graph-io`); every subpath barrel is an entry
++-- docs/                         # the user guide, published at https://graphty.app/docs/graph-io/
+|   +-- examples/<topic>/<name>.ts  # every code example the guide shows, runnable; <name>.txt is what it prints
 +-- src/
 |   +-- index.ts                  # the only root barrel; named exports only
 |   +-- types.ts                  # section 12.4 contract types and ImportError
-|   +-- registry.ts               # FormatRegistry, importGraph / exportGraph / checkExport / sniff, the default registry
+|   +-- registry.ts               # FormatRegistry, importGraph / exportGraph / checkExport / sniff, the default registry,
+|   |                             # and the simple surface wrapping them: loadFromUrl / loadFromFile, exportGraphToBytes /
+|   |                             # exportGraphToBlob / downloadGraph, listFormats (tests: test/simple.test.ts)
 |   +-- sniff.ts                  # rankFormats / sniffFormat (extension + MIME + content), the JSON dialect head sniff
 |   +-- children.ts               # the children CSR over a parent / parents column (design 7.1)
 |   +-- common/                   # shared by every format (see the module map in STATUS.md)
 |   |   +-- codes.ts              # the one definition of every shared issue / loss code (E_MISSING_ID, W_ROLE_DROPPED, ...)
 |   |   +-- report.ts             # ImportReportBuilder: issues, error limit, warnOnce, fail() -> ImportError
-|   |   +-- input.ts              # textChunks / readText / LineReader: the one byte decoder (option, BOM, declaration, UTF-8, windows-1252 fallback), abort, progress
+|   |   +-- input.ts              # textChunks / readText / LineReader: the one byte decoder (BOM, option, declaration, UTF-8, windows-1252 fallback), the text checks, input shapes, abort, progress
 |   |   +-- options.ts            # resolveImportOptions / resolveExportOptions / reportSinkOptions / reportUnusedOptions
 |   |   +-- direction.ts          # DirectionResolver (8.4 rules), pairFolding() for exporters (3.6 pairs, mutual marks)
 |   |   +-- ids.ts                # canonical / string / number coercion, IdCoercer (W_ID_MERGED)
@@ -51,6 +57,7 @@ graph-io/
 |   |   +-- export.ts             # LOSS codes, capabilities(), checkCapabilities() + CheckExtras (roles, roleNames), sanitizeIds()
 |   |   +-- xml.ts                # the streaming XML tokenizer (GEXF, GraphML), entity decoding, xmlIllegalTextNotes()
 |   |   +-- escape.ts  format.ts  writer.ts   # quoting per format, formatDecimal / formatGmlReal, encodeChunks / joinText
+|   |   +-- ontology.ts  ontology-export.ts   # the OBO column vocabulary (OBO and OBO Graphs), what the two ontology exporters share
 |   +-- formats/<format>/         # gexf graphml gml dot pajek csv json neo4j
 |       +-- index.ts              # the subpath barrel: <fmt>Importer, <fmt>Exporter, option types, code tables
 |       +-- importer.ts           # GraphImporter<Opts>
@@ -59,7 +66,7 @@ graph-io/
 +-- test/
 |   +-- corpus/<format>/          # fixtures + manifest.json (expected counts); corpus/malformed/<format>/
 |   +-- helpers/corpus.ts         # manifest loaders, input shapes (bytes, chunks, streams)
-|   +-- helpers/roundtrip.ts      # compareSnapshots / expectSameSnapshot / roundTrip
+|   +-- helpers/roundtrip.ts      # expectSameSnapshot / roundTrip (compareSnapshots is public: src/common/compare.ts)
 |   +-- common/*.test.ts          # one per common module
 |   +-- formats/<format>/*.test.ts
 |   +-- registry.test.ts  sniff.test.ts  children.test.ts  index.test.ts  build-output.test.ts
@@ -122,13 +129,18 @@ the two correctly.
   `"error"`: an exporter never renames a node silently.
 - Declares `@graphty/graph-format` in BOTH `dependencies` (`workspace:^`, which pnpm publishes as
   a caret range; `workspace:*` would publish an exact pin) and `peerDependencies` (`^1.0.0`).
-- Bytes are decoded once, in `common/input.ts`, for every importer: the `encoding` option, else a
-  BOM, else the file's declaration (the importer passes `declaredEncoding`: the XML prolog, DOT's
-  `charset`), else UTF-8. Decoding is strict (`fatal: true`), never a silent U+FFFD; undeclared
-  bytes that are not UTF-8 while everything before them was ASCII are read as windows-1252 with
-  `W_ENCODING_FALLBACK`. Never decode bytes anywhere else.
+- Bytes are decoded once, in `common/input.ts`, for every importer: a BOM, else the `encoding`
+  option, else the file's declaration (the importer passes `declaredEncoding`: the XML prolog, DOT's
+  `charset`), else UTF-8; a disagreement between them is `W_ENCODING_CONFLICT`. Decoding is strict
+  (`fatal: true`), never a silent U+FFFD; undeclared bytes that are not UTF-8 while everything
+  before them was ASCII (and no control byte marks them binary) are read as windows-1252 with
+  `W_ENCODING_FALLBACK`. Never decode bytes anywhere else. The same layer refuses an empty input
+  (`E_EMPTY_INPUT`, unless the reader passes `allowEmpty`) and a known non-graph file
+  (`E_FOREIGN_FORMAT`), and reports control characters (`W_CONTROL_CHARACTER`), so an importer
+  never repeats those checks; its codes are `INPUT_ISSUE`, spread into every `<FMT>_ISSUE` table.
 - A format that can hold several graphs (DOT, Pajek `.paj`, GML, JGF) implements `importAll()`;
-  its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped. A new
+  its `import()` reads the first and warns `W_MULTIPLE_GRAPHS` with the number skipped (not when
+  `graphIndex` / `graphName` chose the graph: `graphChosen()`). A new
   importer of such a format also implements `listGraphs()` (a `GraphListing` per graph, cheaply)
   and takes `graphIndex` / `graphName` (`GraphChoiceOptions`), resolved by `chooseGraph()` in
   `common/options.ts`; the registry's `listGraphs()` answers null for an importer without it.
@@ -136,7 +148,9 @@ the two correctly.
 ## Adding a format
 
 1. Create `src/formats/<fmt>/importer.ts` exporting `<fmt>Importer: GraphImporter<FmtImportOptions>`
-   with `format`, `extensions`, `mimeTypes`, `sniff(head)` (0..1) and `import()`:
+   with `format`, `extensions`, `mimeTypes`, `options` (the names of the format's own options, which
+   W_UNKNOWN_OPTION trusts; `test/docs-reference.test.ts` checks them against the type), `sniff(head)`
+   (0..1) and `import()`:
    `resolveImportOptions(options, { ids, defaultDirected, weightFrom })`, then
    `new ImportReportBuilder(format, errorLimit)`, `reportSinkOptions(sink, options, report)` and
    `reportUnusedOptions(options, report, USED_OPTIONS)` (W_OPTION_IGNORED for every common option
@@ -149,7 +163,7 @@ the two correctly.
    record issues with `report.error()` / `report.warning()` / `report.warnOnce()` and the counts in
    `report.counts`, and return `report.finish()`.
 2. Create `src/formats/<fmt>/exporter.ts` exporting `<fmt>Exporter: GraphExporter<FmtExportOptions>`
-   with a `capabilities` table, `check()` = `checkCapabilities(snapshot, capabilities, resolved)`
+   with `options` (its own option names, as for the importer), a `capabilities` table, `check()` = `checkCapabilities(snapshot, capabilities, resolved)`
    plus the format's own notes, `export()` = `encodeChunks(write())` and `exportToString()` =
    `joinText(write())`, where `write()` is a generator of string parts that iterates nodes and
    logical edges in index order, folds expanded pairs (`pair` / `directed` role columns) and writes
@@ -166,7 +180,26 @@ the two correctly.
    `test/formats/<fmt>/*.test.ts` covering every corpus file (manifest counts, every input shape),
    export -> re-import equality (`expectSameSnapshot`), every LossNote path and every malformed
    file (`ImportError` with a report).
-7. Document the format in README.md (the matrix and the known losses) and STATUS.md.
+7. Run `npm run docs:reference`: it creates `docs/guide/formats/<fmt>.md` with the generated
+   blocks (capabilities, options, issue and loss codes) filled in from the registry, the subpath
+   barrel and the doc comments; then write the page's prose (what the format is, loading and
+   saving, what a saved file keeps and loses) and its example, `docs/examples/formats/<fmt>.ts`.
+   `test/docs-reference.test.ts` fails while a page is stale, an option or code has no doc
+   comment, or a published doc comment mentions the internal design documents.
+
+## Documentation examples
+
+Every code block in `docs/` and in README.md is a file under `docs/examples/` (`.ts`, or `.js` for a
+browser example a reader may paste into a plain page), copied in by
+`npm run docs:reference` through an `<!-- generated:begin example:<path> -->` block; an
+`output:<path>` block shows what the example prints (`<path>.txt`). `test/docs-examples.test.ts`
+runs every example in a directory holding the corpus files, with `fetch` and a small `document`
+stubbed, and fails when what it prints differs from its `.txt` (rerun with `UPDATE_EXAMPLES=1`) or
+when the files it writes change (a vitest snapshot). Examples import `@graphty/graph-io` by name;
+`vitest.config.ts` and the `paths` of `tsconfig.json` map it to `src/`. `docs/samples/` holds the
+public-domain sample files the guide loads by URL; `tools/copy-docs-content.js` publishes them under
+`https://graphty.app/docs/graph-io/samples/` (listed in the quick start's "Sample files") and the examples run with them in their directory. Write user docs from the
+reader's side: what to call and what happens, never how the package is built or tested.
 
 ## Conformance suite
 

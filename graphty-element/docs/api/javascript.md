@@ -51,6 +51,9 @@ this call. Assigning the `edge-data` property, or calling `setEdges`, REPLACES t
 | `deselectNode()`    | -          | `void`         | Clear selection   |
 | `getSelectedNode()` | -          | `Node \| null` | Get selected node |
 
+`elementAt({ x, y })` returns the node a click at a point on the element would select, as
+`{ kind: "node", id }`, or `null`. See [What Is Under a Point](../guide/element-at.md).
+
 ### Layout
 
 | Method                      | Parameters         | Returns         | Description                              |

@@ -21,7 +21,7 @@ import { assert, describe, test } from "vitest";
 import type { EndpointSpelling } from "../../src/data/endpoints";
 import { isGraphtyError } from "../../src/errors";
 import type { DataLoadingCompleteEvent } from "../../src/events";
-import type { Graph } from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 import simpleEdgesCsv from "../helpers/corpus/csv/simple-edges.csv?raw";
 import unnamedEndpointsCsv from "../helpers/corpus/csv/unnamed-endpoints.csv?raw";
 import fsmDot from "../helpers/corpus/dot/fsm.gv?raw";
@@ -37,10 +37,9 @@ import simpleNet from "../helpers/corpus/pajek/simple.net?raw";
  * A graph over a fresh canvas, torn down by the caller.
  * @returns the graph
  */
-async function makeGraph(): Promise<Graph> {
+function makeGraph(): Promise<Graph> {
     document.body.innerHTML = '<canvas id="endpoint-canvas"></canvas>';
-    const { Graph: GraphClass } = await import("../../src/Graph.js");
-    return new GraphClass(document.getElementById("endpoint-canvas") as HTMLCanvasElement);
+    return Promise.resolve(new Graph(document.getElementById("endpoint-canvas") as HTMLCanvasElement));
 }
 
 /** One format's fixture: how to read it, what it should produce, and which keys it should use. */
@@ -58,8 +57,20 @@ interface FormatCase {
 }
 
 const FORMATS: readonly FormatCase[] = [
-    { format: "json", data: karateD3Json, options: { node: { path: "nodes" }, edge: { path: "links" } }, edges: 78, resolvedFrom: "source/target" },
-    { format: "json", data: visjsJson, options: { node: { path: "nodes" }, edge: { path: "edges" } }, edges: 5, resolvedFrom: "from/to" },
+    {
+        format: "json",
+        data: karateD3Json,
+        options: { node: { path: "nodes" }, edge: { path: "links" } },
+        edges: 78,
+        resolvedFrom: "source/target",
+    },
+    {
+        format: "json",
+        data: visjsJson,
+        options: { node: { path: "nodes" }, edge: { path: "edges" } },
+        edges: 5,
+        resolvedFrom: "from/to",
+    },
     { format: "csv", data: simpleEdgesCsv, edges: 5, resolvedFrom: "source/target" },
     { format: "graphml", data: simpleGraphml, edges: 5, resolvedFrom: "source/target" },
     { format: "gexf", data: lesMiserablesGexf, edges: 254, resolvedFrom: "source/target" },

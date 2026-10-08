@@ -70,14 +70,20 @@ export function compareRounds(rounds, options = {}) {
     const out = [];
     for (const [key, { base, candidate }] of rows) {
         if (candidate.length === 0 || base.length === 0) {
-            out.push({ key, status: candidate.length === 0 ? "removed" : "new", ratio: NaN, low: NaN, high: NaN });
+            out.push({
+                key,
+                status: candidate.length === 0 ? "removed" : "new",
+                ratio: Number.NaN,
+                low: Number.NaN,
+                high: Number.NaN,
+            });
             continue;
         }
         const n = Math.min(base.length, candidate.length);
         const logs = Array.from({ length: n }, (_, i) => Math.log(candidate[i] / base[i]));
         const mean = logs.reduce((a, b) => a + b, 0) / n;
         if (n < 2) {
-            out.push({ key, status: "too few rounds", ratio: Math.exp(mean), low: NaN, high: NaN });
+            out.push({ key, status: "too few rounds", ratio: Math.exp(mean), low: Number.NaN, high: Number.NaN });
             continue;
         }
         const variance = logs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);

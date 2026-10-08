@@ -32,7 +32,7 @@ import {
 
 import type { Scope } from "../../catalog/types";
 import { EDGE_ID_COLUMN } from "../../data/edgeIdentity";
-import { isGraphtyError } from "../../errors";
+import { type GraphtyError, isGraphtyError } from "../../errors";
 import { canonicalize } from "../runs/runId";
 import type { LiveScope, SelectorTarget } from "../styles/predicate";
 import type { ElementIndices } from "../styles/repaint";
@@ -44,7 +44,7 @@ interface Held {
     readonly resolution: Resolution | null;
     /** The snapshot it was resolved against. */
     readonly graph: GraphSnapshot;
-    readonly problem?: string;
+    readonly problem?: GraphtyError;
 }
 
 /** Everything the live scopes read from their session. */
@@ -155,7 +155,7 @@ class Entry implements LiveScope {
         return this.#carry(held, graph)[target];
     }
 
-    problem(): string | undefined {
+    problem(): GraphtyError | undefined {
         return this.#ensure().problem;
     }
 
@@ -205,13 +205,13 @@ class Entry implements LiveScope {
 
             return resolution.problem === undefined
                 ? { resolution, graph }
-                : { resolution: null, graph, problem: resolution.problem.message };
+                : { resolution: null, graph, problem: resolution.problem };
         } catch (error) {
             if (!isGraphtyError(error)) {
                 throw error;
             }
 
-            return { resolution: null, graph: this.sources.snapshot(), problem: error.message };
+            return { resolution: null, graph: this.sources.snapshot(), problem: error };
         }
     }
 

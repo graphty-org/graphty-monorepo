@@ -43,14 +43,15 @@ export interface IWERHandle {
  * Install it BEFORE the graph initializes: the element asks the runtime which modes are supported
  * once, at init, and draws its VR / AR buttons from that answer.
  *
- * IWER cannot be removed completely. It also pins `navigator.userAgent` (non-configurable) and adds
- * `makeXRCompatible` to WebGL2; `uninstall` restores `navigator.xr`, which is what the element reads.
+ * Chromium exposes its own `navigator.xr`, and IWER 2.5 declines to replace a native runtime unless
+ * forced, so the install is forced. `uninstall` hands back everything IWER replaced: `navigator.xr`,
+ * `navigator.userAgent`, the WebXR globals and `makeXRCompatible`.
  * @returns the device, the session record and the uninstall function
  */
 export function installIWER(): IWERHandle {
     const device = new XRDevice(metaQuest3);
 
-    device.installRuntime();
+    device.installRuntime({ forceInstall: true });
 
     const { xr } = navigator;
 
@@ -83,8 +84,7 @@ export function installIWER(): IWERHandle {
         device,
         sessions,
         uninstall: () => {
-            // IWER defined `xr` on the navigator instance, shadowing the browser's own getter.
-            Reflect.deleteProperty(navigator, "xr");
+            device.uninstallRuntime();
         },
     };
 }

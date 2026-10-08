@@ -2,12 +2,9 @@
  * Tests for the logs_search MCP tool.
  */
 
-import { beforeEach,describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-    logsSearchHandler,
-    logsSearchTool,
-} from "../../../src/mcp/tools/logs-search.js";
+import { logsSearchHandler, logsSearchTool } from "../../../src/mcp/tools/logs-search.js";
 import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_search tool", () => {
@@ -16,15 +13,23 @@ describe("logs_search tool", () => {
     beforeEach(() => {
         storage = new LogStorage();
         // Add some test data
-        storage.addLogs("session-1", [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "User logged in successfully" },
-            { time: "2024-01-15T10:01:00Z", level: "ERROR", message: "Connection timeout error" },
-            { time: "2024-01-15T10:02:00Z", level: "INFO", message: "User logged out" },
-        ], { projectMarker: "project-a" });
-        storage.addLogs("session-2", [
-            { time: "2024-01-15T10:03:00Z", level: "WARN", message: "High memory usage" },
-            { time: "2024-01-15T10:04:00Z", level: "ERROR", message: "Out of memory error" },
-        ], { projectMarker: "project-b" });
+        storage.addLogs(
+            "session-1",
+            [
+                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "User logged in successfully" },
+                { time: "2024-01-15T10:01:00Z", level: "ERROR", message: "Connection timeout error" },
+                { time: "2024-01-15T10:02:00Z", level: "INFO", message: "User logged out" },
+            ],
+            { projectMarker: "project-a" },
+        );
+        storage.addLogs(
+            "session-2",
+            [
+                { time: "2024-01-15T10:03:00Z", level: "WARN", message: "High memory usage" },
+                { time: "2024-01-15T10:04:00Z", level: "ERROR", message: "Out of memory error" },
+            ],
+            { projectMarker: "project-b" },
+        );
     });
 
     it("searches by substring (case-insensitive)", async () => {
@@ -33,8 +38,8 @@ describe("logs_search tool", () => {
         });
 
         expect(result.results).toHaveLength(2);
-        expect(result.results.some(r => r.message.includes("logged in"))).toBe(true);
-        expect(result.results.some(r => r.message.includes("logged out"))).toBe(true);
+        expect(result.results.some((r) => r.message.includes("logged in"))).toBe(true);
+        expect(result.results.some((r) => r.message.includes("logged out"))).toBe(true);
     });
 
     it("searches by regex when regex: true", async () => {
@@ -64,7 +69,7 @@ describe("logs_search tool", () => {
         });
 
         expect(result.results).toHaveLength(2);
-        expect(result.results.every(r => r.level === "ERROR")).toBe(true);
+        expect(result.results.every((r) => r.level === "ERROR")).toBe(true);
     });
 
     it("respects limit (default 100)", async () => {

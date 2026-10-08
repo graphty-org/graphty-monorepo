@@ -93,8 +93,11 @@ describe("Arrow Tail Support", () => {
 
         assert.exists(arrowHead);
         assert.exists(arrowTail);
-        assert.notEqual(arrowHead.id, arrowTail.id);
+        // Two caps, drawn by two different batches -- which is the whole of what "the head and
+        // the tail are not the same arrow" means once neither owns a mesh.
+        assert.notStrictEqual(arrowHead, arrowTail);
         assert.notEqual(arrowHead.name, arrowTail.name);
+        assert.notStrictEqual(arrowHead.batchMesh, arrowTail.batchMesh);
     });
 
     test("none type returns null for arrow tail", () => {
@@ -149,9 +152,9 @@ describe("Arrow Tail Support", () => {
         assert.exists(arrowHead);
         assert.exists(arrowTail);
 
-        // Both should have size parameter applied (size 3.0 applied differently per arrow type)
-        // Just verify they both exist and are properly sized
-        assert.exists(arrowHead.scaling);
-        assert.exists(arrowTail.scaling);
+        // Both carry the size the style asked for. A cap's drawn extent is its span, and the
+        // element's own cap of size 1 spans 0.933, so 3.0 has to read well clear of it.
+        assert.isAbove(arrowHead.span, 1);
+        assert.isAbove(arrowTail.span, 1);
     });
 });

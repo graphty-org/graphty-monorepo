@@ -24,6 +24,7 @@ Claim checked: `pnpm -r run build` is tsc-only so `@graphty/graph-format`
 cannot be resolved, strict-consumer fails with TS2307, build-output skips.
 
 What I found:
+
 - `packages/graph-format/tsconfig.build.json` includes `graph-format.ts` (a
   root re-export shim) with `rootDir: "."`, so tsc alone DOES emit
   `dist/graph-format.js` and `dist/graph-format.d.ts` (probe: tsc into
@@ -41,11 +42,10 @@ What I found:
   after `pnpm -r run build`: `dist/browser.{js,d.ts}` and `dist/node.{js,d.ts}`
   do not exist; the strict-consumer paths map (`@graphty/<pkg>/*` ->
   `./dist/*.d.ts`, graph-io/tsconfig.strict-consumer.json lines 8-11; plan
-  527-528 "against dist/*.d.ts") gives TS2307 for the subpath imports; the
+  527-528 "against dist/\*.d.ts") gives TS2307 for the subpath imports; the
   mirrored `build-output.test.ts` `it.skipIf(!bundleExists)` pattern
   (graph-io/test/build-output.test.ts 140-149; graph-format 137-139) skips the
-  "no `\"webgpu\"` in dist/browser.js" assertion (plan 389-392, 2713, G1 line
-  3159) -- the one bundle property the package exists to guarantee is never
+  "no `\"webgpu\"` in dist/browser.js" assertion (plan 389-392, 2713, G1 line 3159) -- the one bundle property the package exists to guarantee is never
   checked in CI.
 - Root `packages/package.json` line 8 already defines `build` as
   `pnpm -r run build:all`, and the monorepo nx target runs `build:all`
@@ -162,7 +162,7 @@ are `undefined` when `COVERAGE_DIR` is set or `--project=browser` /
 `--project=default` is on argv. Plan 11.8 (2816-2818) adopts this pattern
 ("skipped when a single --project is selected") while every CI invocation is
 `--project=node --coverage` (2949, 3076) and G1 (3159) requires ">= 80/80/
-75/80 on the node project". tools/merge-coverage.sh and .github/workflows/*.yml
+75/80 on the node project". tools/merge-coverage.sh and .github/workflows/\*.yml
 contain no threshold (grep: nothing). So no command the plan runs ever
 enforces the numbers G1 cites.
 
@@ -294,7 +294,7 @@ copies graph-format's tsx harness (`bench()`, `appendSession` writing
 benchmarks/harness.ts lines 16-34, 205-229; `package.json` line 43 `tsx
 benchmarks/run.ts`); 10.4 (2622) records targets "in
 benchmarks/results/<host>-node<version>.json". vitest 3.2.7 does have
-`--outputJson` (dist/chunks/cac.*.js) with its own shape. Two more facts:
+`--outputJson` (dist/chunks/cac.\*.js) with its own shape. Two more facts:
 graph-format's `bench()` takes a synchronous `run: (input) => unknown`
 (harness.ts line 52) so a GPU benchmark needs an async variant; and "runner
 class" is never defined (host + node version in the harness file name vs
@@ -402,10 +402,8 @@ oracle is the reference for the 5e-2 leg and the distributional metrics.
   this field is required" and `package_json_file` defaults to
   `package.json` at the checkout root. The repository root `package.json`
   has no `packageManager` (it is the npm scaffold, `"name":
-  "@graphty/webgpu-graph-algorithms"`; note 07 section 5 rewrites or deletes
-  it); `packageManager: pnpm@10.0.0` lives in `packages/package.json` line
-  21. Both jobs fail at the second step. The section 12 review note (3135-
-  3138) fixed the `working-directory` for `run` steps but not the action.
+"@graphty/webgpu-graph-algorithms"`; note 07 section 5 rewrites or deletes
+  it); `packageManager: pnpm@10.0.0` lives in `packages/package.json` line 21. Both jobs fail at the second step. The section 12 review note (3135- 3138) fixed the `working-directory` for `run` steps but not the action.
 - `packages/pnpm-workspace.yaml` lists `graph-format` and `graph-io`
   explicitly (lines 1-3) and `packages/knip.config.ts` enumerates workspaces
   by name (lines 17-43); P0 (3158) lists neither addition (12.5 / 3104-3105

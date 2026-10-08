@@ -1,7 +1,6 @@
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
-import type { AdHocData } from "../../../src/config/index.js";
 import { isGraphtyError } from "../../../src/errors/index.js";
 import { Graph } from "../../../src/Graph.js";
 import { setBehavior } from "../../helpers/testSetup.js";
@@ -43,9 +42,9 @@ describe("Camera Presets - 2D", () => {
 
     test("fitToGraph preset calculates 2D zoom based on node bounds", async () => {
         // Set up graph with known bounds
-        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n2", position: { x: 200, y: 150, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n3", position: { x: -100, y: -75, z: 0 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 200, y: 150, z: 0 } });
+        await graph.addNode({ id: "n3", position: { x: -100, y: -75, z: 0 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("fitToGraph");
@@ -65,8 +64,8 @@ describe("Camera Presets - 2D", () => {
 
     test("topView preset provides standard 2D view", async () => {
         // Add some nodes to establish bounds
-        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 0 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 0 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("topView");

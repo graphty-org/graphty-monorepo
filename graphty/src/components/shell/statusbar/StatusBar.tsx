@@ -121,14 +121,22 @@ function SlotDivider(): React.JSX.Element {
  * @param exploreNotesExpanded - Whether Explore is open with Notes expanded.
  * @returns The issues to draw, or undefined when nothing is left to draw.
  */
-function visibleIssues(issues: StatusBarIssuesModel | undefined, exploreNotesExpanded: boolean): StatusBarIssuesModel | undefined {
+function visibleIssues(
+    issues: StatusBarIssuesModel | undefined,
+    exploreNotesExpanded: boolean,
+): StatusBarIssuesModel | undefined {
     if (issues === undefined) {
         return undefined;
     }
 
     const notes = exploreNotesExpanded ? undefined : issues.notes;
 
-    if (issues.validation === undefined && notes === undefined && issues.performance === undefined && issues.acceleration === undefined) {
+    if (
+        issues.validation === undefined &&
+        notes === undefined &&
+        issues.performance === undefined &&
+        issues.acceleration === undefined
+    ) {
         return undefined;
     }
 

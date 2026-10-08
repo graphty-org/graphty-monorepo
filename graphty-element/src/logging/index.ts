@@ -31,7 +31,13 @@
 
 // Core exports
 export { type LogFormatOptions } from "./format.js";
-export { formatLogRecord, GraphtyLogger, type GraphtyLoggerConfig, type Logger, type LogSinkReference } from "./GraphtyLogger.js";
+export {
+    formatLogRecord,
+    GraphtyLogger,
+    type GraphtyLoggerConfig,
+    type Logger,
+    type LogSinkReference,
+} from "./GraphtyLogger.js";
 export { lazy } from "./LazyEval.js";
 export {
     configureLogging,

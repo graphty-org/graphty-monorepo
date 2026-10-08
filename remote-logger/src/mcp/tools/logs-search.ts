@@ -50,10 +50,7 @@ export interface LogsSearchOutput {
  * @param input - Input parameters
  * @returns Matching logs and count
  */
-export function logsSearchHandler(
-    storage: LogStorage,
-    input: LogsSearchInput,
-): Promise<LogsSearchOutput> {
+export function logsSearchHandler(storage: LogStorage, input: LogsSearchInput): Promise<LogsSearchOutput> {
     // Validate regex if provided
     if (input.regex) {
         try {

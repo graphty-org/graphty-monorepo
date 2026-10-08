@@ -36,6 +36,7 @@ const radialLayoutOptionsSchema = defineOptions({
 
 const RadialLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(100),
     root: z.union([z.string(), z.number()]).nullable().default(null),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -50,8 +51,6 @@ export class RadialLayout extends SnapshotLayoutEngine {
     static type = "radial";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = radialLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: RadialLayoutConfigType;
 
@@ -99,7 +98,7 @@ export class RadialLayout extends SnapshotLayoutEngine {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
             }),
-            RadialLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

@@ -59,7 +59,10 @@ describe("calibrateCost: measuring this machine", () => {
         }
 
         for (const rate of Object.values(calibration.rates)) {
-            assert.isTrue(Number.isFinite(rate) && rate > 0, "a probed rate that is not a positive number is not a rate");
+            assert.isTrue(
+                Number.isFinite(rate) && rate > 0,
+                "a probed rate that is not a positive number is not a rate",
+            );
         }
     });
 
@@ -99,7 +102,11 @@ describe("calibrateCost: measuring this machine", () => {
         try {
             const calibration = await calibrateCost({ budgetMs: 3 });
 
-            assert.equal(reads.mock.calls.length, 6, "the probe must not become the slow thing it exists to warn about");
+            assert.equal(
+                reads.mock.calls.length,
+                6,
+                "the probe must not become the slow thing it exists to warn about",
+            );
             assert.equal(calibration.basis, "defaults", "a share spent before the clock's resolution yields no rate");
         } finally {
             reads.mockRestore();
@@ -187,10 +194,19 @@ describe("CostMeasurementLog: what runs actually took", () => {
     it("drops a timing that cannot be scaled rather than storing it", () => {
         const log = new CostMeasurementLog();
 
-        assert.isFalse(log.record({ algorithm: "degree", nodes: 10, edges: 20, seconds: Number.NaN, at: "a", machine: "m" }));
+        assert.isFalse(
+            log.record({ algorithm: "degree", nodes: 10, edges: 20, seconds: Number.NaN, at: "a", machine: "m" }),
+        );
         assert.isFalse(log.record({ algorithm: "degree", nodes: -1, edges: 20, seconds: 1, at: "a", machine: "m" }));
         assert.isFalse(
-            log.record({ algorithm: "degree", nodes: 10, edges: Number.POSITIVE_INFINITY, seconds: 1, at: "a", machine: "m" }),
+            log.record({
+                algorithm: "degree",
+                nodes: 10,
+                edges: Number.POSITIVE_INFINITY,
+                seconds: 1,
+                at: "a",
+                machine: "m",
+            }),
         );
         assert.equal(log.size, 0);
     });

@@ -1,142 +1,52 @@
-import { Color3, Mesh, Scene, StandardMaterial, Vector3, VertexData } from "@babylonjs/core";
+import { Color3, Mesh, type Scene, StandardMaterial, VertexData } from "@babylonjs/core";
 
 /**
  * Renderer for simple 2D solid lines in world-space
  *
- * Creates rectangular meshes in the XY plane using StandardMaterial.
- * In 2D orthographic mode, the camera looks down at the XY plane,
- * so lines are simple rectangles positioned and rotated in that plane.
+ * A 2D line is a flat rectangle in the XY plane, drawn with a StandardMaterial so it scales with
+ * the orthographic camera's zoom the way the nodes do.
  *
- * This enables proper world-space zoom behavior where lines scale
- * proportionally with the camera zoom level.
+ * ONE MESH PER APPEARANCE, NOT PER EDGE (issue #444). This builds the mesh an `EdgeLineBatch`
+ * draws every 2D line of one colour, width and opacity from: each edge is a thin-instance slot
+ * placed by `segmentMatrixToRef`, the same matrix a 3D line's slot takes. It used to build a mesh
+ * and a material per edge (the material even named with `Date.now()`, so no two were shared).
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class Simple2DLineRenderer {
     /**
-     * Create a 2D line mesh
+     * Build the mesh a batch of 2D lines is drawn from.
      *
-     * Creates a simple rectangle in the XY plane, positioned at the midpoint
-     * and rotated to align with the line direction.
-     * @param start - Start position of the line
-     * @param end - End position of the line
+     * THE RECTANGLE LIES ALONG LOCAL Z AND ACROSS LOCAL Y, which is what lets a 2D line share the
+     * 3D line's slot matrix. `segmentMatrixToRef` points local Z along the line and scales it to
+     * the line's length; for any line in the XY plane its turn keeps local X on world Z, so local
+     * Y is the in-plane perpendicular. A rectangle spanning local Y and Z therefore lands in the
+     * XY plane with its long side on the line -- the same four corners the old per-edge mesh put
+     * there by scaling (length, width) and turning about Z.
      * @param width - Width of the line in world units
      * @param color - Hex color string (e.g., "#ff0000")
      * @param opacity - Opacity value 0-1
      * @param scene - Babylon.js scene
-     * @returns Mesh representing the 2D line
+     * @returns The unplaced rectangle, with its material
      */
-    static create(start: Vector3, end: Vector3, width: number, color: string, opacity: number, scene: Scene): Mesh {
+    static createBatchMesh(width: number, color: string, opacity: number, scene: Scene): Mesh {
         const mesh = new Mesh("line-2d", scene);
+        const half = width / 2;
 
-        // Calculate line properties. The length is the XY distance: the quad lies in XY and the
-        // camera looks down Z, so a Z on an endpoint must not stretch it past its nodes.
-        const direction = end.subtract(start);
-        const length = Math.hypot(direction.x, direction.y);
+        const vertexData = new VertexData();
+        vertexData.positions = [0, half, 0.5, 0, -half, 0.5, 0, -half, -0.5, 0, half, -0.5];
+        vertexData.indices = [0, 1, 2, 0, 2, 3];
+        vertexData.normals = [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0];
+        vertexData.applyToMesh(mesh);
 
-        // Create unit rectangle geometry (1x1 in XY plane, centered at origin)
-        this.createUnitRectangle(mesh);
-
-        // Create StandardMaterial
-        const material = new StandardMaterial(`line-2d-material-${Date.now()}`, scene);
-        const colorObj = Color3.FromHexString(color);
-        material.emissiveColor = colorObj; // Self-illuminated (no lighting needed)
+        const material = new StandardMaterial("line-2d-material", scene);
+        material.emissiveColor = Color3.FromHexString(color); // Self-illuminated (no lighting needed)
         material.alpha = opacity;
         material.disableLighting = true; // Disable lighting for consistent flat appearance
         material.backFaceCulling = false; // Visible from both sides
         mesh.material = material;
 
-        // Position at midpoint
-        const midpoint = start.add(end).scale(0.5);
-        mesh.position = midpoint;
-
-        // Scale: length in X direction, width in Y direction
-        mesh.scaling = new Vector3(length, width, 1);
-
-        // Rotate to align with line direction in XY plane
-        // Calculate angle from +X axis to the line direction (in XY plane only)
-        const angle = Math.atan2(direction.y, direction.x);
-        mesh.rotation.z = angle; // Rotate around Z axis
-
-        // Store metadata
-        mesh.metadata = mesh.metadata ?? {};
-        mesh.metadata.is2DLine = true;
-        mesh.metadata.lineWidth = width;
+        mesh.metadata = { is2DLine: true, lineWidth: width };
 
         return mesh;
-    }
-
-    /**
-     * Update line positions
-     *
-     * Updates the mesh position, scaling, and rotation when line endpoints change.
-     * @param mesh - Mesh to update
-     * @param start - New start position
-     * @param end - New end position
-     */
-    static updatePositions(mesh: Mesh, start: Vector3, end: Vector3): void {
-        // Calculate line properties. The length is the XY distance: the quad lies in XY and the
-        // camera looks down Z, so a Z on an endpoint must not stretch it past its nodes.
-        const direction = end.subtract(start);
-        const length = Math.hypot(direction.x, direction.y);
-
-        // Get current width from mesh metadata
-        const width = mesh.metadata?.lineWidth ?? 0.1;
-
-        // Update position to midpoint
-        const midpoint = start.add(end).scale(0.5);
-        mesh.position = midpoint;
-
-        // Update scaling (length in X, width in Y)
-        mesh.scaling = new Vector3(length, width, 1);
-
-        // Update rotation to align with line direction in XY plane
-        const angle = Math.atan2(direction.y, direction.x);
-        mesh.rotation.z = angle;
-    }
-
-    /**
-     * Create a unit rectangle (1x1) centered at the origin in the XY plane
-     *
-     * This geometry will be scaled and rotated to match the line's length and direction.
-     * @param mesh - Mesh to apply geometry to
-     */
-    private static createUnitRectangle(mesh: Mesh): void {
-        // Create a 1x1 rectangle centered at origin in the XY plane
-        // Vertices: from -0.5 to +0.5 in both X and Y, Z=0
-        const positions = [
-            0.5,
-            0.5,
-            0, // Top-right
-            0.5,
-            -0.5,
-            0, // Bottom-right
-            -0.5,
-            -0.5,
-            0, // Bottom-left
-            -0.5,
-            0.5,
-            0, // Top-left
-        ];
-
-        // Two triangles to form the rectangle
-        const indices = [
-            0,
-            1,
-            2, // First triangle
-            0,
-            2,
-            3, // Second triangle
-        ];
-
-        // Normals pointing in +Z direction (toward camera in 2D orthographic view)
-        const normals = [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1];
-
-        // Apply vertex data
-        const vertexData = new VertexData();
-        vertexData.positions = positions;
-        vertexData.indices = indices;
-        vertexData.normals = normals;
-
-        vertexData.applyToMesh(mesh);
     }
 }

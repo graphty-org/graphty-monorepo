@@ -16,11 +16,18 @@
 import type { EdgeId, FieldDescriptor, NodeId, ResultShape, RunId, SetDefinitionInput } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
-import type { Dispatcher } from "./project/Dispatcher";
+import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import type { CodedFact } from "./shared";
-import type { GraphSession, ProjectConfigPatch, ProjectSlice, TransactionScope } from "./types";
+import type {
+    DataSourceInput,
+    GraphSession,
+    LoadDraft,
+    ProjectConfigPatch,
+    ProjectSlice,
+    TransactionScope,
+} from "./types";
 
 /** The container's `kind`. */
 const DOCUMENT_KIND = "graphty-document";
@@ -135,12 +142,19 @@ export interface ProjectOpenOptions {
 export interface ProjectOpenReport {
     /**
      * What the file was: `"project"` (it holds a `graphty-session` member, and replaced the
-     * session) or `"document"` (a graphty document that is not a project, such as a saved style
-     * or notes, whose contents were added to the session).
+     * session), `"document"` (a graphty document that is not a project, such as a saved style
+     * or notes, whose contents were added to the session) or `"graph"` (a data file -- CSV,
+     * GraphML, GML, any format `session.data.import` reads -- read into {@link draft} and not
+     * loaded yet).
      *
      * OPEN UNION: later releases add values.
      */
-    readonly opened: "project" | "document";
+    readonly opened: "project" | "document" | "graph";
+    /**
+     * The load draft a data file was read into, when `opened` is `"graph"`: what
+     * `session.data.prepare` returns for the file. Nothing is in the graph until `draft.load()`.
+     */
+    readonly draft?: LoadDraft;
     /** The project's name after the open. */
     readonly name: string | null;
     /** The parts of the project that came back. */
@@ -203,15 +217,19 @@ export interface ProjectApi {
      */
     markSaved(saved: SavedProject): void;
     /**
-     * Open a graphty document. A project replaces the session, with a fresh history; any other
-     * graphty document (a style, notes) is added as one undoable step.
+     * Open a graphty document or a data file: the one intake verb for an "Open..." door, so the
+     * caller never decides what a file is. A project replaces the session, with a fresh history;
+     * any other graphty document (a style, notes) is added as one undoable step; a data file is
+     * read into a load draft (`opened: "graph"`, `draft`), as `session.data.prepare` reads it,
+     * and loads when the caller calls `draft.load()`.
      * @param source - The file, its bytes, or its text. Never a URL: nothing is fetched.
      * @param options - Whether to discard unsaved changes, the file's name, the size limit.
      * @returns What came back and what did not.
      * @throws A `GraphtyError` (as a rejection), leaving the session as it was:
      *     `E_UNSAVED_CHANGES` for a project over unsaved changes without `discard`, `E_TOO_LARGE`
-     *     past the size limit, `E_PARSE_FAILED` for text that is not JSON, `E_UNKNOWN_FORMAT` for
-     *     JSON that is not a graphty document (or data in a dialect other than node-link),
+     *     past the size limit, the codes `session.data.prepare` refuses a data file with
+     *     (`E_UNKNOWN_FORMAT` for a file no format reads, `E_PARSE_FAILED` for one its format
+     *     cannot read), `E_UNKNOWN_FORMAT` for embedded data in a dialect other than node-link,
      *     `E_BAD_DOCUMENT` for a malformed document, `E_UNSUPPORTED_VERSION` for a newer one, and
      *     `E_UNSUPPORTED` for one that requires a member kind this element does not read.
      */
@@ -472,6 +490,8 @@ function write(
     });
 
     const { layout, visibility, selection } = session;
+    // Where the graph was loaded from, and what the reader named it: not the rows, which are above.
+    const source = session.data.source();
     const leaveOut = new Set<string>(options.leaveOut ?? []);
     const members: Record<string, unknown>[] = [
         {
@@ -488,6 +508,7 @@ function write(
                 nodes,
                 links: edges.map(({ id: _id, ...edge }) => edge),
             },
+            ...(source === null ? {} : { source }),
         },
         {
             kind: "graphty-session",
@@ -621,6 +642,24 @@ async function textOf(source: Blob | Uint8Array | string, limit: number): Promis
     }
 
     return source instanceof Uint8Array ? new TextDecoder().decode(source) : source.text();
+}
+
+/**
+ * What `session.data.prepare` reads for a file `open` was handed that is not a graphty document:
+ * the `File` itself, so its name says its format, or its text, named when a name was given.
+ * @param source - What `open` was handed.
+ * @param text - Its text.
+ * @param fileName - Its name, when known.
+ * @returns The source.
+ */
+function dataSourceOf(source: ProjectSource, text: string, fileName: unknown): DataSourceInput {
+    const name = typeof fileName === "string" && fileName !== "" ? fileName : undefined;
+    if (source instanceof Blob && name !== undefined) {
+        return { config: { file: source instanceof File ? source : new File([source], name) }, name };
+    }
+
+    // Named text reads as a file of that name, so its extension says its format as a File's does.
+    return name === undefined ? { config: { data: text } } : { config: { file: new File([text], name) }, name };
 }
 
 /**
@@ -784,6 +823,9 @@ function nodeLinkOf(member: Record<string, unknown>): NodeLink {
     return graph as NodeLink;
 }
 
+/** The transaction opening a document that is not a project into the session. */
+const OPEN_DOCUMENT: TransactionOptions = { fact: { code: "document.open", params: {} } };
+
 /**
  * Empty the session, through the transaction.
  * @param tx - The transaction.
@@ -823,12 +865,13 @@ async function clearInto(tx: TransactionScope): Promise<void> {
 }
 
 /**
- * Add a data member's graph.
+ * Add a data member's graph, and the source it records.
  * @param tx - The transaction.
  * @param graph - The graph.
+ * @param source - The member's `source`: where the graph was loaded from, when the file says.
  * @returns The edge ids this session gave the file's edges, by position.
  */
-async function importInto(tx: TransactionScope, graph: NodeLink): Promise<(EdgeId | undefined)[]> {
+async function importInto(tx: TransactionScope, graph: NodeLink, source: unknown): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges().length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
@@ -841,6 +884,10 @@ async function importInto(tx: TransactionScope, graph: NodeLink): Promise<(EdgeI
             ...(typeof graph.directed === "boolean" ? { directed: graph.directed } : {}),
         },
     });
+    if (isObject(source)) {
+        await tx.execute({ op: "data.setSource", source });
+    }
+
     return tx.data
         .edges()
         .slice(before)
@@ -931,21 +978,19 @@ async function readProject(
     name: string | null,
     canned: CannedOutcomes,
 ): Promise<void> {
+    const source = doc.members.get("graphty-data")?.[0]?.source;
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
     await clearInto(tx);
-    await attempt(opening, "config", () =>
-        tx.config.set({ ...(isObject(state.config) ? state.config : {}), name } as ProjectConfigPatch),
-    );
-    const edgeIds = await importInto(tx, graph);
+    await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
+    const edgeIds = await importInto(tx, graph, source);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
 
     const layout = state.layout as
-        | { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" }
-        | undefined;
+        { id: string; engine: string; options: Record<string, unknown>; dimension: "2d" | "3d" } | undefined;
     if (layout !== undefined) {
         await attempt(opening, "layout", async () => {
             await tx.layout.set(layout.id, { engine: layout.engine, options: layout.options });
@@ -972,8 +1017,7 @@ async function readProject(
 
     // Before the runs: a run over the selection reads it. The selection is not project state.
     const view = doc.members.get("graphty-view-state")?.[0]?.selection as
-        | { nodes?: NodeId[]; edges?: number[] }
-        | undefined;
+        { nodes?: NodeId[]; edges?: number[] } | undefined;
     if (view !== undefined) {
         try {
             await tx.selection.apply({
@@ -1143,7 +1187,7 @@ function rowsOf<Key, Id extends NodeId>(
         }
 
         if (id !== undefined && Object.keys(values).length > 0) {
-            out.push({ id, values } as ResultElementValues<Id>);
+            out.push({ id, values });
         }
     });
     return out;
@@ -1266,7 +1310,7 @@ export function projectOf(
             return isDirty();
         },
         rename(name) {
-            return session.config.set({ name } as ProjectConfigPatch);
+            return session.config.set({ name });
         },
         save(options = {}) {
             const { document, leftOut } = write(session, dispatcher, isDerived, options);
@@ -1297,8 +1341,27 @@ export function projectOf(
         },
         async open(source, options = {}) {
             const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
-            const doc = readDocument(text);
             const fileName = options.fileName ?? (source as { name?: unknown }).name;
+            let doc: ReadDocument;
+            try {
+                doc = readDocument(text);
+            } catch (error) {
+                // Not a graphty document: a data file, read the way session.data.prepare reads one.
+                if (!isGraphtyError(error) || (error.code !== "E_UNKNOWN_FORMAT" && error.code !== "E_PARSE_FAILED")) {
+                    throw error;
+                }
+
+                const draft = await session.data.prepare(dataSourceOf(source, text, fileName));
+                return Object.freeze({
+                    opened: "graph" as const,
+                    draft,
+                    name: nameNow(),
+                    restored: Object.freeze([]),
+                    problems: Object.freeze([]),
+                    extensions: Object.freeze({}),
+                });
+            }
+
             const isProject = doc.members.has("graphty-session");
             const problems = [...doc.problems];
             const restored = new Set<ProjectSlice>();
@@ -1320,8 +1383,11 @@ export function projectOf(
 
                 const graph = nodeLinkOf(data);
                 const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-                await session.transaction("Open project", (tx) =>
-                    readProject({ tx, problems, restored }, doc, graph, name, canned),
+                const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+                await session.transaction(
+                    "Open project",
+                    (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
+                    opening,
                 );
                 // A project opens with a fresh history: its opened state is the baseline.
                 session.history.clear();
@@ -1329,26 +1395,30 @@ export function projectOf(
             } else {
                 const data = doc.members.get("graphty-data")?.[0];
                 const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
-                await session.transaction("Open document", async (tx) => {
-                    const opening = { tx, problems, restored };
-                    if (graph !== undefined) {
-                        await importInto(tx, graph);
-                        restored.add("graph");
-                    }
-
-                    for (const kind of [
-                        "graphty-session",
-                        "graphty-arrangement",
-                        "graphty-results",
-                        "graphty-view-state",
-                    ] as const) {
-                        if (doc.members.has(kind)) {
-                            problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                await session.transaction(
+                    "Open document",
+                    async (tx) => {
+                        const opening = { tx, problems, restored };
+                        if (graph !== undefined) {
+                            await importInto(tx, graph, data?.source);
+                            restored.add("graph");
                         }
-                    }
 
-                    await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
-                });
+                        for (const kind of [
+                            "graphty-session",
+                            "graphty-arrangement",
+                            "graphty-results",
+                            "graphty-view-state",
+                        ] as const) {
+                            if (doc.members.has(kind)) {
+                                problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                            }
+                        }
+
+                        await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
+                    },
+                    OPEN_DOCUMENT,
+                );
             }
 
             return Object.freeze({

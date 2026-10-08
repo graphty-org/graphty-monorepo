@@ -219,7 +219,7 @@ describe("useAiManager", () => {
             mockStatusCallback({
                 state: "error",
                 error: new Error("Test error"),
-            } as AiStatus);
+            });
         });
 
         expect(result.current.error).not.toBeNull();
@@ -247,31 +247,31 @@ describe("useAiManager", () => {
 
         // Submitted
         act(() => {
-            mockStatusCallback({ state: "submitted" } as AiStatus);
+            mockStatusCallback({ state: "submitted" });
         });
         expect(result.current.isProcessing).toBe(true);
 
         // Streaming
         act(() => {
-            mockStatusCallback({ state: "streaming" } as AiStatus);
+            mockStatusCallback({ state: "streaming" });
         });
         expect(result.current.isProcessing).toBe(true);
 
         // Executing a tool
         act(() => {
-            mockStatusCallback({ state: "executing" } as AiStatus);
+            mockStatusCallback({ state: "executing" });
         });
         expect(result.current.isProcessing).toBe(true);
 
         // Ready again
         act(() => {
-            mockStatusCallback({ state: "ready" } as AiStatus);
+            mockStatusCallback({ state: "ready" });
         });
         expect(result.current.isProcessing).toBe(false);
 
         // Failed
         act(() => {
-            mockStatusCallback({ state: "error" } as AiStatus);
+            mockStatusCallback({ state: "error" });
         });
         expect(result.current.isProcessing).toBe(false);
     });

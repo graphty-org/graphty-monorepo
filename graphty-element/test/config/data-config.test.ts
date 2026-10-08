@@ -112,7 +112,7 @@ describe("parseAlgorithmsOnLoad", () => {
         assert.strictEqual(error.details.index, 1);
         assert.deepStrictEqual(error.details.entry, bad);
         assert.include(error.message, "graphty:pagerank");
-        assert.include(error.message, "at \"style");
+        assert.include(error.message, 'at "style');
     });
 
     it("refuses a value that is not a list", () => {

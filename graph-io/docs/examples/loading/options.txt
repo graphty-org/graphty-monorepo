@@ -1,0 +1,4 @@
+undirected, 2 edges
+ids: A, B, C
+warnings: 0
+first id: "1"

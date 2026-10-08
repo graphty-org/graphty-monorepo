@@ -29,6 +29,25 @@ export interface NodeLabelCounts {
     readonly hiddenByOverlap: number;
 }
 
+/**
+ * One node's label as the element draws it.
+ * @since 3.15.0
+ */
+export interface NodeLabel {
+    /**
+     * The words drawn, after the label's text was bound to the node's data and its markup
+     * (`<bold>`, `<color='...'>`) was applied: markup tags are not part of it. Lines are joined
+     * with `"\n"`.
+     */
+    readonly text: string;
+    /**
+     * False when the label is not drawn: its node is hidden (a filter or the time window), or
+     * `layoutBehavior.labels.declutter` hid it because it would overlap a label it kept. A label
+     * outside the current view still reads true, as it does in {@link NodeLabelCounts}.
+     */
+    readonly drawn: boolean;
+}
+
 /** The counts before any label is drawn. */
 export const NO_NODE_LABELS: NodeLabelCounts = Object.freeze({ labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
 
@@ -37,6 +56,16 @@ export const NO_NODE_LABELS: NodeLabelCounts = Object.freeze({ labeled: 0, nodeH
  * gesture or a moving layout publishes once when it stops rather than every frame.
  */
 const QUIET_FRAMES = 10;
+
+/**
+ * Whether two counts say the same thing.
+ * @param a - One.
+ * @param b - The other.
+ * @returns True when every count is equal.
+ */
+function sameCounts(a: NodeLabelCounts, b: NodeLabelCounts): boolean {
+    return a.labeled === b.labeled && a.nodeHidden === b.nodeHidden && a.hiddenByOverlap === b.hiddenByOverlap;
+}
 
 /** One labeled node, what the last pass saw of it, and where its words were on screen. */
 interface Entry {
@@ -113,6 +142,8 @@ export class LabelDeclutter {
     /** Frames since the last pass; publishing happens once, when this reaches QUIET_FRAMES. */
     private quiet = 0;
     private published: NodeLabelCounts = NO_NODE_LABELS;
+    /** Callers of {@link LabelDeclutter.whenPublished} waiting for the next publish. */
+    private readonly waiters: (() => void)[] = [];
     private camera: Camera | null = null;
     private readonly view = new Float64Array(16);
     private readonly projection = new Float64Array(16);
@@ -183,6 +214,7 @@ export class LabelDeclutter {
     /** Stop running before frames. */
     dispose(): void {
         this.scene.onBeforeRenderObservable.remove(this.observer);
+        this.release();
         if (this.scene.metadata?.labelDeclutter === this) {
             this.scene.metadata.labelDeclutter = undefined;
         }
@@ -214,19 +246,43 @@ export class LabelDeclutter {
         }
     }
 
-    /** Tell the context the counts, when they differ from the last it was told. */
-    private publish(): void {
-        const { counts, published } = this;
-        if (
-            counts.labeled === published.labeled &&
-            counts.nodeHidden === published.nodeHidden &&
-            counts.hiddenByOverlap === published.hiddenByOverlap
-        ) {
-            return;
+    /**
+     * Resolves once the counts of the last pass have been published -- at once when they already
+     * are -- so a wait for the finished picture (`waitForStableFrame`) also waits for the
+     * `graphty-label-change` that announces them. Without it a picture taken on the stable frame
+     * shows whatever the page last read, which depends on whether the {@link QUIET_FRAMES} frames
+     * after it happened to be drawn before the picture was taken.
+     * @returns A promise that resolves when nothing is left to publish.
+     */
+    whenPublished(): Promise<void> {
+        // A setting switched since the last pass is a pass still to come: without this check a
+        // wait started right after `labels.declutter` changed resolved before any label moved.
+        const on = this.context.getStyles().config.behavior.labels.declutter;
+        if (!this.dirty && on === this.wasOn && sameCounts(this.counts, this.published)) {
+            return Promise.resolve();
         }
 
-        this.published = counts;
-        this.context.onNodeLabelCounts?.notifyObservers(counts);
+        return new Promise((resolve) => {
+            this.waiters.push(resolve);
+        });
+    }
+
+    /** Tell the context the counts, when they differ from the last it was told. */
+    private publish(): void {
+        const { counts } = this;
+        if (!sameCounts(counts, this.published)) {
+            this.published = counts;
+            this.context.onNodeLabelCounts?.notifyObservers(counts);
+        }
+
+        this.release();
+    }
+
+    /** Resolve every {@link LabelDeclutter.whenPublished} waiting. */
+    private release(): void {
+        for (const resolve of this.waiters.splice(0)) {
+            resolve();
+        }
     }
 
     /** The setting is off: count the labels without placing any. */

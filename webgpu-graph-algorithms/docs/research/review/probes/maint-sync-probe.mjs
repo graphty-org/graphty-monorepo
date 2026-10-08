@@ -13,40 +13,56 @@ const dawn = await import(require.resolve("webgpu"));
 Object.assign(globalThis, dawn.globals);
 const gpu = dawn.create(process.argv.slice(2));
 const adapter = await gpu.requestAdapter();
-if (!adapter) { console.log("no adapter"); process.exit(1); }
+if (!adapter) {
+    console.log("no adapter");
+    process.exit(1);
+}
 const L = adapter.limits;
 console.log("adapter:", adapter.info.vendor, adapter.info.architecture, adapter.info.device);
-console.log("adapter limits:", JSON.stringify({
-    maxComputeWorkgroupsPerDimension: L.maxComputeWorkgroupsPerDimension,
-    maxStorageBuffersPerShaderStage: L.maxStorageBuffersPerShaderStage,
-    maxBindGroups: L.maxBindGroups,
-    maxComputeInvocationsPerWorkgroup: L.maxComputeInvocationsPerWorkgroup,
-    maxComputeWorkgroupSizeX: L.maxComputeWorkgroupSizeX,
-    maxUniformBufferBindingSize: L.maxUniformBufferBindingSize,
-    minUniformBufferOffsetAlignment: L.minUniformBufferOffsetAlignment,
-}));
+console.log(
+    "adapter limits:",
+    JSON.stringify({
+        maxComputeWorkgroupsPerDimension: L.maxComputeWorkgroupsPerDimension,
+        maxStorageBuffersPerShaderStage: L.maxStorageBuffersPerShaderStage,
+        maxBindGroups: L.maxBindGroups,
+        maxComputeInvocationsPerWorkgroup: L.maxComputeInvocationsPerWorkgroup,
+        maxComputeWorkgroupSizeX: L.maxComputeWorkgroupSizeX,
+        maxUniformBufferBindingSize: L.maxUniformBufferBindingSize,
+        minUniformBufferOffsetAlignment: L.minUniformBufferOffsetAlignment,
+    }),
+);
 const dflt = await adapter.requestDevice();
-console.log("default device limits:", JSON.stringify({
-    maxComputeWorkgroupsPerDimension: dflt.limits.maxComputeWorkgroupsPerDimension,
-    maxStorageBuffersPerShaderStage: dflt.limits.maxStorageBuffersPerShaderStage,
-    maxBindGroups: dflt.limits.maxBindGroups,
-}));
+console.log(
+    "default device limits:",
+    JSON.stringify({
+        maxComputeWorkgroupsPerDimension: dflt.limits.maxComputeWorkgroupsPerDimension,
+        maxStorageBuffersPerShaderStage: dflt.limits.maxStorageBuffersPerShaderStage,
+        maxBindGroups: dflt.limits.maxBindGroups,
+    }),
+);
 dflt.destroy();
 
 let raised = null;
-const adapter2 = await gpu.requestAdapter();   // Dawn-node 0.4.0: an adapter is "consumed" by one requestDevice
+const adapter2 = await gpu.requestAdapter(); // Dawn-node 0.4.0: an adapter is "consumed" by one requestDevice
 try {
-    raised = await adapter2.requestDevice({ requiredLimits: {
-        maxComputeWorkgroupsPerDimension: L.maxComputeWorkgroupsPerDimension,
-        maxStorageBuffersPerShaderStage: L.maxStorageBuffersPerShaderStage,
-    } });
-    console.log("raised device limits:", JSON.stringify({
-        maxComputeWorkgroupsPerDimension: raised.limits.maxComputeWorkgroupsPerDimension,
-        maxStorageBuffersPerShaderStage: raised.limits.maxStorageBuffersPerShaderStage,
-    }));
-} catch (e) { console.log("raise failed:", String(e)); }
+    raised = await adapter2.requestDevice({
+        requiredLimits: {
+            maxComputeWorkgroupsPerDimension: L.maxComputeWorkgroupsPerDimension,
+            maxStorageBuffersPerShaderStage: L.maxStorageBuffersPerShaderStage,
+        },
+    });
+    console.log(
+        "raised device limits:",
+        JSON.stringify({
+            maxComputeWorkgroupsPerDimension: raised.limits.maxComputeWorkgroupsPerDimension,
+            maxStorageBuffersPerShaderStage: raised.limits.maxStorageBuffersPerShaderStage,
+        }),
+    );
+} catch (e) {
+    console.log("raise failed:", String(e));
+}
 
-const device = raised ?? await (await gpu.requestAdapter()).requestDevice();
+const device = raised ?? (await (await gpu.requestAdapter()).requestDevice());
 device.addEventListener("uncapturederror", (ev) => console.log("UNCAPTURED:", ev.error.message.split("\n")[0]));
 
 const code = /* wgsl */ `
@@ -60,7 +76,9 @@ override HAS_WEIGHTS: bool = false;   // declared in the prelude, never referenc
 const module = device.createShaderModule({ code });
 const info = await module.getCompilationInfo();
 console.log("compile messages:", info.messages.length);
-const bgl = device.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }] });
+const bgl = device.createBindGroupLayout({
+    entries: [{ binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } }],
+});
 const layout = device.createPipelineLayout({ bindGroupLayouts: [bgl] });
 
 async function tryPipeline(label, constants) {
@@ -68,9 +86,14 @@ async function tryPipeline(label, constants) {
     let ok = true;
     try {
         await device.createComputePipelineAsync({ label, layout, compute: { module, entryPoint: "main", constants } });
-    } catch (e) { ok = false; console.log(`${label}: createComputePipelineAsync rejected: ${String(e).split("\n")[0]}`); }
+    } catch (e) {
+        ok = false;
+        console.log(`${label}: createComputePipelineAsync rejected: ${String(e).split("\n")[0]}`);
+    }
     const err = await device.popErrorScope();
-    console.log(`${label}: constants=${JSON.stringify(constants)} -> ${ok ? "created" : "rejected"}; validation scope: ${err ? err.message.split("\n")[0] : "none"}`);
+    console.log(
+        `${label}: constants=${JSON.stringify(constants)} -> ${ok ? "created" : "rejected"}; validation scope: ${err ? err.message.split("\n")[0] : "none"}`,
+    );
 }
 await tryPipeline("A-declared-unreferenced-set", { WG: 256, USE_PERM: 1, HAS_WEIGHTS: 0 });
 await tryPipeline("B-undeclared-override-key", { WG: 256, LINLOG: 0 });

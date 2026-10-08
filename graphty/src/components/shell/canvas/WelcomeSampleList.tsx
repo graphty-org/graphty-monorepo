@@ -18,7 +18,7 @@
  * Colour is NOT the board's. CONTRAST-DIVERGENCE section 3 keeps the artboards' dim ink
  * (#7a828e) as a border value only and resolves accent through Mantine, so every ink
  * below is a `PANEL_INK` token: the board's #d5d7da is VALUE, its #a3a8b1 blurb is
- * PROSE, its #7a828e chrome is CHROME, its #5b8ff9 link is ACCENT, its #2a3035 row fill
+ * PROSE, its #7a828e chrome is CHROME, its #5b8ff9 link is BRAND_TEXT (the link token; ACCENT is a fill and fails 4.5:1 as text), its #2a3035 row fill
  * is SURFACE and its #374047 row border is BORDER. The pill fill, which the board also
  * draws as #374047, is RAISED rather than BORDER: a chip standing on the row's surface
  * is a raised surface, not a boundary, and using the border token as a fill is how a
@@ -170,12 +170,28 @@ function LargeBadge(): React.JSX.Element {
     );
 }
 
+/** Strips a native button down to its text, so it draws like the span it replaces. */
+const BARE_BUTTON: React.CSSProperties = {
+    padding: 0,
+    margin: 0,
+    border: "none",
+    background: "transparent",
+    fontFamily: "inherit",
+    textAlign: "left",
+    cursor: "pointer",
+};
+
+/** Lifts a secondary control above the open button's stretched hit area. */
+const ABOVE_HIT_AREA: React.CSSProperties = { position: "relative", zIndex: 1 };
+
 /**
- * One sample row: the whole card is the control.
+ * One sample row.
  *
- * It is a `div` with `role="button"` rather than a `<button>` because it holds two
- * controls of its own -- the credit link and the closing hint -- and a button inside a
- * button is not valid HTML. Enter and Space activate it, as a button would.
+ * The row's own action, "open this sample", is a real `<button>` on the sample's name.
+ * A transparent span inside it is stretched over the whole card, so a click anywhere on
+ * the card still opens the sample. The credit link and the closing hint are siblings of
+ * that button, not children, and sit above the stretched area, so each control is reached
+ * once by Tab and announced as itself (axe `nested-interactive`, issue #508).
  * @param props - the row's facts and its two routes in.
  * @returns the row element.
  */
@@ -184,17 +200,9 @@ function SampleRow(props: SampleRowProps): React.JSX.Element {
 
     return (
         <div
-            data-sample-row={sample.id}
-            role="button"
-            tabIndex={0}
-            onClick={sample.onOpen}
-            onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    sample.onOpen();
-                }
-            }}
+            data-sample-card={sample.id}
             style={{
+                position: "relative",
                 display: "flex",
                 flexDirection: "column",
                 gap: CANVAS_SPACE.XS,
@@ -216,8 +224,12 @@ function SampleRow(props: SampleRowProps): React.JSX.Element {
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", gap: CANVAS_SPACE.SM, minWidth: 0 }}>
-                    <span
+                    <button
+                        type="button"
+                        data-sample-row={sample.id}
+                        onClick={sample.onOpen}
                         style={{
+                            ...BARE_BUTTON,
                             fontSize: CANVAS_TYPE.BODY,
                             fontWeight: 500,
                             lineHeight: CANVAS_LEADING.TIGHT,
@@ -225,7 +237,8 @@ function SampleRow(props: SampleRowProps): React.JSX.Element {
                         }}
                     >
                         {sample.name}
-                    </span>
+                        <span aria-hidden="true" style={{ position: "absolute", inset: 0 }} />
+                    </button>
                     {sample.large && <LargeBadge />}
                     {sample.tags.map((tag) => (
                         <TagPill key={tag} label={tag} />
@@ -234,13 +247,11 @@ function SampleRow(props: SampleRowProps): React.JSX.Element {
                         href={sample.creditHref}
                         target="_blank"
                         rel="noreferrer"
-                        onClick={(event) => {
-                            event.stopPropagation();
-                        }}
                         style={{
+                            ...ABOVE_HIT_AREA,
                             fontSize: CANVAS_TYPE.SMALL,
                             lineHeight: CANVAS_LEADING.TIGHT,
-                            color: PANEL_INK.ACCENT,
+                            color: PANEL_INK.BRAND_TEXT,
                             whiteSpace: "nowrap",
                             textDecoration: "none",
                         }}
@@ -270,30 +281,20 @@ function SampleRow(props: SampleRowProps): React.JSX.Element {
             >
                 {sample.blurb}
                 {sample.hint !== undefined && sample.onOpenAndRun !== undefined && (
-                    <span
+                    <button
+                        type="button"
                         data-sample-hint={sample.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            sample.onOpenAndRun?.();
-                        }}
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                sample.onOpenAndRun?.();
-                            }
-                        }}
+                        onClick={sample.onOpenAndRun}
                         style={{
+                            ...BARE_BUTTON,
+                            ...ABOVE_HIT_AREA,
                             fontSize: CANVAS_TYPE.SMALL,
                             lineHeight: CANVAS_LEADING.DENSE,
-                            color: PANEL_INK.ACCENT,
-                            cursor: "pointer",
+                            color: PANEL_INK.BRAND_TEXT,
                         }}
                     >
                         {sample.hint}
-                    </span>
+                    </button>
                 )}
             </span>
         </div>

@@ -338,10 +338,19 @@
             })();
         </script>
 
-        <!-- Load BabylonJS -->
-        <!-- crossorigin="anonymous" enables full error details from CDN scripts -->
-        <script src="https://cdn.babylonjs.com/babylon.js" crossorigin="anonymous"></script>
-        <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js" crossorigin="anonymous"></script>
+        <!-- Babylon.js, pinned to the version graphty-element installs. The integrity hashes match
+             the babylonjs and babylonjs-loaders npm packages at that version, so a new version
+             needs new hashes. The integrity check needs an anonymous cross-origin request. -->
+        <script
+            src="https://cdn.babylonjs.com/v8.43.0/babylon.js"
+            integrity="sha384-coYm6VFB3/3jq9+aeZRIl7A7ByQM9UsAnpXBOdvGreBb+x+G3ZxD38Kfm+/WolFu"
+            crossorigin="anonymous"
+        ></script>
+        <script
+            src="https://cdn.babylonjs.com/v8.43.0/loaders/babylonjs.loaders.min.js"
+            integrity="sha384-iqEidtVgMx5jXNxn2RtX9wxMGcSUTIUn5ybhg/D8tTLzKHtCxz7QW12lEWzvodVG"
+            crossorigin="anonymous"
+        ></script>
 
         <script>
             console.log("📦 BabylonJS version:", BABYLON.Engine.Version);
@@ -458,7 +467,7 @@
                  * @param pitchDelta - Rotation around local X-axis in radians
                  */
                 rotate(yawDelta, pitchDelta) {
-                    if (!isFinite(yawDelta) || !isFinite(pitchDelta)) return;
+                    if (!Number.isFinite(yawDelta) || !Number.isFinite(pitchDelta)) return;
 
                     const hasYaw = Math.abs(yawDelta) > 0.0001;
                     const hasPitch = Math.abs(pitchDelta) > 0.0001;
@@ -503,8 +512,8 @@
                  * @param angle - Rotation angle in radians
                  */
                 rotateAroundAxis(axis, angle) {
-                    if (!axis || !isFinite(angle) || Math.abs(angle) < 0.0001) return;
-                    if (!isFinite(axis.x) || !isFinite(axis.y) || !isFinite(axis.z)) return;
+                    if (!axis || !Number.isFinite(angle) || Math.abs(angle) < 0.0001) return;
+                    if (!Number.isFinite(axis.x) || !Number.isFinite(axis.y) || !Number.isFinite(axis.z)) return;
 
                     // Normalize the axis
                     const normalizedAxis = axis.normalize();
@@ -528,7 +537,7 @@
                  * @param factor - Zoom factor (>1 = zoom out/shrink, <1 = zoom in/grow)
                  */
                 zoom(factor) {
-                    if (!isFinite(factor) || factor <= 0) return;
+                    if (!Number.isFinite(factor) || factor <= 0) return;
 
                     // Clamp factor to reasonable per-frame range
                     const clampedFactor = Math.max(0.95, Math.min(1.05, factor));
@@ -559,7 +568,8 @@
                  * @param delta - Translation vector in world coordinates
                  */
                 pan(delta) {
-                    if (!delta || !isFinite(delta.x) || !isFinite(delta.y) || !isFinite(delta.z)) return;
+                    if (!delta || !Number.isFinite(delta.x) || !Number.isFinite(delta.y) || !Number.isFinite(delta.z))
+                        return;
 
                     const magnitude = delta.length();
                     if (magnitude < 0.0001) return;
@@ -582,7 +592,7 @@
                  * @param forward - Movement along view's forward vector
                  */
                 panViewRelative(right, forward) {
-                    if (!isFinite(right) || !isFinite(forward)) return;
+                    if (!Number.isFinite(right) || !Number.isFinite(forward)) return;
                     if (Math.abs(right) < 0.0001 && Math.abs(forward) < 0.0001) return;
 
                     // Calculate view-relative directions using accumulated yaw
@@ -1528,7 +1538,12 @@
                         try {
                             const gripPos = controller.grip.position;
                             // Verify position is valid (not disposed)
-                            if (!gripPos || !isFinite(gripPos.x) || !isFinite(gripPos.y) || !isFinite(gripPos.z)) {
+                            if (
+                                !gripPos ||
+                                !Number.isFinite(gripPos.x) ||
+                                !Number.isFinite(gripPos.y) ||
+                                !Number.isFinite(gripPos.z)
+                            ) {
                                 // Controller grip is invalid, skip to hand tracking
                             } else {
                                 const trigger = controller.motionController.getComponent("xr-standard-trigger");
@@ -1566,7 +1581,7 @@
                                     if (!wrist.position || !thumbTip.position || !indexTip.position) {
                                         return null;
                                     }
-                                    if (!isFinite(wrist.position.x) || !isFinite(thumbTip.position.x)) {
+                                    if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
                                         return null;
                                     }
 
@@ -1801,7 +1816,7 @@
 
                         try {
                             // Apply zoom - hands apart = scale down (zoom out)
-                            if (gesture.zoomDelta !== undefined && isFinite(gesture.zoomDelta)) {
+                            if (gesture.zoomDelta !== undefined && Number.isFinite(gesture.zoomDelta)) {
                                 // Invert: hands apart (zoomDelta > 1) should scale down
                                 this.pivot.zoom(2.0 - gesture.zoomDelta);
                             }
@@ -1813,7 +1828,7 @@
                             if (
                                 gesture.rotationAxis &&
                                 gesture.rotationAngle !== undefined &&
-                                isFinite(gesture.rotationAngle) &&
+                                Number.isFinite(gesture.rotationAngle) &&
                                 gesture.rotationAngle > 0.0001
                             ) {
                                 this.pivot.rotateAroundAxis(gesture.rotationAxis, -gesture.rotationAngle);

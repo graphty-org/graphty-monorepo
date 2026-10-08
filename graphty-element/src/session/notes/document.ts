@@ -398,6 +398,11 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
         throw new Error("its edited is not a real date and time with an offset");
     }
 
+    const { done } = raw;
+    if (done !== undefined && Number.isNaN(instantOf(done))) {
+        throw new Error("its done is not a real date and time with an offset");
+    }
+
     const { author } = raw;
     if (author !== undefined && (!isString(author, 256) || !/\S/u.test(author))) {
         throw new Error("its author is empty, only white space, or longer than 256 characters");
@@ -431,6 +436,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
     for (const [field, value] of [
         ["time", time],
         ["edited", edited],
+        ["done", done],
     ] as const) {
         if (value !== undefined && instantOf(value) > now + DAY) {
             notices.push(
@@ -454,6 +460,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
             edited: edited as string | undefined,
             cites: cites as Note["cites"],
             extensions,
+            done: done as string | undefined,
         },
         extra,
     );
@@ -581,6 +588,7 @@ function contentOf(note: Note): string {
             id: undefined,
             time: instantOf(note.time),
             edited: note.edited === undefined ? undefined : instantOf(note.edited),
+            done: note.done === undefined ? undefined : instantOf(note.done),
         });
         contents.set(note, content);
     }
@@ -700,5 +708,5 @@ export function writeMember(
         ...(name === undefined ? {} : { name }),
         ...(description === undefined ? {} : { description }),
         notes: Object.freeze(ordered),
-    }) as NotesDocument;
+    });
 }

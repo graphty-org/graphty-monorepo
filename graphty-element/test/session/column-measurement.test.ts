@@ -10,7 +10,9 @@ import { algorithmByKey } from "../../src/catalog/algorithms";
 import type { AttributeDescriptor } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
 import { createGraphSession } from "../../src/session";
+import { createRunResult } from "../../src/session/results";
 import { fieldMeasurement } from "../../src/session/results/types";
+import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { GraphSession } from "../../src/session/types";
 
 const KINDS = ["a", "b", "c", "d"];
@@ -160,6 +162,74 @@ describe("encoding a column", () => {
         const sized = await graph.styles.encode({ column: score, channel: "node.size" });
         assert.deepInclude(sized.encode?.["node.size"], { scale: "linear", range: [1, 3] });
         assert.deepEqual(sized.selector, { match: "has", path: "data.score" });
+        graph.dispose();
+    });
+
+    it("sizes by a run over the same default range a column gets, on node.size and edge.width (#915)", async () => {
+        // Degree publishes a number per node and max-flow one per edge; the values do not matter
+        // here, only that each run publishes an amount its channel sizes by.
+        const execute = (context: RunExecutionContext): Promise<RunOutcome> => {
+            const onEdges = context.algorithm === "max-flow";
+            return Promise.resolve({
+                result: createRunResult({
+                    runId: context.runId,
+                    shape: onEdges ? "edge-metric" : "node-metric",
+                    fields: [
+                        {
+                            name: "value",
+                            plainName: "Value",
+                            technicalName: "value",
+                            kind: onEdges ? "edge" : "node",
+                            type: "number",
+                            path: "results.$.value",
+                        },
+                    ],
+                    measured: { nodes: graph.data.nodes().length, edges: graph.data.edges().length },
+                    nodes: onEdges
+                        ? []
+                        : graph.data.nodes().map((node, index) => ({ id: node.id, values: { value: index } })),
+                    edges: onEdges
+                        ? graph.data.edges().map((edge, index) => ({ id: edge.id, values: { value: index } }))
+                        : [],
+                    caveats: { exact: true, direction: "as-loaded", precision: "f64", method: "test", notes: [] },
+                    durationMs: 1,
+                }),
+            });
+        };
+        const graph = createGraphSession({ runs: { execute } });
+        await graph.data.addNodes(
+            Array.from({ length: 40 }, (_, index) => ({ id: `n${String(index)}`, score: index })),
+        );
+        await graph.data.addEdges(
+            Array.from({ length: 39 }, (_, index) => ({
+                src: `n${String(index)}`,
+                dst: `n${String(index + 1)}`,
+                capacity: index + 1,
+            })),
+        );
+        const capacity = graph.data.attributes().find((each) => each.kind === "edge" && each.name === "capacity");
+        assert.isDefined(capacity);
+        const degree = await graph.runs.start("degree", undefined, { style: false });
+        const flow = await graph.runs.start("max-flow", { source: "n0", sink: "n39" }, { style: false });
+
+        for (const [run, field, columnRef, channel] of [
+            [degree.runId, undefined, column(graph, "score"), "node.size"],
+            [flow.runId, "value", capacity, "edge.width"],
+        ] as const) {
+            const fromColumn = graph.styles.proposeEncoding({ column: columnRef, channel });
+            const fromRun = graph.styles.proposeEncoding({ run, field, channel });
+            assert.isTrue(fromColumn.ok && fromRun.ok, channel);
+            const columnRange = fromColumn.ok ? fromColumn.binding.range : undefined;
+            assert.deepEqual(columnRange, [1, 3], channel);
+            assert.deepEqual(fromRun.ok ? fromRun.binding.range : undefined, columnRange, channel);
+
+            const layer = await graph.styles.encode({ run, field, channel });
+            assert.deepInclude(layer.encode?.[channel], { range: columnRange }, channel);
+
+            const named = graph.styles.proposeEncoding({ run, field, channel, range: [2, 9] });
+            assert.deepEqual(named.ok ? named.binding.range : undefined, [2, 9], `${channel}: a named range is kept`);
+        }
+
         graph.dispose();
     });
 

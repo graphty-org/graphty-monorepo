@@ -12,9 +12,10 @@
  * a yellow chip over a deep-purple graph.
  *
  * `styles.legend()` answers all of it from the prepared bindings the repaint painted from:
- * the field's plain and technical names, the scale's own words out of the scale catalogue,
- * the domain, the palette, up to twelve swatches with their values and their colours, and
- * the departures as finished sentences. It is synchronous and measures nothing.
+ * the field's path, the scale's id, the domain, the palette, up to twelve swatches with their
+ * values and their colours, and the departures as coded facts. It is synchronous and measures
+ * nothing. The words for all of it are written here and in `legendWords.ts`: the field's name
+ * from the session's attributes or the algorithm catalogue, the scale's from the scale catalogue.
  *
  * WHAT IS LEFT HERE is presentation, which is the app's: which of the element's channels
  * the canvas legend draws a block for, the canvas's own five-category cap and its Other
@@ -31,9 +32,11 @@
  * hex written down beside the element is a copy that goes wrong the moment the element changes it.
  */
 
-import type { Channel, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
+import { BUILT_IN_ALGORITHMS, scaleDescriptor } from "@graphty/graphty-element/catalog";
+import type { Channel, GraphSession, LegendBlock, LegendSwatch } from "@graphty/graphty-element/session";
 
 import { defaultNodeHex } from "../../../utils/channelControls";
+import { factSentence, swatchText } from "../../../workspace/canvas/legendWords";
 import { CANVAS_METRICS, LEGEND_BLOCK_ORDER, type LegendChannelId } from "./canvasLayout";
 import type { LegendCategory, LegendChannel, LegendStop } from "./Legend";
 
@@ -80,6 +83,84 @@ const MIDPOINT_STOP_PREFIX = "midpoint ";
 /** What the compact form's dimmed suffix says for a block with no scale of its own. */
 const LITERAL_SCALE_SHORT = "fixed";
 
+/** The names the legend words a block with, which only the session knows. */
+interface LegendNames {
+    /**
+     * The plain name of the field a block reads.
+     * @param block - the block.
+     * @returns the name, or undefined when the session has none for it.
+     */
+    readonly field?: (block: LegendBlock) => string | undefined;
+    /**
+     * The name of a layer, which is what a fixed-value row is called.
+     * @param layerId - the layer.
+     * @returns the name, or undefined when the stack holds no such layer.
+     */
+    readonly layer?: (layerId: string) => string | undefined;
+}
+
+/**
+ * The legend's names out of one session: a run result's plain name from the catalogue entry the
+ * block's `field.result` names, a column's from `data.attributes()` by its path.
+ * @param session - the session.
+ * @returns the names.
+ * @public
+ */
+export function legendNamesOf(session: Pick<GraphSession, "data" | "styles">): LegendNames {
+    return {
+        field: (block) => {
+            const { field } = block;
+            if (field === undefined) {
+                return undefined;
+            }
+            const { result } = field;
+            if (result !== undefined) {
+                return BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === result.algorithm)?.fields.find(
+                    (candidate) => candidate.name === result.field,
+                )?.plainName;
+            }
+            const target = session.styles.get(block.layerId)?.target;
+            return session.data
+                .attributes()
+                .find((attribute) => attribute.path === field.path && attribute.kind === target)?.plainName;
+        },
+        layer: (layerId) => session.styles.get(layerId)?.name,
+    };
+}
+
+/**
+ * The last segment of a dotted path.
+ * @param path - the path.
+ * @returns its last segment.
+ */
+function lastSegment(path: string): string {
+    return path.slice(path.lastIndexOf(".") + 1);
+}
+
+/**
+ * A field's name when the session has none: the path's last segment in title case
+ * (`results.r1.inDegree` reads "In Degree").
+ * @param path - the field's path.
+ * @returns the name.
+ */
+function pathWords(path: string): string {
+    const words = lastSegment(path)
+        .replaceAll(/([a-z\d])([A-Z])/g, "$1 $2")
+        .split(/[\s_-]+/u)
+        .filter((word) => word !== "");
+    const name = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+    return name === "" ? path : name;
+}
+
+/**
+ * The scale in words, from the scale catalogue, or its id for a scale the catalogue does not list.
+ * @param kind - the scale's id.
+ * @returns the words.
+ */
+function scaleWords(kind: string): string {
+    return scaleDescriptor(kind)?.plainName ?? kind;
+}
+
 /**
  * The colour a swatch is drawn in: its own, or what the element paints a node no layer has
  * encoded when the swatch carries none (a size-only categorical block, for one).
@@ -105,17 +186,18 @@ function isQuantitative(block: LegendBlock): boolean {
  * The colour is the swatch's OWN colour, never a palette lookup at a position this module
  * chose: the element painted the canvas from the same prepared binding, so the chip and the
  * node it stands for are one value read twice rather than two guesses.
+ * @param block - the block the swatch belongs to.
  * @param swatch - the swatch the element published.
  * @param prefix - {@link MIDPOINT_STOP_PREFIX} for the middle stop, "" for the two ends.
  * @returns the stop, or undefined when the element published no swatch there.
  */
-function stopOf(swatch: LegendSwatch | undefined, prefix: string): LegendStop | undefined {
+function stopOf(block: LegendBlock, swatch: LegendSwatch | undefined, prefix: string): LegendStop | undefined {
     if (swatch === undefined) {
         return undefined;
     }
 
     return {
-        label: `${prefix}${swatch.label}`,
+        label: `${prefix}${swatchText(block, swatch)}`,
         ...(swatch.color === undefined ? {} : { color: swatch.color }),
         ...(swatch.size === undefined ? {} : { radius: swatch.size }),
     };
@@ -128,19 +210,20 @@ function stopOf(swatch: LegendSwatch | undefined, prefix: string): LegendStop | 
  * COLOUR that swatch carries rather than a palette lookup at a position chosen here -- so the
  * chip and the nodes it stands for are one value read twice. A block with fewer than three
  * swatches draws the ones it has.
- * @param swatches - the swatches the element published, low to high.
+ * @param block - the block the element published, its swatches low to high.
  * @returns the stops, in drawing order.
  */
-function rampStops(swatches: readonly LegendSwatch[]): readonly LegendStop[] {
+function rampStops(block: LegendBlock): readonly LegendStop[] {
+    const { swatches } = block;
     if (swatches.length === 0) {
         return [];
     }
 
     const middle = swatches.length > 2 ? swatches[Math.floor(swatches.length / 2)] : undefined;
     const stops = [
-        stopOf(swatches[0], ""),
-        stopOf(middle, MIDPOINT_STOP_PREFIX),
-        stopOf(swatches.length > 1 ? swatches[swatches.length - 1] : undefined, ""),
+        stopOf(block, swatches[0], ""),
+        stopOf(block, middle, MIDPOINT_STOP_PREFIX),
+        stopOf(block, swatches.length > 1 ? swatches.at(-1) : undefined, ""),
     ];
 
     return stops.filter((stop): stop is LegendStop => stop !== undefined);
@@ -148,17 +231,16 @@ function rampStops(swatches: readonly LegendSwatch[]): readonly LegendStop[] {
 
 /**
  * The categorical rows a block draws, capped at the canvas's own five.
- * @param swatches - the swatches the element published, largest first.
+ * @param block - the block the element published, its swatches largest first.
+ * @param layerName - the name of the layer behind the block, for a fixed-value row.
  * @returns at most five rows.
  */
-function categoriesOf(swatches: readonly LegendSwatch[]): readonly LegendCategory[] {
-    return swatches.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS).map(
-        (swatch, index): LegendCategory => ({
-            id: `swatch-${String(index)}`,
-            label: swatch.label,
-            color: swatchColor(swatch),
-        }),
-    );
+function categoriesOf(block: LegendBlock, layerName: string | undefined): readonly LegendCategory[] {
+    return block.swatches.slice(0, CANVAS_METRICS.LEGEND_MAX_CATEGORY_ROWS).map((swatch, index): LegendCategory => ({
+        id: `swatch-${String(index)}`,
+        label: swatchText(block, swatch, layerName),
+        color: swatchColor(swatch),
+    }));
 }
 
 /**
@@ -199,36 +281,39 @@ function otherRowOf(block: LegendBlock): LegendChannel["other"] {
  * is what it is: one value, one chip. It carries the scale word "fixed" rather than a scale
  * it does not have.
  * @param block - the block the element published.
+ * @param names - the session's names for fields and layers.
  * @returns the canvas's own block, or undefined.
  * @public
  */
-export function legendChannelOf(block: LegendBlock): LegendChannel | null {
+export function legendChannelOf(block: LegendBlock, names: LegendNames = {}): LegendChannel | null {
     const id = CANVAS_BLOCK_OF[block.channel];
 
     if (id === undefined) {
         return null;
     }
 
-    const scaleLine = block.scale?.label ?? LITERAL_SCALE_SHORT;
+    const scaleLine = block.scale === undefined ? LITERAL_SCALE_SHORT : scaleWords(block.scale.kind);
+    const fieldName = block.field === undefined ? undefined : (names.field?.(block) ?? pathWords(block.field.path));
+    const departures = block.facts.flatMap((fact) => factSentence(fact) ?? []);
     const common = {
         channel: id,
         channelLabel: BLOCK_LABEL[id],
-        attribute: block.field?.plainName ?? block.scale?.label ?? BLOCK_LABEL[id],
+        attribute: fieldName ?? (block.scale === undefined ? BLOCK_LABEL[id] : scaleLine),
         ...(block.field?.technicalName === undefined ? {} : { technicalName: block.field.technicalName }),
         scaleLine,
         scaleShort: block.scale?.kind ?? LITERAL_SCALE_SHORT,
-        ...(block.departures.length === 0 ? {} : { departures: block.departures }),
+        ...(departures.length === 0 ? {} : { departures }),
     };
 
     if (isQuantitative(block)) {
-        return { ...common, stops: rampStops(block.swatches) };
+        return { ...common, stops: rampStops(block) };
     }
 
     const other = otherRowOf(block);
 
     return {
         ...common,
-        categories: categoriesOf(block.swatches),
+        categories: categoriesOf(block, names.layer?.(block.layerId)),
         ...(other === undefined ? {} : { other }),
     };
 }
@@ -240,14 +325,15 @@ export function legendChannelOf(block: LegendBlock): LegendChannel | null {
  * on the way out: a reader looks at the topmost encoding first, and `orderLegendChannels`
  * then puts what survives into the canvas's fixed block order.
  * @param blocks - what `session.styles.legend()` answered.
+ * @param names - the session's names for fields and layers ({@link legendNamesOf}).
  * @returns one canvas block per channel the canvas legend draws, topmost encoding first.
  * @public
  */
-export function legendChannels(blocks: readonly LegendBlock[]): readonly LegendChannel[] {
+export function legendChannels(blocks: readonly LegendBlock[], names: LegendNames = {}): readonly LegendChannel[] {
     const channels: LegendChannel[] = [];
 
     for (let at = blocks.length - 1; at >= 0; at--) {
-        const channel = legendChannelOf(blocks[at]);
+        const channel = legendChannelOf(blocks[at], names);
 
         if (channel !== null && !channels.some((held) => held.channel === channel.channel)) {
             channels.push(channel);

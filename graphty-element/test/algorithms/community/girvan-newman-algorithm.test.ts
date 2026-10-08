@@ -25,6 +25,5 @@ describe("GirvanNewmanAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "girvan-newman");
             assert.strictEqual(AlgClass, GirvanNewmanAlgorithm);
         });
-
     });
 });

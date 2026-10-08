@@ -678,6 +678,14 @@ export interface TopRanking {
     readonly leftOut: { readonly value: number; readonly count: number } | null;
     /** Why fewer elements were taken than the limit allowed, in a sentence; null when none were left out. */
     readonly reason: string | null;
+    /**
+     * The value of the highest-ranked element left out, or null when every measured element is in
+     * the top. An `{ above }` selection target or a `threshold` filter at this value selects
+     * exactly {@link TopRanking.entries}, so it is the lowest threshold whose match count fits
+     * the limit: `top(field, DEFAULT_LIMITS.renderCeiling).threshold` is where a threshold
+     * control opens with the result still drawable.
+     */
+    readonly threshold: number | null;
 }
 
 /** One bar of a histogram. */

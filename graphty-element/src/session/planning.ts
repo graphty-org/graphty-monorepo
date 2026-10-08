@@ -454,7 +454,7 @@ export function planCommand(context: PlanningContext, command: SessionCommand): 
     if ("unresolvableScope" in built) {
         return Object.freeze({
             ok: false,
-            blocked: Object.freeze({ code: "E_UNSUPPORTED" as GraphtyErrorCode, reason: built.unresolvableScope }),
+            blocked: Object.freeze({ code: "E_UNSUPPORTED", reason: built.unresolvableScope }),
             cost: unavailableEstimate(descriptor, built.unresolvableScope),
             effect: Object.freeze({ kind: "none" as const }),
             caveats: context.defaultCaveats,

@@ -88,9 +88,5 @@ export function PopoutAnchor({ children }: PopoutAnchorProps): JSX.Element {
         ref: anchorRef as Ref<HTMLElement>,
     });
 
-    return (
-        <PopoutAnchorContext.Provider value={{ anchorRef }}>
-            {childWithRef}
-        </PopoutAnchorContext.Provider>
-    );
+    return <PopoutAnchorContext.Provider value={{ anchorRef }}>{childWithRef}</PopoutAnchorContext.Provider>;
 }

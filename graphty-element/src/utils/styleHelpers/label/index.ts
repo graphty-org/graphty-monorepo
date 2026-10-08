@@ -93,7 +93,7 @@ export function integer(value: number): string {
  * substitute("Score: {score}", {score: 0.85}) // "Score: 0.85"
  */
 export function substitute(template: string, values: Record<string, unknown>): string {
-    return template.replace(/\{(\w+)\}/g, (match, key) => {
+    return template.replaceAll(/\{(\w+)\}/g, (match, key) => {
         return key in values ? String(values[key]) : match;
     });
 }

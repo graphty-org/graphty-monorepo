@@ -60,7 +60,7 @@ test("clipboard status is 'not-supported' or 'success' based on browser capabili
 
     // In most test environments, clipboard might not be supported
     // but in secure contexts it should work
-     
+
     if (window.isSecureContext && navigator.clipboard) {
         // Clipboard API is available - status should be success or permission-denied
         assert.ok(

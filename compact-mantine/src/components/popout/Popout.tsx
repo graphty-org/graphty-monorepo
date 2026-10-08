@@ -42,24 +42,14 @@ import { PopoutTrigger } from "./PopoutTrigger";
  * @param props.onOpenChange - Called when the panel opens or closes, with the new state first
  * @returns The Popout compound component
  */
-function PopoutRoot({
-    children,
-    opened,
-    defaultOpened,
-    onOpenChange,
-}: PopoutProps): JSX.Element {
+function PopoutRoot({ children, opened, defaultOpened, onOpenChange }: PopoutProps): JSX.Element {
     // A Popout written inside another Popout's panel is its child: the parent's
     // id is what the manager uses to build the hierarchy.
     const parentContext = useOptionalPopoutContext();
     const parentId = parentContext?.id ?? null;
 
     return (
-        <PopoutProvider
-            parentId={parentId}
-            opened={opened}
-            defaultOpened={defaultOpened}
-            onOpenChange={onOpenChange}
-        >
+        <PopoutProvider parentId={parentId} opened={opened} defaultOpened={defaultOpened} onOpenChange={onOpenChange}>
             {children}
         </PopoutProvider>
     );

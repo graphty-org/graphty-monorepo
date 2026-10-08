@@ -2,7 +2,6 @@ import { assert } from "chai";
 import { afterAll, afterEach, beforeEach, describe, test } from "vitest";
 
 import { clearRegisteredCamerasForTesting, registerCameraView } from "../../../extend";
-import type { AdHocData } from "../../../src/config/index.js";
 import { Graph } from "../../../src/Graph.js";
 import { setBehavior } from "../../helpers/testSetup.js";
 
@@ -45,9 +44,9 @@ describe("Camera Presets - 3D", () => {
 
     test("fitToGraph preset calculates 3D position based on node bounds", async () => {
         // Set up graph with known bounds
-        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n3", position: { x: -50, y: -50, z: -50 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } });
+        await graph.addNode({ id: "n3", position: { x: -50, y: -50, z: -50 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("fitToGraph");
@@ -66,8 +65,8 @@ describe("Camera Presets - 3D", () => {
 
     test("topView preset looks down from above in 3D mode", async () => {
         // Add some nodes to establish bounds
-        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("topView");
@@ -85,8 +84,8 @@ describe("Camera Presets - 3D", () => {
 
     test("sideView preset positions camera to the side", async () => {
         // Add some nodes to establish bounds
-        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("sideView");
@@ -101,8 +100,8 @@ describe("Camera Presets - 3D", () => {
 
     test("frontView preset positions camera in front", async () => {
         // Add some nodes to establish bounds
-        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("frontView");
@@ -117,8 +116,8 @@ describe("Camera Presets - 3D", () => {
 
     test("isometric preset creates classic 3D isometric angle", async () => {
         // Add some nodes to establish bounds
-        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } } as unknown as AdHocData);
+        await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+        await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } });
         await graph.waitForSettled();
 
         const presetState = graph.resolveCameraPreset("isometric");
@@ -160,8 +159,8 @@ describe("Camera Presets - 3D", () => {
         }
 
         async function addNodes(): Promise<void> {
-            await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } } as unknown as AdHocData);
-            await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } } as unknown as AdHocData);
+            await graph.addNode({ id: "n1", position: { x: 0, y: 0, z: 0 } });
+            await graph.addNode({ id: "n2", position: { x: 100, y: 100, z: 100 } });
             await graph.waitForSettled();
         }
 

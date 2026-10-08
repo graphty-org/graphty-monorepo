@@ -9,7 +9,6 @@ import type { GraphSink } from "@graphty/graph-format";
 import { type CommonImportOptions, type GraphImporter, ImportError, ImportReportBuilder } from "@graphty/graph-io";
 import { assert, describe, it } from "vitest";
 
-import type { AdHocData } from "../../src/config/common.js";
 import { type BaseDataSourceConfig, DataSource, type DataSourceChunk } from "../../src/data/DataSource.js";
 import { ErrorAggregator } from "../../src/data/ErrorAggregator.js";
 import {
@@ -135,11 +134,11 @@ describe("the graph-io import helper", () => {
 
         // "z" is a node of the snapshot, but the file never declared it: no record is handed over
         // for it, and the DataManager counts it as an endpoint-only node.
-        assert.deepEqual(nodes, [{ id: "a" }, { id: "b" }] as unknown as AdHocData[]);
+        assert.deepEqual(nodes, [{ id: "a" }, { id: "b" }]);
         assert.deepEqual(edges, [
             { source: "a", target: "b", weight: 0.1 },
             { source: "b", target: "z", weight: 16777217 },
-        ] as unknown as AdHocData[]);
+        ]);
     });
 
     it("hands over one record for an edge the importer expanded into two halves", async () => {
@@ -151,7 +150,7 @@ describe("the graph-io import helper", () => {
         assert.deepEqual(edges, [
             { source: "a", target: "b", weight: 0.1 },
             { source: "b", target: "z", weight: 16777217 },
-        ] as unknown as AdHocData[]);
+        ]);
     });
 
     it("applies the format's mapping to every record", async () => {
@@ -183,7 +182,13 @@ describe("the graph-io import helper", () => {
         aggregateErrors(imported.report, errors);
 
         assert.deepEqual(errors.getErrors(), [
-            { message: "a skipped element", category: "validation-error", line: 7, field: "q" },
+            {
+                message: "a skipped element",
+                category: "validation-error",
+                line: 7,
+                field: "q",
+                params: { issue: "E_TEST", element: "q" },
+            },
         ]);
     });
 

@@ -11,8 +11,9 @@ import { join } from "node:path";
 
 import { degree } from "../../src/algorithms/degree.js";
 import { WebGpuGraphError } from "../../src/errors.js";
-import { type GraphResidency } from "../../src/memory/residency.js";
+import { GraphResidency } from "../../src/memory/residency.js";
 import { type GpuCaps } from "../../src/types/context.js";
+import { fakeCaps } from "../helpers/caps-tables.js";
 import {
     type ArcWindowSpec,
     degreeFakedLimitRun,
@@ -188,6 +189,70 @@ describe("degree (spec 3.3, 11.5): the walking-skeleton algorithm", () => {
             ctx.pool.trim();
             expect(ctx.allocator.liveBuffers).toBe(0);
         } finally {
+            ctx.dispose();
+        }
+    });
+
+    it("windowed degree resolves every pipeline before it creates the command encoder (no await with a pass open)", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire();
+        // karate: rowPtr (140 B) fits a 256-byte binding, colIdx (624 B) does not, so the core is windowed
+        const residency = new GraphResidency(
+            ctx.device,
+            fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 }),
+            ctx.allocator,
+            {
+                warnUnreleasedSnapshots: 2,
+            },
+        );
+        try {
+            const s = snapshotOf(KARATE_EDGES);
+            const plain = withResidency(ctx, residency);
+            // the first run does the device self-check, which compiles and encodes on its own
+            expect(Array.from(await degree(plain, s))).toEqual(KARATE_UNDIRECTED);
+            expect(residency.core(s).windows).not.toBeNull();
+            const events: string[] = [];
+            const pipelines = new Proxy(ctx.pipelines, {
+                get(target, key, receiver): unknown {
+                    const value: unknown = Reflect.get(target, key, receiver);
+                    if (key === "kernel" && typeof value === "function") {
+                        return (...args: unknown[]): unknown => {
+                            events.push("pipeline");
+                            return Reflect.apply(value, target, args);
+                        };
+                    }
+                    return typeof value === "function" ? value.bind(target) : value;
+                },
+            });
+            const device = new Proxy(ctx.device, {
+                get(target, key, receiver): unknown {
+                    const value: unknown = Reflect.get(target, key, receiver);
+                    if (key === "createCommandEncoder" && typeof value === "function") {
+                        return (...args: unknown[]): unknown => {
+                            events.push("encoder");
+                            return Reflect.apply(value, target, args);
+                        };
+                    }
+                    return typeof value === "function" ? value.bind(target) : value;
+                },
+            });
+            const watched = new Proxy(plain, {
+                get(target, key, receiver): unknown {
+                    if (key === "pipelines") {
+                        return pipelines;
+                    }
+                    if (key === "device") {
+                        return device;
+                    }
+                    return Reflect.get(target, key, receiver);
+                },
+            });
+            expect(Array.from(await degree(watched, s))).toEqual(KARATE_UNDIRECTED);
+            // the self-check of the new context identity comes first (its own pipelines and encoder); degree's own
+            // run is the tail: the degree and fill pipelines, then its one encoder
+            expect(events.slice(-3)).toEqual(["pipeline", "pipeline", "encoder"]);
+        } finally {
+            residency.destroyAll();
             ctx.dispose();
         }
     });

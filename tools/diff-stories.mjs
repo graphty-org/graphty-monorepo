@@ -108,7 +108,7 @@ async function render(base, id) {
 for (const id of ids) {
     const a = await render(baseA, id);
     const b = await render(baseB, id);
-    const safe = id.replace(/[^a-z0-9]+/gi, "-");
+    const safe = id.replaceAll(/[^a-z0-9]+/gi, "-");
     await writeFile(join(OUT, `${safe}.baseline.png`), a.png);
     await writeFile(join(OUT, `${safe}.head.png`), b.png);
     const camA = a.scene?.camera;

@@ -44,6 +44,7 @@ import { defaultNodeStyle } from "../config/NodeStyle";
 import { createEdgeCounter, pairsOrdered } from "../data/edgeIdentity";
 import { GraphStore } from "../data/GraphStore";
 import { readonlyPositions } from "../data/lane";
+import { otherIdSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
@@ -55,6 +56,7 @@ import { declarationKey } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
+import { createJournal, type JournalApi } from "./journal";
 import { recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
@@ -201,21 +203,12 @@ export interface ElementSessionOptions extends Omit<CreateGraphSessionOptions, "
     readonly records?: SessionRecordSource;
     /** The configuration; `data` may be a function, read on every use. */
     readonly config?: Omit<NonNullable<CreateGraphSessionOptions["config"]>, "data"> & {
-        readonly data?: SessionDataConfig | (() => SessionDataConfig);
+        readonly data?: SessionDataConfigInput | (() => SessionDataConfig);
     };
 }
 
-/**
- * What a session with no configuration of its own runs on.
- *
- * Parsed per session rather than held as a module constant: `knownFields` is a nested object the
- * element mutates in place at run time, so one shared default would let a change made through one
- * session reach every other session that took the default.
- * @returns a fresh copy of the element's data defaults
- */
-function defaultDataConfig(): SessionDataConfig {
-    return DataConfig.parse({});
-}
+/** A data configuration as a caller hands it in: any part left out takes its default. */
+type SessionDataConfigInput = NonNullable<ProjectConfigPatch["data"]>;
 
 /**
  * The acceleration states that mean an accelerator is attached and could do the work.
@@ -298,6 +291,8 @@ interface SessionParts {
     readonly sets: SetsApi;
     /** The notes. */
     readonly notes: NotesApi;
+    /** The record of the commands the session ran. */
+    readonly journal: JournalApi;
     /** The one selection this session holds. */
     readonly selection: SelectionOwner;
     /** What the filters and the time window have left showing. */
@@ -395,6 +390,7 @@ class Session implements ElementSession {
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
     readonly notes: NotesApi;
+    readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
@@ -444,6 +440,7 @@ class Session implements ElementSession {
         this.scope = parts.scope;
         this.sets = parts.sets;
         this.notes = parts.notes;
+        this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
@@ -845,10 +842,10 @@ class Session implements ElementSession {
         }
 
         const held = subscribers;
-        held.add(handler as (detail: never) => void);
+        held.add(handler);
 
         return () => {
-            held.delete(handler as (detail: never) => void);
+            held.delete(handler);
         };
     }
 
@@ -959,13 +956,14 @@ export function dispatcherOf(session: GraphSession): Dispatcher {
 
 /**
  * The pinned ids as a consumer reads them: a sealed copy, because the slice itself is project
- * state that only the dispatcher writes.
+ * state that only the dispatcher writes. Its `has` takes either spelling of an integer id, as
+ * `pin` does.
  * @param pins - The pins slice.
  * @returns The copy.
  */
 function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
     // ponytail: copies per read (O(pins)); cache per pins revision if a caller reads it per frame.
-    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.");
+    return sealedSet(pins, "Call session.positions.pin() or unpin() to change what is pinned.", otherIdSpelling);
 }
 
 /**
@@ -1196,19 +1194,34 @@ function historyOf(dispatcher: Dispatcher, version: () => number): SessionHistor
 /**
  * Settle how the data configuration is read.
  *
- * A caller that hands in an object is read from that object; a caller that hands in a function is
- * asked every time, which is what a host that REPLACES its configuration needs. A caller that
- * hands in nothing gets one parsed copy of the element's defaults, parsed once rather than on
- * every read.
+ * A caller that hands in an object is read from that object, every part it leaves out at its
+ * default; a caller that hands in a function is asked every time, which is what a host that
+ * REPLACES its configuration needs. A caller that hands in nothing gets the element's defaults.
+ * Either object is parsed once, into a fresh copy rather than a shared module constant:
+ * `knownFields` is a nested object the element mutates in place at run time.
  * @param given - the configuration, a reader for it, or nothing
  * @returns the reader
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the object is not a valid data configuration.
  */
-function resolveDataConfig(given: SessionDataConfig | (() => SessionDataConfig) | undefined): () => SessionDataConfig {
+function resolveDataConfig(
+    given: SessionDataConfigInput | (() => SessionDataConfig) | undefined,
+): () => SessionDataConfig {
     if (typeof given === "function") {
         return given;
     }
 
-    const fixed = given ?? defaultDataConfig();
+    const parsed = DataConfig.safeParse(given ?? {});
+    if (!parsed.success) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            source: "config",
+            message: `The data configuration is not valid: ${parsed.error.issues[0]?.message ?? "refused"}.`,
+            details: { path: parsed.error.issues[0]?.path ?? [] },
+            cause: parsed.error,
+        });
+    }
+
+    const fixed: SessionDataConfig = parsed.data;
     return () => fixed;
 }
 
@@ -1253,7 +1266,8 @@ function resolveStore(
     }
 
     const owned: GraphStore = new GraphStore({
-        directed: readData().directed,
+        // A thunk, so a graph holding no edges follows a later `config.set` of the direction.
+        directed: () => readData().directed,
         // A thunk, not a value: the element mutates `data.knownFields` in place at run time, and a
         // scale captured here would be the one known field that ignored the change.
         positionScale: () => readData().knownFields.positionScale,
@@ -1547,7 +1561,11 @@ function fieldWordsOf(
         for (const run of runs.list()) {
             for (const field of run.fields) {
                 if (bindResultPath(field.path, run.id) === path && field.kind === target) {
-                    return { plainName: field.plainName, technicalName: field.technicalName };
+                    return {
+                        plainName: field.plainName,
+                        technicalName: field.technicalName,
+                        result: { algorithm: run.algorithm, field: field.name },
+                    };
                 }
             }
         }
@@ -1901,7 +1919,12 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }
             },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
+            setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
             declarations: () => dispatcher.state.attributes,
+            progress: (change) => {
+                publish(watchers, "progress:changed", change);
+            },
+            readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
         },
         {
             revision: () => inputs.tick.value,
@@ -1909,6 +1932,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec: ScopeInput) => scope.resolveNow(scope.canonical(spec)),
             // And the query engine, below that.
             search: (text, request) => requireQuery(query).search(text, request),
+            textTest: (text, mode, target) => requireQuery(query).textTest(text, mode, target),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -2327,6 +2351,22 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
     });
 
+    // The journal, published as `session.journal`: every command that finishes writes one entry,
+    // before its promise resolves, so a run reports its entry by the time it reports done.
+    const journal = createJournal({
+        engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        onAppend: (entry) => {
+            publish(watchers, "journal:appended", { entry });
+        },
+    });
+    dispatcher.events.executed = (done) => {
+        const entry = journal.append(done);
+        const run = entry.runId === undefined ? undefined : runs.get(entry.runId);
+        if (run instanceof ManagedRun) {
+            run.journalId = entry.id;
+        }
+    };
+
     // The real columns, read per element and never captured: a compiled selector stays correct
     // across a freeze that renumbers the index space because every lookup starts from the
     // snapshot the session holds NOW.
@@ -2460,6 +2500,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         queue,
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
+        inputRevision: () => inputs.tick.value,
         onChange: (change) => {
             // Only the scopes the stack names stay live.
             layerScopes.keep(layerScopesOf(stack));
@@ -2575,6 +2616,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             algorithms: () => SESSION_CATALOG_TABLES.algorithms(),
             estimate: (algorithm) => estimateCommand(planning, { op: "algo.run", algorithm }),
             runs: () => runs.list(),
+            resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
         }),
         readProject,
         controller: acceleration.controller,
@@ -2584,6 +2626,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         scope,
         sets,
         notes,
+        journal,
         selection,
         visibility,
         styles,
@@ -2615,7 +2658,7 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
     const space = edgeSpaceOf(graph);
     for (const key of dirty) {
         if (key.startsWith("n:")) {
-            const row = graph.ids.indexOf(nodeOfKey(key) as string | number);
+            const row = graph.ids.indexOf(nodeOfKey(key));
             if (row !== INVALID_INDEX) {
                 rows.node.push(row);
             }

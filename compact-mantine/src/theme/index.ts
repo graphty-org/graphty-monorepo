@@ -11,7 +11,7 @@ import {
 import { PANEL_GRID } from "../constants/panel";
 import { compactColors } from "./colors";
 import { componentExtensions } from "./components";
-import { type CompactThemeOptions, ensureCompactStyles } from "./global-styles";
+import { type CompactThemeOptions, ensureCompactStyles, followPrimaryColor } from "./global-styles";
 import {
     CM_FONT_FAMILY,
     CM_FONT_FAMILY_MONO,
@@ -44,7 +44,7 @@ declare module "@mantine/core" {
 
 /**
  * Wrap every extension's `vars` resolver so that the first themed component to render injects
- * the stylesheet and sets the contrast mode. Mantine calls `vars` on every render, so the
+ * the stylesheet and sets the contrast mode and the accent (the theme's `primaryColor`). Mantine calls `vars` on every render, so the
  * injection is one cheap check after the first call.
  * @param components - the component extensions
  * @param options - the resolved theme options
@@ -61,6 +61,7 @@ function withStyleInjection(
             ...extension,
             vars: (...args: Parameters<NonNullable<MantineThemeComponent["vars"]>>) => {
                 ensureCompactStyles(options);
+                followPrimaryColor((args[0] as MantineTheme).primaryColor);
                 return vars ? vars(...args) : {};
             },
         };

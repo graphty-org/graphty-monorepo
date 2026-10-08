@@ -1,0 +1,8 @@
+[ 'W_CSV_DIRECTION_DROPPED' ]
+Ana
+Ben
+Cleo
+Cleo,Ana,Ben
+Dev
+
+[ 'Ana', 'Ben', 'Cleo', 'Dev' ] 2 edges, directed: false

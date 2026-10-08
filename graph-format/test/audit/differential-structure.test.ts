@@ -37,15 +37,7 @@ const RUNS = Number(process.env.FC_RUNS ?? "60");
 
 /** The id pools: each exercises one storage kind of design section 4.2 or a documented edge case. */
 type IdKind =
-    | "identity"
-    | "oneBased"
-    | "hugeOffset"
-    | "negOffset"
-    | "sparseInts"
-    | "floats"
-    | "strings"
-    | "unicode"
-    | "mixed";
+    "identity" | "oneBased" | "hugeOffset" | "negOffset" | "sparseInts" | "floats" | "strings" | "unicode" | "mixed";
 
 const ID_KINDS: readonly IdKind[] = [
     "identity",

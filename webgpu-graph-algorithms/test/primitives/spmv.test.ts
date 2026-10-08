@@ -361,7 +361,7 @@ describe("spmvPull thread-per-row (GPU)", () => {
         }
     });
 
-    it("prepareSpmvPull accepts tiers (the tier results are tiers.test.ts's); a windowed core -> E_UNSUPPORTED; a malformed rowPtr -> E_INVALID_ARGUMENT at record", async (t) => {
+    it("prepareSpmvPull accepts tiers (the tier results are tiers.test.ts's); a windowed core -> E_UNSUPPORTED; a malformed rowPtr or an unweighted core -> E_INVALID_ARGUMENT at record", async (t) => {
         const ctx = await context(t);
         const s = weightedRandom(50, 100, 2);
         const rev = reverseCore(ctx, s);
@@ -393,6 +393,23 @@ describe("spmvPull thread-per-row (GPU)", () => {
         );
         expect(rows.details.argument).toBe("core.rowPtr");
         expect(rows.details.value).toBe(6);
+        // prepared on the weighted core, recorded with an unweighted one: HAS_WEIGHTS would read colIdx as f32
+        expect(rev.weights).not.toBeNull();
+        const unweighted: CoreBinding = { ...rev, weights: null };
+        const pattern = expectThrow(
+            () =>
+                planner.record(
+                    pass,
+                    unweighted,
+                    { xNorm: binding, rankOut: binding, personalization: null, partials: binding },
+                    { alpha: 1, beta: 0, uniformP: 0 },
+                ),
+            "E_INVALID_ARGUMENT",
+        );
+        expect(pattern.details.argument).toBe("rev");
+        expect(pattern.details.value).toBe(false);
+        expect(pattern.details.expected).toBe(true);
+        expect(planner.lastDispatches).toBe(0);
         pass.end();
         scope.dispose();
         ctx.release(s);

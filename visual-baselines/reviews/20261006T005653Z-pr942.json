@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "pr": 942,
+  "subject": {
+    "builtMerge": "3b0cdf1d77a5f5a592a84afb486eb96b8e76659e",
+    "head": "a8a0d2d4829dee39f59d9cdf21656f14ea61df9c",
+    "runId": null,
+    "runAttempt": null,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Core(TM) i9-14900KF",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "3b0cdf1d77a5f5a592a84afb486eb96b8e76659e"
+    },
+    "scale": 2,
+    "local": [
+      {
+        "project": "graphty",
+        "merge": "3b0cdf1d77a5f5a592a84afb486eb96b8e76659e",
+        "host": "dev.ato.ms",
+        "tool": "3b0cdf1d77a5f5a592a84afb486eb96b8e76659e"
+      }
+    ]
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-empty.dark.png",
+      "from": "f4e9d76c8c81e9e6a25210d78f60618832af11e29e8138aa96229008795c2d3c",
+      "to": "9db85f5b4502c682b27e90ce4806f4baf4e987ed07b514f4f3560f7e6ce22126",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-data-page--refused-empty.light.png",
+      "from": "4dc2d42098efdae129b58fe1fa1f4d97faffde2ba5b8b2594bfa1be87ff24ef4",
+      "to": "37193e500523b2125dda253bb9115a5df98a04c7c7ee6abc352d98fd3a9787ca",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.dark.png",
+      "from": "c16f48592bf6864943471e0edc1d2f69b3f7ce2a90f1389d13499134f295aa7b",
+      "to": "251884b76bd3309df32b8bce1241b636b8b36ee315f1075d836c4f07595e1d94",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/workspace-export--data.light.png",
+      "from": "d32dfa74ca52d1ef00d25d56b61830fc164aecc3c22a041cc9a1f26130ade4de",
+      "to": "2ca4b0494f65f5b4cf79119347abf63f3cc632d102d00be226b8f90357c1ce85",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-06T00:56:53.615Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaVJOSjEzSG94MGRkWU9aRVJWeVYyaG5lelVKc2N6ZU1YbElfM1dUSURMdyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIDJ30ZZiG_iWhBwe_OdecM_KJnoizFJxq9emxFoez278AiAEO-rJLBNJhbijJ8p3DrBUIsxjzuMHChVIG1NwKDdznQ"
+  }
+}

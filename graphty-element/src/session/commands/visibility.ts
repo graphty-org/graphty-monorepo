@@ -10,6 +10,8 @@
  */
 
 import type { UndoableDefinition } from "../project/Dispatcher";
+import type { CodedFact } from "../shared";
+import type { HistoryCode } from "../types";
 import { assertVisibility, type RuleTree, type TimeWindow } from "../visibility/filter";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
@@ -71,6 +73,10 @@ const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => (command.filter === null ? "Cleared the filter" : `Filtered (${command.filter.kind})`),
+        fact: (command): CodedFact<HistoryCode> =>
+            command.filter === null
+                ? { code: "visibility.clear-filter", params: {} }
+                : { code: "visibility.filter", params: { kind: command.filter.kind } },
         // A slider drag is one step: edits of the same filter recorded close together merge.
         coalesce: (command) => filterKey(command.filter),
     },
@@ -87,6 +93,10 @@ const visibilityWindow: UndoableDefinition<VisibilityWindowCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => (command.window === null ? "Cleared the time window" : "Set the time window"),
+        fact: (command) => ({
+            code: command.window === null ? "visibility.clear-window" : "visibility.window",
+            params: {},
+        }),
         coalesce: () => "window",
     },
     execute: (command, ctx) => {
@@ -102,6 +112,7 @@ const visibilityContext: UndoableDefinition<VisibilityContextCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => (command.show ? "Showed hidden nodes faintly" : "Stopped showing hidden nodes"),
+        fact: (command) => ({ code: command.show ? "visibility.show-context" : "visibility.hide-context", params: {} }),
     },
     execute: (command, ctx) => {
         ctx.draft.visibility.set("showContext", command.show);

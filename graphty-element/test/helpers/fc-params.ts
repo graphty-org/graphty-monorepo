@@ -14,8 +14,7 @@ import { type Parameters } from "fast-check";
 export function fcParams<T>(numRuns: number): Parameters<T> {
     // In the browser project there is no `process`; the two variables reach the page through
     // Vite's `envPrefix` (vitest.config.ts) on `import.meta.env` instead.
-    const env: Record<string, string | undefined> =
-        typeof process === "undefined" ? (import.meta.env as Record<string, string | undefined>) : process.env;
+    const env: Record<string, string | undefined> = typeof process === "undefined" ? import.meta.env : process.env;
     const envSeed = env.GRAPHTY_FC_SEED;
     const seed = envSeed === undefined || envSeed === "" ? Date.now() ^ (Math.random() * 0x100000000) : Number(envSeed);
     const path = env.GRAPHTY_FC_PATH;

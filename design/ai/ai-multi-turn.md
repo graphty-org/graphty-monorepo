@@ -89,10 +89,10 @@ Maintain conversation history within a single `execute()` call:
 
 ```typescript
 interface ConversationTurn {
-  role: "user" | "assistant" | "tool";
-  content?: string;
-  toolCalls?: ToolCall[];
-  toolCallId?: string;
+    role: "user" | "assistant" | "tool";
+    content?: string;
+    toolCalls?: ToolCall[];
+    toolCallId?: string;
 }
 ```
 
@@ -102,17 +102,18 @@ Tool results must be serialized to a format the LLM can understand:
 
 ```typescript
 function serializeToolResult(result: CommandResult): string {
-  return JSON.stringify({
-    success: result.success,
-    message: result.message,
-    data: result.data,
-  });
+    return JSON.stringify({
+        success: result.success,
+        message: result.message,
+        data: result.data,
+    });
 }
 ```
 
 #### 4. Parallel vs Sequential Tool Calls
 
 When LLM returns multiple tool calls:
+
 - **Current**: Execute sequentially, stop on first error
 - **Proposed**: Keep sequential execution but collect all results for the follow-up LLM call
 
@@ -200,13 +201,13 @@ The status manager needs updates to reflect the multi-turn nature:
 ```typescript
 // New status stages
 type AiStage =
-  | "idle"
-  | "submitted"
-  | "streaming"      // LLM generating response
-  | "executing"      // Executing tool(s)
-  | "processing"     // LLM processing tool results (NEW)
-  | "complete"
-  | "error";
+    | "idle"
+    | "submitted"
+    | "streaming" // LLM generating response
+    | "executing" // Executing tool(s)
+    | "processing" // LLM processing tool results (NEW)
+    | "complete"
+    | "error";
 ```
 
 ### Events
@@ -216,15 +217,15 @@ New events for multi-turn visibility:
 ```typescript
 // Emitted when starting a new LLM turn after tool execution
 interface AiTurnStartEvent {
-  type: "ai-turn-start";
-  turnNumber: number;
-  messageCount: number;
+    type: "ai-turn-start";
+    turnNumber: number;
+    messageCount: number;
 }
 
 // Emitted when LLM processes tool results
 interface AiProcessingToolResultsEvent {
-  type: "ai-processing-tool-results";
-  toolResults: { name: string; success: boolean }[];
+    type: "ai-processing-tool-results";
+    toolResults: { name: string; success: boolean }[];
 }
 ```
 
@@ -233,6 +234,7 @@ interface AiProcessingToolResultsEvent {
 ### Example 1: Simple Query
 
 **Before (current):**
+
 ```
 User: "How many nodes are there?"
 AI calls: queryGraph({ query: "nodeCount" })
@@ -248,6 +250,7 @@ Same behavior - the LLM may choose to pass through the message or rephrase sligh
 ### Example 2: Data Sampling (Currently Broken)
 
 **Before (current):**
+
 ```
 User: "What are some sample nodes?"
 AI calls: sampleData({ target: "nodes", count: 3 })
@@ -263,6 +266,7 @@ User sees: "Returned 3 node samples."  ← Not helpful!
 ```
 
 **After (fixed):**
+
 ```
 User: "What are some sample nodes?"
 AI calls: sampleData({ target: "nodes", count: 3 })
@@ -316,16 +320,16 @@ Turn 2:
 
 ```typescript
 interface AiControllerOptions {
-  // ... existing options ...
+    // ... existing options ...
 
-  /** Maximum tool-calling iterations per execute() call (default: 5) */
-  maxToolIterations?: number;
+    /** Maximum tool-calling iterations per execute() call (default: 5) */
+    maxToolIterations?: number;
 
-  /** Whether to include full data in tool results for LLM (default: true) */
-  includeToolDataInContext?: boolean;
+    /** Whether to include full data in tool results for LLM (default: true) */
+    includeToolDataInContext?: boolean;
 
-  /** Maximum size of tool result data to include (default: 4000 chars) */
-  maxToolResultSize?: number;
+    /** Maximum size of tool result data to include (default: 4000 chars) */
+    maxToolResultSize?: number;
 }
 ```
 
@@ -334,10 +338,12 @@ interface AiControllerOptions {
 ### Token Usage
 
 Multi-turn processing increases token usage:
+
 - Each turn includes the full conversation history
 - Tool results (especially data-heavy ones like `sampleData`) add tokens
 
 **Mitigations:**
+
 1. Truncate large `data` fields in tool results
 2. Summarize previous tool results in subsequent turns
 3. Set `maxToolResultSize` configuration option
@@ -347,6 +353,7 @@ Multi-turn processing increases token usage:
 Each additional turn adds LLM API latency (~500ms-2s per turn).
 
 **Mitigations:**
+
 1. Optimize tool execution to minimize turns
 2. Consider streaming for long operations
 3. Show "Processing results..." status to user
@@ -356,6 +363,7 @@ Each additional turn adds LLM API latency (~500ms-2s per turn).
 More API calls = higher cost for cloud providers.
 
 **Mitigations:**
+
 1. Use smaller/faster models for tool result processing
 2. Cache common query patterns
 3. Consider local models (WebLLM) for simple follow-ups
@@ -423,28 +431,28 @@ describe("AiController multi-turn", () => {
 
 ## Risks and Mitigations
 
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Infinite tool-calling loops | High | MAX_TOOL_ITERATIONS limit |
-| Token limit exceeded | Medium | Truncate tool results, conversation pruning |
-| Increased latency | Medium | Status updates, streaming where possible |
-| Increased cost | Low-Medium | Configuration options, model selection |
-| LLM ignores tool results | Medium | Prompt engineering, explicit instructions |
+| Risk                        | Impact     | Mitigation                                  |
+| --------------------------- | ---------- | ------------------------------------------- |
+| Infinite tool-calling loops | High       | MAX_TOOL_ITERATIONS limit                   |
+| Token limit exceeded        | Medium     | Truncate tool results, conversation pruning |
+| Increased latency           | Medium     | Status updates, streaming where possible    |
+| Increased cost              | Low-Medium | Configuration options, model selection      |
+| LLM ignores tool results    | Medium     | Prompt engineering, explicit instructions   |
 
 ## Open Questions
 
 1. **Should we support conversation memory across multiple `execute()` calls?**
-   - Pro: Enables follow-up questions ("what about the edges?")
-   - Con: Complexity, token usage, state management
+    - Pro: Enables follow-up questions ("what about the edges?")
+    - Con: Complexity, token usage, state management
 
 2. **How should we handle streaming with multi-turn?**
-   - Option A: Stream each turn separately
-   - Option B: Only stream final response
-   - Option C: Stream everything with turn markers
+    - Option A: Stream each turn separately
+    - Option B: Only stream final response
+    - Option C: Stream everything with turn markers
 
 3. **Should tool result format be configurable per command?**
-   - Some commands may want full data in LLM context
-   - Others may want summarized data only
+    - Some commands may want full data in LLM context
+    - Others may want summarized data only
 
 ## Appendix: Message Format Reference
 
@@ -452,28 +460,30 @@ describe("AiController multi-turn", () => {
 
 ```json
 {
-  "messages": [
-    {"role": "system", "content": "You are an AI assistant..."},
-    {"role": "user", "content": "What are some sample nodes?"},
-    {
-      "role": "assistant",
-      "content": null,
-      "tool_calls": [{
-        "id": "call_abc123",
-        "type": "function",
-        "function": {
-          "name": "sampleData",
-          "arguments": "{\"target\": \"nodes\", \"count\": 3}"
-        }
-      }]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "call_abc123",
-      "content": "{\"success\": true, \"data\": {\"nodes\": [...]}}"
-    },
-    {"role": "assistant", "content": "Here are 3 sample nodes..."}
-  ]
+    "messages": [
+        { "role": "system", "content": "You are an AI assistant..." },
+        { "role": "user", "content": "What are some sample nodes?" },
+        {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+                {
+                    "id": "call_abc123",
+                    "type": "function",
+                    "function": {
+                        "name": "sampleData",
+                        "arguments": "{\"target\": \"nodes\", \"count\": 3}"
+                    }
+                }
+            ]
+        },
+        {
+            "role": "tool",
+            "tool_call_id": "call_abc123",
+            "content": "{\"success\": true, \"data\": {\"nodes\": [...]}}"
+        },
+        { "role": "assistant", "content": "Here are 3 sample nodes..." }
+    ]
 }
 ```
 
@@ -481,26 +491,30 @@ describe("AiController multi-turn", () => {
 
 ```json
 {
-  "messages": [
-    {"role": "user", "content": "What are some sample nodes?"},
-    {
-      "role": "assistant",
-      "content": [{
-        "type": "tool_use",
-        "id": "toolu_abc123",
-        "name": "sampleData",
-        "input": {"target": "nodes", "count": 3}
-      }]
-    },
-    {
-      "role": "user",
-      "content": [{
-        "type": "tool_result",
-        "tool_use_id": "toolu_abc123",
-        "content": "{\"success\": true, \"data\": {\"nodes\": [...]}}"
-      }]
-    },
-    {"role": "assistant", "content": "Here are 3 sample nodes..."}
-  ]
+    "messages": [
+        { "role": "user", "content": "What are some sample nodes?" },
+        {
+            "role": "assistant",
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "toolu_abc123",
+                    "name": "sampleData",
+                    "input": { "target": "nodes", "count": 3 }
+                }
+            ]
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_abc123",
+                    "content": "{\"success\": true, \"data\": {\"nodes\": [...]}}"
+                }
+            ]
+        },
+        { "role": "assistant", "content": "Here are 3 sample nodes..." }
+    ]
 }
 ```

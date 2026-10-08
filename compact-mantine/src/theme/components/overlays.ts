@@ -154,11 +154,18 @@ export const overlayComponentExtensions: MantineThemeComponents = {
         classNames: compactModalClassNames,
     }),
 
+    // Mantine draws the title bar as a <header>. Inside a dialog that is a banner landmark,
+    // a second one beside the page's own (axe: landmark-no-duplicate-banner). The dialog is
+    // already named by its title, so the bar drops the landmark role and is a plain container.
+    ModalHeader: Modal.Header.extend({ defaultProps: { role: "none" } }),
+
     Drawer: Drawer.extend({
         defaultProps: {
             closeButtonProps: { "aria-label": "Close" },
         },
     }),
+
+    DrawerHeader: Drawer.Header.extend({ defaultProps: { role: "none" } }),
 
     Notification: Notification.extend({
         defaultProps: {

@@ -20,7 +20,7 @@ with one line and writes no integration code:
 
 ```js
 import "@graphty/graphty-element";
-import "@graphty/graphty-element/webgpu";   // the entire integration
+import "@graphty/graphty-element/webgpu"; // the entire integration
 ```
 
 Everything after that line is the element's job: probing for an adapter, requesting a context,

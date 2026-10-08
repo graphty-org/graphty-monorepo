@@ -643,7 +643,7 @@ export function includesParams(
             typeof actualValue === "object" &&
             actualValue !== null
         ) {
-            if (!includesParams(actualValue as Record<string, unknown>, expectedValue as Record<string, unknown>)) {
+            if (!includesParams(actualValue as Record<string, unknown>, expectedValue)) {
                 return false;
             }
 

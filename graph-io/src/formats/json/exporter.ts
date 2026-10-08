@@ -1,7 +1,7 @@
 /**
  * The JSON exporter (design section 8.5): one GraphExporter with a `dialect` option writing
  * NetworkX node-link (the default), d3 (`links`, optional index endpoints), JSON Graph Format v2,
- * Cytoscape.js elements, graphology serialisation or vis.js. The dialect defaults to the one the
+ * Cytoscape.js elements, graphology serialization or vis.js. The dialect defaults to the one the
  * importer recorded under `meta.extra.json` so a JSON file re-exported as JSON keeps its shape,
  * and to node-link for a snapshot from any other source.
  *
@@ -20,18 +20,21 @@
 
 import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
 
+import { DIRECTION_DROPPED_CODE, NODE_ORDER_CODE, NONFINITE_AS_NULL_CODE } from "../../common/codes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { checkCapabilities, countMixedEdges, LOSS } from "../../common/export.js";
 import { formatF32, formatF64 } from "../../common/format.js";
 import { flipY } from "../../common/json-elements.js";
-import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { explicitWeights } from "../../common/weights.js";
-import { encodeChunks, joinText } from "../../common/writer.js";
+import { encodeChunks, indentUnit, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CYTOSCAPE_ELEMENT_KEYS,
     DIALECT_DEFAULT_DIRECTED,
     dialectCapabilities,
+    exponentIfUnsafe,
     isJsonDialect,
     JSON_DIALECTS,
     type JsonDialect,
@@ -39,48 +42,114 @@ import {
     shapeMetaOf,
     SUFFIX,
 } from "./dialect.js";
+import { OBOGRAPHS_LOSS, OBOGRAPHS_SHARED_LOSS, planObographs } from "./obographs-export.js";
 
-/** The format-specific options of the JSON exporter. */
-export interface JsonExportOptions {
-    /** The dialect to write; default: the dialect the importer recorded, else "node-link". */
+/**
+ * The format-specific options of the JSON exporter.
+ * @category Built-in formats
+ */
+export interface JsonExportOptions extends CommonExportOptions {
+    /**
+     * The dialect to write. The default is the dialect a JSON import read, else "node-link".
+     * Attributes are written under their own names; vis.js shows the `label` attribute, so rename
+     * the attribute you want shown to `label` first (`snapshot.nodes.rename("name", "label")`). A CSV
+     * dialect name ("gephi", "generic"), from an options object shared with CSV saves, is ignored.
+     * @defaultValue as read, else "node-link"
+     */
     dialect?: JsonDialect | undefined;
-    /** Spaces per indentation level; 0 (default) writes compact JSON. */
-    indent?: number | undefined;
-    /** node-link / d3: the key of the edge array; default: the recorded key, else "edges" (d3: "links"). */
+    /**
+     * The indentation of one level: a number of spaces, or the text itself (spaces or tabs, such as
+     * "\t"). 0 or "" writes compact JSON on one line.
+     * @defaultValue 0
+     */
+    indent?: number | string | undefined;
+    /**
+     * node-link and d3: the key of the edge array. The default is the key a JSON import read, else
+     * "edges" ("links" for d3).
+     * @defaultValue as read, else "edges"
+     */
     edgesKey?: string | undefined;
-    /** node-link / d3 / vis: the node id key; default: the recorded key, else "id". */
+    /**
+     * node-link, d3 and vis: the node id key. The default is the key a JSON import read, else "id".
+     * @defaultValue as read, else "id"
+     */
     nodeIdKey?: string | undefined;
-    /** node-link / d3: write endpoints as node array positions; default: the recorded flag, else false. */
+    /**
+     * node-link and d3: write edge ends as positions in the node array instead of ids. The default
+     * is what a JSON import read, else false.
+     * @defaultValue as read, else false
+     */
     indexLinks?: boolean | undefined;
-    /** node-link / d3 / vis: the source key; default: the recorded key, else "source" (vis: "from"). */
+    /**
+     * node-link, d3 and vis: the source key. The default is the key a JSON import read, else
+     * "source" ("from" for vis). graph-io finds "source", "src" and "from" by itself; for another
+     * key, read the file back with the same `sourceKey` import option. Without it every edge is an
+     * `E_MISSING_ENDPOINT` error and is skipped, and a file with more edges than `errorLimit` (100 by
+     * default) fails to load with an `ImportError`. `checkExport()` does not warn about this.
+     * @defaultValue as read, else "source"
+     */
     sourceKey?: string | undefined;
-    /** node-link / d3 / vis: the target key; default: the recorded key, else "target" (vis: "to"). */
+    /**
+     * node-link, d3 and vis: the target key. The default is the key a JSON import read, else
+     * "target" ("to" for vis). graph-io finds "target", "dst" and "to" by itself; for another key,
+     * read the file back with the same `targetKey` import option, as for `sourceKey`.
+     * @defaultValue as read, else "target"
+     */
     targetKey?: string | undefined;
-    /** The key the weight is written under; default: the key the JSON importer read it from, else "weight". */
+    /**
+     * The key the weight is written under, in every dialect but OBO Graphs, which always writes the
+     * weight as "weight" in each edge's `meta` (checkExport() then returns W_OBOGRAPHS_EDGE_COLUMN_AS_META).
+     * The default is the key a JSON import read the weights from, else "weight". For another key,
+     * read the file back with `weightFrom` set to it, or the weights come back as a plain edge
+     * attribute.
+     * @defaultValue as read, else "weight"
+     */
     weightKey?: string | undefined;
+    /**
+     * OBO Graphs: the graph id written when the graph has none. A graph read from an OBO Graphs
+     * document keeps its own graph id, which this option does not change. Node ids are written in
+     * the form graph-io reads back as the same id: an IRI as it is, a prefixed id such as
+     * `GO:0008150` as its OBO address, and an id without a prefix (`a`) under the default OBO
+     * address (`http://purl.obolibrary.org/obo/graph.owl#a`), or as it is when you pass another IRI
+     * here. The default is `http://purl.obolibrary.org/obo/<ontology>.owl`.
+     * @defaultValue the ontology's OBO address
+     */
+    ontologyIri?: string | undefined;
 }
 
 /**
  * The LossNote codes of the JSON exporter's check(): the dialect-specific ones and, aliased, the
  * shared ones it records (`LOSS` holds the rest of the generic pre-flight's codes). A key is the
  * code without its severity prefix.
+ * @category Built-in formats
  */
 export const JSON_LOSS = Object.freeze({
     /** Non-finite numbers (columns, weights) are written as null. */
-    NONFINITE_AS_NULL: "W_NONFINITE_AS_NULL",
-    /** Cytoscape, vis and d3 carry no direction; the file re-imports with the dialect's default direction. */
-    DIRECTION_DROPPED: "W_DIRECTION_DROPPED",
+    NONFINITE_AS_NULL: NONFINITE_AS_NULL_CODE,
+    /**
+     * The file cannot record direction: an undirected graph's edges read back as directed, or the whole graph reads
+     * back with the importer's default direction.
+     */
+    DIRECTION_DROPPED: DIRECTION_DROPPED_CODE,
     /** GEXF mutual pairs are written as two directed edges. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
-    /** JGF keys its nodes by string; numeric ids re-import as text unless ids: "canonical". */
+    /**
+     * JGF keys its nodes by text, so number ids read back as text, unless you read the file with `ids: "canonical"`.
+     */
     NUMERIC_IDS_STRINGIFIED: "W_NUMERIC_IDS_STRINGIFIED",
-    /** JGF: two ids have the same text; export() throws E_INVALID_ID. */
+    /**
+     * Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with
+     * E_INVALID_ID.
+     */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
-    /** JGF: integer-like id keys are enumerated first and ascending by JSON parsers; node order changes on re-import. */
-    NODE_ORDER: "W_NODE_ORDER",
+    /** The nodes read back in a different order. */
+    NODE_ORDER: NODE_ORDER_CODE,
     /** A column named like a reserved key of the dialect (id, source, target, ...) is skipped. */
     RESERVED_KEY: "W_RESERVED_KEY",
-    /** A plain edge column named like the weight key reads back as THE weight (or is skipped when weights are written). */
+    /**
+     * An attribute without the weight role is named like the key weights are written under; it reads back as the edge
+     * weight, or is not written when the graph has weights of its own.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
     /** A position column without a slot (every dialect but Cytoscape) is a plain array attribute; the role is lost. */
     POSITIONS_DROPPED: LOSS.POSITIONS,
@@ -88,14 +157,59 @@ export const JSON_LOSS = Object.freeze({
     POSITION_Z_DROPPED: "W_POSITION_Z_DROPPED",
     /** Cytoscape has a single parent; a `parents` list column cannot be written. */
     PARENTS_DROPPED: LOSS.PARENTS,
-    /** node-link / d3 have no edge id slot; the id column is written as a plain attribute. */
+    /** Node-link / d3 have no edge id slot; the id column is written as a plain attribute. */
     EDGE_IDS_DROPPED: LOSS.EDGE_IDS_DROPPED,
-    /** An f64 column of integral values reads back as i32 (JSON declares no types). */
+    /**
+     * A number attribute whose values are all whole numbers reads back as integers, because the format does not record
+     * the type.
+     */
     INTEGRAL_F64_AS_I32: LOSS.INTEGRAL_F64,
-    /** A role column the dialect has no slot for is a plain attribute; the role is lost. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
     /** A column without a set cell is not written (JSON declares no columns). */
     EMPTY_COLUMN_DROPPED: LOSS.EMPTY_COLUMN,
+    /**
+     * Obographs: an edge column (or the explicit weights) is written into each edge's meta and reads back inside the
+     * meta column.
+     */
+    OBOGRAPHS_EDGE_COLUMN_AS_META: OBOGRAPHS_LOSS.EDGE_COLUMN_AS_META,
+    /**
+     * Obographs: a node id or relation is written as an IRI the importer's default oboIds "curie" reads back as
+     * another id.
+     */
+    OBOGRAPHS_ID_CHANGED: OBOGRAPHS_LOSS.ID_CHANGED,
+    /** Obographs: a property_value's xsd datatype has no place in basicPropertyValues and reads back unset. */
+    OBOGRAPHS_DATATYPE_DROPPED: OBOGRAPHS_LOSS.DATATYPE_DROPPED,
+    /** Obographs: a node column outside the OBO vocabulary reads back inside the property_value column. */
+    COLUMN_AS_PROPERTY_VALUE: OBOGRAPHS_SHARED_LOSS.COLUMN_AS_PROPERTY_VALUE,
+    /** Obographs: an edge without a relation is written with the pred is_a. */
+    RELATION_ASSUMED: OBOGRAPHS_SHARED_LOSS.RELATION_ASSUMED,
+    /**
+     * Obographs: Typedef nodes are written as PROPERTY nodes, which read back as nodes only under typedefs: "nodes".
+     */
+    TYPEDEF_NODES: OBOGRAPHS_SHARED_LOSS.TYPEDEF_NODES,
+    /**
+     * OBO Graphs: a graph attribute is written into the graph's `meta` and reads back in
+     * `snapshot.meta.extra.obographs`.
+     */
+    GRAPH_COLUMN_AS_METADATA: OBOGRAPHS_SHARED_LOSS.GRAPH_COLUMN_AS_METADATA,
+    /** Obographs: numeric node ids are written as text and read back as strings. */
+    ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
+    /**
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
+     * reads back with that role.
+     */
+    ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
+    /**
+     * An attribute with a role (for example, the label) is written where the format keeps that role, and reads back under the
+     * name the format's importer gives it.
+     */
+    COLUMN_NAME_CHANGED: LOSS.COLUMN_NAME_CHANGED,
+    /**
+     * OBO Graphs: an OBO attribute stored as text where graph-io uses a dictionary (or the other way round); it reads
+     * back with graph-io's usual type. The values are the same.
+     */
+    DTYPE_UNSUPPORTED: LOSS.DTYPE,
 });
 
 /** The roles each dialect has a slot for (every other role column is a plain attribute, reported by checkCapabilities()). */
@@ -106,6 +220,7 @@ const SLOT_ROLES: Readonly<Record<JsonDialect, ReadonlySet<string>>> = Object.fr
     cytoscape: new Set(["classes"]),
     graphology: new Set<string>(),
     vis: new Set<string>(),
+    obographs: new Set(["label", "kind"]),
 });
 
 /** The element domains. */
@@ -158,7 +273,7 @@ interface ColumnPlan {
 interface Resolved {
     readonly common: ResolvedExportOptions;
     readonly dialect: JsonDialect;
-    readonly indent: number;
+    readonly indent: string;
     readonly edgesKey: string;
     readonly nodeIdKey: string | null;
     readonly indexLinks: boolean;
@@ -166,6 +281,7 @@ interface Resolved {
     readonly targetKey: string;
     readonly weightKey: string;
     readonly shape: JsonShapeMeta;
+    readonly ontologyIri: string | null;
 }
 
 /** Everything write() needs, computed once by plan(). */
@@ -198,17 +314,15 @@ function resolve(snapshot: GraphSnapshot, options: (JsonExportOptions & CommonEx
     const common = resolveExportOptions(options);
     const shape = shapeMetaOf(snapshot.meta);
     let dialect: JsonDialect;
-    if (o.dialect === undefined) {
+    if (o.dialect === undefined || otherFormatDialect("json", o.dialect)) {
+        // no dialect, or another format's (a CSV "generic" in a shared options object)
         dialect = shape.dialect ?? "node-link";
     } else if (isJsonDialect(o.dialect)) {
         ({ dialect } = o);
     } else {
         throw unsupported("dialect", o.dialect, JSON_DIALECTS);
     }
-    const indent = o.indent ?? 0;
-    if (!Number.isInteger(indent) || indent < 0 || indent > 16) {
-        throw unsupported("indent", indent, ["an integer 0..16"]);
-    }
+    const indent = indentUnit(o.indent, "");
     const sameDialect = shape.dialect === dialect;
     const recorded = <T>(value: T | undefined, fallback: T): T =>
         sameDialect && value !== undefined ? value : fallback;
@@ -240,7 +354,20 @@ function resolve(snapshot: GraphSnapshot, options: (JsonExportOptions & CommonEx
         (weightOrigin !== null && weightOrigin.format === "json" && weightOrigin.id !== null
             ? weightOrigin.id
             : "weight");
-    return { common, dialect, indent, edgesKey, nodeIdKey, indexLinks, sourceKey, targetKey, weightKey, shape };
+    const ontologyIri = keyOption("ontologyIri", o.ontologyIri);
+    return {
+        common,
+        dialect,
+        indent,
+        edgesKey,
+        nodeIdKey,
+        indexLinks,
+        sourceKey,
+        targetKey,
+        weightKey,
+        shape,
+        ontologyIri,
+    };
 }
 
 /**
@@ -291,24 +418,6 @@ function numberText(value: number, f32: boolean, nonfinite: Counter): string {
     }
     // -0 is a JSON number too ("-0"); JSON.parse reads it back as -0
     return exponentIfUnsafe(f32 ? formatF32(value) : formatF64(value));
-}
-
-/**
- * An integer text beyond 2^53 in exponent form (`100000000000000000000` -> `1e+20`, the same
- * digits): the importer reads an integer literal that large as its exact digits (a string), so
- * a number must not be written as one.
- * @param text - the shortest decimal text of a finite number
- * @returns the text, or its exponent form for an integer literal of 16 or more digits
- */
-function exponentIfUnsafe(text: string): string {
-    const match = /^(-?)([0-9]{16,})$/.exec(text);
-    if (match === null || Number.isSafeInteger(Number(text))) {
-        return text;
-    }
-    const [, sign, digits] = match;
-    const mantissa = digits.replace(/0+$/, "");
-    const fraction = mantissa.length > 1 ? `.${mantissa.slice(1)}` : "";
-    return `${sign}${mantissa[0]}${fraction}e+${digits.length - 1}`;
 }
 
 /**
@@ -416,13 +525,13 @@ class JsonWriter {
 
     private readonly firstAtDepth: boolean[] = [];
 
-    private readonly indent: number;
+    private readonly indent: string;
 
     /**
      * Create a writer.
-     * @param indent - spaces per level; 0 for compact output
+     * @param indent - the text of one level; "" for compact output
      */
-    constructor(indent: number) {
+    constructor(indent: string) {
         this.indent = indent;
     }
 
@@ -455,7 +564,7 @@ class JsonWriter {
      */
     key(name: string): void {
         this.separator();
-        this.parts.push(JSON.stringify(name), this.indent > 0 ? ": " : ":");
+        this.parts.push(JSON.stringify(name), this.indent !== "" ? ": " : ":");
     }
 
     /** Start an array element: the separator only. */
@@ -507,7 +616,7 @@ class JsonWriter {
      * @returns the text
      */
     private newline(): string {
-        return this.indent > 0 ? `\n${" ".repeat(this.depth * this.indent)}` : "";
+        return this.indent !== "" ? `\n${this.indent.repeat(this.depth)}` : "";
     }
 }
 
@@ -562,7 +671,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     if (ctx.nonfinite.count > 0) {
         note(
             JSON_LOSS.NONFINITE_AS_NULL,
-            `${ctx.nonfinite.count} non-finite number(s) are written as null`,
+            `${ctx.nonfinite.count} non-finite number${plural(ctx.nonfinite.count)} ${agree(ctx.nonfinite.count, "is", "are")} written as null`,
             null,
             ctx.nonfinite.count,
         );
@@ -576,7 +685,7 @@ function plan(snapshot: GraphSnapshot, resolved: Resolved): Plan {
     if (dialect === "cytoscape" && edgeIds !== null && edgeIds.nullCount > 0) {
         note(
             LOSS.EDGE_IDS_GENERATED,
-            `${edgeIds.nullCount} edge(s) have no id; canonical e<index> ids are generated for them`,
+            `${edgeIds.nullCount} edge${plural(edgeIds.nullCount)} ${agree(edgeIds.nullCount, "has", "have")} no id; canonical e<index> ids are generated for them`,
             edgeIds.meta.name,
             edgeIds.nullCount,
         );
@@ -755,7 +864,7 @@ function planSlot(ctx: PlanContext, column: Column, domain: Domain): ColumnPlan 
             if (z > 0) {
                 note(
                     JSON_LOSS.POSITION_Z_DROPPED,
-                    `${z} position(s) have a non-zero z; Cytoscape positions are 2D`,
+                    `${z} position${plural(z)} ${agree(z, "has", "have")} a non-zero z; Cytoscape positions are 2D`,
                     meta.name,
                     z,
                 );
@@ -849,7 +958,7 @@ function planWeights(ctx: PlanContext, edges: readonly ColumnPlan[]): (e: number
         if (clash !== undefined) {
             ctx.note(
                 LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${clash.column.meta.name}" is written under "${clash.key}", the key the importer reads THE weight from; it reads back as the weight, not as a column`,
+                `edge column "${clash.column.meta.name}" is written under "${clash.key}", the key the importer reads edge weights from; it reads back as the weight, not as a column`,
                 clash.column.meta.name,
                 clash.column.length - clash.column.nullCount,
             );
@@ -883,7 +992,7 @@ function planDirection(ctx: PlanContext): { readonly folding: PairFolding; reado
     if (folding.mutualCount > 0) {
         note(
             LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed edges; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed edges; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -969,7 +1078,7 @@ function jgfIdNotes(
     if (numeric > 0) {
         note(
             JSON_LOSS.NUMERIC_IDS_STRINGIFIED,
-            `${numeric} numeric node id(s) become JGF object keys (strings); pass ids: "canonical" on re-import`,
+            `${numeric} numeric node id${plural(numeric)} ${agree(numeric, "becomes", "become")} JGF object keys (strings); pass ids: "canonical" on re-import`,
             null,
             numeric,
         );
@@ -977,7 +1086,7 @@ function jgfIdNotes(
     if (collisions > 0) {
         note(
             JSON_LOSS.ID_TEXT_COLLISION,
-            `${collisions} node id(s) share their text with another id; export() will throw`,
+            `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id; the save fails`,
             null,
             collisions,
         );
@@ -985,7 +1094,7 @@ function jgfIdNotes(
     if (!ordered) {
         note(
             JSON_LOSS.NODE_ORDER,
-            `${indexLike} integer-like node id(s) are enumerated first and ascending by JSON parsers; node order changes on re-import`,
+            `${indexLike} integer-like node id${plural(indexLike)} ${agree(indexLike, "is", "are")} enumerated first and ascending by JSON parsers; node order changes on re-import`,
             null,
             indexLike,
         );
@@ -1310,7 +1419,7 @@ function* writeVis(snapshot: GraphSnapshot, p: Plan): Generator<string, void, un
 }
 
 /**
- * Write a graphology serialisation.
+ * Write a graphology serialization.
  * @param snapshot - the snapshot
  * @param p - the plan
  * @yields the parts
@@ -1608,11 +1717,35 @@ function edgeIdGenerator(snapshot: GraphSnapshot, p: Plan): (e: number) => strin
 // ============================================================ the plugin
 
 /**
- * The JSON exporter plugin (design section 8.5). `capabilities` is the node-link table (the
+ * The text parts of the document in the resolved dialect.
+ * @param snapshot - the snapshot
+ * @param resolved - the resolved options
+ * @returns the parts
+ */
+function parts(snapshot: GraphSnapshot, resolved: Resolved): Generator<string, void, undefined> {
+    return resolved.dialect === "obographs"
+        ? planObographs(snapshot, resolved).write()
+        : write(snapshot, plan(snapshot, resolved));
+}
+
+/**
+ * The JSON exporter plugin. `capabilities` is the node-link table (the
  * default dialect); check() applies the table of the dialect actually selected.
+ * @category Built-in formats
  */
 export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
     format: "json",
+    options: Object.freeze([
+        "dialect",
+        "edgesKey",
+        "indent",
+        "indexLinks",
+        "nodeIdKey",
+        "ontologyIri",
+        "sourceKey",
+        "targetKey",
+        "weightKey",
+    ]),
     capabilities: dialectCapabilities("node-link"),
 
     /**
@@ -1622,7 +1755,10 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the notes, empty when the export is exact
      */
     check(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, resolve(snapshot, options)).notes]);
+        const resolved = resolve(snapshot, options);
+        const notes =
+            resolved.dialect === "obographs" ? planObographs(snapshot, resolved).notes : plan(snapshot, resolved).notes;
+        return Object.freeze([...notes]);
     },
 
     /**
@@ -1632,7 +1768,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the chunks
      */
     export(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(write(snapshot, plan(snapshot, resolve(snapshot, options))));
+        return encodeChunks(parts(snapshot, resolve(snapshot, options)));
     },
 
     /**
@@ -1642,7 +1778,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
      * @returns the document
      */
     exportToString(snapshot: GraphSnapshot, options?: JsonExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(write(snapshot, plan(snapshot, resolve(snapshot, options))));
+        return joinText(parts(snapshot, resolve(snapshot, options)));
     },
 });
 
@@ -1650,6 +1786,7 @@ export const jsonExporter: GraphExporter<JsonExportOptions> = Object.freeze({
  * The capability table of one dialect, for callers that pick a dialect before check().
  * @param dialect - the dialect
  * @returns the frozen table
+ * @category Built-in formats
  */
 export function jsonCapabilities(dialect: JsonDialect): ExportCapabilities {
     return dialectCapabilities(dialect);

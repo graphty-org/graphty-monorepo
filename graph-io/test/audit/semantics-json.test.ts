@@ -456,7 +456,7 @@ describe("JSON quirks from JsonDataSource and research note 07", () => {
     it("reports missing nodes arrays, missing ids / endpoints, d3 v4 object endpoints and unknown documents explicitly", async () => {
         const noNodes = await parse({ links: [{ source: "a", target: "b" }] });
         expect(noNodes.snapshot.ids.toArray()).toEqual(["a", "b"]);
-        expect(noNodes.report.issues.map((i) => i.code)).toContain("E_MISSING_SECTION");
+        expect(noNodes.report.issues.map((i) => i.code)).toContain("W_MISSING_SECTION");
         const missing = await parse({ nodes: [{ x: 1 }, { id: "b" }], links: [{ source: "b" }] });
         expect(missing.report.issues.map((i) => i.code)).toEqual(
             expect.arrayContaining(["E_MISSING_ID", "E_MISSING_ENDPOINT"]),

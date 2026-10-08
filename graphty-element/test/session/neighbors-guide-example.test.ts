@@ -67,8 +67,13 @@ describe("the neighbors guide's example", () => {
         const document = {
             createElement: (tag: string): Item & { tag: string } => {
                 const classes = new Set<string>();
-                const toggle = (name: string, on: boolean): void =>
-                    void (on ? classes.add(name) : classes.delete(name));
+                const toggle = (name: string, on: boolean): void => {
+                    if (on) {
+                        classes.add(name);
+                    } else {
+                        classes.delete(name);
+                    }
+                };
                 return { tag, textContent: "", classes, classList: { toggle } };
             },
         };

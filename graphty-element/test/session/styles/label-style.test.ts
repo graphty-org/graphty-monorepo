@@ -99,7 +99,7 @@ async function labelBlock(style: LabelStyle, text = "Label"): Promise<Record<str
     // on the way to the canvas. Parsing turns that into a failure with the key's name in it.
     const parsed = NodeStyle.parse(paint?.style);
 
-    return (parsed.label ?? {}) as Record<string, unknown>;
+    return parsed.label ?? {};
 }
 
 describe("a layer says where a label sits", () => {

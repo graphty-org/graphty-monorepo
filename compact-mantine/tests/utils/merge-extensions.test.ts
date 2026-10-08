@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-    mergeExtensions,
-    mergeExtensions3,
-    mergeExtensions4,
-} from "../../src/utils/merge-extensions";
+import { mergeExtensions, mergeExtensions3, mergeExtensions4 } from "../../src/utils/merge-extensions";
 
 describe("mergeExtensions", () => {
     it("merges two objects with no overlapping keys", () => {
@@ -70,13 +66,7 @@ describe("mergeExtensions4", () => {
 
         const result = mergeExtensions4(inputs, buttons, controls, display);
 
-        expect(Object.keys(result)).toEqual([
-            "TextInput",
-            "NumberInput",
-            "Button",
-            "Checkbox",
-            "Badge",
-        ]);
+        expect(Object.keys(result)).toEqual(["TextInput", "NumberInput", "Button", "Checkbox", "Badge"]);
     });
 
     it("is used by compactTheme without type errors", async () => {

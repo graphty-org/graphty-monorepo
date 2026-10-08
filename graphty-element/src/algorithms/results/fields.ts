@@ -50,9 +50,7 @@ const COMMUNITY_BASE: readonly ResultFieldSpec[] = [
  * @returns The field list.
  */
 export function communityFieldSpecs(withModularity: boolean): readonly ResultFieldSpec[] {
-    return withModularity
-        ? [...COMMUNITY_BASE, { name: "modularity", kind: "graph", type: "number" }]
-        : COMMUNITY_BASE;
+    return withModularity ? [...COMMUNITY_BASE, { name: "modularity", kind: "graph", type: "number" }] : COMMUNITY_BASE;
 }
 
 /** The fields a layered grouping publishes, with the level sizes the element derives. */

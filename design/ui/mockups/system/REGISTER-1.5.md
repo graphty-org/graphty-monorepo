@@ -35,27 +35,27 @@ one reason, after a full stop.
 
 ### 1.1 Shell and top bar
 
-| Verb | 16px stroke glyph (inner SVG) | Title |
-|---|---|---|
-| close (dialog, overlay, palette, strip) | `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>` | `Close (Esc)` |
-| close panel | `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>` | `Close the panel (Cmd+B)` |
-| toggle inspector | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line>` | `Toggle inspector (D)` |
-| toggle panel (added 2026-09-12, section 18) | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="6" y1="2.5" x2="6" y2="13.5"></line>` | `Toggle panel (Cmd+B)` |
-| keep open (added 2026-09-12, section 18) | `<rect x="3.5" y="7" width="9" height="6.5" rx="1"></rect><path d="M5.75 7V5.25a2.25 2.25 0 0 1 4.5 0V7"></path>` | `Keep open` |
-| collapse inspector (the inspector title row's own control, drawn at 12px) | `<polyline points="6,4 10,8 6,12"></polyline>` | `Toggle inspector (D)` -- see section 16 |
-| compare | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="8" y1="2.5" x2="8" y2="13.5"></line>` | `Compare two views` / disabled `Compare two views. Load data first` |
-| undo | `<path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline>` | `Undo (Cmd+Z)` / disabled `Undo (Cmd+Z). Nothing to undo yet` |
-| redo | `<path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline>` | `Redo (Shift+Cmd+Z)` / disabled `Redo (Shift+Cmd+Z). Nothing to redo yet` |
-| share | `<circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line>` | `Share this view` / disabled `Share this view. Load data first` |
-| export (also download; there is no separate download glyph and no floppy save glyph) | `<path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path>` | `Export` / disabled `Export. Load data first` / object form `Export CSV`, `Export schema JSON` |
-| views | `<path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path>` | `Views` |
-| zoom in | `<circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line>` | `Zoom in (=)` |
-| zoom out | `<circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line>` | `Zoom out (-)` |
-| zoom to fit | `<path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path>` | `Zoom to fit (0)` |
-| zoom to selection | `<path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle>` | `Zoom to selection (F)` / disabled `Zoom to selection (F). Select something first` |
-| search | `<circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line>` | none: it sits inside the Cmd K pill and the search input, both of which carry visible text |
-| settings | `<circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path>` | `Settings`; object forms `Import settings`, `Time slider settings (T)`, `Animation settings` |
-| help | `<circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line>` | `Help and keyboard shortcuts (?)` |
+| Verb                                                                                 | 16px stroke glyph (inner SVG)                                                                                                                                                                                                          | Title                                                                                          |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| close (dialog, overlay, palette, strip)                                              | `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>`                                                                                                                                               | `Close (Esc)`                                                                                  |
+| close panel                                                                          | `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>`                                                                                                                                               | `Close the panel (Cmd+B)`                                                                      |
+| toggle inspector                                                                     | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line>`                                                                                                                          | `Toggle inspector (D)`                                                                         |
+| toggle panel (added 2026-09-12, section 18)                                          | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="6" y1="2.5" x2="6" y2="13.5"></line>`                                                                                                                            | `Toggle panel (Cmd+B)`                                                                         |
+| keep open (added 2026-09-12, section 18)                                             | `<rect x="3.5" y="7" width="9" height="6.5" rx="1"></rect><path d="M5.75 7V5.25a2.25 2.25 0 0 1 4.5 0V7"></path>`                                                                                                                      | `Keep open`                                                                                    |
+| collapse inspector (the inspector title row's own control, drawn at 12px)            | `<polyline points="6,4 10,8 6,12"></polyline>`                                                                                                                                                                                         | `Toggle inspector (D)` -- see section 16                                                       |
+| compare                                                                              | `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="8" y1="2.5" x2="8" y2="13.5"></line>`                                                                                                                            | `Compare two views` / disabled `Compare two views. Load data first`                            |
+| undo                                                                                 | `<path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline>`                                                                                                                                         | `Undo (Cmd+Z)` / disabled `Undo (Cmd+Z). Nothing to undo yet`                                  |
+| redo                                                                                 | `<path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline>`                                                                                                                                       | `Redo (Shift+Cmd+Z)` / disabled `Redo (Shift+Cmd+Z). Nothing to redo yet`                      |
+| share                                                                                | `<circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line>` | `Share this view` / disabled `Share this view. Load data first`                                |
+| export (also download; there is no separate download glyph and no floppy save glyph) | `<path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path>`                                                                                             | `Export` / disabled `Export. Load data first` / object form `Export CSV`, `Export schema JSON` |
+| views                                                                                | `<path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path>`                                                                                                                                            | `Views`                                                                                        |
+| zoom in                                                                              | `<circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line>`                                                           | `Zoom in (=)`                                                                                  |
+| zoom out                                                                             | `<circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line>`                                                                                                    | `Zoom out (-)`                                                                                 |
+| zoom to fit                                                                          | `<path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path>`                                                                                                       | `Zoom to fit (0)`                                                                              |
+| zoom to selection                                                                    | `<path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle>`                                                                  | `Zoom to selection (F)` / disabled `Zoom to selection (F). Select something first`             |
+| search                                                                               | `<circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line>`                                                                                                                                             | none: it sits inside the Cmd K pill and the search input, both of which carry visible text     |
+| settings                                                                             | `<circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path>`                             | `Settings`; object forms `Import settings`, `Time slider settings (T)`, `Animation settings`   |
+| help                                                                                 | `<circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line>`                                                                               | `Help and keyboard shortcuts (?)`                                                              |
 
 Rail activities (Data, Explore, Analyze, Style, Present, AI) keep the glyphs in
 VOCAB section 5 unchanged. Their title is the activity name alone (`Data`,
@@ -64,43 +64,43 @@ VOCAB section 5 unchanged. Their title is the activity name alone (`Data`,
 
 ### 1.2 Panel, section and row verbs
 
-| Verb | 16px stroke glyph (inner SVG) | Title |
-|---|---|---|
-| more (overflow) | `<circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle>` | `More` |
-| pin | `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>` | inspector or panel title row: `Pin as A`, on every board that draws it (section 10.2). Layout node pin: `Pin selected` and `Unpin all`. Pop-out header: `Pin this open` (section 8) |
-| edit | `<path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path><line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line>` | `Edit`, plus the object where the icon does not sit on it (`Edit layer`, `Edit binding`) |
-| delete | `<path d="M3 4.5h10M6.5 4.5v-2h3v2M4 4.5l.8 9h6.4l.8-9"></path>` | `Delete`, plus the object (`Delete layer`, `Delete set`, `Delete this rule`) |
-| show on canvas | `<path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"></path><circle cx="8" cy="8" r="2"></circle>` | `Show on canvas` in every state; a toggle never renames itself |
-| copy | `<rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path>` | `Copy`, plus the object (`Copy reading`, `Copy id`, `Copy as TSV`). The title-row control is `Copy reading` on every board, never `Copy the graph summary` and never a bare `Copy` (section 10.1) |
-| recompute | `<path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline>` | `Recompute`. The one exception is Settings > Performance, where VOCAB 10 fixes the visible words `Recalibrate` and `Change` |
-| locate | `<circle cx="8" cy="8" r="4.5"></circle><circle cx="8" cy="8" r="1.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path>` | `Locate` |
-| filter | `<path d="M2.5 3.5h11l-4.25 5v4.25l-2.5 1.25V8.5z"></path>` | `Filter to selection` |
-| bookmark (a saved view, set, recipe or subgraph, as the leading glyph on a row that carries the verb in text) | `<path d="M4 2.5h8a1 1 0 0 1 1 1v10l-5-3-5 3v-10a1 1 0 0 1 1-1z"></path>` | none as a leading glyph, because the row carries the words (`Save as view...` on ViewsMenu, `Save as subgraph...` on FilterBuilderExpert, the saved-view history entry). It is not the drawing of an icon-only save verb: every `Save as <kind>...` control is the plus (section 10.6) |
-| note | `<path d="M3 2.5h10v8H7l-3 3v-3H3z"></path>` | `Note this relationship`; on a node `Note` |
-| add | `<line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line>` | the verb plus its object (`Add a style layer`) |
-| check (a toggled menu row or a checked box) | `<polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>` | none: it replaces a menu row's leading icon and the row carries text |
-| list view | `<line x1="5.5" y1="4" x2="13.5" y2="4"></line><line x1="5.5" y1="8" x2="13.5" y2="8"></line><line x1="5.5" y1="12" x2="13.5" y2="12"></line><circle cx="3" cy="4" r="0.5"></circle><circle cx="3" cy="8" r="0.5"></circle><circle cx="3" cy="12" r="0.5"></circle>` | `List` |
-| card view | `<rect x="2.5" y="2.5" width="11" height="4.5" rx="1"></rect><rect x="2.5" y="9" width="11" height="4.5" rx="1"></rect>` | `Cards` |
-| link views | `<path d="M6.5 9.5a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-.75.75"></path><path d="M9.5 6.5a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l.75-.75"></path>` | `Link views` |
-| lock | `<path d="M2.5 5.5h11v8h-11z"></path><path d="M5.5 5.5v-2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"></path>` | `Lock` |
-| caret, disclosure (12px) | open `<polyline points="4,6 8,10 12,6"></polyline>`, closed `<polyline points="6,4 10,8 6,12"></polyline>` | none on a section header, which carries text; on a select it is decoration |
-| caret, menu affordance (8px, `stroke-width="2"`) | `<polyline points="3,6 8,11 13,6"></polyline>` | none while it trails a trigger that carries text, which is the common case. When the caret is drawn as its own separately clickable half of a split button it is a control in its own right, with its own hit area, and it carries its own title naming what that half opens: `History` on the top bar's Undo split button, `Choose which neighbors to expand` on Expand neighbors. That title never repeats the main half's words, is never a bare `More`, and never carries the main half's binding, which belongs to the half that acts |
-| info circle (12px) | `<circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line>` | the explanation sentence itself, see section 4 |
+| Verb                                                                                                          | 16px stroke glyph (inner SVG)                                                                                                                                                                                                                                        | Title                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| more (overflow)                                                                                               | `<circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle>`                                                                                                                                      | `More`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| pin                                                                                                           | `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`                                                                                                                                                                  | inspector or panel title row: `Pin as A`, on every board that draws it (section 10.2). Layout node pin: `Pin selected` and `Unpin all`. Pop-out header: `Pin this open` (section 8)                                                                                                                                                                                                                                                                                                                                                        |
+| edit                                                                                                          | `<path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path><line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line>`                                                                                                                                                             | `Edit`, plus the object where the icon does not sit on it (`Edit layer`, `Edit binding`)                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| delete                                                                                                        | `<path d="M3 4.5h10M6.5 4.5v-2h3v2M4 4.5l.8 9h6.4l.8-9"></path>`                                                                                                                                                                                                     | `Delete`, plus the object (`Delete layer`, `Delete set`, `Delete this rule`)                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| show on canvas                                                                                                | `<path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"></path><circle cx="8" cy="8" r="2"></circle>`                                                                                                                                          | `Show on canvas` in every state; a toggle never renames itself                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| copy                                                                                                          | `<rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path>`                                                                                                                           | `Copy`, plus the object (`Copy reading`, `Copy id`, `Copy as TSV`). The title-row control is `Copy reading` on every board, never `Copy the graph summary` and never a bare `Copy` (section 10.1)                                                                                                                                                                                                                                                                                                                                          |
+| recompute                                                                                                     | `<path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline>`                                                                                                                                                                     | `Recompute`. The one exception is Settings > Performance, where VOCAB 10 fixes the visible words `Recalibrate` and `Change`                                                                                                                                                                                                                                                                                                                                                                                                                |
+| locate                                                                                                        | `<circle cx="8" cy="8" r="4.5"></circle><circle cx="8" cy="8" r="1.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path>`                                                                                                                                 | `Locate`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| filter                                                                                                        | `<path d="M2.5 3.5h11l-4.25 5v4.25l-2.5 1.25V8.5z"></path>`                                                                                                                                                                                                          | `Filter to selection`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| bookmark (a saved view, set, recipe or subgraph, as the leading glyph on a row that carries the verb in text) | `<path d="M4 2.5h8a1 1 0 0 1 1 1v10l-5-3-5 3v-10a1 1 0 0 1 1-1z"></path>`                                                                                                                                                                                            | none as a leading glyph, because the row carries the words (`Save as view...` on ViewsMenu, `Save as subgraph...` on FilterBuilderExpert, the saved-view history entry). It is not the drawing of an icon-only save verb: every `Save as <kind>...` control is the plus (section 10.6)                                                                                                                                                                                                                                                     |
+| note                                                                                                          | `<path d="M3 2.5h10v8H7l-3 3v-3H3z"></path>`                                                                                                                                                                                                                         | `Note this relationship`; on a node `Note`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| add                                                                                                           | `<line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line>`                                                                                                                                                                               | the verb plus its object (`Add a style layer`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| check (a toggled menu row or a checked box)                                                                   | `<polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>`                                                                                                                                                                                                             | none: it replaces a menu row's leading icon and the row carries text                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| list view                                                                                                     | `<line x1="5.5" y1="4" x2="13.5" y2="4"></line><line x1="5.5" y1="8" x2="13.5" y2="8"></line><line x1="5.5" y1="12" x2="13.5" y2="12"></line><circle cx="3" cy="4" r="0.5"></circle><circle cx="3" cy="8" r="0.5"></circle><circle cx="3" cy="12" r="0.5"></circle>` | `List`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| card view                                                                                                     | `<rect x="2.5" y="2.5" width="11" height="4.5" rx="1"></rect><rect x="2.5" y="9" width="11" height="4.5" rx="1"></rect>`                                                                                                                                             | `Cards`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| link views                                                                                                    | `<path d="M6.5 9.5a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-.75.75"></path><path d="M9.5 6.5a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l.75-.75"></path>`                                                                                                  | `Link views`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| lock                                                                                                          | `<path d="M2.5 5.5h11v8h-11z"></path><path d="M5.5 5.5v-2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2"></path>`                                                                                                                                                                  | `Lock`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| caret, disclosure (12px)                                                                                      | open `<polyline points="4,6 8,10 12,6"></polyline>`, closed `<polyline points="6,4 10,8 6,12"></polyline>`                                                                                                                                                           | none on a section header, which carries text; on a select it is decoration                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| caret, menu affordance (8px, `stroke-width="2"`)                                                              | `<polyline points="3,6 8,11 13,6"></polyline>`                                                                                                                                                                                                                       | none while it trails a trigger that carries text, which is the common case. When the caret is drawn as its own separately clickable half of a split button it is a control in its own right, with its own hit area, and it carries its own title naming what that half opens: `History` on the top bar's Undo split button, `Choose which neighbors to expand` on Expand neighbors. That title never repeats the main half's words, is never a bare `More`, and never carries the main half's binding, which belongs to the half that acts |
+| info circle (12px)                                                                                            | `<circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line>`                                                                                                                                  | the explanation sentence itself, see section 4                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### 1.3 Selection verbs
 
-| Verb | 16px stroke glyph (inner SVG) | Title |
-|---|---|---|
-| select all visible | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke-dasharray="2.5 2"></rect><polyline points="5.2,8.2 7.2,10.2 10.8,5.8"></polyline>` | `Select all visible (Cmd+A)` |
-| invert selection | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke-dasharray="2.5 2"></rect><rect x="5.5" y="5.5" width="5" height="5" rx="1"></rect>` | `Invert selection (I)` |
-| clear selection | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke-dasharray="2.5 2"></rect><path d="M6 6l4 4M10 6l-4 4"></path>` | `Clear selection (Esc)` |
-| select neighbors | `<circle cx="5.5" cy="8" r="2.25"></circle><circle cx="12.5" cy="4.5" r="1.5"></circle><circle cx="12.5" cy="11.5" r="1.5"></circle><line x1="7.6" y1="7" x2="11" y2="5.3"></line><line x1="7.6" y1="9" x2="11" y2="10.7"></line>` | `Select neighbors (Shift+E)` |
-| select edges between selected | `<circle cx="4" cy="12" r="1.75"></circle><circle cx="12" cy="4" r="1.75"></circle><line x1="5.3" y1="10.7" x2="10.7" y2="5.3"></line>` | `Select edges between selected` |
+| Verb                          | 16px stroke glyph (inner SVG)                                                                                                                                                                                                                                                       | Title                           |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| select all visible            | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke-dasharray="2.5 2"></rect><polyline points="5.2,8.2 7.2,10.2 10.8,5.8"></polyline>`                                                                                                                                    | `Select all visible (Cmd+A)`    |
+| invert selection              | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke-dasharray="2.5 2"></rect><rect x="5.5" y="5.5" width="5" height="5" rx="1"></rect>`                                                                                                                                   | `Invert selection (I)`          |
+| clear selection               | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5" stroke-dasharray="2.5 2"></rect><path d="M6 6l4 4M10 6l-4 4"></path>`                                                                                                                                                        | `Clear selection (Esc)`         |
+| select neighbors              | `<circle cx="5.5" cy="8" r="2.25"></circle><circle cx="12.5" cy="4.5" r="1.5"></circle><circle cx="12.5" cy="11.5" r="1.5"></circle><line x1="7.6" y1="7" x2="11" y2="5.3"></line><line x1="7.6" y1="9" x2="11" y2="10.7"></line>`                                                  | `Select neighbors (Shift+E)`    |
+| select edges between selected | `<circle cx="4" cy="12" r="1.75"></circle><circle cx="12" cy="4" r="1.75"></circle><line x1="5.3" y1="10.7" x2="10.7" y2="5.3"></line>`                                                                                                                                             | `Select edges between selected` |
 | select largest connected part | `<circle cx="5" cy="5.5" r="1.5"></circle><circle cx="10.5" cy="4.5" r="1.5"></circle><circle cx="7.5" cy="11" r="1.5"></circle><line x1="6.4" y1="5.3" x2="9.1" y2="4.7"></line><line x1="5.6" y1="6.9" x2="6.9" y2="9.6"></line><line x1="10" y1="5.9" x2="8.1" y2="9.6"></line>` | `Select largest connected part` |
-| merge selected nodes | `<circle cx="5.5" cy="8" r="3.5"></circle><circle cx="10.5" cy="8" r="3.5"></circle>` | `Merge selected nodes...` |
-| simulate removing | `<circle cx="8" cy="8" r="6"></circle><path d="M5.5 5.5l5 5M10.5 5.5l-5 5"></path>` | `Simulate removing` |
-| show in table | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="2.5" y1="10" x2="13.5" y2="10"></line><line x1="7" y1="6.5" x2="7" y2="13.5"></line>` | `Show in table (Shift+T)` |
-| style selection | `<path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path>` | `Style selection` |
+| merge selected nodes          | `<circle cx="5.5" cy="8" r="3.5"></circle><circle cx="10.5" cy="8" r="3.5"></circle>`                                                                                                                                                                                               | `Merge selected nodes...`       |
+| simulate removing             | `<circle cx="8" cy="8" r="6"></circle><path d="M5.5 5.5l5 5M10.5 5.5l-5 5"></path>`                                                                                                                                                                                                 | `Simulate removing`             |
+| show in table                 | `<rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6.5" x2="13.5" y2="6.5"></line><line x1="2.5" y1="10" x2="13.5" y2="10"></line><line x1="7" y1="6.5" x2="7" y2="13.5"></line>`                                                                     | `Show in table (Shift+T)`       |
+| style selection               | `<path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path>`                                                                                                                                                    | `Style selection`               |
 
 IK-2, which DataTableDrawer's comment raises as "three glyphs are owed to
 section 5", is closed by this table. All three verbs it names now have a 16px
@@ -123,22 +123,22 @@ One drawing per verb across both transports. The time transport and the layout
 transport are two verbs sharing the play and step drawings; their titles name
 which transport, and the reuse is listed in section 8.
 
-| Verb | 16px stroke glyph (inner SVG) | Title |
-|---|---|---|
-| play | `<polygon points="5,3 13,8 5,13"></polygon>` | time transport `Play (Space)`; layout transport `Run the layout (Space)`; in a Style attribute list the same 12px glyph marks a metric that has not been run and the row carries its own sentence |
-| pause | `<line x1="5.5" y1="3.5" x2="5.5" y2="12.5"></line><line x1="10.5" y1="3.5" x2="10.5" y2="12.5"></line>` | `Pause (Space)` |
-| step forward | `<polygon points="4,3.5 10,8 4,12.5"></polygon><line x1="12" y1="3.5" x2="12" y2="12.5"></line>` | time transport `Step forward 7 days (.)`, unit-aware per VOCAB 10; layout transport `Step the layout once` |
-| step back | `<line x1="4" y1="3.5" x2="4" y2="12.5"></line><polygon points="12,3.5 6,8 12,12.5"></polygon>` | `Step back 7 days (,)` |
-| settle | `<polygon points="2.5,3 8,8 2.5,13"></polygon><polygon points="8,3 13.5,8 8,13"></polygon>` | `Settle` |
-| reverse | `<path d="M2.5 5.5h11"></path><polyline points="10.5,2.5 13.5,5.5 10.5,8.5"></polyline><path d="M13.5 10.5h-11"></path><polyline points="5.5,7.5 2.5,10.5 5.5,13.5"></polyline>` | `Reverse` |
-| stop listening (voice) | `<rect x="6" y="2" width="4" height="7" rx="2"></rect><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"></path><line x1="8" y1="12" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line>` | `Stop listening` |
+| Verb                   | 16px stroke glyph (inner SVG)                                                                                                                                                                  | Title                                                                                                                                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| play                   | `<polygon points="5,3 13,8 5,13"></polygon>`                                                                                                                                                   | time transport `Play (Space)`; layout transport `Run the layout (Space)`; in a Style attribute list the same 12px glyph marks a metric that has not been run and the row carries its own sentence |
+| pause                  | `<line x1="5.5" y1="3.5" x2="5.5" y2="12.5"></line><line x1="10.5" y1="3.5" x2="10.5" y2="12.5"></line>`                                                                                       | `Pause (Space)`                                                                                                                                                                                   |
+| step forward           | `<polygon points="4,3.5 10,8 4,12.5"></polygon><line x1="12" y1="3.5" x2="12" y2="12.5"></line>`                                                                                               | time transport `Step forward 7 days (.)`, unit-aware per VOCAB 10; layout transport `Step the layout once`                                                                                        |
+| step back              | `<line x1="4" y1="3.5" x2="4" y2="12.5"></line><polygon points="12,3.5 6,8 12,12.5"></polygon>`                                                                                                | `Step back 7 days (,)`                                                                                                                                                                            |
+| settle                 | `<polygon points="2.5,3 8,8 2.5,13"></polygon><polygon points="8,3 13.5,8 8,13"></polygon>`                                                                                                    | `Settle`                                                                                                                                                                                          |
+| reverse                | `<path d="M2.5 5.5h11"></path><polyline points="10.5,2.5 13.5,5.5 10.5,8.5"></polyline><path d="M13.5 10.5h-11"></path><polyline points="5.5,7.5 2.5,10.5 5.5,13.5"></polyline>`               | `Reverse`                                                                                                                                                                                         |
+| stop listening (voice) | `<rect x="6" y="2" width="4" height="7" rx="2"></rect><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0"></path><line x1="8" y1="12" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line>` | `Stop listening`                                                                                                                                                                                  |
 
 ### 1.5 Status indicators (drawn, not clickable verbs)
 
-| Indicator | 16px stroke glyph (inner SVG) | Title |
-|---|---|---|
-| warning | `<path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line>` | the reason sentence |
-| performance mode | `<path d="M9 1.5L3 9h4.5L7 14.5 13 7H8.5z"></path>` | the rule list, per VOCAB 10 `Status bar Performance chip` |
+| Indicator        | 16px stroke glyph (inner SVG)                                                                                                   | Title                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| warning          | `<path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line>` | the reason sentence                                       |
+| performance mode | `<path d="M9 1.5L3 9h4.5L7 14.5 13 7H8.5z"></path>`                                                                             | the rule list, per VOCAB 10 `Status bar Performance chip` |
 
 ### 1.6 Verbs with no glyph
 
@@ -182,18 +182,18 @@ unchanged, drawn inside a 16px slot at `#7a828e`; the slot is the scrub handle,
 concept with no entry keeps its word, in the field, as its own scrub handle --
 the `Granularity` form, VOCAB 12 -- and never gets an approximate drawing.
 
-| Slot label | 14px stroke glyph (inner SVG) | Title |
-|---|---|---|
-| size, smallest | `<circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle>` | `Smallest node size` |
-| size, largest | `<circle cx="4.5" cy="11.5" r="1.75"></circle><circle cx="10" cy="6" r="5"></circle>` | `Largest node size` |
-| width (any extent) | `<line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline>` | the extent it measures, never a bare `Width`: `Outline width` (StyleLibrary, StylePanel), `Window size` (TimeSlider), `Edge length` (VOCAB 15.1). Section 17.3 |
-| opacity | `<circle cx="8" cy="8" r="5.5"></circle><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none"></path>` | `Opacity`, plus the object where the field does not sit on it (`Node opacity`, `Edge opacity`). Where an RT-2 box holds the swatch and the number together the box carries `Node color and opacity`, which is the compound's title and not this glyph's |
-| attribute binding | `<path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z"></path><circle cx="5.5" cy="5.5" r="0.75"></circle>` | the property it binds: `Size by attribute`, `Color by attribute`, `Outline by attribute`, `Edge weight attribute`. Bound, it appends the attribute: `Size by attribute: Age (ageYears)` |
-| scale, square root | `<path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>` | `Square root scale` |
-| scale, linear | `<line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>` | `Linear scale`; in a field whose value names the transform, the field form `Scale: linear` (RampPopout) |
-| scale, log | `<path d="M2.5 13.5C8 13.5 11.5 11 13.5 2.5"></path>` | `Log scale`, or the named transform where the ramp draws one (`-log10 scale`, StyleDiverging) |
-| colour | no SVG: the 14px swatch is the glyph | the thing it paints, in the drawn forms `Node color`, `Outline color`, `Canvas background color`, `Selected stop color`, `Missing value color`; bound, it appends the reading (`Node color: Groups (communities, Louvain), 4 groups`) |
-| pull to centre | `<circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline>` | `Pull to center`; with the value, `Pull to center: -1.2`. Section 17.4 |
+| Slot label         | 14px stroke glyph (inner SVG)                                                                                                                                                                                               | Title                                                                                                                                                                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| size, smallest     | `<circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle>`                                                                                                                                        | `Smallest node size`                                                                                                                                                                                                                                    |
+| size, largest      | `<circle cx="4.5" cy="11.5" r="1.75"></circle><circle cx="10" cy="6" r="5"></circle>`                                                                                                                                       | `Largest node size`                                                                                                                                                                                                                                     |
+| width (any extent) | `<line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline>`                                                                       | the extent it measures, never a bare `Width`: `Outline width` (StyleLibrary, StylePanel), `Window size` (TimeSlider), `Edge length` (VOCAB 15.1). Section 17.3                                                                                          |
+| opacity            | `<circle cx="8" cy="8" r="5.5"></circle><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none"></path>`                                                                                                     | `Opacity`, plus the object where the field does not sit on it (`Node opacity`, `Edge opacity`). Where an RT-2 box holds the swatch and the number together the box carries `Node color and opacity`, which is the compound's title and not this glyph's |
+| attribute binding  | `<path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z"></path><circle cx="5.5" cy="5.5" r="0.75"></circle>`                                                                                                             | the property it binds: `Size by attribute`, `Color by attribute`, `Outline by attribute`, `Edge weight attribute`. Bound, it appends the attribute: `Size by attribute: Age (ageYears)`                                                                 |
+| scale, square root | `<path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>`                                                                                                                                                                          | `Square root scale`                                                                                                                                                                                                                                     |
+| scale, linear      | `<line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>`                                                                                                                                                                       | `Linear scale`; in a field whose value names the transform, the field form `Scale: linear` (RampPopout)                                                                                                                                                 |
+| scale, log         | `<path d="M2.5 13.5C8 13.5 11.5 11 13.5 2.5"></path>`                                                                                                                                                                       | `Log scale`, or the named transform where the ramp draws one (`-log10 scale`, StyleDiverging)                                                                                                                                                           |
+| colour             | no SVG: the 14px swatch is the glyph                                                                                                                                                                                        | the thing it paints, in the drawn forms `Node color`, `Outline color`, `Canvas background color`, `Selected stop color`, `Missing value color`; bound, it appends the reading (`Node color: Groups (communities, Louvain), 4 groups`)                   |
+| pull to centre     | `<circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline>` | `Pull to center`; with the value, `Pull to center: -1.2`. Section 17.4                                                                                                                                                                                  |
 
 The three scale curves have a second home, and one title rule covers both. In a
 field slot the field is the scale select and the title takes the field form
@@ -259,9 +259,11 @@ Three or more contiguous unshipped rows in one list are one group, not N rows:
 One geometry for the open popover, everywhere:
 
 ```html
-<div style="position: absolute; left: 0; top: 20px; width: 250px; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; z-index: 15;">
-  <span>Nodes with well-linked neighbors: a node scores high when the nodes pointing at it score high.</span>
-  <span style="color: #5b8ff9; cursor: pointer;">Learn more</span>
+<div
+    style="position: absolute; left: 0; top: 20px; width: 250px; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; z-index: 15;"
+>
+    <span>Nodes with well-linked neighbors: a node scores high when the nodes pointing at it score high.</span>
+    <span style="color: #5b8ff9; cursor: pointer;">Learn more</span>
 </div>
 ```
 
@@ -273,8 +275,24 @@ deviation is horizontal only.
 The sentence also rides in the circle's own `title` attribute:
 
 ```html
-<div title="Percentile compares this node with every other node: 98th percentile means it scores above 98 per cent of them." style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+<div
+    title="Percentile compares this node with every other node: 98th percentile means it scores above 98 per cent of them."
+    style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"
+>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <circle cx="8" cy="8" r="6.5"></circle>
+        <line x1="8" y1="7" x2="8" y2="11.5"></line>
+        <line x1="8" y1="4.5" x2="8" y2="4.75"></line>
+    </svg>
 </div>
 ```
 
@@ -331,7 +349,7 @@ decision about what a control does, so it is listed per board.
   ShortcutsDialog, StyleDiverging, Settings, ImportRecognised.
 - **S08.** Use the InspectorGenomics percentile sentence
   (`Percentile compares this node with every other node: 98th percentile means
-  it scores above 98 per cent of them.`) on ExplorerExpert and IpadInspector
+it scores above 98 per cent of them.`) on ExplorerExpert and IpadInspector
   too, and leave the reported half inline beside the value. In MultiSelection
   drop the leading `A: acct-4471.` from the card popover.
 - **S10, pencil.** ExploreNotesList, ExplorerNotes, IpadInspector, StylePanel
@@ -346,7 +364,7 @@ decision about what a control does, so it is listed per board.
   InspectorGenomics's `More. Color by this, ...`, StylePanel's
   `Advanced: Stiffness (springCoefficient), ...`. Two more of the same shape:
   ImportAddToGraph's `Share. Export data or copy an image. NDEx upload comes
-  later` and CompareSplit's nine-item row overflow. The nine `Run all (N)`
+later` and CompareSplit's nine-item row overflow. The nine `Run all (N)`
   titles on AnalyzePanel, IpadPanel and ExplorerAfterCard become `More`, with
   the count moving into the comment.
 - **S12, Compare against the inspector toggle.** The two glyphs differ by a 2px
@@ -373,7 +391,7 @@ decision about what a control does, so it is listed per board.
   no activity name. They need `Explore. Load data first` and its siblings, in
   rail order.
 - **New, ExplorePanel.** The gear's title read `More Explore actions. Everything
-  here opens a dialog`; `Opens a dialog` is retired by VOCAB 10. Cut to
+here opens a dialog`; `Opens a dialog` is retired by VOCAB 10. Cut to
   `More Explore actions`. APPLIED.
 
 ## 7. What the normalization script applied
@@ -404,13 +422,13 @@ The closed list. A glyph is here only because the two verbs never appear in the
 same cluster, so position and neighbours tell them apart, and because the titles
 differ. Anything not on this list that shares a drawing is drift.
 
-| Glyph | Verbs it serves | Titles | Why it reads |
-|---|---|---|---|
-| play triangle `<polygon points="5,3 13,8 5,13"></polygon>` | run the time transport; run the layout transport; mark an unrun metric | `Play (Space)` on the time slider (TimeSlider, DataTableDrawer); `Run the layout (Space)` on the layout run row (StylePanel, StyleDiverging); no title on the 12px marker in a Style attribute list, whose row carries its own sentence | the time transport sits on the slider under the canvas, the layout transport sits inside the Style panel's Layouts section, and the marker sits in a list of metric names. The three never share a row |
-| step forward `<polygon points="4,3.5 10,8 4,12.5"></polygon><line x1="12" y1="3.5" x2="12" y2="12.5"></line>` | step the time transport; step the layout transport | `Step forward 7 days (.)`, unit-aware; `Step the layout once` | each sits beside its own play, so the transport it belongs to is the control next to it |
-| pushpin `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>` | pin a subject as a comparison anchor; pin nodes in place for the layout; pin a pop-out open | `Pin as A` in an inspector or panel title row; `Pin selected` and `Unpin all` on the layout run row; `Pin this open` in a pop-out header | the anchor sits in a 36px title row beside Copy reading and the inspector toggle; the layout pins sit on the Style panel's run row beside Run the layout, Step, Settle and Recompute; the pop-out pin sits in a floating 32px header (6.11) whose only other control is the close X, so the pair reads as keep-open against dismiss, and it is drawn that way on Main, GroupProfilePopout, ValidationPopout, FilterBuilderExpert, MultiSelection and TimeSlider. The three never share a row, and no title is a bare `Pin` (section 10.2) |
-| close X `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>` | close an overlay; close the panel; hide the suggestions strip; clear a binding | `Close (Esc)`; `Close the panel (Cmd+B)`; `Hide suggestions`; `Clear` | the first three sit in the top right of the thing they dismiss, at three different scales of container; `Clear` sits inline at the trailing edge of the select it empties, never in a header |
-| plus `<line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line>` | add a style layer to the layer list; save the current thing as a new entry in a library list, in the per-kind forms of 6.3 | `Add a style layer` on the Layers header; `Save as style...` on the Styles library header, and its siblings on the other kinds' headers (`Save as recipe...`, `Save as filter...`, `Save as formula...`, `Save as report...`, `Save selection as set...`) | this is the one reuse whose two verbs share a board: StyleLibrary draws both headers, eight rows apart. They still never share a cluster -- each plus sits at the trailing edge of its own 32px section header, and that header names the list the plus adds to, so the plus reads as "add an entry to this list" and the list underneath says which list. The titles differ and neither is a bare `Add`. On a selection action row, where no list sits underneath, the save verb keeps the bookmark instead, which is section 10.6's accepted split and the reason 1.6's no-save-glyph rule is not breached |
+| Glyph                                                                                                         | Verbs it serves                                                                                                            | Titles                                                                                                                                                                                                                                                    | Why it reads                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| play triangle `<polygon points="5,3 13,8 5,13"></polygon>`                                                    | run the time transport; run the layout transport; mark an unrun metric                                                     | `Play (Space)` on the time slider (TimeSlider, DataTableDrawer); `Run the layout (Space)` on the layout run row (StylePanel, StyleDiverging); no title on the 12px marker in a Style attribute list, whose row carries its own sentence                   | the time transport sits on the slider under the canvas, the layout transport sits inside the Style panel's Layouts section, and the marker sits in a list of metric names. The three never share a row                                                                                                                                                                                                                                                                                                                                                                                                       |
+| step forward `<polygon points="4,3.5 10,8 4,12.5"></polygon><line x1="12" y1="3.5" x2="12" y2="12.5"></line>` | step the time transport; step the layout transport                                                                         | `Step forward 7 days (.)`, unit-aware; `Step the layout once`                                                                                                                                                                                             | each sits beside its own play, so the transport it belongs to is the control next to it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| pushpin `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`   | pin a subject as a comparison anchor; pin nodes in place for the layout; pin a pop-out open                                | `Pin as A` in an inspector or panel title row; `Pin selected` and `Unpin all` on the layout run row; `Pin this open` in a pop-out header                                                                                                                  | the anchor sits in a 36px title row beside Copy reading and the inspector toggle; the layout pins sit on the Style panel's run row beside Run the layout, Step, Settle and Recompute; the pop-out pin sits in a floating 32px header (6.11) whose only other control is the close X, so the pair reads as keep-open against dismiss, and it is drawn that way on Main, GroupProfilePopout, ValidationPopout, FilterBuilderExpert, MultiSelection and TimeSlider. The three never share a row, and no title is a bare `Pin` (section 10.2)                                                                    |
+| close X `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>`              | close an overlay; close the panel; hide the suggestions strip; clear a binding                                             | `Close (Esc)`; `Close the panel (Cmd+B)`; `Hide suggestions`; `Clear`                                                                                                                                                                                     | the first three sit in the top right of the thing they dismiss, at three different scales of container; `Clear` sits inline at the trailing edge of the select it empties, never in a header                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| plus `<line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line>`                   | add a style layer to the layer list; save the current thing as a new entry in a library list, in the per-kind forms of 6.3 | `Add a style layer` on the Layers header; `Save as style...` on the Styles library header, and its siblings on the other kinds' headers (`Save as recipe...`, `Save as filter...`, `Save as formula...`, `Save as report...`, `Save selection as set...`) | this is the one reuse whose two verbs share a board: StyleLibrary draws both headers, eight rows apart. They still never share a cluster -- each plus sits at the trailing edge of its own 32px section header, and that header names the list the plus adds to, so the plus reads as "add an entry to this list" and the list underneath says which list. The titles differ and neither is a bare `Add`. On a selection action row, where no list sits underneath, the save verb keeps the bookmark instead, which is section 10.6's accepted split and the reason 1.6's no-save-glyph rule is not breached |
 
 The pair the list does not cover, and the one thing still to settle: `Toggle
 inspector` carries two drawings across the 39 boards. That is the inverse defect
@@ -442,7 +460,7 @@ variation and four groups were corrected.
 - **SettingsPerformance.** The info circle sentence
   `Sampled centrality above the threshold; top ranks are reliable.` used the
   retired cost-class word; it now reads `Approximate centrality above the
-  threshold; top ranks are reliable.`, matching ExplorerLargeGraph's
+threshold; top ranks are reliable.`, matching ExplorerLargeGraph's
   `run the approximate version`.
 - **Transport.** The layout run row on StylePanel and StyleDiverging read `Play`
   and `Step`; it now reads `Run the layout (Space)` and `Step the layout once`.
@@ -609,8 +627,8 @@ grepping the source. Each is on screen, in words:
    denominator is what makes the count mean anything. Floor 4.
 5. TimeSlider -- the reading's type composition:
    `Showing 120 of 200 nodes: 58 of 96 accounts, 29 of 48 devices, 20 of 34
-   phone numbers and 13 of 22 merchants, connected by 340 of 612 transactions.
-   The largest of 3 parts holds 88%.` Floor 1.
+phone numbers and 13 of 22 merchants, connected by 340 of 612 transactions.
+The largest of 3 parts holds 88%.` Floor 1.
 6. DataTableDrawer -- the rank key `rank, 1 to 200 in each method` under the
    three metric columns, one key for three columns. Floor 5: a legend is not a
    hover.
@@ -716,16 +734,34 @@ nothing else:
 
 ```html
 <div style="flex: 0 0 auto; display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div title="Schema. 4 node types, 3 edge types" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div
+        title="Schema. 4 node types, 3 edge types"
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: pointer;"
+    >
+        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="6,4 10,8 6,12"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Schema</span>
+        </div>
+        <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;"
+            >4 node types, 3 edge types</span
+        >
     </div>
-    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">4 node types, 3 edge types</span>
-  </div>
 </div>
 ```
 
@@ -782,18 +818,18 @@ pairs. It is authoritative because it is the only board where a reader sees
 every kind at once, and because at 349 px per column it is the one surface with
 room to render every pair inline.
 
-| Primary (the kind noun) | Second name |
-|---|---|
-| Styles | Style templates |
-| Filters | Saved filters |
-| Subgraphs | Saved subgraphs |
-| Sets | Selection sets |
-| Views | View bookmarks |
-| Patterns | Search patterns |
-| Recipes | Analysis recipes |
-| Formulas | Computed attributes |
-| Reports | Report configurations |
-| Mappings | Import mappings |
+| Primary (the kind noun) | Second name           |
+| ----------------------- | --------------------- |
+| Styles                  | Style templates       |
+| Filters                 | Saved filters         |
+| Subgraphs               | Saved subgraphs       |
+| Sets                    | Selection sets        |
+| Views                   | View bookmarks        |
+| Patterns                | Search patterns       |
+| Recipes                 | Analysis recipes      |
+| Formulas                | Computed attributes   |
+| Reports                 | Report configurations |
+| Mappings                | Import mappings       |
 
 **The primary name is what a section header renders.** Five kinds had the second
 name standing in for the primary somewhere in the set, and those are corrected:
@@ -838,8 +874,8 @@ placements, and only two:
   hovers. The circle is a 12 px glyph in a 14 px box with the sentence in its own
   `title` (section 4), and the second name is the head of that sentence:
   `Style templates: saved in this browser on this computer. Export a file to
-  move it.` -- the form TimeSlider's `Subgraph search: find every place a small
-  pattern of nodes and edges repeats.` already used. Applied on twenty rows over
+move it.` -- the form TimeSlider's `Subgraph search: find every place a small
+pattern of nodes and edges repeats.` already used. Applied on twenty rows over
   sixteen boards: `Style templates` on StyleDiverging, StyleFromAnalysis,
   StyleLibrary and StylePanel; `Saved filters` on ExplorePanel,
   FilterBuilderExpert, MultiSelection and SettingsPerformance; `Selection sets`
@@ -876,19 +912,19 @@ height, and it is the only board in the set that needs it.
 
 Each row below was one verb or one kind carrying two strings across boards.
 
-| Settled string | What it replaced | Where |
-|---|---|---|
-| `Open file` | `Open File` | 12 primary buttons on DataPanelLoaded, ImportLargeFile, ImportOptions, ImportParseError, ImportRecognised, ValidationPopout and Welcome. Sentence case is the set's only case convention for a control label; no other Title Case label in the set has a lowercase twin |
-| `Export CSV` | `Export (CSV)` | TableJoin's data-table link and its two comments. Section 1.1 fixes `Export CSV` as the object form and eleven boards already drew it; the parenthesised form belongs to `Export <kind> (JSON)`, which is 6.3's saved-thing verb and a different string |
-| `Add attributes from a table... (Table join)` | `Add attributes from a table (Table join)`, `Add attributes from a table (table join)` | ImportAddToGraph, ImportRecognised (which keeps its `. Load data first`) and TableJoin. Table join is a 3b dialog (6.11), so 6.3's ellipsis belongs, and it sits on the plain half, before the pair |
-| `Add a note on all 3 selected nodes (N)` | `Add a note to these 3 nodes (N)` | ExplorePanel, joining DataTableDrawer. Floor item 4 wants the scope a control will act on, and `all 3 selected` names it where `these 3` only points |
-| `Add a case note` | `Add a case note (N)` | TableJoin, joining 16 boards. N adds a note on the selection; a case note is graph-level and takes no binding |
-| `Around the selection` | `Around the selection...` | ExplorePanel, joining TimeSlider. The ellipsis means a dialog and the ego network is an Analyze card |
-| `Zachary 1977` | `Zachary, 1977` | ImportLargeFile and ImportRecognised, joining ImportOptions, ImportParseError and Welcome |
-| `risk_score: 0.87, high` | `risk_score 0.87, high` | ContextMenu, joining ExplorerNotes. An attribute reading in a title is `name: value`, which is the form `amount: number, 98% filled` and `indoorOutdoor: outdoor` already use |
-| `Zoom in, zoom out`, `Toggle minimap, toggle legend` | the same two with a semicolon | SettingsShortcuts, joining ShortcutsDialog. The two boards draw one shortcut list |
-| `N nodes, M edges, <date>` | `N nodes, M edges  --  <date>` | Welcome's two Recent files rows, joining the four Import boards. One separator for one meta line, and the doubled spaces went with it |
-| `Export schema JSON` | `Export` | InsightsWide's Schema door export, per 11.1 |
+| Settled string                                       | What it replaced                                                                       | Where                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Open file`                                          | `Open File`                                                                            | 12 primary buttons on DataPanelLoaded, ImportLargeFile, ImportOptions, ImportParseError, ImportRecognised, ValidationPopout and Welcome. Sentence case is the set's only case convention for a control label; no other Title Case label in the set has a lowercase twin |
+| `Export CSV`                                         | `Export (CSV)`                                                                         | TableJoin's data-table link and its two comments. Section 1.1 fixes `Export CSV` as the object form and eleven boards already drew it; the parenthesised form belongs to `Export <kind> (JSON)`, which is 6.3's saved-thing verb and a different string                 |
+| `Add attributes from a table... (Table join)`        | `Add attributes from a table (Table join)`, `Add attributes from a table (table join)` | ImportAddToGraph, ImportRecognised (which keeps its `. Load data first`) and TableJoin. Table join is a 3b dialog (6.11), so 6.3's ellipsis belongs, and it sits on the plain half, before the pair                                                                     |
+| `Add a note on all 3 selected nodes (N)`             | `Add a note to these 3 nodes (N)`                                                      | ExplorePanel, joining DataTableDrawer. Floor item 4 wants the scope a control will act on, and `all 3 selected` names it where `these 3` only points                                                                                                                    |
+| `Add a case note`                                    | `Add a case note (N)`                                                                  | TableJoin, joining 16 boards. N adds a note on the selection; a case note is graph-level and takes no binding                                                                                                                                                           |
+| `Around the selection`                               | `Around the selection...`                                                              | ExplorePanel, joining TimeSlider. The ellipsis means a dialog and the ego network is an Analyze card                                                                                                                                                                    |
+| `Zachary 1977`                                       | `Zachary, 1977`                                                                        | ImportLargeFile and ImportRecognised, joining ImportOptions, ImportParseError and Welcome                                                                                                                                                                               |
+| `risk_score: 0.87, high`                             | `risk_score 0.87, high`                                                                | ContextMenu, joining ExplorerNotes. An attribute reading in a title is `name: value`, which is the form `amount: number, 98% filled` and `indoorOutdoor: outdoor` already use                                                                                           |
+| `Zoom in, zoom out`, `Toggle minimap, toggle legend` | the same two with a semicolon                                                          | SettingsShortcuts, joining ShortcutsDialog. The two boards draw one shortcut list                                                                                                                                                                                       |
+| `N nodes, M edges, <date>`                           | `N nodes, M edges  --  <date>`                                                         | Welcome's two Recent files rows, joining the four Import boards. One separator for one meta line, and the doubled spaces went with it                                                                                                                                   |
+| `Export schema JSON`                                 | `Export`                                                                               | InsightsWide's Schema door export, per 11.1                                                                                                                                                                                                                             |
 
 ### 11.4 Two findings left open, because each needs a rule that does not exist yet
 
@@ -960,12 +996,12 @@ actions live." Its never list covers "every selection and filter verb". Section
 followed section 1.3, so five or six bare glyphs sat in a block the spec says
 takes none -- in an order that differed at every slot after the first:
 
-| Board | Order drawn before this section |
-|---|---|
-| ExplorePanel | zoom, show in table, style, save as set, copy ids, More |
-| MultiSelection | style, simulate removing, remove selected, zoom, filter, save as set, show in table, clear |
-| FilterBuilderExpert | zoom, filter, show in table, style, invert, copy ids, clear, More |
-| ExplorerExpert, InspectorGenomics | three or four of the same, in two more orders |
+| Board                             | Order drawn before this section                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------ |
+| ExplorePanel                      | zoom, show in table, style, save as set, copy ids, More                                    |
+| MultiSelection                    | style, simulate removing, remove selected, zoom, filter, save as set, show in table, clear |
+| FilterBuilderExpert               | zoom, filter, show in table, style, invert, copy ids, clear, More                          |
+| ExplorerExpert, InspectorGenomics | three or four of the same, in two more orders                                              |
 
 Position teaches a verb only when the position is fixed, and `Style selection`
 was a text row on MultiSelection and a bare brush on ExplorePanel, so the set
@@ -1062,13 +1098,12 @@ gap: 2px`, stroke `#4a7ee8`, up
 and down the same path mirrored. MultiSelection, FilterBuilderExpert and
 DataTableDrawer already draw it this way; ExplorePanel now matches them.
 
-
 ## 16. The inspector title row's collapse control (INSPECTOR-TITLE-1.9)
 
 The inspector title row's trailing control collapses the inspector column to the
 right. It is drawn on 39 boards with the **12px closed disclosure caret** and
 titled `Toggle inspector (D)`. Section 1.1's `toggle inspector` row carries the
-*rect* glyph, which is the top bar's drawing, so the drawing this row actually
+_rect_ glyph, which is the top bar's drawing, so the drawing this row actually
 uses had no register entry. It has one now, above.
 
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
@@ -1137,16 +1172,16 @@ What the set draws today. Counts are per board rather than as a fraction of the
 set, because `design/ui/mockups/artboards` now holds 62 `.dc.html` files against
 section 11's stated 48:
 
-| Entry | Drawn on |
-|---|---|
-| attribute binding | 17 fields over 6 boards: StyleLibrary 6, StylePanel 5, StyleDiverging 2, RampPopout 2, StyleFromAnalysis 1, TimeSlider 1 |
-| width | 3 fields over 3 boards: `Outline width` on StyleLibrary and StylePanel, `Window size: 30 days` on TimeSlider |
-| scale, square root | 2: StyleLibrary, StylePanel |
-| scale, linear | 1: RampPopout, `Scale: linear` |
-| scale, log | 1: StyleDiverging, `-log10 scale` |
-| colour | the swatch, across the Style boards |
-| size smallest, size largest, opacity | nowhere yet. VOCAB draws all three, and 15.1's grid needs them the moment a Size or an Effects section is drawn open |
-| pull to centre | nowhere yet. VOCAB 15.1 is its first drawing |
+| Entry                                | Drawn on                                                                                                                 |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| attribute binding                    | 17 fields over 6 boards: StyleLibrary 6, StylePanel 5, StyleDiverging 2, RampPopout 2, StyleFromAnalysis 1, TimeSlider 1 |
+| width                                | 3 fields over 3 boards: `Outline width` on StyleLibrary and StylePanel, `Window size: 30 days` on TimeSlider             |
+| scale, square root                   | 2: StyleLibrary, StylePanel                                                                                              |
+| scale, linear                        | 1: RampPopout, `Scale: linear`                                                                                           |
+| scale, log                           | 1: StyleDiverging, `-log10 scale`                                                                                        |
+| colour                               | the swatch, across the Style boards                                                                                      |
+| size smallest, size largest, opacity | nowhere yet. VOCAB draws all three, and 15.1's grid needs them the moment a Size or an Effects section is drawn open     |
+| pull to centre                       | nowhere yet. VOCAB 15.1 is its first drawing                                                                             |
 
 Being undrawn is not a bar. Section 1.3 registered `Merge selected nodes...`
 before any board drew it, for the reason this register exists: so that the first
@@ -1407,10 +1442,10 @@ CompareSplit, `Stop listening` on both AI boards. So this section adds ONE prope
 and changes no ink: the 1px border, in the same accent the glyph is already drawn
 in, inside the control's own box.
 
-| State | Ground | Glyph ink | Border |
-|---|---|---|---|
-| not pressed | none | `#7a828e` | none |
-| pressed | `#28364e` | `#4a7ee8` | `1px solid #4a7ee8`, inside the 24px box, on the control's own 4px radius |
+| State       | Ground    | Glyph ink | Border                                                                    |
+| ----------- | --------- | --------- | ------------------------------------------------------------------------- |
+| not pressed | none      | `#7a828e` | none                                                                      |
+| pressed     | `#28364e` | `#4a7ee8` | `1px solid #4a7ee8`, inside the 24px box, on the control's own 4px radius |
 
 Nothing else changes between the two states -- not the word, not the `title`, not
 the glyph, not the box -- so the row's cluster arithmetic is identical in both, and

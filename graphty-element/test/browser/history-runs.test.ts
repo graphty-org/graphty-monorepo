@@ -75,10 +75,7 @@ function runLayers(graph: Graph, algorithm: string): string[] {
  * @returns The spy.
  */
 function watchOnLoad(graph: Graph): ReturnType<typeof vi.fn> {
-    return vi.spyOn(
-        graph as unknown as { runOnLoad(entry: unknown): Promise<void> },
-        "runOnLoad",
-    ) as unknown as ReturnType<typeof vi.fn>;
+    return vi.spyOn(graph as unknown as { runOnLoad(entry: unknown): Promise<void> }, "runOnLoad");
 }
 
 describe("runs as steps on a renderer", () => {

@@ -28,6 +28,10 @@ const BUILT_IN_SETTINGS: Readonly<Record<string, readonly [option: string, word:
     components: ["strength", "strength"],
     "shortest-path": ["method", "method"],
     "link-prediction": ["method", "method"],
+    "markov-clustering": ["inflation", "inflation"],
+    "spectral-clustering": ["clusters", "clusters"],
+    "hierarchical-clustering": ["clusters", "clusters"],
+    astar: ["heuristic", "heuristic"],
 };
 
 /**
@@ -38,7 +42,7 @@ const BUILT_IN_SETTINGS: Readonly<Record<string, readonly [option: string, word:
 function idPart(text: string): string {
     return text
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_")
+        .replaceAll(/[^a-z0-9]+/g, "_")
         .replace(/^_+|_+$/g, "");
 }
 
@@ -64,7 +68,10 @@ function builtInSuggestion(
         return undefined;
     }
 
-    const text = typeof value === "object" ? JSON.stringify(value) : String(value as string | number | boolean);
+    const text =
+        typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+            ? String(value)
+            : JSON.stringify(value);
 
     return {
         id: `${plainId(descriptor.key)}_${word}_${idPart(text)}`,

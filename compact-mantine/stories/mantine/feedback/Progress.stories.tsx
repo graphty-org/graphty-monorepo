@@ -68,11 +68,11 @@ export const States: Story = {
 export const Variants: Story = {
     render: () => (
         <Stack gap="sm">
-            <Progress value={75} color="blue" />
-            <Progress value={50} color="green" />
-            <Progress value={25} color="red" />
-            <Progress value={100} color="teal" striped />
-            <Progress value={60} color="orange" animated />
+            <Progress value={75} color="blue" aria-label="Blue" />
+            <Progress value={50} color="green" aria-label="Green" />
+            <Progress value={25} color="red" aria-label="Red" />
+            <Progress value={100} color="teal" striped aria-label="Striped" />
+            <Progress value={60} color="orange" animated aria-label="Animated" />
         </Stack>
     ),
 };
@@ -86,9 +86,9 @@ export const Sections: Story = {
                     Default multi-section:
                 </Text>
                 <Progress.Root>
-                    <Progress.Section value={35} color="blue" />
-                    <Progress.Section value={25} color="green" />
-                    <Progress.Section value={15} color="orange" />
+                    <Progress.Section value={35} color="blue" aria-label="Documents" />
+                    <Progress.Section value={25} color="green" aria-label="Images" />
+                    <Progress.Section value={15} color="orange" aria-label="Other" />
                 </Progress.Root>
             </Box>
             <Box>
@@ -96,9 +96,9 @@ export const Sections: Story = {
                     Small multi-section:
                 </Text>
                 <Progress.Root size="sm">
-                    <Progress.Section value={35} color="blue" />
-                    <Progress.Section value={25} color="green" />
-                    <Progress.Section value={15} color="orange" />
+                    <Progress.Section value={35} color="blue" aria-label="Documents" />
+                    <Progress.Section value={25} color="green" aria-label="Images" />
+                    <Progress.Section value={15} color="orange" aria-label="Other" />
                 </Progress.Root>
             </Box>
         </Stack>

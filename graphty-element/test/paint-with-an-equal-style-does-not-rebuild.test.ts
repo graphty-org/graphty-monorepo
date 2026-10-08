@@ -12,7 +12,6 @@ import { NullEngine, Scene } from "@babylonjs/core";
 import { cloneDeep } from "lodash";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { AdHocData } from "../src/config";
 import { Edge } from "../src/Edge";
 import { SimpleLayoutEngine } from "../src/layout/LayoutEngine";
 import { DataManager, dataManagerInternals } from "../src/managers/DataManager";
@@ -81,7 +80,7 @@ function keyOf(element: Node | Edge): string {
 }
 
 function addNode(harness: Harness, id: string): Node {
-    const node = new Node(harness.context, id, bootstrapNodePaint(), { id } as unknown as AdHocData);
+    const node = new Node(harness.context, id, bootstrapNodePaint(), { id });
     dataManagerInternals.adoptNode(harness.dataManager, node);
     harness.dataManager.nodeCache.set(id, node);
     harness.layoutEngine.addNode(node);
@@ -133,12 +132,12 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         harness = createHarness();
         addNode(harness, "src");
         addNode(harness, "dst");
-        const edge = new Edge(harness.context, "src", "dst", 0, bootstrapEdgePaint(), {} as unknown as AdHocData);
+        const edge = new Edge(harness.context, "src", "dst", 0, bootstrapEdgePaint(), {});
         dataManagerInternals.adoptEdge(harness.dataManager, edge);
         harness.layoutEngine.addEdge(edge);
         edge.update();
         const line = edge.mesh;
-        const head = edge.arrowMesh;
+        const head = edge.arrowCap;
 
         edge.applySessionPaint({
             meshKey: "s0|#a9a9a9|",
@@ -146,7 +145,7 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         });
 
         assert.isTrue(edge.mesh === line, "the same line mesh");
-        assert.isTrue(edge.arrowMesh === head, "the same arrow head");
+        assert.isTrue(edge.arrowCap === head, "the same arrow head");
         assert.strictEqual(keyOf(edge), "s0|#a9a9a9|", "while the session's key is adopted");
     });
 
@@ -154,7 +153,7 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         harness = createHarness();
         addNode(harness, "src");
         addNode(harness, "dst");
-        const edge = new Edge(harness.context, "src", "dst", 0, bootstrapEdgePaint(), {} as unknown as AdHocData);
+        const edge = new Edge(harness.context, "src", "dst", 0, bootstrapEdgePaint(), {});
         dataManagerInternals.adoptEdge(harness.dataManager, edge);
         harness.layoutEngine.addEdge(edge);
         edge.update();

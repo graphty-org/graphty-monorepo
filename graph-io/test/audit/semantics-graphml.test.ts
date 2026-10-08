@@ -441,10 +441,16 @@ describe("GraphML quirks from GraphMLDataSource and research note 07", () => {
         const { snapshot, report } = await importGraph(latin1, { format: "graphml" });
         expect(snapshot.ids.toArray()).toEqual([`caf${String.fromCharCode(0xe9)}`]);
         expect(report.issues).toEqual([]);
-        // declared UTF-8 but not: strict when the caller says so
+        // strict when the caller says UTF-8 over the Latin-1 prolog; the option overriding the
+        // declaration is now named in a warning before the fatal error
         await expect(importGraph(latin1, { format: "graphml", encoding: "utf-8" })).rejects.toMatchObject({
             code: "E_IMPORT",
-            report: { issues: [{ code: "E_INVALID_UTF8", category: "parse-error" }] },
+            report: {
+                issues: [
+                    { code: "W_ENCODING_CONFLICT", severity: "warning" },
+                    { code: "E_INVALID_UTF8", category: "parse-error" },
+                ],
+            },
         });
     });
 });

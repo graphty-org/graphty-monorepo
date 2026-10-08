@@ -205,14 +205,14 @@ Each guide page should include: overview, when to use, code examples, and links 
 
 1. **Overview** - When to use the Web Component vs JavaScript API
 2. **Properties/Attributes**:
-   | Property | Attribute | Type | Description |
-   |----------|-----------|------|-------------|
-   | `nodeData` | `node-data` | `Array` | Node data array |
-   | `edgeData` | `edge-data` | `Array` | Edge data array |
-   | `layout` | `layout` | `string` | Layout algorithm |
-   | `styleTemplate` | `style-template` | `string` | Style template name |
-   | `viewMode` | `view-mode` | `string` | 2d, 3d, vr, ar |
-   | ... | ... | ... | ... |
+    | Property        | Attribute        | Type     | Description         |
+    | --------------- | ---------------- | -------- | ------------------- |
+    | `nodeData`      | `node-data`      | `Array`  | Node data array     |
+    | `edgeData`      | `edge-data`      | `Array`  | Edge data array     |
+    | `layout`        | `layout`         | `string` | Layout algorithm    |
+    | `styleTemplate` | `style-template` | `string` | Style template name |
+    | `viewMode`      | `view-mode`      | `string` | 2d, 3d, vr, ar      |
+    | ...             | ...              | ...      | ...                 |
 3. **Attribute vs Property** - When to use each
 4. **Data Binding Examples**:
     - Static JSON in attributes
@@ -323,37 +323,41 @@ graph.zoomToFit();
 2. **Color Palettes**:
 
     **Sequential Palettes** (continuous data: 0 → 1):
-    | Palette | Colors | Use Case | Colorblind Safe |
-    |---------|--------|----------|-----------------|
-    | `viridis` (default) | Purple → Teal → Yellow | General continuous data | ✅ Yes |
-    | `plasma` | Purple → Pink → Yellow | High contrast needed | ✅ Yes |
-    | `inferno` | Black → Red → Yellow | Emphasis on extremes | ✅ Yes |
-    | `blues` | Light → Dark Blue | Professional, subtle | ✅ Yes (single-hue) |
-    | `greens` | Light → Dark Green | Growth, positive metrics | ✅ Yes (single-hue) |
-    | `oranges` | Light → Dark Orange | Activity, heat | ✅ Yes (single-hue) |
+
+    | Palette             | Colors                 | Use Case                 | Colorblind Safe     |
+    | ------------------- | ---------------------- | ------------------------ | ------------------- |
+    | `viridis` (default) | Purple → Teal → Yellow | General continuous data  | ✅ Yes              |
+    | `plasma`            | Purple → Pink → Yellow | High contrast needed     | ✅ Yes              |
+    | `inferno`           | Black → Red → Yellow   | Emphasis on extremes     | ✅ Yes              |
+    | `blues`             | Light → Dark Blue      | Professional, subtle     | ✅ Yes (single-hue) |
+    | `greens`            | Light → Dark Green     | Growth, positive metrics | ✅ Yes (single-hue) |
+    | `oranges`           | Light → Dark Orange    | Activity, heat           | ✅ Yes (single-hue) |
 
     **Categorical Palettes** (discrete groups):
-    | Palette | Colors | Use Case | Colorblind Safe |
-    |---------|--------|----------|-----------------|
+
+    | Palette              | Colors   | Use Case              | Colorblind Safe        |
+    | -------------------- | -------- | --------------------- | ---------------------- |
     | `okabeIto` (default) | 8 colors | Universal safe choice | ✅ Yes (R 4.0 default) |
-    | `paulTolVibrant` | 7 colors | High saturation | ✅ Yes |
-    | `paulTolMuted` | 9 colors | Softer aesthetic | ✅ Yes |
-    | `ibmCarbon` | 5 colors | Enterprise design | ✅ Yes |
-    | `pastel` | 8 colors | Lighter appearance | ✅ Yes |
+    | `paulTolVibrant`     | 7 colors | High saturation       | ✅ Yes                 |
+    | `paulTolMuted`       | 9 colors | Softer aesthetic      | ✅ Yes                 |
+    | `ibmCarbon`          | 5 colors | Enterprise design     | ✅ Yes                 |
+    | `pastel`             | 8 colors | Lighter appearance    | ✅ Yes                 |
 
     **Diverging Palettes** (midpoint data: -1 ↔ 0 ↔ +1):
-    | Palette | Colors | Use Case | Colorblind Safe |
-    |---------|--------|----------|-----------------|
-    | `purpleGreen` (default) | Purple ← White → Green | General diverging | ✅ Yes (Paul Tol) |
-    | `blueOrange` | Blue ← White → Orange | Alternative | ✅ Yes (ColorBrewer) |
-    | `redBlue` | Red ← White → Blue | Temperature only | ⚠️ No (avoid if possible) |
+
+    | Palette                 | Colors                 | Use Case          | Colorblind Safe           |
+    | ----------------------- | ---------------------- | ----------------- | ------------------------- |
+    | `purpleGreen` (default) | Purple ← White → Green | General diverging | ✅ Yes (Paul Tol)         |
+    | `blueOrange`            | Blue ← White → Orange  | Alternative       | ✅ Yes (ColorBrewer)      |
+    | `redBlue`               | Red ← White → Blue     | Temperature only  | ⚠️ No (avoid if possible) |
 
     **Binary Palettes** (boolean: true/false):
-    | Palette | Colors | Use Case | Colorblind Safe |
-    |---------|--------|----------|-----------------|
-    | `blueHighlight` (default) | Blue vs Gray | Selection, highlight | ✅ Yes |
-    | `greenSuccess` | Green vs Gray | Success states | ✅ Yes |
-    | `orangeWarning` | Orange vs Gray | Warning states | ✅ Yes |
+
+    | Palette                   | Colors         | Use Case             | Colorblind Safe |
+    | ------------------------- | -------------- | -------------------- | --------------- |
+    | `blueHighlight` (default) | Blue vs Gray   | Selection, highlight | ✅ Yes          |
+    | `greenSuccess`            | Green vs Gray  | Success states       | ✅ Yes          |
+    | `orangeWarning`           | Orange vs Gray | Warning states       | ✅ Yes          |
 
 3. **Why These Colors?**
     - **Okabe-Ito**: Designed by Masataka Okabe and Kei Ito (2008) specifically for colorblind accessibility. Adopted as R 4.0 default. Each color distinguishable under all forms of color vision deficiency.
@@ -501,15 +505,15 @@ graph.zoomToFit();
 
 1. **Overview** - What layouts do and when to use each
 2. **Available Layouts**:
-   | Layout | Type | Best For | Dimensions |
-   |--------|------|----------|------------|
-   | `ngraph` | Force-directed | General graphs | 2D/3D |
-   | `d3-force` | Force-directed | Web-standard | 2D |
-   | `circular` | Geometric | Cycles, small graphs | 2D/3D |
-   | `grid` | Geometric | Regular structures | 2D/3D |
-   | `hierarchical` | Layered | Trees, DAGs | 2D/3D |
-   | `random` | Random | Testing, initial state | 2D/3D |
-   | `fixed` | Manual | Pre-computed positions | 2D/3D |
+    | Layout         | Type           | Best For               | Dimensions |
+    | -------------- | -------------- | ---------------------- | ---------- |
+    | `ngraph`       | Force-directed | General graphs         | 2D/3D      |
+    | `d3-force`     | Force-directed | Web-standard           | 2D         |
+    | `circular`     | Geometric      | Cycles, small graphs   | 2D/3D      |
+    | `grid`         | Geometric      | Regular structures     | 2D/3D      |
+    | `hierarchical` | Layered        | Trees, DAGs            | 2D/3D      |
+    | `random`       | Random         | Testing, initial state | 2D/3D      |
+    | `fixed`        | Manual         | Pre-computed positions | 2D/3D      |
 3. **Layout Configuration**:
     ```typescript
     graph.setLayout("ngraph", {
@@ -597,15 +601,15 @@ graph.zoomToFit();
     await graph.loadFromFile(file);
     ```
 5. **Supported Formats**:
-   | Format | Extension | Description |
-   |--------|-----------|-------------|
-   | JSON | .json | Native format with nodes/edges arrays |
-   | GraphML | .graphml | XML-based graph format |
-   | GEXF | .gexf | Gephi exchange format |
-   | GML | .gml | Graph Modeling Language |
-   | DOT | .dot | Graphviz format |
-   | CSV | .csv | Comma-separated adjacency |
-   | Pajek | .net | Pajek network format |
+    | Format  | Extension | Description                           |
+    | ------- | --------- | ------------------------------------- |
+    | JSON    | .json     | Native format with nodes/edges arrays |
+    | GraphML | .graphml  | XML-based graph format                |
+    | GEXF    | .gexf     | Gephi exchange format                 |
+    | GML     | .gml      | Graph Modeling Language               |
+    | DOT     | .dot      | Graphviz format                       |
+    | CSV     | .csv      | Comma-separated adjacency             |
+    | Pajek   | .net      | Pajek network format                  |
 6. **Custom ID Paths**:
     ```typescript
     graph.loadFromUrl(url, {
@@ -629,18 +633,18 @@ graph.zoomToFit();
 
 1. **Overview** - Event-driven architecture
 2. **Available Events**:
-   | Event | Trigger | Event Data |
-   |-------|---------|------------|
-   | `graph-settled` | Layout finished | `{settled: boolean}` |
-   | `data-loaded` | Initial data loaded | `{nodeCount, edgeCount}` |
-   | `data-added` | Incremental data added | `{nodes, edges}` |
-   | `selection-changed` | Node selected/deselected | `{node, previousNode}` |
-   | `camera-state-changed` | Camera moved | `{state}` |
-   | `style-changed` | Styles updated | `{layers}` |
-   | `node-click` | User clicked node | `{node, event}` |
-   | `node-hover` | Mouse entered node | `{node}` |
-   | `edge-click` | User clicked edge | `{edge, event}` |
-   | `error` | Error occurred | `{error, context}` |
+    | Event                  | Trigger                  | Event Data               |
+    | ---------------------- | ------------------------ | ------------------------ |
+    | `graph-settled`        | Layout finished          | `{settled: boolean}`     |
+    | `data-loaded`          | Initial data loaded      | `{nodeCount, edgeCount}` |
+    | `data-added`           | Incremental data added   | `{nodes, edges}`         |
+    | `selection-changed`    | Node selected/deselected | `{node, previousNode}`   |
+    | `camera-state-changed` | Camera moved             | `{state}`                |
+    | `style-changed`        | Styles updated           | `{layers}`               |
+    | `node-click`           | User clicked node        | `{node, event}`          |
+    | `node-hover`           | Mouse entered node       | `{node}`                 |
+    | `edge-click`           | User clicked edge        | `{edge, event}`          |
+    | `error`                | Error occurred           | `{error, context}`       |
 3. **JavaScript API** - Using `on()`:
 
     ```typescript

@@ -329,7 +329,7 @@ export async function assertRunSettles<T>(run: Run<T>, ms: number, what: string)
         `${what}: the run neither committed nor refused within ${String(ms)}ms, so nothing will ever hear about it`,
     );
 
-    return outcome as RunOutcomeKind;
+    return outcome;
 }
 
 /**

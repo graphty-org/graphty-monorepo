@@ -1560,9 +1560,15 @@
             "id": 30,
             "column": "type",
             "value": "disease"
+          },
+          {
+            "id": 30,
+            "role": "position",
+            "value": [-116.486664, -126.38917, 0]
           }
         ],
         "outcome": "pass",
+        "forbidCodes": ["W_UNKNOWN_ELEMENT"],
         "nodes": 1419,
         "edges": 3926,
         "directed": false,

@@ -77,13 +77,7 @@ export class ConsoleCaptureUI {
      * Intercept all console methods to capture output
      */
     private interceptConsole(): void {
-        const methods: ConsoleMethod[] = [
-            "log",
-            "error",
-            "warn",
-            "info",
-            "debug",
-        ];
+        const methods: ConsoleMethod[] = ["log", "error", "warn", "info", "debug"];
         for (const method of methods) {
             const original = this.originalMethods[method];
 
@@ -221,8 +215,7 @@ export class ConsoleCaptureUI {
             });
 
             btn.addEventListener("click", () => {
-                menu.style.display =
-                    menu.style.display === "none" ? "block" : "none";
+                menu.style.display = menu.style.display === "none" ? "block" : "none";
             });
 
             const copyBtn = document.getElementById("cc-copy");
@@ -260,10 +253,7 @@ export class ConsoleCaptureUI {
 
             // Close menu when clicking outside
             document.addEventListener("click", (e) => {
-                if (
-                    this.buttonContainer &&
-                    !this.buttonContainer.contains(e.target as Node)
-                ) {
+                if (this.buttonContainer && !this.buttonContainer.contains(e.target as Node)) {
                     menu.style.display = "none";
                 }
             });
@@ -365,9 +355,7 @@ export class ConsoleCaptureUI {
         }
 
         // Show logs in console as fallback
-        globalConsole.log(
-            "❌ Failed to copy to clipboard. Here are your logs:"
-        );
+        globalConsole.log("❌ Failed to copy to clipboard. Here are your logs:");
         globalConsole.log("═".repeat(50));
         globalConsole.log(this.getLogs());
         globalConsole.log("═".repeat(50));
@@ -384,8 +372,7 @@ export class ConsoleCaptureUI {
         // Create temporary textarea
         const textarea = document.createElement("textarea");
         textarea.value = text;
-        textarea.style.cssText =
-            "position: absolute; left: -9999px; top: -9999px;";
+        textarea.style.cssText = "position: absolute; left: -9999px; top: -9999px;";
         document.body.appendChild(textarea);
 
         // Select and copy
@@ -521,9 +508,7 @@ export class ConsoleCaptureUI {
             }
         });
 
-        const textarea = document.getElementById(
-            "logs-textarea"
-        ) as HTMLTextAreaElement | null;
+        const textarea = document.getElementById("logs-textarea") as HTMLTextAreaElement | null;
         const selectAllBtn = document.getElementById("select-all-logs");
 
         if (selectAllBtn && textarea) {
@@ -567,11 +552,7 @@ export class ConsoleCaptureUI {
 
         try {
             // Try modern clipboard API first
-            if (
-                typeof navigator !== "undefined" &&
-                navigator.clipboard &&
-                navigator.clipboard.writeText
-            ) {
+            if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(text);
                 this.showCopySuccess();
             } else {
@@ -622,11 +603,7 @@ export class ConsoleCaptureUI {
         globalConsole.debug = this.originalMethods.debug;
 
         // Remove UI elements
-        if (
-            typeof document !== "undefined" &&
-            this.buttonContainer &&
-            this.buttonContainer.parentNode
-        ) {
+        if (typeof document !== "undefined" && this.buttonContainer && this.buttonContainer.parentNode) {
             this.buttonContainer.parentNode.removeChild(this.buttonContainer);
         }
 

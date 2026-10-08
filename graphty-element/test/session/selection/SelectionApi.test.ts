@@ -485,6 +485,21 @@ describe("the cap", () => {
         assert.deepStrictEqual([...selection.nodes], ["a", "b"]);
         assert.isTrue(delta.truncated);
         assert.isTrue(selection.truncated);
+        assert.isNull(selection.origin, "a cut-short replace is not what the target named");
+        harness.session.dispose();
+    });
+
+    it("records no origin for a replace the user or the history made", () => {
+        const harness = line();
+        const selection = selectionOf(harness);
+
+        selection.applyNow({ nodes: ["a"] });
+        assert.deepStrictEqual(selection.origin, { nodes: ["a"] });
+        selection.applyNow({ nodes: ["b"] }, "replace", "user");
+        assert.isNull(selection.origin, "a click");
+        selection.applyNow({ nodes: ["a"] });
+        selection.applyNow({ nodes: ["c"] }, "replace", "history");
+        assert.isNull(selection.origin, "an undo or redo");
         harness.session.dispose();
     });
 

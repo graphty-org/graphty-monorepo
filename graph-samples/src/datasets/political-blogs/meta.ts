@@ -10,7 +10,7 @@ export const politicalBlogsMeta: DatasetMeta = {
         "L. A. Adamic and N. Glance, The political blogosphere and the 2004 U.S. election: divided they blog, Proceedings of the 3rd International Workshop on Link Discovery (LinkKDD 2005), 36-43. doi:10.1145/1134271.1134277",
     source: "https://web.archive.org/web/20240730122800id_/https://public.websites.umich.edu/~mejn/netdata/polblogs.zip",
     license:
-        'unclear: posted on Mark Newman\'s data page with the authors\' permission, "free for scientific use"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.',
+        "unclear: posted on Mark Newman's data page with the authors' permission, \"free for scientific use\"; the SuiteSparse Matrix Collection republishes the graph under CC BY 4.0.",
     nodes: 1490,
     edges: 19022,
     directed: true,

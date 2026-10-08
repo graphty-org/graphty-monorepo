@@ -1,0 +1,58 @@
+{
+    "$schema": "https://typedoc.org/schema.json",
+    "entryPoints": [
+        "./src/formats/gexf/index.ts",
+        "./src/formats/graphml/index.ts",
+        "./src/formats/gml/index.ts",
+        "./src/formats/dot/index.ts",
+        "./src/formats/pajek/index.ts",
+        "./src/formats/csv/index.ts",
+        "./src/formats/json/index.ts",
+        "./src/formats/neo4j/index.ts",
+        "./src/formats/xgmml/index.ts",
+        "./src/formats/cx2/index.ts",
+        "./src/formats/cx/index.ts",
+        "./src/formats/obo/index.ts",
+        "./src/formats/cys/index.ts",
+        "./src/index.ts"
+    ],
+    "entryPointStrategy": "resolve",
+    "tsconfig": "./tsconfig.build.json",
+    "out": "./docs/api/generated",
+    "plugin": ["typedoc-plugin-markdown", "typedoc-vitepress-theme"],
+    "readme": "none",
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeInternal": true,
+    "excludeExternals": true,
+    "hideGenerator": true,
+    "sanitizeComments": true,
+    "categorizeByGroup": false,
+    "sort": ["alphabetical"],
+    "kindSortOrder": ["Class", "Interface", "TypeAlias", "Function", "Variable"],
+    "validation": {
+        "notExported": true,
+        "invalidLink": true,
+        "notDocumented": true
+    },
+    "treatValidationWarningsAsErrors": true,
+    "docsRoot": "./docs",
+    "defaultCategory": "Other",
+    "categoryOrder": [
+        "Loading",
+        "Saving",
+        "Reports and errors",
+        "Formats and detection",
+        "Built-in formats",
+        "Issue and loss codes",
+        "Writing a format",
+        "Plugin helpers",
+        "*"
+    ],
+    "externalPattern": ["**/node_modules/**", "**/graph-format/**"],
+    "navigation": {
+        "includeCategories": true,
+        "includeGroups": false
+    },
+    "excludeReferences": true
+}

@@ -24,6 +24,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../../../src/algorithms/BetweennessCentralityAlgorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
@@ -34,9 +35,11 @@ import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedC
 import { DegreeAlgorithm } from "../../../src/algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
+import { EdgeBetweennessCentralityAlgorithm } from "../../../src/algorithms/EdgeBetweennessCentralityAlgorithm";
 import { EigenvectorCentralityAlgorithm } from "../../../src/algorithms/EigenvectorCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
 import { GirvanNewmanAlgorithm } from "../../../src/algorithms/GirvanNewmanAlgorithm";
+import { HierarchicalClusteringAlgorithm } from "../../../src/algorithms/HierarchicalClusteringAlgorithm";
 import { HITSAlgorithm } from "../../../src/algorithms/HITSAlgorithm";
 import { KatzCentralityAlgorithm } from "../../../src/algorithms/KatzCentralityAlgorithm";
 import { KCoreAlgorithm } from "../../../src/algorithms/KCoreAlgorithm";
@@ -45,12 +48,14 @@ import { LabelPropagationAlgorithm } from "../../../src/algorithms/LabelPropagat
 import { LeidenAlgorithm } from "../../../src/algorithms/LeidenAlgorithm";
 import { LinkPredictionAlgorithm } from "../../../src/algorithms/LinkPredictionAlgorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
+import { MarkovClusteringAlgorithm } from "../../../src/algorithms/MarkovClusteringAlgorithm";
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MetricAlgorithm } from "../../../src/algorithms/metrics/MetricAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
 import { type DeclaredAlgorithm, detachedRunContext } from "../../../src/algorithms/results";
+import { SpectralClusteringAlgorithm } from "../../../src/algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import { algorithmByKey, BUILT_IN_ALGORITHMS } from "../../../src/catalog/algorithms";
 import type { Graph } from "../../../src/Graph";
@@ -164,6 +169,11 @@ const CASES: readonly Case[] = [
     metric("k-core", (g) => new KCoreAlgorithm(g)),
     declared("clustering coefficient", "clustering-coefficient", (g) => new ClusteringCoefficientAlgorithm(g)),
     declared("link prediction", "link-prediction", (g) => new LinkPredictionAlgorithm(g)),
+    declared("markov clustering", "markov-clustering", (g) => new MarkovClusteringAlgorithm(g)),
+    declared("spectral clustering", "spectral-clustering", (g) => new SpectralClusteringAlgorithm(g)),
+    declared("hierarchical clustering", "hierarchical-clustering", (g) => new HierarchicalClusteringAlgorithm(g)),
+    declared("a-star", "astar", (g) => new AStarAlgorithm(g, { source: "A", target: "F" })),
+    declared("edge betweenness", "edge-betweenness", (g) => new EdgeBetweennessCentralityAlgorithm(g)),
 ];
 
 /**

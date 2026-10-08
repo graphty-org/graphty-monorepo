@@ -394,11 +394,10 @@ describe("GML quirks from GMLDataSource, NetworkX gml.py and research note 07", 
         expect(reals.snapshot.nodeCount).toBe(1);
     });
 
-    it("refuses a string spanning lines (NetworkX joins them) with an explicit parse error", async () => {
-        await expect(parse('graph [ node [ id 1 label "line1\nline2" ] ]')).rejects.toMatchObject({
-            code: "E_IMPORT",
-            report: { issues: [{ code: "E_SYNTAX" }] },
-        });
+    it("keeps a line break inside a string as part of it (GML draft 3.2.5), CRLF read as LF", async () => {
+        const { snapshot, report } = await parse('graph [ node [ id 1 label "line1\r\nline2" ] ]');
+        expect(report.issues).toEqual([]);
+        expect(snapshot.nodes.require("label").value(0)).toBe("line1\nline2");
     });
 
     it("keeps duplicate edges without multigraph 1 (duplicateEdges keep), unlike NetworkX which errors", async () => {

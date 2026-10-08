@@ -2,7 +2,11 @@
     "extends": "./tsconfig.json",
     "compilerOptions": {
         "composite": false,
-        "noEmit": true
+        "noEmit": true,
+        // The tests import the source extensionless, as a bundler (Vitest) resolves it; tsconfig.json
+        // checks src/ under nodenext, which is what keeps the published typings resolvable (issue #958)
+        "module": "ES2020",
+        "moduleResolution": "bundler"
     },
     "include": ["src/**/*.ts", "test/types/**/*.test-d.ts"]
 }

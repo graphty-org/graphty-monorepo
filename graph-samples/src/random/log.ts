@@ -41,7 +41,7 @@ export function detLog(input: number): number {
             return -Infinity;
         }
         if (hx < 0) {
-            return NaN;
+            return Number.NaN;
         }
         // subnormal: scale up
         k -= 54;

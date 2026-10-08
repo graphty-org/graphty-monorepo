@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { SplitButton, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
+import { settleFocusTooltip } from "../../helpers/settled";
 
 /**
  * Two icon buttons joined into one control: a main action, and a chevron that opens a menu of
@@ -171,7 +172,8 @@ export const Small: Story = {
 
 /**
  * Click the chevron: its menu opens and it lights; Escape closes it and focus returns to the
- * chevron. Enter on the focused chevron opens the menu again.
+ * chevron. Enter on the focused chevron opens the menu again; Escape closes it, and the focused
+ * chevron's tooltip opens after the cold delay.
  */
 export const Keyboard: Story = {
     parameters: OPEN_OVERLAY,
@@ -187,5 +189,8 @@ export const Keyboard: Story = {
         await expect(chevron).toHaveAttribute("aria-expanded", "true");
         await userEvent.keyboard("{Escape}");
         await expect(chevron).toHaveAttribute("aria-expanded", "false");
+        // Focus is back on the chevron, whose tooltip opens after the cold delay; end once it has.
+        await waitFor(() => expect(chevron).toHaveFocus());
+        await settleFocusTooltip(canvasElement);
     },
 };

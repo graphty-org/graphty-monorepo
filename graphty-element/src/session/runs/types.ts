@@ -31,21 +31,13 @@ import type {
 } from "../../catalog/types";
 import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
+import type { JournalId } from "../journal";
 import type { ResultSummary, RunResult } from "../results/types";
 import type { StyleSuggestion } from "../styles/derive";
 
 // ---------------------------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------------------------
-
-/**
- * The identity of a journal entry.
- *
- * Declared here because a run carries the entry its command wrote and the journal itself has
- * not landed. It moves to the journal module when that arrives; nothing should declare a second
- * one in the meantime.
- */
-export type JournalId = string;
 
 /**
  * What a run id is allowed to look like.
@@ -598,7 +590,10 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly error?: GraphtyError | undefined;
     /** The frozen, structured-cloneable snapshot of everything above. */
     readonly record: RunRecord;
-    /** The journal entry this run's command wrote, or null until it lands. */
+    /**
+     * The journal entry this run's command wrote (`session.journal.get(run.journalId)`), or null
+     * until the command has finished. A re-run points it at the newer entry.
+     */
     readonly journalId: JournalId | null;
     /**
      * Stop the run.

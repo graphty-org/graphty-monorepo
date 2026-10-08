@@ -1,7 +1,7 @@
 import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
-import { type LayoutResult, rescaleInPlace } from "../positions";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
 
 /** Whether the layers run left to right (`vertical`: each layer is a column) or top to bottom (`horizontal`). */
 export type LayerAlign = "vertical" | "horizontal";

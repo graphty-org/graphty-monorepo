@@ -7,6 +7,7 @@
  * tests each get their own.
  */
 
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
@@ -62,6 +63,11 @@ export interface WorkspaceState {
     /** Single-key shortcuts on (WCAG 2.1.4); Settings > Accessibility writes it. */
     readonly singleKeyShortcuts: boolean;
     readonly notice: Notice | null;
+    /**
+     * What to load once the element of a project that was just opened has come up (a sample or
+     * a file from the start screen), with the name it is known by; run once, then cleared.
+     */
+    readonly opening: { readonly name: string; readonly load: (session: GraphSession) => Promise<void> } | null;
 }
 
 /** Panel sizes: 240 is the design's panel width (PANEL_GRID.WIDTH). */
@@ -86,6 +92,7 @@ const INITIAL: WorkspaceState = {
     exportOn: "image",
     singleKeyShortcuts: true,
     notice: null,
+    opening: null,
 };
 
 /** The store. */
@@ -106,6 +113,20 @@ export interface WorkspaceStore {
      * @returns a function that stops listening.
      */
     subscribe: (listener: () => void) => () => void;
+}
+
+let lastProjectId = 0;
+
+/**
+ * An id for a project that is about to open: never one this page has given before, nor the open
+ * project's, so state kept per project (where Save writes, its Recent projects entry) never
+ * carries over to another project.
+ * @param state - the state now.
+ * @returns the id.
+ */
+export function newProjectId(state: WorkspaceState): number {
+    lastProjectId = Math.max(lastProjectId, state.project?.id ?? 0) + 1;
+    return lastProjectId;
 }
 
 /**

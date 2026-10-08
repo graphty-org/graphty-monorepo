@@ -32,7 +32,7 @@ The reviewer also understated the misreading: cosmos clamps ONLY the near-field 
 levels still drive bulk expansion"; the fragment outputs the near-field velocity alone). The plan
 transplants a near-field-only guard onto the whole step.
 
-Fix (revised): delete the `dp` clamp from 7.11 / K5 and the "no node moves more than 2 * cellSize"
+Fix (revised): delete the `dp` clamp from 7.11 / K5 and the "no node moves more than 2 \* cellSize"
 assertion from 11.4. If a fling guard is kept, apply it inside G7 to the near-field force sum only
 (cosmos's placement), in force units, and say so in 7.7. Add the reviewer's expansion-parity test to
 11.4 ("grid tier from the [-1, 1) seed reaches the exact tier's layout radius within 20% after 100

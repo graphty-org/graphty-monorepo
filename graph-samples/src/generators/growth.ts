@@ -181,7 +181,7 @@ export function duplicationDivergenceGraph(options: DuplicationDivergenceOptions
     adj[1].push(0);
     const maxAttempts = 1000 * n;
     let attempts = 0;
-    for (let i = 2; i < n; ) {
+    for (let i = 2; i < n;) {
         if (++attempts > maxAttempts) {
             throw new RangeError(
                 `duplicationDivergenceGraph gave up after ${maxAttempts} attempts at ${i} of ${n} nodes: retention ${retention} is too small`,

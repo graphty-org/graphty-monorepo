@@ -755,6 +755,29 @@ describe("GraphResidency: the upload contract (spec 11.3, gpu-upload.test.ts lin
         });
     });
 
+    it("a core requested narrow first (rowPtr alone) and in full second is upgraded to the windowed plan", async (t: TestContext) => {
+        requireGpu(t);
+        await withContext(undefined, async (ctx) => {
+            // karate: rowPtr (140 B) fits a 256-byte binding, colIdx (624 B) does not
+            const caps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
+            const residency = new GraphResidency(ctx.device, caps, ctx.allocator, { warnUnreleasedSnapshots: 2 });
+            const s = snapshotOf(KARATE_EDGES);
+            const narrow = residency.core(s, ["rowPtr"]);
+            expect(narrow.plan).not.toBe("windowed");
+            expect(narrow.colIdx).toBeNull();
+            const core = residency.core(s);
+            expect(core.plan).toBe("windowed");
+            expect(core.windows?.length).toBeGreaterThanOrEqual(3);
+            expect(core.colIdx).not.toBeNull();
+            expect(core.colIdx?.window).toBe(core.windows?.[0]);
+            expect(core.colIdx?.size).toBeLessThanOrEqual(256);
+            expect(core.arcBuffers?.colIdx.length).toBe(1);
+            residency.destroyAll();
+            expect(ctx.allocator.liveBuffers).toBe(0);
+            await ctx.allocator.check();
+        });
+    });
+
     it("a detached snapshot is E_SNAPSHOT { reason: 'detached' } from core / view / column / array", async (t: TestContext) => {
         requireGpu(t);
         await withContext(undefined, async (ctx) => {

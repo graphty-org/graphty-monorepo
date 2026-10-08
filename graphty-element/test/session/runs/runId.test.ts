@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import type { OptionDescriptor, Scope } from "../../../src/catalog/types";
+import type { OptionDescriptor } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import {
     algorithmSlug,
@@ -8,7 +8,6 @@ import {
     canonicalIdentity,
     canonicalize,
     canonicalizeParams,
-    computeScopeDigest,
     deriveRunId,
     RUN_ID_PATTERN,
     type RunIdentity,
@@ -198,37 +197,6 @@ describe("assertRunId", () => {
             }
         });
     }
-});
-
-describe("computeScopeDigest", () => {
-    const spec: Scope = "visible";
-
-    it("does not depend on the order the members came out in", () => {
-        assert.strictEqual(
-            computeScopeDigest(spec, ["a", "b", "c"], []),
-            computeScopeDigest(spec, ["c", "a", "b"], []),
-        );
-    });
-
-    it("changes when a member arrives", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a", "b"], []), computeScopeDigest(spec, ["a", "b", "c"], []));
-    });
-
-    it("changes when the specification changes even though the members do not", () => {
-        assert.notStrictEqual(computeScopeDigest("visible", ["a"], []), computeScopeDigest("graph", ["a"], []));
-    });
-
-    it("tells the node 1 apart from the node \"1\"", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, [1], []), computeScopeDigest(spec, ["1"], []));
-    });
-
-    it("notices a swap that an exclusive-or on its own would cancel out", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a", "b"], []), computeScopeDigest(spec, ["c", "d"], []));
-    });
-
-    it("keeps the node half and the edge half apart", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a"], []), computeScopeDigest(spec, [], ["a"]));
-    });
 });
 
 describe("stableDigest", () => {

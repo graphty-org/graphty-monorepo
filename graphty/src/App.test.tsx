@@ -92,7 +92,7 @@ describe("App", () => {
                 render(<App />);
 
                 expect(screen.queryByTestId("app-shell")).not.toBeInTheDocument();
-                expect(screen.getByRole("button", { name: "New project" })).toBeInTheDocument();
+                expect(screen.getByRole("region", { name: "Samples" })).toBeInTheDocument();
             });
         });
     });

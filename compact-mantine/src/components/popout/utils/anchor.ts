@@ -26,10 +26,7 @@ export interface PopoutAnchorElements {
  * @param root - Where to search, which defaults to the whole document
  * @returns The panel element, or null when that pop-out is not open
  */
-export function findPanelElement(
-    popoutId: string | null,
-    root: Document | HTMLElement = document,
-): HTMLElement | null {
+export function findPanelElement(popoutId: string | null, root: Document | HTMLElement = document): HTMLElement | null {
     if (popoutId === null) {
         return null;
     }

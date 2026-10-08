@@ -84,6 +84,7 @@ export interface AttributeDescriptor {
     path: Path;
     // (undocumented)
     plainName: string;
+    roles?: readonly AttributeRole[];
     runId?: RunId;
     // (undocumented)
     sampleValues: readonly unknown[];
@@ -94,7 +95,20 @@ export interface AttributeDescriptor {
     type: AttributeType;
     // (undocumented)
     uniqueCount?: number;
+    usedBy?: readonly AttributeUse[];
 }
+
+// @public
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+
+// @public
+export type AttributeUse = {
+    readonly kind: "layer";
+    readonly id: LayerId;
+} | {
+    readonly kind: "run";
+    readonly id: RunId;
+};
 
 // @public
 export interface BatchResult {
@@ -185,12 +199,38 @@ export interface Caveats {
 export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle";
 
 // @public
+export type ChannelAgreement = {
+    readonly channel: Channel;
+    readonly state: "agree";
+    readonly value: unknown;
+    readonly layerId: LayerId;
+    readonly unpainted: number;
+} | {
+    readonly channel: Channel;
+    readonly state: "mixed";
+    readonly breakdown: readonly ChannelShare[];
+    readonly unpainted: number;
+};
+
+// @public
 export interface ChannelExplanation {
     readonly channel: Channel;
     readonly editable: boolean;
+    readonly fact?: CodedFact<ChannelRefusalCode>;
     readonly layerId: LayerId;
     readonly mode: "static" | "encoded";
+    // @deprecated
     readonly reason?: string;
+}
+
+// @public
+export type ChannelRefusalCode = "layer.locked" | "channel.encoded";
+
+// @public
+export interface ChannelShare {
+    readonly count: number;
+    readonly layerId: LayerId;
+    readonly value: unknown;
 }
 
 // @public
@@ -206,6 +246,18 @@ export type CodedFactParam = string | number | boolean | null | readonly (string
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
 }
+
+// @public
+export type ColumnHistogram = (Histogram & {
+    readonly kind: "numeric";
+}) | {
+    readonly kind: "categorical";
+    readonly values: readonly {
+        readonly value: string | number | boolean;
+        readonly count: number;
+    }[];
+    readonly otherCount: number;
+};
 
 // @public
 export interface ColumnRef {
@@ -229,6 +281,7 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
+    "data.setSource": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
     "layout.transport": Promise<void>;
@@ -325,7 +378,7 @@ export function createGraphSession(options?: CreateGraphSessionOptions): GraphSe
 export interface CreateGraphSessionOptions {
     readonly acceleration?: AccelerationControllerLike;
     readonly config?: {
-        readonly data?: SessionDataConfig;
+        readonly data?: NonNullable<ProjectConfigPatch["data"]>;
         readonly acceleration?: {
             readonly policy?: AccelerationPolicy;
             readonly minNodes?: number;
@@ -382,19 +435,28 @@ export interface DraftRow {
 }
 
 // @public
+export type DraftRowFilter = "unmatched" | "rejected" | "loaded";
+
+// @public
 export interface DraftRowOptions {
+    readonly choices?: LoadChoices;
     readonly limit?: number;
     readonly offset?: number;
-    readonly only?: "unmatched" | "rejected";
+    readonly only?: DraftRowFilter;
 }
 
 // @public
 export interface DraftTable {
     readonly columns: readonly DraftColumn[];
+    readonly delimiter?: {
+        readonly value: string;
+        readonly detected: boolean;
+    };
     readonly fixed: boolean;
     readonly id: string;
     readonly name: string;
     readonly rowCount: number;
+    readonly weightCandidate?: string;
 }
 
 // @public
@@ -562,8 +624,15 @@ export interface FieldInterpretation {
 }
 
 // @public
+export interface FieldResult {
+    readonly algorithm: AlgorithmKey;
+    readonly field: string;
+}
+
+// @public
 export interface FieldWords {
     readonly plainName: string;
+    readonly result?: FieldResult;
     readonly technicalName: string;
 }
 
@@ -678,6 +747,7 @@ export interface GraphSession {
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
     readonly history: SessionHistory;
+    readonly journal: JournalApi;
     readonly layout: SessionLayout;
     readonly notes: NotesApi;
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
@@ -705,6 +775,7 @@ export interface GraphSession {
 // @public
 export interface GraphStatistics {
     readonly components: ComponentStatistics;
+    readonly degreeHistogram?: Histogram;
     readonly degreeRange: readonly [number, number];
     readonly density: number;
     readonly directedness: "directed" | "undirected" | "mixed" | "unknown";
@@ -1182,6 +1253,9 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+
+// @public
 export type HistoryOutcome = {
     readonly kind: "undone" | "redone" | "restored";
     readonly steps: readonly HistoryStep[];
@@ -1196,7 +1270,9 @@ export type HistoryOutcome = {
 export interface HistoryStep {
     readonly at: string;
     readonly bytes: number;
+    readonly fact: CodedFact<HistoryCode>;
     readonly id: HistoryStepId;
+    // @deprecated
     readonly label: string;
     readonly ops: readonly SessionCommand["op"][];
     readonly provenance: Readonly<Record<string, string>>;
@@ -1271,6 +1347,30 @@ export type ItemKey = {
     readonly field: string;
     readonly value: string | number | boolean;
 };
+
+// @public
+export interface JournalApi {
+    cap: number;
+    clear(): void;
+    readonly entries: readonly JournalEntry[];
+    get(id: JournalId): JournalEntry | undefined;
+    subscribe(fn: (entry: JournalEntry) => void): () => void;
+}
+
+// @public
+export interface JournalEntry {
+    readonly at: string;
+    readonly coalesceKey?: string;
+    readonly command: SessionCommand;
+    readonly durationMs: number;
+    readonly engine: EngineVersions;
+    readonly id: JournalId;
+    readonly kind: "data" | "run" | "style" | "filter" | "window" | "layout" | "view" | "selection" | "config" | "note" | "set";
+    readonly runId?: RunId;
+}
+
+// @public
+export type JournalId = string;
 
 // @public
 export interface Layer {
@@ -1364,6 +1464,7 @@ export interface LayoutRecommendationOptions {
 // @public
 export interface LegendBlock {
     readonly channel: Channel;
+    // @deprecated
     readonly departures: readonly string[];
     readonly domain?: {
         readonly min: number;
@@ -1374,10 +1475,12 @@ export interface LegendBlock {
             readonly to: string;
         };
     };
+    readonly facts: readonly LegendFact[];
     readonly field?: {
         readonly plainName: string;
         readonly technicalName: string;
         readonly path: Path;
+        readonly result?: FieldResult;
     };
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
     readonly layerId: LayerId;
@@ -1402,6 +1505,12 @@ export interface LegendBlock {
 }
 
 // @public
+export type LegendFact = CodedFact<LegendFactCode>;
+
+// @public
+export type LegendFactCode = "legend.clamped" | "legend.not-plottable" | "legend.none-plottable" | "legend.no-value-in-domain" | "legend.nothing-measured" | "legend.unreadable" | "legend.lumped" | "legend.not-measured" | "legend.painted-over";
+
+// @public
 export interface LegendReading {
     readonly code: "legend.higher";
     readonly params: {
@@ -1415,7 +1524,12 @@ export interface LegendReading {
 export interface LegendSwatch {
     readonly color?: string;
     readonly count?: number;
+    readonly extent?: {
+        readonly min: number;
+        readonly max: number;
+    };
     readonly hidden?: true;
+    // @deprecated
     readonly label: string;
     readonly paints?: unknown;
     readonly rank?: number;
@@ -1435,8 +1549,15 @@ export interface Limits {
 }
 
 // @public
+export const LOAD_ROLES: Readonly<Record<"nodes" | "edges", {
+    readonly takes: readonly ColumnRole[];
+    readonly requires: readonly ColumnRole[];
+}>>;
+
+// @public
 export interface LoadChoices extends ImportOptions {
     readonly directed?: boolean | "auto";
+    readonly duplicateIds?: "first" | "merge" | "refuse";
     readonly mapping?: LoadMapping;
     readonly unmatched?: "add" | "leave-out";
 }
@@ -1446,10 +1567,20 @@ export interface LoadDraft {
     dispose(): void;
     load(choices?: LoadChoices): Promise<void>;
     readonly mapping: LoadMappingRead;
+    missing(choices?: LoadChoices): Readonly<Record<string, readonly ColumnRole[]>>;
     report(choices?: LoadChoices): Promise<LoadReport>;
+    resolve(choices?: LoadChoices): LoadMappingRead;
     rows(table: string, options?: DraftRowOptions): Promise<RecordPage<DraftRow>>;
     readonly tables: readonly DraftTable[];
     readonly type: string;
+}
+
+// @public
+export interface LoadError {
+    readonly code: string;
+    readonly field?: string;
+    readonly line?: number;
+    readonly params: Readonly<Record<string, unknown>>;
 }
 
 // @public
@@ -1465,6 +1596,11 @@ export interface LoadMappingRead {
 
 // @public
 export interface LoadReport extends ImportReport {
+    readonly duplicates: {
+        readonly rows: number;
+        readonly ids: readonly (string | number)[];
+    };
+    readonly errors: readonly LoadError[];
     readonly tooLarge: TooLargeDetails | null;
     readonly unmatched: {
         readonly rows: number;
@@ -1557,6 +1693,7 @@ export type Normalization = "max" | "min-max" | "none";
 export interface Note {
     readonly author?: string;
     readonly cites?: readonly NoteCite[];
+    readonly done?: string;
     readonly edited?: string;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
@@ -1570,7 +1707,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -1605,6 +1742,7 @@ export interface NoteInput {
 export interface NoteListOptions {
     readonly author?: string;
     readonly cites?: ResultId;
+    readonly done?: boolean;
     readonly missing?: boolean;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
@@ -1621,6 +1759,7 @@ export interface NotePatch {
     readonly cites?: readonly {
         readonly result: ResultId;
     }[];
+    readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
     readonly targets?: readonly NoteTargetInput[];
@@ -1753,7 +1892,9 @@ export type PendingId = string & {
 
 // @public
 export interface PendingStep {
+    readonly fact: CodedFact<HistoryCode>;
     readonly id: PendingId;
+    // @deprecated
     readonly label: string;
     readonly runIds: readonly RunId[];
     readonly since: string;
@@ -1844,10 +1985,19 @@ export interface Progress {
 // @public
 export interface ProgressChange {
     readonly completed: number;
+    readonly error?: {
+        readonly code: string;
+        readonly details: Readonly<Record<string, unknown>>;
+    };
     readonly fraction: number | null;
+    readonly outcome?: "succeeded" | "failed" | "cancelled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
-    readonly task: "load" | "run";
+    readonly source?: {
+        readonly name?: string;
+        readonly url?: string;
+    };
+    readonly task: "load" | "prepare" | "run";
     readonly total: number | null;
 }
 
@@ -1918,9 +2068,10 @@ export interface ProjectOpenOptions {
 
 // @public
 export interface ProjectOpenReport {
+    readonly draft?: LoadDraft;
     readonly extensions: Readonly<Record<string, unknown>>;
     readonly name: string | null;
-    readonly opened: "project" | "document";
+    readonly opened: "project" | "document" | "graph";
     readonly problems: readonly ProjectProblem[];
     readonly restored: readonly ProjectSlice[];
 }
@@ -2039,6 +2190,10 @@ export interface RecordPage<TRecord> {
 export interface RecordPageOptions {
     readonly columns?: readonly ResultColumn[];
     readonly limit?: number;
+    readonly matching?: {
+        readonly text: string;
+        readonly mode?: SelectionTextMode;
+    };
     readonly offset?: number;
     readonly scope?: ScopeInput;
     readonly sort?: RecordSort | ResultSort;
@@ -2299,6 +2454,26 @@ export type RuleTree = {
     readonly kind: "neighborhood";
     readonly seeds: readonly NodeId[];
     readonly depth: number;
+}
+/**
+* The nodes with no edge to another node: each is a component of its own, so these are exactly
+* the nodes `data.statistics().components.isolatedCount` counts. A node whose only edges are
+* self-loops is one. Speaks nodes.
+*/
+| {
+    readonly kind: "isolated";
+}
+/** The edges whose two ends are the same node: `statistics().selfLoopCount` of them. Speaks edges. */
+| {
+    readonly kind: "self-loop";
+}
+/**
+* The edges beyond the first between one pair of nodes, in the graph's edge order: exactly the
+* edges `statistics().repeatedEdgeCount` counts. On an undirected graph `a`-`b` and `b`-`a` are
+* one pair; on a directed graph they are two. Speaks edges.
+*/
+| {
+    readonly kind: "repeated-edge";
 } | {
     readonly kind: "edges";
     readonly where: Query;
@@ -2625,6 +2800,7 @@ export interface SelectionApi {
     has(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: readonly NodeId[];
+    readonly origin: SelectionTarget | null;
     // @deprecated
     promote(name: string): ScopeId;
     readonly size: number;
@@ -2727,6 +2903,18 @@ export type SelectionTarget = ElementIdTarget | NeighborhoodTarget
         readonly threshold: number;
     };
 }
+/**
+* Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
+* way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
+* bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
+* banded continuous field a value exactly on the last bar's upper edge comes too.
+*/
+| {
+    readonly range: ResultRef & {
+        readonly min?: number;
+        readonly max?: number;
+    };
+}
 /** The edges whose endpoints are both selected. Names no nodes. */
 | {
     readonly edgesBetween: true;
@@ -2818,8 +3006,10 @@ export interface SessionDataApi {
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
     fingerprint(): string;
+    histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
     lastImport(): LoadReport | null;
+    name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
     nodePage(options: RecordPageOptions & {
@@ -2835,6 +3025,7 @@ export interface SessionDataApi {
     }): Promise<LoadDraft>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
+    renameSource(name: string): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
@@ -2855,6 +3046,9 @@ export interface SessionEventMap {
     };
     "history:changed": {
         readonly reason: "record" | "merge" | "undo" | "redo" | "restore" | "evict" | "clear" | "pending" | "size";
+    };
+    "journal:appended": {
+        readonly entry: JournalEntry;
     };
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;
@@ -3182,6 +3376,11 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export interface StyleAgreement {
+    readonly channels: readonly ChannelAgreement[];
+}
+
+// @public
 export interface StyleChange {
     readonly cause: HistoryCause;
     readonly layers: readonly LayerId[];
@@ -3196,6 +3395,15 @@ export interface StyleContribution {
     readonly name: string;
     readonly properties: readonly Channel[];
     readonly values: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export interface StyleCounts {
+    readonly matched: number;
+    readonly noValue: number;
+    readonly outsideScale: number;
+    readonly painted: Readonly<Partial<Record<Channel, number>>>;
+    readonly revision: string;
 }
 
 // @public
@@ -3224,12 +3432,15 @@ export interface StyleProblem {
 // @public
 export interface StylesApi {
     add(spec: LayerSpec, at?: LayerPosition, options?: RunOptions): Run<Layer>;
+    agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
+    counts(id: LayerId): StyleCounts;
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     legend(): readonly LegendBlock[];
+    legendOf(id: LayerId): readonly LegendBlock[];
     list(): readonly Layer[];
     move(id: LayerId, before: LayerId | null, options?: RunOptions): Run<void>;
     proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
@@ -3353,6 +3564,7 @@ export interface TopRanking {
         readonly count: number;
     } | null;
     readonly reason: string | null;
+    readonly threshold: number | null;
 }
 
 // @public
@@ -3365,10 +3577,15 @@ export type TransactionScope = Omit<GraphSession, "undo" | "redo" | "history" | 
 
 // @public
 export interface UnboundLayer {
+    readonly fact: CodedFact<UnboundLayerCode>;
     readonly layerId: LayerId;
     readonly needs: readonly Path[];
+    // @deprecated
     readonly reason: string;
 }
+
+// @public
+export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
 export interface ValidationResult {

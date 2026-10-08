@@ -433,7 +433,12 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRa
     }
 
     if (taken === ranking.length || taken === n) {
-        return Object.freeze({ entries: ranking.slice(0, taken), leftOut: null, reason: null });
+        return Object.freeze({
+            entries: ranking.slice(0, taken),
+            leftOut: null,
+            reason: null,
+            threshold: taken < ranking.length ? ranking[taken].value : null,
+        });
     }
 
     const { value } = ranking[taken];
@@ -451,6 +456,7 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number): TopRa
         entries: ranking.slice(0, taken),
         leftOut: Object.freeze({ value, count }),
         reason,
+        threshold: value,
     });
 }
 
@@ -658,7 +664,7 @@ function logBandPlan(
  * @returns The bin count to use.
  * @throws A GraphtyError coded E_OPTION_RANGE when the request is outside the permitted range.
  */
-function resolveBinCount(bins: number | undefined): number {
+export function resolveBinCount(bins: number | undefined): number {
     if (bins === undefined) {
         return DEFAULT_HISTOGRAM_BINS;
     }

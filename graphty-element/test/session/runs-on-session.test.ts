@@ -115,7 +115,13 @@ describe("runs on the session", () => {
 
     it("starts a run, resolves to the result, and publishes it under the run's own path", async () => {
         const { harness } = withRunner();
-        harness.add([{ id: "a" }, { id: "b" }, { id: "c" }], [{ src: "a", dst: "b" }, { src: "b", dst: "c" }]);
+        harness.add(
+            [{ id: "a" }, { id: "b" }, { id: "c" }],
+            [
+                { src: "a", dst: "b" },
+                { src: "b", dst: "c" },
+            ],
+        );
 
         const run = harness.session.runs.start("degree", undefined, { as: "degree" });
         const result = await run;

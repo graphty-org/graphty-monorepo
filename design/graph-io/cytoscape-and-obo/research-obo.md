@@ -118,18 +118,18 @@ file that uses it (section 10 has their URLs).
 
 ### 4.2 Identifiers
 
-| Form                                           | Example                                                              | Notes                                                                                                                                                                                                            |
+| Form | Example | Notes |
 | ---------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| Canonical prefixed                             | `GO:0008150`                                                         | Prefix of letters and `_`, local part digits                                                                                                                                                                     |
-| Non-canonical prefixed                         | `RO:HOM0000000`, `NCBITaxon:7955`, `TEST_REL:0001`                   | Any prefix / local part without whitespace                                                                                                                                                                       |
-| Unprefixed                                     | `part_of`, `has_part`, `alpha`                                       | Traditional for relations, subsets, synonym types                                                                                                                                                                |
-| URL                                            | `http://example.org/a`                                               | `http:` / `https:` followed by non-whitespace; `so.obo` has `xref: http://ecoliwiki.net/colipedia/index.php/Category\:Cryptic_Prophage.w` (escaped colon inside a URL; fastobo and pronto reject the whole file) |
-| ID with a space (xref only)                    | `xref: NIST Chemistry WebBook:110-63-4 "CAS Registry Number"`        | Not legal per BNF; owlapi reads it                                                                                                                                                                               | `owlapi/chebi_problematic_xref.obo` |
-| Empty local part                               | `[KEGG COMPOUND:]`                                                   | `owlapi/tag_test.obo`                                                                                                                                                                                            |
-| Definitional expression                        | `GO:0005737^part_of(CL:0000023)`                                     | 1.4 guide only; no surveyed file uses it; read as an opaque id                                                                                                                                                   |
-| Relation id shorthand                          | `part_of` with `xref: BFO:0000050` in its Typedef                    | 1.4 section 5.9.3: the xref gives the global IRI; GO, RO and goslim use it. ROBOT's obographs output uses the IRI (`http://purl.obolibrary.org/obo/BFO_0000050`), the OBO file the shorthand                     |
-| Prefixed relation ids                          | `relationship: RO:0002503 PATO:...`, `relationship: BFO:0000050 ...` | `pato.obo`, `ro.obo`, `eco.obo` (`OBI:0000312`, undeclared)                                                                                                                                                      |
-| `default-relationship-id-prefix`, `id-mapping` | 1.2 headers rewriting relation ids within the file                   | No surveyed file uses them; record and apply or warn                                                                                                                                                             |
+| Canonical prefixed | `GO:0008150` | Prefix of letters and `_`, local part digits |
+| Non-canonical prefixed | `RO:HOM0000000`, `NCBITaxon:7955`, `TEST_REL:0001` | Any prefix / local part without whitespace |
+| Unprefixed | `part_of`, `has_part`, `alpha` | Traditional for relations, subsets, synonym types |
+| URL | `http://example.org/a` | `http:` / `https:` followed by non-whitespace; `so.obo` has `xref: http://ecoliwiki.net/colipedia/index.php/Category\:Cryptic_Prophage.w` (escaped colon inside a URL; fastobo and pronto reject the whole file) |
+| ID with a space (xref only) | `xref: NIST Chemistry WebBook:110-63-4 "CAS Registry Number"` | Not legal per BNF; owlapi reads it | `owlapi/chebi_problematic_xref.obo` |
+| Empty local part | `[KEGG COMPOUND:]` | `owlapi/tag_test.obo` |
+| Definitional expression | `GO:0005737^part_of(CL:0000023)` | 1.4 guide only; no surveyed file uses it; read as an opaque id |
+| Relation id shorthand | `part_of` with `xref: BFO:0000050` in its Typedef | 1.4 section 5.9.3: the xref gives the global IRI; GO, RO and goslim use it. ROBOT's obographs output uses the IRI (`http://purl.obolibrary.org/obo/BFO_0000050`), the OBO file the shorthand |
+| Prefixed relation ids | `relationship: RO:0002503 PATO:...`, `relationship: BFO:0000050 ...` | `pato.obo`, `ro.obo`, `eco.obo` (`OBI:0000312`, undeclared) |
+| `default-relationship-id-prefix`, `id-mapping` | 1.2 headers rewriting relation ids within the file | No surveyed file uses them; record and apply or warn |
 
 ### 4.3 Header clauses
 

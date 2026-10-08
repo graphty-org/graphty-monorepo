@@ -957,6 +957,65 @@ function sorted(values: Iterable<unknown>): string[] {
 }
 
 /**
+ * Whether two values are equal item by item: primitives by `===`, arrays and typed arrays of one
+ * constructor recursively. Equal here means chai's deep equality holds; unequal here leaves the
+ * decision to chai.
+ * @param actual - One value.
+ * @param expected - The other.
+ * @returns True when they are equal.
+ */
+function same(actual: unknown, expected: unknown): boolean {
+    if (actual === expected) {
+        return true;
+    }
+
+    if (
+        !(Array.isArray(actual) || ArrayBuffer.isView(actual)) ||
+        (actual as object).constructor !== (expected as object | null)?.constructor
+    ) {
+        return false;
+    }
+
+    const a = actual as ArrayLike<unknown>;
+    const b = expected as ArrayLike<unknown>;
+    if (a.length !== b.length) {
+        return false;
+    }
+
+    for (let i = 0; i < a.length; i++) {
+        if (!same(a[i], b[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * The checks {@link verify} makes after every command, about 27,000 sets' worth per 1,000
+ * sequences. Each compares first and calls chai only on a mismatch, for its verdict and its
+ * message: chai builds a proxied Assertion per call, and passing calls were a fifth of the
+ * property's time (1.35 s of 7.05 s profiled).
+ */
+const check = {
+    strictEqual<T>(actual: T, expected: T, message?: string): void {
+        if (actual !== expected) {
+            assert.strictEqual(actual, expected, message);
+        }
+    },
+    deepStrictEqual<T>(actual: T, expected: T, message?: string): void {
+        if (!same(actual, expected)) {
+            assert.deepStrictEqual(actual, expected, message);
+        }
+    },
+    isTrue(value: boolean, message?: string): void {
+        if (!value) {
+            assert.isTrue(value, message);
+        }
+    },
+};
+
+/**
  * Compare every kept set's resolution with the model's.
  * @param model - The model.
  * @param real - The real graph.
@@ -965,15 +1024,17 @@ function verify(model: Model, real: Driver): void {
     const snapshot = real.snapshot();
     if (snapshot.edgeCount > 0) {
         // Latched when the store's first edge is completed; before that no hash depends on it.
-        assert.strictEqual(pairsOrdered(snapshot), model.ordered, "pair rule");
+        check.strictEqual(pairsOrdered(snapshot), model.ordered, "pair rule");
     }
-    assert.deepStrictEqual(real.counters(), liveCounters(model), "the model holds the graph's edges");
+    check.deepStrictEqual(real.counters(), liveCounters(model), "the model holds the graph's edges");
 
     for (const [id, set] of model.sets) {
         const record = real.sets.get(id);
-        assert.isDefined(record, id);
+        if (record === undefined) {
+            assert.isDefined(record, id);
+        }
         const definition = record?.definition;
-        assert.strictEqual(definition.kind, set.kind);
+        check.strictEqual(definition.kind, set.kind);
 
         // The door stored exactly the members the model says it made.
         const stored = new Set<string>();
@@ -989,7 +1050,7 @@ function verify(model: Model, real: Driver): void {
             }
         }
 
-        assert.deepStrictEqual(sorted(stored), sorted(keysOf(set)), `${id} members`);
+        check.deepStrictEqual(sorted(stored), sorted(keysOf(set)), `${id} members`);
 
         const seeds = real.setsStore.seedsOf(id);
         const resolution: Resolution =
@@ -1001,13 +1062,13 @@ function verify(model: Model, real: Driver): void {
             { id, definition },
             { snapshot, store: real.storeTag(), sets: real.setsStore, cache: model.cache },
         );
-        assert.strictEqual(served.serial, snapshot.serial, `${id} served from this serial`);
-        assert.deepStrictEqual(
+        check.strictEqual(served.serial, snapshot.serial, `${id} served from this serial`);
+        check.deepStrictEqual(
             [served.nodes, served.edges],
             [resolution.nodes, resolution.edges],
             `${id} served equals fresh`,
         );
-        assert.deepStrictEqual(
+        check.deepStrictEqual(
             [served.missingNodes, served.missingEdges, served.ambiguousEdges],
             [resolution.missingNodes, resolution.missingEdges, resolution.ambiguousEdges],
             `${id} served counts`,
@@ -1019,19 +1080,19 @@ function verify(model: Model, real: Driver): void {
         const edges = new Set(
             Array.from(maskToIndices(resolution.edges, snapshot.edgeCount), (e) => real.counterAt(e)),
         );
-        assert.deepStrictEqual(sorted(nodes), sorted(expected.nodes), `${id} nodes`);
-        assert.deepStrictEqual(sorted(edges), sorted(expected.edges), `${id} edges`);
-        assert.strictEqual(resolution.missingNodes, expected.missingNodes, `${id} missing nodes`);
-        assert.strictEqual(resolution.missingEdges, expected.missingEdges, `${id} missing edges`);
-        assert.strictEqual(resolution.ambiguousEdges, expected.ambiguous, `${id} ambiguous`);
+        check.deepStrictEqual(sorted(nodes), sorted(expected.nodes), `${id} nodes`);
+        check.deepStrictEqual(sorted(edges), sorted(expected.edges), `${id} edges`);
+        check.strictEqual(resolution.missingNodes, expected.missingNodes, `${id} missing nodes`);
+        check.strictEqual(resolution.missingEdges, expected.missingEdges, `${id} missing edges`);
+        check.strictEqual(resolution.ambiguousEdges, expected.ambiguous, `${id} ambiguous`);
         for (const e of maskToIndices(resolution.edges, snapshot.edgeCount)) {
             const ends = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-            assert.isTrue(
+            check.isTrue(
                 ends.every((i) => (resolution.nodes[i >>> 5] & (1 << (i & 31))) !== 0),
                 `${id} endpoint invariant`,
             );
         }
 
-        assert.strictEqual(digestOf(resolution, snapshot), modelDigest(model, expected), `${id} digest`);
+        check.strictEqual(digestOf(resolution, snapshot), modelDigest(model, expected), `${id} digest`);
     }
 }

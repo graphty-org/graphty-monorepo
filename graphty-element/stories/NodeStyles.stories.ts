@@ -17,6 +17,7 @@ import {
     drawn,
     holds,
 } from "./assertions";
+import { catSocialNetwork2Url } from "./datasets";
 import {
     eventWaitingDecorator,
     nodeShapes,
@@ -63,7 +64,7 @@ const meta: Meta = {
         }),
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json",
+            data: catSocialNetwork2Url,
         },
         layout: "ngraph",
         layoutConfig: {

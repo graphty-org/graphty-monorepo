@@ -798,6 +798,15 @@ describe("GraphBuilder columns", () => {
         expect(s.edges.value("w", 0)).toBe(7);
     });
 
+    it("keeps a metadata key named __proto__ as data, not as the prototype", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.setMeta({ extra: JSON.parse('{"a":{"__proto__":["x"],"b":1}}') as Record<string, unknown> });
+        const a = b.freeze().meta.extra.a as Record<string, unknown>;
+        expect(Object.getPrototypeOf(a)).toBe(Object.prototype);
+        expect(Object.keys(a)).toEqual(["__proto__", "b"]);
+        expect(Object.getOwnPropertyDescriptor(a, "__proto__")?.value).toEqual(["x"]);
+    });
+
     it("stores graph-level values and metadata", () => {
         const b = new GraphBuilder({ directed: true });
         b.setGraphValue("title", "hello");

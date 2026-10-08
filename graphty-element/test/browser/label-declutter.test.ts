@@ -535,6 +535,40 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
     });
 });
 
+describe("waitForStableFrame waits for the label counts to be announced", () => {
+    it("resolves only after graphty-label-change has carried the counts the frame drew", async () => {
+        const tag = document.createElement("graphty-element");
+        tag.style.cssText = `display: block; width: ${String(WIDTH)}px; height: ${String(HEIGHT)}px`;
+        document.body.appendChild(tag);
+        await tag.updateComplete;
+        const heard: NodeLabelCounts[] = [];
+        tag.addEventListener("graphty-label-change", (e) => heard.push(e.detail));
+        try {
+            const g = tag.graph;
+            await operationQueueOf(g).waitForCompletion();
+            await g.addNodes(PILED);
+            await g.addEdges(EDGES);
+            await g.setLayout("fixed", { dim: 3 });
+            tag.layoutBehavior = { labels: { declutter: true } };
+            await tag.session.styles.add({
+                name: "labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+            });
+
+            // The counts are published QUIET_FRAMES after the last pass, which is after the
+            // first stable frame: a page reading them on that frame read zeros.
+            await tag.waitForStableFrame();
+
+            assert.notDeepEqual(tag.nodeLabelCounts, { labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
+            assert.deepEqual(heard.at(-1), tag.nodeLabelCounts);
+        } finally {
+            tag.remove();
+        }
+    });
+});
+
 /**
  * Wait, while the element draws frames, until a condition holds.
  * @param done - The condition.

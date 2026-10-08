@@ -338,7 +338,7 @@ export function allPairsShortestPath(s: GraphSnapshot, options: ApspOptions = {}
             (negative && w !== null && negativeCycleFromWeights(s, w)) || floydWarshall(s, w, negative, dist, predArc);
     }
     if (hasNegativeCycle) {
-        dist.fill(NaN);
+        dist.fill(Number.NaN);
     }
     // Row i of predArc is a single-source predecessor-arc array, so the SSSP walkers apply to it.
     const row = (sourceNode: NodeRef, targetNode: NodeRef): U32 => {

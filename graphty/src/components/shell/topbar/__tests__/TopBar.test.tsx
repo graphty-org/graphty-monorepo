@@ -18,8 +18,6 @@ const baseProps: TopBarOwnProps = {
     onOpenCommandPalette: vi.fn(),
     onExport: vi.fn(),
     onShare: vi.fn(),
-    compareActive: false,
-    onToggleCompare: vi.fn(),
     sidebarsShown: true,
     onToggleSidebars: vi.fn(),
 };
@@ -33,7 +31,6 @@ const renderTopBar = (overrides: Partial<TopBarOwnProps> = {}): TopBarOwnProps =
         onOpenCommandPalette: vi.fn(),
         onExport: vi.fn(),
         onShare: vi.fn(),
-        onToggleCompare: vi.fn(),
         onToggleSidebars: vi.fn(),
         ...overrides,
     };
@@ -130,7 +127,12 @@ describe("TopBar", () => {
 
             const names = screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"));
 
-            expect(names.slice(4)).toEqual(["Export", "Share this view", "Compare two views", "Toggle sidebars"]);
+            expect(names.slice(4)).toEqual([
+                "Export",
+                "Share this view",
+                "Compare two views. Not built yet",
+                "Toggle sidebars",
+            ]);
         });
 
         it("opens Export onto exactly two rows", async () => {
@@ -161,11 +163,18 @@ describe("TopBar", () => {
             expect(props.onShare).toHaveBeenCalledWith("copy-image");
         });
 
-        it("expresses Compare and the sidebars as toggles that never rename themselves", () => {
-            renderTopBar({ compareActive: true, sidebarsShown: false });
+        it("expresses the sidebars as a toggle that never renames itself", () => {
+            renderTopBar({ sidebarsShown: false });
 
-            expect(screen.getByRole("button", { name: "Compare two views" })).toHaveAttribute("aria-pressed", "true");
             expect(screen.getByRole("button", { name: "Toggle sidebars" })).toHaveAttribute("aria-pressed", "false");
+        });
+
+        it("draws Compare disabled, saying it is not built, even with data loaded", () => {
+            renderTopBar({ dataLoaded: true });
+
+            const compare = screen.getByRole("button", { name: "Compare two views. Not built yet" });
+            expect(compare).toHaveAttribute("aria-disabled", "true");
+            expect(compare).not.toHaveAttribute("aria-pressed");
         });
 
         it("lights the one switch while the sidebars are on screen", () => {
@@ -200,7 +209,7 @@ describe("TopBar", () => {
     });
 
     describe("the Empty state", () => {
-        it("states the reason on Export, Share and Compare", () => {
+        it("states the reason on Export and Share", () => {
             renderTopBar({ datasetName: null, dataLoaded: false });
 
             expect(screen.getByRole("button", { name: "Export. Load data first" })).toHaveAttribute(
@@ -208,10 +217,6 @@ describe("TopBar", () => {
                 "true",
             );
             expect(screen.getByRole("button", { name: "Share this view. Load data first" })).toHaveAttribute(
-                "aria-disabled",
-                "true",
-            );
-            expect(screen.getByRole("button", { name: "Compare two views. Load data first" })).toHaveAttribute(
                 "aria-disabled",
                 "true",
             );

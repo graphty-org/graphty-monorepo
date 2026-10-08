@@ -1,7 +1,12 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { type EscapeLadderHandlers, isTextEntryTarget, type ShellKeyHandlerMap, useShellKeyBindings } from "../useShellKeyBindings";
+import {
+    type EscapeLadderHandlers,
+    isTextEntryTarget,
+    type ShellKeyHandlerMap,
+    useShellKeyBindings,
+} from "../useShellKeyBindings";
 
 interface Options {
     handlers: ShellKeyHandlerMap;

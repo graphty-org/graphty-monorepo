@@ -155,7 +155,7 @@ export { ImportError } from "@graphty/graph-io";
  */
 export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
 export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
-export type { ExportGraphOptions, ExportResult } from "./src/data/export";
+export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
 
 // ---------------------------------------------------------------------------------------------

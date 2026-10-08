@@ -88,9 +88,17 @@ export interface Note {
     readonly cites?: readonly NoteCite[];
     /** Other applications' data, under reverse-domain keys; kept and never read. */
     readonly extensions?: Readonly<Record<string, unknown>>;
+    /**
+     * When it was marked done, as `Date.prototype.toISOString()` writes it; stamped by
+     * graphty-element. Absent: not done. Set and cleared with `update(id, { done })`.
+     */
+    readonly done?: string;
 }
 
-/** What `notes.add` takes. `id`, `time`, `author` and `edited` are graphty-element's to stamp. */
+/**
+ * What `notes.add` takes. `id`, `time`, `author` and `edited` are graphty-element's to stamp. A
+ * new note is never done; mark it with `update`.
+ */
 export interface NoteInput {
     /** Plain text, stored exactly as given; not blank, at most 65,536 characters. */
     readonly text: string;
@@ -122,6 +130,8 @@ export interface NotePatch {
     readonly mediaType?: string | null;
     /** The new extensions, replacing the old ones; `null` clears them. */
     readonly extensions?: Readonly<Record<string, unknown>> | null;
+    /** True marks the note done, stamping the time; a note already done keeps its time. False clears it. */
+    readonly done?: boolean;
 }
 
 /** What one target of a note points at now. */
@@ -162,7 +172,7 @@ export interface NoteChange {
     /** OPEN UNION. */
     readonly change: "created" | "updated" | "removed";
     /** Which fields an "updated" change touched; empty otherwise. OPEN UNION. */
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     /** The frozen record after the change; null after removal. Not in the DOM event's detail. */
     readonly note: Note | null;
     /** OPEN UNION: a write, a history move, or a saved project being opened. */
@@ -184,6 +194,8 @@ export interface NoteListOptions {
     readonly author?: string;
     /** True: only notes with at least one target reading `missing`. */
     readonly missing?: boolean;
+    /** True: only notes marked done; false: only notes not marked done. */
+    readonly done?: boolean;
 }
 
 /**

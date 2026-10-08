@@ -119,7 +119,7 @@ describe("Node position preservation during style changes (regression)", () => {
             assert.isDefined(posAfter, `Should have position for node ${id}`);
 
             // posAfter is guaranteed to be defined after the assert above
-            const pos = posAfter as { x: number; y: number; z: number };
+            const pos = posAfter;
             assert.approximately(pos.x, posBefore.x, tolerance, `Node ${id} x position should be preserved`);
             assert.approximately(pos.y, posBefore.y, tolerance, `Node ${id} y position should be preserved`);
             assert.approximately(pos.z, posBefore.z, tolerance, `Node ${id} z position should be preserved`);
@@ -211,7 +211,6 @@ describe("Node position preservation during style changes (regression)", () => {
 
         // Record original positions
         const originalPositions = getNodePositions();
-
 
         // Apply multiple style changes in quick succession
         for (let i = 0; i < 5; i++) {

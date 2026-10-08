@@ -158,7 +158,8 @@ export interface GraphSink {
      */
     setDirected(directed: boolean, options?: SetDirectedOptions): void;
     /**
-     * Grow staging capacity ahead of a bulk push.
+     * Grow staging capacity ahead of a bulk push. E_TOO_LARGE for a node count past the 2^24
+     * nodes with explicit ids one builder holds, or an edge count past MAX_COUNT.
      * @param nodes - expected node count
      * @param edges - expected edge count
      */

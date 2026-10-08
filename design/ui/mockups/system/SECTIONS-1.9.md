@@ -13,13 +13,13 @@ says so.
 
 ## Contents
 
-- 1. The decision, once
-- 2. Why the denominator is local
-- 3. The twelve decisions
-- 4. The exemplars -- copy these, do not invent
-- 5. The work list: seventeen sections
-- 6. What the rule does not reach
-- 7. The measurement obligation, and the risk it carries
+-   1. The decision, once
+-   2. Why the denominator is local
+-   3. The twelve decisions
+-   4. The exemplars -- copy these, do not invent
+-   5. The work list: seventeen sections
+-   6. What the rule does not reach
+-   7. The measurement obligation, and the risk it carries
 
 ---
 
@@ -123,11 +123,11 @@ parameters and an advanced gear for the rest."
 lost.** Only the denominator of clause (a) moves; the conjunction is unchanged,
 so every case A1 decided by the conjunction is decided the same way now.
 
-| A1's refuted test | Its counter-example | Under the local denominator |
-|---|---|---|
-| Frequency alone | Layer opacity is rarely touched and stays resident; font size is touched constantly and is also resident | Still refuted. Opacity is resident because clause (b) fails -- no row behind it reports the value -- not because of any frequency, global or local |
-| Room alone | "Show behind transparent areas" is one checkbox inside the effect popover while the 224 px Fill row stays out | Still refuted, and untouched: room was never a clause |
-| Per-item-ness alone | Export configurations are per-item and their scale and suffix stay resident | Still refuted. Scale and suffix are locally common to the configuration that owns them, so the local denominator agrees with the global one here |
+| A1's refuted test   | Its counter-example                                                                                           | Under the local denominator                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frequency alone     | Layer opacity is rarely touched and stays resident; font size is touched constantly and is also resident      | Still refuted. Opacity is resident because clause (b) fails -- no row behind it reports the value -- not because of any frequency, global or local |
+| Room alone          | "Show behind transparent areas" is one checkbox inside the effect popover while the 224 px Fill row stays out | Still refuted, and untouched: room was never a clause                                                                                              |
+| Per-item-ness alone | Export configurations are per-item and their scale and suffix stay resident                                   | Still refuted. Scale and suffix are locally common to the configuration that owns them, so the local denominator agrees with the global one here   |
 
 And the veto is unchanged and still overrides both forms of the test: **a control
 whose wrong value is invisible until it does damage stays resident however rarely
@@ -354,16 +354,16 @@ Eight boards on the edit list exist to draw a door open. None is deleted; each
 becomes the drawing of the expanded section, with its gear pop-out beside it where
 one still exists. That is the audit's tenth open question, answered board by board:
 
-| Board | Was | Becomes |
-|---|---|---|
-| AllStatistics | the 360 statistics pop-out drawn open | All statistics expanded -- three rows -- with the long-tail gear pop-out beside it |
-| AiPanelCompact | Provider and Console as door rows | both sections expanded, plus the no-provider state where Console is resident with the setup prompt in place of the chat input |
-| FilterExpression | the 360 expression pop-out drawn open | keeps the expression door, drawn from FilterBuilderExpert's compliant ten-rule section; its own zero-rule Filter builder becomes the RT-8 empty-section plus row (5.6) |
-| ImageOptionsPopout | the Image options gear pop-out at 280 | premise intact -- it was already the model (section 4). Only its Export video section changes, to the inline form |
-| RampPopout | the ramp door beside the categorical Values door | keeps the ramp door on its resident RT-4 row; its Parameters, Animation and Values sections all become expanded sections, which is three of the seventeen fixes on one board |
-| ValidationPopout | the 360 report pop-out drawn open | Validation report expanded, with the 360 detail gear beside it. It also loses its pin, which E2 already removed |
-| CategoryTable | the 360 category table drawn open | Categories expanded -- three rows and the "6 of 41 rows" footer -- with the full table in the Data table drawer |
-| AnalyzeParameters | the 280 parameters gear pop-out | premise intact -- a card gear on a card with resident content. Add the clause (2) promotion: the one commonly adjusted parameter (Resolution, Damping) becomes a resident row |
+| Board              | Was                                              | Becomes                                                                                                                                                                       |
+| ------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AllStatistics      | the 360 statistics pop-out drawn open            | All statistics expanded -- three rows -- with the long-tail gear pop-out beside it                                                                                            |
+| AiPanelCompact     | Provider and Console as door rows                | both sections expanded, plus the no-provider state where Console is resident with the setup prompt in place of the chat input                                                 |
+| FilterExpression   | the 360 expression pop-out drawn open            | keeps the expression door, drawn from FilterBuilderExpert's compliant ten-rule section; its own zero-rule Filter builder becomes the RT-8 empty-section plus row (5.6)        |
+| ImageOptionsPopout | the Image options gear pop-out at 280            | premise intact -- it was already the model (section 4). Only its Export video section changes, to the inline form                                                             |
+| RampPopout         | the ramp door beside the categorical Values door | keeps the ramp door on its resident RT-4 row; its Parameters, Animation and Values sections all become expanded sections, which is three of the seventeen fixes on one board  |
+| ValidationPopout   | the 360 report pop-out drawn open                | Validation report expanded, with the 360 detail gear beside it. It also loses its pin, which E2 already removed                                                               |
+| CategoryTable      | the 360 category table drawn open                | Categories expanded -- three rows and the "6 of 41 rows" footer -- with the full table in the Data table drawer                                                               |
+| AnalyzeParameters  | the 280 parameters gear pop-out                  | premise intact -- a card gear on a card with resident content. Add the clause (2) promotion: the one commonly adjusted parameter (Resolution, Damping) becomes a resident row |
 
 Two of the eight keep their premise entirely, which is the useful finding: a gear
 pop-out drawn open is a legal board under D1, and only a SECTION drawn as a
@@ -376,13 +376,13 @@ content -- and each fails 6.11's stub obligation, which A6 made drawable and whi
 no board has drawn. They are fixed now rather than in a later pass, because the
 fix is the same edit in the same file.
 
-| Door | Boards | What it owes |
-|---|---|---|
-| Import settings, on the Open file header | ImportOptions, ImportParseError, ImportLargeFile, ColumnRolePopout | Deletion. It reports nothing, it duplicates the Loaded data door, and DECISIONS-1.8 D5 already ruled that one general import door exists and it is the gear on the Loaded data header |
-| Columns chip | DataTableDrawer | A count: "9 of 12" |
-| Parsing gear | ImportLargeFile | Its five values live only in a title. The separator and the header-row state come out as the mark; the gear also gains a keyboard route, which it does not have today |
-| Advanced, Encryption password | Settings | Both draw no state at all. Advanced reports whether Base URL, max tokens or temperature deviate; Encryption password reports set or not set |
-| Expand-neighbors caret | ContextMenu, ExplorerExpert, ExplorerNotes, NoteEditorPopout, IpadInspector, FilterExpression | The depth and type filter its Explore twin carries: "2 steps, 3 types". It prints a count today and nothing else, so a reader cannot see what the button will do before pressing it -- floor item 4 |
+| Door                                     | Boards                                                                                        | What it owes                                                                                                                                                                                        |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import settings, on the Open file header | ImportOptions, ImportParseError, ImportLargeFile, ColumnRolePopout                            | Deletion. It reports nothing, it duplicates the Loaded data door, and DECISIONS-1.8 D5 already ruled that one general import door exists and it is the gear on the Loaded data header               |
+| Columns chip                             | DataTableDrawer                                                                               | A count: "9 of 12"                                                                                                                                                                                  |
+| Parsing gear                             | ImportLargeFile                                                                               | Its five values live only in a title. The separator and the header-row state come out as the mark; the gear also gains a keyboard route, which it does not have today                               |
+| Advanced, Encryption password            | Settings                                                                                      | Both draw no state at all. Advanced reports whether Base URL, max tokens or temperature deviate; Encryption password reports set or not set                                                         |
+| Expand-neighbors caret                   | ContextMenu, ExplorerExpert, ExplorerNotes, NoteEditorPopout, IpadInspector, FilterExpression | The depth and type filter its Explore twin carries: "2 steps, 3 types". It prints a count today and nothing else, so a reader cannot see what the button will do before pressing it -- floor item 4 |
 
 ---
 
@@ -839,8 +839,7 @@ the count, which is 6.11's stub vocabulary exactly.
 **Measurement flag.** DataPanelLoaded measured the pre-1.8 open section at about
 282 px, so the inline form is known to fit the region; but 1.7 cut this section
 from 282 px to a 32 px door and celebrated it, and this record puts part of it
-back. The resident form must come in near four rows -- about 128 px -- not near
-282. That is the whole reason the consequence sentences and example ids go behind
+back. The resident form must come in near four rows -- about 128 px -- not near 282. That is the whole reason the consequence sentences and example ids go behind
 the gear rather than staying with their rows.
 
 ### 5.15 Policies -- Import options dialog
@@ -949,11 +948,11 @@ section with a chevron, and D1 does not touch any of them:**
 - **A preview.** The method comparison preview, which takes no lane and is correctly
   unanchored.
 
-6.11's three questions about which SURFACE a group of controls gets are unchanged,
-and so is question 4, A4's discriminator: a door must buy width beyond 256, survival
-across a selection change, or leaving the rows below operable. What this record adds
-is that the discriminator is asked about a GEAR's contents now, never about a whole
-section, because a whole section no longer has the option of leaving.
+    6.11's three questions about which SURFACE a group of controls gets are unchanged,
+    and so is question 4, A4's discriminator: a door must buy width beyond 256, survival
+    across a selection change, or leaving the rows below operable. What this record adds
+    is that the discriminator is asked about a GEAR's contents now, never about a whole
+    section, because a whole section no longer has the option of leaving.
 
 ---
 
@@ -976,17 +975,17 @@ target at under 1,040 px against a measured 3,060; DECISIONS-1.8 took the six
 activity panels from about 116 resident rows to about 80. Seventeen sections here
 gain about 54 rows between them:
 
-| Section | Rows when open | Section | Rows when open |
-|---|---|---|---|
-| Schema | 12 | Categories | 4 |
-| Values | 5 | Sweep runs | 4 |
-| Validation report | 4 | All statistics | 3 |
-| Parameters | 3 | Selection statistics | 3 |
-| Export video | 3 | Console | 3 |
-| Animation | 2 | Neighborhood expansion | 2 |
-| Step through time | 2 | Policies | 2 |
-| Provider | 2 | Filter builder | 0 |
-| Find a pattern | 0 today, 2 when built | | |
+| Section           | Rows when open        | Section                | Rows when open |
+| ----------------- | --------------------- | ---------------------- | -------------- |
+| Schema            | 12                    | Categories             | 4              |
+| Values            | 5                     | Sweep runs             | 4              |
+| Validation report | 4                     | All statistics         | 3              |
+| Parameters        | 3                     | Selection statistics   | 3              |
+| Export video      | 3                     | Console                | 3              |
+| Animation         | 2                     | Neighborhood expansion | 2              |
+| Step through time | 2                     | Policies               | 2              |
+| Provider          | 2                     | Filter builder         | 0              |
+| Find a pattern    | 0 today, 2 when built |                        |                |
 
 **D4 is what pays for it.** None of those rows is drawn at rest, because every one
 of them is behind a chevron that still defaults closed. The skyline is unchanged:

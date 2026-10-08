@@ -117,7 +117,7 @@ describe("LifecycleManager", () => {
             // This tests the lifecycle manager's error handling
             try {
                 const dataManager = graph.getDataManager();
-                dataManager.addNodes([{ id: "test" } as Record<string, unknown>]);
+                dataManager.addNodes([{ id: "test" }]);
                 assert.isNotNull(dataManager);
             } catch (error) {
                 // It's acceptable to throw after shutdown

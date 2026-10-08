@@ -65,7 +65,7 @@ export class RichTextParser {
                         newStyle.color = tagValue || this.defaultStyle.color;
                         break;
                     case "size":
-                        newStyle.size = parseInt(tagValue || "0") || this.defaultStyle.size;
+                        newStyle.size = Number.parseInt(tagValue || "0") || this.defaultStyle.size;
                         break;
                     case "font":
                         newStyle.font = tagValue || this.defaultStyle.font;

@@ -119,7 +119,11 @@ describe("NodeMesh gradient colour without a canvas", () => {
     });
 
     test("a 2D gradient node lights its emissive channel, matching the 2D solid path", () => {
-        const mat = materialFor("grad-2d", { colorType: "gradient", direction: 0, colors: ["#FF0000", "#0000FF"] }, true);
+        const mat = materialFor(
+            "grad-2d",
+            { colorType: "gradient", direction: 0, colors: ["#FF0000", "#0000FF"] },
+            true,
+        );
 
         assert.isTrue(mat.disableLighting);
         assert.closeTo(mat.emissiveColor.r, 1, 0.001);

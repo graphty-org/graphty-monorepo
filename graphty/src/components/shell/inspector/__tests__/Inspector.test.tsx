@@ -8,13 +8,7 @@ import { ShellProvider } from "../../ShellContext";
 import type { SelectionKind } from "../../types";
 import { Inspector } from "../Inspector";
 import { InspectorActions } from "../InspectorActions";
-import {
-    COMING_TAG_HEIGHT,
-    COMING_TAG_RADIUS,
-    INSPECTOR_HEADER_CLUSTER_WIDTH,
-    INSPECTOR_HEADER_NAME_BAND,
-    kindTakesPin,
-} from "../inspectorConstants";
+import { INSPECTOR_HEADER_CLUSTER_WIDTH, INSPECTOR_HEADER_NAME_BAND, kindTakesPin } from "../inspectorConstants";
 import { InspectorMetricRow } from "../inspectorContext";
 
 function Harness({ children }: { children: React.ReactNode }) {
@@ -60,11 +54,6 @@ describe("Inspector", () => {
 
         it("draws a 36px header", () => {
             expect(PANEL_HEADER_HEIGHT).toBe(36);
-        });
-
-        it("draws the Coming pill 16px tall and fully round", () => {
-            expect(COMING_TAG_HEIGHT).toBe(16);
-            expect(COMING_TAG_RADIUS).toBe(8);
         });
     });
 

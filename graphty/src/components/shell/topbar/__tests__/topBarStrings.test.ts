@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    COMPARE_NOT_BUILT_TITLE,
     COMPARE_TITLE,
-    compareTitle,
     EXPORT_LABEL,
     EXPORT_MENU_DATA,
     EXPORT_MENU_IMAGE,
@@ -57,13 +57,12 @@ describe("topBarStrings", () => {
     });
 
     describe("the right group's titles", () => {
-        it("appends the load-data reason to Export, Share and Compare", () => {
+        it("appends the load-data reason to Export and Share, and the not-built reason to Compare", () => {
             expect(exportTitle(true)).toBe("Export");
             expect(exportTitle(false)).toBe("Export. Load data first");
             expect(shareTitle(true)).toBe("Share this view");
             expect(shareTitle(false)).toBe("Share this view. Load data first");
-            expect(compareTitle(true)).toBe("Compare two views");
-            expect(compareTitle(false)).toBe("Compare two views. Load data first");
+            expect(COMPARE_NOT_BUILT_TITLE).toBe("Compare two views. Not built yet");
         });
 
         /* REPLACED two boards on 2026-09-14, one for each of the mirrored switches this

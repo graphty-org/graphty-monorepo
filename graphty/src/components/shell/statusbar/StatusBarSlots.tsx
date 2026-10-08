@@ -25,7 +25,12 @@ import type {
 import { CANCEL_LABEL, LOAD_CANCEL_DISABLED_TITLE, RUN_CANCEL_DISABLED_TITLE } from "./loadingPhases";
 import { StatusBarChip } from "./StatusBarChip";
 import { STATUS_BAR_GEOMETRY } from "./statusBarGeometry";
-import type { StatusBarIssuesModel, StatusBarLayoutModel, StatusBarLoading, StatusBarRunningModel } from "./statusBarModel";
+import type {
+    StatusBarIssuesModel,
+    StatusBarLayoutModel,
+    StatusBarLoading,
+    StatusBarRunningModel,
+} from "./statusBarModel";
 
 /**
  * `Exit`, the XR mode chip's own control (spec 02 section 4.2 slot 3). The one home for the
@@ -74,7 +79,14 @@ function StatusDot({ size, color }: { size: number; color: string }): React.JSX.
     return (
         <span
             aria-hidden="true"
-            style={{ display: "block", flex: "0 0 auto", width: size, height: size, borderRadius: "50%", background: color }}
+            style={{
+                display: "block",
+                flex: "0 0 auto",
+                width: size,
+                height: size,
+                borderRadius: "50%",
+                background: color,
+            }}
         />
     );
 }
@@ -159,7 +171,12 @@ function CancelControl({
  */
 export function StatusBarCountsSlot({ counts }: { counts: StatusBarCounts }): React.JSX.Element {
     return (
-        <button onClick={counts.onClick} style={{ ...BARE_BUTTON, ...SLOT_STYLE, cursor: "pointer" }} title={counts.title} type="button">
+        <button
+            onClick={counts.onClick}
+            style={{ ...BARE_BUTTON, ...SLOT_STYLE, cursor: "pointer" }}
+            title={counts.title}
+            type="button"
+        >
             <span>{counts.nodes}</span>
             <span>{counts.edges}</span>
             {counts.sample === undefined ? null : <span>{counts.sample}</span>}
@@ -434,7 +451,11 @@ export function StatusBarLoadingSlot({ loading }: { loading: StatusBarLoading })
                     w={STATUS_BAR_GEOMETRY.PROGRESS_WIDTH}
                 />
             )}
-            <CancelControl disabled={!cancellable} onCancel={onCancel} title={cancellable ? undefined : LOAD_CANCEL_DISABLED_TITLE} />
+            <CancelControl
+                disabled={!cancellable}
+                onCancel={onCancel}
+                title={cancellable ? undefined : LOAD_CANCEL_DISABLED_TITLE}
+            />
         </span>
     );
 }

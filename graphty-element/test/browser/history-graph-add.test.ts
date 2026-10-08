@@ -69,9 +69,9 @@ function watch(graph: Graph): {
 } {
     const watched = graph as unknown as Watched;
     return {
-        layout: vi.spyOn(watched.statsManager, "startLayoutSession") as unknown as ReturnType<typeof vi.fn>,
-        frame: vi.spyOn(watched, "autoFrame") as unknown as ReturnType<typeof vi.fn>,
-        run: vi.spyOn(watched, "runOnLoad").mockResolvedValue(undefined) as unknown as ReturnType<typeof vi.fn>,
+        layout: vi.spyOn(watched.statsManager, "startLayoutSession"),
+        frame: vi.spyOn(watched, "autoFrame"),
+        run: vi.spyOn(watched, "runOnLoad").mockResolvedValue(undefined),
     };
 }
 

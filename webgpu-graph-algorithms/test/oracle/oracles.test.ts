@@ -272,8 +272,12 @@ describe("radixSortOracle (spec 6 row 6; P4-T4 Step 1): a stable sort of pairs b
     });
 
     it("bits 8 orders by the low byte only and keeps the whole key: [0x1FF, 0x001] -> [0x001, 0x1FF] and [0x100, 0x001] -> [0x100, 0x001]", () => {
-        expect(Array.from(radixSortOracle(Uint32Array.from([0x1ff, 0x001]), Uint32Array.from([0, 1]), 8).keys)).toEqual([0x001, 0x1ff]);
-        expect(Array.from(radixSortOracle(Uint32Array.from([0x100, 0x001]), Uint32Array.from([0, 1]), 8).vals)).toEqual([0, 1]);
+        expect(Array.from(radixSortOracle(Uint32Array.from([0x1ff, 0x001]), Uint32Array.from([0, 1]), 8).keys)).toEqual(
+            [0x001, 0x1ff],
+        );
+        expect(Array.from(radixSortOracle(Uint32Array.from([0x100, 0x001]), Uint32Array.from([0, 1]), 8).vals)).toEqual(
+            [0, 1],
+        );
     });
 });
 
@@ -304,7 +308,9 @@ describe("gridOracleBuild (spec 7.7 G1-G3; P4-T8 Step 1): keys, the stable order
         expect(build.maxOccupancy).toBe(1);
         // a negative coordinate and a NaN are outside too, in orthant 0
         const bad = Float32Array.from([-0.5, 1, 0, 1, Number.NaN, 1, 0, 1]);
-        expect(Array.from(gridOracleBuild({ positions: bad, n: 2, spec, gridMin: [0, 0, 0], invCellSize: 1 }).cellKey)).toEqual([64, 64]);
+        expect(
+            Array.from(gridOracleBuild({ positions: bad, n: 2, spec, gridMin: [0, 0, 0], invCellSize: 1 }).cellKey),
+        ).toEqual([64, 64]);
     });
 
     it("two coincident points keep index order inside their cell (the stable order), and a later lower key sorts first", () => {

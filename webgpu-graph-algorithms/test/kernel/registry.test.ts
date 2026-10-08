@@ -725,11 +725,10 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
     "bfs-unvisited-flags": {
         entryPoint: "bfs_unvisited_flags",
         bindings: [
-            [1, 0, "outDegree", "storage-ro", "array<u32>"],
-            [1, 1, "inDegree", "storage-ro", "array<u32>"],
-            [1, 2, "depth", "storage-ro", "array<u32>"],
-            [1, 3, "flags", "storage", "array<u32>"],
-            [1, 4, "counters", "storage", "array<atomic<u32>>"],
+            [1, 0, "inDegree", "storage-ro", "array<u32>"],
+            [1, 1, "depth", "storage-ro", "array<u32>"],
+            [1, 2, "flags", "storage", "array<u32>"],
+            [1, 3, "counters", "storage", "array<atomic<u32>>"],
             [2, 0, "P", "uniform", "FrontierParams"],
         ],
         overrideDecls: [],
@@ -737,7 +736,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         needs: ["subgroups"],
         snippetSlots: [],
         phase: "P8",
-        storageCount: 5,
+        storageCount: 4,
     },
     "bfs-next-degree": {
         entryPoint: "bfs_next_degree",
@@ -745,6 +744,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
             [1, 0, "frontier", "storage-ro", "array<u32>"],
             [1, 1, "outDegree", "storage-ro", "array<u32>"],
             [1, 2, "counters", "storage", "array<atomic<u32>>"],
+            [1, 3, "inDegree", "storage-ro", "array<u32>"],
             [2, 0, "P", "uniform", "FrontierParams"],
         ],
         overrideDecls: [],
@@ -752,7 +752,7 @@ const TABLE: Readonly<Record<KernelId, ExpectedEntry>> = {
         needs: ["subgroups"],
         snippetSlots: [],
         phase: "P8",
-        storageCount: 3,
+        storageCount: 4,
     },
     "sssp-relax": {
         entryPoint: "sssp_relax",

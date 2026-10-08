@@ -5,9 +5,13 @@
  * queue (`nextFrontierCount`, word 1, the claim kernels' append span; `P.stride` the plan's stride), reads each
  * entry's out-degree from the `outDegree` view, reduces the lane sums with the prelude's `wg_reduce_u32` and lands
  * ONE `atomicAdd` per workgroup in `nextDegreeSum` (word 25), which `frontier-finalize` role 0 reads for the
- * switch-into-bottom-up test, subtracts from `unvisitedDegreeSum` and zeroes for the next level. It runs on every
- * path that claims (the path word 24 non-zero: two-phase, fused, bottom-up, the retry) and does nothing on a level
- * past the end.
+ * switch-into-bottom-up test and zeroes for the next level. The same pass sums the entries' IN-degrees and subtracts
+ * them from `unvisitedDegreeSum` (word 6, the unvisited in-arcs a bottom-up sweep can read; issue #1358) with one
+ * `atomicSub` per workgroup: every vertex a level claims was unclaimed when the submit's rebuild summed word 6, so the
+ * subtraction is always due and never takes the word below zero, and the rebuild at the top of the next submit
+ * overwrites it anyway. Word 6 therefore always holds the in-arcs of the vertices not yet claimed. It runs on every path
+ * that claims (the path word 24 non-zero: two-phase, fused, bottom-up, the retry) and does nothing on a level past
+ * the end.
  *
  * Why a kernel of its own: before it, the test used `frontierDegreeSum` (word 2), which the EXPANSION of the
  * previous frontier accumulates, so the boundary compared the degree of the frontier it had just finished with the
@@ -24,10 +28,17 @@ export const bfsNextDegreeWgsl = /* wgsl */ `
 fn bfs_next_degree(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id) lid: vec3<u32>) {
     let count = select(0u, atomicLoad(&counters[1]), atomicLoad(&counters[24]) != 0u);   // nextFrontierCount, on a level that claimed (the path word)
     var sum = 0u;
+    var inSum = 0u;
     for (var i = linear_id(wid, lid.x); i < count; i = i + P.stride) {   // no barrier inside: the trip count is per lane
-        sum = sum + outDegree[frontier[i]];
+        let v = frontier[i];
+        sum = sum + outDegree[v];
+        inSum = inSum + inDegree[v];
     }
     let total = wg_reduce_u32(sum, lid.x, 0u);                       // the prelude's workgroup sum; uniform: after the loop
-    if (lid.x == 0u) { atomicAdd(&counters[25], total); }            // nextDegreeSum: ONE atomic per workgroup
+    let inTotal = wg_reduce_u32(inSum, lid.x, 0u);
+    if (lid.x == 0u) {
+        atomicAdd(&counters[25], total);                             // nextDegreeSum: ONE atomic per workgroup
+        atomicSub(&counters[6], inTotal);                            // unvisitedDegreeSum: the claimed vertices' in-arcs leave it (issue #1358)
+    }
 }
 `;

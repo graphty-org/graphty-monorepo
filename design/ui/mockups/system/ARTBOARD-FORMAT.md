@@ -10,23 +10,37 @@ silently.
 ```html
 <!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <script src="./support.js"></script>
-</head>
-<body>
-<x-dc>
-<helmet>
-  <style>
-    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-    a { color: #5b8ff9; } a:hover { color: #75a5f9; }
-  </style>
-</helmet>
-<div style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden;">
-  ... the whole screen ...
-</div>
-</x-dc>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <script src="./support.js"></script>
+    </head>
+    <body>
+        <x-dc>
+            <helmet>
+                <style>
+                    body {
+                        margin: 0;
+                        font-family:
+                            system-ui,
+                            -apple-system,
+                            "Segoe UI",
+                            sans-serif;
+                    }
+                    a {
+                        color: #5b8ff9;
+                    }
+                    a:hover {
+                        color: #75a5f9;
+                    }
+                </style>
+            </helmet>
+            <div
+                style="width: 1440px; height: 900px; display: flex; flex-direction: column; background: #161b22; color: #d5d7da; overflow: hidden;"
+            >
+                ... the whole screen ...
+            </div>
+        </x-dc>
+    </body>
 </html>
 ```
 
@@ -60,7 +74,7 @@ Rules:
 
 ## Frame sizes
 
-| Kind | Root size |
-|---|---|
+| Kind    | Root size                    |
+| ------- | ---------------------------- |
 | Desktop | width: 1440px; height: 900px |
-| iPad | width: 1180px; height: 820px |
+| iPad    | width: 1180px; height: 820px |

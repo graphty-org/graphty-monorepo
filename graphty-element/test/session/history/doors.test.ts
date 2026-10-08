@@ -165,8 +165,7 @@ describe("the session's doors", () => {
 
         it(`${root.name}: every called row dispatches what its row says`, async () => {
             const reach = SESSION_ROOTS[root.name] as
-                | ((session: ElementSession) => object | Promise<object>)
-                | undefined;
+                ((session: ElementSession) => object | Promise<object>) | undefined;
             assert.isDefined(reach, `the session half has no way to reach a ${root.name}`);
             for (const [member, door] of called) {
                 const session = createElementSession();

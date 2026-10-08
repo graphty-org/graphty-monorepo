@@ -2,7 +2,8 @@
  * Prints the SPIR-V Dawn generates for the three dense-row kernels (spmv-pull, segmented-reduce and fa2-attraction at
  * TIER 0) by running PageRank and one ForceAtlas2 iteration on a small graph under Dawn's `dump_shaders` and
  * `disable_symbol_renaming` toggles. Dawn writes the dump to the native stdout, which JavaScript cannot intercept, so
- * `test/kernel/dense-loop-guard.test.ts` runs this file as a child process and reads its output.
+ * `test/kernel/dense-loop-guard.test.ts` runs this file as a child process and reads its output. Pipelines compile
+ * synchronously here, so each module's dump arrives whole (see the createComputePipelineAsync override below).
  *
  * Runs AFTER `pnpm run build:all` (it imports dist/). Honours GRAPHTY_GPU_ADAPTER. Exit 0 with the dump on stdout;
  * exit 2 with `E_NO_ADAPTER: <reason>` on stdout when no adapter exists.
@@ -23,6 +24,13 @@ try {
     process.stdout.write(`E_NO_ADAPTER: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(2);
 }
+
+// Every dump must come from ONE thread (issue #952). dawn.node prints a log message as a run of separate 4096-byte
+// printf calls, outside any lock, on the thread that emitted it; createComputePipelineAsync compiles -- and dumps --
+// on Dawn's worker threads, so two concurrent compiles interleave their dumps mid-module. The synchronous create
+// compiles the same SPIR-V on the calling (main) thread, where shader-module dumps are printed too.
+const device = ctx.device;
+device.createComputePipelineAsync = async (descriptor) => device.createComputePipeline(descriptor);
 
 // a ring with chords: every row has arcs, and nothing reaches degree 32, so every kernel runs TIER 0 only
 const n = 64;

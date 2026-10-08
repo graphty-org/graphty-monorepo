@@ -111,16 +111,17 @@ export async function degree(ctx: GpuContext, s: GraphSnapshot, options?: GpuRun
     const params = (block: UniformBlock, values: UniformValues): Binding => paramsBinding(ctx, pooled, block, values);
     try {
         await ctx.allocator.check();
+        // every pipeline is resolved before the encoder exists: no await while a pass is open
         const kernel = await ctx.pipelines.kernel(kernelSpec("degree", graphOverrides(core, null)));
+        const fill = core.windows === null ? null : await ctx.pipelines.kernel(kernelSpec("fill"));
         const outBinding: Binding = { buffer: out, offset: 0, size: byteLength, window: null };
         const encoder = ctx.device.createCommandEncoder({ label: "degree" });
         const pass = encoder.beginComputePass({ label: "degree" });
-        if (core.windows === null) {
+        if (core.windows === null || fill === null) {
             const P = params(RANGE_PARAMS, { start: 0, end: n, arcBase: 0, arcEnd: s.arcCount, accumulate: 0, n });
             const bound = kernel.bind({ ...graphBindings(core, null), out: outBinding, P });
             kernel.dispatch(pass, bound, plan1d(n, ctx.workgroupSize, ctx.caps), [0]);
         } else {
-            const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
             const zero = fill.bind({ dst: outBinding, P: params(FILL_PARAMS, { count: n, value: 0, mode: 0 }) });
             fill.dispatch(pass, zero, plan1d(n, ctx.workgroupSize, ctx.caps), [0]);
             for (const w of core.windows) {

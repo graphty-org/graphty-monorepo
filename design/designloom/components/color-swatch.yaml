@@ -7,11 +7,11 @@ implements_capabilities: []
 used_in_workflows: []
 dependencies: []
 props:
-  color: string - CSS color value (required)
-  size: "string - Swatch size: 'sm' | 'md' | 'lg' (default: 'md')"
-  shape: "string - Swatch shape: 'circle' | 'square' (default: 'circle')"
-  selected: "boolean - Show selected state (default: false)"
-  onClick: () => void - Click handler for selectable swatches
+    color: string - CSS color value (required)
+    size: "string - Swatch size: 'sm' | 'md' | 'lg' (default: 'md')"
+    shape: "string - Swatch shape: 'circle' | 'square' (default: 'circle')"
+    selected: "boolean - Show selected state (default: false)"
+    onClick: () => void - Click handler for selectable swatches
 sources: []
 version: 1.0.0
 created_at: 2026-01-16T03:59:03.700Z

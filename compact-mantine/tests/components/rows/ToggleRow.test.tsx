@@ -135,6 +135,27 @@ describe("ToggleRow", () => {
         });
     });
 
+    describe("as a disclosure", () => {
+        it.each([
+            ["checkbox", "checkbox"],
+            ["switch", "switch"],
+        ] as const)("puts aria-expanded and aria-controls on the %s input", (control, role) => {
+            renderRow(<ToggleRow label="Glow" control={control} checked aria-expanded aria-controls="glow-settings" />);
+
+            const input = screen.getByRole(role, { name: "Glow" });
+            expect(input).toHaveAttribute("aria-expanded", "true");
+            expect(input).toHaveAttribute("aria-controls", "glow-settings");
+        });
+
+        it("writes neither attribute on a toggle that only records a setting", () => {
+            renderRow(<ToggleRow label="Labels" />);
+
+            const input = screen.getByRole("checkbox", { name: "Labels" });
+            expect(input).not.toHaveAttribute("aria-expanded");
+            expect(input).not.toHaveAttribute("aria-controls");
+        });
+    });
+
     describe("uncontrolled", () => {
         it("is off when nothing says otherwise", () => {
             renderRow(<ToggleRow label="Labels" />);

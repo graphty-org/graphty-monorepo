@@ -226,5 +226,10 @@ export function katzOracle(
     s: GraphSnapshot,
     options: SpectralOracleOptions & { readonly alpha: number; readonly beta: number },
 ): SpectralOracleResult {
-    return run([reverseOf(s, options.weighted)], { norm: null, alpha: options.alpha, beta: options.beta }, "l2", options);
+    return run(
+        [reverseOf(s, options.weighted)],
+        { norm: null, alpha: options.alpha, beta: options.beta },
+        "l2",
+        options,
+    );
 }

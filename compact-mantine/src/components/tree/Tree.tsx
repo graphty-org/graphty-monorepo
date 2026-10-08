@@ -31,6 +31,8 @@ const OVERSCAN = 10;
 export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "children"> {
     /** The visible name. */
     name: string;
+    /** The accessible name; defaults to `name`. */
+    label?: string;
     /** The 16 x 16 type glyph. */
     icon?: React.ReactNode;
     /** Depth, 1 for a top-level row. Each level indents 24px. */
@@ -81,6 +83,7 @@ export interface TreeItemProps extends Omit<React.HTMLAttributes<HTMLDivElement>
 export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeItem(
     {
         name,
+        label,
         icon,
         level = 1,
         hasChildren = false,
@@ -122,10 +125,12 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         .join(" ");
     const fraction = typeof progress === "number" ? Math.min(1, Math.max(0, progress)) : undefined;
     // The caret and the toggles are parts of the row, not rows of their own: a click on the caret
-    // opens or closes the row, and nothing that lands on the toggles selects or renames it.
+    // opens or closes the row, and nothing that lands on a toggle selects or renames it. Passive
+    // text in the trailing slot (a count) is part of the row.
     const partOf = (event: React.SyntheticEvent): "caret" | "actions" | "row" => {
         const target = event.target as Element;
-        if (target.closest(".cm-tree-actions")) {
+        const control = target.closest("button, a, input, select, textarea, [role], [tabindex]");
+        if (control !== null && control.closest(".cm-tree-actions") !== null) {
             return "actions";
         }
         return target.closest(".cm-tree-caret") ? "caret" : "row";
@@ -135,7 +140,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
             ref={ref}
             role="treeitem"
             // Named by the layer name alone, not by the toggles inside the row.
-            aria-label={name}
+            aria-label={label ?? name}
             aria-level={level}
             aria-posinset={posInSet}
             aria-setsize={setSize}
@@ -537,6 +542,7 @@ export function Tree({
                 data-id={id}
                 data-index={i}
                 name={row.node.name}
+                label={row.node.label}
                 icon={row.node.icon}
                 level={row.level}
                 hasChildren={row.hasChildren}

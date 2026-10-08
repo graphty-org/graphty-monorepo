@@ -26,6 +26,7 @@ import { assertComputesOverScope, type Build, coveredBy, handBuilt, runScoped, r
 
 /** Each registered algorithm's `scopeInput`: on computes over the scope, off over the whole graph. */
 const EXPECTED: Readonly<Record<string, "on" | "off">> = {
+    "graphty:astar": "on",
     "graphty:bellman-ford": "on",
     "graphty:betweenness": "on",
     "graphty:bfs": "on",
@@ -36,9 +37,11 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:degree": "on",
     "graphty:dfs": "on",
     "graphty:dijkstra": "on",
+    "graphty:edge-betweenness": "on",
     "graphty:eigenvector": "on",
     "graphty:floyd-warshall": "on",
     "graphty:girvan-newman": "on",
+    "graphty:hierarchical-clustering": "on",
     "graphty:hits": "on",
     "graphty:k-core": "on",
     "graphty:katz": "on",
@@ -47,16 +50,19 @@ const EXPECTED: Readonly<Record<string, "on" | "off">> = {
     "graphty:leiden": "on",
     "graphty:link-prediction": "on",
     "graphty:louvain": "on",
+    "graphty:markov-clustering": "on",
     "graphty:max-flow": "on",
     "graphty:min-cut": "on",
     "graphty:pagerank": "on",
     "graphty:prim": "on",
     "graphty:scc": "on",
+    "graphty:spectral-clustering": "on",
 };
 
 /** Options an algorithm needs on the fixture. */
 const OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
     "graphty:dijkstra": { source: "a", target: "c" },
+    "graphty:astar": { source: "a", target: "c" },
     "graphty:bfs": { source: "a" },
 };
 

@@ -80,6 +80,7 @@ interface Note {
     readonly edited?: string; // when it last changed; stamped by the element
     readonly cites?: readonly NoteCite[]; // results the claim rests on
     readonly extensions?: Readonly<Record<string, unknown>>; // other applications' data
+    readonly done?: string; // when it was marked done; stamped by the element
 }
 ```
 
@@ -95,12 +96,13 @@ session.notes.list({ targetKind: "edge" }); // with at least one edge target
 session.notes.list({ cites: run.id }); // citing a result, whichever run
 session.notes.list({ author: "Ada" });
 session.notes.list({ missing: true }); // with a target the graph no longer holds
+session.notes.list({ done: false }); // not marked done; true for only the done ones
 ```
 
 `session.notes.counts()` says how many notes there are, and how many nodes and edges have at least
 one. `session.notes.authors()` lists the distinct authors.
 
-`extensions` is for data an application keeps about a note -- a done flag, tags, a color -- under
+`extensions` is for data an application keeps about a note -- tags, a color -- under
 a reverse-domain key it owns (`"com.example.casebook"`). The element keeps it and writes it back;
 it never reads it. The value must be plain JSON: objects, arrays, strings, finite numbers,
 booleans and `null`, at most 32 levels deep and 64 KB once saved.
@@ -173,6 +175,7 @@ try {
 | `E_BAD_COMMAND` | `"bad-media-type"` | `mediaType` is not `type/subtype` with optional parameters, or is too long        |
 | `E_BAD_COMMAND` | `"bad-extensions"` | `extensions` is not plain JSON, or a key is not a reverse-domain name             |
 | `E_BAD_COMMAND` | `"element-field"`  | the input carries `id`, `time`, `author` or `edited`, which the element stamps    |
+| `E_BAD_COMMAND` | `"bad-done"`       | `update`'s `done` is not `true` or `false`                                        |
 | `E_BAD_COMMAND` | `"unknown-id"`     | `update`, `remove`, `status` or `select({ note })` names a note that is not there |
 | `E_TOO_LARGE`   | `"notes"`          | the session would hold more than 10,000 notes                                     |
 | `E_TOO_LARGE`   | `"note-size"`      | the note, saved as JSON, would be larger than 256 KB                              |
@@ -192,6 +195,19 @@ session.notes.remove(id);
 A field left out of the patch is unchanged. `update` stamps `edited` and never changes `author` or
 `time`, so editing someone else's note keeps their name. A change that changes nothing records
 nothing.
+
+### Marking a note done
+
+```typescript
+session.notes.update(id, { done: true }); // marks it done: note.done is the time, like edited
+session.notes.update(id, { done: false }); // not done again: the field is gone
+session.notes.list({ target: { node: "ada" }, done: false }); // the open notes about a node
+```
+
+A note is not done until it is marked, and `add` does not take `done`. Marking is an ordinary
+edit: one undoable step, labeled "Edited note", that stamps `edited` and is told by `note:changed`
+with `"done"` in `fields`. Marking a done note done again changes nothing and keeps the time it
+was first marked.
 
 ## The author
 
@@ -348,11 +364,11 @@ saved note and a held note share an id but disagree, `onConflict` decides:
 
 No graph format holds notes as notes, so a GEXF, GraphML, CSV or other export leaves them out by
 default, and says so: every export of a session holding notes reports a `W_GRAPHTY_NOTES` loss
-note with the number left out.
+with the number left out.
 
 ```typescript
 const result = await element.exportGraph("graphml", { notes: true });
-result.lossNotes; // [{ code: "W_GRAPHTY_NOTES", count: 3, ... }]
+result.losses; // [{ code: "W_GRAPHTY_NOTES", params: { columns: [], count: 3 } }]
 ```
 
 With `{ notes: true }`, noted nodes and edges gain two columns: `graphty.notes.count`, and

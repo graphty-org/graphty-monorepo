@@ -1,0 +1,31 @@
+[{"numberVerification":[{"longNumber":281474976710655}]},
+{"metaData":[{"name":"nodes","version":"1.0","idCounter":5,"elementCount":5,"consistencyGroup":1},{"name":"edges","version":"1.0","idCounter":5,"elementCount":5,"consistencyGroup":1},{"name":"nodeAttributes","version":"1.0","elementCount":5,"consistencyGroup":1},{"name":"edgeAttributes","version":"1.0","elementCount":5,"consistencyGroup":1},{"name":"cyTableColumn","version":"1.0","elementCount":3,"consistencyGroup":1}]},
+{"nodes":[
+{"@id":0,"n":"Node A"},
+{"@id":1,"n":"Node B"},
+{"@id":2,"n":"Node C"},
+{"@id":3,"n":"Node D"},
+{"@id":4,"n":"Node E"}]},
+{"edges":[
+{"@id":0,"s":0,"t":1},
+{"@id":1,"s":0,"t":2},
+{"@id":2,"s":1,"t":3},
+{"@id":3,"s":2,"t":3},
+{"@id":4,"s":3,"t":4}]},
+{"nodeAttributes":[
+{"po":0,"n":"graphty:originalId","v":"n0","d":"string"},
+{"po":1,"n":"graphty:originalId","v":"n1","d":"string"},
+{"po":2,"n":"graphty:originalId","v":"n2","d":"string"},
+{"po":3,"n":"graphty:originalId","v":"n3","d":"string"},
+{"po":4,"n":"graphty:originalId","v":"n4","d":"string"}]},
+{"edgeAttributes":[
+{"po":0,"n":"weight","v":"1","d":"double"},
+{"po":1,"n":"weight","v":"2","d":"double"},
+{"po":2,"n":"weight","v":"1.5","d":"double"},
+{"po":3,"n":"weight","v":"1","d":"double"},
+{"po":4,"n":"weight","v":"3","d":"double"}]},
+{"cyTableColumn":[
+{"applies_to":"node_table","n":"name","d":"string"},
+{"applies_to":"node_table","n":"graphty:originalId","d":"string"},
+{"applies_to":"edge_table","n":"weight","d":"double"}]},
+{"status":[{"error":"","success":true}]}]

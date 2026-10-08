@@ -56,11 +56,7 @@ describe("Feedback Components Integration", () => {
         it("renders with compact-equivalent size (48px)", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <RingProgress
-                        size={48}
-                        sections={[{ value: 40, color: "blue" }]}
-                        data-testid="ring"
-                    />
+                    <RingProgress size={48} sections={[{ value: 40, color: "blue" }]} data-testid="ring" />
                 </MantineProvider>,
             );
             expect(screen.getByTestId("ring")).toBeInTheDocument();
@@ -69,11 +65,7 @@ describe("Feedback Components Integration", () => {
         it("renders with larger size", () => {
             render(
                 <MantineProvider theme={compactTheme}>
-                    <RingProgress
-                        size={80}
-                        sections={[{ value: 40, color: "blue" }]}
-                        data-testid="ring-lg"
-                    />
+                    <RingProgress size={80} sections={[{ value: 40, color: "blue" }]} data-testid="ring-lg" />
                 </MantineProvider>,
             );
             expect(screen.getByTestId("ring-lg")).toBeInTheDocument();

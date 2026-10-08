@@ -10,12 +10,13 @@ import { assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
+import { edgeLineFor } from "../helpers/edgeLine";
 import { asData } from "../helpers/testSetup";
 
 /**
  * Helper to check if a mesh is disposed, handling both AbstractMesh (method) and PatternedLineMesh (property)
  */
-function isDisposed(mesh: AbstractMesh | PatternedLineMesh): boolean {
+function isDisposed(mesh: AbstractMesh | PatternedLineMesh | ArrowCap): boolean {
     if ("isDisposed" in mesh) {
         if (typeof mesh.isDisposed === "function") {
             return mesh.isDisposed();
@@ -33,6 +34,7 @@ import type { GraphContext } from "../../src/managers/GraphContext";
 import { LayoutManager } from "../../src/managers/LayoutManager";
 import { StatsManager } from "../../src/managers/StatsManager";
 import type { EdgePaint } from "../../src/managers/StylePainter";
+import type { ArrowCap } from "../../src/meshes/ArrowCapBatch";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { Node } from "../../src/Node";
@@ -66,7 +68,7 @@ function createMockGraphContext(
         getScene: () => scene,
         getStatsManager: () => statsManager,
         is2D: () => false,
-        needsRayUpdate: () => true,
+        needsRayUpdate: () => false,
         getConfig: () => ({}),
         isRunning: () => false,
         setRunning: vi.fn(),
@@ -259,8 +261,8 @@ describe("Edge Integration", () => {
             const edge = new Edge(context, "src", "dst", 0, arrowHeadPaint, asData({}));
 
             assert.exists(edge.mesh);
-            assert.exists(edge.arrowMesh);
-            assert.isFalse(isDisposed(edge.arrowMesh));
+            assert.exists(edge.arrowCap);
+            assert.isFalse(isDisposed(edge.arrowCap));
         });
 
         test("creates edge with arrowTail when configured", () => {
@@ -275,8 +277,8 @@ describe("Edge Integration", () => {
             const edge = new Edge(context, "src", "dst", 0, arrowTailPaint, asData({}));
 
             assert.exists(edge.mesh);
-            assert.exists(edge.arrowTailMesh);
-            assert.isFalse(isDisposed(edge.arrowTailMesh));
+            assert.exists(edge.arrowTailCap);
+            assert.isFalse(isDisposed(edge.arrowTailCap));
         });
 
         test("creates edge with bidirectional arrows", () => {
@@ -291,10 +293,10 @@ describe("Edge Integration", () => {
             const edge = new Edge(context, "src", "dst", 0, bidirectionalPaint, asData({}));
 
             assert.exists(edge.mesh);
-            assert.exists(edge.arrowMesh);
-            assert.exists(edge.arrowTailMesh);
-            assert.isFalse(isDisposed(edge.arrowMesh));
-            assert.isFalse(isDisposed(edge.arrowTailMesh));
+            assert.exists(edge.arrowCap);
+            assert.exists(edge.arrowTailCap);
+            assert.isFalse(isDisposed(edge.arrowCap));
+            assert.isFalse(isDisposed(edge.arrowTailCap));
         });
 
         test("updates edge style correctly", () => {
@@ -308,7 +310,7 @@ describe("Edge Integration", () => {
             const context = createMockGraphContext(scene, meshCache, styles, nodes);
             const edge = new Edge(context, "src", "dst", 0, initialPaint, asData({}));
 
-            assert.isTrue(edge.arrowMesh === null, "no arrow before the repaint");
+            assert.isTrue(edge.arrowCap === null, "no arrow before the repaint");
             /* WHICH STYLE THE EDGE IS DRAWN FROM, BEFORE. Two assertions on `edge.styleId` used
                to bracket this repaint, and they are what said "drawn from THAT style" rather
                than "drawn from something". A style id is gone with the 1.x style table and the
@@ -321,7 +323,7 @@ describe("Edge Integration", () => {
             // it, and neither takes a style id any more.
             edge.applySessionPaint(updatedPaint);
 
-            const drawn: AbstractMesh | null = edge.arrowMesh;
+            const drawn: ArrowCap | null = edge.arrowCap;
 
             assert.exists(drawn);
             /* WHICH style it was drawn from, not merely that something was drawn. That identity
@@ -360,16 +362,14 @@ describe("Edge Integration", () => {
                 asData({}),
             );
 
-            assert.exists(small.arrowMesh);
-            assert.exists(large.arrowMesh);
+            assert.exists(small.arrowCap);
+            assert.exists(large.arrowCap);
 
             /* `EdgeStyle.arrowHead.size` has been in the schema and read by the renderer since
                1.x, and for the whole of the 2.0 branch no public route wrote it. This is the
                renderer half of that gap: the cap really is built at the size the style names,
                which is what makes `edge.arrowHeadSize` worth publishing. */
-            const spanOf = (mesh: AbstractMesh): number => mesh.getBoundingInfo().boundingBox.extendSize.length();
-
-            assert.isAbove(spanOf(large.arrowMesh), spanOf(small.arrowMesh) * 2);
+            assert.isAbove(large.arrowCap.span, small.arrowCap.span * 2);
         });
 
         test("draws an arrow at the opacity its own style asks for", () => {
@@ -393,8 +393,8 @@ describe("Edge Integration", () => {
                 asData({}),
             );
 
-            assert.exists(faint.arrowMesh);
-            assert.strictEqual(faint.arrowMesh.visibility, 0.25);
+            assert.exists(faint.arrowCap);
+            assert.strictEqual(faint.arrowCap.visibility, 0.25);
         });
 
         test("disposes edge resources when style changes", () => {
@@ -409,7 +409,7 @@ describe("Edge Integration", () => {
             const edge = new Edge(context, "src", "dst", 0, styleAPaint, asData({}));
 
             const oldMesh = edge.mesh;
-            const oldArrowMesh = edge.arrowMesh;
+            const oldArrowMesh = edge.arrowCap;
 
             // Repainting from another style disposes the meshes the old one built.
             edge.applySessionPaint(styleBPaint);
@@ -421,8 +421,8 @@ describe("Edge Integration", () => {
 
             // New meshes should exist and not be disposed
             assert.isFalse(isDisposed(edge.mesh));
-            assert.exists(edge.arrowMesh);
-            assert.isFalse(isDisposed(edge.arrowMesh));
+            assert.exists(edge.arrowCap);
+            assert.isFalse(isDisposed(edge.arrowCap));
         });
     });
 
@@ -518,7 +518,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "transform-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -534,7 +534,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "scale-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -548,7 +548,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "3d-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -567,7 +567,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "negative-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 
@@ -586,7 +586,7 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "orient-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
 
             EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
 

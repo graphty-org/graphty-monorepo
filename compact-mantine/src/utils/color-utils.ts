@@ -19,7 +19,7 @@ export const MAX_OPACITY_PERCENT = 100;
  * parseAlphaFromHexa("00") // returns 0
  */
 export function parseAlphaFromHexa(alphaHex: string): number {
-    return Math.round((parseInt(alphaHex, 16) / MAX_ALPHA_HEX) * MAX_OPACITY_PERCENT);
+    return Math.round((Number.parseInt(alphaHex, 16) / MAX_ALPHA_HEX) * MAX_OPACITY_PERCENT);
 }
 
 /**
@@ -125,7 +125,7 @@ export function isLightColor(color: string): boolean {
     if (hexa === undefined) {
         return false;
     }
-    return [1, 3, 5].every((i) => parseInt(hexa.slice(i, i + 2), 16) >= LIGHT_CHANNEL_FLOOR);
+    return [1, 3, 5].every((i) => Number.parseInt(hexa.slice(i, i + 2), 16) >= LIGHT_CHANNEL_FLOOR);
 }
 
 /**
@@ -140,8 +140,8 @@ export function mixHex(from: string, to: string, t: number): string {
     const a = normalizeHexa(from) ?? "#000000FF";
     const b = normalizeHexa(to) ?? "#000000FF";
     const channel = (i: number): string => {
-        const x = parseInt(a.slice(i, i + 2), 16);
-        const y = parseInt(b.slice(i, i + 2), 16);
+        const x = Number.parseInt(a.slice(i, i + 2), 16);
+        const y = Number.parseInt(b.slice(i, i + 2), 16);
         return Math.round(x + (y - x) * t)
             .toString(16)
             .padStart(2, "0");

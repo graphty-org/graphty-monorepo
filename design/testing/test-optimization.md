@@ -44,8 +44,9 @@ strategy:
 ```
 
 **Results**:
-| Before | After | Improvement |
-|--------|-------|-------------|
+
+| Before             | After           | Improvement     |
+| ------------------ | --------------- | --------------- |
 | ~20 min sequential | ~6 min parallel | **3-4x faster** |
 
 **References**:

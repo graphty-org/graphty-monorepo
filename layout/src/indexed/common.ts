@@ -1,6 +1,6 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
+import type { LayoutResult } from "../positions.js";
 
 /** Options every index-based layout takes (graph-format design 14.3). */
 export interface CommonLayoutOptions {

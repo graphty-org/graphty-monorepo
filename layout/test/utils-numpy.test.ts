@@ -2,7 +2,7 @@
  * Tests for NumPy-like utility functions
  */
 
-import { describe, expect,it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { np } from "../src/utils/numpy";
 

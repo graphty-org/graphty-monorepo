@@ -105,7 +105,10 @@ describe("gridFlowNetwork", () => {
         const cols = 5;
         const g = gridFlowNetwork({ rows, cols, minCapacity: 2, maxCapacity: 9, seed: 3 });
         const w = g.weights as Float32Array;
-        const firstCut = pairs(g).reduce((s, [u, v], e) => (u % cols === 0 && v === u + 1 && u < rows * cols ? s + w[e] : s), 0);
+        const firstCut = pairs(g).reduce(
+            (s, [u, v], e) => (u % cols === 0 && v === u + 1 && u < rows * cols ? s + w[e] : s),
+            0,
+        );
         const flow = maxFlow(g);
         expect(flow).toBeGreaterThanOrEqual(rows * 2);
         expect(flow).toBeLessThanOrEqual(firstCut);
@@ -280,7 +283,9 @@ describe("determinism", () => {
      */
     it("reproduces the golden networks", () => {
         expect(fullGraphHash(gridFlowNetwork({ rows: 6, cols: 7, seed: 1 }))).toMatchInlineSnapshot(`"c023da0b"`);
-        expect(fullGraphHash(layeredFlowNetwork({ layers: [4, 6, 6, 3], p: 0.4, seed: 1 }))).toMatchInlineSnapshot(`"27b63a2f"`);
+        expect(fullGraphHash(layeredFlowNetwork({ layers: [4, 6, 6, 3], p: 0.4, seed: 1 }))).toMatchInlineSnapshot(
+            `"27b63a2f"`,
+        );
         expect(fullGraphHash(genrmfGraph({ a: 4, b: 3, c1: 1, c2: 50, seed: 1 }))).toMatchInlineSnapshot(`"552cff9c"`);
         expect(fullGraphHash(akGraph({ k: 6 }))).toMatchInlineSnapshot(`"524132a7"`);
     });

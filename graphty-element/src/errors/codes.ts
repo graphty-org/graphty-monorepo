@@ -463,12 +463,7 @@ export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[] = Object.freeze(Ob
  * thrown: absence of acceleration is a state the consumer renders, not a failure it catches.
  */
 export type AccelerationErrorCode =
-    | "E_NO_WEBGPU"
-    | "E_NO_ADAPTER"
-    | "E_SOFTWARE_ONLY"
-    | "E_DEVICE_INCORRECT"
-    | "E_DEVICE_LOST"
-    | "E_TOO_LARGE";
+    "E_NO_WEBGPU" | "E_NO_ADAPTER" | "E_SOFTWARE_ONLY" | "E_DEVICE_INCORRECT" | "E_DEVICE_LOST" | "E_TOO_LARGE";
 
 /**
  * Every code that can appear on `capabilities.acceleration.code`.

@@ -2,6 +2,8 @@
  * Size helpers for scaling nodes/edges by importance, centrality, flow
  */
 
+import { clamp } from "../../clamp";
+
 /**
  * Linear mapping from [0,1] to [minSize, maxSize]
  * Default range: [1, 5]
@@ -17,7 +19,7 @@
  */
 export function linear(value: number, minSize = 1, maxSize = 5): number {
     // Clamp value to [0, 1]
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
     return minSize + clampedValue * (maxSize - minSize);
 }
 
@@ -50,7 +52,7 @@ export function linearClipped(value: number, minSize = 1, maxSize = 5, clipMin =
  * log(0.5, 1, 5) // Logarithmic scaling
  */
 export function log(value: number, minSize = 1, maxSize = 5, base = 10): number {
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
 
     // Handle edge cases
     if (clampedValue === 0) {
@@ -100,7 +102,7 @@ export function logSafe(value: number, minSize = 1, maxSize = 5, epsilon = 0.000
  * exp(0.5, 1, 5, 2) // Exponential with power 2
  */
 export function exp(value: number, minSize = 1, maxSize = 5, exponent = 2): number {
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
     const scaledValue = clampedValue ** exponent;
     return minSize + scaledValue * (maxSize - minSize);
 }
@@ -140,7 +142,7 @@ export function cubic(value: number, minSize = 1, maxSize = 5): number {
  * bins(0.3, [1, 2, 3, 4, 5]) // → 2
  */
 export function bins(value: number, sizes: number[]): number {
-    const clampedValue = Math.max(0, Math.min(1, value));
+    const clampedValue = clamp(value, 0, 1);
 
     if (sizes.length === 0) {
         return 1;

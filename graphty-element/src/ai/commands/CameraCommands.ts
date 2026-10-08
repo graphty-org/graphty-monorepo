@@ -7,7 +7,7 @@ import jmespath from "jmespath";
 import { z } from "zod";
 
 import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
-import { CAMERA_DESCRIPTORS,cameraDescriptor } from "../../catalog/cameras";
+import { CAMERA_DESCRIPTORS, cameraDescriptor } from "../../catalog/cameras";
 import type { Graph } from "../../Graph";
 import type { CommandResult, GraphCommand } from "./types";
 
@@ -192,7 +192,7 @@ function findMatchingNodeIds(graph: Graph, selector: string): string[] {
     try {
         // Normalize selector: JMESPath npm library only supports single quotes for string literals,
         // not double quotes. LLMs like Anthropic send double quotes, so convert them.
-        const normalizedSelector = selector.replace(/"/g, "'");
+        const normalizedSelector = selector.replaceAll('"', "'");
         const query = `[?${normalizedSelector}]`;
 
         for (const [id, node] of nodes) {

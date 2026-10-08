@@ -1084,13 +1084,7 @@ interface SampleDatasetDescriptor {
     tags: readonly string[];
 }
 type SampleDatasetId =
-    | "karate"
-    | "les-miserables"
-    | "football"
-    | "dolphins"
-    | "power-grid"
-    | "cat-social"
-    | (string & {});
+    "karate" | "les-miserables" | "football" | "dolphins" | "power-grid" | "cat-social" | (string & {});
 ```
 
 #### 4.3.3 Mutation, and inverses that serialise
@@ -2274,15 +2268,7 @@ type Channel =
     | "edge.tooltip";
 
 type EdgeLinePattern =
-    | "solid"
-    | "dashed"
-    | "dotted"
-    | "dash-dot"
-    | "dash-dot-dot"
-    | "long-dash"
-    | "short-dash"
-    | "double"
-    | "wave"; // edge.style values
+    "solid" | "dashed" | "dotted" | "dash-dot" | "dash-dot-dot" | "long-dash" | "short-dash" | "double" | "wave"; // edge.style values
 
 type Binding =
     | { value: ChannelValue }
@@ -2760,14 +2746,7 @@ interface ReportOptions {
     methodology?: string;
     findings?: string;
     sections?: readonly (
-        | "statistics"
-        | "degree-distribution"
-        | "rankings"
-        | "communities"
-        | "image"
-        | "legend"
-        | "methods"
-        | "notes"
+        "statistics" | "degree-distribution" | "rankings" | "communities" | "image" | "legend" | "methods" | "notes"
     )[];
     runs?: readonly RunId[] | "all";
     image?: CaptureOptions;

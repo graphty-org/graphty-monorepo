@@ -42,7 +42,6 @@ describe("Edge Performance Tests", () => {
     afterEach(() => {
         // Log metrics for analysis
         if (metrics.length > 0) {
-             
             console.table(
                 metrics.map((m) => ({
                     Edges: m.edgeCount,

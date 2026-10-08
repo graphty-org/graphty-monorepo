@@ -26,6 +26,8 @@
 
 import type { NodeId } from "../../catalog/types";
 import { POSITION_COMPONENTS } from "../../data/positions";
+import type { CodedFact } from "../shared";
+import type { HistoryCode } from "../types";
 import { type ArrangementOp, captureBytes, coordsIn, mergeRowPatches, type RowPatch } from "./arrangement";
 import type { ArrangementCapture } from "./state";
 
@@ -79,6 +81,8 @@ export interface HistoryOptions<P> {
 /** What one recorded group contributes to a step. */
 interface RecordInput<P> {
     readonly label: string;
+    /** What the step did; `{ code: "transaction", params: { label } }` when absent. */
+    readonly fact?: CodedFact<HistoryCode>;
     readonly patch: P;
     /** Steps with equal keys recorded within the coalescing window become one step. */
     readonly key?: string | null;
@@ -118,6 +122,7 @@ export interface OpenArrangement {
 interface HistoryStepView {
     readonly id: string;
     readonly label: string;
+    readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the last record or merge. */
     readonly at: string;
     readonly ops: readonly string[];
@@ -131,6 +136,7 @@ interface HistoryStepView {
 interface Step<P> {
     readonly id: string;
     label: string;
+    fact: CodedFact<HistoryCode>;
     readonly key: string | null;
     patch: P;
     at: string;
@@ -292,6 +298,7 @@ export class History<P> {
         ) {
             // The step now ends where the newest edit left it, so it is named for that edit.
             top.label = input.label;
+            top.fact = factOf(input);
             this.mergeInto(top, input, time, at);
             return top.id;
         }
@@ -304,6 +311,7 @@ export class History<P> {
         this.entries.push({
             id,
             label: input.label,
+            fact: factOf(input),
             key,
             patch: input.patch,
             at,
@@ -834,6 +842,40 @@ export class History<P> {
     }
 
     /**
+     * Strict: the typed arrays of every capture and row patch the history keeps, which each
+     * dispatch checks. Bounded by the history's limits, however many captures were ever taken.
+     * @yields Each array; the owned baseline among them was never retained, and is skipped.
+     */
+    *arrangementArrays(): Generator<ArrayBufferView> {
+        const captures = [
+            this.baseline?.capture,
+            ...this.groups.flatMap((group) => [group.before, group.provisional]),
+            ...this.entries.flatMap((step) => [step.before, step.after]),
+        ];
+        const patches = this.entries.flatMap((step) => [step.afterRows, this.options.rows?.(step.patch)]);
+        for (const op of this.arrangementOps) {
+            if ("capture" in op) {
+                captures.push(op.capture);
+            } else {
+                patches.push(op.patch);
+            }
+        }
+
+        for (const capture of captures) {
+            if (capture) {
+                yield capture.coords;
+            }
+        }
+
+        for (const patch of patches) {
+            if (patch) {
+                yield patch.rows;
+                yield patch.values;
+            }
+        }
+    }
+
+    /**
      * The row patch of a step, if it has one that counts: an after-capture already holds it.
      * @param step - The step.
      * @returns The patch, or null.
@@ -967,6 +1009,7 @@ export class History<P> {
         step.view ??= Object.freeze({
             id: step.id,
             label: step.label,
+            fact: step.fact,
             at: step.at,
             ops: Object.freeze([...step.ops]),
             slices: Object.freeze([...step.slices]),
@@ -1006,4 +1049,32 @@ function copyCapture(capture: ArrangementCapture): ArrangementCapture {
         epoch: capture.epoch,
         coords: capture.coords.slice(),
     });
+}
+
+/**
+ * What a recorded patch says it did, frozen with its params.
+ * @param input - The patch and what describes it.
+ * @returns Its fact, or a transaction's named by its label.
+ */
+function factOf(input: RecordInput<unknown>): CodedFact<HistoryCode> {
+    return frozenFact(input.fact ?? { code: "transaction", params: { label: input.label } });
+}
+
+/**
+ * A fact frozen with its params, so a published step or pending item is frozen all the way down.
+ * @param fact - The fact.
+ * @returns A frozen copy, or the fact itself when it is already frozen.
+ */
+export function frozenFact(fact: CodedFact<HistoryCode>): CodedFact<HistoryCode> {
+    if (Object.isFrozen(fact)) {
+        return fact;
+    }
+
+    const params = Object.fromEntries(
+        Object.entries(fact.params).map(([name, value]) => [
+            name,
+            Array.isArray(value) ? Object.freeze([...value]) : value,
+        ]),
+    );
+    return Object.freeze({ code: fact.code, params: Object.freeze(params) });
 }

@@ -124,8 +124,11 @@ describe("data.import", () => {
         session.dispose();
     });
 
-    it("a replacing import of text that yields no records fails with E_EMPTY_LOAD, recording nothing", async () => {
-        for (const text of ["{ not json", '{"nodes": 5}']) {
+    it("a replacing import of text that yields no records fails, recording nothing", async () => {
+        for (const [text, expected] of [
+            ["{ not json", "E_PARSE_FAILED"],
+            ['{"nodes": 5}', "E_EMPTY_LOAD"],
+        ]) {
             const session = await fixtureSession();
             const before = digest(session);
 
@@ -134,7 +137,7 @@ describe("data.import", () => {
                 (error: unknown) => (error as { code?: string }).code ?? "no code",
             );
 
-            assert.strictEqual(code, "E_EMPTY_LOAD", text);
+            assert.strictEqual(code, expected, text);
             assert.lengthOf(session.history.steps, 0, text);
             assert.strictEqual(digest(session), before, text);
             session.dispose();

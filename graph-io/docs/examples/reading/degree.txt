@@ -1,0 +1,5 @@
+Tyrion: 36 edges
+Jon: 26 edges
+Sansa: 26 edges
+Robb: 25 edges
+Jaime: 24 edges

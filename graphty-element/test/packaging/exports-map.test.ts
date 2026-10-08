@@ -198,6 +198,15 @@ describe("the exports map", () => {
         assert.include(entry, 'export { GraphtyLogger } from "./logging";');
     });
 
+    it("publishes ./jsx as types alone: an opt-in declaration with no JavaScript behind it", () => {
+        // A consumer writes `import type {} from "@graphty/graphty-element/jsx"`, which the
+        // compiler erases, so nothing ever loads a module from this subpath. An import condition
+        // would name a file the build does not make.
+        assert.deepEqual(manifest.exports["./jsx"], { types: "./dist/jsx.d.ts" });
+        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "jsx.ts")));
+        assert.notInclude(Object.keys(viteEntries()), "jsx");
+    });
+
     it("publishes the custom elements manifest, and points the tooling field at it", () => {
         assert.strictEqual(manifest.exports["./custom-elements.json"], "./dist/custom-elements.json");
         assert.strictEqual(manifest.customElements, "./dist/custom-elements.json");

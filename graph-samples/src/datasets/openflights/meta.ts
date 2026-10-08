@@ -6,7 +6,8 @@ export const openflightsMeta: DatasetMeta = {
     title: "OpenFlights airline routes",
     description:
         "The world's airports and the airline routes between them as of June 2014. Directed: an arc runs from origin to destination, weighted by the number of airlines (codeshares included) listed on that route. Node ids are IATA codes, or ICAO codes for the few airports without one; only airports with a route are included.",
-    citation: "OpenFlights.org, Airport, airline and route databases (routes as of June 2014), https://openflights.org/data.php",
+    citation:
+        "OpenFlights.org, Airport, airline and route databases (routes as of June 2014), https://openflights.org/data.php",
     source: "https://github.com/jpatokal/openflights/tree/e3bc6dedbcceb8b7b74248a00dcd6207254da6bd/data",
     license:
         "Open Database License (ODbL) 1.0, contents under the Database Contents License 1.0. This converted database is a derived database and is itself available under the ODbL 1.0.",

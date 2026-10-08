@@ -7,37 +7,50 @@
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { Camera } from '@babylonjs/core';
+import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import { CommonImportOptions } from '@graphty/graph-io';
 import { CSSResult } from 'lit';
+import { CSV_LOSS } from '@graphty/graph-io';
+import { CX2_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
+import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
 import { EngineInstrumentation } from '@babylonjs/core';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
+import { GEXF_LOSS } from '@graphty/graph-io';
+import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
 import type { GraphExporter } from '@graphty/graph-io';
 import { GraphImporter } from '@graphty/graph-io';
 import type { GraphListing } from '@graphty/graph-io';
+import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
 import { ImportReport as ImportReport_2 } from '@graphty/graph-io';
 import { InstancedMesh } from '@babylonjs/core';
+import { JSON_LOSS } from '@graphty/graph-io';
 import { LayoutResult } from '@graphty/layout';
 import { LitElement } from 'lit';
+import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
+import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
+import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { Observer } from '@babylonjs/core';
+import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
@@ -48,6 +61,7 @@ import { Vector2 } from '@babylonjs/core/Maths/math.vector';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
+import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod/v4';
 import * as z4 from 'zod/v4/core';
 import { z as z_2 } from 'zod';
@@ -113,8 +127,10 @@ export interface AcceleratorFactoryOptions {
 // @public
 export type ActiveRenderer = "webgl" | "webgpu";
 
-// @public (undocumented)
-export type AdHocData<KeyType extends string | number = string> = Brand<Record<KeyType, any>, "AdHocData">;
+// @public
+export type AdHocData<KeyType extends string | number = string> = Record<KeyType, any> & {
+    readonly __brand?: "AdHocData";
+};
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
@@ -472,6 +488,7 @@ export interface DataLoadingError {
     field?: string;
     line?: number;
     message: string;
+    params?: Readonly<Record<string, unknown>>;
 }
 
 // @public (undocumented)
@@ -692,16 +709,33 @@ export function definePalette(definition: PaletteDefinition, options?: RegisterO
 export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
+    arrowCap: ArrowCap | null;
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
-    // (undocumented)
+    // @deprecated
     arrowMesh: AbstractMesh | null;
-    // (undocumented)
+    arrowTailCap: ArrowCap | null;
+    // @deprecated
     arrowTailMesh: AbstractMesh | null;
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
     dispose(): void;
+    get drawnCaps(): {
+        end: "arrowHead" | "arrowTail";
+        name: string;
+        span: number;
+        visibility: number;
+    }[];
+    get drawnCentre(): Vector3;
+    get drawnCurve(): Vector3[] | null;
+    get drawnLine(): {
+        name: string;
+        length: number;
+        visibility: number;
+        centre: Vector3;
+    } | null;
+    get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
     // (undocumented)
@@ -715,7 +749,6 @@ export class Edge {
     isSelected(): boolean;
     // (undocumented)
     label: RichTextLabel | null;
-    // (undocumented)
     mesh: AbstractMesh | PatternedLineMesh;
     // (undocumented)
     opts: EdgeOpts;
@@ -734,7 +767,8 @@ export class Edge {
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
-    static updateRays(g: Graph | GraphContext): void;
+    // @deprecated
+    static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
 }
 
@@ -1299,6 +1333,15 @@ export const EdgeStyle: z.ZodObject<{
 export type EdgeStyleConfig = z.infer<typeof EdgeStyle>;
 
 // @public
+export type ElementAtResult = {
+    readonly kind: "node";
+    readonly id: NodeId;
+} | {
+    readonly kind: "edge";
+    readonly id: EdgeId;
+};
+
+// @public
 export interface EncodingSuggestion {
     readonly as: "encoding";
     readonly channels: readonly Channel[];
@@ -1347,14 +1390,14 @@ export class EventManager implements Manager {
     }): void;
     emitDataLoadingErrorSummary(format: string, totalErrors: number, message: string, detailedReport: string, primaryCategory?: string, suggestion?: string, loadId?: number): void;
     emitDataLoadingProgress(format: string, bytesProcessed: number, totalBytes: number | undefined, nodeRecordsLoaded: number, edgeRecordsLoaded: number, chunksProcessed: number, loadId?: number): void;
-    emitEdgeEvent(type: EdgeEvent["type"], eventData: Omit<EdgeEvent, "type">): void;
+    emitEdgeEvent(type: EdgeEvent["type"], eventData: object): void;
     emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void;
     emitGraphDataLoaded(graph: Graph | GraphContext, chunksLoaded: number, dataSourceType: string, report: ImportReport, loadId?: number): void;
     emitGraphError(graph: Graph | GraphContext | null, error: Error, context: GraphErrorEvent["context"], details?: Record<string, unknown>): void;
     emitGraphEvent(type: string, data: Record<string, unknown>): void;
     emitGraphSettled(graph: Graph): void;
     emitLayoutInitialized(layoutType: string, shouldZoomToFit: boolean): void;
-    emitNodeEvent(type: NodeEvent["type"], eventData: Omit<NodeEvent, "type">): void;
+    emitNodeEvent(type: NodeEvent["type"], eventData: object): void;
     emitSelectionChanged(previousNode: SelectionChangedEvent["previousNode"], currentNode: SelectionChangedEvent["currentNode"]): void;
     emitSnapshotDropped(): void;
     emitSnapshotReplaced(graph: Graph | GraphContext, previous: GraphSnapshot | null, next: GraphSnapshot, report: FreezeReport): void;
@@ -1376,9 +1419,17 @@ export type EventType = GraphEventType | NodeEventType | EdgeEventType | AiEvent
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
 
 // @public
+export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+
+// @public
+export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED";
+
+// @public
 export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
+    readonly losses: readonly ExportLoss[];
+    // @deprecated
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
@@ -1489,6 +1540,10 @@ export class Graph implements GraphContext {
     dispose(): void;
     // (undocumented)
     element: Element;
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     // (undocumented)
     enableDetailedProfiling?: boolean;
@@ -1554,6 +1609,7 @@ export class Graph implements GraphContext {
     isRunning(): boolean;
     isVoiceActive(): boolean;
     isVRSupported(): Promise<boolean>;
+    labelOf(nodeId: string | number): NodeLabel | undefined;
     listenerCount(): number;
     loadCameraPreset(name: string, options?: CameraAnimationOptions): Promise<void>;
     loadFromFile(file: File, options?: {
@@ -1578,10 +1634,12 @@ export class Graph implements GraphContext {
     }): Promise<{
         loadId: number;
     }>;
-    // (undocumented)
+    // @deprecated
     needRays: boolean;
+    // @deprecated
     needsRayUpdate(): boolean;
     get nodeLabelCounts(): NodeLabelCounts;
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
     on<K extends EventType>(type: K, cb: (evt: EventOfType<K>) => void): () => void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     readonly onNodeLabelCounts: Observable<NodeLabelCounts>;
@@ -1744,6 +1802,7 @@ export interface GraphContext {
     getXRSessionManager?(): XRSessionManager | undefined;
     is2D(): boolean;
     isRunning(): boolean;
+    // @deprecated
     needsRayUpdate(): boolean;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
     setRunning(running: boolean): void;
@@ -1853,6 +1912,9 @@ export class Graphty extends LitElement {
     }>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions & QueueableOptions): Promise<void>;
     addEdges(edges: AdHocData[], options?: AddEdgesOptions & QueueableOptions): Promise<void>;
+    addEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | AddEventListenerOptions): void;
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
     addListener(type: EventType, callback: EventCallbackType): void;
     addNode(node: AdHocData, idPath?: string, options?: QueueableOptions): Promise<void>;
     addNodes(nodes: AdHocData[], idPath?: string, options?: QueueableOptions): Promise<void>;
@@ -1900,6 +1962,10 @@ export class Graphty extends LitElement {
     set edgeSrcIdPath(value: string | undefined);
     get edgeWeightPath(): string | undefined;
     set edgeWeightPath(value: string | undefined);
+    elementAt(point: {
+        x: number;
+        y: number;
+    }): ElementAtResult | null;
     enableAiControl(config: AiManagerConfig): Promise<void>;
     get enableDetailedProfiling(): boolean | undefined;
     set enableDetailedProfiling(value: boolean | undefined);
@@ -1952,6 +2018,7 @@ export class Graphty extends LitElement {
     isVRSupported(): Promise<boolean>;
     get labelDeclutter(): boolean;
     set labelDeclutter(value: boolean);
+    labelOf(nodeId: string | number): NodeLabel | undefined;
     get layout(): string | undefined;
     set layout(value: string | undefined);
     // @deprecated
@@ -1994,6 +2061,7 @@ export class Graphty extends LitElement {
     get nodeLabelCounts(): NodeLabelCounts;
     get nodeLabelPath(): string | undefined;
     set nodeLabelPath(value: string | undefined);
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined;
     on(type: EventType, callback: EventCallbackType): void;
     onAiStatusChange(callback: StatusChangeCallback): () => void;
     pin(ids: (string | number) | readonly (string | number)[]): void;
@@ -2002,6 +2070,9 @@ export class Graphty extends LitElement {
     set positionScale(value: number | undefined);
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
+    removeEventListener<K extends keyof GraphtyForwardedEventMap>(type: K, listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown, options?: boolean | EventListenerOptions): void;
+    removeEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions): void;
     removeNodes(nodeIds: (string | number)[], options?: QueueableOptions): Promise<void>;
     render(): Element;
     get renderer(): RendererRequest;
@@ -2111,6 +2182,11 @@ export class Graphty extends LitElement {
 
 // @public
 export const GRAPHTY_ERROR_CODES: readonly GraphtyErrorCode[];
+
+// @public
+export interface GraphtyCapabilitiesChangeDetail {
+    readonly capabilities: AccelerationCapabilities;
+}
 
 // @public
 export type GraphtyElementEventMap = {
@@ -2523,6 +2599,27 @@ export type GraphtyErrorTarget = {
 };
 
 // @public
+export type GraphtyForwardedEventMap = {
+    [K in Exclude<GraphEventType | AiEventType, InternalEventType>]: CustomEvent<EventOfType<K>>;
+};
+
+// @public
+export interface GraphtyHistoryChangeDetail {
+    readonly canRedo: boolean;
+    readonly canUndo: boolean;
+    readonly position: number;
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    readonly steps: number;
+    readonly version: number;
+}
+
+// @public
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+// @public
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+// @public
 export type GraphtyWarningCode =
 /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
 "W_UNKNOWN_MEMBER"
@@ -2829,6 +2926,7 @@ class Node_2 {
     // (undocumented)
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
+    get roundRadius(): number | null;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -2945,10 +3043,24 @@ export type NodeId = string | number;
 export type NodeIdType = string | number;
 
 // @public
+export interface NodeLabel {
+    readonly drawn: boolean;
+    readonly text: string;
+}
+
+// @public
 export interface NodeLabelCounts {
     readonly hiddenByOverlap: number;
     readonly labeled: number;
     readonly nodeHidden: number;
+}
+
+// @public
+export interface NodeScreenPosition {
+    radius: number;
+    visible: boolean;
+    x: number;
+    y: number;
 }
 
 // @public
@@ -3333,6 +3445,7 @@ export type NodeStyleConfig = z.infer<typeof NodeStyle>;
 export interface Note {
     readonly author?: string;
     readonly cites?: readonly NoteCite[];
+    readonly done?: string;
     readonly edited?: string;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly id: NoteId;
@@ -3346,7 +3459,7 @@ export interface Note {
 export interface NoteChange {
     readonly cause: "command" | "undo" | "redo" | "load";
     readonly change: "created" | "updated" | "removed";
-    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions")[];
+    readonly fields: readonly ("text" | "targets" | "cites" | "mediaType" | "extensions" | "done")[];
     readonly id: NoteId;
     readonly note: Note | null;
 }
@@ -3381,6 +3494,7 @@ export interface NoteInput {
 export interface NoteListOptions {
     readonly author?: string;
     readonly cites?: ResultId;
+    readonly done?: boolean;
     readonly missing?: boolean;
     readonly target?: NoteTargetInput | readonly NoteTargetInput[];
     readonly targetKind?: string;
@@ -3397,6 +3511,7 @@ export interface NotePatch {
     readonly cites?: readonly {
         readonly result: ResultId;
     }[];
+    readonly done?: boolean;
     readonly extensions?: Readonly<Record<string, unknown>> | null;
     readonly mediaType?: string | null;
     readonly targets?: readonly NoteTargetInput[];
@@ -3547,7 +3662,7 @@ export const ORANGE_WARNING: {
 export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b", "#fd8d3c", "#f16913", "#d94801", "#a63603", "#7f2704"];
 
 // @public
-export const OTHER_GROUP_COLOR = "#505050";
+export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
 export type PartialXRConfig = z_2.input<typeof xrConfigSchema>;
@@ -3613,10 +3728,19 @@ export interface Problem {
 // @public
 export interface ProgressChange {
     readonly completed: number;
+    readonly error?: {
+        readonly code: string;
+        readonly details: Readonly<Record<string, unknown>>;
+    };
     readonly fraction: number | null;
+    readonly outcome?: "succeeded" | "failed" | "cancelled";
     readonly phase: "progress" | "end";
     readonly run?: RunId;
-    readonly task: "load" | "run";
+    readonly source?: {
+        readonly name?: string;
+        readonly url?: string;
+    };
+    readonly task: "load" | "prepare" | "run";
     readonly total: number | null;
 }
 
@@ -3651,9 +3775,10 @@ export interface ProjectOpenOptions {
 
 // @public
 export interface ProjectOpenReport {
+    readonly draft?: LoadDraft;
     readonly extensions: Readonly<Record<string, unknown>>;
     readonly name: string | null;
-    readonly opened: "project" | "document";
+    readonly opened: "project" | "document" | "graph";
     readonly problems: readonly ProjectProblem[];
     readonly restored: readonly ProjectSlice[];
 }
@@ -4237,6 +4362,7 @@ export class UpdateManager implements Manager {
     disableZoomToFit(): void;
     dispose(): void;
     enableZoomToFit(explicit?: boolean): void;
+    forceEdgeWalk(): void;
     get frameIsStable(): boolean;
     getRenderFrameCount(): number;
     init(): Promise<void>;

@@ -224,6 +224,18 @@ describe("the topology fingerprint", () => {
         renamed.session.dispose();
     });
 
+    it("tells apart numeric ids that differ only above the low 32 bits", () => {
+        // Millisecond timestamps are realistic node ids; these two are 2^32 ms (about 50 days) apart.
+        const first = makeSession();
+        first.add([{ id: 1_700_000_000_000 }, { id: 2 }], [{ src: 1_700_000_000_000, dst: 2 }]);
+        const second = makeSession();
+        second.add([{ id: 1_700_000_000_000 + 2 ** 32 }, { id: 2 }], [{ src: 1_700_000_000_000 + 2 ** 32, dst: 2 }]);
+
+        assert.notStrictEqual(first.session.fingerprint(), second.session.fingerprint());
+        first.session.dispose();
+        second.session.dispose();
+    });
+
     it("does not change when a node moves, because moving a node is not a different graph", () => {
         const harness = makeSession();
         harness.add([{ id: "a" }, { id: "b" }], [{ src: "a", dst: "b" }]);

@@ -1,6 +1,7 @@
 import { GraphBuilder, type GraphBuilderOptions, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { EMPTY_INPUT_CODE } from "../../../src/common/codes.js";
 import { DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "../../../src/common/direction.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { SINK_OPTION_CODE } from "../../../src/common/options.js";
@@ -214,7 +215,8 @@ describe("gmlImporter: corpus", () => {
 
 describe("gmlImporter: malformed corpus", () => {
     const fatal: Record<string, string> = {
-        "empty-file.gml": NO_GRAPH_CODE,
+        // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_NO_GRAPH)
+        "empty-file.gml": EMPTY_INPUT_CODE,
         "garbage-content.gml": SYNTAX_TOKEN_CODE,
         "no-graph-wrapper.gml": NO_GRAPH_CODE,
         "unclosed-bracket.gml": SYNTAX_BRACKET_CODE,
@@ -276,7 +278,11 @@ describe("gmlImporter: malformed corpus", () => {
         const unclosedString = await importError(
             new TextDecoder().decode(readMalformedBytes("gml", "unclosed-string.gml")),
         );
-        expect(unclosedString.report.issues[0].line).toBe(4);
+        // the quote missing at line 4 pairs the strings up wrongly until line 8, which the message names
+        expect(unclosedString.report.issues[0].line).toBe(8);
+        expect(unclosedString.message).toBe(
+            "unclosed string opened at line 8; the string opened at line 4 spans lines, so a quote may be missing there",
+        );
         const unclosedBracket = await importError(
             new TextDecoder().decode(readMalformedBytes("gml", "unclosed-bracket.gml")),
         );
@@ -381,7 +387,7 @@ describe("gmlImporter: structure and flags", () => {
     it("reads the first of several graph blocks and warns how many it skipped", async () => {
         const { report, snapshot } = await importGml('Creator "t" graph [ node [ id 1 ] ] graph [ ] graph [ ]');
         expect(codes(report)).toEqual([SECOND_GRAPH_CODE]);
-        expect(report.issues[0].message).toContain("2 more graph block(s)");
+        expect(report.issues[0].message).toContain("2 more graph blocks");
         expect(snapshot.nodeCount).toBe(1);
     });
 
@@ -823,12 +829,16 @@ describe("gmlImporter: graphics and positions", () => {
         expect(snapshot.nodes.names()).toEqual(["position"]);
     });
 
+    // Updated: graphics used to become a list column when one node repeated it, which cost every
+    // other node its position (test/robustness/gml.test.ts); repeats are kept as one json array now.
     it("keeps an empty graphics record and a non-record graphics value as json", async () => {
-        const { snapshot } = await importGml(
+        const { snapshot, report } = await importGml(
             "graph [ node [ id 1 graphics [ ] ] node [ id 2 graphics 5 graphics 6 ] ]",
         );
         expect(snapshot.nodes.names()).toEqual(["graphics"]);
-        expect(snapshot.nodes.require("graphics").dtype).toBe("list");
+        expect(snapshot.nodes.require("graphics").dtype).toBe("json");
+        expect(column(snapshot, "nodes", "graphics")).toEqual([{}, [5, 6]]);
+        expect(report.issues.map((i) => i.code)).toEqual(["W_GML_GRAPHICS", "W_GML_GRAPHICS"]);
     });
 
     it("positions: false keeps the whole record in the json column", async () => {
@@ -1013,7 +1023,9 @@ describe("gmlImporter: limits, cancellation and input handling", () => {
         const text = `${String.fromCharCode(0xfeff)}graph [ node [ id 1 ] ]`;
         const { snapshot } = await importGml(text, { onProgress: (done, total) => calls.push([done, total]) });
         expect(ids(snapshot)).toEqual([1]);
-        expect(calls).toEqual([[text.length, text.length]]);
+        // progress counts text in UTF-8 bytes (it counted UTF-16 code units): the BOM is 3 bytes
+        const bytes = new TextEncoder().encode(text).length;
+        expect(calls).toEqual([[bytes, bytes]]);
     });
 
     it("fails on invalid UTF-8", async () => {

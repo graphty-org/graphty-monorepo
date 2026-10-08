@@ -26,7 +26,7 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
     }
 
     // Check if clipboard API is available
-     
+
     if (!navigator.clipboard) {
         return {
             status: "not-supported",
@@ -37,7 +37,6 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
         };
     }
 
-     
     if (!navigator.clipboard.write) {
         return {
             status: "not-supported",
@@ -50,7 +49,6 @@ export async function copyToClipboard(blobOrPromise: Blob | Promise<Blob>): Prom
 
     // Check clipboard-write permission
     try {
-         
         if (navigator.permissions?.query) {
             const permission = await navigator.permissions.query({
                 // @ts-expect-error - clipboard-write is not yet in TypeScript types

@@ -66,12 +66,7 @@ function renderPanelInChrome(props: Partial<AnalyzePanelProps> = {}) {
 
     return render(
         <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
-            <ActivityPanel
-                activity="analyze"
-                width={280}
-                presentation="docked"
-                title="Analyze"
-            >
+            <ActivityPanel activity="analyze" width={280} presentation="docked" title="Analyze">
                 <AnalyzePanel graphtyRef={graphtyRef} {...props} />
             </ActivityPanel>
         </ShellProvider>,

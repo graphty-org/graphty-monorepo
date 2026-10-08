@@ -21,17 +21,7 @@ const BLOCKING_IMPACTS = new Set(["serious", "critical"]);
  * a substring of the offending node's selector or markup, and the issue that tracks it. Delete the
  * entry with the fix; anything not listed here fails the scan.
  */
-const KNOWN_VIOLATIONS: readonly { readonly rule: string; readonly target: string; readonly issue: number }[] = [
-    // The welcome sample rows are role="button" cards that hold a link and a second button.
-    { rule: "nested-interactive", target: "[data-sample-row=", issue: 508 },
-    // Primary-blue links and hints on the dark canvas measure 2.65:1 to 3.11:1.
-    { rule: "color-contrast", target: "[data-sample-row=", issue: 508 },
-    { rule: "color-contrast", target: "[data-sample-hint=", issue: 508 },
-    { rule: "color-contrast", target: 'a[href$="graphty.app/"]', issue: 508 },
-    { rule: "color-contrast", target: "or paste data", issue: 508 },
-    // The Coming tag's chrome ink on the raised fill measures 4.42:1 at 10px.
-    { rule: "color-contrast", target: 'span[title="Coming"]', issue: 509 },
-];
+const KNOWN_VIOLATIONS: readonly { readonly rule: string; readonly target: string; readonly issue: number }[] = [];
 
 /**
  * Renders the shell with the store pinned and lets the canvas measurement land.

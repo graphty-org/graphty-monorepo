@@ -255,7 +255,16 @@ export const GRID_SORT_BITS = 24;
 export const MAX_LEVELS_PER_SUBMIT = 32;
 /** Design 8.4 and 6 row 8 (P8): a frontier at most this long runs the fused expand-contract kernel (Merrill's "fleeting iterations"); the default of the `fusedMax` uniform, which a test may set to 0 or `U32_MAX`. */
 export const FUSED_FRONTIER_MAX = 4096;
-/** Design 8.4 (P8 PD-21): Beamer's beta -- switch back to top-down when `frontierCount * BEAMER_BETA < unvisitedCount` and the frontier is shrinking; alpha is derived from the graph, so it has no constant. */
+/**
+ * Beamer's alpha for the GPU BFS (issue #1358; it replaced PD-21's `max(1, floor(arcCount / n))`): switch to bottom-up
+ * once the frontier's out-arcs exceed `max(unvisitedCount, unvisitedInArcs / BEAMER_ALPHA)`. Measured on 10,000-node
+ * power-law and small-world graphs, a bottom-up sweep read 15-52 % of the unvisited in-arcs at the levels where it
+ * paid (Beamer's 14 assumes about 7 %), so 2; the average degree it replaced (8 and 16 there) switched the small-world
+ * graph a level early, reading 60,008 arcs where top-down read 36,338.
+ */
+export const BEAMER_ALPHA = 2;
+
+/** Design 8.4 (P8 PD-21): Beamer's beta -- switch back to top-down when `frontierCount * BEAMER_BETA < unvisitedCount` and the frontier is shrinking. */
 export const BEAMER_BETA = 24;
 /** Design 8.4 (P8 PD-22): the near-far split `delta = SSSP_DELTA_FACTOR * avgWeight / avgDegree`, computed on the host from the weight vector the run uses. */
 export const SSSP_DELTA_FACTOR = 32;

@@ -223,6 +223,9 @@ overlay.style.left = `${screenPos.x}px`;
 overlay.style.top = `${screenPos.y}px`;
 ```
 
+To place something over a node by its id, and to know whether the node is on screen, use
+[`nodeScreenPosition`](./screen-position.md).
+
 ### Screen to World
 
 ```typescript

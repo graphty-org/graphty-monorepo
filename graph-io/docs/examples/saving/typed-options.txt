@@ -1,0 +1,7 @@
+graph [
+  directed 0
+  node [
+    id 0
+    graphty_originalId "Aemon"
+    label "Aemon"
+  ]

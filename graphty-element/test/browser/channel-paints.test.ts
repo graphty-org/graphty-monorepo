@@ -46,7 +46,7 @@
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
-import type { LabelStyle, LayerSpec, StaticStyle } from "../../src/catalog/types";
+import type { LabelStyle, LayerSpec } from "../../src/catalog/types";
 import { UNPAINTED_CHANNELS } from "../../src/catalog/unreachable";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
@@ -302,7 +302,7 @@ describe("every channel the table says is renderable", () => {
                         name: `probe ${descriptor.channel}`,
                         target,
                         selector: { match: "everything" },
-                        set: { [descriptor.channel]: probe } as StaticStyle,
+                        set: { [descriptor.channel]: probe },
                     };
                     const added = await session.styles.add(layer);
                     const after = await read();

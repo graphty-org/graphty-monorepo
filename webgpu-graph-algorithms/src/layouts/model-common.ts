@@ -2,8 +2,8 @@
  * The option and value helpers every force model's resolver and stats decoder share (P5 PD-7): moved verbatim
  * from src/layouts/forceatlas2.ts (P3-T2) so the Fruchterman-Reingold and spring-electrical models of P5 neither
  * copy them nor import a sibling model; and, since P4-T6, the K2 tier binding and dispatch the three models share
- * (`bindAttraction` / `recordAttraction`, P4 PD-7), so every model's bind() / recordIteration() calls one function
- * instead of holding its own copy. Layout zone.
+ * (`compileAttraction` / `bindAttraction` / `recordAttraction`, P4 PD-7), so every model's bind() / recordIteration()
+ * calls one function instead of holding its own copy. Layout zone.
  */
 
 import { WebGpuGraphError } from "../errors.js";
@@ -18,6 +18,11 @@ import { type ModelResources } from "./force-simulation.js";
 /** An override record as the kernel layer takes it. */
 export type Overrides = Readonly<Record<string, number | boolean>>;
 
+/** The K2 (`fa2-attraction`) pipelines of one load before any bind group: `[kernel, plan]` in dispatch order TIER 2, TIER 1, TIER 0 (only the tiers whose row range is non-empty). */
+export interface AttractionCompiled {
+    readonly kernels: readonly (readonly [Kernel, DispatchPlan])[];
+}
+
 /** The K2 (`fa2-attraction`) dispatches of one iteration: `[kernel, bind group, plan]` in dispatch order TIER 2, TIER 1, TIER 0 (only the tiers whose row range is non-empty). */
 export interface AttractionBound {
     readonly kernels: readonly (readonly [Kernel, BoundKernel, DispatchPlan])[];
@@ -31,25 +36,22 @@ export interface AttractionBindings {
 }
 
 /**
- * Compiles (through the cache) and binds the `fa2-attraction` pipelines a load needs against the graph group and
- * { pos, force, P } (P4 PD-7): TIER 0 always; TIER 1 when a row of degree 32..1023 exists (`[hiEnd, midEnd)` is
- * non-empty); TIER 2 when a row of degree >= 1024 exists (`hiEnd > 0`). The dispatch plans are one workgroup per
- * row for TIER 2, `WG / 32` rows per workgroup for TIER 1 and one row per thread for TIER 0, over each tier's row
- * count (the K2 body reads its range from `Fa2Params.hiEnd` / `midEnd` / `tierStart` / `tierEnd`). The TIER 1 / 2
- * pipelines compile on the first load that needs them (a one-time cost at that load); a model's `specs()` lists
- * the TIER 0 spec only, because it has no `n` to know which tiers a load needs. A device whose workgroup size is
- * below 32 cannot fold the mid tier: E_UNSUPPORTED { feature: "fa2-attraction.tiers" } when a permutation is bound.
- * @param resources - the load's resources (core, tiers, weights, pipelines, caps)
+ * Compiles (through the cache) the `fa2-attraction` pipelines a load needs and plans their dispatches (P4 PD-7),
+ * creating no bind group: a model binds them with bindAttraction only after its superseded-bind check, so a bind
+ * that a newer load() superseded leaves nothing in the kernel's bind-group cache. TIER 0 always; TIER 1 when a row
+ * of degree 32..1023 exists (`[hiEnd, midEnd)` is non-empty); TIER 2 when a row of degree >= 1024 exists
+ * (`hiEnd > 0`). The dispatch plans are one workgroup per row for TIER 2, `WG / 32` rows per workgroup for TIER 1
+ * and one row per thread for TIER 0, over each tier's row count (the K2 body reads its range from `Fa2Params.hiEnd` /
+ * `midEnd` / `tierStart` / `tierEnd`). The TIER 1 / 2 pipelines compile on the first load that needs them (a
+ * one-time cost at that load); a model's `specs()` lists the TIER 0 spec only, because it has no `n` to know which
+ * tiers a load needs. A device whose workgroup size is below 32 cannot fold the mid tier: E_UNSUPPORTED { feature:
+ * "fa2-attraction.tiers" } when a permutation is bound.
+ * @param resources - the load's resources (tiers, pipelines, caps)
  * @param k2 - the K2 override record of the model (LINLOG / DISTRIBUTED / LAW plus USE_PERM / HAS_WEIGHTS; TIER is overwritten per dispatch)
- * @param bindings - the group-1 / group-2 bindings shared by every tier
- * @returns the bound dispatches in order TIER 2, 1, 0
+ * @returns the pipelines and plans in order TIER 2, 1, 0
  */
-export async function bindAttraction(
-    resources: ModelResources,
-    k2: Overrides,
-    bindings: AttractionBindings,
-): Promise<AttractionBound> {
-    const { n, core, perm, tiers, weights, pipelines, caps } = resources;
+export async function compileAttraction(resources: ModelResources, k2: Overrides): Promise<AttractionCompiled> {
+    const { n, tiers, pipelines, caps } = resources;
     const so = tiers?.segmentOffsets;
     const hiEnd = so?.[1] ?? 0;
     const midEnd = so?.[2] ?? 0;
@@ -58,13 +60,7 @@ export async function bindAttraction(
         { tier: 1, rows: midEnd - hiEnd },
         { tier: 0, rows: n - midEnd },
     ];
-    const group = {
-        ...graphBindings(core, perm, weights),
-        pos: bindings.pos,
-        force: bindings.force,
-        P: bindings.params,
-    };
-    const kernels: (readonly [Kernel, BoundKernel, DispatchPlan])[] = [];
+    const kernels: (readonly [Kernel, DispatchPlan])[] = [];
     for (const { tier, rows } of ranges) {
         if (tier !== 0 && rows <= 0) {
             continue;
@@ -88,9 +84,31 @@ export async function bindAttraction(
         } else if (tier === 1) {
             rowsPerGroup = wg / MID_TIER_LANES;
         }
-        kernels.push([kernel, kernel.bind(group), plan1d(rows, rowsPerGroup, caps)]);
+        kernels.push([kernel, plan1d(rows, rowsPerGroup, caps)]);
     }
     return { kernels };
+}
+
+/**
+ * Binds what compileAttraction produced against the graph group and { pos, force, P }.
+ * @param compiled - the pipelines and plans of the load
+ * @param resources - the load's resources (core, tiers, weights)
+ * @param bindings - the group-1 / group-2 bindings shared by every tier
+ * @returns the bound dispatches in order TIER 2, 1, 0
+ */
+export function bindAttraction(
+    compiled: AttractionCompiled,
+    resources: ModelResources,
+    bindings: AttractionBindings,
+): AttractionBound {
+    const { core, tiers, weights } = resources;
+    const group = {
+        ...graphBindings(core, tiers?.perm ?? null, weights),
+        pos: bindings.pos,
+        force: bindings.force,
+        P: bindings.params,
+    };
+    return { kernels: compiled.kernels.map(([kernel, plan]) => [kernel, kernel.bind(group), plan] as const) };
 }
 
 /**

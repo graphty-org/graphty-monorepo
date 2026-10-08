@@ -1,12 +1,17 @@
-import { defineRegistration, stubCommands } from "../commands/registry";
+import { defineRegistration } from "../commands/registry";
 
-/**
- * The Settings package's commands. Stubs until that package builds them: each holds its id, label
- * and keys, and nothing draws it.
- */
+/** The Settings package's command: Settings... (Mod+,), opening on General. */
 export const registration = defineRegistration({
     owner: "settings",
-    commands: stubCommands([
-        { id: "settings.open", label: "Settings...", group: "Settings and help", keys: ["Mod+,"] },
-    ]),
+    commands: [
+        {
+            id: "settings.open",
+            label: "Settings...",
+            group: "Settings and help",
+            keys: ["Mod+,"],
+            run: ({ workspace }) => {
+                workspace.set({ dialog: "settings" });
+            },
+        },
+    ],
 });

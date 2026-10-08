@@ -1,17 +1,11 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { fireEvent, render, screen, waitFor } from "../../../../test/test-utils";
-import {
-    DATA_DRAWER_DEFAULT_HEIGHT,
-    NARROW_BREAKPOINT,
-    OVERLAY_INSET,
-    OVERLAY_REFLOW_RISE,
-    TIME_SLIDER_HEIGHT,
-} from "../../constants";
+import { render, screen, waitFor } from "../../../../test/test-utils";
+import { DATA_DRAWER_DEFAULT_HEIGHT, OVERLAY_INSET, OVERLAY_REFLOW_RISE, TIME_SLIDER_HEIGHT } from "../../constants";
 import { ShellProvider } from "../../ShellContext";
 import type { CanvasDockState, CanvasOverlayVisibility, ShellStateAxis } from "../../types";
-import { CanvasRegion,type CanvasRegionOwnProps } from "../CanvasRegion";
+import { CanvasRegion, type CanvasRegionOwnProps } from "../CanvasRegion";
 import type { LegendChannel } from "../Legend";
 
 class MockGraphtyElement extends HTMLElement {
@@ -28,7 +22,6 @@ const NO_DOCKS: CanvasDockState = {
     drawerOpen: false,
     drawerHeight: DATA_DRAWER_DEFAULT_HEIGHT,
     drawerMaximised: false,
-    compareOpen: false,
 };
 
 const ALL_OVERLAYS: CanvasOverlayVisibility = {
@@ -65,11 +58,7 @@ function renderCanvas(
     overrides: Partial<CanvasRegionOwnProps> = {},
     options: { shellWidth?: number; canvasWidth?: number; canvasHeight?: number } = {},
 ): ReturnType<typeof render> {
-    const {
-        canvasHeight = 600,
-        canvasWidth = 800,
-        shellWidth = 1440,
-    } = options;
+    const { canvasHeight = 600, canvasWidth = 800, shellWidth = 1440 } = options;
     const stateAxis: ShellStateAxis = overrides.stateAxis ?? "loaded";
 
     return render(
@@ -169,11 +158,36 @@ describe("CanvasRegion", () => {
 
             expect(marks).toEqual(["graph", "insights", "minimap", "legend", "extras"]);
         });
+
+        it("draws the Insights strip as a named toolbar, so its arrow keys are announced", () => {
+            renderCanvas({
+                insights: {
+                    cards: [
+                        {
+                            id: "groups",
+                            title: "Find groups",
+                            body: "Cluster nodes that interact more with each other than with the rest.",
+                            actionLabel: "Try it",
+                            onActivate: vi.fn(),
+                        },
+                    ],
+                    onDismiss: vi.fn(),
+                },
+            });
+
+            const strip = screen.getByRole("toolbar", { name: "Suggestions" });
+
+            expect(strip).toHaveAttribute("aria-orientation", "horizontal");
+            expect(strip).toContainElement(screen.getByRole("button", { name: /Find groups/ }));
+        });
     });
 
     describe("docks against overlays", () => {
         it("does not shorten the graph rect for an overlay", () => {
-            const { container } = renderCanvas({ overlays: { ...ALL_OVERLAYS, timeSlider: true }, timeSlider: TIME_SLIDER });
+            const { container } = renderCanvas({
+                overlays: { ...ALL_OVERLAYS, timeSlider: true },
+                timeSlider: TIME_SLIDER,
+            });
             const host = canvasOf(container).querySelector("[data-canvas-graph='true']") as HTMLElement;
 
             expect(host.style.bottom).toBe("0px");
@@ -304,9 +318,7 @@ describe("CanvasRegion", () => {
         const INSPECTOR = 280;
         const ROW = 1160;
 
-        function renderDockedRow(
-            overrides: Partial<CanvasRegionOwnProps> = {},
-        ): ReturnType<typeof render> {
+        function renderDockedRow(overrides: Partial<CanvasRegionOwnProps> = {}): ReturnType<typeof render> {
             return render(
                 <ShellProvider initialShellWidth={1440} measureViewport={false} persist={false}>
                     <div style={{ width: ROW, height: 600, display: "flex", flexDirection: "row" }}>
@@ -340,9 +352,7 @@ describe("CanvasRegion", () => {
         it("gives the canvas element exactly the strip the two docked sidebars leave", () => {
             const { container } = renderDockedRow();
 
-            expect(Math.round(boxOf(container, "[data-shell-region='canvas']").width)).toBe(
-                ROW - PANEL - INSPECTOR,
-            );
+            expect(Math.round(boxOf(container, "[data-shell-region='canvas']").width)).toBe(ROW - PANEL - INSPECTOR);
         });
 
         it("stops the data table drawer at both live canvas edges, covering neither sidebar", async () => {
@@ -447,39 +457,6 @@ describe("CanvasRegion", () => {
             // 280 px -- and any change that made them differ would have put this column,
             // and the canvas toolbar with it, off-centre by half a sidebar.
             expect(Math.round((strip.left + strip.right) / 2)).toBe(Math.round((canvas.left + canvas.right) / 2));
-        });
-    });
-
-    describe("the narrow tap rule", () => {
-        it("closes an overlay when the canvas itself is tapped", () => {
-            const onCanvasTap = vi.fn();
-            const { container } = renderCanvas({ onCanvasTap }, { shellWidth: NARROW_BREAKPOINT - 1 });
-
-            fireEvent.click(canvasOf(container));
-
-            expect(onCanvasTap).toHaveBeenCalledTimes(1);
-        });
-
-        it("does not treat a tap on an overlay as a tap on the canvas", async () => {
-            const onCanvasTap = vi.fn();
-            const { container } = renderCanvas({ onCanvasTap }, { shellWidth: NARROW_BREAKPOINT - 1 });
-
-            await waitFor(() => {
-                expect(container.querySelector("[data-canvas-overlay='minimap']")).not.toBeNull();
-            });
-
-            fireEvent.click(container.querySelector("[data-canvas-overlay='minimap']") as HTMLElement);
-
-            expect(onCanvasTap).not.toHaveBeenCalled();
-        });
-
-        it("does not fire on the desktop side of the breakpoint", () => {
-            const onCanvasTap = vi.fn();
-            const { container } = renderCanvas({ onCanvasTap }, { shellWidth: NARROW_BREAKPOINT });
-
-            fireEvent.click(canvasOf(container));
-
-            expect(onCanvasTap).not.toHaveBeenCalled();
         });
     });
 });

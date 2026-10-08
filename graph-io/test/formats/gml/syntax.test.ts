@@ -163,7 +163,7 @@ describe("tokenizeGml: structure", () => {
         const err = syntaxError("graph [\n  node [\n    id 1\n");
         expect(err.code).toBe(SYNTAX_BRACKET_CODE);
         expect(err.line).toBe(2);
-        expect(err.message).toContain("2 bracket(s) still open");
+        expect(err.message).toContain("2 brackets still open");
         const outer = syntaxError("graph [\n  node [\n    id 1\n]");
         expect(outer.line).toBe(1);
     });

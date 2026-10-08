@@ -9,6 +9,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type NodeId, type U32 } from "@graphty/graph-format";
 
+import { arrayColumn, buildHistogram } from "./results/statistics";
 import { COMPONENT_SIZE_CAP, type ComponentStatistics, type DirectionProvenance, type GraphStatistics } from "./types";
 
 /**
@@ -353,7 +354,8 @@ export function computeStatistics(
     directednessSource: DirectionProvenance,
 ): GraphStatistics {
     const { labels, count } = labelComponents(snapshot);
-    const degrees = degreeSummary(snapshot.degree());
+    const degreeVector = snapshot.degree();
+    const degrees = degreeSummary(degreeVector);
 
     return Object.freeze({
         nodeCount: snapshot.nodeCount,
@@ -366,6 +368,7 @@ export function computeStatistics(
         repeatedEdgeCount: countRepeatedEdges(snapshot),
         degreeRange: Object.freeze(degrees.range),
         meanDegree: degrees.mean,
+        degreeHistogram: buildHistogram(arrayColumn(degreeVector), { integerValued: true }),
         transitivity: sampledTransitivity(snapshot),
         components: Object.freeze(summariseComponents(snapshot, labels, count)),
     } satisfies GraphStatistics);
@@ -406,6 +409,13 @@ export function computeFingerprint(snapshot: GraphSnapshot): string {
         if (typeof id === "number") {
             mix(0x4e554d);
             mix(id | 0);
+            // An integer id past 32 bits (a millisecond timestamp, say) would otherwise hash the
+            // same as its low 32 bits. Folded only when nonzero, so every id within 32 bits keeps
+            // the fingerprint a saved project already recorded.
+            const high = Math.trunc(id / 2 ** 32);
+            if (high !== 0) {
+                mix(high);
+            }
             // The fractional half of a non-integer id would otherwise hash the same as its floor.
             mix(Math.round((id - Math.trunc(id)) * 0xffffff));
         } else {

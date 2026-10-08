@@ -279,34 +279,47 @@ function decodeJsonObject(value: Record<string, unknown>, path: string, depth: n
 }
 
 /**
- * The JSON.parse reviver of design section 9.5: refuses the prototype-pollution keys.
- * @param key - the property name being revived
- * @param value - the revived value
- * @returns the value unchanged
+ * Refuse the prototype-pollution keys of design section 9.5 anywhere in a parsed JSON value.
+ * JSON.parse defines them as plain own properties, so checking after the parse is as safe as a
+ * reviver, and far cheaper: V8's reviver path (JSON.parse source text access) costs about eight
+ * times the parse itself. An explicit stack keeps deep nesting off the call stack.
+ * @param root - the parsed value
  */
-function guardReviver(this: unknown, key: string, value: unknown): unknown {
-    if (FORBIDDEN_KEYS.has(key)) {
-        throw badWire("manifest", `forbidden key "${key}"`, { key });
+function refuseForbiddenKeys(root: unknown): void {
+    const stack: unknown[] = [root];
+    while (stack.length > 0) {
+        const value = stack.pop();
+        if (Array.isArray(value)) {
+            for (const item of value) {
+                stack.push(item);
+            }
+        } else if (typeof value === "object" && value !== null) {
+            for (const key of Object.keys(value)) {
+                if (FORBIDDEN_KEYS.has(key)) {
+                    throw badWire("manifest", `forbidden key "${key}"`, { key });
+                }
+                stack.push((value as Record<string, unknown>)[key]);
+            }
+        }
     }
-    return value;
 }
 
 /**
- * Parse JSON text from a container (the manifest or one json column row) with the guarding
- * reviver. A syntax error is E_BAD_SERIALIZATION.
+ * Parse JSON text from a container (the manifest or one json column row) and refuse the
+ * prototype-pollution keys. A syntax error is E_BAD_SERIALIZATION.
  * @param text - the JSON text
  * @param path - the manifest path for error messages
  * @returns the parsed value
  */
 export function parseGuardedJson(text: string, path: string): unknown {
+    let parsed: unknown;
     try {
-        return JSON.parse(text, guardReviver) as unknown;
+        parsed = JSON.parse(text) as unknown;
     } catch (err) {
-        if (err instanceof GraphFormatError) {
-            throw err;
-        }
         throw badWire(path, `not valid JSON (${err instanceof Error ? err.message : String(err)})`);
     }
+    refuseForbiddenKeys(parsed);
+    return parsed;
 }
 
 // ============================================================ options and regions
@@ -867,7 +880,7 @@ class WireDecoder {
 
     /**
      * The values of a json column from its JSON text store: empty text is an unset row (undefined),
-     * every other row is parsed with the guarding reviver and untagged.
+     * every other row is parsed with the prototype-pollution key guard and untagged.
      * @param value - the WireUtf8
      * @param rows - the row count
      * @param path - the manifest path

@@ -107,6 +107,11 @@ export const On: Story = {
 /** The device went away mid-session: the chip reads off and the toast carries the element's reason. */
 export const DeviceLost: Story = {
     args: {
-        status: { policy: "auto", state: "error", code: "E_DEVICE_LOST", reason: "the accelerator's device was lost: reset" },
+        status: {
+            policy: "auto",
+            state: "error",
+            code: "E_DEVICE_LOST",
+            reason: "the accelerator's device was lost: reset",
+        },
     },
 };

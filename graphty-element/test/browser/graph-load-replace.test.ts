@@ -6,14 +6,13 @@ import { assert, beforeEach, describe, test } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
 import type { DataLoadingErrorEvent } from "../../src/events.js";
-import type { Graph } from "../../src/Graph.js";
+import { Graph } from "../../src/Graph.js";
 
 const GOOD = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ src: "a", dst: "b" }] });
 const OTHER = JSON.stringify({ nodes: [{ id: "x" }, { id: "y" }, { id: "z" }], edges: [{ src: "x", dst: "y" }] });
 
 async function graphWith(data: string): Promise<Graph> {
     document.body.innerHTML = '<canvas id="test-canvas"></canvas>';
-    const { Graph } = await import("../../src/Graph.js");
     const graph = new Graph(document.getElementById("test-canvas") as HTMLCanvasElement);
     await graph.loadFromFile(new File([data], "first.json"));
     return graph;

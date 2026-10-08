@@ -165,15 +165,15 @@ those placeholders is part of what this section is asking for.
 
 ### The six groups
 
-| Block | Leaves | Share | What it is | Effort to close | Recommendation |
-|---|---|---|---|---|---|
-| Arrow captions | 128 | 44% | Item 1 above: 64 leaves at each end of an edge | half a day to a day | publish (item 1) |
-| Node tooltip appearance | 62 | 21% | A node's tooltip is drawn on hover and only its WORDS have a channel. The typeface, the panel, the colours and the rest are the element's defaults and a consumer cannot say otherwise | one to two hours plus a story and a test | publish |
-| Edge tooltip | 62 | 21% | No edge tooltip has ever been drawn, in any version. The whole block is declared and dead, the words included | days, and it is a different feature | withdraw |
-| Label residue | 32 | 11% | 16 per target, already recorded as deliberate: the label's world position, the canvas resolution and auto-size, the Babylon billboard constant, a second spelling of the panel colour, and a few switches superseded by a field that says the same thing better | none | affirm as permanent |
-| Gradient node fills | 4 | 1.4% | Linear and radial gradient fills. The renderer builds them, interns the ramps and has tests; the paint path overwrites the colour with a neutral solid so a per-node colour can show, so no gradient survives | one to two days | publish, least certain of the seven |
-| `enabled` on a node and on an edge style | 2 | 0.7% | Two flags superseded by the session's visibility mask. Only the label's own `enabled` is ever read | minutes | delete the two fields |
-| A node icon | 1 | 0.3% | Already handled honestly: the channel is published with a value type of `never`, so asking for it is a compile error rather than a silent no-op | none | affirm as permanent |
+| Block                                    | Leaves | Share | What it is                                                                                                                                                                                                                                                      | Effort to close                          | Recommendation                      |
+| ---------------------------------------- | ------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------------- |
+| Arrow captions                           | 128    | 44%   | Item 1 above: 64 leaves at each end of an edge                                                                                                                                                                                                                  | half a day to a day                      | publish (item 1)                    |
+| Node tooltip appearance                  | 62     | 21%   | A node's tooltip is drawn on hover and only its WORDS have a channel. The typeface, the panel, the colours and the rest are the element's defaults and a consumer cannot say otherwise                                                                          | one to two hours plus a story and a test | publish                             |
+| Edge tooltip                             | 62     | 21%   | No edge tooltip has ever been drawn, in any version. The whole block is declared and dead, the words included                                                                                                                                                   | days, and it is a different feature      | withdraw                            |
+| Label residue                            | 32     | 11%   | 16 per target, already recorded as deliberate: the label's world position, the canvas resolution and auto-size, the Babylon billboard constant, a second spelling of the panel colour, and a few switches superseded by a field that says the same thing better | none                                     | affirm as permanent                 |
+| Gradient node fills                      | 4      | 1.4%  | Linear and radial gradient fills. The renderer builds them, interns the ramps and has tests; the paint path overwrites the colour with a neutral solid so a per-node colour can show, so no gradient survives                                                   | one to two days                          | publish, least certain of the seven |
+| `enabled` on a node and on an edge style | 2      | 0.7%  | Two flags superseded by the session's visibility mask. Only the label's own `enabled` is ever read                                                                                                                                                              | minutes                                  | delete the two fields               |
+| A node icon                              | 1      | 0.3%  | Already handled honestly: the channel is published with a value type of `never`, so asking for it is a compile error rather than a silent no-op                                                                                                                 | none                                     | affirm as permanent                 |
 
 ### The node tooltip is the cheapest win on the list
 
@@ -234,11 +234,11 @@ Taking the recommendations above -- captions published, node tooltip appearance 
 tooltip withdrawn, the two `enabled` flags deleted, the label residue and the node icon affirmed
 -- the arithmetic moves like this:
 
-| | Today | After |
-|---|---|---|
-| Declared and unreachable | 291 | 85 |
-| Recorded as a decision | 33 | 81 |
-| Recorded as a defect | 258 | 4 |
+|                          | Today | After |
+| ------------------------ | ----- | ----- |
+| Declared and unreachable | 291   | 85    |
+| Recorded as a decision   | 33    | 81    |
+| Recorded as a defect     | 258   | 4     |
 
 The 4 that remain are the gradient fills, which stay recorded as a defect with a real owner and
 a real date until that channel lands or the renderer branch goes.

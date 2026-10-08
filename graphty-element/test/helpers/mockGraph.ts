@@ -191,7 +191,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
     // Add inline nodes (deep copy to avoid shared state between tests)
     if (opts.nodes) {
         for (const n of opts.nodes) {
-            nodes.set(n.id, { ...n } as MockNode);
+            nodes.set(n.id, { ...n });
         }
     }
 
@@ -202,7 +202,7 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
     if (opts.edges) {
         for (const e of opts.edges) {
             const id = String(nextEdgeId++);
-            edges.set(id, { ...e, id } as MockEdge);
+            edges.set(id, { ...e, id });
         }
     }
 
@@ -213,11 +213,11 @@ export async function createMockGraph(opts: MockGraphOpts = {}): Promise<Graph> 
             edges: EdgeData[];
         };
         for (const n of imp.nodes) {
-            nodes.set(n.id, { ...n } as MockNode);
+            nodes.set(n.id, { ...n });
         }
         for (const e of imp.edges) {
             const id = String(nextEdgeId++);
-            edges.set(id, { ...e, id } as MockEdge);
+            edges.set(id, { ...e, id });
         }
     }
 

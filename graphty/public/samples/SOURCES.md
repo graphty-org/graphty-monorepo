@@ -13,7 +13,7 @@ it is bundled in `graphty/src/data/sampleGraphs.ts` and loads inline.
 
 - Nodes: 34
 - Edges: 78
-- Source: http://www-personal.umich.edu/~mejn/netdata/
+- Source: https://www-personal.umich.edu/~mejn/netdata/
 - License: Academic
 - Credit shown in the app: Zachary 1977
 - Copied from: graphty-element/test/helpers/corpus/gml/karate.gml
@@ -25,13 +25,22 @@ two, and the classic test case for community detection.
 
 - Nodes: 115
 - Edges: 613
-- Source: http://www-personal.umich.edu/~mejn/netdata/
+- Source: https://www-personal.umich.edu/~mejn/netdata/
 - License: Academic
 - Credit shown in the app: Girvan and Newman 2002
 - Copied from: graphty-element/test/helpers/corpus/gml/football.gml
 
 American college football games between Division IA teams in the autumn 2000 season,
 with each team tagged by conference.
+
+## les-miserables.gml and florentine.gml
+
+- Les Miserables: 77 nodes, 254 edges; the edge key `shared_chapters` counts the chapters two
+  characters share. Knuth, The Stanford GraphBase (1993), through the networkx 3.1 copy
+- Florentine families: 15 nodes, 20 edges. Padgett and Ansell (1993), through the networkx 3.1 copy
+- Written by `graphty/scripts/write-sample-gml.ts` (`npm run samples:write`) from the
+  graph-samples datasets with graph-io's GML writer; each node carries a readable `name`. Do not
+  edit them by hand: change the script and run it again. Licenses: graph-samples' dataset `meta.ts`
 
 ## Provenance
 

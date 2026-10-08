@@ -36,34 +36,19 @@ describe("UndoSplitButton", () => {
         it("marks the caret as a pop-out opener so its own click can close what it opened", () => {
             render(<UndoSplitButton {...defaultProps} onUndo={vi.fn()} onOpenHistory={vi.fn()} />);
 
-            expect(screen.getByRole("button", { name: "History" })).toHaveAttribute(
-                "data-popout-trigger",
-                "true",
-            );
+            expect(screen.getByRole("button", { name: "History" })).toHaveAttribute("data-popout-trigger", "true");
         });
 
         it("draws the caret half expanded while the pop-out is open", () => {
-            render(
-                <UndoSplitButton
-                    {...defaultProps}
-                    onUndo={vi.fn()}
-                    onOpenHistory={vi.fn()}
-                    historyOpen
-                />,
-            );
+            render(<UndoSplitButton {...defaultProps} onUndo={vi.fn()} onOpenHistory={vi.fn()} historyOpen />);
 
-            expect(screen.getByRole("button", { name: "History" })).toHaveAttribute(
-                "aria-expanded",
-                "true",
-            );
+            expect(screen.getByRole("button", { name: "History" })).toHaveAttribute("aria-expanded", "true");
         });
     });
 
     describe("the empty store", () => {
         it("states the reason in the undo half's accessible name", () => {
-            render(
-                <UndoSplitButton canUndo={false} onUndo={vi.fn()} onOpenHistory={vi.fn()} />,
-            );
+            render(<UndoSplitButton canUndo={false} onUndo={vi.fn()} onOpenHistory={vi.fn()} />);
 
             const undoHalf = screen.getByRole("button", { name: "Undo. Nothing to undo yet" });
 
@@ -83,9 +68,7 @@ describe("UndoSplitButton", () => {
         it("never disables the caret half", () => {
             const onOpenHistory = vi.fn();
 
-            render(
-                <UndoSplitButton canUndo={false} onUndo={vi.fn()} onOpenHistory={onOpenHistory} />,
-            );
+            render(<UndoSplitButton canUndo={false} onUndo={vi.fn()} onOpenHistory={onOpenHistory} />);
 
             const caret = screen.getByRole("button", { name: "History" });
 
@@ -101,9 +84,7 @@ describe("UndoSplitButton", () => {
         it("opens History from the caret half", () => {
             const onOpenHistory = vi.fn();
 
-            render(
-                <UndoSplitButton canUndo onUndo={vi.fn()} onOpenHistory={onOpenHistory} />,
-            );
+            render(<UndoSplitButton canUndo onUndo={vi.fn()} onOpenHistory={onOpenHistory} />);
 
             fireEvent.click(screen.getByRole("button", { name: "History" }));
 

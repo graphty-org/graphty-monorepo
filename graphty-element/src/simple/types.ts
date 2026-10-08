@@ -69,9 +69,10 @@ export type ShorthandValue<S> = S extends number
  * returns undefined.
  */
 export type OptionValuesOf<O extends OptionsShorthand> = {
-    // NonNullable<unknown> is "anything but null or undefined": a default of null leaves the
+    // The default's union is "anything but null or undefined": a default of null leaves the
     // option unbound, which is exactly the case the `| undefined` branch describes.
-    readonly [K in keyof O]: O[K] extends number | string | boolean | { readonly default: NonNullable<unknown> }
+    readonly [K in keyof O]: O[K] extends
+        number | string | boolean | { readonly default: object | string | number | boolean | bigint | symbol }
         ? ShorthandValue<O[K]>
         : ShorthandValue<O[K]> | undefined;
 };
@@ -302,10 +303,7 @@ export interface GroupingDefinition<O extends OptionsShorthand> extends Algorith
 
 /** What defineAlgorithm takes: an id, options in short form and exactly one of node, edge, nodes or groups. */
 export type AlgorithmDefinition<O extends OptionsShorthand> =
-    | NodeScoreDefinition<O>
-    | EdgeScoreDefinition<O>
-    | WholeGraphScoreDefinition<O>
-    | GroupingDefinition<O>;
+    NodeScoreDefinition<O> | EdgeScoreDefinition<O> | WholeGraphScoreDefinition<O> | GroupingDefinition<O>;
 
 // =============================================================================================
 // Layout

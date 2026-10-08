@@ -382,8 +382,11 @@ async function scan(run, setup, scanList) {
         [
             `-Dsonar.projectKey=${localKey}`,
             `-Dsonar.host.url=${cfg.host}`,
-            `-Dsonar.inclusions=${sources.join(",") || "nothing-to-scan/**"}`,
-            `-Dsonar.test.inclusions=${tests.join(",") || "nothing-to-scan/**"}`,
+            // The files themselves, not `.` narrowed by inclusions: given a directory the scanner
+            // walks the whole tree and stats every entry before any exclusion applies, so a file a
+            // test shard deletes mid-walk (browser-results.json) fails the scan (issue #1297).
+            `-Dsonar.sources=${sources.join(",")}`,
+            `-Dsonar.tests=${tests.join(",")}`,
             `-Dsonar.working.directory=${workDir}`,
             "-Dsonar.javascript.lcov.reportPaths=",
             "-Dsonar.qualitygate.wait=false",

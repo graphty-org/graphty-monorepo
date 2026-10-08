@@ -65,6 +65,7 @@ import type {
     Note,
     NoteInput,
     NoteListOptions,
+    NotePatch,
     NoteTargetInput,
     ProjectSlice,
     RecordPage,
@@ -230,7 +231,12 @@ function fakeRunResult(): RunResult {
             suggestedScale: "linear",
             binning: "per-value",
         }),
-        top: (_field: string, n: number) => ({ entries: ranking.slice(0, n), leftOut: null, reason: null }),
+        top: (_field: string, n: number) => ({
+            entries: ranking.slice(0, n),
+            leftOut: null,
+            reason: null,
+            threshold: n < ranking.length ? ranking[n].value : null,
+        }),
         graph: {},
         band: () => undefined,
     } as unknown as RunResult;
@@ -399,6 +405,12 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
     const watchers = new Map<string, Set<(payload?: unknown) => void>>();
     const runs: FakeRun[] = [];
     const pinned = new Set<NodeId>();
+    /* Same node, either spelling of its id: the element's pin, unpin, `pinned.has` and
+       `edgePage({ touching })` all take an integer id written as a number or a string. */
+    const sameNode = (a: NodeId, b: NodeId): boolean => String(a) === String(b);
+    Object.defineProperty(pinned, "has", {
+        value: (id: NodeId): boolean => [...pinned].some((held) => sameNode(held, id)),
+    });
     let minted = 0;
 
     /** What the graph a run would measure looks like now. @returns the digest. */
@@ -488,6 +500,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             Object.freeze({
                 id: id as HistoryStep["id"],
                 label,
+                // A transaction's fact is worded as its own label, so the pop-out prints `label`.
+                fact: Object.freeze({ code: "transaction", params: Object.freeze({ label }) }),
                 at: new Date().toISOString(),
                 ops: [op],
                 slices,
@@ -622,6 +636,32 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
 
             return note.id;
         },
+        /* Only `done`, the one field the shell edits; the element stamps the time as this does. */
+        update: (id: string, patch: NotePatch): void => {
+            const at = notes.findIndex((held) => held.id === id);
+            const before = notes[at];
+
+            if (at === -1 || patch.done === undefined || patch.done === (before.done !== undefined)) {
+                return;
+            }
+
+            const { done: _done, ...rest } = before;
+            const after = Object.freeze(patch.done ? { ...rest, done: new Date().toISOString() } : rest) as Note;
+            const put = (note: Note, cause: string): void => {
+                notes[notes.findIndex((held) => held.id === id)] = note;
+                publish("note:changed", { id, change: "updated", fields: ["done"], note, cause });
+            };
+
+            put(after, "command");
+            record("Edited note", "note.update", ["notes"], {
+                undo: () => {
+                    put(before, "undo");
+                },
+                redo: () => {
+                    put(after, "redo");
+                },
+            });
+        },
         remove: (id: string): void => {
             const note = notes.find((held) => held.id === id);
 
@@ -743,7 +783,7 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                 delete (merged as { set?: unknown }).set;
             }
 
-            layers[at] = merged as Layer;
+            layers[at] = merged;
             publish();
             record(`Changed layer ${layers[at].name}`, "style.patch", ["styles"]);
 
@@ -828,12 +868,44 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             return Promise.resolve(layers[at === -1 ? layers.length - 1 : at]);
         },
         resolveToStatic: (id: string): Promise<Layer | undefined> => Promise.resolve(styles.get(id)),
+        /* A layer's own legend: its fixed colour as one swatch, while it is shown. */
+        legendOf: (id: string): readonly LegendBlock[] => {
+            const layer = layers[indexOf(id)];
+
+            if (layer === undefined) {
+                throw new Error("E_UNKNOWN_LAYER");
+            }
+
+            const color = layer.set?.[COLOUR];
+
+            return layer.enabled && typeof color === "string"
+                ? [
+                      {
+                          channel: COLOUR,
+                          layerId: id,
+                          kind: "literal",
+                          swatches: [{ label: layer.name, value: color, color }],
+                          facts: [],
+                          departures: [],
+                      },
+                  ]
+                : [];
+        },
+        /* Every layer matches the three nodes of the tiny default graph. */
+        counts: (id: string) => {
+            if (indexOf(id) === -1) {
+                throw new Error("E_UNKNOWN_LAYER");
+            }
+
+            return { matched: 3, painted: {}, noValue: 0, outsideScale: 0, revision: "0" };
+        },
         legend: (): readonly LegendBlock[] =>
             layers
                 .filter((layer) => layer.encode?.[COLOUR] !== undefined)
                 .map((layer): LegendBlock => {
                     const runId = layer.source.by === "run" ? layer.source.runId : undefined;
                     const algorithm = layer.source.by === "run" ? layer.source.algorithm : undefined;
+                    const fieldName = algorithm === "louvain" ? "group" : "value";
                     const words = ENCODING_FIELDS[algorithm ?? ""] ?? {
                         plainName: layer.name,
                         technicalName: layer.name,
@@ -844,12 +916,17 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                         layerId: layer.id,
                         ...(runId === undefined ? {} : { runId }),
                         kind: algorithm === "louvain" ? "categorical" : "sequential",
-                        field: { ...words, path: `results.${runId ?? ""}.value` },
-                        scale: { kind: "linear", label: "linear" },
+                        field: {
+                            ...words,
+                            path: `results.${runId ?? ""}.${fieldName}`,
+                            ...(algorithm === undefined ? {} : { result: { algorithm, field: fieldName } }),
+                        },
+                        scale: { kind: "linear", label: "Even Steps" },
                         swatches: [
                             { label: "low", value: 0, color: "#440154" },
                             { label: "high", value: 1, color: "#FDE725" },
                         ],
+                        facts: [],
                         departures: [],
                     };
                 }),
@@ -911,8 +988,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
                     (options.records?.().edges ?? []).filter(
                         (edge) =>
                             page.touching === undefined ||
-                            edge.source === page.touching ||
-                            edge.target === page.touching,
+                            sameNode(edge.source, page.touching) ||
+                            sameNode(edge.target, page.touching),
                     ),
                     page,
                 ),
@@ -920,6 +997,8 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
             attributes: () => fakeAttributes(options.records?.() ?? { nodes: [], edges: [] }),
             /* Where the graph came from, as the last load named it; history does not move it here. */
             source: () => loadedFrom,
+            /* No load report: this stand-in reads no file, so it has no import issues to count. */
+            lastImport: () => null,
             import: async (source: DataSourceInput, importOptions?: ImportOptions): Promise<void> => {
                 await (options.importer?.(source, importOptions) ?? Promise.resolve());
                 loadedFrom = {
@@ -942,18 +1021,20 @@ export function createFakeSession(options: FakeSessionOptions = {}): FakeSession
            drag, so every row is unplaced and the arrangement that keeps the data's own
            coordinates never wins. A board that wants the placed case states its own session. */
         notes: notesApi,
+        /* No filter is ever active here: the shell reads it to draw the ego network control. */
+        visibility: { filter: null },
         positions: {
             placedCount: 0,
             pinned,
             pin: (ids: readonly NodeId[]): Promise<void> => {
-                repin("Pinned", [...pinned, ...ids]);
+                repin("Pinned", [...pinned, ...ids.filter((id) => !pinned.has(id))]);
 
                 return Promise.resolve();
             },
             unpin: (ids: readonly NodeId[]): Promise<void> => {
                 repin(
                     "Unpinned",
-                    [...pinned].filter((id) => !ids.includes(id)),
+                    [...pinned].filter((held) => !ids.some((id) => sameNode(held, id))),
                 );
 
                 return Promise.resolve();

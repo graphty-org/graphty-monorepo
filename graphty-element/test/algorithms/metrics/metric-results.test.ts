@@ -12,6 +12,7 @@ import { BUILT_IN_ALGORITHMS } from "../../../src/catalog/algorithms";
 import type { NodeId } from "../../../src/catalog/types";
 import type { Graph } from "../../../src/Graph";
 import { checkShapeContract, type RunResult } from "../../../src/session/results";
+import { bindResultPath } from "../../../src/session/results/types";
 import { createMockGraph } from "../../helpers/mockGraph";
 
 /** The seven metrics this file covers, with the catalogue key each one must agree with. */
@@ -54,7 +55,11 @@ describe("metric results", () => {
                 const result = await runMetric(metric.make);
 
                 assert.strictEqual(result.shape, declared.shape);
-                assert.deepStrictEqual(result.fields, declared.fields);
+                // The catalogue names the run "$"; the result names the run it belongs to (#354).
+                assert.deepStrictEqual(
+                    result.fields,
+                    declared.fields.map((field) => ({ ...field, path: bindResultPath(field.path, result.runId) })),
+                );
             });
 
             it(`${metric.key} keeps the node-metric shape contract`, async () => {

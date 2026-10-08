@@ -24,11 +24,7 @@ export interface RegisterOptions {
 
 /** The data-dependent bound sources the element resolves against a loaded graph. NOT EXPORTED BY NAME. */
 export type OptionBoundSource =
-    | "graph.nodeCount"
-    | "graph.edgeCount"
-    | "graph.maxDegree"
-    | "graph.maxCore"
-    | "graph.componentCount";
+    "graph.nodeCount" | "graph.edgeCount" | "graph.maxDegree" | "graph.maxCore" | "graph.componentCount";
 
 /** A bound that depends on the loaded graph, written as a documented reference string. */
 export interface OptionBound {

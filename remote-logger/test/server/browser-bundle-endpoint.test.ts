@@ -4,19 +4,20 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { createDualServer, type DualServerResult } from "../../src/server/dual-server.js";
 import { resetBrowserBundleCache } from "../../src/server/log-server.js";
 
-
-function httpGet(port: number, path: string): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+function httpGet(
+    port: number,
+    path: string,
+): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
     return new Promise((resolve, reject) => {
-        const req = http.request(
-            { hostname: "127.0.0.1", port, path, method: "GET" },
-            (res) => {
-                let body = "";
-                res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-                res.on("end", () => {
-                    resolve({ status: res.statusCode!, headers: res.headers, body });
-                });
-            },
-        );
+        const req = http.request({ hostname: "127.0.0.1", port, path, method: "GET" }, (res) => {
+            let body = "";
+            res.on("data", (chunk: Buffer) => {
+                body += chunk.toString();
+            });
+            res.on("end", () => {
+                resolve({ status: res.statusCode!, headers: res.headers, body });
+            });
+        });
         req.on("error", reject);
         req.end();
     });

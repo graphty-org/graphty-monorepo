@@ -1347,6 +1347,7 @@ export class MemoryLeakDetector {
     ```
 
 3. **Performance Benchmarks:**
+
     ```typescript
     test("RxJS vs current performance", async () => {
         const iterations = 1000;

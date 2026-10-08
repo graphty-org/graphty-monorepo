@@ -58,6 +58,6 @@ describe("Build Output Tests", () => {
 
     it.skipIf(!typesExist)("declares everything the bundle's entry exports", () => {
         // the bundle is built from src/index.ts, so its declarations must be those of src/index and not a subset
-        expect(readFileSync(resolve("./dist/layout.d.ts"), "utf-8")).toContain("export * from './src/index';");
+        expect(readFileSync(resolve("./dist/layout.d.ts"), "utf-8")).toContain("export * from './src/index.js';");
     });
 });

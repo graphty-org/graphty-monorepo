@@ -49,17 +49,15 @@ describe("Node Drag and Drop", () => {
             assert.isDefined(node1, "Node 1 should exist");
             assert.isNotNull(node1);
 
+            // Moved through the session, not by writing the mesh: the element redraws every mesh
+            // from the layout on each frame it updates nodes, so a hand-written mesh position
+            // lasted only until the next such frame -- which a slow runner reached inside a wait.
             const initialNodePos = node1.mesh.position.clone();
-            const newPosition = initialNodePos.add(new Vector3(2, 0, 0));
-            node1.mesh.position = newPosition;
+            const target = initialNodePos.add(new Vector3(2, 0, 0));
+            await graph.getSession().positions.set([{ id: "node1", x: target.x, y: target.y, z: target.z }]);
+            await operationQueueOf(graph).waitForCompletion();
 
-            await new Promise((resolve) => setTimeout(resolve, 50));
-
-            assert.notDeepEqual(
-                { x: node1.mesh.position.x, y: node1.mesh.position.y, z: node1.mesh.position.z },
-                { x: initialNodePos.x, y: initialNodePos.y, z: initialNodePos.z },
-                "Node should have moved",
-            );
+            assert.closeTo(node1.mesh.position.x, target.x, 0.01, "Node should have moved");
         });
 
         test("edge count is maintained after node operations", async () => {

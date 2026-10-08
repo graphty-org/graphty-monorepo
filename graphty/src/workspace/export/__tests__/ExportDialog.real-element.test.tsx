@@ -1,6 +1,6 @@
 /**
- * Tier 1 task T13, "Save a picture and the numbers", on the REAL graphty-element: from the empty
- * app, open a project, load a graph, run Degree, then Export > Image saves a picture and Export >
+ * Tier 1 task T13, "Save a picture and the numbers", on the REAL graphty-element: in a new
+ * project, load a graph, run Degree, then Export > Image saves a picture and Export >
  * Data saves the node table whose result headers are the run's result paths. Every file is
  * caught where the page hands it to the browser (the object URL and the anchor's click).
  */
@@ -63,11 +63,8 @@ describe("Export: save a picture and the numbers (task T13)", () => {
         "saves the drawing as a PNG and the node table with the run's result columns",
         async () => {
             const saved = catchDownloads();
-            render(<Workspace />);
-
-            // From the empty app: a new project. (Loading a file is the Start screen package's;
-            // until it lands the graph goes in through the element's session.)
-            await userEvent.click(screen.getByRole("button", { name: "New project" }));
+            // A new, empty project; the graph goes in through the element's session.
+            render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
             let session: GraphSession | undefined;
             await waitFor(
                 () => {

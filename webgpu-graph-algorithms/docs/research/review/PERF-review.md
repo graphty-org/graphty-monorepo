@@ -16,15 +16,15 @@ Dawn-in-Node webgpu@0.4.0, NVIDIA RTX 4070 SUPER selected with
 `create(["adapter=NVIDIA"])` and `LD_LIBRARY_PATH` pointing at the extracted
 libEGL per the memory note):
 
-| Probe | What it measures | Result (10 iterations after warm-up, wall time around submit + onSubmittedWorkDone) |
-| --- | --- | --- |
-| exact-tile.mjs | plan 7.6's K3 body (mass tile, `jj != i`, coincident-kick branch, `d2` floor, law select) vs the dawn-perf.mjs probe body at 4k-100k nodes | probe: 4k 0.22 ms, 8k 0.40-0.43, 16k 0.88-1.04, 20k 1.09-1.13 (reproduces the plan's 1.11), 32k 2.15-2.17, 65k 7.0-7.2, 100k 13.4-13.7. FA2 body: 4k 0.27, 8k 0.51, 16k 1.13, 20k 1.72-1.75, 32k 2.67-3.46, 65k 8.8-9.2, 100k 17.5-17.8 ms. Ratio FA2/probe 1.1-1.6 (mean ~1.3). Throughput is NOT constant: 0.6e11 pairs/s at 4k, 2.4e11 at 16k, 3.1e11 at 32k, 4.9e11 at 65k, 5.7e11 at 100k (FA2 body). |
-| near-field-order.mjs | plan 7.7's G7 near field (9 cells, nearMax 64, Horvitz-Thompson offset, exact pair force) with the grid built on the CPU (G = 512 over the bbox); dispatched in node-index order (as 7.7 specifies) vs in cell-sorted order (`i = sortedIdx[t]`), and stride-3 f32 positions + separate mass vs one packed vec4 | 262k uniform: index 0.77 ms, sorted 0.31, sorted+vec4 0.22. 262k clustered (100 Gaussian clusters): 2.01 / 0.41 / 0.31. 262k clustered + 0.2% outliers at 2-4x the core radius: 19.8 / 0.57 / 0.48. 1M uniform: 8.66 / 1.90 / 0.93. 1M clustered: 34.0 / 2.11 / 1.77. 1M clustered + outliers: 125.4 / 2.09 / 2.55. Occupancy: 1M clustered maxOcc 70, 0% of nodes above nearMax; 1M clustered + outliers maxOcc 871, 88.5% of nodes in cells above nearMax, 17,845 of 262,144 cells occupied. |
-| far-field-order.mjs | plan 7.7's G6 far field (4^2..512^2 pyramid, exact-once 6x6-minus-3x3 tiling, 196 evaluations per node) in index vs sorted order; and the per-dispatch overhead of tiny dispatches inside one compute pass | 262k: index 0.84 / 0.67 ms, sorted 0.30 / 0.35 (uniform / clustered). 1M: index 2.61 / 2.22 ms, sorted 0.98 / 1.01. Dispatch overhead: 2.1-2.6 us per 1-workgroup dispatch, 4.3-5.9 us per 4096-workgroup dispatch (31-300 dispatches per pass), i.e. the plan's "~5-10 us" is conservative. |
-| grid-occupancy.mjs (CPU only) | finest-cell occupancy of the bbox-derived 512^2 grid when ONE node sits at 2x / 10x / 100x / 1000x the core radius | 1M nodes: 0 outliers -> maxOcc 62, 0% above nearMax. ONE node at 2x -> 16% of nodes in cells above nearMax; at 10x -> 95.5% (maxOcc 1,521, 5,329 cells occupied); at 100x -> 100% (129 cells occupied, maxOcc 33,597); at 1000x -> 2 cells occupied, maxOcc 999,999. 100k nodes: one node at 10x -> 37.6%; at 100x -> 99.7%. |
+| Probe                         | What it measures                                                                                                                                                                                                                                                                                                | Result (10 iterations after warm-up, wall time around submit + onSubmittedWorkDone)                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| exact-tile.mjs                | plan 7.6's K3 body (mass tile, `jj != i`, coincident-kick branch, `d2` floor, law select) vs the dawn-perf.mjs probe body at 4k-100k nodes                                                                                                                                                                      | probe: 4k 0.22 ms, 8k 0.40-0.43, 16k 0.88-1.04, 20k 1.09-1.13 (reproduces the plan's 1.11), 32k 2.15-2.17, 65k 7.0-7.2, 100k 13.4-13.7. FA2 body: 4k 0.27, 8k 0.51, 16k 1.13, 20k 1.72-1.75, 32k 2.67-3.46, 65k 8.8-9.2, 100k 17.5-17.8 ms. Ratio FA2/probe 1.1-1.6 (mean ~1.3). Throughput is NOT constant: 0.6e11 pairs/s at 4k, 2.4e11 at 16k, 3.1e11 at 32k, 4.9e11 at 65k, 5.7e11 at 100k (FA2 body).                                                                                     |
+| near-field-order.mjs          | plan 7.7's G7 near field (9 cells, nearMax 64, Horvitz-Thompson offset, exact pair force) with the grid built on the CPU (G = 512 over the bbox); dispatched in node-index order (as 7.7 specifies) vs in cell-sorted order (`i = sortedIdx[t]`), and stride-3 f32 positions + separate mass vs one packed vec4 | 262k uniform: index 0.77 ms, sorted 0.31, sorted+vec4 0.22. 262k clustered (100 Gaussian clusters): 2.01 / 0.41 / 0.31. 262k clustered + 0.2% outliers at 2-4x the core radius: 19.8 / 0.57 / 0.48. 1M uniform: 8.66 / 1.90 / 0.93. 1M clustered: 34.0 / 2.11 / 1.77. 1M clustered + outliers: 125.4 / 2.09 / 2.55. Occupancy: 1M clustered maxOcc 70, 0% of nodes above nearMax; 1M clustered + outliers maxOcc 871, 88.5% of nodes in cells above nearMax, 17,845 of 262,144 cells occupied. |
+| far-field-order.mjs           | plan 7.7's G6 far field (4^2..512^2 pyramid, exact-once 6x6-minus-3x3 tiling, 196 evaluations per node) in index vs sorted order; and the per-dispatch overhead of tiny dispatches inside one compute pass                                                                                                      | 262k: index 0.84 / 0.67 ms, sorted 0.30 / 0.35 (uniform / clustered). 1M: index 2.61 / 2.22 ms, sorted 0.98 / 1.01. Dispatch overhead: 2.1-2.6 us per 1-workgroup dispatch, 4.3-5.9 us per 4096-workgroup dispatch (31-300 dispatches per pass), i.e. the plan's "~5-10 us" is conservative.                                                                                                                                                                                                   |
+| grid-occupancy.mjs (CPU only) | finest-cell occupancy of the bbox-derived 512^2 grid when ONE node sits at 2x / 10x / 100x / 1000x the core radius                                                                                                                                                                                              | 1M nodes: 0 outliers -> maxOcc 62, 0% above nearMax. ONE node at 2x -> 16% of nodes in cells above nearMax; at 10x -> 95.5% (maxOcc 1,521, 5,329 cells occupied); at 100x -> 100% (129 cells occupied, maxOcc 33,597); at 1000x -> 2 cells occupied, maxOcc 999,999. 100k nodes: one node at 10x -> 37.6%; at 100x -> 99.7%.                                                                                                                                                                   |
 
 Two WGSL facts surfaced by the probes: Tint rejects
-`lowbias32(i * 0x9E3779B9u ^ j)` ("mixing '*' and '^' requires parenthesis"),
+`lowbias32(i * 0x9E3779B9u ^ j)` ("mixing '\*' and '^' requires parenthesis"),
 so the plan's hash expressions in 7.2 and 7.7 are not valid WGSL as written;
 and `layout: "auto"` drops unreferenced bindings, which the plan's explicit
 layouts (5.1) already avoid.
@@ -147,7 +147,8 @@ personalized variant, where `outWeightSum[u]` can be pre-divided into a
 `rankIn / outWeightSum` scratch by the previous iteration's finalize (one
 extra tiny pass) so `outWeightSum` is not bound in the pull; or state that
 personalized PageRank is the one kernel that requests `maxStorageBuffersPerShaderStage
->= 10` when the adapter has it and runs the untiered variant otherwise.
+
+> = 10` when the adapter has it and runs the untiered variant otherwise.
 
 ### PERF-5 (major) -- section 6 row 7, line 1255; section 8.4, lines 2059-2060; section 10.1, line 2578
 
@@ -344,10 +345,11 @@ Claim: the hash expressions `lowbias32(i * 0x9E3779B9u ^ j)` and `lowbias32(cell
 WGSL verbatim".
 
 Evidence: exact-tile.mjs first run: "Error while parsing WGSL: :10:68 error:
-mixing '*' and '^' requires parenthesis".
+mixing '\*' and '^' requires parenthesis".
 
 Fix (text): `lowbias32((i * 0x9E3779B9u) ^ j)` and `lowbias32(cell ^ (iteration
-* 0x9E3779B9u) ^ seed)`.
+
+- 0x9E3779B9u) ^ seed)`.
 
 ### PERF-16 (minor) -- section 7.21, line 1940; 10.3, lines 2607-2612
 

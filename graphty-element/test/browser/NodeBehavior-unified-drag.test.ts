@@ -3,7 +3,6 @@ import { maskTest } from "@graphty/graph-format";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test, vi } from "vitest";
 
-import type { AdHocData } from "../../src/config/common";
 import { Graph } from "../../src/Graph";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
@@ -20,7 +19,7 @@ describe("Unified Drag Handler", () => {
 
         // Create test node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node", label: "Test Node" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node", label: "Test Node" });
         const retrievedNode = dataManager.getNode("test-node");
         assert.exists(retrievedNode, "Node should be created");
         node = retrievedNode;

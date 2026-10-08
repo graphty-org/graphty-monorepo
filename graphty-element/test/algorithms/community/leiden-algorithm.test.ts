@@ -24,6 +24,5 @@ describe("LeidenAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "leiden");
             assert.strictEqual(AlgClass, LeidenAlgorithm);
         });
-
     });
 });

@@ -2,10 +2,17 @@ import Color from "colorjs.io";
 import { z } from "zod/v4";
 // import * as z4 from "zod/v4/core";
 
-type Brand<T, B extends string> = T & { readonly __brand: B };
-
+/**
+ * A record the element ingests: a node's or an edge's keys and values, as a reader yields them.
+ *
+ * Any plain object is one. The brand is optional, so a reader can yield `{ id: "a" }` straight from
+ * `sourceFetchData()` with no cast and no helper; `DataSource.toRecord` still works and is no longer
+ * needed.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AdHocData<KeyType extends string | number = string> = Brand<Record<KeyType, any>, "AdHocData">;
+export type AdHocData<KeyType extends string | number = string> = Record<KeyType, any> & {
+    readonly __brand?: "AdHocData";
+};
 
 /**
  * Converts a color string to hexadecimal format.
@@ -57,9 +64,10 @@ export const TextLocation = z.enum([
     "automatic",
 ]);
 
+// Any http(s) host, including localhost and an IP address: a page served from a dev server or a
+// local network loads its skybox from there.
 const HttpUrl = z.url({
     protocol: /^https?$/,
-    hostname: z.regexes.domain,
 });
 
 // "data:image/png;base64, iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg=="

@@ -21,12 +21,12 @@ The published seam is `AlgorithmAccelerator` in `algorithms/src/indexed/accelera
 GPU package's `src/types/accelerator.ts` imports that interface rather than mirroring it
 (`test/types/conformance.test-d.ts` holds the two equal). The seam declares:
 
-| Member | Option type | Members |
-| --- | --- | --- |
-| `breadthFirstSearch(s, source, options?)` | `BfsOptions` (`indexed/bfs.ts`) | `maxDepth` |
-| `sssp(s, source, options?)` | `SsspOptions` (`indexed/dijkstra.ts`) | `cutoff`, `weights` |
-| `bellmanFord(s, source, options?)` | `SsspOptions` | `cutoff`, `weights` |
-| `closenessCentrality(s, options?)` | `HitsOptionsLike` | `maxIterations`, `tolerance`, `weighted` |
+| Member                                    | Option type                           | Members                                  |
+| ----------------------------------------- | ------------------------------------- | ---------------------------------------- |
+| `breadthFirstSearch(s, source, options?)` | `BfsOptions` (`indexed/bfs.ts`)       | `maxDepth`                               |
+| `sssp(s, source, options?)`               | `SsspOptions` (`indexed/dijkstra.ts`) | `cutoff`, `weights`                      |
+| `bellmanFord(s, source, options?)`        | `SsspOptions`                         | `cutoff`, `weights`                      |
+| `closenessCentrality(s, options?)`        | `HitsOptionsLike`                     | `maxIterations`, `tolerance`, `weighted` |
 
 The four GPU members take exactly those types, and their results are the design's
 `GpuBfsResult`, `GpuSsspResult`, `GpuBellmanFordResult` and `GpuScoresResult`, which satisfy the

@@ -1,7 +1,13 @@
+import type { FindHit, FindResult } from "@graphty/graphty-element";
 import { describe, expect, it, vi } from "vitest";
 
-import { act, fireEvent, render, screen } from "../../../test/test-utils";
-import { COMMAND_PALETTE_EMPTY, CommandPalette, type CommandPaletteItem } from "../CommandPalette";
+import { act, fireEvent, render, screen, waitFor } from "../../../test/test-utils";
+import {
+    COMMAND_PALETTE_EMPTY,
+    COMMAND_PALETTE_FIND_LIMIT,
+    CommandPalette,
+    type CommandPaletteItem,
+} from "../CommandPalette";
 
 const items: CommandPaletteItem[] = [
     { id: "goto-data", group: "Go to", label: "Data", onSelect: vi.fn() },
@@ -63,6 +69,57 @@ describe("CommandPalette", () => {
             });
 
             expect(screen.getByText(COMMAND_PALETTE_EMPTY)).toBeInTheDocument();
+        });
+    });
+
+    describe("nodes and edges", () => {
+        const node: FindHit = {
+            kind: "node",
+            id: "a",
+            name: "Alice",
+            match: { path: "id", value: "a" },
+            target: { nodes: ["a"] },
+        };
+        const edge: FindHit = {
+            kind: "edge",
+            id: "e1",
+            ends: { source: { id: "a", name: "Alice" }, target: { id: "b", name: "Bob" } },
+            match: { path: "data.kind", value: "alpha" },
+            target: { edges: ["e1"] },
+        };
+        const found: FindResult = { records: [edge, node], offset: 0, total: 2, revision: "1", values: [] };
+
+        it("lists the element's hits under Nodes and Edges, capped, and picks one", async () => {
+            const find = vi.fn(() => found);
+            const onPickElement = vi.fn();
+            const { onClose } = renderPalette({ find, onPickElement });
+
+            fireEvent.change(await screen.findByLabelText("Search commands, nodes and edges"), {
+                target: { value: "data" },
+            });
+
+            await waitFor(() => {
+                expect(screen.getAllByRole("option").map((row) => row.textContent)).toEqual([
+                    "Go toData",
+                    "NodesAlice",
+                    "EdgesAlice -- Bob",
+                ]);
+            });
+            expect(find).toHaveBeenLastCalledWith("data", { limit: COMMAND_PALETTE_FIND_LIMIT });
+
+            fireEvent.click(screen.getByRole("option", { name: /Alice -- Bob/ }));
+
+            expect(onClose).toHaveBeenCalledTimes(1);
+            expect(onPickElement).toHaveBeenCalledWith(edge);
+        });
+
+        it("does not ask the element while the field is empty", async () => {
+            const find = vi.fn(() => found);
+            renderPalette({ find });
+
+            await screen.findAllByRole("option");
+
+            expect(find).not.toHaveBeenCalled();
         });
     });
 

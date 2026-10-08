@@ -7,11 +7,15 @@
 import { AbstractMesh } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
 import { Camera } from '@babylonjs/core';
+import { Color3 } from '@babylonjs/core';
 import { Column } from '@graphty/graph-format';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import { CommonImportOptions } from '@graphty/graph-io';
+import { CSV_LOSS } from '@graphty/graph-io';
+import { CX2_LOSS } from '@graphty/graph-io';
 import { DerivedGraph } from '@graphty/graph-format';
+import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
 import { Engine } from '@babylonjs/core';
@@ -19,11 +23,14 @@ import { EngineInstrumentation } from '@babylonjs/core';
 import { ExportCapabilities } from '@graphty/graph-io';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
+import { GEXF_LOSS } from '@graphty/graph-io';
+import { GML_LOSS } from '@graphty/graph-io';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GraphChoiceOptions } from '@graphty/graph-io';
 import { GraphExporter } from '@graphty/graph-io';
 import { GraphImporter } from '@graphty/graph-io';
 import { GraphListing } from '@graphty/graph-io';
+import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSink } from '@graphty/graph-format';
 import { GraphSnapshot } from '@graphty/graph-format';
 import { ImportReport as ImporterReport } from '@graphty/graph-io';
@@ -32,17 +39,23 @@ import { ImportInput } from '@graphty/graph-io';
 import { ImportIssue } from '@graphty/graph-io';
 import { InstancedMesh } from '@babylonjs/core';
 import { IssueCategory } from '@graphty/graph-io';
+import { JSON_LOSS } from '@graphty/graph-io';
 import { LayoutResult } from '@graphty/layout';
+import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import { maskTest } from '@graphty/graph-format';
+import { Matrix } from '@babylonjs/core';
 import { Mesh } from '@babylonjs/core';
+import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
 import { Observable } from '@babylonjs/core';
 import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
 import { Observer } from '@babylonjs/core';
+import { PAJEK_LOSS } from '@graphty/graph-io';
 import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
@@ -52,6 +65,7 @@ import { Vector2 } from '@babylonjs/core/Maths/math.vector';
 import { Vector3 } from '@babylonjs/core';
 import { WebGPUEngine } from '@babylonjs/core';
 import { WebXRDefaultExperience } from '@babylonjs/core';
+import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod/v4';
 import * as z4 from 'zod/v4/core';
 import { z as z_2 } from 'zod';
@@ -95,8 +109,10 @@ export class AcceleratorRegistry {
 // @public
 export const acceleratorRegistry: AcceleratorRegistry;
 
-// @public (undocumented)
-export type AdHocData<KeyType extends string | number = string> = Brand<Record<KeyType, any>, "AdHocData">;
+// @public
+export type AdHocData<KeyType extends string | number = string> = Record<KeyType, any> & {
+    readonly __brand?: "AdHocData";
+};
 
 // @public
 abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<string, unknown>> {
@@ -419,6 +435,7 @@ export interface DataLoadingError {
     field?: string;
     line?: number;
     message: string;
+    params?: Readonly<Record<string, unknown>>;
 }
 
 // @public
@@ -566,16 +583,33 @@ export type DrawingMode = "2d" | "3d";
 export class Edge {
     constructor(graph: Graph | GraphContext, srcNodeId: NodeIdType, dstNodeId: NodeIdType, edgeId: number, paint: EdgePaint, data: AdHocData, opts?: EdgeOpts);
     applySessionPaint(paint: EdgePaint): void;
+    arrowCap: ArrowCap | null;
     // (undocumented)
     arrowHeadText: RichTextLabel | null;
-    // (undocumented)
+    // @deprecated
     arrowMesh: AbstractMesh | null;
-    // (undocumented)
+    arrowTailCap: ArrowCap | null;
+    // @deprecated
     arrowTailMesh: AbstractMesh | null;
     // (undocumented)
     arrowTailText: RichTextLabel | null;
     get data(): AdHocData;
     dispose(): void;
+    get drawnCaps(): {
+        end: "arrowHead" | "arrowTail";
+        name: string;
+        span: number;
+        visibility: number;
+    }[];
+    get drawnCentre(): Vector3;
+    get drawnCurve(): Vector3[] | null;
+    get drawnLine(): {
+        name: string;
+        length: number;
+        visibility: number;
+        centre: Vector3;
+    } | null;
+    get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
     readonly dstId: NodeIdType;
     // (undocumented)
@@ -589,7 +623,6 @@ export class Edge {
     isSelected(): boolean;
     // (undocumented)
     label: RichTextLabel | null;
-    // (undocumented)
     mesh: AbstractMesh | PatternedLineMesh;
     // (undocumented)
     opts: EdgeOpts;
@@ -608,7 +641,8 @@ export class Edge {
     transformArrowCap(): EdgeLine;
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void;
     update(): void;
-    static updateRays(g: Graph | GraphContext): void;
+    // @deprecated
+    static updateRays(_g: Graph | GraphContext): void;
     updateStyle(): void;
 }
 
@@ -676,9 +710,17 @@ export { ExportCapabilities }
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
 
 // @public
+export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
+
+// @public
+export type ExportLossCode = CodesOf<typeof LOSS> | CodesOf<typeof CSV_LOSS> | CodesOf<typeof CX2_LOSS> | CodesOf<typeof DOT_LOSS> | CodesOf<typeof GEXF_LOSS> | CodesOf<typeof GML_LOSS> | CodesOf<typeof GRAPHML_LOSS> | CodesOf<typeof JSON_LOSS> | CodesOf<typeof NEO4J_LOSS> | CodesOf<typeof PAJEK_LOSS> | CodesOf<typeof XGMML_LOSS> | "W_GRAPHTY_COLUMN_DROPPED" | "W_GRAPHTY_NOTES" | "W_GRAPHTY_TRUNCATED" | "W_GRAPHTY_CSV_NEUTRALIZED" | "W_WEIGHT_NOT_NUMERIC" | "W_RESULT_FIELD_DROPPED";
+
+// @public
 export interface ExportResult {
     readonly bytes: AsyncIterable<Uint8Array>;
     readonly format: FormatId;
+    readonly losses: readonly ExportLoss[];
+    // @deprecated
     readonly lossNotes: readonly LossNote[];
     text(): Promise<string>;
 }
@@ -1450,6 +1492,7 @@ class Node_2 {
     // (undocumented)
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
+    get roundRadius(): number | null;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
@@ -1626,7 +1669,7 @@ export class OptionValidationError extends Error {
 // @public
 export type OptionValuesOf<O extends OptionsShorthand> = {
     readonly [K in keyof O]: O[K] extends number | string | boolean | {
-        readonly default: NonNullable<unknown>;
+        readonly default: object | string | number | boolean | bigint | symbol;
     } ? ShorthandValue<O[K]> : ShorthandValue<O[K]> | undefined;
 };
 

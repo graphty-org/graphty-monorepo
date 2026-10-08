@@ -13,13 +13,13 @@ is named here by hand and the disagreement is the finding.
 
 ## Contents
 
-- 1. What this pass is for, and the one rule it applies
-- 2. The drift, section by section
-- 3. The four sweeps
-- 4. What changed, board by board
-- 5. The boards re-scoped under D11
-- 6. What could not be reconciled
-- 7. Measurement
+-   1. What this pass is for, and the one rule it applies
+-   2. The drift, section by section
+-   3. The four sweeps
+-   4. What changed, board by board
+-   5. The boards re-scoped under D11
+-   6. What could not be reconciled
+-   7. Measurement
 
 ---
 
@@ -93,11 +93,11 @@ group's count, and a dimmed `Value options` gear. No edit.
 
 The worst of the seventeen.
 
-| Board | Chevron | Name | Mark | Tag |
-|---|---|---|---|---|
-| Main, ExplorePanel, FilterExpression | closed | 11 px, `#7a828e` | "2 steps, 3 types" on screen | in the title only |
-| TimeSlider | closed | 12 px, `#5f6873` | in the title | on screen |
-| ExploreNotesList | none | 12 px, `#5f6873` | none | the run's group tag |
+| Board                                | Chevron | Name             | Mark                         | Tag                 |
+| ------------------------------------ | ------- | ---------------- | ---------------------------- | ------------------- |
+| Main, ExplorePanel, FilterExpression | closed  | 11 px, `#7a828e` | "2 steps, 3 types" on screen | in the title only   |
+| TimeSlider                           | closed  | 12 px, `#5f6873` | in the title                 | on screen           |
+| ExploreNotesList                     | none    | 12 px, `#5f6873` | none                         | the run's group tag |
 
 Three drawings of one row, each with a measured argument. **Settled by the ship
 state, which the set is unanimous about and which is not a per-board fact:**
@@ -111,12 +111,22 @@ draws this capability live. So test 1 fires and the chevron goes, on all five.
 TimeSlider** (ExploreNotesList keeps the run form REGISTER 3 gives it):
 
 ```html
-<div title="Neighborhood expansion. 2 steps, 3 types. Coming" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;">
-  <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-    <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
-    <span style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Neighborhood expansion</span>
-  </div>
-  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+<div
+    title="Neighborhood expansion. 2 steps, 3 types. Coming"
+    style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px; cursor: default;"
+>
+    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+        <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+        <span
+            style="min-width: 0; font-size: 12px; font-weight: 500; line-height: 1.2; color: #5f6873; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Neighborhood expansion</span
+        >
+    </div>
+    <div
+        style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+    >
+        Coming
+    </div>
 </div>
 ```
 
@@ -178,14 +188,14 @@ a master On switch is the section's own control, not a precis of the rows below.
 
 ### 5.6 Filter builder, zero-rule state -- SIX BOARDS, SIX SPELLINGS
 
-| Board | Was | State |
-|---|---|---|
-| FilterExpression | no chevron, dimmed name, one plus | zero rules -- CORRECT, and the target |
-| Main | closed chevron, name `#d5d7da`, TWO verbs | zero rules |
-| MultiSelection | closed chevron, dimmed name, no plus | zero rules |
-| TimeSlider | closed chevron, `#5f6873` | unshipped |
-| ExploreNotesList | no chevron, `#5f6873` | unshipped -- CORRECT |
-| ExplorePanel, FilterBuilderExpert | open, with rules | live -- CORRECT |
+| Board                             | Was                                       | State                                 |
+| --------------------------------- | ----------------------------------------- | ------------------------------------- |
+| FilterExpression                  | no chevron, dimmed name, one plus         | zero rules -- CORRECT, and the target |
+| Main                              | closed chevron, name `#d5d7da`, TWO verbs | zero rules                            |
+| MultiSelection                    | closed chevron, dimmed name, no plus      | zero rules                            |
+| TimeSlider                        | closed chevron, `#5f6873`                 | unshipped                             |
+| ExploreNotesList                  | no chevron, `#5f6873`                     | unshipped -- CORRECT                  |
+| ExplorePanel, FilterBuilderExpert | open, with rules                          | live -- CORRECT                       |
 
 Main's header was the only closed section in the set carrying two verbs, which
 is a straight D5 breach; MultiSelection's was an empty section with a chevron and
@@ -397,36 +407,36 @@ Advanced parameters (run as sweep is on).
 Twenty-nine boards. Every one carries a `REVISION 1.9, SET-WIDE CONSISTENCY PASS`
 paragraph in its file comment naming its own edits.
 
-| Board | What changed |
-|---|---|
-| **AiPanel** | Console: the Coming tag moves to the name, "3 commands" moves to the trailing slot (5.17, D5). |
-| **AiPanelCompact** | Console: the Coming tag moves to the name; the pin and the gear keep the slot. |
-| **AnalyzeSweep** | The Advanced parameters gear takes A6's primary ink `#d5d7da` instead of `#4a7ee8`. |
-| **ColumnRolePopout** | Policies loses its chevron; its 400-character title is replaced by ImportOptions'. |
-| **CommandPalette** | Export schema JSON leaves the closed Schema header. |
-| **DataTableDrawer** | Selection statistics gains its dimmed gear. The "selection / graph" key stays in the header: this drawer's value columns are 38 px and cannot hold the words. |
-| **ExploreNotesList** | Filters and Sets lose the chevron over their empty libraries. |
-| **ExplorePanel** | Neighborhood expansion and Find a pattern take the unbuilt form; Selection statistics gains its dimmed gear; Filters, Sets, Views and Notes lose their chevrons. |
-| **ExplorerLoading** | The Schema title mirrors its mark: "Schema. measuring...". |
-| **FilterBuilderExpert** | Selection statistics: Export CSV becomes the section's gear. Filter builder loses a Coming tag it cannot support. |
-| **FilterExpression** | Neighborhood expansion and Find a pattern take the unbuilt form. Its zero-rule Filter builder is untouched -- it was the target the others were brought to. |
-| **ImageOptionsPopout** | Export schema JSON leaves the closed Schema header. |
-| **ImportAddToGraph** | The Validation report mark becomes the amber triangle plus "4 types", with the title 5.14 implies. |
-| **ImportOptions** | Policies loses its chevron; its mark span takes the ellipsis form ColumnRolePopout already used. |
-| **InsightsWide** | Export schema JSON leaves the closed Schema header. |
-| **KeepAdvancedOpen** | Export schema JSON leaves the closed Schema header; Reports loses its chevron. |
-| **Main** | Neighborhood expansion and Find a pattern take the unbuilt form, retiring the 11 px name and putting the Coming tag on screen; Filter builder at zero rules takes RT-8's empty form and "Edit as expression" leaves the header; Filters, Sets, Views and Notes lose their chevrons. Its OPEN Schema section is untouched. |
-| **MultiSelection** | Find a pattern takes the unbuilt form; Filter builder takes RT-8's empty form and gains the plus it was missing; Filters and Views lose their chevrons. |
-| **PresentCompact** | Export schema JSON leaves the closed Schema header; Reports loses its chevron. |
-| **PresentPanel** | Export schema JSON leaves the closed Schema header; Reports loses its chevron; Export video's closed header gains its title. |
-| **SavedItems** | Export schema JSON leaves the closed Schema header. |
-| **Settings** | Export schema JSON leaves the closed Schema header. |
-| **SettingsPerformance** | The Explore panel's Filters row -- a Coming tag at value ink over a chevron -- takes RT-8's empty-library form. Ship state is settled for the whole set, not per screen. |
-| **SettingsShortcuts** | Notes loses its chevron. |
-| **ShortcutsDialog** | Notes loses its chevron. |
-| **ShortcutsOverlay** | Export schema JSON leaves the closed Schema header. |
-| **TableJoin** | The Validation report header gains its title; the mark "2 info" stays. |
-| **TimeSlider** | **Step through time is drawn EXPANDED** with its dimmed gear, its Coming tag deleted and its title made MultiSelection's; the bar-gear pop-out loses the two rows that became resident; Neighborhood expansion, Find a pattern, Filter builder and Filters lose their chevrons; Sets and Notes lose theirs; Export schema JSON leaves the closed Schema header. |
+| Board                   | What changed                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AiPanel**             | Console: the Coming tag moves to the name, "3 commands" moves to the trailing slot (5.17, D5).                                                                                                                                                                                                                                                                  |
+| **AiPanelCompact**      | Console: the Coming tag moves to the name; the pin and the gear keep the slot.                                                                                                                                                                                                                                                                                  |
+| **AnalyzeSweep**        | The Advanced parameters gear takes A6's primary ink `#d5d7da` instead of `#4a7ee8`.                                                                                                                                                                                                                                                                             |
+| **ColumnRolePopout**    | Policies loses its chevron; its 400-character title is replaced by ImportOptions'.                                                                                                                                                                                                                                                                              |
+| **CommandPalette**      | Export schema JSON leaves the closed Schema header.                                                                                                                                                                                                                                                                                                             |
+| **DataTableDrawer**     | Selection statistics gains its dimmed gear. The "selection / graph" key stays in the header: this drawer's value columns are 38 px and cannot hold the words.                                                                                                                                                                                                   |
+| **ExploreNotesList**    | Filters and Sets lose the chevron over their empty libraries.                                                                                                                                                                                                                                                                                                   |
+| **ExplorePanel**        | Neighborhood expansion and Find a pattern take the unbuilt form; Selection statistics gains its dimmed gear; Filters, Sets, Views and Notes lose their chevrons.                                                                                                                                                                                                |
+| **ExplorerLoading**     | The Schema title mirrors its mark: "Schema. measuring...".                                                                                                                                                                                                                                                                                                      |
+| **FilterBuilderExpert** | Selection statistics: Export CSV becomes the section's gear. Filter builder loses a Coming tag it cannot support.                                                                                                                                                                                                                                               |
+| **FilterExpression**    | Neighborhood expansion and Find a pattern take the unbuilt form. Its zero-rule Filter builder is untouched -- it was the target the others were brought to.                                                                                                                                                                                                     |
+| **ImageOptionsPopout**  | Export schema JSON leaves the closed Schema header.                                                                                                                                                                                                                                                                                                             |
+| **ImportAddToGraph**    | The Validation report mark becomes the amber triangle plus "4 types", with the title 5.14 implies.                                                                                                                                                                                                                                                              |
+| **ImportOptions**       | Policies loses its chevron; its mark span takes the ellipsis form ColumnRolePopout already used.                                                                                                                                                                                                                                                                |
+| **InsightsWide**        | Export schema JSON leaves the closed Schema header.                                                                                                                                                                                                                                                                                                             |
+| **KeepAdvancedOpen**    | Export schema JSON leaves the closed Schema header; Reports loses its chevron.                                                                                                                                                                                                                                                                                  |
+| **Main**                | Neighborhood expansion and Find a pattern take the unbuilt form, retiring the 11 px name and putting the Coming tag on screen; Filter builder at zero rules takes RT-8's empty form and "Edit as expression" leaves the header; Filters, Sets, Views and Notes lose their chevrons. Its OPEN Schema section is untouched.                                       |
+| **MultiSelection**      | Find a pattern takes the unbuilt form; Filter builder takes RT-8's empty form and gains the plus it was missing; Filters and Views lose their chevrons.                                                                                                                                                                                                         |
+| **PresentCompact**      | Export schema JSON leaves the closed Schema header; Reports loses its chevron.                                                                                                                                                                                                                                                                                  |
+| **PresentPanel**        | Export schema JSON leaves the closed Schema header; Reports loses its chevron; Export video's closed header gains its title.                                                                                                                                                                                                                                    |
+| **SavedItems**          | Export schema JSON leaves the closed Schema header.                                                                                                                                                                                                                                                                                                             |
+| **Settings**            | Export schema JSON leaves the closed Schema header.                                                                                                                                                                                                                                                                                                             |
+| **SettingsPerformance** | The Explore panel's Filters row -- a Coming tag at value ink over a chevron -- takes RT-8's empty-library form. Ship state is settled for the whole set, not per screen.                                                                                                                                                                                        |
+| **SettingsShortcuts**   | Notes loses its chevron.                                                                                                                                                                                                                                                                                                                                        |
+| **ShortcutsDialog**     | Notes loses its chevron.                                                                                                                                                                                                                                                                                                                                        |
+| **ShortcutsOverlay**    | Export schema JSON leaves the closed Schema header.                                                                                                                                                                                                                                                                                                             |
+| **TableJoin**           | The Validation report header gains its title; the mark "2 info" stays.                                                                                                                                                                                                                                                                                          |
+| **TimeSlider**          | **Step through time is drawn EXPANDED** with its dimmed gear, its Coming tag deleted and its title made MultiSelection's; the bar-gear pop-out loses the two rows that became resident; Neighborhood expansion, Find a pattern, Filter builder and Filters lose their chevrons; Sets and Notes lose theirs; Export schema JSON leaves the closed Schema header. |
 
 Boards read and left unchanged because they were already single-valued:
 AllStatistics, AnalyzePanel, AnalyzeParameters, AnalyzePicker, CanvasToolbar,
@@ -445,16 +455,16 @@ Welcome.
 All eight were re-scoped correctly by the 1.9 pass and needed no repair here.
 Verified board by board:
 
-| Board | Premise now drawn | Verified |
-|---|---|---|
-| **AllStatistics** | All statistics expanded -- three rows, each with its own Computing state -- with the long-tail gear pop-out beside it | yes; the header keeps "Computing 3 of 7" under D5's exception |
-| **AiPanelCompact** | Provider and Console both expanded, plus the no-provider state with the setup prompt in place of the chat input | yes; both gears dimmed; Console's tag re-placed here |
-| **FilterExpression** | The expression door drawn from a compliant section; its own zero-rule Filter builder as the RT-8 empty-section plus | yes; it is the exemplar Main and MultiSelection were brought to |
-| **ImageOptionsPopout** | Premise intact -- a gear pop-out drawn open is a legal board under D1 | yes; Export video closed with its mark, Export image's gear in the primary ink |
-| **RampPopout** | Parameters, Animation and Values all expanded, with the ramp door on its resident RT-4 row | yes; three of the seventeen on one board, all three matching their twins elsewhere |
-| **ValidationPopout** | Validation report expanded with the 360 detail gear beside it, and no pin | yes; gear in the primary ink; no pin anywhere on the board |
-| **CategoryTable** | Categories expanded with its gear and the row-count footer | yes; the footer reads "3 of 41 rows" -- see 5.11 above |
-| **AnalyzeParameters** | Premise intact, plus clause (2)'s promotion: Damping 0.5 resident under the Influence row | yes; drawn at ROW 8 with the measurement in the board's comment |
+| Board                  | Premise now drawn                                                                                                     | Verified                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **AllStatistics**      | All statistics expanded -- three rows, each with its own Computing state -- with the long-tail gear pop-out beside it | yes; the header keeps "Computing 3 of 7" under D5's exception                      |
+| **AiPanelCompact**     | Provider and Console both expanded, plus the no-provider state with the setup prompt in place of the chat input       | yes; both gears dimmed; Console's tag re-placed here                               |
+| **FilterExpression**   | The expression door drawn from a compliant section; its own zero-rule Filter builder as the RT-8 empty-section plus   | yes; it is the exemplar Main and MultiSelection were brought to                    |
+| **ImageOptionsPopout** | Premise intact -- a gear pop-out drawn open is a legal board under D1                                                 | yes; Export video closed with its mark, Export image's gear in the primary ink     |
+| **RampPopout**         | Parameters, Animation and Values all expanded, with the ramp door on its resident RT-4 row                            | yes; three of the seventeen on one board, all three matching their twins elsewhere |
+| **ValidationPopout**   | Validation report expanded with the 360 detail gear beside it, and no pin                                             | yes; gear in the primary ink; no pin anywhere on the board                         |
+| **CategoryTable**      | Categories expanded with its gear and the row-count footer                                                            | yes; the footer reads "3 of 41 rows" -- see 5.11 above                             |
+| **AnalyzeParameters**  | Premise intact, plus clause (2)'s promotion: Damping 0.5 resident under the Influence row                             | yes; drawn at ROW 8 with the measurement in the board's comment                    |
 
 Two of the eight keep their premise entirely, which is D11's own useful finding:
 a gear pop-out drawn open is a legal board, and only a SECTION drawn as a pop-out

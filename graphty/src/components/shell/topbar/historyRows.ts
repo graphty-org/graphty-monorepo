@@ -10,6 +10,7 @@
 import type { HistoryStep, HistoryStepId, ProjectSlice, SessionHistory } from "@graphty/graphty-element/session";
 
 import type { PrimaryActivityId } from "../types";
+import { historyTitle } from "./historyWords";
 import { formatHistoryTime } from "./topBarStrings";
 
 /**
@@ -18,7 +19,7 @@ import { formatHistoryTime } from "./topBarStrings";
 export interface HistoryEntry {
     /** The step's id in `session.history.steps`, which `history.restoreTo` takes. */
     readonly id: HistoryStepId;
-    /** What the step is called, in the element's words, e.g. `Changed colour of Hubs`. */
+    /** What the step is called, worded from its fact, e.g. `Added 3 nodes`. */
     readonly title: string;
     /** The panel that owns the step; a title click opens it there. */
     readonly activity: PrimaryActivityId;
@@ -103,14 +104,15 @@ function entryOf(step: HistoryStep, titles: Readonly<Record<PrimaryActivityId, s
     const { via, xr } = step.provenance;
     const mode = xr?.split(":")[0].toUpperCase();
     const provenance = via === undefined ? undefined : `by ${via}${mode === undefined ? "" : `, in ${mode}`}`;
+    const title = historyTitle(step.fact);
 
     return {
         id: step.id,
-        title: step.label,
+        title,
         activity,
         activityLabel,
         at: Date.parse(step.at),
-        destinationTitle: `${step.label}. Opens ${activityLabel}`,
+        destinationTitle: `${title}. Opens ${activityLabel}`,
         ...(provenance === undefined ? {} : { provenance }),
         ...(xr === undefined ? {} : { xrSessionId: xr }),
     };
@@ -184,7 +186,10 @@ export function undoVerb(nextUndo: SessionHistory["nextUndo"]): string | undefin
         return undefined;
     }
 
-    return nextUndo.kind === "undo"
-        ? `Undo ${nextUndo.step.label}`
-        : `Cancel ${nextUndo.pending[0]?.label ?? ""}`.trim();
+    if (nextUndo.kind === "undo") {
+        return `Undo ${historyTitle(nextUndo.step.fact)}`;
+    }
+
+    const [first] = nextUndo.pending;
+    return first === undefined ? "Cancel" : `Cancel ${historyTitle(first.fact)}`;
 }

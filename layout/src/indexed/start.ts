@@ -1,6 +1,6 @@
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
-import { toPositionColumn } from "../positions";
+import { toPositionColumn } from "../positions.js";
 
 /**
  * The dimension of an index-based layout: 2 unless 3 is asked for.

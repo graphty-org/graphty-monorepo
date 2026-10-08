@@ -250,13 +250,14 @@ This plan addresses the findings from the code review report, prioritizing high-
     ```
 
 **Files to Update** (systematic search and replace):
-| File | Changes |
-|------|---------|
-| `src/main.tsx` | Theme extensions: `dark-8` → `default`, `dark-2` → `dimmed` |
-| `src/components/sidebar/node-controls/NodeColorControl.tsx` | `c="dark.2"` → `c="dimmed"` |
-| `src/components/sidebar/controls/GradientEditor.tsx` | `c="gray.4"` → `c="dimmed"` |
-| `src/components/demo/CompactComponentsDemo.tsx` | `dark-7` → `body`, `dark-6` → `default` |
-| All other sidebar components | Audit for `c="dark.*"` or `c="gray.*"` |
+
+| File                                                        | Changes                                                     |
+| ----------------------------------------------------------- | ----------------------------------------------------------- |
+| `src/main.tsx`                                              | Theme extensions: `dark-8` → `default`, `dark-2` → `dimmed` |
+| `src/components/sidebar/node-controls/NodeColorControl.tsx` | `c="dark.2"` → `c="dimmed"`                                 |
+| `src/components/sidebar/controls/GradientEditor.tsx`        | `c="gray.4"` → `c="dimmed"`                                 |
+| `src/components/demo/CompactComponentsDemo.tsx`             | `dark-7` → `body`, `dark-6` → `default`                     |
+| All other sidebar components                                | Audit for `c="dark.*"` or `c="gray.*"`                      |
 
 **Dependencies**:
 

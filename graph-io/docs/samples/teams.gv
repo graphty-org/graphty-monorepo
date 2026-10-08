@@ -1,0 +1,24 @@
+digraph handoffs {
+    label = "Who hands work to whom";
+
+    subgraph cluster_design {
+        label = "Design";
+        style = filled;
+        color = lightgrey;
+        ana; ben;
+    }
+
+    subgraph cluster_build {
+        label = "Build";
+        cara; dev; eli;
+    }
+
+    start -> ana;
+    ana -> ben -> cara;
+    cara -> dev -> eli;
+    eli -> ana [style = dashed, label = "feedback"];
+    eli -> release;
+
+    start [shape = Mdiamond];
+    release [shape = Msquare];
+}

@@ -69,23 +69,20 @@ describe("resolveAnchorElement", () => {
             expect(resolveAnchorElement({ current: null }, "x", elements)).toBeNull();
         });
 
-        it("resolves \"parent\" to the panel the pop-out opened from", () => {
-            expect(resolveAnchorElement("parent", "x", candidates({ trigger, parent, panel })))
-                .toBe(parent);
+        it('resolves "parent" to the panel the pop-out opened from', () => {
+            expect(resolveAnchorElement("parent", "x", candidates({ trigger, parent, panel }))).toBe(parent);
         });
 
-        it("resolves \"parent\" to the container anchor when the pop-out is not nested", () => {
+        it('resolves "parent" to the container anchor when the pop-out is not nested', () => {
             expect(resolveAnchorElement("parent", "x", candidates({ trigger, panel }))).toBe(panel);
         });
 
-        it("resolves \"panel\" to the container anchor even for a nested pop-out", () => {
-            expect(resolveAnchorElement("panel", "x", candidates({ trigger, parent, panel })))
-                .toBe(panel);
+        it('resolves "panel" to the container anchor even for a nested pop-out', () => {
+            expect(resolveAnchorElement("panel", "x", candidates({ trigger, parent, panel }))).toBe(panel);
         });
 
-        it("resolves \"trigger\" to the trigger, ignoring both the parent and the container", () => {
-            expect(resolveAnchorElement("trigger", "x", candidates({ trigger, parent, panel })))
-                .toBe(trigger);
+        it('resolves "trigger" to the trigger, ignoring both the parent and the container', () => {
+            expect(resolveAnchorElement("trigger", "x", candidates({ trigger, parent, panel }))).toBe(trigger);
         });
     });
 });

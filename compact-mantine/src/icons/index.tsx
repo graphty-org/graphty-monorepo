@@ -11,14 +11,7 @@ import { PANEL_GRID, PANEL_INK } from "../constants/panel";
  * instead.
  */
 export type FieldGlyphName =
-    | "sizeSmallest"
-    | "sizeLargest"
-    | "width"
-    | "opacity"
-    | "attribute"
-    | "scaleSqrt"
-    | "scaleLinear"
-    | "scaleLog";
+    "sizeSmallest" | "sizeLargest" | "width" | "opacity" | "attribute" | "scaleSqrt" | "scaleLinear" | "scaleLog";
 
 /**
  * The closed set of capital letters allowed in a field slot in place of a

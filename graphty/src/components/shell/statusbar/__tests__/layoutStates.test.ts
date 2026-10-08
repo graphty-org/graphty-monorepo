@@ -25,9 +25,7 @@ describe("layoutStates", () => {
         });
 
         it("names the step a run is on, with separators", () => {
-            expect(layoutSteppingLabel("Force directed", 120, 1000)).toBe(
-                "Force directed - step 120 of 1,000, Stop",
-            );
+            expect(layoutSteppingLabel("Force directed", 120, 1000)).toBe("Force directed - step 120 of 1,000, Stop");
         });
 
         it("says settled only of convergence", () => {

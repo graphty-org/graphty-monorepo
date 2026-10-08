@@ -4,77 +4,209 @@
  * itself, so the same input always gives the same number.
  */
 
+import { createHook, executionAsyncResource } from "node:async_hooks";
+
 import type { GraphBuilder } from "@graphty/graph-format";
 
-const original = {
-    indexOf: String.prototype.indexOf,
-    charCodeAt: String.prototype.charCodeAt,
-    codePointAt: String.prototype.codePointAt,
-    slice: String.prototype.slice,
-    substring: String.prototype.substring,
-    join: Array.prototype.join,
-    exec: RegExp.prototype.exec,
-};
+/** The String.prototype methods that read the whole receiver, each charged its length. */
+const WHOLE_STRING = [
+    "localeCompare",
+    "normalize",
+    "padEnd",
+    "padStart",
+    "replace",
+    "replaceAll",
+    "split",
+    "toLowerCase",
+    "toUpperCase",
+] as const;
 
 /**
- * Run `body` and count the characters it examines through the string primitives a reader scans
- * with: the span an indexOf() searched, one per charCodeAt() / codePointAt(), the length of every
- * slice(), substring() and join() result, and the rest of the input from lastIndex for a
- * RegExp exec() (which test(), match() and replace() go through). A reader that re-scans or
- * re-joins its carry on every chunk examines the carry once per chunk, which is quadratic in
- * the length of a token spanning many chunks.
+ * How many distinct strings the meter remembers as already read in full, under `flattens`.
+ */
+// ponytail: a fixed window, so a linear reader that touches more than this many other strings
+// between two reads of one long string is charged that string again; raise it if one ever does.
+const RECENT = 64;
+
+/**
+ * Run `body` and count the characters it examines through the string primitives: the span an
+ * indexOf() searched; one per charCodeAt(), codePointAt(), at() and charAt() (so a scanner that
+ * reads by index must read through at() or charCodeAt(), never `text[i]`, which no meter can
+ * see); the span includes() and lastIndexOf() searched;
+ * the search string of startsWith() and endsWith(); the whitespace trim(), trimStart() and
+ * trimEnd() removed plus the character that stopped them; the length of every slice(),
+ * substring() and join() result; the whole receiver for the methods that read all of it
+ * (split(), replace() and the rest of WHOLE_STRING) and for a `for...of` over a string; the rest of the input from lastIndex for a
+ * RegExp exec() (which test(), match() and replace() go through). A reader that re-scans or re-joins its carry on
+ * every chunk examines the carry once per chunk, which is quadratic in the length of a token
+ * spanning many chunks.
+ *
+ * With `flattens`, every string is also charged its whole length the first time it is read. V8
+ * copies a string built by concatenation (`+=`, a template) into one flat buffer the first time
+ * anything reads it, even one character of it, so a value grown by `+=` and read once per line
+ * costs its length once per line, which is quadratic; no call the meter sees shows that copy. The
+ * meter remembers the RECENT strings read last and charges a string again once it drops out.
+ * That also charges an input the body only reads once more per character, which is why it is off
+ * by default: the per-character bounds of the chunked-reader audits were set without it.
+ *
+ * The count covers the body alone: if the body gives up control to the event loop (a timer, an
+ * I/O callback, a message from the test runner) other code could run inside the window and add
+ * to the count, so the meter throws instead of returning a count. Promise continuations are
+ * allowed; they run nothing but the body's own chain.
  * @param body - the work to meter
+ * @param options - the meter's options
+ * @param options.flattens - also charge each string its length when first read (see above)
  * @returns the characters examined
  */
-export async function charactersExamined(body: () => Promise<void> | void): Promise<number> {
+export async function charactersExamined(
+    body: () => Promise<void> | void,
+    { flattens = false }: { flattens?: boolean } = {},
+): Promise<number> {
     let examined = 0;
-    // the originals are restored in the finally block
-    String.prototype.indexOf = function (this: string, search: string, from?: number): number {
+    const recent: string[] = [];
+    const touch = (text: string): void => {
+        if (!flattens || recent[0] === text) {
+            return;
+        }
+        const at = recent.indexOf(text);
+        if (at < 0) {
+            examined += text.length;
+            if (recent.length === RECENT) {
+                recent.pop();
+            }
+        } else {
+            recent.splice(at, 1);
+        }
+        recent.unshift(text);
+    };
+    const patched: [object, PropertyKey, unknown][] = [];
+    const patch = (target: object, key: PropertyKey, replacement: (this: never, ...args: never[]) => unknown): void => {
+        patched.push([target, key, Reflect.get(target, key)]);
+        Reflect.set(target, key, replacement);
+    };
+    const original = (target: object, key: PropertyKey): ((...a: unknown[]) => unknown) =>
+        Reflect.get(target, key) as (...a: unknown[]) => unknown;
+
+    const indexOf = original(String.prototype, "indexOf");
+    patch(String.prototype, "indexOf", function (this: string, search: string, from?: number): number {
+        touch(this);
         const start = Math.max(0, Math.min(from ?? 0, this.length));
-        const at = Reflect.apply(original.indexOf, this, [search, from]);
+        const at = Reflect.apply(indexOf, this, [search, from]) as number;
         examined += (at < 0 ? this.length : at + search.length) - start;
         return at;
-    };
-    String.prototype.charCodeAt = function (this: string, index: number): number {
-        examined++;
-        return Reflect.apply(original.charCodeAt, this, [index]);
-    };
-    String.prototype.codePointAt = function (this: string, index: number): number | undefined {
-        examined++;
-        return Reflect.apply(original.codePointAt, this, [index]);
-    };
-    String.prototype.slice = function (this: string, ...args: (number | undefined)[]): string {
-        const out = Reflect.apply(original.slice, this, args) as string;
+    });
+    const includes = original(String.prototype, "includes");
+    patch(String.prototype, "includes", function (this: string, search: string, from?: number): boolean {
+        touch(this);
+        const start = Math.max(0, Math.min(from ?? 0, this.length));
+        const at = Reflect.apply(indexOf, this, [search, start]) as number;
+        examined += (at < 0 ? this.length : at + search.length) - start;
+        return Reflect.apply(includes, this, [search, from]) as boolean;
+    });
+    const lastIndexOf = original(String.prototype, "lastIndexOf");
+    patch(String.prototype, "lastIndexOf", function (this: string, search: string, from?: number): number {
+        touch(this);
+        const end = Math.max(0, Math.min(from ?? this.length, this.length));
+        const at = Reflect.apply(lastIndexOf, this, [search, from]) as number;
+        examined += Math.min(this.length, end + search.length) - Math.max(at, 0);
+        return at;
+    });
+    for (const key of ["startsWith", "endsWith"] as const) {
+        const ends = original(String.prototype, key);
+        patch(String.prototype, key, function (this: string, search: string, position?: number): boolean {
+            touch(this);
+            examined += search.length;
+            return Reflect.apply(ends, this, [search, position]) as boolean;
+        });
+    }
+    for (const key of ["trim", "trimStart", "trimEnd"] as const) {
+        const trim = original(String.prototype, key);
+        patch(String.prototype, key, function (this: string): string {
+            touch(this);
+            const out = Reflect.apply(trim, this, []) as string;
+            // the whitespace removed, and the character that stopped each scan
+            examined += this.length - out.length + (key === "trim" ? 2 : 1);
+            return out;
+        });
+    }
+    for (const key of ["charCodeAt", "codePointAt", "at", "charAt"] as const) {
+        const read = original(String.prototype, key);
+        patch(String.prototype, key, function (this: string, ...args: unknown[]): unknown {
+            touch(this);
+            examined++;
+            return Reflect.apply(read, this, args);
+        });
+    }
+    for (const key of ["slice", "substring"] as const) {
+        const cut = original(String.prototype, key);
+        patch(String.prototype, key, function (this: string, ...args: unknown[]): unknown {
+            touch(this);
+            const out = Reflect.apply(cut, this, args) as string;
+            examined += out.length;
+            return out;
+        });
+    }
+    for (const key of [...WHOLE_STRING, Symbol.iterator]) {
+        const whole = original(String.prototype, key);
+        patch(String.prototype, key, function (this: string, ...args: unknown[]): unknown {
+            touch(this);
+            examined += this.length;
+            return Reflect.apply(whole, this, args);
+        });
+    }
+    const join = original(Array.prototype, "join");
+    patch(Array.prototype, "join", function (this: unknown[], separator?: string): string {
+        const out = Reflect.apply(join, this, [separator]) as string;
         examined += out.length;
         return out;
-    };
-    String.prototype.substring = function (this: string, ...args: (number | undefined)[]): string {
-        const out = Reflect.apply(original.substring, this, args) as string;
-        examined += out.length;
-        return out;
-    };
-    Array.prototype.join = function (this: unknown[], separator?: string): string {
-        const out = Reflect.apply(original.join, this, [separator]);
-        examined += out.length;
-        return out;
-    };
-    RegExp.prototype.exec = function (this: RegExp, input: unknown): RegExpExecArray | null {
+    });
+    const exec = original(RegExp.prototype, "exec");
+    patch(RegExp.prototype, "exec", function (this: RegExp, input: unknown): RegExpExecArray | null {
         const text = String(input);
+        touch(text);
         examined += Math.max(0, text.length - (this.global || this.sticky ? this.lastIndex : 0));
-        return Reflect.apply(original.exec, this, [text]);
-    };
+        return Reflect.apply(exec, this, [text]) as RegExpExecArray | null;
+    });
+
+    let yielded: string | null = null;
+    const turns = createHook({
+        before(): void {
+            const resource: unknown = executionAsyncResource();
+            if (!(resource instanceof Promise)) {
+                yielded ??= (resource as { constructor?: { name?: string } } | null)?.constructor?.name ?? "unknown";
+            }
+        },
+    });
+    turns.enable();
     try {
         await body();
     } finally {
-        String.prototype.indexOf = original.indexOf;
-        String.prototype.charCodeAt = original.charCodeAt;
-        String.prototype.codePointAt = original.codePointAt;
-        String.prototype.slice = original.slice;
-        String.prototype.substring = original.substring;
-        Array.prototype.join = original.join;
-        RegExp.prototype.exec = original.exec;
+        turns.disable();
+        for (const [target, key, value] of patched.reverse()) {
+            Reflect.set(target, key, value);
+        }
+    }
+    if (yielded !== null) {
+        throw new Error(
+            `the metered body gave up control to the event loop (${yielded}), so other code could add to the count`,
+        );
     }
     return examined;
+}
+
+/**
+ * Run `body` and measure the CPU time the process spent on it. A RegExp's backtracking happens
+ * inside the engine, where no primitive can count it, so a complexity test of a pattern bounds
+ * this instead. Unlike a wall clock it leaves out the time a busy machine kept the process
+ * waiting for a core, so the bound measures the code, not the load.
+ * @param body - the work to meter
+ * @returns the CPU milliseconds, user and system
+ */
+export async function cpuMilliseconds(body: () => Promise<unknown> | unknown): Promise<number> {
+    const before = process.cpuUsage();
+    await body();
+    const { user, system } = process.cpuUsage(before);
+    return (user + system) / 1000;
 }
 
 /**
@@ -114,13 +246,22 @@ export async function arrayReadsOfLength(length: number, body: () => Promise<voi
     const OriginalArray = globalThis.Array;
     globalThis.Array = new Proxy(OriginalArray, {
         construct(target, args: unknown[], newTarget): object {
-            const array = Reflect.construct(target, args, newTarget === globalThis.Array ? target : newTarget) as unknown[];
+            const array = Reflect.construct(
+                target,
+                args,
+                newTarget === globalThis.Array ? target : newTarget,
+            ) as unknown[];
             if (args.length !== 1 || args[0] !== length) {
                 return array;
             }
             return new Proxy(array, {
                 get(inner, key, receiver): unknown {
-                    if (typeof key === "string" && key.length > 0 && key.charCodeAt(0) >= 48 && key.charCodeAt(0) <= 57) {
+                    if (
+                        typeof key === "string" &&
+                        key.length > 0 &&
+                        key.charCodeAt(0) >= 48 &&
+                        key.charCodeAt(0) <= 57
+                    ) {
                         reads++;
                     }
                     return Reflect.get(inner, key, receiver);

@@ -177,7 +177,7 @@
         "edges": 0
       },
       "oracleDisagrees": "fastobo rejects a document with no header clause; the BNF's header is a list of zero or more clauses",
-      "sniffAs": "csv"
+      "sniffByContentAs": null
     },
     {
       "file": "authored/cr_only.obo",

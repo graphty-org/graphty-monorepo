@@ -197,16 +197,16 @@ reporting a failure.
    applied only after the last chunk arrives, and the degree pass runs after that.
    Budgets that were measured to be sufficient, with margin:
 
-   | after this | wait |
-   | --- | --- |
-   | reload, for Welcome | 2.5 s |
-   | a sample row click | 4.0 s |
-   | a `Find groups` click | 3.5 s |
-   | a Welcome hint click (load **and** run in one) | 7.0 s |
-   | a sidebars toggle click | 0.4 s |
+    | after this                                     | wait  |
+    | ---------------------------------------------- | ----- |
+    | reload, for Welcome                            | 2.5 s |
+    | a sample row click                             | 4.0 s |
+    | a `Find groups` click                          | 3.5 s |
+    | a Welcome hint click (load **and** run in one) | 7.0 s |
+    | a sidebars toggle click                        | 0.4 s |
 
-   Never assert on a canvas fact without one of these waits. A failure reported
-   without one is not a failure.
+    Never assert on a canvas fact without one of these waits. A failure reported
+    without one is not a failure.
 
 4. **`getByText` with `exact: true` does not match the insight cards.** A card draws
    its plain name and its technical name inside ONE span --
@@ -763,8 +763,8 @@ mcp__playwright__browser_run_code_unsafe
 
 - `overlays` contains `insights`.
 - `cards` has exactly **2** entries:
-  - `Find groups (Communities, Louvain) | Cluster nodes that interact more with each other than with the rest. | Try it`
-  - `Search for something you know (Search) | Type a name like Mr_Whiskers to find it on the canvas. | Try it`
+    - `Find groups (Communities, Louvain) | Cluster nodes that interact more with each other than with the rest. | Try it`
+    - `Search for something you know (Search) | Type a name like Mr_Whiskers to find it on the canvas. | Try it`
 - Search is always last. The example name in the Search card is the highest-degree
   node's id, so it is `Mr_Whiskers` on the cat network and `34` on Karate Club -- do
   not assert the literal string across datasets.
@@ -824,7 +824,7 @@ mcp__playwright__browser_run_code_unsafe
 - `inspectorText` contains, in order: a reading matching
   `/^\d+ groups found\. The groups are .* \(modularity 0\.\d+\)\.$/` -- on the cat
   network it reads `6 groups found. The groups are clearly separated (modularity
-  0.571).` -- then the run record `Louvain, 20 nodes`, then per-group rows
+0.571).` -- then the run record `Louvain, 20 nodes`, then per-group rows
   `Group 1 ... 4 members` through `Group 6 ... 2 members`, then
   `Actions / Change encoding / Delete layer / Remove result`. Assert the regex and the
   run record; do not hard-assert the group count across datasets.
@@ -873,7 +873,7 @@ mcp__playwright__browser_run_code_unsafe
 - `lines[0]` is `Color: Groups (Communities, Louvain)`.
 - `lines` then holds `Group 1` through `Group 5`, then an `Other (...)` line matching
   `/^Other \(\d+ group(s?), \d+% of nodes\)$/` -- on the cat network, `Other (1 group,
-  10% of nodes)`. Five named swatches plus one Other is the legend's cap; six named
+10% of nodes)`. Five named swatches plus one Other is the legend's cap; six named
   groups would be the cap not being applied.
 - The last line is `categorical`.
 - The legend sits at the bottom right of the canvas at the shared 12 px overlay
@@ -1008,26 +1008,26 @@ the label positions off the screenshot and crop tightly around each word.
   there means nothing rendered and every other answer in the set is worthless.
 - Each node label measures **4.5:1 or better** against the canvas ground.
 
-  > **KNOWN FAILURE as of 2026-09-13.** This assertion does not currently hold. The
-  > canvas ground measures `rgb(245, 245, 245)` and the labels measure:
-  >
-  > | label | ink | ratio |
-  > | --- | --- | --- |
-  > | The_Vet | `rgb(143, 144, 144)` | 2.94:1 |
-  > | Mr_Whiskers | `rgb(142, 143, 144)` | 2.97:1 |
-  > | Chonky_Boy | `rgb(131, 131, 133)` | 3.47:1 |
-  > | Mrs_Henderson | `rgb(120, 120, 120)` | 4.05:1 |
-  >
-  > All four are below the 4.5:1 AA floor. This is product owner item 6 again, in a
-  > second place: `LABEL_TEXT_COLOR` in
-  > `graphty/src/components/shell/defaults/loadDefaults.ts` is `#d5d7da`, which is
-  > `PANEL_INK.VALUE` -- ink chosen for the dark panel ground, painted by
-  > `topDegreeLabelLayer` onto graphty-element's near-white clear colour. Its own
-  > comment says the override exists because "RichTextStyle would otherwise default to
-  > #000000", which on a near-white ground is the readable choice. Item 6 was fixed by
-  > giving Welcome its own dark ground; the labels have no ground to give them, so the
-  > decision here is a different one and it has not been made. Until it is, record
-  > UAT-13 as `PASS (labels known-fail)` rather than as a fresh defect.
+    > **KNOWN FAILURE as of 2026-09-13.** This assertion does not currently hold. The
+    > canvas ground measures `rgb(245, 245, 245)` and the labels measure:
+    >
+    > | label         | ink                  | ratio  |
+    > | ------------- | -------------------- | ------ |
+    > | The_Vet       | `rgb(143, 144, 144)` | 2.94:1 |
+    > | Mr_Whiskers   | `rgb(142, 143, 144)` | 2.97:1 |
+    > | Chonky_Boy    | `rgb(131, 131, 133)` | 3.47:1 |
+    > | Mrs_Henderson | `rgb(120, 120, 120)` | 4.05:1 |
+    >
+    > All four are below the 4.5:1 AA floor. This is product owner item 6 again, in a
+    > second place: `LABEL_TEXT_COLOR` in
+    > `graphty/src/components/shell/defaults/loadDefaults.ts` is `#d5d7da`, which is
+    > `PANEL_INK.VALUE` -- ink chosen for the dark panel ground, painted by
+    > `topDegreeLabelLayer` onto graphty-element's near-white clear colour. Its own
+    > comment says the override exists because "RichTextStyle would otherwise default to
+    > #000000", which on a near-white ground is the readable choice. Item 6 was fixed by
+    > giving Welcome its own dark ground; the labels have no ground to give them, so the
+    > decision here is a different one and it has not been made. Until it is, record
+    > UAT-13 as `PASS (labels known-fail)` rather than as a fresh defect.
 
 - The flat rectangle at the bottom left of the canvas is the minimap placeholder; see
   gotcha 8. Not a failure.
@@ -1119,13 +1119,13 @@ mcp__playwright__browser_run_code_unsafe
 
 **Expected result.** Step 1, the first visit, at each viewport:
 
-| viewport | shell | tooSmall | panel | inspector | switchPressed |
-| --- | --- | --- | --- | --- | --- |
-| 1440 x 900 | `PRESENT` | `ABSENT` | `x=48 ... w=280` | `x=1160 ... w=280` | `true` |
-| 1280 x 900 | `PRESENT` | `ABSENT` | `x=48 ... w=280` | `x=1000 ... w=280` | `true` |
-| 1024 x 900 | `PRESENT` | `ABSENT` | `x=48 ... w=280` | `x=744 ... w=280` | `true` |
-| 1000 x 800 | `HIDDEN` | `PRESENT` | -- | -- | `null` |
-| 375 x 812 | `HIDDEN` | `PRESENT` | -- | -- | `null` |
+| viewport   | shell     | tooSmall  | panel            | inspector          | switchPressed |
+| ---------- | --------- | --------- | ---------------- | ------------------ | ------------- |
+| 1440 x 900 | `PRESENT` | `ABSENT`  | `x=48 ... w=280` | `x=1160 ... w=280` | `true`        |
+| 1280 x 900 | `PRESENT` | `ABSENT`  | `x=48 ... w=280` | `x=1000 ... w=280` | `true`        |
+| 1024 x 900 | `PRESENT` | `ABSENT`  | `x=48 ... w=280` | `x=744 ... w=280`  | `true`        |
+| 1000 x 800 | `HIDDEN`  | `PRESENT` | --               | --                 | `null`        |
+| 375 x 812  | `HIDDEN`  | `PRESENT` | --               | --                 | `null`        |
 
 - Both sidebars are drawn on a FIRST visit at all three layout widths, and
   `stored.sidebarsHidden` is `false`. There is no width-aware default any more: the
@@ -1240,11 +1240,11 @@ mcp__playwright__browser_run_code_unsafe
 Slider story's row order was changed once on 2026-09-13 and the ids stayed the same.
 
 | Slider row | `trackH` | `thumbW` | `sizeVar` | `thumbVar` |
-| --- | --- | --- | --- | --- |
-| xs | 2 | 8 | `2px` | `8px` |
-| compact | 4 | 12 | `4px` | `12px` |
-| sm | 4 | 12 | `4px` | `12px` |
-| md | 6 | 16 | `6px` | `16px` |
+| ---------- | -------- | -------- | --------- | ---------- |
+| xs         | 2        | 8        | `2px`     | `8px`      |
+| compact    | 4        | 12       | `4px`     | `12px`     |
+| sm         | 4        | 12       | `4px`     | `12px`     |
+| md         | 6        | 16       | `6px`     | `16px`     |
 
 - `compact` and `sm` are deliberately IDENTICAL. `compact` is this design system's own
   step and `sm` is Mantine's nearest neighbour, and the theme maps them to one value on
@@ -1374,15 +1374,15 @@ the compact theme or a story has changed.
 Which scenarios answer which of the seven items the product owner reported on
 2026-09-13:
 
-| reported item | scenarios |
-| --- | --- |
-| 1, component sizes do not vary | UAT-15 |
-| 2, filled icons are not filled | UAT-16 |
-| 3, sidebars locked open by default | UAT-03, UAT-14 |
-| 4, the locks do not show their state | UAT-03 |
+| reported item                           | scenarios                                  |
+| --------------------------------------- | ------------------------------------------ |
+| 1, component sizes do not vary          | UAT-15                                     |
+| 2, filled icons are not filled          | UAT-16                                     |
+| 3, sidebars locked open by default      | UAT-03, UAT-14                             |
+| 4, the locks do not show their state    | UAT-03                                     |
 | 5, locking one surface closed the other | UAT-11 and UAT-12, both RETIRED 2026-09-14 |
-| 6, Welcome unreadable on the canvas | UAT-01, UAT-02, UAT-13, UAT-14 |
-| 7, this suite | every scenario |
+| 6, Welcome unreadable on the canvas     | UAT-01, UAT-02, UAT-13, UAT-14             |
+| 7, this suite                           | every scenario                             |
 
 Items 3, 4 and 5 were answered on 2026-09-13 by a pair of `Keep open` latches, and
 that answer was SUPERSEDED on 2026-09-14: the product owner's "our panel open /
@@ -1399,39 +1399,39 @@ than rewritten.
 
 Everything the scenarios depend on, in one place.
 
-| what | selector |
-| --- | --- |
-| shell root | `[data-testid="app-shell"]` |
-| a region | `[data-shell-region="rail" \| "panel" \| "canvas" \| "inspector" \| "statusbar"]` (all but canvas are `display: contents`, so they have NO box -- measure the child) |
-| activity rail button | `[data-activity="data" \| "explore" \| "analyze" \| "style" \| "present" \| "ai" \| "settings" \| "help"]`, carries `aria-pressed` |
-| activity panel | `[data-testid="activity-panel"]`, content `[data-testid="activity-panel-content"]` |
-| panel title | `[data-testid="panel-header-title"]` |
-| sidebars switch (top bar) | `button[aria-label="Toggle sidebars"]`, carries `aria-pressed` and `data-variant`, no testid; the ONE control for both sidebars |
-| the too-small state | `[data-testid="screen-too-small"]`, the only thing drawn below 1280 px |
-| graph summary reading | `[data-testid="graph-summary-reading"]` |
-| result layer chip | `[data-testid="result-layer"]` |
-| style layer list | `[data-testid="style-layers"]` |
-| a compact row's name cell | `[data-testid="data-row-name"]` |
-| canvas region | `[data-shell-region="canvas"]`, graph host `[data-canvas-graph]` |
-| Welcome block / sheet | `[data-canvas-welcome]` / `[data-canvas-welcome-sheet]` |
-| Welcome sample row | `[data-sample-row="karate" \| "cat-social-network" \| "college-football"]` |
-| Welcome sample hint | `[data-sample-row="..."] [data-sample-hint]` |
-| a canvas overlay | `[data-canvas-overlay="insights" \| "legend" \| "minimap" \| "time-slider" \| "filter-status" \| "graph-table" \| "data-drawer"]` |
-| an insight card | `[data-canvas-overlay="insights"] button` (the last one is the dismiss X) |
-| status bar slot | `[data-status-slot="counts" \| "layout"]` |
-| canvas toolbar | `[data-testid="canvas-toolbar"]` |
-| command palette | `[data-testid="command-palette"]`, opened with `Control+k` |
-| persisted layout | `localStorage["graphty.shell.layout.v3"]`, exactly five keys: `activeActivity`, `panelWidth`, `inspectorWidth`, `sidebarsHidden`, `sectionOpen` |
-| persisted canvas / insights | `localStorage["graphty.shell.canvas.v1"]`, `["graphty.shell.insights.v1"]` |
+| what                        | selector                                                                                                                                                             |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| shell root                  | `[data-testid="app-shell"]`                                                                                                                                          |
+| a region                    | `[data-shell-region="rail" \| "panel" \| "canvas" \| "inspector" \| "statusbar"]` (all but canvas are `display: contents`, so they have NO box -- measure the child) |
+| activity rail button        | `[data-activity="data" \| "explore" \| "analyze" \| "style" \| "present" \| "ai" \| "settings" \| "help"]`, carries `aria-pressed`                                   |
+| activity panel              | `[data-testid="activity-panel"]`, content `[data-testid="activity-panel-content"]`                                                                                   |
+| panel title                 | `[data-testid="panel-header-title"]`                                                                                                                                 |
+| sidebars switch (top bar)   | `button[aria-label="Toggle sidebars"]`, carries `aria-pressed` and `data-variant`, no testid; the ONE control for both sidebars                                      |
+| the too-small state         | `[data-testid="screen-too-small"]`, the only thing drawn below 1280 px                                                                                               |
+| graph summary reading       | `[data-testid="graph-summary-reading"]`                                                                                                                              |
+| result layer chip           | `[data-testid="result-layer"]`                                                                                                                                       |
+| style layer list            | `[data-testid="style-layers"]`                                                                                                                                       |
+| a compact row's name cell   | `[data-testid="data-row-name"]`                                                                                                                                      |
+| canvas region               | `[data-shell-region="canvas"]`, graph host `[data-canvas-graph]`                                                                                                     |
+| Welcome block / sheet       | `[data-canvas-welcome]` / `[data-canvas-welcome-sheet]`                                                                                                              |
+| Welcome sample row          | `[data-sample-row="karate" \| "cat-social-network" \| "college-football"]`                                                                                           |
+| Welcome sample hint         | `[data-sample-row="..."] [data-sample-hint]`                                                                                                                         |
+| a canvas overlay            | `[data-canvas-overlay="insights" \| "legend" \| "minimap" \| "time-slider" \| "filter-status" \| "graph-table" \| "data-drawer"]`                                    |
+| an insight card             | `[data-canvas-overlay="insights"] button` (the last one is the dismiss X)                                                                                            |
+| status bar slot             | `[data-status-slot="counts" \| "layout"]`                                                                                                                            |
+| canvas toolbar              | `[data-testid="canvas-toolbar"]`                                                                                                                                     |
+| command palette             | `[data-testid="command-palette"]`, opened with `Control+k`                                                                                                           |
+| persisted layout            | `localStorage["graphty.shell.layout.v3"]`, exactly five keys: `activeActivity`, `panelWidth`, `inspectorWidth`, `sidebarsHidden`, `sectionOpen`                      |
+| persisted canvas / insights | `localStorage["graphty.shell.canvas.v1"]`, `["graphty.shell.insights.v1"]`                                                                                           |
 
 And for the two Storybook scenarios (1.7), which reach none of the above:
 
-| what | selector |
-| --- | --- |
-| a story, isolated | `http://localhost:9058/iframe.html?id=<story-id>&viewMode=story` |
+| what              | selector                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| a story, isolated | `http://localhost:9058/iframe.html?id=<story-id>&viewMode=story`                                                                     |
 | the two story ids | `compact-controls--slider-size-comparison`, `compact-buttons--action-icon-colors`, plus `compact-inputs--text-input-size-comparison` |
-| a Slider | `.mantine-Slider-root`, track `.mantine-Slider-track`, thumb `.mantine-Slider-thumb` |
-| a TextInput | `input.mantine-TextInput-input` |
-| an ActionIcon | `.mantine-ActionIcon-root`, carries `data-variant` |
-| a row's own label | the `p` / `.mantine-Text-root` in the component root's parent |
-| size tokens | `--slider-size`, `--slider-thumb-size`, `--input-height`, `--ai-size`, `--cb-size`, all on the component ROOT |
+| a Slider          | `.mantine-Slider-root`, track `.mantine-Slider-track`, thumb `.mantine-Slider-thumb`                                                 |
+| a TextInput       | `input.mantine-TextInput-input`                                                                                                      |
+| an ActionIcon     | `.mantine-ActionIcon-root`, carries `data-variant`                                                                                   |
+| a row's own label | the `p` / `.mantine-Text-root` in the component root's parent                                                                        |
+| size tokens       | `--slider-size`, `--slider-thumb-size`, `--input-height`, `--ai-size`, `--cb-size`, all on the component ROOT                        |

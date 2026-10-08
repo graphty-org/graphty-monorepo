@@ -10,16 +10,15 @@ function httpGet(
     headers?: Record<string, string>,
 ): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
     return new Promise((resolve, reject) => {
-        const req = http.request(
-            { hostname: "127.0.0.1", port, path, method: "GET", headers },
-            (res) => {
-                let body = "";
-                res.on("data", (chunk: Buffer) => { body += chunk.toString(); });
-                res.on("end", () => {
-                    resolve({ status: res.statusCode!, headers: res.headers, body });
-                });
-            },
-        );
+        const req = http.request({ hostname: "127.0.0.1", port, path, method: "GET", headers }, (res) => {
+            let body = "";
+            res.on("data", (chunk: Buffer) => {
+                body += chunk.toString();
+            });
+            res.on("end", () => {
+                resolve({ status: res.statusCode!, headers: res.headers, body });
+            });
+        });
         req.on("error", reject);
         req.end();
     });
@@ -42,7 +41,9 @@ function createTargetServer(): Promise<{ server: http.Server; port: number }> {
 
             if (url === "/with-integrity") {
                 res.writeHead(200, { "Content-Type": "text/html" });
-                res.end('<html><head><script src="app.js" integrity="sha256-abc123"></script></head><body></body></html>');
+                res.end(
+                    '<html><head><script src="app.js" integrity="sha256-abc123"></script></head><body></body></html>',
+                );
                 return;
             }
 
@@ -59,7 +60,9 @@ function createTargetServer(): Promise<{ server: http.Server; port: number }> {
             }
 
             if (url === "/redirect") {
-                res.writeHead(302, { "Location": `http://127.0.0.1:${  (server.address() as { port: number }).port  }/index.html` });
+                res.writeHead(302, {
+                    Location: `http://127.0.0.1:${(server.address() as { port: number }).port}/index.html`,
+                });
                 res.end();
                 return;
             }
@@ -84,7 +87,7 @@ function createTargetServer(): Promise<{ server: http.Server; port: number }> {
         });
 
         server.listen(0, "127.0.0.1", () => {
-            const {port} = (server.address() as { port: number });
+            const { port } = server.address() as { port: number };
             resolve({ server, port });
         });
     });
@@ -113,7 +116,11 @@ describe("Reverse proxy", () => {
             await dualServer.shutdown();
         }
         if (target) {
-            await new Promise<void>((resolve) => { target.server.close(() => { resolve(); }); });
+            await new Promise<void>((resolve) => {
+                target.server.close(() => {
+                    resolve();
+                });
+            });
         }
     });
 
@@ -219,11 +226,9 @@ describe("Reverse proxy", () => {
     });
 
     test("overrides User-Agent with standard Chrome UA", async () => {
-        const res = await httpGet(
-            proxyPort,
-            `/proxy/http://127.0.0.1:${target.port}/echo-headers`,
-            { "User-Agent": "TestBot/1.0" },
-        );
+        const res = await httpGet(proxyPort, `/proxy/http://127.0.0.1:${target.port}/echo-headers`, {
+            "User-Agent": "TestBot/1.0",
+        });
 
         expect(res.status).toBe(200);
         const headers = JSON.parse(res.body);

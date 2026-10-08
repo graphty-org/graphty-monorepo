@@ -68,6 +68,7 @@ const positionsSet: UndoableDefinition<PositionsSetCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => `Moved ${nodes(command.entries.length)}`,
+        fact: (command) => ({ code: "positions.set", params: { count: command.entries.length } }),
         // Placing the same nodes again is one gesture (a nudge, a typed coordinate retyped);
         // placing other nodes is another.
         coalesce: (command) => `positions:${JSON.stringify(command.entries.map((entry) => entry.id).sort())}`,
@@ -86,6 +87,10 @@ const positionsPin: UndoableDefinition<PositionsPinCommand> = {
     undo: {
         kind: "undoable",
         label: (command) => `${command.pinned ? "Pinned" : "Released"} ${nodes(command.ids.length)}`,
+        fact: (command) => ({
+            code: command.pinned ? "positions.pin" : "positions.release",
+            params: { count: command.ids.length },
+        }),
     },
     execute: (command, ctx) => {
         arrangementOf(ctx).pin(command.ids, command.pinned, ctx.draft);

@@ -53,7 +53,7 @@ import {
 } from "./topBarGeometry";
 import { TopBarGlyph } from "./topBarGlyphs";
 import {
-    compareTitle,
+    COMPARE_NOT_BUILT_TITLE,
     EXPORT_LABEL,
     EXPORT_MENU_DATA,
     EXPORT_MENU_IMAGE,
@@ -120,7 +120,6 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
     const {
         canRedo,
         canUndo,
-        compareActive,
         dataLoaded,
         datasetName,
         history = EMPTY_HISTORY,
@@ -129,7 +128,6 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
         onOpenHistory,
         onRedo,
         onShare,
-        onToggleCompare,
         onToggleSidebars,
         onUndo,
         sidebarsShown,
@@ -334,13 +332,10 @@ export function TopBar(props: TopBarOwnProps): React.JSX.Element {
                 />
 
                 <TopBarIconButton
-                    title={compareTitle(dataLoaded)}
-                    accessibleName={compareTitle(dataLoaded)}
+                    title={COMPARE_NOT_BUILT_TITLE}
+                    accessibleName={COMPARE_NOT_BUILT_TITLE}
                     glyph="compare"
-                    disabled={!dataLoaded}
-                    pressed={compareActive}
-                    active={compareActive}
-                    onClick={onToggleCompare}
+                    disabled
                 />
                 {/* ONE switch for BOTH sidebars, in the slot the mirrored pair occupied
                     until 2026-09-14. It is lit, and reports aria-pressed="true", while

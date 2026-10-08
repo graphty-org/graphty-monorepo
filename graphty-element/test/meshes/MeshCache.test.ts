@@ -57,7 +57,10 @@ describe("MeshCache", () => {
         instance.dispose();
         cache.prune();
 
-        assert.notInclude(scene.materials.map((m) => m.name), "textured-material");
+        assert.notInclude(
+            scene.materials.map((m) => m.name),
+            "textured-material",
+        );
         assert.include(scene.textures, shared, "a texture other materials may hold survives");
     });
 });

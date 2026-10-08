@@ -138,6 +138,13 @@ export type SelectionTarget =
     | { readonly top: ResultRef & { readonly n: number } }
     /** Every element of a finished run above a threshold. With no `field`, the run's primary field is read. */
     | { readonly above: ResultRef & { readonly threshold: number } }
+    /**
+     * Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
+     * way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
+     * bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
+     * banded continuous field a value exactly on the last bar's upper edge comes too.
+     */
+    | { readonly range: ResultRef & { readonly min?: number; readonly max?: number } }
     /** The edges whose endpoints are both selected. Names no nodes. */
     | { readonly edgesBetween: true }
     /** Everything that is not selected, in both halves. */
@@ -203,7 +210,7 @@ export interface TargetContext {
     readonly selectedEdges: ElementMask<EdgeId>;
     /** Resolves a scope. Absent refuses a `scope` target. */
     readonly scope?: ScopeResolver;
-    /** Reads finished runs. Absent refuses a `top` or `above` target. */
+    /** Reads finished runs. Absent refuses a `top`, `above` or `range` target. */
     readonly results?: ResultsApi;
     /**
      * Evaluates a predicate. Absent refuses a `where` target.
@@ -272,7 +279,7 @@ function notATarget(target: unknown): GraphtyError {
         code: "E_BAD_COMMAND",
         message:
             "A selection target is { nodes, edges }, { where }, { text }, { ids }, { scope }, " +
-            "{ neighborsOf }, { top }, { above }, { note }, { edgesBetween: true } or { invert: true }.",
+            "{ neighborsOf }, { top }, { above }, { range }, { note }, { edgesBetween: true } or { invert: true }.",
         source: "run",
         details: { target },
     });
@@ -816,6 +823,30 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
 
         return resolveRanked(context, run, target.above.field, (result, field) =>
             result.ranking(field).filter((entry) => entry.value > threshold),
+        );
+    }
+
+    if ("range" in target) {
+        const { run, min, max } = target.range;
+
+        for (const [option, bound] of [
+            ["min", min],
+            ["max", max],
+        ] as const) {
+            if (bound !== undefined && !Number.isFinite(bound)) {
+                throw badOption(option, bound, "a finite number");
+            }
+        }
+
+        const low = min ?? Number.NEGATIVE_INFINITY;
+        const high = max ?? Number.POSITIVE_INFINITY;
+
+        if (low > high) {
+            throw badOption("min", min, `at most its max (${String(max)})`);
+        }
+
+        return resolveRanked(context, run, target.range.field, (result, field) =>
+            result.ranking(field).filter((entry) => entry.value >= low && entry.value <= high),
         );
     }
 

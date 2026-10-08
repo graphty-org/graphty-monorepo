@@ -60,8 +60,7 @@ describe("a style layer naming a set, on screen", () => {
             .getNodes()
             .filter((node) => {
                 const color = (node.mesh as InstancedMesh).instancedBuffers.color as
-                    | { r: number; g: number; b: number }
-                    | undefined;
+                    { r: number; g: number; b: number } | undefined;
                 return (
                     color !== undefined &&
                     Math.abs(color.r - red.r) < 0.01 &&

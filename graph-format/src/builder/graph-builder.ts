@@ -48,6 +48,7 @@ import {
     type U32,
 } from "../types/index.js";
 import {
+    checkIdMapSize,
     createStagingColumn,
     type ExtensionStaging,
     type IndexMaps,
@@ -538,7 +539,10 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
-     * Grow staging capacity ahead of a bulk push.
+     * Grow staging capacity ahead of a bulk push. A node count past the 2^24 nodes with explicit
+     * ids the builder holds is E_TOO_LARGE here, before anything is reserved, so a declared count
+     * is refused at once rather than after millions of addNode calls; anonymous nodes past that
+     * limit (addAnonymousNodes) need no reserve.
      * @param nodes - the node count to fit
      * @param edges - the edge count to fit
      */
@@ -561,7 +565,10 @@ export class GraphBuilder implements GraphBuilderContract {
             }
             return value;
         };
-        this.staging.reserve(check("nodes", nodes), check("edges", edges));
+        const nodeCount = check("nodes", nodes);
+        const edgeCount = check("edges", edges);
+        checkIdMapSize(nodeCount);
+        this.staging.reserve(nodeCount, edgeCount);
     }
 
     // ---------------------------------------------------------------- edges

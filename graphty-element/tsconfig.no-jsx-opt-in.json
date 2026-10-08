@@ -1,0 +1,7 @@
+{
+    // A React consumer that imports the element and never opts in to its JSX types, compiled
+    // against dist/ like tsconfig.strict-consumer.json. The tag must be unknown here; see
+    // test/types/no-jsx-opt-in/element-only.tsx.
+    "extends": "./tsconfig.strict-consumer.json",
+    "include": ["test/types/no-jsx-opt-in/**/*.tsx"]
+}

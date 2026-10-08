@@ -96,12 +96,8 @@ export class StatsManager implements Manager {
     toString(): string {
         /* existing */
     }
-    getStats(): {
-        /* existing */
-    };
-    getPerformanceSummary(): {
-        /* existing */
-    };
+    getStats(): {/* existing */};
+    getPerformanceSummary(): {/* existing */};
 
     // ===== NEW (ADD) =====
     private enabled = false;

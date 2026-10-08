@@ -33,6 +33,7 @@
 import { SCALE_DESCRIPTORS } from "../../catalog/scales";
 import type { PaletteDescriptor, ScaleDescriptor } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { clamp } from "../../utils/clamp";
 
 // ---------------------------------------------------------------------------------------------
 // What a scale is handed
@@ -133,17 +134,6 @@ function asCategory(value: unknown): string | null {
     }
 
     return null;
-}
-
-/**
- * Hold a number inside an interval.
- * @param value - The number.
- * @param low - The lower bound.
- * @param high - The upper bound.
- * @returns The number, moved to the nearest bound when it was outside.
- */
-export function clamp(value: number, low: number, high: number): number {
-    return Math.max(low, Math.min(high, value));
 }
 
 /**

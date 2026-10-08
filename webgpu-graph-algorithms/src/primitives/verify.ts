@@ -230,20 +230,16 @@ export async function assertDeviceComputes(ctx: CheckedContext): Promise<void> {
         `this device computes multi-workgroup shaders incorrectly: an exclusive scan of ${String(check.count)} ` +
         `known numbers is wrong -- ${observed}. Refusing to run: every number this package computed here would ` +
         `be unreliable. adapter: ${adapter.vendor}/${adapter.architecture} "${adapter.description}"`;
-    throw new WebGpuGraphError(
-        "E_DEVICE_INCORRECT",
-        hint === undefined ? message : `${message}. ${hint}`,
-        {
-            check: check.check,
-            where: mismatch.where,
-            expected: mismatch.expected,
-            actual: mismatch.actual,
-            poison: mismatch.poison,
-            count: check.count,
-            blocks: check.blocks,
-            workgroupSize: check.workgroupSize,
-            adapter,
-            ...(hint === undefined ? {} : { hint }),
-        },
-    );
+    throw new WebGpuGraphError("E_DEVICE_INCORRECT", hint === undefined ? message : `${message}. ${hint}`, {
+        check: check.check,
+        where: mismatch.where,
+        expected: mismatch.expected,
+        actual: mismatch.actual,
+        poison: mismatch.poison,
+        count: check.count,
+        blocks: check.blocks,
+        workgroupSize: check.workgroupSize,
+        adapter,
+        ...(hint === undefined ? {} : { hint }),
+    });
 }

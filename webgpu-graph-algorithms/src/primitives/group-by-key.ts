@@ -1,8 +1,8 @@
 /**
  * The per-row group-by-key primitive (design 8.6; the P11 plan's PD-8): for every row `v` of a CSR graph, group the
  * row's arcs by the key of their target (`keyIn[colIdx[a]]`), sum the weights per key, and write the key with the
- * largest sum to `bestKey[v]` -- the LOWEST such key on a tie, which makes the answer independent of the visiting
- * order -- and its summed weight to `bestScore[v]`. An empty row gets `INVALID_INDEX` and 0. Label propagation's step
+ * largest sum to `bestKey[v]` -- on a tie the row's own key `keyIn[v]` when it is among the tied, else the LOWEST,
+ * which makes the answer independent of the visiting order -- and its summed weight to `bestScore[v]`. An empty row gets `INVALID_INDEX` and 0. Label propagation's step
  * is its first caller: the best key of a row is the weighted mode of the neighbours' labels.
  *
  * Sums are u32 fixed point at a per-row power-of-two scale (the kernel header says how), so the two tiers and any

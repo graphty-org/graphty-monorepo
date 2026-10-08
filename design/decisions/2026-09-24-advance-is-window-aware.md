@@ -48,7 +48,7 @@ Two facts the build added to the decision:
   sweep runs once per forward window and the lift is complete. On a DIRECTED snapshot whose
   reverse adjacency exceeds one binding, `breadthFirstSearch` refuses up front with
   `E_TOO_LARGE { needed: 4 x arcCount, limit, path: "windowed", algorithm:
-  "breadthFirstSearch" }` rather than failing at bind-group validation. The lift is therefore
+"breadthFirstSearch" }` rather than failing at bind-group validation. The lift is therefore
   whole for undirected snapshots and, for directed ones, holds only while the reverse adjacency
   fits one binding.
 

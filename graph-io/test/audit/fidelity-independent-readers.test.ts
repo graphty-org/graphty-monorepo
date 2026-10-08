@@ -41,19 +41,19 @@ import { CORPUS_FORMATS, CORPUS_ROOT, type CorpusFormat, corpusOptions, readCorp
 type AnyImportOptions = Record<string, unknown> & CommonImportOptions;
 
 const IMPORTERS: Readonly<Record<CorpusFormat, GraphImporter<AnyImportOptions>>> = {
-    csv: csvImporter as GraphImporter<AnyImportOptions>,
-    cx: cxImporter as GraphImporter<AnyImportOptions>,
-    cx2: cx2Importer as GraphImporter<AnyImportOptions>,
-    dot: dotImporter as GraphImporter<AnyImportOptions>,
-    gexf: gexfImporter as GraphImporter<AnyImportOptions>,
-    gml: gmlImporter as GraphImporter<AnyImportOptions>,
-    graphml: graphmlImporter as GraphImporter<AnyImportOptions>,
-    json: jsonImporter as GraphImporter<AnyImportOptions>,
-    neo4j: neo4jImporter as GraphImporter<AnyImportOptions>,
-    pajek: pajekImporter as GraphImporter<AnyImportOptions>,
-    obo: oboImporter as GraphImporter<AnyImportOptions>,
-    xgmml: xgmmlImporter as GraphImporter<AnyImportOptions>,
-    cys: cysImporter as GraphImporter<AnyImportOptions>,
+    csv: csvImporter,
+    cx: cxImporter,
+    cx2: cx2Importer,
+    dot: dotImporter,
+    gexf: gexfImporter,
+    gml: gmlImporter,
+    graphml: graphmlImporter,
+    json: jsonImporter,
+    neo4j: neo4jImporter,
+    pajek: pajekImporter,
+    obo: oboImporter,
+    xgmml: xgmmlImporter,
+    cys: cysImporter,
 };
 
 const NOT_A_GRAPH: ReadonlySet<string> = new Set(["graphml/got-social-network.graphml"]);

@@ -27,14 +27,17 @@ export const OKABE_ITO_COLORS = [
 /**
  * The one colour an overflowing group encoding paints every group past the palette's capacity.
  *
- * A dark grey, #505050, because it is the lightest grey that is measurably apart from every
- * Okabe-Ito colour: Delta E 16.5 in OKLab for normal vision (nearest: blue #0072B2) and 15.4 under
- * protanopia and deuteranopia, at 7.4:1 against the default whitesmoke background. The
- * conventional light "other" greys fail: #9a9a9a is Delta E 11.8 from reddish purple and 1.9 under
- * colour-blindness, and #bbbbbb is 13.1 from sky blue. `test/catalog/default-palette-quality.test.ts`
- * measures it.
+ * A mid grey, #686868 (OKLab lightness 0.52), measured as a lit 3D node draws it: the shadow
+ * side, middle and lit side of a node are 0.55, 0.875 and 1.2 times its colour. It is chosen to
+ * stay clear of Okabe-Ito black on a node, where the old #505050 sank towards it: Delta E 34.5
+ * in OKLab on the shadow side and 47.1 in the middle (#505050: 29.3 and 39.4). It is the lightest
+ * grey that keeps every tone of a node at least Delta E 6 from every Okabe-Ito colour under
+ * protanopia and deuteranopia (nearest: bluish green #009E73); lighter greys fall to 4.4 and
+ * below. Normal vision: 13.2 flat and 8.3 on the shadow side from blue #0072B2, the nearest.
+ * Against the default whitesmoke background it is 5.1:1 flat and 3.8:1 on the lit side.
+ * `test/catalog/default-palette-quality.test.ts` measures it.
  */
-export const OTHER_GROUP_COLOR = "#505050";
+export const OTHER_GROUP_COLOR = "#686868";
 
 /**
  * Paul Tol Vibrant palette - high saturation, 7 colors

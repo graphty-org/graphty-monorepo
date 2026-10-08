@@ -17,11 +17,13 @@
         "exactOptionalPropertyTypes": true,
         "noUncheckedIndexedAccess": true,
         "types": [],
+        // The JSX type tests are React 19 consumers.
+        "jsx": "react-jsx",
         "paths": {
             "@graphty/graphty-element": ["./dist/index.d.ts"],
             "@graphty/graphty-element/*": ["./dist/*.d.ts"]
         }
     },
-    "include": ["test/types/consumer/**/*.ts"],
+    "include": ["test/types/consumer/**/*.ts", "test/types/consumer/**/*.tsx"],
     "exclude": ["node_modules", "coverage", "tmp"]
 }

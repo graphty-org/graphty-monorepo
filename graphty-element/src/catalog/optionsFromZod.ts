@@ -531,8 +531,8 @@ function authoredBound(bound: number | undefined): number | undefined {
  */
 function humanize(name: string): string {
     const spaced = name
-        .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
-        .replace(/[_-]+/gu, " ")
+        .replaceAll(/([a-z0-9])([A-Z])/gu, "$1 $2")
+        .replaceAll(/[_-]+/gu, " ")
         .trim();
     if (spaced === "") {
         return name;

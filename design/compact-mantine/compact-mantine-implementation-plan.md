@@ -29,16 +29,17 @@ mkdir -p compact-mantine/.storybook
 1. Create `compact-mantine/` directory at monorepo root
 2. Create subdirectory structure per design document Section 2.1
 3. Add to `pnpm-workspace.yaml`:
-   ```yaml
-   packages:
-     - 'algorithms'
-     - 'layout'
-     - 'graphty-element'
-     - 'graphty'
-     - 'compact-mantine'  # Add this line
-   ```
+    ```yaml
+    packages:
+        - "algorithms"
+        - "layout"
+        - "graphty-element"
+        - "graphty"
+        - "compact-mantine" # Add this line
+    ```
 
 **Tests**:
+
 - Verify directory exists
 - Verify pnpm recognizes new workspace: `pnpm ls --filter @graphty/compact-mantine`
 
@@ -55,87 +56,79 @@ mkdir -p compact-mantine/.storybook
 **Implementation**:
 
 Create `compact-mantine/package.json`:
+
 ```json
 {
-  "name": "@graphty/compact-mantine",
-  "version": "0.1.0",
-  "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
-  "type": "module",
-  "main": "dist/index.cjs",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
+    "name": "@graphty/compact-mantine",
+    "version": "0.1.0",
+    "description": "Compact size variants for Mantine UI components - optimized for dense UIs",
+    "type": "module",
+    "main": "dist/index.cjs",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": {
+                "types": "./dist/index.d.ts",
+                "default": "./dist/index.js"
+            },
+            "require": {
+                "types": "./dist/index.d.cts",
+                "default": "./dist/index.cjs"
+            }
+        }
+    },
+    "files": ["dist"],
+    "sideEffects": false,
+    "peerDependencies": {
+        "@mantine/core": "^8.0.0",
+        "@mantine/hooks": "^8.0.0",
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0"
+    },
+    "devDependencies": {
+        "@mantine/core": "^8.3.10",
+        "@mantine/hooks": "^8.3.10",
+        "@storybook/addon-essentials": "^8.6.12",
+        "@storybook/react": "^8.6.12",
+        "@storybook/react-vite": "^8.6.12",
+        "@storybook/test": "^8.6.12",
+        "@testing-library/dom": "^10.4.0",
+        "@testing-library/react": "^16.1.0",
+        "@testing-library/user-event": "^14.6.1",
+        "@vitejs/plugin-react": "^4.5.2",
+        "jsdom": "^26.1.0",
+        "lucide-react": "^0.525.0",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+        "storybook": "^8.6.12",
+        "typescript": "~5.8.3",
+        "vite": "^6.3.5",
+        "vite-plugin-dts": "^4.5.4",
+        "vitest": "^3.2.3"
+    },
+    "scripts": {
+        "build": "vite build",
+        "test": "vitest",
+        "test:run": "vitest run",
+        "coverage": "vitest run --coverage",
+        "storybook": "storybook dev",
+        "build-storybook": "storybook build",
+        "lint": "eslint src/",
+        "lint:fix": "eslint src/ --fix"
+    },
+    "keywords": ["mantine", "react", "ui", "theme", "compact", "sidebar", "property-panel"],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "compact-mantine"
     }
-  },
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
-  "peerDependencies": {
-    "@mantine/core": "^8.0.0",
-    "@mantine/hooks": "^8.0.0",
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
-  },
-  "devDependencies": {
-    "@mantine/core": "^8.3.10",
-    "@mantine/hooks": "^8.3.10",
-    "@storybook/addon-essentials": "^8.6.12",
-    "@storybook/react": "^8.6.12",
-    "@storybook/react-vite": "^8.6.12",
-    "@storybook/test": "^8.6.12",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/user-event": "^14.6.1",
-    "@vitejs/plugin-react": "^4.5.2",
-    "jsdom": "^26.1.0",
-    "lucide-react": "^0.525.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "storybook": "^8.6.12",
-    "typescript": "~5.8.3",
-    "vite": "^6.3.5",
-    "vite-plugin-dts": "^4.5.4",
-    "vitest": "^3.2.3"
-  },
-  "scripts": {
-    "build": "vite build",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "coverage": "vitest run --coverage",
-    "storybook": "storybook dev",
-    "build-storybook": "storybook build",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
-  },
-  "keywords": [
-    "mantine",
-    "react",
-    "ui",
-    "theme",
-    "compact",
-    "sidebar",
-    "property-panel"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/graphty-org/graphty-monorepo.git",
-    "directory": "compact-mantine"
-  }
 }
 ```
 
 **Tests**:
+
 - `pnpm install` succeeds
 - `pnpm ls --filter @graphty/compact-mantine` shows package
 
@@ -152,6 +145,7 @@ Create `compact-mantine/package.json`:
 **Implementation**:
 
 Create `compact-mantine/vite.config.ts`:
+
 ```typescript
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -172,20 +166,14 @@ export default defineConfig({
             fileName: (format) => `index.${format === "es" ? "js" : "cjs"}`,
         },
         rollupOptions: {
-            external: [
-                "react",
-                "react-dom",
-                "react/jsx-runtime",
-                "@mantine/core",
-                "@mantine/hooks",
-                "lucide-react",
-            ],
+            external: ["react", "react-dom", "react/jsx-runtime", "@mantine/core", "@mantine/hooks", "lucide-react"],
         },
     },
 });
 ```
 
 Create `compact-mantine/tsconfig.json`:
+
 ```json
 {
     "extends": "../tsconfig.base.json",
@@ -201,6 +189,7 @@ Create `compact-mantine/tsconfig.json`:
 ```
 
 **Tests**:
+
 - `npm run build` produces `dist/index.js`, `dist/index.cjs`, `dist/index.d.ts`
 - Types are correctly generated
 
@@ -217,6 +206,7 @@ Create `compact-mantine/tsconfig.json`:
 **Implementation**:
 
 Create `compact-mantine/vitest.config.ts`:
+
 ```typescript
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
@@ -244,12 +234,14 @@ export default defineConfig({
 ```
 
 Create `compact-mantine/tests/setup.ts`:
+
 ```typescript
 import "@testing-library/jest-dom/vitest";
 import "@mantine/core/styles.css";
 ```
 
 **Tests**:
+
 - `npm test` runs without errors
 - Test file discovery works
 
@@ -266,6 +258,7 @@ import "@mantine/core/styles.css";
 **Implementation**:
 
 Update `compact-mantine/package.json` storybook script to use port 9060:
+
 ```json
 {
     "scripts": {
@@ -277,6 +270,7 @@ Update `compact-mantine/package.json` storybook script to use port 9060:
 Note: The port is passed via command line flag (like graphty) rather than .env to avoid conflicts with the monorepo root .env PORT setting.
 
 Create `compact-mantine/.storybook/main.ts`:
+
 ```typescript
 import type { StorybookConfig } from "@storybook/react-vite";
 
@@ -304,7 +298,11 @@ const config: StorybookConfig = {
         const env = loadEnv(configType === "DEVELOPMENT" ? "development" : "production", monorepoRoot, "");
 
         // Also load package-level .env
-        const packageEnv = loadEnv(configType === "DEVELOPMENT" ? "development" : "production", path.resolve(__dirname, ".."), "");
+        const packageEnv = loadEnv(
+            configType === "DEVELOPMENT" ? "development" : "production",
+            path.resolve(__dirname, ".."),
+            "",
+        );
 
         // Package env takes precedence over monorepo env
         const mergedEnv = { ...env, ...packageEnv };
@@ -341,6 +339,7 @@ export default config;
 ```
 
 Create `compact-mantine/.storybook/preview.tsx`:
+
 ```typescript
 import "@mantine/core/styles.css";
 
@@ -407,6 +406,7 @@ export default preview;
 ```
 
 **Tests**:
+
 - `npm run storybook` starts on port 9060
 - Theme toggle works in toolbar
 
@@ -423,6 +423,7 @@ export default preview;
 **Implementation**:
 
 Create `compact-mantine/project.json`:
+
 ```json
 {
     "name": "compact-mantine",
@@ -464,6 +465,7 @@ Create `compact-mantine/project.json`:
 ```
 
 **Tests**:
+
 - `pnpm exec nx run compact-mantine:build` works
 - `pnpm exec nx run compact-mantine:test` works
 
@@ -480,12 +482,14 @@ Create `compact-mantine/project.json`:
 **Implementation**:
 
 Create `compact-mantine/src/index.ts`:
+
 ```typescript
 // Placeholder - will be populated in Phase 2
 export const VERSION = "0.1.0";
 ```
 
 Create `compact-mantine/src/theme/index.ts`:
+
 ```typescript
 import { createTheme } from "@mantine/core";
 
@@ -493,18 +497,21 @@ export const compactTheme = createTheme({});
 ```
 
 Update `compact-mantine/src/index.ts`:
+
 ```typescript
 export { compactTheme } from "./theme";
 export const VERSION = "0.1.0";
 ```
 
 **Tests**:
+
 - Build succeeds
 - Package can be imported
 
 **Dependencies**: Steps 1.1-1.6
 
 **Verification**:
+
 - `npm run build` succeeds
 - `npm run storybook` loads without errors
 
@@ -521,6 +528,7 @@ export const VERSION = "0.1.0";
 **Implementation**:
 
 Create `compact-mantine/src/theme/colors.ts`:
+
 ```typescript
 import type { MantineColorsTuple } from "@mantine/core";
 
@@ -534,16 +542,16 @@ import type { MantineColorsTuple } from "@mantine/core";
  * - 8-9: Darkest tones (main backgrounds in dark mode)
  */
 export const compactDarkColors: MantineColorsTuple = [
-    "#d5d7da",  // 0 - lightest (light mode text)
-    "#a3a8b1",  // 1
-    "#7a828e",  // 2 - dimmed text
-    "#5f6873",  // 3
-    "#48525c",  // 4
-    "#374047",  // 5
-    "#2a3035",  // 6 - input background
-    "#1f2428",  // 7
-    "#161b22",  // 8
-    "#0d1117",  // 9 - darkest (main background)
+    "#d5d7da", // 0 - lightest (light mode text)
+    "#a3a8b1", // 1
+    "#7a828e", // 2 - dimmed text
+    "#5f6873", // 3
+    "#48525c", // 4
+    "#374047", // 5
+    "#2a3035", // 6 - input background
+    "#1f2428", // 7
+    "#161b22", // 8
+    "#0d1117", // 9 - darkest (main background)
 ];
 
 /**
@@ -555,6 +563,7 @@ export const compactColors = {
 ```
 
 **Tests**:
+
 ```typescript
 // tests/theme/colors.test.ts
 import { describe, expect, it } from "vitest";
@@ -594,6 +603,7 @@ describe("compactColors", () => {
 **Implementation**:
 
 Create `compact-mantine/src/theme/components/inputs.ts`:
+
 ```typescript
 import {
     Autocomplete,
@@ -781,6 +791,7 @@ export const inputComponentExtensions = {
 ```
 
 **Tests**:
+
 ```typescript
 // tests/theme/inputs.test.ts
 import { describe, expect, it } from "vitest";
@@ -825,6 +836,7 @@ describe("inputComponentExtensions", () => {
 **Implementation**:
 
 Create `compact-mantine/src/theme/components/buttons.ts`:
+
 ```typescript
 import { ActionIcon, Button } from "@mantine/core";
 
@@ -863,6 +875,7 @@ export const buttonComponentExtensions = {
 ```
 
 **Tests**:
+
 ```typescript
 // tests/theme/buttons.test.ts
 import { describe, expect, it } from "vitest";
@@ -894,6 +907,7 @@ describe("buttonComponentExtensions", () => {
 **Implementation**:
 
 Create `compact-mantine/src/theme/components/controls.ts`:
+
 ```typescript
 import { Checkbox, Radio, SegmentedControl, Slider, Switch } from "@mantine/core";
 
@@ -1022,6 +1036,7 @@ export const controlComponentExtensions = {
 **Implementation**:
 
 Create `compact-mantine/src/theme/components/display.ts`:
+
 ```typescript
 import { Badge, Pill } from "@mantine/core";
 
@@ -1075,6 +1090,7 @@ export const displayComponentExtensions = {
 **Implementation**:
 
 Create `compact-mantine/src/theme/components/index.ts`:
+
 ```typescript
 export { buttonComponentExtensions } from "./buttons";
 export { controlComponentExtensions } from "./controls";
@@ -1083,7 +1099,8 @@ export { inputComponentExtensions } from "./inputs";
 ```
 
 Update `compact-mantine/src/theme/index.ts`:
-```typescript
+
+````typescript
 import { createTheme } from "@mantine/core";
 
 import { compactColors } from "./colors";
@@ -1128,9 +1145,10 @@ export const compactTheme = createTheme({
 });
 
 export { compactColors, compactDarkColors } from "./colors";
-```
+````
 
 **Tests**:
+
 ```typescript
 // tests/theme/theme.test.ts
 import { describe, expect, it } from "vitest";
@@ -1179,6 +1197,7 @@ describe("compactTheme", () => {
 **Implementation**:
 
 Update `compact-mantine/src/index.ts`:
+
 ```typescript
 // Theme exports
 export { compactColors, compactDarkColors, compactTheme } from "./theme";
@@ -1188,6 +1207,7 @@ export const VERSION = "0.1.0";
 ```
 
 **Tests**:
+
 - Import works in consumer code
 - TypeScript types resolve
 
@@ -1206,17 +1226,20 @@ export const VERSION = "0.1.0";
 **IMPORTANT NOTE**: JSDOM does not fully process CSS variables and stylesheets. The graphty CSS regression tests work because they use Playwright browser testing (see `graphty/vitest.config.ts` with `browser.enabled: true`).
 
 For compact-mantine Phase 2, create **integration tests** that verify:
+
 1. Components render without error with compact size
 2. Theme is properly applied via MantineProvider
 3. DOM structure is correct
 
 **Full CSS regression testing** (verifying computed values like `24px`, `11px`, `0px` border) should be done via:
+
 - **Storybook visual tests** (Chromatic) - see Phase 4.3
 - **Browser-based Playwright tests** - can be added later if needed
 
 **Implementation**:
 
 Create `compact-mantine/tests/theme/compact-css-regression.test.tsx`:
+
 ```typescript
 import { MantineProvider, NumberInput, TextInput } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
@@ -1313,6 +1336,7 @@ describe("Compact CSS Regression", () => {
 **Verification**: Components render correctly with theme applied
 
 **Future Enhancement**: To add full CSS value verification, configure browser-based testing:
+
 ```typescript
 // vitest.config.ts - add browser project
 test: {
@@ -1338,6 +1362,7 @@ test: {
 **Implementation**:
 
 Create `compact-mantine/src/utils/color-utils.ts`:
+
 ```typescript
 /**
  * Parse HEXA color string (#RRGGBBAA) and extract RGB and opacity.
@@ -1347,9 +1372,16 @@ export function parseHexaColor(hexa: string): { hex: string; opacity: number } {
     let normalized = hexa.replace("#", "");
 
     if (normalized.length === 3) {
-        normalized = normalized.split("").map((c) => c + c).join("") + "ff";
+        normalized =
+            normalized
+                .split("")
+                .map((c) => c + c)
+                .join("") + "ff";
     } else if (normalized.length === 4) {
-        normalized = normalized.split("").map((c) => c + c).join("");
+        normalized = normalized
+            .split("")
+            .map((c) => c + c)
+            .join("");
     } else if (normalized.length === 6) {
         normalized = normalized + "ff";
     }
@@ -1381,11 +1413,13 @@ export function isValidHex(color: string): boolean {
 ```
 
 Create `compact-mantine/src/utils/index.ts`:
+
 ```typescript
 export { isValidHex, parseHexaColor, toHexaColor } from "./color-utils";
 ```
 
 Create `compact-mantine/src/constants/colors.ts`:
+
 ```typescript
 /**
  * Default color swatches for color pickers.
@@ -1412,6 +1446,7 @@ export const SWATCH_COLORS_HEXA = SWATCH_COLORS.map((c) => c + "ff");
 ```
 
 Create `compact-mantine/src/constants/spacing.ts`:
+
 ```typescript
 import { rem } from "@mantine/core";
 
@@ -1428,12 +1463,14 @@ export const MANTINE_SPACING = {
 ```
 
 Create `compact-mantine/src/constants/index.ts`:
+
 ```typescript
 export { SWATCH_COLORS, SWATCH_COLORS_HEXA } from "./colors";
 export { MANTINE_SPACING } from "./spacing";
 ```
 
 **Tests**:
+
 ```typescript
 // tests/utils/color-utils.test.ts
 import { describe, expect, it } from "vitest";
@@ -1483,6 +1520,7 @@ describe("isValidHex", () => {
 **Implementation**:
 
 Create `compact-mantine/src/types/index.ts`:
+
 ```typescript
 import type { ReactNode } from "react";
 
@@ -1636,7 +1674,8 @@ export interface StatRowProps {
 **Implementation**:
 
 Create `compact-mantine/src/components/ControlSection.tsx`:
-```typescript
+
+````typescript
 import { Box, Collapse, Group, Text, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { ChevronDown, ChevronRight } from "lucide-react";
@@ -1693,9 +1732,10 @@ export function ControlSection({
         </Box>
     );
 }
-```
+````
 
 **Tests**:
+
 ```typescript
 // tests/components/ControlSection.test.tsx
 import { MantineProvider } from "@mantine/core";
@@ -1771,7 +1811,8 @@ describe("ControlSection", () => {
 **Implementation**:
 
 Create `compact-mantine/src/components/StyleNumberInput.tsx`:
-```typescript
+
+````typescript
 import { ActionIcon, Group, NumberInput } from "@mantine/core";
 import { RotateCcw } from "lucide-react";
 
@@ -1846,9 +1887,10 @@ export function StyleNumberInput({
         </Group>
     );
 }
-```
+````
 
 **Tests**:
+
 ```typescript
 // tests/components/StyleNumberInput.test.tsx
 import { MantineProvider } from "@mantine/core";
@@ -1948,6 +1990,7 @@ describe("StyleNumberInput", () => {
 **Task**: Extract remaining components following same pattern.
 
 **Components to extract**:
+
 - `ControlSubGroup` - Nested collapsible group
 - `ControlGroup` - Non-collapsible container
 - `StyleColorInput` - Color input with default/explicit styling
@@ -1974,6 +2017,7 @@ describe("StyleNumberInput", () => {
 **Implementation**:
 
 Create `compact-mantine/src/hooks/useActualColorScheme.ts`:
+
 ```typescript
 import { useComputedColorScheme } from "@mantine/core";
 
@@ -1990,11 +2034,13 @@ export function useActualColorScheme(): "light" | "dark" {
 ```
 
 Create `compact-mantine/src/hooks/index.ts`:
+
 ```typescript
 export { useActualColorScheme } from "./useActualColorScheme";
 ```
 
 **Tests**:
+
 ```typescript
 // tests/hooks/useActualColorScheme.test.tsx
 import { MantineProvider } from "@mantine/core";
@@ -2041,6 +2087,7 @@ describe("useActualColorScheme", () => {
 **Implementation**:
 
 Update `compact-mantine/src/index.ts`:
+
 ```typescript
 // Theme exports
 export { compactColors, compactDarkColors, compactTheme } from "./theme";
@@ -2086,6 +2133,7 @@ export const VERSION = "0.1.0";
 ```
 
 Create `compact-mantine/src/components/index.ts`:
+
 ```typescript
 export { CompactColorInput } from "./CompactColorInput";
 export { ControlGroup } from "./ControlGroup";
@@ -2114,6 +2162,7 @@ export { StyleSelect } from "./StyleSelect";
 **Implementation**:
 
 Create `compact-mantine/tests/theme/light-dark-mode.test.tsx`:
+
 ```typescript
 import { MantineProvider, TextInput } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
@@ -2185,11 +2234,13 @@ describe("Light/Dark mode compatibility", () => {
 **Implementation**:
 
 Install Chromatic:
+
 ```bash
 cd compact-mantine && pnpm add -D chromatic
 ```
 
 Add script to `package.json`:
+
 ```json
 {
     "scripts": {
@@ -2199,6 +2250,7 @@ Add script to `package.json`:
 ```
 
 Create `.github/workflows/chromatic-compact-mantine.yml`:
+
 ```yaml
 name: Chromatic (compact-mantine)
 
@@ -2206,11 +2258,11 @@ on:
     push:
         branches: [master]
         paths:
-            - 'compact-mantine/**'
+            - "compact-mantine/**"
     pull_request:
         branches: [master]
         paths:
-            - 'compact-mantine/**'
+            - "compact-mantine/**"
 
 jobs:
     chromatic:
@@ -2224,8 +2276,8 @@ jobs:
 
             - uses: actions/setup-node@v4
               with:
-                  node-version: '20'
-                  cache: 'pnpm'
+                  node-version: "20"
+                  cache: "pnpm"
 
             - run: pnpm install
 
@@ -2253,11 +2305,13 @@ jobs:
 **Implementation**:
 
 Run coverage:
+
 ```bash
 cd compact-mantine && npm run coverage
 ```
 
 Verify thresholds:
+
 - Lines: ≥80%
 - Functions: ≥80%
 - Statements: ≥80%
@@ -2278,6 +2332,7 @@ Verify thresholds:
 **Implementation**:
 
 1. Update `compact-mantine/vitest.config.ts` to add a browser test project:
+
 ```typescript
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
@@ -2325,6 +2380,7 @@ export default defineConfig({
 ```
 
 2. Create `compact-mantine/tests/theme/compact-css-values.browser.test.tsx`:
+
 ```typescript
 import { MantineProvider, NumberInput, TextInput } from "@mantine/core";
 import { render, screen } from "@testing-library/react";
@@ -2432,6 +2488,7 @@ describe("Compact CSS Values (Browser)", () => {
 ```
 
 3. Add npm script for browser tests in `package.json`:
+
 ```json
 {
     "scripts": {
@@ -2441,6 +2498,7 @@ describe("Compact CSS Values (Browser)", () => {
 ```
 
 **Tests**:
+
 - `npm run test:browser` passes all CSS value assertions
 - Computed styles match design spec (24px height, 11px font, 0px border)
 
@@ -2459,7 +2517,8 @@ describe("Compact CSS Values (Browser)", () => {
 **Implementation**:
 
 Create `compact-mantine/README.md`:
-```markdown
+
+````markdown
 # @graphty/compact-mantine
 
 Compact size variants for Mantine UI components, optimized for dense UIs like sidebars, property panels, and tool palettes.
@@ -2469,13 +2528,14 @@ Compact size variants for Mantine UI components, optimized for dense UIs like si
 ```bash
 npm install @graphty/compact-mantine @mantine/core @mantine/hooks
 ```
+````
 
 ## Quick Start
 
 ```tsx
-import { MantineProvider, TextInput, Button } from '@mantine/core';
-import '@mantine/core/styles.css';
-import { compactTheme } from '@graphty/compact-mantine';
+import { MantineProvider, TextInput, Button } from "@mantine/core";
+import "@mantine/core/styles.css";
+import { compactTheme } from "@graphty/compact-mantine";
 
 function App() {
     return (
@@ -2489,12 +2549,12 @@ function App() {
 
 ## Compact Size Specifications
 
-| Property | Value |
-|----------|-------|
-| Height | 24px |
-| Font Size | 11px |
-| Padding | 8px horizontal |
-| Border | None |
+| Property   | Value                           |
+| ---------- | ------------------------------- |
+| Height     | 24px                            |
+| Font Size  | 11px                            |
+| Padding    | 8px horizontal                  |
+| Border     | None                            |
 | Background | Semantic (adapts to light/dark) |
 
 ## Supported Components
@@ -2566,7 +2626,8 @@ See [Storybook documentation](https://graphty-org.github.io/graphty-monorepo/sto
 ## License
 
 MIT
-```
+
+````
 
 **Dependencies**: Phases 2-4
 
@@ -2645,7 +2706,7 @@ export const CompactVsRegular: StoryObj = {
         </Stack>
     ),
 };
-```
+````
 
 **Dependencies**: Phases 2-3
 
@@ -2662,6 +2723,7 @@ export const CompactVsRegular: StoryObj = {
 **Implementation**:
 
 Update `graphty/package.json`:
+
 ```json
 {
     "dependencies": {
@@ -2672,6 +2734,7 @@ Update `graphty/package.json`:
 ```
 
 Run:
+
 ```bash
 pnpm install
 ```
@@ -2710,6 +2773,7 @@ import { compactTheme, ControlSection } from "@graphty/compact-mantine";
 **Task**: Delete extracted code from graphty.
 
 **Files to remove/modify**:
+
 - `graphty/src/theme.ts` - Remove, import from package
 - `graphty/src/components/sidebar/controls/` - Remove extracted components
 - Update any remaining imports
@@ -2745,6 +2809,7 @@ pnpm run build
 **Task**: Analyze components for static vs dynamic styles.
 
 **Components with static styles to migrate**:
+
 - `ControlSection` - header background, padding, cursor
 - `ControlSubGroup` - indentation, borders
 - `ControlGroup` - spacing
@@ -2752,6 +2817,7 @@ pnpm run build
 - `GradientEditor` - stop markers, track styles
 
 **Keep inline for dynamic styles**:
+
 - `StyleNumberInput` - italic/dimmed for default values
 - `StyleColorInput` - italic/dimmed for default values
 - `StyleSelect` - italic/dimmed for default values
@@ -2769,6 +2835,7 @@ pnpm run build
 **Implementation**:
 
 Create `compact-mantine/src/components/ControlSection.module.css`:
+
 ```css
 .header {
     width: 100%;
@@ -2788,6 +2855,7 @@ Create `compact-mantine/src/components/ControlSection.module.css`:
 ```
 
 Update `compact-mantine/src/components/ControlSection.tsx`:
+
 ```typescript
 import { Box, Collapse, Group, Text, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -2850,6 +2918,7 @@ export function ControlSection({
 **Implementation**:
 
 Vite handles CSS modules automatically. Verify:
+
 - CSS is included in build output
 - Class names are properly hashed
 - Styles work when package is consumed
@@ -2865,6 +2934,7 @@ Vite handles CSS modules automatically. Verify:
 ### Testing Utilities
 
 Create `compact-mantine/tests/test-utils.tsx`:
+
 ```typescript
 import { MantineProvider } from "@mantine/core";
 import { render, type RenderOptions } from "@testing-library/react";
@@ -2896,13 +2966,13 @@ export { customRender as render };
 
 ## External Libraries Assessment
 
-| Library | Version | Purpose | Notes |
-|---------|---------|---------|-------|
-| `@mantine/core` | ^8.0.0 | Peer dependency | Required |
-| `@mantine/hooks` | ^8.0.0 | Peer dependency | Required |
-| `lucide-react` | ^0.525.0 | Icons | External (peer) |
-| `react` | >=18.0.0 | Peer dependency | Required |
-| `react-dom` | >=18.0.0 | Peer dependency | Required |
+| Library          | Version  | Purpose         | Notes           |
+| ---------------- | -------- | --------------- | --------------- |
+| `@mantine/core`  | ^8.0.0   | Peer dependency | Required        |
+| `@mantine/hooks` | ^8.0.0   | Peer dependency | Required        |
+| `lucide-react`   | ^0.525.0 | Icons           | External (peer) |
+| `react`          | >=18.0.0 | Peer dependency | Required        |
+| `react-dom`      | >=18.0.0 | Peer dependency | Required        |
 
 ---
 
@@ -2911,6 +2981,7 @@ export { customRender as render };
 ### Risk 1: Breaking Changes in graphty
 
 **Mitigation**:
+
 - Create feature branch for migration
 - Keep old code until migration is verified
 - Run full test suite before removing old code
@@ -2918,6 +2989,7 @@ export { customRender as render };
 ### Risk 2: Visual Regression
 
 **Mitigation**:
+
 - Set up Chromatic before migration
 - Capture baseline snapshots from graphty
 - Compare post-migration snapshots
@@ -2925,6 +2997,7 @@ export { customRender as render };
 ### Risk 3: TypeScript Type Mismatches
 
 **Mitigation**:
+
 - Export all types explicitly
 - Test type resolution in consumer code
 - Use `strict: true` in tsconfig
@@ -2932,6 +3005,7 @@ export { customRender as render };
 ### Risk 4: CSS Specificity Issues
 
 **Mitigation**:
+
 - Use CSS variables for dynamic values
 - Test in both light and dark modes
 - Use semantic Mantine colors
@@ -2939,6 +3013,7 @@ export { customRender as render };
 ### Risk 5: Build Output Size
 
 **Mitigation**:
+
 - Mark all dependencies as external
 - Tree-shake unused components
 - Monitor bundle size in CI

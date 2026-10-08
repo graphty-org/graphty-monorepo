@@ -185,7 +185,9 @@ describe("design 4.1: id coercion is the importer's, canonical by default for te
 describe("design 8.4: importGraph and the common options", () => {
     it("returns { snapshot, report, freeze } (plus format and sniff), frozen", async () => {
         const result = await importGraph("source,target\n1,2\n", { format: "csv" });
-        expect(Object.keys(result)).toEqual(["format", "sniff", "snapshot", "report", "freeze"]);
+        // freeze is there but not enumerable: it holds one entry per edge
+        expect(Object.keys(result)).toEqual(["format", "sniff", "snapshot", "report"]);
+        expect(result.freeze.mergedEdges).toBe(0);
         expect(Object.isFrozen(result)).toBe(true);
         expect(result.format).toBe("csv");
         expect(result.sniff).toBeNull();
@@ -606,6 +608,16 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         ],
         [LOSS.EDGE_IDS_GENERATED, "gexf", () => cycle().freeze(), { version: "1.2" }],
         [
+            LOSS.WEIGHTS_DROPPED,
+            "neo4j",
+            () => {
+                const b = cycle();
+                b.addEdge(1, 3, 2.5);
+                return b.freeze();
+            },
+            { weightColumn: null },
+        ],
+        [
             LOSS.EDGE_IDS_DROPPED,
             "pajek",
             () => {
@@ -955,6 +967,16 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
                 return b.freeze();
             },
         ],
+        [
+            LOSS.NONFINITE_AS_NULL,
+            "json",
+            () => {
+                const b = cycle();
+                b.declareNodeColumn({ name: "real", dtype: "f64" });
+                b.setNodeValue("real", 0, NaN);
+                return b.freeze();
+            },
+        ],
     ];
 
     for (const [code, format, build, options] of CASES) {
@@ -978,10 +1000,21 @@ describe("design 8.5: every LOSS code is reachable through a built-in exporter's
         expect(noteCodes(checkCapabilities(s, NO_CAPABILITIES, resolveExportOptions(undefined)))).toContain(
             LOSS.SELF_LOOPS,
         );
-        // the cases above plus this one cover the whole table
-        const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS]);
+        // W_COLUMN_DROPPED is for a plugin that writes no attributes (CheckExtras.attributes false); every
+        // built-in writes them
+        const t = new GraphBuilder({ directed: true });
+        t.addEdge(1, 2);
+        t.setNodeValue("color", 0, "red");
+        const withColumn = t.freeze();
+        expect(
+            noteCodes(
+                checkCapabilities(withColumn, NO_CAPABILITIES, resolveExportOptions(undefined), { attributes: false }),
+            ),
+        ).toContain(LOSS.COLUMN_DROPPED);
+        // the cases above plus these cover the whole table
+        const covered = new Set([...CASES.map((c) => c[0]), LOSS.SELF_LOOPS, LOSS.COLUMN_DROPPED]);
         expect([...Object.values(LOSS)].filter((code) => !covered.has(code))).toEqual([]);
-        expect(Object.keys(LOSS)).toHaveLength(40);
+        expect(Object.keys(LOSS)).toHaveLength(43);
     });
 });
 

@@ -38,6 +38,7 @@ const INHERITED = new Set([
     "remove",
     "style",
     "classList",
+    "getBoundingClientRect",
     "id",
     // Public fields whose own types declare what follows the dot.
     "scene",

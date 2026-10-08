@@ -24,7 +24,5 @@ describe("KruskalAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "kruskal");
             assert.strictEqual(AlgClass, KruskalAlgorithm);
         });
-
     });
-
 });

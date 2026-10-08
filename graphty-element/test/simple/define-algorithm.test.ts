@@ -192,9 +192,8 @@ describe("defineAlgorithm refuses a malformed definition at once", () => {
     });
 
     it("refuses a malformed option", () => {
-        const error = thrown(() =>
-            defineAlgorithm({ id: "acme-opt", options: { hops: { type: "hop" } }, node: () => 1 } as never),
-        );
+        const malformed: unknown = { id: "acme-opt", options: { hops: { type: "hop" } }, node: () => 1 };
+        const error = thrown(() => defineAlgorithm(malformed as never));
 
         assert.strictEqual(error.code, "E_BAD_COMMAND");
         assert.strictEqual(error.details.field, "options.hops.type");

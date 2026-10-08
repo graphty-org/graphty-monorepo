@@ -15,7 +15,7 @@
 import { assert, describe, test } from "vitest";
 
 import { isGraphtyError } from "../../src/errors";
-import type { Graph } from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
 /**
  * A graph over a fresh canvas with three nodes and nothing joining them yet.
@@ -23,8 +23,7 @@ import type { Graph } from "../../src/Graph";
  */
 async function makeGraph(): Promise<Graph> {
     document.body.innerHTML = '<canvas id="parallel-canvas"></canvas>';
-    const { Graph: GraphClass } = await import("../../src/Graph.js");
-    const graph = new GraphClass(document.getElementById("parallel-canvas") as HTMLCanvasElement);
+    const graph = new Graph(document.getElementById("parallel-canvas") as HTMLCanvasElement);
     await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }], undefined, { skipQueue: true });
     return graph;
 }

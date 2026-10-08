@@ -539,11 +539,7 @@ export class NodeMesh {
      * @param size - Width and height of the square canvas
      * @returns A canvas linear gradient with no stops added yet
      */
-    private static createLinearRamp(
-        ctx: ICanvasRenderingContext,
-        direction: number,
-        size: number,
-    ): ICanvasGradient {
+    private static createLinearRamp(ctx: ICanvasRenderingContext, direction: number, size: number): ICanvasGradient {
         const angle = (direction * Math.PI) / 180;
         const half = size / 2;
         const x1 = half - (Math.cos(angle) * size) / 2;

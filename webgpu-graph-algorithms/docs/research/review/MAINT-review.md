@@ -87,10 +87,10 @@ blockers.
   same way, per variant, at runtime.
 - Fix (plan text): replace `snippets` with typed functors: `readonly functors?: readonly WgslFunctor[]`
   where `WgslFunctor = { readonly slot: "visit" | "filter" | "value" | "law"; readonly params: readonly
-  [name: string, type: string][]; readonly returns: string; readonly body: string }`; the composer
+[name: string, type: string][]; readonly returns: string; readonly body: string }`; the composer
   emits a complete `fn <slot>(params) -> returns { body }` and the host kernel calls it by that fixed
   name, so a functor can reference only its parameters. Compose-time errors (`E_SHADER_COMPILE
-  { stage: "compose" }`) for an unfilled slot or an unknown slot. Turn `needs` into a list of named
+{ stage: "compose" }`) for an unfilled slot or an unknown slot. Turn `needs` into a list of named
   helper modules (`"subgroups" | "hash" | "mask" | "pos3"`), keep the prelude to constants and
   overrides only, and record in 5.1 that the compilation-info formatter subtracts the prelude and
   helper line counts so messages point at the kernel body.
@@ -103,13 +103,13 @@ blockers.
   `stats`"), 2727 ("read from `state` after each `step(1)`"), 1134-1140 (`UniformBlock` generates
   uniform structs only).
 - Claim: the host reads `speed, speedEfficiency, swing, traction, centroid xyz, radius, min xyz, max
-  xyz, cellSize, meanDisplacement, iteration, settledCount` and the trace from a storage buffer whose
+xyz, cellSize, meanDisplacement, iteration, settledCount` and the trace from a storage buffer whose
   layout is a WGSL struct `S` written by hand. `vec3` members in a struct next to `f32` scalars are
   the classic 16-byte-alignment offset trap; storage layout rules differ from uniform rules, so the
   Chromium negative test of D20 does not cover it. Every LayoutStats field, every trace-parity test
   and the grid `GridSpec` block depend on those offsets.
 - Fix (plan text): in 5.3 generalise `UniformBlock` to `StructBlock.define(fields, { layout: "uniform"
-  | "storage" })` that emits the WGSL struct text, `write(view, values)` AND `read(view): values`, and
+| "storage" })` that emits the WGSL struct text, `write(view, values)` AND `read(view): values`, and
   state that `state`, `partials`, `GridSpec` and every other host-visible block are declared through
   it; add to the 11.3 kinds a round-trip test (write on the host, copy through a trivial kernel, read
   back) per declared block on both runtimes.
@@ -168,7 +168,7 @@ blockers.
   in every override combination the package uses" -- no enumeration mechanism), 2713 ("the barrel
   export list pinned"), 2711 / 2714 (compile matrix and bind-group budget as separate tests), 1241
   (a CPU reference per primitive in `oracle.ts`), plus the monorepo side 2282-2306 (interface method
-  + `*ResultLike`), 2308-2314 (dispatcher method), 2401-2409 (element adapter).
+    - `*ResultLike`), 2308-2314 (dispatcher method), 2401-2409 (element adapter).
 - Claim: for one new algorithm the maintainer edits the kernel file(s), the driver, `types/options.ts`,
   the result type, the barrel, `GpuAccelerator` (interface and object), the accelerator mirror, the
   oracle, the differential test, the pinned export test, the compile-matrix list (however it is
@@ -215,7 +215,7 @@ blockers.
   `AlgorithmAccelerator` and `LayoutAccelerator` in 9.2 / 9.3, and state that `accelerated()` and
   `createSimulation()` throw `E_ACCELERATOR_CONTRACT` when `acc.contract !== 1`; (d) in 9.2 derive the
   method list from `typeof indexed` (`Partial<Accelerated<typeof indexed>>` with one `Widen<F64 ->
-  NumericVector>` mapped type for results) instead of hand-listing 19 methods and 12 `*ResultLike`
+NumericVector>` mapped type for results) instead of hand-listing 19 methods and 12 `*ResultLike`
   interfaces, so an algorithm added to `indexed` extends the interface without a second edit.
 
 ### MAINT-8 (major) -- the 80/80/75/80 coverage thresholds are never enforced on any lane as specified
@@ -282,7 +282,7 @@ blockers.
   `Profiler` as modules), 546-564 (class list omits `Profiler`; names `DispatchPlanner` "pure
   functions"), 886 (`planUpload(...)` "is a pure function"), 3159 (`composeWgsl`), 318
   (`AdapterSummary`), 329 (`GpuCalibration`, `CalibrateOptions`), 689 (`ForceAtlas2Params |
-  FruchtermanReingoldParams` -- everywhere else the type is `ForceAtlas2Options`), 842 (`view()` takes
+FruchtermanReingoldParams` -- everywhere else the type is `ForceAtlas2Options`), 842 (`view()` takes
   a hand-written union of eight view names while graph-format exports `ViewName`,
   `packages/graph-format/src/types/snapshot.ts` lines 226-243).
 - Claim: an implementer will create both a `WgslComposer` class and a `composeWgsl` function, or a
@@ -292,7 +292,7 @@ blockers.
   `calibrateLayout`; classes only where the class list says so); add `Profiler` to the class list;
   define `AdapterSummary`, `GpuCalibration`, `CalibrateOptions` in 3.3 or drop them; replace
   `ForceAtlas2Params` with `ForceAtlas2Options`; type `view()`'s name as `Extract<ViewName, "reverse" |
-  "coo" | ...>` so the format's union is the source.
+"coo" | ...>` so the format's union is the source.
 
 ### MAINT-12 (minor) -- `lib: DOM` for the whole package makes "the core never touches `navigator`" a lint rule instead of a compile error, and `caps.runtime` is a leak channel into the core
 
@@ -300,11 +300,11 @@ blockers.
   `navigator` typings"), 296-299 (`runtime: "browser" | "node" | "unknown"` on `GpuCaps`, "set by the
   ENTRY"), 592 (public field), 366-368 (`no-restricted-globals` lint rule as the guard), 112 (G2).
 - Claim: the probe under `review/probes/nodom/` shows `lib: ["ES2020"]` + `types: ["node",
-  "@webgpu/types"]` with the base config's `skipLibCheck: true` compiles the core and makes
+"@webgpu/types"]` with the base config's `skipLibCheck: true` compiles the core and makes
   `navigator` a TS2304 error, while the browser entry reads `globalThis.navigator` through a local
   interface. graph-format already uses `lib: ["ES2020"]` (`packages/graph-format/tsconfig.json` line
   9). A `runtime` field on the caps record is the natural place for the next `if (caps.runtime ===
-  "node")` branch; nothing in the plan reads it (2.6 explicitly sizes for the browser number).
+"node")` branch; nothing in the plan reads it (2.6 explicitly sizes for the browser number).
 - Fix (plan text): 3.1 tsconfig `lib: ["ES2020"]`; 3.4 browser entry reads
   `(globalThis as { navigator?: { gpu?: GPU } }).navigator?.gpu`; keep the lint rule as belt and
   braces; drop `runtime` from `GpuCaps` (keep it, if wanted, on `AdapterSummary` for display).
@@ -325,7 +325,7 @@ blockers.
 
 - Lines 2886-2898 (env table), 2941-2951 (staging yaml default lane env + a second `vitest run` with
   `GRAPHTY_GPU_NO_SUBGROUPS=1 ... test/primitives`), 2986-3001 (GPU lane env, `--outputJson
-  bench/results.json`, `scripts/bench-compare.mjs bench/results.json`), 3091-3096 (monorepo diff
+bench/results.json`, `scripts/bench-compare.mjs bench/results.json`), 3091-3096 (monorepo diff
   repeats the env block), 2622 (`benchmarks/results/<host>-node<version>.json`), 2664
   (`benchmarks/results/<runner-class>.json`), 3007 (`scripts/gpu-report.mjs`), 2709 (subgroup twin
   "forced ... on any adapter" by the env var), 1637 / 1262 (the repulsion epilogue and the layout
@@ -365,7 +365,7 @@ blockers.
   `maxInFlight`), 1757-1758 (7.14 lists `settleThreshold` / `settleWindow` / `iterationsPerStep` /
   `maxInFlight` as "new", GPU-only), 2344-2349 (layout-owned `ForceAtlas2Options` ALSO has
   `settleThreshold`, `settleWindow`, `iterationsPerStep`), 2352-2357 (`LayoutAccelerator.forceAtlas2?(
-  options?: ForceAtlas2Options)`), 2459 (element config `behavior.layout.maxInFlight`).
+options?: ForceAtlas2Options)`), 2459 (element config `behavior.layout.maxInFlight`).
 - Claim: the same three names in two types with two owners means two defaults to keep equal and an
   undefined precedence when both are given; `maxInFlight` is in the GPU type only, so the element's
   config value cannot reach the simulation through the typed `LayoutAccelerator` interface without a

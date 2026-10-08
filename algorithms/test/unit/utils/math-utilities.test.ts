@@ -14,13 +14,18 @@ describe("mulberry32", () => {
     });
 
     it("never returns 1 and stays in [0, 1) over a long run", () => {
+        // Count in plain code and assert once: an expect per draw makes 1.4M calls and takes seconds.
+        const outOfRange: string[] = [];
         for (const seed of [0, 1, -1, 42, 2147483647, -2147483648, Number.MAX_SAFE_INTEGER]) {
             const rand = mulberry32(seed);
             for (let i = 0; i < 200_000; i++) {
                 const x = rand();
-                expect(x >= 0 && x < 1).toBe(true);
+                if (!(x >= 0 && x < 1)) {
+                    outOfRange.push(`seed ${String(seed)} draw ${String(i)}: ${String(x)}`);
+                }
             }
         }
+        expect(outOfRange).toEqual([]);
     });
 
     it("is deterministic per seed and differs across seeds", () => {

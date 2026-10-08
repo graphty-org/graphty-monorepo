@@ -2,6 +2,7 @@ import { GraphBuilder, type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { PRECISION_CODE } from "../../../src/common/attributes.js";
+import { EMPTY_INPUT_CODE } from "../../../src/common/codes.js";
 import { INVALID_UTF8_CODE } from "../../../src/common/input.js";
 import { UNCLOSED_QUOTE_CODE } from "../../../src/formats/csv/records.js";
 import {
@@ -223,7 +224,8 @@ describe("neo4j corpus (design 16.5)", () => {
         const expectedCodes: Readonly<Record<string, string>> = {
             "binary-content.csv": INVALID_UTF8_CODE,
             "duplicate-property.csv": HEADER_CODE,
-            "empty-file.csv": HEADER_CODE,
+            // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_NEO4J_HEADER)
+            "empty-file.csv": EMPTY_INPUT_CODE,
             "header-only-relationship.csv": HEADER_CODE,
             "label-on-relationship.csv": HEADER_CODE,
             "mixed-header.csv": HEADER_CODE,

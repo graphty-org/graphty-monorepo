@@ -11,6 +11,7 @@ This implementation plan addresses 20 issues identified in the January 8, 2026 c
 ## Phase Breakdown
 
 ### Phase 1: Light/Dark Mode Color Scheme Support (MVP)
+
 **Objective**: Fix all hardcoded dark mode colors so the package works correctly in both light and dark themes
 **Duration**: 1-2 days
 
@@ -19,6 +20,7 @@ This is the highest priority phase as it addresses a fundamental theming issue a
 **Tests to Write First**:
 
 Create `compact-mantine/tests/theme/light-dark-mode.test.tsx`:
+
 ```typescript
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -62,6 +64,7 @@ describe("Light/Dark Mode Support", () => {
 ```
 
 Create visual regression story `compact-mantine/src/components/LightDarkMode.stories.tsx`:
+
 ```typescript
 import type { Meta, StoryObj } from "@storybook/react";
 import { MantineProvider } from "@mantine/core";
@@ -107,56 +110,62 @@ export const SideBySide: StoryObj = {
 **Implementation**:
 
 1. **`src/theme/styles/controls.ts`** (Issue #1):
-   - Line 72-73: Replace hardcoded dark mode color with `light-dark()` CSS function
-   ```typescript
-   // Before
-   export const compactSegmentedControlIndicatorStyles = {
-       backgroundColor: "var(--mantine-color-dark-6)",
-   };
+    - Line 72-73: Replace hardcoded dark mode color with `light-dark()` CSS function
 
-   // After
-   export const compactSegmentedControlIndicatorStyles = {
-       backgroundColor: "light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6))",
-   };
-   ```
+    ```typescript
+    // Before
+    export const compactSegmentedControlIndicatorStyles = {
+        backgroundColor: "var(--mantine-color-dark-6)",
+    };
+
+    // After
+    export const compactSegmentedControlIndicatorStyles = {
+        backgroundColor: "light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-6))",
+    };
+    ```
 
 2. **`src/components/ControlGroup.tsx`** (Issue #1):
-   - Line 25: Replace `color="gray.7"` with scheme-aware color
-   ```typescript
-   // Before
-   <Text size="xs" fw={600} c="gray.7">
+    - Line 25: Replace `color="gray.7"` with scheme-aware color
 
-   // After
-   <Text size="xs" fw={600} c="dimmed">
-   // Or use: c="light-dark(gray.7, gray.5)" via style prop if dimmed isn't right
-   ```
+    ```typescript
+    // Before
+    <Text size="xs" fw={600} c="gray.7">
+
+    // After
+    <Text size="xs" fw={600} c="dimmed">
+    // Or use: c="light-dark(gray.7, gray.5)" via style prop if dimmed isn't right
+    ```
 
 3. **`src/components/ControlSection.tsx`** (Issue #1):
-   - Line 32: Same fix as ControlGroup
-   ```typescript
-   // Before
-   <Text size="xs" fw={500} c="gray.7">
+    - Line 32: Same fix as ControlGroup
 
-   // After
-   <Text size="xs" fw={500} c="dimmed">
-   ```
+    ```typescript
+    // Before
+    <Text size="xs" fw={500} c="gray.7">
+
+    // After
+    <Text size="xs" fw={500} c="dimmed">
+    ```
 
 4. **`src/components/popout/examples/LabelSettingsPopout.tsx`** (Issue #13):
-   - Line 241: Replace hardcoded color with scheme-aware alternative
-   ```typescript
-   // Before
-   backgroundColor: "var(--mantine-color-gray-light)",
+    - Line 241: Replace hardcoded color with scheme-aware alternative
 
-   // After
-   backgroundColor: "var(--mantine-color-default)",
-   // Or: "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
-   ```
+    ```typescript
+    // Before
+    backgroundColor: "var(--mantine-color-gray-light)",
+
+    // After
+    backgroundColor: "var(--mantine-color-default)",
+    // Or: "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
+    ```
 
 **Dependencies**:
+
 - External: None (uses existing Mantine CSS functions)
 - Internal: None (foundation layer changes)
 
 **Verification**:
+
 1. Run: `cd compact-mantine && npm run storybook`
 2. Navigate to "Theme/Light-Dark Mode" story
 3. Toggle between light and dark modes using Storybook toolbar
@@ -167,12 +176,14 @@ export const SideBySide: StoryObj = {
 ---
 
 ### Phase 2: Critical Bug Fixes (High Priority Logic Issues)
+
 **Objective**: Fix the GradientEditor double onChange bug and useActualColorScheme hardcoded fallback
 **Duration**: 1-2 days
 
 **Tests to Write First**:
 
 Create/update `compact-mantine/tests/components/GradientEditor.test.tsx`:
+
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -232,6 +243,7 @@ describe("GradientEditor", () => {
 ```
 
 Update `compact-mantine/tests/hooks/useActualColorScheme.test.ts`:
+
 ```typescript
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -279,68 +291,70 @@ describe("useActualColorScheme (Issue #2)", () => {
 **Implementation**:
 
 1. **`src/hooks/useActualColorScheme.ts`** (Issue #2):
-   - Make fallback configurable with documented default
-   ```typescript
-   import { useComputedColorScheme } from "@mantine/core";
+    - Make fallback configurable with documented default
 
-   /**
-    * Hook to get the actual resolved color scheme.
-    * Resolves "auto" to the actual light/dark value based on system preference.
-    *
-    * @param fallback - Fallback color scheme when system preference cannot be determined.
-    *                   Defaults to "dark" for consistency with existing behavior.
-    * @returns "light" | "dark" - The resolved color scheme
-    *
-    * @example
-    * // Use default fallback (dark)
-    * const scheme = useActualColorScheme();
-    *
-    * // Use custom fallback
-    * const scheme = useActualColorScheme("light");
-    */
-   export function useActualColorScheme(
-       fallback: "light" | "dark" = "dark"
-   ): "light" | "dark" {
-       return useComputedColorScheme(fallback);
-   }
-   ```
+    ```typescript
+    import { useComputedColorScheme } from "@mantine/core";
+
+    /**
+     * Hook to get the actual resolved color scheme.
+     * Resolves "auto" to the actual light/dark value based on system preference.
+     *
+     * @param fallback - Fallback color scheme when system preference cannot be determined.
+     *                   Defaults to "dark" for consistency with existing behavior.
+     * @returns "light" | "dark" - The resolved color scheme
+     *
+     * @example
+     * // Use default fallback (dark)
+     * const scheme = useActualColorScheme();
+     *
+     * // Use custom fallback
+     * const scheme = useActualColorScheme("light");
+     */
+    export function useActualColorScheme(fallback: "light" | "dark" = "dark"): "light" | "dark" {
+        return useComputedColorScheme(fallback);
+    }
+    ```
 
 2. **`src/components/GradientEditor.tsx`** (Issue #3):
-   - Remove duplicate onChange calls from all handlers
-   - The `handleStopsChange` from `useUncontrolled` already calls `onChange` internally
+    - Remove duplicate onChange calls from all handlers
+    - The `handleStopsChange` from `useUncontrolled` already calls `onChange` internally
 
-   **Lines 47-52** (handleStopColorChange):
-   ```typescript
-   // Before
-   const handleStopColorChange = (index: number, color: string): void => {
-       const newStops = [..._stops];
-       newStops[index] = { ...newStops[index], color };
-       handleStopsChange(newStops);
-       onChange?.(newStops, _direction);  // REMOVE THIS LINE
-   };
+    **Lines 47-52** (handleStopColorChange):
 
-   // After
-   const handleStopColorChange = (index: number, color: string): void => {
-       const newStops = [..._stops];
-       newStops[index] = { ...newStops[index], color };
-       handleStopsChange(newStops);
-       // Note: useUncontrolled's onChange is called via handleStopsChange
-   };
-   ```
+    ```typescript
+    // Before
+    const handleStopColorChange = (index: number, color: string): void => {
+        const newStops = [..._stops];
+        newStops[index] = { ...newStops[index], color };
+        handleStopsChange(newStops);
+        onChange?.(newStops, _direction); // REMOVE THIS LINE
+    };
 
-   **Lines 54-58** (handleStopPositionChange): Remove duplicate `onChange` call
+    // After
+    const handleStopColorChange = (index: number, color: string): void => {
+        const newStops = [..._stops];
+        newStops[index] = { ...newStops[index], color };
+        handleStopsChange(newStops);
+        // Note: useUncontrolled's onChange is called via handleStopsChange
+    };
+    ```
 
-   **Lines 61-64** (handleDirectionChange): Remove duplicate `onChange` call
+    **Lines 54-58** (handleStopPositionChange): Remove duplicate `onChange` call
 
-   **Lines 66-75** (handleAddStop, handleRemoveStop): Remove duplicate `onChange` calls
+    **Lines 61-64** (handleDirectionChange): Remove duplicate `onChange` call
 
-   **Important Note**: Review the `useUncontrolled` setup to ensure it correctly calls `onChange` with both `stops` and `direction`. The current implementation has separate `useUncontrolled` hooks which may need coordination.
+    **Lines 66-75** (handleAddStop, handleRemoveStop): Remove duplicate `onChange` calls
+
+    **Important Note**: Review the `useUncontrolled` setup to ensure it correctly calls `onChange` with both `stops` and `direction`. The current implementation has separate `useUncontrolled` hooks which may need coordination.
 
 **Dependencies**:
+
 - External: None
 - Internal: None (isolated changes)
 
 **Verification**:
+
 1. Run: `npm test -- --run GradientEditor`
 2. **Expected**: All tests pass, onChange called exactly once per action
 3. Run: `npm test -- --run useActualColorScheme`
@@ -354,12 +368,14 @@ describe("useActualColorScheme (Issue #2)", () => {
 ---
 
 ### Phase 3: Accessibility Improvements
+
 **Objective**: Fix keyboard navigation and semantic markup for collapsible components
 **Duration**: 1-2 days
 
 **Tests to Write First**:
 
 Update `compact-mantine/tests/components/ControlSection.test.tsx`:
+
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -412,6 +428,7 @@ describe("ControlSection", () => {
 ```
 
 Update `compact-mantine/tests/components/ControlSubGroup.test.tsx`:
+
 ```typescript
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -449,93 +466,100 @@ describe("ControlSubGroup", () => {
 **Implementation**:
 
 1. **`src/components/ControlSection.tsx`** (Issue #4):
-   - Add `role="button"`, `tabIndex={0}`, keyboard handlers, ARIA attributes
+    - Add `role="button"`, `tabIndex={0}`, keyboard handlers, ARIA attributes
 
-   **Line 34** (Group element):
-   ```typescript
-   // Before
-   <Group justify="space-between" py={8} px={8} style={{ cursor: "pointer" }} onClick={toggle}>
+    **Line 34** (Group element):
 
-   // After
-   <Group
-       justify="space-between"
-       py={8}
-       px={8}
-       style={{ cursor: "pointer" }}
-       onClick={toggle}
-       role="button"
-       tabIndex={0}
-       aria-expanded={opened}
-       aria-controls={`control-section-${id}`}
-       onKeyDown={(e: React.KeyboardEvent) => {
-           if (e.key === "Enter" || e.key === " ") {
-               e.preventDefault();
-               toggle();
-           }
-       }}
-   >
-   ```
+    ```typescript
+    // Before
+    <Group justify="space-between" py={8} px={8} style={{ cursor: "pointer" }} onClick={toggle}>
 
-   Also add an `id` prop for accessibility association:
-   ```typescript
-   interface ControlSectionProps {
-       // ... existing props
-       id?: string;
-   }
-   ```
+    // After
+    <Group
+        justify="space-between"
+        py={8}
+        px={8}
+        style={{ cursor: "pointer" }}
+        onClick={toggle}
+        role="button"
+        tabIndex={0}
+        aria-expanded={opened}
+        aria-controls={`control-section-${id}`}
+        onKeyDown={(e: React.KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggle();
+            }
+        }}
+    >
+    ```
 
-   And use it on the Collapse content:
-   ```typescript
-   <Collapse in={opened} id={`control-section-${id}`}>
-   ```
+    Also add an `id` prop for accessibility association:
+
+    ```typescript
+    interface ControlSectionProps {
+        // ... existing props
+        id?: string;
+    }
+    ```
+
+    And use it on the Collapse content:
+
+    ```typescript
+    <Collapse in={opened} id={`control-section-${id}`}>
+    ```
 
 2. **`src/components/ControlSubGroup.tsx`** (Issues #4 & #5):
-   - Replace conditional rendering with `<Collapse>` component
-   - Add accessibility attributes to header
+    - Replace conditional rendering with `<Collapse>` component
+    - Add accessibility attributes to header
 
-   **Lines 39-43**:
-   ```typescript
-   // Before
-   {opened && (
-       <Box pl="md">
-           <Stack gap={4}>{children}</Stack>
-       </Box>
-   )}
+    **Lines 39-43**:
 
-   // After
-   import { Collapse } from "@mantine/core";
+    ```typescript
+    // Before
+    {opened && (
+        <Box pl="md">
+            <Stack gap={4}>{children}</Stack>
+        </Box>
+    )}
 
-   <Collapse in={opened}>
-       <Box pl="md">
-           <Stack gap={4}>{children}</Stack>
-       </Box>
-   </Collapse>
-   ```
+    // After
+    import { Collapse } from "@mantine/core";
 
-   **Header accessibility** (add to existing Group):
-   ```typescript
-   <Group
-       gap={4}
-       align="center"
-       style={{ cursor: "pointer" }}
-       onClick={toggle}
-       role="button"
-       tabIndex={0}
-       aria-expanded={opened}
-       onKeyDown={(e: React.KeyboardEvent) => {
-           if (e.key === "Enter" || e.key === " ") {
-               e.preventDefault();
-               toggle();
-           }
-       }}
-   >
-   ```
+    <Collapse in={opened}>
+        <Box pl="md">
+            <Stack gap={4}>{children}</Stack>
+        </Box>
+    </Collapse>
+    ```
+
+    **Header accessibility** (add to existing Group):
+
+    ```typescript
+    <Group
+        gap={4}
+        align="center"
+        style={{ cursor: "pointer" }}
+        onClick={toggle}
+        role="button"
+        tabIndex={0}
+        aria-expanded={opened}
+        onKeyDown={(e: React.KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggle();
+            }
+        }}
+    >
+    ```
 
 **Dependencies**:
+
 - External: `@mantine/core` (Collapse component - already a dependency)
 - Internal: Phase 1 (color scheme fixes should be applied first)
 
 **Verification**:
+
 1. Run: `npm test -- --run ControlSection`
 2. Run: `npm test -- --run ControlSubGroup`
 3. **Expected**: All tests pass
@@ -548,12 +572,14 @@ describe("ControlSubGroup", () => {
 ---
 
 ### Phase 4: React Hooks & Performance Fixes
+
 **Objective**: Fix useEffect dependencies, refactor complex logic, and address potential performance issues
 **Duration**: 1-2 days
 
 **Tests to Write First**:
 
 Update `compact-mantine/tests/components/popout/PopoutPanel.test.tsx`:
+
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -590,6 +616,7 @@ describe("PopoutPanel", () => {
 ```
 
 Create/update `compact-mantine/tests/components/popout/PopoutContext.test.tsx`:
+
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
@@ -632,6 +659,7 @@ describe("PopoutManagerProvider", () => {
 ```
 
 Update `compact-mantine/tests/components/StyleNumberInput.test.tsx`:
+
 ```typescript
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -665,168 +693,167 @@ describe("StyleNumberInput", () => {
 **Implementation**:
 
 1. **`src/components/popout/PopoutPanel.tsx`** (Issue #8):
-   - Add `anchorContext` to useEffect dependency array
+    - Add `anchorContext` to useEffect dependency array
 
-   **Lines 119-162** (useEffect):
-   ```typescript
-   // Add anchorContext to dependencies
-   useEffect(() => {
-       if (isOpen) {
-           let anchorElement = anchorRef?.current ?? null;
-           if (!anchorElement && anchorContext?.anchorRef.current) {
-               anchorElement = anchorContext.anchorRef.current;
-           }
-           // ... rest of positioning logic
-       }
-   }, [
-       isOpen,
-       width,
-       height,
-       gap,
-       triggerRef,
-       anchorRef,
-       placement,
-       alignment,
-       resetDragOffset,
-       isTabs,
-       defaultTabId,
-       parentId,
-       anchorContext, // ADD THIS
-   ]);
-   ```
+    **Lines 119-162** (useEffect):
+
+    ```typescript
+    // Add anchorContext to dependencies
+    useEffect(() => {
+        if (isOpen) {
+            let anchorElement = anchorRef?.current ?? null;
+            if (!anchorElement && anchorContext?.anchorRef.current) {
+                anchorElement = anchorContext.anchorRef.current;
+            }
+            // ... rest of positioning logic
+        }
+    }, [
+        isOpen,
+        width,
+        height,
+        gap,
+        triggerRef,
+        anchorRef,
+        placement,
+        alignment,
+        resetDragOffset,
+        isTabs,
+        defaultTabId,
+        parentId,
+        anchorContext, // ADD THIS
+    ]);
+    ```
 
 2. **`src/components/popout/PopoutContext.tsx`** (Issue #6):
-   - Refactor `register` function into smaller helper functions
+    - Refactor `register` function into smaller helper functions
 
-   **Lines 138-189** (register function):
-   ```typescript
-   // Add helper functions before the register function
+    **Lines 138-189** (register function):
 
-   /**
-    * Find all popout IDs that are siblings of the given parent
-    */
-   function findSiblings(
-       popouts: Map<string, PopoutState>,
-       parentId: string | undefined
-   ): string[] {
-       const siblings: string[] = [];
-       for (const [id, state] of popouts) {
-           if (state.parentId === parentId) {
-               siblings.push(id);
-           }
-       }
-       return siblings;
-   }
+    ```typescript
+    // Add helper functions before the register function
 
-   /**
-    * Find all descendant popout IDs (recursive)
-    */
-   function findDescendants(
-       popouts: Map<string, PopoutState>,
-       popoutId: string
-   ): string[] {
-       const descendants: string[] = [];
-       const queue = [popoutId];
+    /**
+     * Find all popout IDs that are siblings of the given parent
+     */
+    function findSiblings(popouts: Map<string, PopoutState>, parentId: string | undefined): string[] {
+        const siblings: string[] = [];
+        for (const [id, state] of popouts) {
+            if (state.parentId === parentId) {
+                siblings.push(id);
+            }
+        }
+        return siblings;
+    }
 
-       while (queue.length > 0) {
-           const current = queue.shift()!;
-           for (const [id, state] of popouts) {
-               if (state.parentId === current && !descendants.includes(id)) {
-                   descendants.push(id);
-                   queue.push(id);
-               }
-           }
-       }
-       return descendants;
-   }
+    /**
+     * Find all descendant popout IDs (recursive)
+     */
+    function findDescendants(popouts: Map<string, PopoutState>, popoutId: string): string[] {
+        const descendants: string[] = [];
+        const queue = [popoutId];
 
-   /**
-    * Close multiple popouts in the correct order (children first)
-    */
-   function closePopoutsInOrder(
-       popouts: Map<string, PopoutState>,
-       ids: string[]
-   ): void {
-       // Sort by depth (deepest first) to close children before parents
-       const sorted = [...ids].sort((a, b) => {
-           const depthA = getDepth(popouts, a);
-           const depthB = getDepth(popouts, b);
-           return depthB - depthA;
-       });
+        while (queue.length > 0) {
+            const current = queue.shift()!;
+            for (const [id, state] of popouts) {
+                if (state.parentId === current && !descendants.includes(id)) {
+                    descendants.push(id);
+                    queue.push(id);
+                }
+            }
+        }
+        return descendants;
+    }
 
-       for (const id of sorted) {
-           const state = popouts.get(id);
-           if (state?.isOpen) {
-               state.close();
-           }
-       }
-   }
+    /**
+     * Close multiple popouts in the correct order (children first)
+     */
+    function closePopoutsInOrder(popouts: Map<string, PopoutState>, ids: string[]): void {
+        // Sort by depth (deepest first) to close children before parents
+        const sorted = [...ids].sort((a, b) => {
+            const depthA = getDepth(popouts, a);
+            const depthB = getDepth(popouts, b);
+            return depthB - depthA;
+        });
 
-   function getDepth(popouts: Map<string, PopoutState>, id: string): number {
-       let depth = 0;
-       let current = popouts.get(id);
-       while (current?.parentId) {
-           depth++;
-           current = popouts.get(current.parentId);
-       }
-       return depth;
-   }
+        for (const id of sorted) {
+            const state = popouts.get(id);
+            if (state?.isOpen) {
+                state.close();
+            }
+        }
+    }
 
-   // Then refactor register to use these helpers
-   const register = useCallback((id: string, options: RegisterOptions) => {
-       setPopouts(prev => {
-           const newPopouts = new Map(prev);
+    function getDepth(popouts: Map<string, PopoutState>, id: string): number {
+        let depth = 0;
+        let current = popouts.get(id);
+        while (current?.parentId) {
+            depth++;
+            current = popouts.get(current.parentId);
+        }
+        return depth;
+    }
 
-           if (options.closeOnOpen) {
-               // Close siblings
-               const siblings = findSiblings(newPopouts, options.parentId);
-               closePopoutsInOrder(newPopouts, siblings.filter(s => s !== id));
-           }
+    // Then refactor register to use these helpers
+    const register = useCallback((id: string, options: RegisterOptions) => {
+        setPopouts((prev) => {
+            const newPopouts = new Map(prev);
 
-           // Register the new popout
-           newPopouts.set(id, {
-               id,
-               isOpen: true,
-               parentId: options.parentId,
-               close: options.onClose,
-           });
+            if (options.closeOnOpen) {
+                // Close siblings
+                const siblings = findSiblings(newPopouts, options.parentId);
+                closePopoutsInOrder(
+                    newPopouts,
+                    siblings.filter((s) => s !== id),
+                );
+            }
 
-           return newPopouts;
-       });
-   }, []);
-   ```
+            // Register the new popout
+            newPopouts.set(id, {
+                id,
+                isOpen: true,
+                parentId: options.parentId,
+                close: options.onClose,
+            });
+
+            return newPopouts;
+        });
+    }, []);
+    ```
 
 3. **`src/components/StyleNumberInput.tsx`** (Issue #7):
-   - Consider using useRef to track update source and avoid unnecessary sync
+    - Consider using useRef to track update source and avoid unnecessary sync
 
-   **Lines 53-59**:
-   ```typescript
-   // Option 1: Add a ref to track if update is internal
-   const isInternalChange = useRef(false);
+    **Lines 53-59**:
 
-   const [localValue, setLocalValue] = useState<string | number>(displayValue);
+    ```typescript
+    // Option 1: Add a ref to track if update is internal
+    const isInternalChange = useRef(false);
 
-   useEffect(() => {
-       // Only sync if the change came from external prop update
-       if (!isInternalChange.current) {
-           setLocalValue(_value ?? defaultValue);
-       }
-       isInternalChange.current = false;
-   }, [_value, defaultValue]);
+    const [localValue, setLocalValue] = useState<string | number>(displayValue);
 
-   // In change handler:
-   const handleChange = (newValue: string | number) => {
-       isInternalChange.current = true;
-       setLocalValue(newValue);
-       // ... rest of handler
-   };
-   ```
+    useEffect(() => {
+        // Only sync if the change came from external prop update
+        if (!isInternalChange.current) {
+            setLocalValue(_value ?? defaultValue);
+        }
+        isInternalChange.current = false;
+    }, [_value, defaultValue]);
+
+    // In change handler:
+    const handleChange = (newValue: string | number) => {
+        isInternalChange.current = true;
+        setLocalValue(newValue);
+        // ... rest of handler
+    };
+    ```
 
 **Dependencies**:
+
 - External: None
 - Internal: Phase 1-3 should be complete
 
 **Verification**:
+
 1. Run: `npm test -- --run PopoutPanel`
 2. Run: `npm test -- --run PopoutContext`
 3. Run: `npm test -- --run StyleNumberInput`
@@ -839,12 +866,14 @@ describe("StyleNumberInput", () => {
 ---
 
 ### Phase 5: Code Cleanup & Dead Code Removal
+
 **Objective**: Remove unused exports, clean up dead code, and extract magic numbers to constants
 **Duration**: 1 day
 
 **Tests to Write First**:
 
 Create `compact-mantine/tests/exports.test.ts`:
+
 ```typescript
 import { describe, it, expect } from "vitest";
 import * as exports from "../src/index";
@@ -879,107 +908,115 @@ describe("Package exports", () => {
 **Implementation**:
 
 1. **`src/theme/styles/display.ts`** (Issue #9):
-   - Remove `compactTextVars` or add comment explaining its purpose
-   ```typescript
-   // Option A: Remove if truly unused
-   // Delete lines 28-32
+    - Remove `compactTextVars` or add comment explaining its purpose
 
-   // Option B: Document for custom usage
-   /**
-    * Text CSS variables available for custom implementations.
-    * Not used by default theme but exported for advanced customization.
-    * @deprecated Consider removing in next major version if unused.
-    */
-   export const compactTextVars = { ... };
-   ```
+    ```typescript
+    // Option A: Remove if truly unused
+    // Delete lines 28-32
+
+    // Option B: Document for custom usage
+    /**
+     * Text CSS variables available for custom implementations.
+     * Not used by default theme but exported for advanced customization.
+     * @deprecated Consider removing in next major version if unused.
+     */
+    export const compactTextVars = { ... };
+    ```
 
 2. **`src/constants/colors.ts`** (Issue #10):
-   - Remove `SWATCH_COLORS` or document its purpose
-   ```typescript
-   // If only SWATCH_COLORS_HEXA is used, remove SWATCH_COLORS
-   // Before
-   export const SWATCH_COLORS = ["red", "pink", ...];
-   export const SWATCH_COLORS_HEXA = ["#e03131", ...];
+    - Remove `SWATCH_COLORS` or document its purpose
 
-   // After
-   // Remove SWATCH_COLORS, keep only SWATCH_COLORS_HEXA
-   export const SWATCH_COLORS_HEXA = ["#e03131", ...];
-   ```
+    ```typescript
+    // If only SWATCH_COLORS_HEXA is used, remove SWATCH_COLORS
+    // Before
+    export const SWATCH_COLORS = ["red", "pink", ...];
+    export const SWATCH_COLORS_HEXA = ["#e03131", ...];
+
+    // After
+    // Remove SWATCH_COLORS, keep only SWATCH_COLORS_HEXA
+    export const SWATCH_COLORS_HEXA = ["#e03131", ...];
+    ```
 
 3. **`src/constants/popout.ts`** (Issue #14):
-   - Either use `FLOATING_UI_Z_INDEX` in relevant components or remove it
-   ```typescript
-   // Option A: Use it in PopoutPanel
-   // In PopoutPanel.tsx:
-   import { FLOATING_UI_Z_INDEX } from "../constants/popout";
-   // Use for floating elements inside popouts
+    - Either use `FLOATING_UI_Z_INDEX` in relevant components or remove it
 
-   // Option B: Remove if not needed
-   // Delete FLOATING_UI_Z_INDEX from popout.ts
-   ```
+    ```typescript
+    // Option A: Use it in PopoutPanel
+    // In PopoutPanel.tsx:
+    import { FLOATING_UI_Z_INDEX } from "../constants/popout";
+    // Use for floating elements inside popouts
+
+    // Option B: Remove if not needed
+    // Delete FLOATING_UI_Z_INDEX from popout.ts
+    ```
 
 4. **`src/theme/styles/inputs.ts`** (Issue #16):
-   - Remove `compactInputVarsFn` and `compactInputVarsNoHeightFn` if unused
-   ```typescript
-   // Delete lines 41-51 if these functions are not used
-   ```
+    - Remove `compactInputVarsFn` and `compactInputVarsNoHeightFn` if unused
+
+    ```typescript
+    // Delete lines 41-51 if these functions are not used
+    ```
 
 5. **`src/utils/merge-extensions.ts`** (Issue #12):
-   - Either use `mergeExtensions` in theme/index.ts OR remove it
+    - Either use `mergeExtensions` in theme/index.ts OR remove it
 
-   **Option A: Use it (recommended for type safety)**:
-   ```typescript
-   // In src/theme/index.ts
-   import { mergeExtensions7 } from "../utils/merge-extensions";
+    **Option A: Use it (recommended for type safety)**:
 
-   // Before
-   components: {
-       ...inputExtensions,
-       ...buttonExtensions,
-       ...controlExtensions,
-       ...displayExtensions,
-       ...feedbackExtensions,
-       ...navigationExtensions,
-       ...overlayExtensions,
-   }
+    ```typescript
+    // In src/theme/index.ts
+    import { mergeExtensions7 } from "../utils/merge-extensions";
 
-   // After
-   components: mergeExtensions7(
-       inputExtensions,
-       buttonExtensions,
-       controlExtensions,
-       displayExtensions,
-       feedbackExtensions,
-       navigationExtensions,
-       overlayExtensions,
-   )
-   ```
+    // Before
+    components: {
+        ...inputExtensions,
+        ...buttonExtensions,
+        ...controlExtensions,
+        ...displayExtensions,
+        ...feedbackExtensions,
+        ...navigationExtensions,
+        ...overlayExtensions,
+    }
 
-   **Option B: Remove the utility**:
-   - Delete `src/utils/merge-extensions.ts`
-   - Update `src/utils/index.ts` to remove export
+    // After
+    components: mergeExtensions7(
+        inputExtensions,
+        buttonExtensions,
+        controlExtensions,
+        displayExtensions,
+        feedbackExtensions,
+        navigationExtensions,
+        overlayExtensions,
+    )
+    ```
+
+    **Option B: Remove the utility**:
+    - Delete `src/utils/merge-extensions.ts`
+    - Update `src/utils/index.ts` to remove export
 
 6. **Extract magic numbers** (Issue #15):
-   - Create shared spacing constants
-   ```typescript
-   // In src/constants/spacing.ts (if not already there)
-   export const SPACING = {
-       COMPACT_HEIGHT: 24,      // px - standard compact input height
-       COMPACT_FONT_SIZE: 11,   // px - standard compact font size
-       CONTROL_PADDING: 8,      // px - padding for control elements
-       SECTION_GAP: 4,          // px - gap between items in sections
-   } as const;
+    - Create shared spacing constants
 
-   // Then use in style files:
-   // Before: height: "24px"
-   // After: height: `${SPACING.COMPACT_HEIGHT}px`
-   ```
+    ```typescript
+    // In src/constants/spacing.ts (if not already there)
+    export const SPACING = {
+        COMPACT_HEIGHT: 24, // px - standard compact input height
+        COMPACT_FONT_SIZE: 11, // px - standard compact font size
+        CONTROL_PADDING: 8, // px - padding for control elements
+        SECTION_GAP: 4, // px - gap between items in sections
+    } as const;
+
+    // Then use in style files:
+    // Before: height: "24px"
+    // After: height: `${SPACING.COMPACT_HEIGHT}px`
+    ```
 
 **Dependencies**:
+
 - External: None
 - Internal: All previous phases should be complete
 
 **Verification**:
+
 1. Run: `npm test -- --run exports`
 2. **Expected**: All tests pass, no unused exports
 3. Run: `npm run lint`
@@ -993,12 +1030,12 @@ describe("Package exports", () => {
 
 ## Common Utilities Needed
 
-| Utility | Purpose | Used In |
-|---------|---------|---------|
-| `findSiblings()` | Find sibling popouts | PopoutContext (Phase 4) |
-| `findDescendants()` | Find child popouts recursively | PopoutContext (Phase 4) |
-| `closePopoutsInOrder()` | Close popouts depth-first | PopoutContext (Phase 4) |
-| `SPACING` constants | Centralized magic numbers | All style files (Phase 5) |
+| Utility                 | Purpose                        | Used In                   |
+| ----------------------- | ------------------------------ | ------------------------- |
+| `findSiblings()`        | Find sibling popouts           | PopoutContext (Phase 4)   |
+| `findDescendants()`     | Find child popouts recursively | PopoutContext (Phase 4)   |
+| `closePopoutsInOrder()` | Close popouts depth-first      | PopoutContext (Phase 4)   |
+| `SPACING` constants     | Centralized magic numbers      | All style files (Phase 5) |
 
 ---
 
@@ -1006,43 +1043,44 @@ describe("Package exports", () => {
 
 No new external libraries are needed. All fixes use existing dependencies:
 
-| Task | Existing Solution |
-|------|-------------------|
-| Light/dark mode | Mantine's `light-dark()` CSS function |
-| Collapse animation | `@mantine/core` Collapse component |
+| Task                   | Existing Solution                     |
+| ---------------------- | ------------------------------------- |
+| Light/dark mode        | Mantine's `light-dark()` CSS function |
+| Collapse animation     | `@mantine/core` Collapse component    |
 | Color scheme detection | `useComputedColorScheme` from Mantine |
-| Keyboard handling | Native React keyboard events |
+| Keyboard handling      | Native React keyboard events          |
 
 ---
 
 ## Risk Mitigation
 
-| Potential Risk | Mitigation Strategy |
-|----------------|---------------------|
-| Light mode colors look wrong | Create side-by-side Storybook story for visual QA |
-| GradientEditor onChange breaks consumers | Write comprehensive tests first, document behavior |
-| Accessibility changes break existing behavior | Test with real screen readers (VoiceOver, NVDA) |
-| PopoutContext refactor introduces bugs | Maintain exact same behavior, just cleaner code |
+| Potential Risk                                    | Mitigation Strategy                                   |
+| ------------------------------------------------- | ----------------------------------------------------- |
+| Light mode colors look wrong                      | Create side-by-side Storybook story for visual QA     |
+| GradientEditor onChange breaks consumers          | Write comprehensive tests first, document behavior    |
+| Accessibility changes break existing behavior     | Test with real screen readers (VoiceOver, NVDA)       |
+| PopoutContext refactor introduces bugs            | Maintain exact same behavior, just cleaner code       |
 | Removing unused exports breaks external consumers | Check if package is published; if so, deprecate first |
-| mergeExtensions compile errors | Test type inference before committing |
+| mergeExtensions compile errors                    | Test type inference before committing                 |
 
 ---
 
 ## Testing Strategy Summary
 
-| Phase | Unit Tests | Integration Tests | Visual Tests | Manual Tests |
-|-------|------------|-------------------|--------------|--------------|
-| 1 | Color variable output | Theme integration | Storybook light/dark | Toggle color scheme |
-| 2 | onChange call counts | Controlled/uncontrolled | GradientEditor story | Console.log verification |
-| 3 | ARIA attributes, keyboard | Focus management | Storybook interactions | Screen reader testing |
-| 4 | Hook dependencies | Popout hierarchy | Nested popouts | Performance profiling |
-| 5 | Export validation | Build verification | N/A | Bundle size check |
+| Phase | Unit Tests                | Integration Tests       | Visual Tests           | Manual Tests             |
+| ----- | ------------------------- | ----------------------- | ---------------------- | ------------------------ |
+| 1     | Color variable output     | Theme integration       | Storybook light/dark   | Toggle color scheme      |
+| 2     | onChange call counts      | Controlled/uncontrolled | GradientEditor story   | Console.log verification |
+| 3     | ARIA attributes, keyboard | Focus management        | Storybook interactions | Screen reader testing    |
+| 4     | Hook dependencies         | Popout hierarchy        | Nested popouts         | Performance profiling    |
+| 5     | Export validation         | Build verification      | N/A                    | Bundle size check        |
 
 ---
 
 ## Implementation Checklist
 
 ### Phase 1: Light/Dark Mode ☐
+
 - [ ] Create light-dark-mode.test.tsx
 - [ ] Create LightDarkMode.stories.tsx
 - [ ] Fix controls.ts line 72
@@ -1053,6 +1091,7 @@ No new external libraries are needed. All fixes use existing dependencies:
 - [ ] Run all tests
 
 ### Phase 2: Critical Bug Fixes ☐
+
 - [ ] Update GradientEditor.test.tsx
 - [ ] Update useActualColorScheme.test.ts
 - [ ] Fix useActualColorScheme.ts
@@ -1061,6 +1100,7 @@ No new external libraries are needed. All fixes use existing dependencies:
 - [ ] Run all tests
 
 ### Phase 3: Accessibility ☐
+
 - [ ] Update ControlSection.test.tsx
 - [ ] Update ControlSubGroup.test.tsx
 - [ ] Add keyboard handlers to ControlSection
@@ -1071,6 +1111,7 @@ No new external libraries are needed. All fixes use existing dependencies:
 - [ ] Run all tests
 
 ### Phase 4: React Hooks & Performance ☐
+
 - [ ] Update PopoutPanel.test.tsx
 - [ ] Update PopoutContext.test.tsx
 - [ ] Update StyleNumberInput.test.tsx
@@ -1081,6 +1122,7 @@ No new external libraries are needed. All fixes use existing dependencies:
 - [ ] Run all tests
 
 ### Phase 5: Code Cleanup ☐
+
 - [ ] Create exports.test.ts
 - [ ] Remove/document compactTextVars
 - [ ] Remove/document SWATCH_COLORS
@@ -1093,5 +1135,5 @@ No new external libraries are needed. All fixes use existing dependencies:
 
 ---
 
-*Implementation plan created: January 8, 2026*
-*Based on code review: code-review-20260108.md*
+_Implementation plan created: January 8, 2026_
+_Based on code review: code-review-20260108.md_

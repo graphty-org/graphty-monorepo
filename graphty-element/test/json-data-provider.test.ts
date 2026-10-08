@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { z } from "zod/v4";
 
-import { AdHocData } from "../src/config";
 import { DataSourceChunk } from "../src/data/DataSource";
 import { JsonDataSource, JsonDataSourceConfig } from "../src/data/JsonDataSource";
 
@@ -60,12 +59,12 @@ describe("JsonDataSource", () => {
             assert.deepStrictEqual(chunk.nodes[0], {
                 group: 1,
                 id: "Myriel",
-            } as unknown as AdHocData);
+            });
             assert.deepStrictEqual(chunk.edges[0], {
                 src: "Napoleon",
                 dst: "Myriel",
                 value: 1,
-            } as unknown as AdHocData);
+            });
         });
     });
 

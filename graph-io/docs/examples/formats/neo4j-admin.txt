@@ -1,0 +1,1 @@
+neo4j-admin database import full --nodes=nodes-Movie.csv --nodes=nodes-Person.csv --relationships=relationships-Person-Movie.csv --relationships=relationships-Person-Person.csv neo4j

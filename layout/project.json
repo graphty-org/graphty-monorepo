@@ -53,10 +53,10 @@
         "lint": {
             "executor": "nx:run-commands",
             "options": {
-                "command": "eslint && tsc --noEmit",
+                "command": "npm run lint",
                 "cwd": "layout"
             },
-            "dependsOn": ["^build"]
+            "dependsOn": ["build"]
         },
         "semantic-release": {
             "executor": "nx:run-commands",

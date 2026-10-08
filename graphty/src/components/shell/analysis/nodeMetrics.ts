@@ -52,7 +52,14 @@
  * App shell progressive disclosure design, section 6.3 (capability names), 2307 (the Node
  * metric shape) and 7.5 (readings built from these statistics).
  */
-import type { GraphSession, Histogram, RunId, RunResult } from "@graphty/graphty-element/session";
+import {
+    DEFAULT_LIMITS,
+    type GraphSession,
+    type Histogram,
+    type RunId,
+    type RunResult,
+    type TopRanking,
+} from "@graphty/graphty-element/session";
 
 import { METRIC_VALUE_FIELD } from "../defaults/styleDescriptors";
 import { formatCount } from "../readings/readingFormat";
@@ -275,6 +282,12 @@ export interface NodeMetricRanking {
      */
     readonly distribution: Histogram;
     /**
+     * The top of the ranking that fits the render ceiling, as the element cuts it: its
+     * `threshold` is where a threshold control opens with the result still drawable (spec
+     * 2376). Absent when these readings came from no result.
+     */
+    readonly drawable?: TopRanking;
+    /**
      * PageRank only, and present ONLY when the element reported a failure to converge --
      * which is why its type is `false` and not `boolean`. Absent means one of two things
      * this module cannot tell apart: the run converged, or it ran on the delta path,
@@ -396,6 +409,7 @@ function rankingFromResult(metric: NodeMetricId, result: RunResult): NodeMetricR
             bins: METRIC_DISTRIBUTION_MAX_BINS,
             scale: "auto",
         }),
+        drawable: result.top(METRIC_VALUE_FIELD, DEFAULT_LIMITS.renderCeiling),
     };
 
     if (metric !== "pagerank") {

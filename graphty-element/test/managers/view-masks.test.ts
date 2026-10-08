@@ -171,14 +171,7 @@ describe("UpdateManager view masks", () => {
         const scene = { onAfterRenderObservable: { add: () => null, remove: () => true } };
         const graphContext = { getScene: () => scene } as unknown as GraphContext;
 
-        return new UpdateManager(
-            null as never,
-            null as never,
-            null as never,
-            dataManager,
-            null as never,
-            graphContext,
-        );
+        return new UpdateManager(null as never, null as never, null as never, dataManager, null as never, graphContext);
     }
 
     /**

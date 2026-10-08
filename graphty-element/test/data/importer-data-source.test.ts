@@ -260,7 +260,7 @@ describe("DataSource.fromImporter", () => {
         await read("acme-spy", "SPY");
         assert.strictEqual(spied.mode, "exact");
 
-        const source = DataSource.get("acme-spy", { data: "SPY", mode: "slow" } as { data: string });
+        const source = DataSource.get("acme-spy", { data: "SPY", mode: "slow" });
         assert.isNotNull(source);
         for await (const chunk of source.getData()) {
             assert.isAtLeast(chunk.edges.length, 0);

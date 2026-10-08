@@ -30,7 +30,10 @@ export const NOTE_LIMITS = Object.freeze({
 const ELEMENT_FIELDS = ["id", "time", "author", "edited"] as const;
 
 /** The fields `add` takes. */
-const INPUT_FIELDS: ReadonlySet<string> = new Set(["text", "targets", "cites", "mediaType", "extensions"]);
+const INPUT_FIELDS = ["text", "targets", "cites", "mediaType", "extensions"] as const;
+
+/** The fields `update` takes. */
+const PATCH_FIELDS = [...INPUT_FIELDS, "done"] as const;
 
 /** The schema's `mediaType` pattern. */
 const MEDIA_TYPE = /^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*\/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*( *;[\x20-\x7E]*)?$/;
@@ -148,8 +151,9 @@ function utf8Bytes(json: string): number {
 /**
  * Refuse the fields graphty-element stamps, and fields no note write takes.
  * @param input - The input or patch.
+ * @param allowed - The fields the write takes.
  */
-function checkFields(input: Readonly<Record<string, unknown>>): void {
+function checkFields(input: Readonly<Record<string, unknown>>, allowed: readonly string[]): void {
     const stamped = ELEMENT_FIELDS.filter((field) => Object.hasOwn(input, field));
     if (stamped.length > 0) {
         throw refuseNote(
@@ -160,12 +164,12 @@ function checkFields(input: Readonly<Record<string, unknown>>): void {
         );
     }
 
-    const unknown = Reflect.ownKeys(input).filter((key) => typeof key !== "string" || !INPUT_FIELDS.has(key));
+    const unknown = Reflect.ownKeys(input).filter((key) => typeof key !== "string" || !allowed.includes(key));
     if (unknown.length > 0) {
         throw refuseNote(
             "E_BAD_COMMAND",
             "unknown-field",
-            `A note takes text, targets, cites, mediaType and extensions, not ${unknown.map(String).join(", ")}.`,
+            `A note takes ${allowed.join(", ")}, not ${unknown.map(String).join(", ")}.`,
             { fields: unknown.map(String) },
         );
     }
@@ -572,6 +576,7 @@ interface NoteParts {
     readonly edited: string | undefined;
     readonly cites: readonly NoteCite[] | undefined;
     readonly extensions: Readonly<Record<string, unknown>> | undefined;
+    readonly done: string | undefined;
 }
 
 /** The fields a version 1 note names; any other field of a note opened from a file is kept as read. */
@@ -585,6 +590,7 @@ const NOTE_FIELDS: ReadonlySet<string> = new Set([
     "edited",
     "cites",
     "extensions",
+    "done",
 ]);
 
 /**
@@ -643,7 +649,7 @@ export function buildNote(
     context: NoteContext,
 ): Note {
     const given = isPlain(input) ? input : {};
-    checkFields(given);
+    checkFields(given, INPUT_FIELDS);
     const text = checkText(given.text);
     const targets = targetsOf(given.targets, context);
     const cites = given.cites === undefined ? undefined : citesOf(given.cites, context);
@@ -655,7 +661,18 @@ export function buildNote(
 
     // Spelled out, so the record's keys are in the saved order (design/documents/notes.md, "Writing" rule 2).
     const { id, time, author } = minted;
-    return recordOf({ id, time, targets, text, mediaType, author, edited: undefined, cites, extensions });
+    return recordOf({
+        id,
+        time,
+        targets,
+        text,
+        mediaType,
+        author,
+        edited: undefined,
+        cites,
+        extensions,
+        done: undefined,
+    });
 }
 
 /**
@@ -669,7 +686,11 @@ export function buildNote(
  */
 export function patchNote(held: Note, patch: unknown, edited: string, context: NoteContext): Note | null {
     const given = isPlain(patch) ? patch : {};
-    checkFields(given);
+    checkFields(given, PATCH_FIELDS);
+    if (given.done !== undefined && typeof given.done !== "boolean") {
+        throw refuseNote("E_BAD_COMMAND", "bad-done", "A note's done is true or false.");
+    }
+
     const same = <T>(next: T, now: T): T => (canonicalize(next) === canonicalize(now) ? now : next);
     const text = given.text === undefined ? held.text : checkText(given.text);
     const targets = given.targets === undefined ? held.targets : same(targetsOf(given.targets, context), held.targets);
@@ -684,12 +705,18 @@ export function patchNote(held: Note, patch: unknown, edited: string, context: N
     };
     const mediaType = optional(given.mediaType, held.mediaType, checkMediaType);
     const extensions = optional(given.extensions, held.extensions, checkExtensions);
+    // Left out is unchanged; marking a done note done again keeps when it was first marked.
+    let { done } = held;
+    if (given.done !== undefined) {
+        done = given.done ? (held.done ?? edited) : undefined;
+    }
     if (
         text === held.text &&
         targets === held.targets &&
         cites === held.cites &&
         mediaType === held.mediaType &&
-        extensions === held.extensions
+        extensions === held.extensions &&
+        done === held.done
     ) {
         return null;
     }
@@ -706,6 +733,7 @@ export function patchNote(held: Note, patch: unknown, edited: string, context: N
             edited,
             cites,
             extensions,
+            done,
         },
         unknownFields(held),
     );

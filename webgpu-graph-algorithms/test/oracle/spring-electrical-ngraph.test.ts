@@ -123,7 +123,7 @@ describe("SpringElectricalOracle vs ngraph.forcelayout (theta 0, the same start;
         compare(s, 7, 5);
     });
 
-    it("the 150 / 249 story graph: one and five steps agree likewise", () => {
+    it("the 150 / 250 story graph: one and five steps agree likewise", () => {
         const s = storyGraph();
         compare(s, 42, 1);
         compare(s, 42, 5);

@@ -19,7 +19,7 @@ import { NullEngine, type Scene as BabylonScene, Scene } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
-import type { AdHocData, EdgeStyleConfig } from "../../src/config";
+import type { EdgeStyleConfig } from "../../src/config";
 import { edgeCounterOf, edgeIdOf } from "../../src/data/edgeIdentity";
 import { Edge } from "../../src/Edge";
 import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
@@ -230,7 +230,7 @@ describe("the id an edge carries", () => {
         harness = createHarness();
         harness.dataManager.addNodes([{ id: "src" }, { id: "dst" }]);
 
-        const edge = new Edge(harness.context, "src", "dst", 7, EDGE_PAINT, {} as unknown as AdHocData);
+        const edge = new Edge(harness.context, "src", "dst", 7, EDGE_PAINT, {});
 
         assert.strictEqual(edge.index, INVALID_INDEX, "index is INVALID_INDEX until the edge reaches the builder");
         assert.strictEqual(edge.id, "7", "the id is the counter it was handed, printed");

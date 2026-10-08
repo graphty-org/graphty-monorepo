@@ -800,7 +800,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * ones have it, and a third party's may not -- so it is feature-tested rather than assumed.
      */
     reheat(): void {
-        const simulation = this.#simulation as (LayoutSimulation & { reheat?: () => void }) | null;
+        const simulation: (LayoutSimulation & { reheat?: () => void }) | null = this.#simulation;
         if (typeof simulation?.reheat === "function") {
             simulation.reheat();
         }

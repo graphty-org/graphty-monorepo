@@ -85,8 +85,8 @@ describe("Network retry behavior", () => {
 
             assert.strictEqual(fetchMock.mock.calls.length, 3);
             assert.instanceOf(error, GraphtyError);
-            assert.isTrue((error).recoverable);
-            assert.strictEqual(((error).details as { status?: number }).status, 429);
+            assert.isTrue(error.recoverable);
+            assert.strictEqual((error.details as { status?: number }).status, 429);
         });
 
         test("a network failure is retried and fails after 3 attempts", async () => {

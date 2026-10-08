@@ -27,10 +27,18 @@ function getPositionBounds(positions: PositionMap): {
     let maxY = -Infinity;
 
     for (const pos of posValues) {
-        if (pos[0] < minX) {minX = pos[0];}
-        if (pos[0] > maxX) {maxX = pos[0];}
-        if (pos[1] < minY) {minY = pos[1];}
-        if (pos[1] > maxY) {maxY = pos[1];}
+        if (pos[0] < minX) {
+            minX = pos[0];
+        }
+        if (pos[0] > maxX) {
+            maxX = pos[0];
+        }
+        if (pos[1] < minY) {
+            minY = pos[1];
+        }
+        if (pos[1] > maxY) {
+            maxY = pos[1];
+        }
     }
 
     // Handle case where all positions are the same
@@ -247,8 +255,7 @@ function renderEdge(
     line.setAttribute("stroke-width", "2");
     line.setAttribute("data-source", String(edge.source));
     line.setAttribute("data-target", String(edge.target));
-    line.style.transition =
-        "x1 0.5s ease, y1 0.5s ease, x2 0.5s ease, y2 0.5s ease";
+    line.style.transition = "x1 0.5s ease, y1 0.5s ease, x2 0.5s ease, y2 0.5s ease";
     edgeGroup.appendChild(line);
 }
 
@@ -292,9 +299,7 @@ export function updatePositions(
     for (const edge of graph.edges) {
         const sourcePos = screenPositions[edge.source];
         const targetPos = screenPositions[edge.target];
-        const line = svg.querySelector(
-            `[data-source="${edge.source}"][data-target="${edge.target}"]`,
-        );
+        const line = svg.querySelector(`[data-source="${edge.source}"][data-target="${edge.target}"]`);
         if (line && sourcePos && targetPos) {
             line.setAttribute("x1", String(sourcePos.x));
             line.setAttribute("y1", String(sourcePos.y));
@@ -307,7 +312,10 @@ export function updatePositions(
 /**
  * Create the main story container with all visualization components.
  */
-export function createStoryContainer(width: number = 500, height: number = 500): {
+export function createStoryContainer(
+    width: number = 500,
+    height: number = 500,
+): {
     container: HTMLDivElement;
     svg: SVGSVGElement;
 } {

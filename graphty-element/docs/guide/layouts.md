@@ -90,7 +90,27 @@ graph.setLayout("ngraph", {
     dimensions: 3, // 2 or 3
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
+    seed: 7, // Starting positions; unset, they differ on every load
 });
+```
+
+### The same drawing every time
+
+The default layout is unseeded, so the same data can settle in a different place each time it is
+loaded. To have one file draw the same way on every load, pass a seed. A seeded layout settles in
+the same place however its nodes and edges arrive -- in one write, or split across several writes
+with frames between them:
+
+```typescript
+const element = document.querySelector("graphty-element");
+
+// Seed the default layout before the data arrives.
+element.layoutConfig = { seed: 7 };
+element.nodeData = nodes;
+element.edgeData = edges;
+
+// Or seed it by name. A different seed gives a different, equally repeatable drawing.
+await element.setLayout("force", { seed: 7 });
 ```
 
 ### d3-force (Force-Directed)

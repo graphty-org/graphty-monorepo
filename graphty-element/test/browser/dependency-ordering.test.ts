@@ -234,8 +234,7 @@ describe("Dependency Ordering", () => {
         const expectedColorObj = Color3.FromHexString(expectedColor);
         for (const node of graph.getNodes()) {
             const painted = (node.mesh as InstancedMesh).instancedBuffers?.color as
-                | { r: number; g: number; b: number }
-                | undefined;
+                { r: number; g: number; b: number } | undefined;
 
             if (painted) {
                 assert.closeTo(painted.r, expectedColorObj.r, 0.01, `Node ${node.id} instance red should match`);

@@ -65,7 +65,7 @@ async function runFrames(): Promise<void> {
     while (notifier.pending > 0) {
         const frame = frames.shift();
         assert.isDefined(frame, "a watch is queued, so a frame was requested");
-        (frame as () => void)();
+        frame();
         await drain();
     }
 }

@@ -411,9 +411,7 @@ import { createTheme, TextInput } from "@mantine/core";
 
 const theme = createTheme({
     colors: {
-        dark: [
-            /* existing palette */
-        ],
+        dark: [/* existing palette */],
     },
 
     components: {

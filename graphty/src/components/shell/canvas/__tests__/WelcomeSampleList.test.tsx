@@ -60,15 +60,15 @@ describe("WelcomeSampleList", () => {
         expect(onOpen).toHaveBeenCalledTimes(1);
     });
 
-    it("loads the sample from the keyboard, because the whole row is the control", () => {
-        const onOpen = vi.fn();
-        const { container } = render(<WelcomeSampleList samples={[sample({ onOpen })]} />);
-        const row = container.querySelector('[data-sample-row="cat-social-network"]') as HTMLElement;
+    it("opens the sample from a real button, with the link and hint beside it, not inside it", () => {
+        render(<WelcomeSampleList samples={[sample()]} />);
+        const open = screen.getByRole("button", { name: "Cat social network" });
 
-        fireEvent.keyDown(row, { key: "Enter" });
-        fireEvent.keyDown(row, { key: " " });
-
-        expect(onOpen).toHaveBeenCalledTimes(2);
+        /* A native button gets Enter and Space from the browser. Nesting the link or the
+           hint inside it would hide them from assistive technology (issue #508). */
+        expect(open.tagName).toBe("BUTTON");
+        expect(open.contains(screen.getByRole("link", { name: "graphty samples" }))).toBe(false);
+        expect(open.contains(screen.getByRole("button", { name: "Try finding the groups." }))).toBe(false);
     });
 
     it("runs the suggested card from the hint, and does NOT also fire the plain load", () => {

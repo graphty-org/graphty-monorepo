@@ -21,9 +21,9 @@ a decision marked **(screen)** names its files.
 
 Section numbers this revision claims:
 
-| Number | Owner |
-|---|---|
-| 6.11 | The pop-out rule |
+| Number | Owner            |
+| ------ | ---------------- |
+| 6.11   | The pop-out rule |
 
 One number, not five. Every other change in this revision is an amendment to a
 section that already exists, which is the discipline the tracks were run under:
@@ -38,8 +38,8 @@ Apply in this order. The first that fires wins.
    iconifies, circles or defaults away a floor item. Where a track proposal
    did, it is cut; two were (POP-9b, POP-12a).
 2. **A door is not a deletion; a circle is.** 6.10 forbids putting the reading
-   behind an *info circle* and explicitly licenses putting the full run record
-   behind a *Details chevron*. Disclosure by tier is legal; disclosure by
+   behind an _info circle_ and explicitly licenses putting the full run record
+   behind a _Details chevron_. Disclosure by tier is legal; disclosure by
    explanation is not. This is the sentence that lets track 2 exist.
 3. **A floor item may not be separated from the thing it qualifies.** The
    reading travels with its result, the departure with the channel it
@@ -73,12 +73,12 @@ Nothing new is invented. 5.1 already says "Docks resize the canvas; overlays do
 not" and already docks the slider to the top edge of the drawer, so the four
 vertical offsets fall out with no new arithmetic:
 
-| State | Toolbar bottom offset |
-|---|---|
-| nothing else on | 12 |
-| time slider on | 82 |
-| drawer open (260) | 272 |
-| drawer open with the slider docked to it | 342 |
+| State                                    | Toolbar bottom offset |
+| ---------------------------------------- | --------------------- |
+| nothing else on                          | 12                    |
+| time slider on                           | 82                    |
+| drawer open (260)                        | 272                   |
+| drawer open with the slider docked to it | 342                   |
 
 **The slider is 70 px, not 72.** TimeSlider.dc.html draws 70 and
 DataTableDrawer.dc.html draws 72; the slider's own board is authoritative. The
@@ -129,19 +129,19 @@ shape, and the closed set stays closed.
 The prompt is right that this is where track 2 could have quietly broken the
 product. The test is precedence rules 2 and 3 above, applied item by item:
 
-| Pop-out | Floor items in play | Verdict |
-|---|---|---|
-| POP-1 time slider settings | 2 (the window is a departure) | Legal. The Viewing readout stays on the slider; only the settings move |
-| POP-2 filter rule | 4 (match count) | Legal **with amendment**: the per-rule match count stays in the rule row's trailing slot; only the editing controls move |
-| POP-3 validation report | 4, 7 | Legal. The consequence sentences, the user's ids and the full-text actions all move together, with the thing they qualify |
-| POP-4 group profile | 1, 2, 3, 7 | Legal. The reading, caveats and run record stay in the inspector by construction; only the per-group detail moves, with its group |
-| POP-5 advanced parameters | 4 | Legal. Already a door in the spec; the cost estimate stays at the Run control |
-| POP-6 schema | none | Legal |
-| POP-7 run record Details | 3 | Legal, and explicitly licensed: floor 3 names the Details chevron itself |
-| POP-8 all statistics | 2 | Legal **with amendment**: the per-row caveats move with their rows, and the stub must report the computing state, or 6.2's "Computing..." guarantee breaks behind the door |
-| POP-9a selection statistics, third column | none | Legal |
-| POP-9b **attribute profile** | 7 | **CUT.** See below |
-| POP-12a **selection-set verbs** | 6 | **CUT.** See below |
+| Pop-out                                   | Floor items in play           | Verdict                                                                                                                                                                    |
+| ----------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POP-1 time slider settings                | 2 (the window is a departure) | Legal. The Viewing readout stays on the slider; only the settings move                                                                                                     |
+| POP-2 filter rule                         | 4 (match count)               | Legal **with amendment**: the per-rule match count stays in the rule row's trailing slot; only the editing controls move                                                   |
+| POP-3 validation report                   | 4, 7                          | Legal. The consequence sentences, the user's ids and the full-text actions all move together, with the thing they qualify                                                  |
+| POP-4 group profile                       | 1, 2, 3, 7                    | Legal. The reading, caveats and run record stay in the inspector by construction; only the per-group detail moves, with its group                                          |
+| POP-5 advanced parameters                 | 4                             | Legal. Already a door in the spec; the cost estimate stays at the Run control                                                                                              |
+| POP-6 schema                              | none                          | Legal                                                                                                                                                                      |
+| POP-7 run record Details                  | 3                             | Legal, and explicitly licensed: floor 3 names the Details chevron itself                                                                                                   |
+| POP-8 all statistics                      | 2                             | Legal **with amendment**: the per-row caveats move with their rows, and the stub must report the computing state, or 6.2's "Computing..." guarantee breaks behind the door |
+| POP-9a selection statistics, third column | none                          | Legal                                                                                                                                                                      |
+| POP-9b **attribute profile**              | 7                             | **CUT.** See below                                                                                                                                                         |
+| POP-12a **selection-set verbs**           | 6                             | **CUT.** See below                                                                                                                                                         |
 
 **Cut 1, POP-9b, the attribute profile.** Nine rows of the user's own attribute
 names and their top values is a scan surface made of floor-7 data. Track 2's own
@@ -170,11 +170,11 @@ Analysis as style collides with the Results tab and with the result-shapes
 table. The shapes table decides it, and the tracks' own arithmetic was wrong.
 Counting the thirteen shapes by what each writes onto the drawn graph:
 
-| writes | Shapes | Count | What a run creates |
-|---|---|---|---|
-| a value per node or per edge | Node metric, Community, Layered grouping, Edge metric, Anomaly, Category table | 6 | an encoding layer |
-| a set of nodes or edges | Path, Edge set, Removal impact, Scenarios | 4 | a highlight layer, exclusive, above the stack |
-| nothing on the drawn graph | Pair list, Temporal, Fact | 3 | no layer |
+| writes                       | Shapes                                                                         | Count | What a run creates                            |
+| ---------------------------- | ------------------------------------------------------------------------------ | ----- | --------------------------------------------- |
+| a value per node or per edge | Node metric, Community, Layered grouping, Edge metric, Anomaly, Category table | 6     | an encoding layer                             |
+| a set of nodes or edges      | Path, Edge set, Removal impact, Scenarios                                      | 4     | a highlight layer, exclusive, above the stack |
+| nothing on the drawn graph   | Pair list, Temporal, Fact                                                      | 3     | no layer                                      |
 
 Track 4 said "seven of the thirteen shapes paint nothing". Three paint nothing;
 four paint a set. The correct sentence, and the one that goes in the spec, is:
@@ -206,8 +206,8 @@ name, Loading is a state in 6.1 -- and a Load button beside a style would teach
 the wrong noun for the one thing that really does load.
 
 **The Present collision is settled by a distinction, not by a location.**
-Section 3 gives data export one home, Present. That rule is about *the graph*.
-Export of a saved thing is export of *settings that name attributes* -- a
+Section 3 gives data export one home, Present. That rule is about _the graph_.
+Export of a saved thing is export of _settings that name attributes_ -- a
 selector, an expression, a column name, an algorithm name, a checklist -- and it
 travels with the kind's own library section. Section 3's row is amended to say
 so, so the next pass does not re-centralise these into Present and re-bury them.
@@ -231,7 +231,7 @@ distinguished four boards from each other.
 2. **It is protected by floor item 6, names -- not by floor item 4.** Track 1
    proposed amending floor 4 ("what a control will do before it does it") to
    cover the reason a dialog opened. That is rejected. Floor 4 is about a
-   *control* and about a *prediction*; a dialog is not a control and its entry
+   _control_ and about a _prediction_; a dialog is not a control and its entry
    state is not a prediction. Stretching floor 4 to cover "any text that helps"
    would destroy the discipline that makes the floor a veto rather than a
    preference. The clause is protected instead as what it actually is: part of
@@ -261,31 +261,30 @@ Every decision below carries a **Direction** line. Summed:
 
 Removed (measured section heights inside the 800 px panel column):
 
-| Where | From | To | Delta |
-|---|---|---|---|
-| Filter builder, expert (POP-2) | 567 | 180 | -387 |
-| Group profile in the inspector (POP-4) | 228 | 0 | -228 |
-| Validation report (POP-3) | 282 | 32 | -250 |
-| Step through time (POP-1) | 169 | 32 | -137 |
-| All statistics (POP-8) | 149 | 32 | -117 |
-| Filter builder, simple (POP-2) | 169 | 128 | -41 |
-| Notes header controls (POP-10) | -- | -- | -64 |
-| Import policies compacted (POP-11) | 197 | 157 | -40 |
-| Advanced block off the card (POP-5) | -- | -- | about -60 per card |
-| Encoding controls off result cards (STY-5) | -- | -- | about -24 per applied card |
-| Navigation cluster off the canvas edge (TB-3) | 56 x 160 of chrome | 0 | canvas gained |
+| Where                                         | From               | To  | Delta                      |
+| --------------------------------------------- | ------------------ | --- | -------------------------- |
+| Filter builder, expert (POP-2)                | 567                | 180 | -387                       |
+| Group profile in the inspector (POP-4)        | 228                | 0   | -228                       |
+| Validation report (POP-3)                     | 282                | 32  | -250                       |
+| Step through time (POP-1)                     | 169                | 32  | -137                       |
+| All statistics (POP-8)                        | 149                | 32  | -117                       |
+| Filter builder, simple (POP-2)                | 169                | 128 | -41                        |
+| Notes header controls (POP-10)                | --                 | --  | -64                        |
+| Import policies compacted (POP-11)            | 197                | 157 | -40                        |
+| Advanced block off the card (POP-5)           | --                 | --  | about -60 per card         |
+| Encoding controls off result cards (STY-5)    | --                 | --  | about -24 per applied card |
+| Navigation cluster off the canvas edge (TB-3) | 56 x 160 of chrome | 0   | canvas gained              |
 
 Added:
 
-| Where | Cost |
-|---|---|
+| Where                                                                | Cost                                                                                                                                               |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Source section on an analysis-backed style layer (STY-3, as amended) | **+164 measured** at 280 px: a 33 px RT-8 header plus a 131 px body (reading over two lines, run record, one deviating parameter row, Open result) |
-| Five library section headers (SAV-1, SAV-5, SAV-8, SAV-9, SAV-10) | +33 each where the kind exists; an empty one is +33 with no rows |
-| Highlight layer row in the Layers list (STY-4) | +28 while one exists |
-| Four field chevrons in Loaded data (IMP-7) | +0 width, +0 height |
+| Five library section headers (SAV-1, SAV-5, SAV-8, SAV-9, SAV-10)    | +33 each where the kind exists; an empty one is +33 with no rows                                                                                   |
+| Highlight layer row in the Layers list (STY-4)                       | +28 while one exists                                                                                                                               |
+| Four field chevrons in Loaded data (IMP-7)                           | +0 width, +0 height                                                                                                                                |
 
-**Net on resident panel pixels: about -900 across the set**, dominated by track
-2. The removals total about 1,264 px on the eight measured sections before the
+**Net on resident panel pixels: about -900 across the set**, dominated by track 2. The removals total about 1,264 px on the eight measured sections before the
 per-card savings; the additions total about 357 px. Track 2 is the reason tracks 3 and 4 are affordable, and that is the whole
 architecture of this revision: one track pays for two.
 
@@ -294,16 +293,16 @@ architecture of this revision: one track pays for two.
 Honestly: **words rise slightly.** Track 2 relocates text rather than deleting
 it, so it buys pixels and not words. The additions are:
 
-| Decision | Words added | Why it is allowed |
-|---|---|---|
-| IMP-1 entry clause | +3 to +4 on each of five Import boards | floor 6, names |
-| IMP-4 recognition run record | +12 on one board | floor 3, a run record may not be shrunk to nine words |
-| IMP-5 Everything arithmetic | +14, and -1 button and -1 inline link | floor 4, the cost estimate belongs at the control |
-| IMP-9 parse-error board | +30 on a new board | floor 4, the reason a disabled control is disabled |
-| SAV-3 destination line | +9 per Save dialog and per library info circle | floor 4, what a control will do |
-| SAV-6 apply report | +12 when something did not bind | floor 2, every departure named |
-| STY-3 Source reading and caveats | +25 per analysis-backed layer | floor 1 and floor 2 |
-| STY-6 cost gate line | +11 while a re-run is pending | floor 4 |
+| Decision                         | Words added                                    | Why it is allowed                                     |
+| -------------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
+| IMP-1 entry clause               | +3 to +4 on each of five Import boards         | floor 6, names                                        |
+| IMP-4 recognition run record     | +12 on one board                               | floor 3, a run record may not be shrunk to nine words |
+| IMP-5 Everything arithmetic      | +14, and -1 button and -1 inline link          | floor 4, the cost estimate belongs at the control     |
+| IMP-9 parse-error board          | +30 on a new board                             | floor 4, the reason a disabled control is disabled    |
+| SAV-3 destination line           | +9 per Save dialog and per library info circle | floor 4, what a control will do                       |
+| SAV-6 apply report               | +12 when something did not bind                | floor 2, every departure named                        |
+| STY-3 Source reading and caveats | +25 per analysis-backed layer                  | floor 1 and floor 2                                   |
+| STY-6 cost gate line             | +11 while a re-run is pending                  | floor 4                                               |
 
 That is roughly **+120 to +150 words across 48 boards, about 1 per cent of the
 1.6 total of about 10,700.** Every one of them is a floor item or a name. No
@@ -323,16 +322,16 @@ scroll region. The three new components -- the canvas toolbar, the pop-out shell
 and the layer Source section -- were rendered privately from the VOCAB 1.7
 snippets over a `file://` URL and measured, not estimated:
 
-| Component | Claimed | Measured |
-|---|---|---|
-| Canvas toolbar, desktop | 246 x 36 | **246.00 x 36.00** |
-| Pop-out stub (RT-8 door header) | 33 | **33.00** |
-| Library section header | 33 | **33.00** |
-| Library rows, three | 84 | **84.00** |
-| Import title row with entry clause | 36 | **36.00** |
-| Recognition run-record row | 28 | **28.00** |
-| Analysis-backed layer row | 28 | **28.00** |
-| Source body at a 280 px column | -- | **131.00** |
+| Component                          | Claimed  | Measured           |
+| ---------------------------------- | -------- | ------------------ |
+| Canvas toolbar, desktop            | 246 x 36 | **246.00 x 36.00** |
+| Pop-out stub (RT-8 door header)    | 33       | **33.00**          |
+| Library section header             | 33       | **33.00**          |
+| Library rows, three                | 84       | **84.00**          |
+| Import title row with entry clause | 36       | **36.00**          |
+| Recognition run-record row         | 28       | **28.00**          |
+| Analysis-backed layer row          | 28       | **28.00**          |
+| Source body at a 280 px column     | --       | **131.00**         |
 
 The one number that came back larger than the proposal claimed is the Source
 body, and STY-3 and section J now carry the measured figure rather than the
@@ -352,13 +351,13 @@ dimmed 11 px `<file>, <size> -- <entry clause>`. The clause list grows from six
 to seven by splitting the size trigger, and the tie-break is stated
 operationally: **evaluate the list from the end; the first match wins.**
 
-| Board | Clause |
-|---|---|
-| ImportOptions | `fraud-ring-synthetic.csv, 38 KB -- guessed column` |
-| ImportRecognised | `ovarian_de_string.tsv, 212 KB -- delimited file` |
-| ImportLargeFile | `netflow-2026-q2.csv, 3.2 GB -- above the render ceiling` |
-| ImportAddToGraph | `devices-batch2.csv, 8 KB -- second file, data already loaded` |
-| ImportParseError (new, IMP-9) | `malformed-export.csv, 1.2 MB -- parse error` |
+| Board                         | Clause                                                         |
+| ----------------------------- | -------------------------------------------------------------- |
+| ImportOptions                 | `fraud-ring-synthetic.csv, 38 KB -- guessed column`            |
+| ImportRecognised              | `ovarian_de_string.tsv, 212 KB -- delimited file`              |
+| ImportLargeFile               | `netflow-2026-q2.csv, 3.2 GB -- above the render ceiling`      |
+| ImportAddToGraph              | `devices-batch2.csv, 8 KB -- second file, data already loaded` |
+| ImportParseError (new, IMP-9) | `malformed-export.csv, 1.2 MB -- parse error`                  |
 
 Note the correction track 1 found: ImportOptions was mislabelled even before
 the deletion. It has a guessed type column, and `guessed column` sits later in
@@ -689,12 +688,12 @@ in two:
   at most one per region.
 - **Tier 3b, dialog.** Scrim, focus trap, canvas frozen, one commit point.
 
-6.2's scrub clause then holds verbatim and gains a second sentence: **a control
-the user scrubs while watching the canvas is never 3a or 3b, but its settings
-may be 3a and may never be 3b.** That is what lets the time slider keep its
-transport, track, sparkline, playhead and Viewing readout on the canvas while
-its settings move into a pop-out, and it is why a pop-out may itself *contain* a
-scrub control such as the filter builder's dual-handle quantile slider.
+    6.2's scrub clause then holds verbatim and gains a second sentence: **a control
+    the user scrubs while watching the canvas is never 3a or 3b, but its settings
+    may be 3a and may never be 3b.** That is what lets the time slider keep its
+    transport, track, sparkline, playhead and Viewing readout on the canvas while
+    its settings move into a pop-out, and it is why a pop-out may itself _contain_ a
+    scrub control such as the filter builder's dual-handle quantile slider.
 
 **6.11, the rule, in one sentence:** "A pop-out is for one member of a list, or
 for a report you read once. An inline section is for the job the panel is open
@@ -722,7 +721,7 @@ to do. A dialog is only for a commit the canvas must wait on."
   Figma's constraints control has no such mark and that is its documented
   complaint (https://dev.to/goldenekpendu/what-happened-to-the-constraints-tab-figma-ui3-update-457a).
 - **The keyboard.** Hover never opens a pop-out; hover only reveals the
-  *opener*, which RT-7's hover split already permits and which RT-7 already
+  _opener_, which RT-7's hover split already permits and which RT-7 already
   makes resident on a touch pointer. Every pop-out has three routes per 6.4: a
   focusable opener in the panel's tab order whether or not it is hovered,
   opening on Enter or Space; a palette row indexed by both names; and its
@@ -797,13 +796,13 @@ name, the On switch resident in the trailing slot, and the gear.
 **Rationale.** Today the gear switches the whole left panel to Explore and
 scrolls it, which is a context switch away from the canvas the user is watching
 in order to change a number that immediately re-renders that canvas. 6.2 forbids
-making the *slider* a dialog; it never intended to forbid giving its settings a
+making the _slider_ a dialog; it never intended to forbid giving its settings a
 non-modal surface. This is Figma's split between inline typography and the type
 settings gear
 (https://help.figma.com/hc/en-us/articles/360039956634-Explore-text-properties).
 
 **Register defect fixed here.** REGISTER-1.5 gives the settings glyph the object
-title `Time slider settings (T)`, but 5.6 binds T to *toggling the slider*.
+title `Time slider settings (T)`, but 5.6 binds T to _toggling the slider_.
 Under 5.6's own rule a control may not print a binding it does not own, so the
 title becomes `Time slider settings` with no key chip.
 
@@ -911,7 +910,7 @@ user's own attribute names.
 
 **5.4 reconciliation.** 5.4 says "One result body renders on screen at a time"
 and "Reading, caveats line, run record and shape body each render exactly once".
-The pop-out is part of *one* shape body, not a second; the sentence gains a
+The pop-out is part of _one_ shape body, not a second; the sentence gains a
 clause saying so, or a reader will call this a violation.
 
 **Region multiplicity, stated rather than discovered.** The profile and POP-7's
@@ -1806,7 +1805,7 @@ as style` button. No card holds a palette, a scale or a domain.
   un-applied form.
 - `Remove result` deletes the run **and every layer that reads it, and names the
   count before the act**: `Removed Groups (granularity 2.5). Removes 1 style
-  layer. Undo` -- floor 4. A layer that reads two runs survives the removal of
+layer. Undo` -- floor 4. A layer that reads two runs survives the removal of
   one, with that binding's Source entry replaced by the row's disabled form and
   its reason.
 
@@ -1818,15 +1817,15 @@ one home.
 **The floor across the two faces**, written into the spec as a table so a later
 pass cannot lose half of it:
 
-| Floor item | Result face | Style face |
-|---|---|---|
-| 1, the reading | always, first, in full | always, first, in full, on an analysis-backed layer |
-| 2, every departure named | whenever there is one | whenever there is one; a sampled or partial run that drives a channel says so where the channel is edited |
-| 3, the one-line run record | always, with Details | always, with Details |
-| 4, before it does it | Run's three estimate bands | Re-run's three estimate bands; the layer count inside Remove result |
-| 5, the legend line | not applicable | unchanged; the block title is the run name |
-| 6, names | both names per 6.3 | the run name, or the typed name once renamed |
-| 7, the user's own data | ids, labels, values | a renamed layer never re-derives |
+| Floor item                 | Result face                | Style face                                                                                                |
+| -------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| 1, the reading             | always, first, in full     | always, first, in full, on an analysis-backed layer                                                       |
+| 2, every departure named   | whenever there is one      | whenever there is one; a sampled or partial run that drives a channel says so where the channel is edited |
+| 3, the one-line run record | always, with Details       | always, with Details                                                                                      |
+| 4, before it does it       | Run's three estimate bands | Re-run's three estimate bands; the layer count inside Remove result                                       |
+| 5, the legend line         | not applicable             | unchanged; the block title is the run name                                                                |
+| 6, names                   | both names per 6.3         | the run name, or the typed name once renamed                                                              |
+| 7, the user's own data     | ids, labels, values        | a renamed layer never re-derives                                                                          |
 
 **Artboards.** ExplorerAfterCard, CategoryTable, AnalyzePanel (no change to its
 empty Results tab).
@@ -2296,32 +2295,32 @@ and a caret flip on Main, DataTableDrawer, TimeSlider, IpadPanel, IpadInspector.
 
 ## H. Rejected
 
-| Proposal | Why |
-|---|---|
-| **Amend floor item 4 to cover the reason a dialog opened** (track 1, IMP-1) | Floor 4 is about a control and about a prediction. Stretching it to "any text that helps" destroys the discipline that makes the floor a veto. The entry clause is protected by floor 6, names, which is what it actually is |
-| **Pop out the attribute profile** (track 2, POP-9b) | Floor 7. Nine rows of the user's own attribute names and top values is a scan surface, and POP-10 already establishes that a scan surface of floor-7 data does not go behind a door |
-| **Pop out the selection-set verbs** (track 2, POP-12a) | A pop-out is for parameters and reports; a menu is for verbs. Reclassified as the set row's context menu, matching SAV-7 |
-| **Render a run's whole parameter set inline in the layer's Source** (track 4, STY-3 as proposed) | About 190 px on a panel 1.6 just cut. Rule 7a already decides it: only the deviating parameters render, the rest go behind the layer gear. Source costs about 110 px instead |
-| **`Export all saved items (JSON)` and `Import saved items...`** (track 3, SAV-12) | One step from a project file, which section 11 defers and section 12 holds open. Recorded as an input to that question, not shipped here |
-| **Select (V) and Pan (H) pointer modes** (track 5, TB-6) | Adds a concept in a subtracting revision, reopens a settled 5.6 decision, needs two new glyphs in a closed register, and breaks 3D orbit on bare touch. The real gap it found -- touch marquee -- is closed by a one-shot `Select a region` verb |
-| **A channel word on resting Suggested cards** (track 4, STY-7) | The reading's closing clause already states it at the only moment it can be checked. Refusal recorded so a later pass does not re-litigate it as an oversight |
-| **`Save as <kind>` in a panel header icon pair** (track 3, SAV-1) | REGISTER-1.5 section 1.6: import, open and save have no glyph. 6.8 caps the panel header at three icons in a fixed order, already spent |
-| **Separate artboards for the 280 and 480 pop-out cases** (track 2) | The shell is one component drawn twice, at 360, in ValidationPopout and GroupProfilePopout. TimeSliderSettings is drawn on TimeSlider, SchemaPopout on Main, FilterRulePopout on FilterBuilderExpert. Eleven new boards becomes eight |
+| Proposal                                                                                         | Why                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Amend floor item 4 to cover the reason a dialog opened** (track 1, IMP-1)                      | Floor 4 is about a control and about a prediction. Stretching it to "any text that helps" destroys the discipline that makes the floor a veto. The entry clause is protected by floor 6, names, which is what it actually is                     |
+| **Pop out the attribute profile** (track 2, POP-9b)                                              | Floor 7. Nine rows of the user's own attribute names and top values is a scan surface, and POP-10 already establishes that a scan surface of floor-7 data does not go behind a door                                                              |
+| **Pop out the selection-set verbs** (track 2, POP-12a)                                           | A pop-out is for parameters and reports; a menu is for verbs. Reclassified as the set row's context menu, matching SAV-7                                                                                                                         |
+| **Render a run's whole parameter set inline in the layer's Source** (track 4, STY-3 as proposed) | About 190 px on a panel 1.6 just cut. Rule 7a already decides it: only the deviating parameters render, the rest go behind the layer gear. Source costs about 110 px instead                                                                     |
+| **`Export all saved items (JSON)` and `Import saved items...`** (track 3, SAV-12)                | One step from a project file, which section 11 defers and section 12 holds open. Recorded as an input to that question, not shipped here                                                                                                         |
+| **Select (V) and Pan (H) pointer modes** (track 5, TB-6)                                         | Adds a concept in a subtracting revision, reopens a settled 5.6 decision, needs two new glyphs in a closed register, and breaks 3D orbit on bare touch. The real gap it found -- touch marquee -- is closed by a one-shot `Select a region` verb |
+| **A channel word on resting Suggested cards** (track 4, STY-7)                                   | The reading's closing clause already states it at the only moment it can be checked. Refusal recorded so a later pass does not re-litigate it as an oversight                                                                                    |
+| **`Save as <kind>` in a panel header icon pair** (track 3, SAV-1)                                | REGISTER-1.5 section 1.6: import, open and save have no glyph. 6.8 caps the panel header at three icons in a fixed order, already spent                                                                                                          |
+| **Separate artboards for the 280 and 480 pop-out cases** (track 2)                               | The shell is one component drawn twice, at 360, in ValidationPopout and GroupProfilePopout. TimeSliderSettings is drawn on TimeSlider, SchemaPopout on Main, FilterRulePopout on FilterBuilderExpert. Eleven new boards becomes eight            |
 
 ## I. New artboards
 
 Eight, taking the set from 40 to 48.
 
-| Board | What it draws | Why it cannot be a change to an existing board |
-|---|---|---|
-| `ImportFlow` | The seven triggers with their clauses in precedence order, the nine dialog items with four conditional bands, the five exits, the seven reopen paths, and the decision table | It is the only board in the set that draws a transition rather than a resting state, and the relationship between the four Import boards is not visible from inside any of them |
-| `ImportParseError` | The one entry state where the primary is disabled, item 8 renders, and the Parsing group opens by default | No board exercises floor 4's disabled-reason clause on the highest-stakes disabled button in the app |
-| `ValidationPopout` | A 360 activity-panel pop-out **with the Data table drawer open beneath it** | The coexistence of a left pop-out and a bottom drawer is the entire argument for 3a over 3b, and it cannot be drawn on one surface |
-| `GroupProfilePopout` | A 360 inspector pop-out anchored to a table row, with the re-targeting tether | The browsable-detail case, and the left-opening anchor |
-| `StyleLibrary` | The Styles section at rest and hovered, plus the Save as style dialog with its two off-by-default checkboxes and the destination line | It is the only place the section overflow is drawn open anywhere in the set, and the checkboxes are the schema decision made visible |
-| `SavedItems` | Settings > Data management with every kind grouped, storage used, origins, and the dimmed "For graphs you do not have open" group | The housekeeping list is a different job from the working lists and must be seen to be different |
-| `StyleFromAnalysis` | The user's own example -- MCL granularity 2.5 on the 318-node ovarian dataset -- with the Source section and the granularity mid-edit showing the cost gate | The whole of track 4 in one picture, including the canvas holding the last good colours while a re-run is pending |
-| `CanvasToolbar` | The bar at both sizes, the three-way bottom stack as a labelled slice, and the two-line minimap/legend state | A new component with a shadow, a concentric radius and four vertical offsets |
+| Board                | What it draws                                                                                                                                                                | Why it cannot be a change to an existing board                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ImportFlow`         | The seven triggers with their clauses in precedence order, the nine dialog items with four conditional bands, the five exits, the seven reopen paths, and the decision table | It is the only board in the set that draws a transition rather than a resting state, and the relationship between the four Import boards is not visible from inside any of them |
+| `ImportParseError`   | The one entry state where the primary is disabled, item 8 renders, and the Parsing group opens by default                                                                    | No board exercises floor 4's disabled-reason clause on the highest-stakes disabled button in the app                                                                            |
+| `ValidationPopout`   | A 360 activity-panel pop-out **with the Data table drawer open beneath it**                                                                                                  | The coexistence of a left pop-out and a bottom drawer is the entire argument for 3a over 3b, and it cannot be drawn on one surface                                              |
+| `GroupProfilePopout` | A 360 inspector pop-out anchored to a table row, with the re-targeting tether                                                                                                | The browsable-detail case, and the left-opening anchor                                                                                                                          |
+| `StyleLibrary`       | The Styles section at rest and hovered, plus the Save as style dialog with its two off-by-default checkboxes and the destination line                                        | It is the only place the section overflow is drawn open anywhere in the set, and the checkboxes are the schema decision made visible                                            |
+| `SavedItems`         | Settings > Data management with every kind grouped, storage used, origins, and the dimmed "For graphs you do not have open" group                                            | The housekeeping list is a different job from the working lists and must be seen to be different                                                                                |
+| `StyleFromAnalysis`  | The user's own example -- MCL granularity 2.5 on the 318-node ovarian dataset -- with the Source section and the granularity mid-edit showing the cost gate                  | The whole of track 4 in one picture, including the canvas holding the last good colours while a re-run is pending                                                               |
+| `CanvasToolbar`      | The bar at both sizes, the three-way bottom stack as a labelled slice, and the two-line minimap/legend state                                                                 | A new component with a shadow, a concentric radius and four vertical offsets                                                                                                    |
 
 `canvas.json` takes one deliberate coordinated edit: eight new entries, the four
 Import retitles of IMP-8, and the group-2 annotation count from (7) to (9). Every

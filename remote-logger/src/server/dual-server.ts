@@ -99,9 +99,7 @@ async function tryBindWithRetry(
 
             if (!quiet) {
                 // eslint-disable-next-line no-console
-                console.log(
-                    `${colors.green}HTTP server listening on ${host}:${boundPort}${colors.reset}`,
-                );
+                console.log(`${colors.green}HTTP server listening on ${host}:${boundPort}${colors.reset}`);
             }
             return { server, port: boundPort };
         } catch (err) {
@@ -116,7 +114,8 @@ async function tryBindWithRetry(
     }
 
     // Exhausted retries
-    const errorMsg = `Could not bind to any port after ${attempts} attempts. ` +
+    const errorMsg =
+        `Could not bind to any port after ${attempts} attempts. ` +
         `Ports ${startPort}-${port - 1} are all in use or were claimed during bind.`;
 
     if (!quiet) {
@@ -136,14 +135,9 @@ async function isPortAvailable(port: number, host: string): Promise<boolean> {
     return new Promise((resolve) => {
         const server = net.createServer();
 
-        // Enable SO_REUSEADDR to allow faster port reuse after server shutdown
-        server.once("error", (err: NodeJS.ErrnoException) => {
-            if (err.code === "EADDRINUSE") {
-                resolve(false);
-            } else {
-                // Other errors (permission, etc.) - port is not usable
-                resolve(false);
-            }
+        // Any bind error (in use, permission, ...) means the port is not usable
+        server.once("error", () => {
+            resolve(false);
         });
 
         server.once("listening", () => {
@@ -185,9 +179,7 @@ export async function findAvailablePort(
         if (await isPortAvailable(port, host)) {
             if (port !== basePort && !quiet) {
                 // eslint-disable-next-line no-console
-                console.log(
-                    `${colors.yellow}Port ${basePort} in use, using port ${port} instead${colors.reset}`,
-                );
+                console.log(`${colors.yellow}Port ${basePort} in use, using port ${port} instead${colors.reset}`);
             }
             return port;
         }
@@ -204,12 +196,12 @@ export async function findAvailablePort(
     }
 
     // No available port found
-    const errorMsg = `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
+    const errorMsg =
+        `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
         `Ports ${basePort}-${Math.min(port - 1, maxPort)} are all in use. ` +
         `Try killing existing processes: pkill -f "remote-log-server"`;
 
     if (!quiet) {
-
         console.error(`${colors.red}${errorMsg}${colors.reset}`);
     }
 
@@ -321,13 +313,7 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         };
 
         // Bind with retry logic to handle race conditions
-        const bindResult = await tryBindWithRetry(
-            createServerInstance,
-            startPort,
-            httpHost,
-            quiet,
-            maxPortNumber,
-        );
+        const bindResult = await tryBindWithRetry(createServerInstance, startPort, httpHost, quiet, maxPortNumber);
         httpServer = bindResult.server;
         actualHttpPort = bindResult.port;
 
@@ -411,7 +397,9 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
             activeConnections.clear();
 
             await new Promise<void>((resolve) => {
-                httpServer.close(() => { resolve(); });
+                httpServer.close(() => {
+                    resolve();
+                });
             });
         }
 

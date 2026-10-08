@@ -37,7 +37,9 @@ test("animates 2D zoom smoothly", async () => {
     const initialOrthoWidth = (cameraController.camera.orthoRight ?? 1) - (cameraController.camera.orthoLeft ?? -1);
     const targetZoom = 2.0;
 
-    const { ms } = await animationFramesOf(graph, () => graph.setCameraZoom(targetZoom, { animate: true, duration: 500 }));
+    const { ms } = await animationFramesOf(graph, () =>
+        graph.setCameraZoom(targetZoom, { animate: true, duration: 500 }),
+    );
 
     // Animation should take approximately the requested duration, in animation time
     assert.ok(ms >= 450 && ms <= 600, `Animation took ${ms}ms of animation time, expected ~500ms`);

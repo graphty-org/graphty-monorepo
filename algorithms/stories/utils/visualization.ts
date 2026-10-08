@@ -76,11 +76,7 @@ export function createSvgContainer(width: number = 500, height: number = 500): S
 /**
  * Render a graph to an SVG element.
  */
-export function renderGraph(
-    svg: SVGSVGElement,
-    graph: GeneratedGraph,
-    nodeRadius: number = 20,
-): void {
+export function renderGraph(svg: SVGSVGElement, graph: GeneratedGraph, nodeRadius: number = 20): void {
     const edgeGroup = svg.querySelector(".edges") as SVGGElement;
     const nodeGroup = svg.querySelector(".nodes") as SVGGElement;
     const labelGroup = svg.querySelector(".labels") as SVGGElement;
@@ -108,12 +104,7 @@ export function renderGraph(
 /**
  * Render a single node.
  */
-function renderNode(
-    nodeGroup: SVGGElement,
-    labelGroup: SVGGElement,
-    node: GraphNode,
-    radius: number,
-): void {
+function renderNode(nodeGroup: SVGGElement, labelGroup: SVGGElement, node: GraphNode, radius: number): void {
     // Create circle
     const circle = document.createElementNS(SVG_NS, "circle");
     circle.setAttribute("cx", String(node.x));
@@ -144,12 +135,7 @@ function renderNode(
 /**
  * Render a single edge.
  */
-function renderEdge(
-    edgeGroup: SVGGElement,
-    source: GraphNode,
-    target: GraphNode,
-    edge: GraphEdge,
-): void {
+function renderEdge(edgeGroup: SVGGElement, source: GraphNode, target: GraphNode, edge: GraphEdge): void {
     const line = document.createElementNS(SVG_NS, "line");
     line.setAttribute("x1", String(source.x));
     line.setAttribute("y1", String(source.y));
@@ -176,12 +162,7 @@ export function highlightNode(svg: SVGSVGElement, nodeId: number, state: NodeSta
 /**
  * Highlight an edge with a specific state.
  */
-export function highlightEdge(
-    svg: SVGSVGElement,
-    sourceId: number,
-    targetId: number,
-    state: EdgeState,
-): void {
+export function highlightEdge(svg: SVGSVGElement, sourceId: number, targetId: number, state: EdgeState): void {
     // Try both directions for undirected edges
     let line = svg.querySelector(`[data-source="${sourceId}"][data-target="${targetId}"]`);
     if (!line) {
@@ -291,10 +272,7 @@ export function createAnimationControls(
 /**
  * Create a data structure visualization panel (queue or stack).
  */
-export function createDataStructurePanel(
-    type: "queue" | "stack",
-    title: string,
-): HTMLDivElement {
+export function createDataStructurePanel(type: "queue" | "stack", title: string): HTMLDivElement {
     const panel = document.createElement("div");
     panel.style.cssText = `
         margin-top: 16px;
@@ -396,7 +374,10 @@ export function updateStatus(panel: HTMLDivElement, message: string): void {
 /**
  * Create the main story container with all visualization components.
  */
-export function createStoryContainer(width: number = 500, height: number = 500): {
+export function createStoryContainer(
+    width: number = 500,
+    height: number = 500,
+): {
     container: HTMLDivElement;
     svg: SVGSVGElement;
 } {

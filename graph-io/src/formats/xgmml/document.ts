@@ -6,7 +6,7 @@
  * Cytoscape does, and the `.cys` importer reuses the same records for the network and view files
  * of a session.
  *
- * It recognises the five shapes of `research-xgmml.md` section 2: the 1.0 draft, the Cytoscape
+ * It recognizes the five shapes of `research-xgmml.md` section 2: the 1.0 draft, the Cytoscape
  * 2.x export and session, the 3.x export, the 3.x session network file (root `cy:registered="0"`)
  * and the 3.x session view file (root `cy:view="1"`).
  */
@@ -14,9 +14,12 @@
 import { escapeXmlAttribute, escapeXmlText } from "../../common/escape.js";
 import { type ImportReportBuilder } from "../../common/report.js";
 import { isWhitespace, localName, type XmlHandler } from "../../common/xml.js";
-import { XGMML_ISSUE, XGMML_NAMESPACE } from "./constants.js";
+import { XGMML_ISSUE, XGMML_NAMESPACE, XLINK_NAMESPACE } from "./constants.js";
 
-/** One `<att>` and what it holds. */
+/**
+ * One `<att>` and what it holds.
+ * @category Plugin helpers
+ */
 export interface AttRec {
     /** The `name` (else `label`) attribute, or null. */
     name: string | null;
@@ -48,7 +51,10 @@ export interface AttRec {
     readonly namespace?: string | null | undefined;
 }
 
-/** A `<node>`. */
+/**
+ * A `<node>`.
+ * @category Plugin helpers
+ */
 export interface NodeRec {
     readonly kind: "node";
     /** The id (the label when the id is missing), or null for an `xlink:href` reference. */
@@ -79,7 +85,10 @@ export interface NodeRec {
     readonly viewId: string | null;
 }
 
-/** An `<edge>`. */
+/**
+ * An `<edge>`.
+ * @category Plugin helpers
+ */
 export interface EdgeRec {
     readonly kind: "edge";
     /** The id attribute, or null. */
@@ -111,7 +120,10 @@ export interface EdgeRec {
     readonly viewId: string | null;
 }
 
-/** A `<graph>`: the root, a subnetwork, a group or a nested-network pointer. */
+/**
+ * A `<graph>`: the root, a subnetwork, a group or a nested-network pointer.
+ * @category Plugin helpers
+ */
 export interface GraphRec {
     /** The id attribute, or null. */
     readonly id: string | null;
@@ -139,7 +151,10 @@ export interface GraphRec {
     readonly line: number;
 }
 
-/** A parsed document. */
+/**
+ * A parsed document.
+ * @category Plugin helpers
+ */
 export interface XgmmlDocument {
     /** The root graph. */
     readonly root: GraphRec;
@@ -157,6 +172,8 @@ export interface XgmmlDocument {
     readonly rdf: Record<string, string>;
     /** The serialized `networkMetadata` RDF, or null. */
     readonly rdfXml: string | null;
+    /** The DOCTYPE declaration as written, or null. */
+    readonly doctype: string | null;
 }
 
 /** What the parser keeps about one open element. */
@@ -167,7 +184,14 @@ type Frame =
     | { readonly kind: "att"; readonly att: AttRec; readonly owner: "graph" | "node" | "edge" | "graphics" | "att" }
     | { readonly kind: "graphics"; readonly target: GraphicsTarget }
     | { readonly kind: "line"; readonly points: Record<string, string>[] }
-    | { readonly kind: "capture"; readonly att: AttRec; depth: number }
+    | {
+          readonly kind: "capture";
+          readonly att: AttRec;
+          depth: number;
+          /** Where the captured element starts in `att.xml`, and the namespaces in scope there. */
+          start: number;
+          scope: ReadonlyMap<string, string>;
+      }
     | { readonly kind: "skip" };
 
 /** What a `<graphics>` writes into. */
@@ -214,35 +238,46 @@ const TRUE_TEXT = /^(1|true|yes)$/i;
  * Whether a Cytoscape flag text is true.
  * @param text - the text, or undefined
  * @returns true for 1, true or yes in any case
+ * @category Plugin helpers
  */
 export function isCyTrue(text: string | null | undefined): boolean {
     return text !== null && text !== undefined && TRUE_TEXT.test(text.trim());
 }
 
 /**
- * The name an XML attribute is known by, its `xlink` prefix normalised whatever prefix the file
- * binds XLink to (galFiltered.xgmml uses `ns1`).
+ * The name an XML attribute is known by, its `xlink` prefix normalized whatever prefix the file
+ * binds XLink to (galFiltered.xgmml uses `ns1`), on the element itself or on any ancestor; an
+ * unbound `xlink:` prefix is XLink too.
  * @param name - the attribute name as written
- * @param xlinkPrefixes - the prefixes bound to the XLink namespace
+ * @param scope - the namespace prefixes in scope (prefix to URI, "" for the default)
  * @returns the name with `xlink:` for XLink attributes
  */
-function normaliseName(name: string, xlinkPrefixes: ReadonlySet<string>): string {
+function normaliseName(name: string, scope: ReadonlyMap<string, string>): string {
     const colon = name.indexOf(":");
-    if (colon > 0 && xlinkPrefixes.has(name.slice(0, colon))) {
+    if (colon <= 0) {
+        return name;
+    }
+    const prefix = name.slice(0, colon);
+    if (prefix === "xlink" || scope.get(prefix) === XLINK_NAMESPACE) {
         return `xlink:${name.slice(colon + 1)}`;
     }
     return name;
 }
 
+/** The namespaces in scope outside the root element. */
+const NO_SCOPE: ReadonlyMap<string, string> = new Map();
+
 /**
  * The tokenizer handler that builds an XgmmlDocument.
+ * @category Plugin helpers
  */
 export class XgmmlParser implements XmlHandler {
     private readonly report: ImportReportBuilder;
 
     private readonly frames: Frame[] = [];
 
-    private readonly xlinkPrefixes = new Set<string>(["xlink"]);
+    /** The namespace prefixes in scope at each open element (prefix to URI, "" for the default). */
+    private readonly scopes: ReadonlyMap<string, string>[] = [];
 
     private rootGraph: GraphRec | null = null;
 
@@ -262,6 +297,8 @@ export class XgmmlParser implements XmlHandler {
     private readonly rdf: Record<string, string> = {};
 
     private rdfXml: string | null = null;
+
+    private doctypeText: string | null = null;
 
     /**
      * Create a parser.
@@ -289,7 +326,16 @@ export class XgmmlParser implements XmlHandler {
             xgmmlNamespace: this.xgmmlNamespace,
             rdf: this.rdf,
             rdfXml: this.rdfXml,
+            doctype: this.doctypeText,
         };
+    }
+
+    /**
+     * The DOCTYPE declaration.
+     * @param text - the declaration as written
+     */
+    doctype(text: string): void {
+        this.doctypeText ??= text;
     }
 
     /**
@@ -299,6 +345,7 @@ export class XgmmlParser implements XmlHandler {
      * @param line - the line
      */
     start(rawName: string, rawAttrs: ReadonlyMap<string, string>, line: number): void {
+        this.enterScope(rawAttrs);
         const top = this.frames.length === 0 ? null : this.frames[this.frames.length - 1];
         if (top === null) {
             this.startRoot(rawName, rawAttrs, line);
@@ -312,8 +359,9 @@ export class XgmmlParser implements XmlHandler {
             this.capture(top, rawName, rawAttrs);
             return;
         }
-        const attrs = this.normalise(rawAttrs);
-        const name = localName(rawName);
+        const attrs = this.normalize(rawAttrs);
+        // an element of another namespace keeps its prefix, so no XGMML element name matches it
+        const name = this.isXgmmlName(rawName) ? localName(rawName) : rawName;
         switch (top.kind) {
             case "graph":
                 this.startInGraph(top.graph, rawName, name, attrs, line);
@@ -351,6 +399,7 @@ export class XgmmlParser implements XmlHandler {
      * @param _line - the line
      */
     end(name: string, _line: number): void {
+        this.scopes.pop();
         const frame = this.frames.pop();
         const below = this.frames.length === 0 ? null : this.frames[this.frames.length - 1];
         switch (frame?.kind) {
@@ -359,7 +408,11 @@ export class XgmmlParser implements XmlHandler {
                 frame.depth--;
                 if (frame.depth > 0) {
                     this.frames.push(frame);
-                } else if (frame.att.name === "networkMetadata") {
+                    this.rdfElement = null;
+                    return;
+                }
+                frame.att.xml = bindPrefixes(frame.att.xml, frame.start, frame.scope);
+                if (frame.att.name === "networkMetadata") {
                     this.rdfXml = frame.att.xml;
                 }
                 this.rdfElement = null;
@@ -412,14 +465,41 @@ export class XgmmlParser implements XmlHandler {
     // ------------------------------------------------------------------ structure
 
     /**
+     * Open the namespace scope of an element: its parent's, plus the prefixes it declares.
+     * @param attrs - the element's attributes as written
+     */
+    private enterScope(attrs: ReadonlyMap<string, string>): void {
+        const parent = this.scopes.at(-1) ?? NO_SCOPE;
+        let scope = parent;
+        for (const [key, value] of attrs) {
+            if (key === "xmlns" || key.startsWith("xmlns:")) {
+                if (scope === parent) {
+                    scope = new Map(parent);
+                }
+                (scope as Map<string, string>).set(key === "xmlns" ? "" : key.slice(6), value);
+            }
+        }
+        this.scopes.push(scope);
+    }
+
+    /**
+     * The namespace prefixes in scope at the innermost open element.
+     * @returns prefix to URI
+     */
+    private get scope(): ReadonlyMap<string, string> {
+        return this.scopes.at(-1) ?? NO_SCOPE;
+    }
+
+    /**
      * The XML attribute map with every XLink prefix written `xlink:`.
      * @param attrs - the attributes as written
-     * @returns the normalised map
+     * @returns the normalized map
      */
-    private normalise(attrs: ReadonlyMap<string, string>): Map<string, string> {
+    private normalize(attrs: ReadonlyMap<string, string>): Map<string, string> {
         const out = new Map<string, string>();
+        const { scope } = this;
         for (const [key, value] of attrs) {
-            out.set(normaliseName(key, this.xlinkPrefixes), value);
+            out.set(normaliseName(key, scope), value);
         }
         return out;
     }
@@ -433,10 +513,7 @@ export class XgmmlParser implements XmlHandler {
     private startRoot(rawName: string, rawAttrs: ReadonlyMap<string, string>, line: number): void {
         const local = localName(rawName);
         const prefix = rawName.includes(":") ? rawName.slice(0, rawName.indexOf(":")) : null;
-        for (const [key, value] of rawAttrs) {
-            if (key.startsWith("xmlns:") && value === "http://www.w3.org/1999/xlink") {
-                this.xlinkPrefixes.add(key.slice(6));
-            }
+        for (const key of rawAttrs.keys()) {
             if (key === "xmlns:cy" || key.startsWith("cy:")) {
                 this.cytoscape = true;
             }
@@ -451,7 +528,7 @@ export class XgmmlParser implements XmlHandler {
                 { line },
             );
         }
-        const graph = this.newGraph(this.normalise(rawAttrs), line, null, null);
+        const graph = this.newGraph(this.normalize(rawAttrs), line, null, null);
         this.rootGraph = graph;
         this.frames.push({ kind: "graph", graph });
     }
@@ -524,7 +601,7 @@ export class XgmmlParser implements XmlHandler {
                 return;
             }
             case "graphics":
-                this.beginGraphics(graph, attrs);
+                this.beginGraphics(graph, attrs, line);
                 return;
             default:
                 this.unknownElement(rawName, line);
@@ -554,7 +631,7 @@ export class XgmmlParser implements XmlHandler {
                 return;
             }
             case "graphics":
-                this.beginGraphics(element, attrs);
+                this.beginGraphics(element, attrs, line);
                 return;
             default:
                 this.unknownElement(rawName, line);
@@ -591,20 +668,31 @@ export class XgmmlParser implements XmlHandler {
         }
         // a second foreign element of the same att is appended to the first
         att.xml ??= "";
-        const capture: Extract<Frame, { kind: "capture" }> = { kind: "capture", att, depth: 0 };
+        const capture: Extract<Frame, { kind: "capture" }> = {
+            kind: "capture",
+            att,
+            depth: 0,
+            start: att.xml.length,
+            scope: this.scope,
+        };
         this.frames.push(capture);
         this.capture(capture, rawName, attrs);
     }
 
     /**
-     * Whether an element name inside an att is XGMML's own (unprefixed, or with the root's prefix,
-     * as in a document whose root is `<xgmml:graph>`) rather than foreign XML such as `rdf:RDF`.
+     * Whether an element name is XGMML's own (unprefixed, with the root's prefix as in a document
+     * whose root is `<xgmml:graph>`, or with any prefix bound to the XGMML namespace) rather than
+     * foreign XML such as `rdf:RDF` or `svg:node`.
      * @param rawName - the name as written
      * @returns true for an XGMML element name
      */
     private isXgmmlName(rawName: string): boolean {
         const colon = rawName.indexOf(":");
-        return colon < 0 || (this.rootPrefix !== null && rawName.slice(0, colon) === this.rootPrefix);
+        if (colon < 0) {
+            return true;
+        }
+        const prefix = rawName.slice(0, colon);
+        return prefix === this.rootPrefix || this.scope.get(prefix) === XGMML_NAMESPACE;
     }
 
     /**
@@ -681,6 +769,9 @@ export class XgmmlParser implements XmlHandler {
         const labelAttr = attrs.get("label") ?? null;
         const nameAttr = attrs.get("name") ?? null;
         const label = labelAttr ?? nameAttr;
+        if (href !== null && id !== null) {
+            this.idAndHref("node", id, href, line);
+        }
         if (href === null && id === null) {
             if (label === null || label.length === 0) {
                 this.report.counts.skippedNodes++;
@@ -730,9 +821,13 @@ export class XgmmlParser implements XmlHandler {
      */
     private beginEdge(graph: GraphRec, attrs: Map<string, string>, line: number): void {
         const href = attrs.get("xlink:href") ?? null;
+        const id = attrs.get("id") ?? null;
+        if (href !== null && id !== null) {
+            this.idAndHref("edge", id, href, line);
+        }
         const edge: EdgeRec = {
             kind: "edge",
-            id: href === null ? (attrs.get("id") ?? null) : null,
+            id: href === null ? id : null,
             href,
             source: attrs.get("source") ?? null,
             target: attrs.get("target") ?? null,
@@ -752,6 +847,22 @@ export class XgmmlParser implements XmlHandler {
             this.edges.push(edge);
         }
         this.frames.push({ kind: "edge", edge });
+    }
+
+    /**
+     * W_XGMML_ID_AND_HREF: an element that both declares an id and references another element.
+     * @param kind - node or edge
+     * @param id - the id
+     * @param href - the reference
+     * @param line - the line
+     */
+    private idAndHref(kind: string, id: string, href: string, line: number): void {
+        this.report.warning(
+            "validation-error",
+            XGMML_ISSUE.ID_AND_HREF,
+            `<${kind}> has both id "${id}" and xlink:href "${href}"; it is read as a reference to ${href} and the id is not used`,
+            { line, element: id },
+        );
     }
 
     // ------------------------------------------------------------------ atts
@@ -818,7 +929,18 @@ export class XgmmlParser implements XmlHandler {
         frame.att.xml = `${frame.att.xml ?? ""}${tag}>`;
         frame.depth++;
         if (frame.att.name === "networkMetadata") {
-            this.rdfElement = localName(rawName);
+            const field = localName(rawName);
+            this.rdfElement = field;
+            if (this.rdf[field] !== undefined) {
+                // a second <dc:title>: the first is kept, the two are never joined
+                this.rdfElement = null;
+                this.report.warning(
+                    "validation-error",
+                    XGMML_ISSUE.DUPLICATE_ATTRIBUTE,
+                    `the network metadata gives <${rawName}> twice; the first ("${this.rdf[field]}") is kept`,
+                    { line: frame.att.line, element: field },
+                );
+            }
         }
     }
 
@@ -842,13 +964,20 @@ export class XgmmlParser implements XmlHandler {
      * attribute is kept as written, merged key by key with an earlier `<graphics>`.
      * @param target - the node, edge or graph
      * @param attrs - its attributes
+     * @param line - the line
      */
-    private beginGraphics(target: GraphicsTarget, attrs: Map<string, string>): void {
+    private beginGraphics(target: GraphicsTarget, attrs: Map<string, string>, line: number): void {
         const graphics: Record<string, unknown> = { ...(target.graphics ?? {}) };
         for (const [key, value] of attrs) {
             if ("x" in target && (key === "x" || key === "y" || key === "z")) {
+                if (target[key] !== null && target[key] !== undefined) {
+                    this.duplicateGraphics(key, line);
+                }
                 target[key] = value;
             } else if (key !== "xmlns" && !key.startsWith("xmlns:")) {
+                if (key in graphics) {
+                    this.duplicateGraphics(key, line);
+                }
                 graphics[key] = value;
             }
         }
@@ -914,7 +1043,25 @@ export class XgmmlParser implements XmlHandler {
             );
             return;
         }
+        if (target.graphics !== null && att.name in target.graphics) {
+            this.duplicateGraphics(att.name, att.line);
+        }
         target.graphics = { ...(target.graphics ?? {}), [att.name]: attJson(att) };
+    }
+
+    /**
+     * W_DUPLICATE_ATTRIBUTE for a graphics property given twice on one element (once per name).
+     * @param key - the property
+     * @param line - the line
+     */
+    private duplicateGraphics(key: string, line: number): void {
+        this.report.warnOnce(
+            "validation-error",
+            XGMML_ISSUE.DUPLICATE_ATTRIBUTE,
+            `the graphics property "${key}" is given twice on one element; the later value is kept`,
+            { line, element: key },
+            `${XGMML_ISSUE.DUPLICATE_ATTRIBUTE}:graphics:${key}`,
+        );
     }
 }
 
@@ -923,6 +1070,7 @@ export class XgmmlParser implements XmlHandler {
  * the parent's name (Cytoscape 3 lists), or are several that share one name (2.x bend handles).
  * @param att - the att
  * @returns true for a list
+ * @category Plugin helpers
  */
 export function isListLike(att: AttRec): boolean {
     const names = new Set(att.children.map((c) => c.name));
@@ -939,6 +1087,7 @@ export function isListLike(att: AttRec): boolean {
  * else its other XML attributes (a 2.x bend handle's x and y), else null.
  * @param att - the att
  * @returns the value
+ * @category Plugin helpers
  */
 export function attJson(att: AttRec): unknown {
     if (att.children.length === 0) {
@@ -955,6 +1104,35 @@ export function attJson(att: AttRec): unknown {
         out[child.name ?? ""] = attJson(child);
     }
     return out;
+}
+
+/**
+ * Declare on a captured element the namespace prefixes the captured XML uses but does not bind
+ * itself, so the stored XML is namespace-well-formed on its own.
+ * @param xml - the captured XML of the att
+ * @param start - where the captured element starts in it
+ * @param scope - the namespaces in scope at the captured element
+ * @returns the XML with the declarations added to the captured element's start tag
+ */
+function bindPrefixes(xml: string, start: number, scope: ReadonlyMap<string, string>): string {
+    const segment = xml.slice(start);
+    const used = new Set<string>();
+    for (const match of segment.matchAll(/<\/?([A-Za-z_][\w.-]*):|\s([A-Za-z_][\w.-]*):[\w.-]+="/g)) {
+        used.add(match[1] ?? match[2]);
+    }
+    let declarations = "";
+    for (const prefix of used) {
+        const uri = scope.get(prefix);
+        if (prefix !== "xmlns" && prefix !== "xml" && uri !== undefined && !segment.includes(` xmlns:${prefix}="`)) {
+            declarations += ` xmlns:${prefix}="${escapeXmlAttribute(uri)}"`;
+        }
+    }
+    if (declarations.length === 0) {
+        return xml;
+    }
+    const nameEnd = xml.slice(start).search(/[\s>]/);
+    const at = start + (nameEnd < 0 ? segment.length : nameEnd);
+    return `${xml.slice(0, at)}${declarations}${xml.slice(at)}`;
 }
 
 /**

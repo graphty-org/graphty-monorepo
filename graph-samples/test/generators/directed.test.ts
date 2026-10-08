@@ -60,27 +60,65 @@ function inDegrees(g: SampleGraph): number[] {
 
 describe("kroneckerGraph", () => {
     it("has k^power nodes and round(S^power) edges by default", () => {
-        const g = kroneckerGraph({ initiator: [[0.9, 0.5], [0.5, 0.1]], power: 10, seed: 1 });
+        const g = kroneckerGraph({
+            initiator: [
+                [0.9, 0.5],
+                [0.5, 0.1],
+            ],
+            power: 10,
+            seed: 1,
+        });
         expect(g.directed).toBe(true);
         expect(g.nodeCount).toBe(1024);
         expect(g.src.length).toBe(Math.round(2 ** 10));
-        expect(kroneckerGraph({ initiator: [[1, 1, 0], [1, 0, 1], [0, 1, 1]], power: 3, edges: 50 }).src.length).toBe(50);
+        expect(
+            kroneckerGraph({
+                initiator: [
+                    [1, 1, 0],
+                    [1, 0, 1],
+                    [0, 1, 1],
+                ],
+                power: 3,
+                edges: 50,
+            }).src.length,
+        ).toBe(50);
         expect(kroneckerGraph({ initiator: [[0.5]], power: 5, seed: 1 }).nodeCount).toBe(1);
     });
 
     it("never picks a zero cell of the initiator", () => {
         // no (1, 0) cell: every source digit is <= its target digit
-        const upper = kroneckerGraph({ initiator: [[0.9, 0.5], [0, 0.6]], power: 8, seed: 2 });
+        const upper = kroneckerGraph({
+            initiator: [
+                [0.9, 0.5],
+                [0, 0.6],
+            ],
+            power: 8,
+            seed: 2,
+        });
         for (const [u, v] of pairs(upper)) {
             expect(u & ~v).toBe(0);
         }
         // a diagonal initiator gives only self-loops
-        const diagonal = kroneckerGraph({ initiator: [[0.9, 0], [0, 0.9]], power: 6, seed: 2 });
+        const diagonal = kroneckerGraph({
+            initiator: [
+                [0.9, 0],
+                [0, 0.9],
+            ],
+            power: 6,
+            seed: 2,
+        });
         expect(pairs(diagonal).every(([u, v]) => u === v)).toBe(true);
     });
 
     it("erases self-loops and repeated pairs, keeping the first occurrence", () => {
-        const options = { initiator: [[0.9, 0.6], [0.6, 0.2]], power: 5, seed: 4 };
+        const options = {
+            initiator: [
+                [0.9, 0.6],
+                [0.6, 0.2],
+            ],
+            power: 5,
+            seed: 4,
+        };
         const raw = kroneckerGraph(options);
         const clean = kroneckerGraph({ ...options, selfLoops: "erase", multiEdges: "erase" });
         const seen = new Set<string>();
@@ -101,7 +139,14 @@ describe("kroneckerGraph", () => {
     });
 
     it("permutes node labels without changing the degree sequence", () => {
-        const options = { initiator: [[0.9, 0.5], [0.5, 0.1]], power: 8, seed: 3 };
+        const options = {
+            initiator: [
+                [0.9, 0.5],
+                [0.5, 0.1],
+            ],
+            power: 8,
+            seed: 3,
+        };
         const plain = kroneckerGraph(options);
         const permuted = kroneckerGraph({ ...options, permute: true });
         expect(graphHash(permuted)).not.toBe(graphHash(plain));
@@ -113,12 +158,20 @@ describe("kroneckerGraph", () => {
         expect(() => kroneckerGraph({ initiator: [[0.5, 0.5], [0.5]], power: 2 })).toThrow(RangeError);
         expect(() => kroneckerGraph({ initiator: [[1.5]], power: 2 })).toThrow(RangeError);
         expect(() => kroneckerGraph({ initiator: [[0.5]], power: 0 })).toThrow(RangeError);
-        expect(() => kroneckerGraph({ initiator: [[0.5, 0.5], [0.5, 0.5]], power: 33 })).toThrow(RangeError);
+        expect(() =>
+            kroneckerGraph({
+                initiator: [
+                    [0.5, 0.5],
+                    [0.5, 0.5],
+                ],
+                power: 33,
+            }),
+        ).toThrow(RangeError);
         expect(() => kroneckerGraph({ initiator: [[0.5]], power: 2, edges: -1 })).toThrow(RangeError);
         expect(() => kroneckerGraph({ initiator: [[0]], power: 2, edges: 3 })).toThrow(RangeError);
-        expect(() =>
-            kroneckerGraph({ initiator: [[0.5]], power: 2, selfLoops: "drop" as unknown as "erase" }),
-        ).toThrow(RangeError);
+        expect(() => kroneckerGraph({ initiator: [[0.5]], power: 2, selfLoops: "drop" as unknown as "erase" })).toThrow(
+            RangeError,
+        );
         expect(kroneckerGraph({ initiator: [[0]], power: 2 }).src.length).toBe(0);
     });
 });
@@ -146,13 +199,32 @@ describe("rmatGraph", () => {
     });
 
     it("erases, permutes and goes undirected", () => {
-        const g = rmatGraph({ scale: 8, edgeFactor: 8, seed: 2, selfLoops: "erase", multiEdges: "erase", permute: true });
+        const g = rmatGraph({
+            scale: 8,
+            edgeFactor: 8,
+            seed: 2,
+            selfLoops: "erase",
+            multiEdges: "erase",
+            permute: true,
+        });
         expectSimple(g);
         expect(g.src.length).toBeLessThan(8 * 256);
-        const u = rmatGraph({ scale: 8, edgeFactor: 8, seed: 2, directed: false, multiEdges: "erase", selfLoops: "erase" });
+        const u = rmatGraph({
+            scale: 8,
+            edgeFactor: 8,
+            seed: 2,
+            directed: false,
+            multiEdges: "erase",
+            selfLoops: "erase",
+        });
         expect(u.directed).toBe(false);
         expectSimple(u);
-        const weighted = rmatGraph({ scale: 6, seed: 2, selfLoops: "erase", weights: { kind: "integer", min: 1, max: 10 } });
+        const weighted = rmatGraph({
+            scale: 6,
+            seed: 2,
+            selfLoops: "erase",
+            weights: { kind: "integer", min: 1, max: 10 },
+        });
         expect(weighted.weights?.every((w) => w >= 1 && w <= 10 && Number.isInteger(w))).toBe(true);
     });
 
@@ -286,7 +358,18 @@ describe("directed Erdos-Renyi", () => {
 
 describe("determinism", () => {
     const makers: readonly (readonly [string, (seed?: number) => SampleGraph])[] = [
-        ["kroneckerGraph", (seed) => kroneckerGraph({ initiator: [[0.9, 0.5], [0.5, 0.1]], power: 7, seed })],
+        [
+            "kroneckerGraph",
+            (seed) =>
+                kroneckerGraph({
+                    initiator: [
+                        [0.9, 0.5],
+                        [0.5, 0.1],
+                    ],
+                    power: 7,
+                    seed,
+                }),
+        ],
         ["rmatGraph", (seed) => rmatGraph({ scale: 7, edgeFactor: 4, permute: true, seed })],
         ["priceGraph", (seed) => priceGraph({ n: 200, citations: 3, seed })],
         ["randomOrderDagGraph", (seed) => randomOrderDagGraph({ n: 200, p: 0.05, seed })],

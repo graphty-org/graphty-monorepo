@@ -2119,9 +2119,6 @@
               0
             ]
           }
-        ],
-        "warnings": [
-          "W_MULTIPLE_GRAPHS"
         ]
       },
       "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
@@ -2484,14 +2481,14 @@
     },
     {
       "file": "authored/multi-key-fragment.cx",
-      "exercises": "a fragment with two keys: the first is read, the others reported",
+      "exercises": "a fragment with two array-valued keys: each is read as its own fragment, with a warning",
       "oracle": "spec",
       "expected": {
         "outcome": "pass",
         "nodes": 2,
-        "edges": 0,
+        "edges": 1,
         "warnings": [
-          "E_BAD_ASPECT_BLOCK"
+          "W_MULTI_ASPECT_FRAGMENT"
         ]
       },
       "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
@@ -2837,6 +2834,228 @@
       "origin": "authored (test/conformance/tools/make_cx_fixtures.py)",
       "license": "MIT (authored for graph-io)",
       "version": "2026-10-02"
+    },
+    {
+      "file": "graph-io/graphml-string-ids.cx",
+      "exercises": "a graph-io export (sanitizeIds mangle) of the GraphML corpus file simple.graphml: renumbered ids with graphty:originalId, labels as n, weights, cyTableColumn; read without restoring the ids, as NDEx does",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 5,
+        "edges": 5,
+        "directed": true,
+        "nodeIds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "labels": [
+          "Node A",
+          "Node B",
+          "Node C",
+          "Node D",
+          "Node E"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 0,
+            "column": "graphty:originalId",
+            "value": "n0"
+          },
+          {
+            "id": 1,
+            "column": "graphty:originalId",
+            "value": "n1"
+          },
+          {
+            "id": 2,
+            "column": "graphty:originalId",
+            "value": "n2"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 0,
+            "target": 1
+          },
+          {
+            "source": 0,
+            "target": 2
+          },
+          {
+            "source": 1,
+            "target": 3
+          }
+        ]
+      },
+      "options": {
+        "restoreMangledIds": false
+      },
+      "origin": "graph-io cxExporter, from test/corpus/graphml/simple.graphml",
+      "license": "MIT (graph-io)",
+      "version": "graph-io export"
+    },
+    {
+      "file": "graph-io/from-cx2-demo.cx",
+      "exercises": "a graph-io export of the CX2 corpus file demo.cx2: typed attributes, nested values as JSON text, a layout with screen coordinates, network attributes",
+      "oracle": "ndex2-3.12.0",
+      "expected": {
+        "outcome": "pass",
+        "nodes": 6,
+        "edges": 6,
+        "directed": true,
+        "nodeIds": [
+          103,
+          115,
+          119,
+          123,
+          124
+        ],
+        "labels": [
+          "764",
+          "753",
+          "751",
+          "721",
+          "747"
+        ],
+        "nodeAttrs": [
+          {
+            "id": 103,
+            "role": "position",
+            "value": [
+              123.14439392089844,
+              297.13177490234375,
+              0
+            ]
+          },
+          {
+            "id": 103,
+            "column": "Size",
+            "value": 19
+          },
+          {
+            "id": 103,
+            "column": "align_fdr",
+            "value": -1.0
+          },
+          {
+            "id": 103,
+            "column": "align_score",
+            "value": -1.0
+          },
+          {
+            "id": 103,
+            "column": "annot",
+            "value": "COMP:764"
+          },
+          {
+            "id": 115,
+            "role": "position",
+            "value": [
+              193.3593292236328,
+              287.2551574707031,
+              0
+            ]
+          },
+          {
+            "id": 115,
+            "column": "Size",
+            "value": 11
+          },
+          {
+            "id": 115,
+            "column": "align_fdr",
+            "value": -1.0
+          },
+          {
+            "id": 115,
+            "column": "align_score",
+            "value": -1.0
+          },
+          {
+            "id": 115,
+            "column": "annot",
+            "value": "COMP:753"
+          },
+          {
+            "id": 119,
+            "role": "position",
+            "value": [
+              256.8421630859375,
+              292.45574951171875,
+              0
+            ]
+          },
+          {
+            "id": 119,
+            "column": "Size",
+            "value": 9
+          },
+          {
+            "id": 119,
+            "column": "align_fdr",
+            "value": -1.0
+          },
+          {
+            "id": 119,
+            "column": "align_score",
+            "value": -1.0
+          },
+          {
+            "id": 119,
+            "column": "annot",
+            "value": "COMP:751"
+          }
+        ],
+        "edgeChecks": [
+          {
+            "source": 115,
+            "target": 119
+          },
+          {
+            "source": 124,
+            "target": 123
+          },
+          {
+            "source": 119,
+            "target": 123
+          }
+        ],
+        "edgeAttrs": [
+          {
+            "source": 115,
+            "target": 119,
+            "column": "interaction",
+            "value": "interacts with"
+          },
+          {
+            "source": 115,
+            "target": 119,
+            "column": "Is_Tree_Edge",
+            "value": "Tree"
+          },
+          {
+            "source": 115,
+            "target": 119,
+            "column": "name",
+            "value": "753 (interacts with) 751"
+          },
+          {
+            "source": 124,
+            "target": 123,
+            "column": "interaction",
+            "value": "interacts with"
+          }
+        ]
+      },
+      "options": {
+        "restoreMangledIds": false
+      },
+      "origin": "graph-io cxExporter, from test/corpus/cx2/demo.cx2",
+      "license": "MIT (graph-io)",
+      "version": "graph-io export"
     }
   ]
 }

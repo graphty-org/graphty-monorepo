@@ -375,7 +375,8 @@ async function main() {
     const crossing = accelerated.find((row) => row.gpu.ms <= row.cpu.ms);
     const smallest = accelerated[0];
     const crossover = crossing === undefined ? null : crossing.nodes;
-    const proposed = crossing === undefined || smallest === undefined ? null : crossing === smallest ? 0 : roundUp(crossover);
+    const proposed =
+        crossing === undefined || smallest === undefined ? null : crossing === smallest ? 0 : roundUp(crossover);
 
     process.stdout.write(
         `${JSON.stringify({

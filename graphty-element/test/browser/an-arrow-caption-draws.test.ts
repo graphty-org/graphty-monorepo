@@ -279,6 +279,21 @@ describe("a caption at the end of an arrow", () => {
         );
     });
 
+    it("draws an arrow glyph at an end that is switched on with no words", async () => {
+        const edge = edgeObject();
+
+        await addLayer("captions with no words", { "edge.arrowHeadText": "", "edge.arrowTailText": "" });
+
+        const words = (caption: RichTextLabel | null): string =>
+            (caption?.textRuns ?? [])
+                .flat()
+                .map((segment) => segment.text)
+                .join("");
+
+        assert.strictEqual(words(edge.arrowHeadText), "\u2192", "the head falls back to a right arrow");
+        assert.strictEqual(words(edge.arrowTailText), "\u2190", "and the tail to a left arrow");
+    });
+
     it("draws a caption at each end, and each one says what its own channel asked for", async () => {
         const edge = edgeObject();
 

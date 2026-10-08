@@ -84,7 +84,7 @@ export const LargeDataset: Story = {
         data: Array.from({ length: 100 }, (_, i) => ({
             id: `item-${i}`,
             name: `Item ${i}`,
-            value: ((i * 7919) % 1000), // Deterministic pseudo-random value using prime multiplier
+            value: (i * 7919) % 1000, // Deterministic pseudo-random value using prime multiplier
         })),
         defaultExpandDepth: 0,
     },

@@ -92,7 +92,11 @@ async function perCharacter(
     const largeText = make(16);
     const small = (await work(smallText)) / smallText.length;
     const large = (await work(largeText)) / largeText.length;
-    return { small, large, text: `1 MB ${small.toFixed(2)}, 16 MB ${large.toFixed(2)} characters examined per character` };
+    return {
+        small,
+        large,
+        text: `1 MB ${small.toFixed(2)}, 16 MB ${large.toFixed(2)} characters examined per character`,
+    };
 }
 
 async function linesWork(input: AsyncIterable<string>): Promise<number> {

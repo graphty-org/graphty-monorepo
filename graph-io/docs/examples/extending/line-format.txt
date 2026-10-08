@@ -1,0 +1,4 @@
+3 nodes, 2 edges, label of alice: Alice Liddell
+[
+  'E_BAD_LINE (line 5): expected an id, an id = label, or two ids and a weight'
+]

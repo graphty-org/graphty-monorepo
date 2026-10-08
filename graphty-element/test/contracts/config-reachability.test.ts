@@ -222,7 +222,7 @@ function reachedBy(descriptor: ChannelDescriptor): Set<string> {
     }
 
     const runs = ([0, 1] as const).map((run) => {
-        const painter = painterOf({ [descriptor.channel]: probeValue(descriptor, run) } as ResolvedStyle);
+        const painter = painterOf({ [descriptor.channel]: probeValue(descriptor, run) });
         const paint = descriptor.target === "node" ? painter.nodePaint(0) : painter.edgePaint(0);
 
         assert.isNotNull(paint, `the painter returned no paint for ${descriptor.channel}`);

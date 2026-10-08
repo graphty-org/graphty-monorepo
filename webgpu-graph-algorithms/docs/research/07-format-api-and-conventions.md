@@ -29,12 +29,12 @@ listed below with the source of truth for each signature.
 
 From `packages/graph-format/src/constants.ts` (public four; re-exported at `src/index.ts` line 10):
 
-| Name | Value | Line | Meaning for the GPU package |
-| --- | --- | --- | --- |
-| `INVALID_INDEX` | `0xffffffff` | 16 | The only "no index" sentinel; `0xFFFFFFFFu` in WGSL. Never appears in `rowPtr`, `colIdx`, `arcToEdge`, `edgeToArc` or any view array (I2). Free as a sentinel in every `array<u32>` result (parents, labels). |
-| `MAX_COUNT` | `0xfffffffe` | 22 | Upper bound of `nodeCount`, `edgeCount`, `arcCount`. Guarantees the sentinel never collides. Also: arc indices may exceed 2^31, so NEVER apply JS bitwise operators to arc indices (design 10.6 lines 2497-2502; `packages/graph-format/CLAUDE.md` invariant I3 line). |
-| `FORMAT_VERSION` | `1` | 30 | `isGraphSnapshot()` compares it. |
-| `SNAPSHOT_BRAND` | `Symbol.for("@graphty/graph-format/snapshot")` | 37 | Brand read by `isGraphSnapshot()`; structural, survives two package copies. |
+| Name             | Value                                          | Line | Meaning for the GPU package                                                                                                                                                                                                                                            |
+| ---------------- | ---------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_INDEX`  | `0xffffffff`                                   | 16   | The only "no index" sentinel; `0xFFFFFFFFu` in WGSL. Never appears in `rowPtr`, `colIdx`, `arcToEdge`, `edgeToArc` or any view array (I2). Free as a sentinel in every `array<u32>` result (parents, labels).                                                          |
+| `MAX_COUNT`      | `0xfffffffe`                                   | 22   | Upper bound of `nodeCount`, `edgeCount`, `arcCount`. Guarantees the sentinel never collides. Also: arc indices may exceed 2^31, so NEVER apply JS bitwise operators to arc indices (design 10.6 lines 2497-2502; `packages/graph-format/CLAUDE.md` invariant I3 line). |
+| `FORMAT_VERSION` | `1`                                            | 30   | `isGraphSnapshot()` compares it.                                                                                                                                                                                                                                       |
+| `SNAPSHOT_BRAND` | `Symbol.for("@graphty/graph-format/snapshot")` | 37   | Brand read by `isGraphSnapshot()`; structural, survives two package copies.                                                                                                                                                                                            |
 
 NOT exported (internal, `@internal`): `ALIGNMENT = 256` (`constants.ts` line 45). The GPU package must
 NOT import it; read `snapshot.arena.alignment` (typed as the literal `256`) or hard-code 256 with a
@@ -55,15 +55,15 @@ reserved code for a GPU package.
 ### 1.2 Typed-array aliases (`packages/graph-format/src/types/columns.ts` lines 59-80)
 
 ```ts
-export type U32 = Uint32Array<ArrayBuffer>;    // line 59
-export type I32 = Int32Array<ArrayBuffer>;     // 62
-export type F32 = Float32Array<ArrayBuffer>;   // 65
-export type F64 = Float64Array<ArrayBuffer>;   // 68
-export type U8  = Uint8Array<ArrayBuffer>;     // 71
-export type TypedArrayData = U32 | I32 | F32 | F64 | U8;   // 74
-export type NumericVector = F32 | F64 | U32 | I32;         // 80 (foldArcs / expandEdges generic bound)
-export type NodeMask = U32;   // line 722: ceil(n / 32) words, bit i = node i included
-export type EdgeMask = U32;   // line 727: over LOGICAL edges
+export type U32 = Uint32Array<ArrayBuffer>; // line 59
+export type I32 = Int32Array<ArrayBuffer>; // 62
+export type F32 = Float32Array<ArrayBuffer>; // 65
+export type F64 = Float64Array<ArrayBuffer>; // 68
+export type U8 = Uint8Array<ArrayBuffer>; // 71
+export type TypedArrayData = U32 | I32 | F32 | F64 | U8; // 74
+export type NumericVector = F32 | F64 | U32 | I32; // 80 (foldArcs / expandEdges generic bound)
+export type NodeMask = U32; // line 722: ceil(n / 32) words, bit i = node i included
+export type EdgeMask = U32; // line 727: over LOGICAL edges
 ```
 
 The `<ArrayBuffer>` type parameter is load-bearing: `packages/graph-format/test/types/typed-arrays.test-d.ts`
@@ -80,28 +80,28 @@ result arrays and scratch must be typed the same way (`new Uint32Array(n)` infer
 row-walking subset implemented by BOTH `GraphSnapshot` and `ReverseView`, so a kernel that only walks
 rows can take either.
 
-| Member | Type | Invariant / note (line in snapshot.ts) |
-| --- | --- | --- |
-| `serial` | `number` | process-unique identity of the CORE, shared by `withColumns()` snapshots (429). Use for cache keys on the CORE only; two snapshots with equal `serial` share `rowPtr` etc. |
-| `label` | `string \| null` | debugging label (431). |
-| `formatVersion` | `1` | (433) |
-| `directed` | `boolean` | no tri-state (435). |
-| `nodeCount` | `number` | n <= MAX_COUNT (437). |
-| `edgeCount` | `number` | logical edges; every edge column has `edgeCount` rows (439). |
-| `arcCount` | `number` | `colIdx.length`; `edgeCount` when directed, `2 * edgeCount - selfLoopCount` when undirected (441). |
-| `selfLoopCount` | `number` | (443) |
-| `rowPtr` | `U32` | `nodeCount + 1` entries, `rowPtr[0] === 0`, non-decreasing, `rowPtr[n] === arcCount` (I1). Plain data property (graph-snapshot.ts line 11-12: "hot loops pay nothing"). |
-| `colIdx` | `U32` | `arcCount` entries, `< nodeCount`, sorted within each row, ties by ascending `arcToEdge` (I2, I4); LENGTH 0 when `arcCount === 0` (447). Plain data property. |
-| `weights` | `F32 \| null` | `arcCount` f32; null when unweighted (every weight 1); both arcs of an undirected edge carry the same value (I7, I8: never NaN) (452). Plain data property. |
-| `arcToEdge` | `U32` | GETTER (graph-snapshot.ts lines 448-456): MATERIALISES an identity permutation of `arcCount` entries OUTSIDE the arena on first access when `flags.arcToEdgeIsIdentity`. Test the flag first. |
-| `edgeToArc` | `U32` | GETTER (lines 463-471): same materialisation rule, `edgeCount` entries. |
-| `flags` | `SnapshotFlags` | frozen (section 1.4). |
-| `ids` | `NodeIdMap` | section 1.8. |
-| `nodes`, `edges`, `graph` | `AttributeTable` | rowCount n / edgeCount / 1 (I12, I13: edge columns are indexed by LOGICAL edge, never by arc). |
-| `extensions` | `ReadonlyMap<string, AttributeTable>` | (471) |
-| `meta` | `GraphMeta` | (473) |
-| `arena` | `ArenaLayout \| null` | null when arrays were adopted from separate buffers (477); section 1.5. |
-| `detached` | `boolean` | derived: `rowPtr.length === 0` after a consuming transfer (479; class line 438-440). Every core accessor throws `E_DETACHED` afterwards. |
+| Member                    | Type                                  | Invariant / note (line in snapshot.ts)                                                                                                                                                        |
+| ------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serial`                  | `number`                              | process-unique identity of the CORE, shared by `withColumns()` snapshots (429). Use for cache keys on the CORE only; two snapshots with equal `serial` share `rowPtr` etc.                    |
+| `label`                   | `string \| null`                      | debugging label (431).                                                                                                                                                                        |
+| `formatVersion`           | `1`                                   | (433)                                                                                                                                                                                         |
+| `directed`                | `boolean`                             | no tri-state (435).                                                                                                                                                                           |
+| `nodeCount`               | `number`                              | n <= MAX_COUNT (437).                                                                                                                                                                         |
+| `edgeCount`               | `number`                              | logical edges; every edge column has `edgeCount` rows (439).                                                                                                                                  |
+| `arcCount`                | `number`                              | `colIdx.length`; `edgeCount` when directed, `2 * edgeCount - selfLoopCount` when undirected (441).                                                                                            |
+| `selfLoopCount`           | `number`                              | (443)                                                                                                                                                                                         |
+| `rowPtr`                  | `U32`                                 | `nodeCount + 1` entries, `rowPtr[0] === 0`, non-decreasing, `rowPtr[n] === arcCount` (I1). Plain data property (graph-snapshot.ts line 11-12: "hot loops pay nothing").                       |
+| `colIdx`                  | `U32`                                 | `arcCount` entries, `< nodeCount`, sorted within each row, ties by ascending `arcToEdge` (I2, I4); LENGTH 0 when `arcCount === 0` (447). Plain data property.                                 |
+| `weights`                 | `F32 \| null`                         | `arcCount` f32; null when unweighted (every weight 1); both arcs of an undirected edge carry the same value (I7, I8: never NaN) (452). Plain data property.                                   |
+| `arcToEdge`               | `U32`                                 | GETTER (graph-snapshot.ts lines 448-456): MATERIALISES an identity permutation of `arcCount` entries OUTSIDE the arena on first access when `flags.arcToEdgeIsIdentity`. Test the flag first. |
+| `edgeToArc`               | `U32`                                 | GETTER (lines 463-471): same materialisation rule, `edgeCount` entries.                                                                                                                       |
+| `flags`                   | `SnapshotFlags`                       | frozen (section 1.4).                                                                                                                                                                         |
+| `ids`                     | `NodeIdMap`                           | section 1.8.                                                                                                                                                                                  |
+| `nodes`, `edges`, `graph` | `AttributeTable`                      | rowCount n / edgeCount / 1 (I12, I13: edge columns are indexed by LOGICAL edge, never by arc).                                                                                                |
+| `extensions`              | `ReadonlyMap<string, AttributeTable>` | (471)                                                                                                                                                                                         |
+| `meta`                    | `GraphMeta`                           | (473)                                                                                                                                                                                         |
+| `arena`                   | `ArenaLayout \| null`                 | null when arrays were adopted from separate buffers (477); section 1.5.                                                                                                                       |
+| `detached`                | `boolean`                             | derived: `rowPtr.length === 0` after a consuming transfer (479; class line 438-440). Every core accessor throws `E_DETACHED` afterwards.                                                      |
 
 Queries the GPU package may use on the CPU side (lines 483-560): `outArcs(u)` (allocates a tuple; hot
 loops read `rowPtr` directly), `outDegreeOf(u)`, `findArc(u, v)` (binary search, `INVALID_INDEX` when
@@ -121,13 +121,13 @@ every id.
 
 ```ts
 export interface SnapshotFlags {
-    readonly multigraph: boolean;          // some row has two arcs with equal colIdx
-    readonly hasSelfLoops: boolean;        // selfLoopCount > 0
+    readonly multigraph: boolean; // some row has two arcs with equal colIdx
+    readonly hasSelfLoops: boolean; // selfLoopCount > 0
     readonly arcToEdgeIsIdentity: boolean; // directed && arcToEdge[a] === a for all a; ALWAYS false when !directed
-    readonly weighted: boolean;            // weights !== null
-    readonly allWeightsOne: boolean;       // weights === null || every value === 1 -> SSSP degrades to BFS
-    readonly nonNegativeWeights: boolean;  // weights === null || every value >= 0 -> Dijkstra / delta-stepping legal
-    readonly finiteWeights: boolean;       // weights === null || every value finite
+    readonly weighted: boolean; // weights !== null
+    readonly allWeightsOne: boolean; // weights === null || every value === 1 -> SSSP degrades to BFS
+    readonly nonNegativeWeights: boolean; // weights === null || every value >= 0 -> Dijkstra / delta-stepping legal
+    readonly finiteWeights: boolean; // weights === null || every value finite
 }
 ```
 
@@ -140,15 +140,18 @@ right for it; a GPU package must NOT substitute the shadow column and still bran
 ### 1.5 ArenaLayout (`types/snapshot.ts` lines 183-224; producer `src/builder/arena.ts` lines 96-144)
 
 ```ts
-export type CoreArrayName = "rowPtr" | "colIdx" | "weights" | "arcToEdge" | "edgeToArc";   // hot-to-cold order
-export interface ArenaSegment { readonly byteOffset: number; readonly byteLength: number; }  // ABSOLUTE offset in buffer; unpadded length
+export type CoreArrayName = "rowPtr" | "colIdx" | "weights" | "arcToEdge" | "edgeToArc"; // hot-to-cold order
+export interface ArenaSegment {
+    readonly byteOffset: number;
+    readonly byteLength: number;
+} // ABSOLUTE offset in buffer; unpadded length
 export interface ArenaLayout {
     readonly buffer: ArrayBuffer;
-    readonly byteOffset: number;     // 0 for builder output; bytes.byteOffset + B for a fromBytes container
-    readonly byteLength: number;     // end of the LAST non-empty segment (no trailing padding: STATUS.md line 422)
+    readonly byteOffset: number; // 0 for builder output; bytes.byteOffset + B for a fromBytes container
+    readonly byteLength: number; // end of the LAST non-empty segment (no trailing padding: STATUS.md line 422)
     readonly alignment: 256;
-    readonly segments: Readonly<Record<CoreArrayName, ArenaSegment | null>>;  // null = absent, zero-length, or identity
-    readonly hotByteLength: number;  // end of weights (or colIdx when unweighted) RELATIVE to byteOffset
+    readonly segments: Readonly<Record<CoreArrayName, ArenaSegment | null>>; // null = absent, zero-length, or identity
+    readonly hotByteLength: number; // end of weights (or colIdx when unweighted) RELATIVE to byteOffset
 }
 ```
 
@@ -178,26 +181,26 @@ All views are pure functions of the core, memoised once per snapshot instance an
 into a view is a contract violation (I17; class doc lines 300-310). Aliasing is deliberate and is
 what makes an upload cache keyed on the ARRAY OBJECT upload each distinct array once.
 
-| Call | Returns | Shape, aliasing, cost (views.ts line) |
-| --- | --- | --- |
-| `reverse()` | `ReverseView` = `AdjacencyView & { fwdArc: U32 }` | Directed: fresh `rowPtr(n+1)`, `colIdx(A)` (= forward sources, sorted per reverse row), `weights(A)` gathered, `fwdArc(A)` (reverse arc -> forward arc) all materialised at once (`computeReverse` 197-229). Undirected: `rowPtr`, `colIdx`, `weights` ARE the forward array objects (I7); `fwdArc` is an identity permutation ALLOCATED ON FIRST READ of the getter (lines 116-119) -- treat it like `arcToEdge`: do not touch it when `!directed`. `reverse().arcToEdge` is a getter too (line 121+): for a directed identity snapshot it aliases `fwdArc` (zero bytes); otherwise it gathers `source.arcToEdge[fwdArc[k]]`, which materialises the identity on the source if the flag is set. |
-| `coo()` | `CooView { src, dst, arcToEdge, weights }` | `src` is the only new array (`expandRowPtr`, A entries); `dst` ALIASES `colIdx`; `weights` aliases; `arcToEdge` is a getter reaching `snapshot.arcToEdge` (materialises identity) -- read the flag first. Per-ARC edge-parallel kernels (both directions of an undirected edge). |
-| `edgeList()` | `EdgeListView { src, dst, arc, weights }` | E entries each: declared orientation of every logical edge; `arc` aliases `edgeToArc` (getter); `weights` gathered through `edgeToArc`, ALIASED to `weights` when the permutation is the identity (types line 308). Each-edge-once kernels; correct on directed and undirected alike. |
-| `outDegree()` | `U32(n)` | `rowPtr` differences; self-loop counted once. |
-| `inDegree()` | `U32(n)` | via `reverse().rowPtr`; the SAME OBJECT as `outDegree()` when undirected. |
-| `degree()` | `U32(n)` | in + out (directed), out + self-loops (undirected). |
-| `weightedOutDegree()` / `weightedInDegree()` / `weightedDegree()` | `F64(n)` | f64 on purpose; NOT a GPU upload (design 10.1 line 2344; `gpu-contract.test.ts` line 644). May be 0 for a node with out-arcs. The GPU package computes its normaliser on the device. |
-| `selfLoopWeight()` | `F64(n)` | |
-| `totalWeight()` | `number` | never cached on the wire. |
-| `selfLoopArcs()` | `U32(selfLoopCount)` | |
-| `selfLoopsPerNode()` | `U32(n)` | |
-| `selfLoopsAt(u)` | `number` | O(log d) point query. |
-| `mate()` | `U32(A)` | undirected only, `E_DIRECTED` otherwise; the arc holding the opposite orientation (a self-loop maps to itself). |
-| `degreeOrder(options?: { of?: "forward" \| "reverse" })` | `DegreeOrderView { perm: U32(n), segmentOffsets: U32(5) }` | counting sort by DESCENDING degree, ties ascending node index; `segmentOffsets = [0, hiEnd, midEnd, lowEnd, n]` for thresholds `DEGREE_TIER_HIGH = 1024`, `DEGREE_TIER_MID = 32`, low = 1 (views.ts lines 41-45, 568-609); degree-0 nodes are the trailing segment `[lowEnd, n)`. `"reverse"` orders by in-degree (pull kernels). Both variants cached; on an undirected snapshot both are the same object (CONFORMANCE.md line 257). Frozen object. `segmentOffsets` is read on the CPU to size dispatches (a 20-byte `array<u32,5>` is not a legal uniform layout, design 10.1 line 2346). |
-| `isSymmetric()` | `boolean` | |
-| `prepare(views: readonly ViewName[]): this` | | eager materialisation (also `FreezeOptions.prepare`). |
-| `dropCaches(): void` | | drops EVERY cached view, every materialised identity permutation (`arcToEdge` / `edgeToArc` go back to lazy when the flag is set), and every cached `gpuView()` f32 copy of an f64 column (class lines 797-813). After it, the array OBJECTS of views change: an upload cache keyed on the object must not assume it survives `dropCaches()`. |
-| `cachedViews(): readonly ViewName[]` | | in the fixed `ViewName` order. |
+| Call                                                              | Returns                                                    | Shape, aliasing, cost (views.ts line)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `reverse()`                                                       | `ReverseView` = `AdjacencyView & { fwdArc: U32 }`          | Directed: fresh `rowPtr(n+1)`, `colIdx(A)` (= forward sources, sorted per reverse row), `weights(A)` gathered, `fwdArc(A)` (reverse arc -> forward arc) all materialised at once (`computeReverse` 197-229). Undirected: `rowPtr`, `colIdx`, `weights` ARE the forward array objects (I7); `fwdArc` is an identity permutation ALLOCATED ON FIRST READ of the getter (lines 116-119) -- treat it like `arcToEdge`: do not touch it when `!directed`. `reverse().arcToEdge` is a getter too (line 121+): for a directed identity snapshot it aliases `fwdArc` (zero bytes); otherwise it gathers `source.arcToEdge[fwdArc[k]]`, which materialises the identity on the source if the flag is set. |
+| `coo()`                                                           | `CooView { src, dst, arcToEdge, weights }`                 | `src` is the only new array (`expandRowPtr`, A entries); `dst` ALIASES `colIdx`; `weights` aliases; `arcToEdge` is a getter reaching `snapshot.arcToEdge` (materialises identity) -- read the flag first. Per-ARC edge-parallel kernels (both directions of an undirected edge).                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `edgeList()`                                                      | `EdgeListView { src, dst, arc, weights }`                  | E entries each: declared orientation of every logical edge; `arc` aliases `edgeToArc` (getter); `weights` gathered through `edgeToArc`, ALIASED to `weights` when the permutation is the identity (types line 308). Each-edge-once kernels; correct on directed and undirected alike.                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `outDegree()`                                                     | `U32(n)`                                                   | `rowPtr` differences; self-loop counted once.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `inDegree()`                                                      | `U32(n)`                                                   | via `reverse().rowPtr`; the SAME OBJECT as `outDegree()` when undirected.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `degree()`                                                        | `U32(n)`                                                   | in + out (directed), out + self-loops (undirected).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `weightedOutDegree()` / `weightedInDegree()` / `weightedDegree()` | `F64(n)`                                                   | f64 on purpose; NOT a GPU upload (design 10.1 line 2344; `gpu-contract.test.ts` line 644). May be 0 for a node with out-arcs. The GPU package computes its normaliser on the device.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `selfLoopWeight()`                                                | `F64(n)`                                                   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `totalWeight()`                                                   | `number`                                                   | never cached on the wire.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `selfLoopArcs()`                                                  | `U32(selfLoopCount)`                                       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `selfLoopsPerNode()`                                              | `U32(n)`                                                   |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `selfLoopsAt(u)`                                                  | `number`                                                   | O(log d) point query.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mate()`                                                          | `U32(A)`                                                   | undirected only, `E_DIRECTED` otherwise; the arc holding the opposite orientation (a self-loop maps to itself).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `degreeOrder(options?: { of?: "forward" \| "reverse" })`          | `DegreeOrderView { perm: U32(n), segmentOffsets: U32(5) }` | counting sort by DESCENDING degree, ties ascending node index; `segmentOffsets = [0, hiEnd, midEnd, lowEnd, n]` for thresholds `DEGREE_TIER_HIGH = 1024`, `DEGREE_TIER_MID = 32`, low = 1 (views.ts lines 41-45, 568-609); degree-0 nodes are the trailing segment `[lowEnd, n)`. `"reverse"` orders by in-degree (pull kernels). Both variants cached; on an undirected snapshot both are the same object (CONFORMANCE.md line 257). Frozen object. `segmentOffsets` is read on the CPU to size dispatches (a 20-byte `array<u32,5>` is not a legal uniform layout, design 10.1 line 2346).                                                                                                     |
+| `isSymmetric()`                                                   | `boolean`                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `prepare(views: readonly ViewName[]): this`                       |                                                            | eager materialisation (also `FreezeOptions.prepare`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `dropCaches(): void`                                              |                                                            | drops EVERY cached view, every materialised identity permutation (`arcToEdge` / `edgeToArc` go back to lazy when the flag is set), and every cached `gpuView()` f32 copy of an f64 column (class lines 797-813). After it, the array OBJECTS of views change: an upload cache keyed on the object must not assume it survives `dropCaches()`.                                                                                                                                                                                                                                                                                                                                                    |
+| `cachedViews(): readonly ViewName[]`                              |                                                            | in the fixed `ViewName` order.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 `ViewName` (types lines 226-244): `"reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" |
 "degree" | "weightedOutDegree" | "weightedInDegree" | "weightedDegree" | "selfLoopWeight" |
@@ -219,14 +222,14 @@ declaration order.
 
 `gpuEligibility(dtype): GpuEligibility` (column.ts lines 98-116; exported from the barrel):
 
-| dtype | eligibility | `gpuView` returns (column.ts 1971-2009) | WGSL read |
-| --- | --- | --- | --- |
-| `f32`, `i32`, `u32` | `direct` | `column.data` itself (any `components`) | `array<f32/i32/u32>`, flat interleaved; `components: 3` must NOT be `array<vec3<f32>>` (stride 16 != 12), `components: 4` may be `vec4` (design 10.2) |
-| `dict` | `direct` | `column.codes` (`U32`); dictionary stays on the CPU | `array<u32>` |
-| `u8` | `packed` | `column.paddedU32View()` = zero-copy `Uint32Array(ceil(byteLength / 4))` over the column's own bytes (util/typed-array.ts lines 196-206); trailing lanes of the last word are undefined | `unpack4xU8(w[i >> 2u])[i & 3u]` with a bound check `i < rows * components` |
-| `bool` | `packed` | `column.data` (`U32`, `ceil(rows / 32)` words, LSB-first; trailing bits are kept CLEAR -- STATUS.md line 429) | `(w[r >> 5u] >> (r & 31u)) & 1u` |
-| `f64` | `convert` | a CACHED `new Float32Array(column.data)` copy kept in a module WeakMap (column.ts lines 81, 1993-1999); the one documented non-memcpy conversion | `array<f32>` |
-| `string`, `list`, `json` | `none` | throws `E_GPU_INELIGIBLE` | -- |
+| dtype                    | eligibility | `gpuView` returns (column.ts 1971-2009)                                                                                                                                                 | WGSL read                                                                                                                                             |
+| ------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `f32`, `i32`, `u32`      | `direct`    | `column.data` itself (any `components`)                                                                                                                                                 | `array<f32/i32/u32>`, flat interleaved; `components: 3` must NOT be `array<vec3<f32>>` (stride 16 != 12), `components: 4` may be `vec4` (design 10.2) |
+| `dict`                   | `direct`    | `column.codes` (`U32`); dictionary stays on the CPU                                                                                                                                     | `array<u32>`                                                                                                                                          |
+| `u8`                     | `packed`    | `column.paddedU32View()` = zero-copy `Uint32Array(ceil(byteLength / 4))` over the column's own bytes (util/typed-array.ts lines 196-206); trailing lanes of the last word are undefined | `unpack4xU8(w[i >> 2u])[i & 3u]` with a bound check `i < rows * components`                                                                           |
+| `bool`                   | `packed`    | `column.data` (`U32`, `ceil(rows / 32)` words, LSB-first; trailing bits are kept CLEAR -- STATUS.md line 429)                                                                           | `(w[r >> 5u] >> (r & 31u)) & 1u`                                                                                                                      |
+| `f64`                    | `convert`   | a CACHED `new Float32Array(column.data)` copy kept in a module WeakMap (column.ts lines 81, 1993-1999); the one documented non-memcpy conversion                                        | `array<f32>`                                                                                                                                          |
+| `string`, `list`, `json` | `none`      | throws `E_GPU_INELIGIBLE`                                                                                                                                                               | --                                                                                                                                                    |
 
 Every column has (`ColumnBase`, lines 342-410): `dtype`, `meta: ColumnMeta` (every field present,
 `null` for none; `meta.mutable` says whether in-place writes are legal; `meta.role`; `meta.components`;
@@ -311,7 +314,7 @@ never converts itself.
 ### 1.12 Factories the tests use (`src/populate/*.ts`, `src/builder/graph-builder.ts`)
 
 - `fromEdgeArrays(input: EdgeArraysInput, options: BuilderOptionsPatch & FreezeOptions = {}):
-  GraphSnapshot` (from-edge-arrays.ts lines 216-257). `EdgeArraysInput` (types/snapshot.ts lines
+GraphSnapshot` (from-edge-arrays.ts lines 216-257). `EdgeArraysInput` (types/snapshot.ts lines
   704-727): `directed`, `nodeCount?` (required unless `ids`), `ids?`, `src: U32`, `dst: U32`,
   `weights?: F32 | F64`, `nodeColumns?`, `edgeColumns?`, `meta?`. Options include `duplicateEdges`,
   `selfLoops`, `weighted`, `label`, `prepare`, `arena` (default true), `checksum`. ~22 ms directed /
@@ -322,7 +325,7 @@ never converts itself.
   result (e.g. on-device COO -> CSR) -- note `arena === null` unless the five arrays share one
   aligned buffer in hot-to-cold order.
 - `GraphBuilder` (`new GraphBuilder({ directed })`, `addAnonymousNodes(n)`, `addEdges(src, dst,
-  weights?)`, `declareNodeColumn({ name, dtype, components?, nullable?, mutable? })`,
+weights?)`, `declareNodeColumn({ name, dtype, components?, nullable?, mutable? })`,
   `setNodeValue(name, row, value)`, `freeze(options?)`, `freezeWithReport`) as used by
   `gpu-upload.test.ts` lines 481-499 to make u8 / bool / f64 / stride-3 columns.
 - `fromRecords`, `fromWire`, `fromBytes`, `fromByteChunks` for fixture loading.
@@ -386,8 +389,8 @@ Derived from sections 1-2 and design 10.1-10.8 / 14.5 (lines 4212-4244):
   `segment.byteLength <= device.limits.maxStorageBufferBindingSize`: one `createBuffer` + one
   `writeBuffer(gbuf, 0, new Uint8Array(arena.buffer, arena.byteOffset, arena.hotByteLength))` (or
   `arena.byteLength` when a cold segment is needed), bind `{ buffer: gbuf, offset: seg.byteOffset -
-  arena.byteOffset, size: seg.byteLength }`; (2) else per array (`writeBuffer(bufX, 0,
-  snapshot.colIdx)`), also the path for `arena === null`; (3) else windows on ARC ranges at 64-arc
+arena.byteOffset, size: seg.byteLength }`; (2) else per array (`writeBuffer(bufX, 0,
+snapshot.colIdx)`), also the path for `arena === null`; (3) else windows on ARC ranges at 64-arc
   boundaries (`start = rowPtr[v0] - (rowPtr[v0] % 64)`, `%` not `& ~63`).
 - Request raised limits from the adapter first (`maxBufferSize`, `maxStorageBufferBindingSize`,
   `maxComputeWorkgroupsPerDimension`, `maxStorageBuffersPerShaderStage`) and plan against
@@ -479,8 +482,12 @@ Fields copied from `packages/graph-io/package.json` (lines 1-131) with these val
     "main": "dist/webgpu-graph-algorithms.js",
     "types": "dist/webgpu-graph-algorithms.d.ts",
     "exports": {
-        ".": { "types": "./dist/webgpu-graph-algorithms.d.ts", "import": "./dist/webgpu-graph-algorithms.js", "default": "./dist/webgpu-graph-algorithms.js" },
-        "./node": { "types": "./dist/node.d.ts", "import": "./dist/node.js", "default": "./dist/node.js" }
+        ".": {
+            "types": "./dist/webgpu-graph-algorithms.d.ts",
+            "import": "./dist/webgpu-graph-algorithms.js",
+            "default": "./dist/webgpu-graph-algorithms.js",
+        },
+        "./node": { "types": "./dist/node.d.ts", "import": "./dist/node.js", "default": "./dist/node.js" },
     },
     "sideEffects": false,
     "files": ["dist/", "src/", "README.md", "LICENSE"],
@@ -502,23 +509,27 @@ Fields copied from `packages/graph-io/package.json` (lines 1-131) with these val
         "coverage": "vitest run --coverage",
         "coverage:preview": "npx serve coverage -p 9058",
         "benchmark": "tsx benchmarks/run.ts",
-        "ready:commit": "npm run build:all && npm run lint && npm run typecheck:strict-consumer && npm run test:run"
+        "ready:commit": "npm run build:all && npm run lint && npm run typecheck:strict-consumer && npm run test:run",
     },
-    "repository": { "type": "git", "url": "git+https://github.com/graphty-org/graphty-monorepo.git", "directory": "webgpu-graph-algorithms" },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "webgpu-graph-algorithms",
+    },
     "keywords": ["graph", "webgpu", "wgsl", "gpu", "graph-algorithms", "force-directed", "layout", "graph-format"],
     "license": "MIT",
     "bugs": { "url": "https://github.com/graphty-org/graphty-monorepo/issues" },
     "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/webgpu-graph-algorithms#readme",
     "dependencies": {
         "@graphty/graph-format": "workspace:*",
-        "@webgpu/types": "^0.1.72"
+        "@webgpu/types": "^0.1.72",
     },
     "peerDependencies": {
         "@graphty/graph-format": "^0.1.0",
-        "webgpu": "^0.4.0"
+        "webgpu": "^0.4.0",
     },
     "peerDependenciesMeta": {
-        "webgpu": { "optional": true }
+        "webgpu": { "optional": true },
     },
     "devDependencies": {
         "@vitest/browser": "^3.2.4",
@@ -530,8 +541,8 @@ Fields copied from `packages/graph-io/package.json` (lines 1-131) with these val
         "typescript": "^5.9.3",
         "vite": "^7.0.5",
         "vitest": "^3.2.4",
-        "webgpu": "^0.4.0"
-    }
+        "webgpu": "^0.4.0",
+    },
 }
 ```
 
@@ -549,7 +560,7 @@ Notes and rationale:
   the container's glibc; the 0.5+ requirement itself was not re-verified here). Its API
   (`packages/graph-format/node_modules/webgpu/types.d.ts`): `create(options: string[]): GPU` and
   `globals: Object`; usage per its README lines 12-24: `Object.assign(globalThis, globals); const gpu
-  = create([])`. Dawn toggles go in the string list (`enable-dawn-features=...`, `backend=vulkan`,
+= create([])`. Dawn toggles go in the string list (`enable-dawn-features=...`, `backend=vulkan`,
   `adapter=<name>`; README lines 30-70). Lifetime note (README lines 84-98): the process does not
   exit while a reference to the object returned by `create()` is alive -- `test/setup/gpu.ts` must
   drop it in `afterAll` (the graph-format test destroys the device; also null the `gpu` reference).
@@ -595,18 +606,24 @@ targets the CI shard split needs:
         "composite": true,
         "noEmit": true,
         "noImplicitOverride": true,
-        "noUncheckedIndexedAccess": false,      // design 14.5 line 4218: OFF so row loops and the result-writing loop are shared with the other consumers
+        "noUncheckedIndexedAccess": false, // design 14.5 line 4218: OFF so row loops and the result-writing loop are shared with the other consumers
         "exactOptionalPropertyTypes": false,
-        "lib": ["ES2020", "DOM", "DOM.Iterable"],   // DOM for navigator.gpu in the browser entry; the node entry never uses it
+        "lib": ["ES2020", "DOM", "DOM.Iterable"], // DOM for navigator.gpu in the browser entry; the node entry never uses it
         "types": ["node", "vitest/globals", "@webgpu/types"],
         "paths": {
             "@graphty/webgpu-graph-algorithms": ["./src/index.ts"],
             "@graphty/webgpu-graph-algorithms/node": ["./src/node/index.ts"],
-            "@graphty/graph-format": ["../graph-format/src/index.ts"]
-        }
+            "@graphty/graph-format": ["../graph-format/src/index.ts"],
+        },
     },
-    "include": ["webgpu-graph-algorithms.ts", "src/**/*.ts", "test/**/*.ts", "benchmarks/**/*.ts", "../graph-format/src/**/*.ts"],
-    "exclude": ["node_modules", "dist", "coverage", "tmp"]
+    "include": [
+        "webgpu-graph-algorithms.ts",
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "benchmarks/**/*.ts",
+        "../graph-format/src/**/*.ts",
+    ],
+    "exclude": ["node_modules", "dist", "coverage", "tmp"],
 }
 ```
 
@@ -724,16 +741,13 @@ analysis of the root entry finds no Node-only module, and so the `./node` bundle
 error when Dawn is absent.
 
 WGSL: keep shader source as TypeScript template-string modules under `src/wgsl/*.wgsl.ts`
-(`export const bfsAdvance = /* wgsl */ \`...\`;`), NOT as `.wgsl` files with `?raw` imports. Reasons
-(all verified against the toolchain in `packages/`): the pre-push hook builds with plain
-`pnpm -r run build` = `tsc -p tsconfig.build.json` (README.md lines 168-176), and tsc neither copies
-`.wgsl` files into `dist/src/` nor understands `?raw`, so a tsc-only dist would be broken; knip's
-`project` globs are `src/**/*.ts` (`packages/knip.config.ts` lines 31-32) and would report `.wgsl`
-files as unused; the shared eslint config lints `.ts` only. Composition (prelude + operator
-snippets) is string concatenation in `src/kernel/wgsl.ts`; the WGSL prelude carries
-`const INVALID_INDEX: u32 = 0xFFFFFFFFu;` and the `override USE_PERM: bool;` declaration. Editor
-highlighting comes from the `/* wgsl */` tag. If `.wgsl` files are ever wanted, a
-`scripts/gen-wgsl.js` that emits `src/wgsl/*.wgsl.ts` with the auto-generated header (owner rule:
+(`export const bfsAdvance = /* wgsl */ \`...\`;`), NOT as `.wgsl`files with`?raw`imports. Reasons
+(all verified against the toolchain in`packages/`): the pre-push hook builds with plain
+`pnpm -r run build`=`tsc -p tsconfig.build.json`(README.md lines 168-176), and tsc neither copies`.wgsl`files into`dist/src/`nor understands`?raw`, so a tsc-only dist would be broken; knip's
+`project`globs are`src/\*_/_.ts` (`packages/knip.config.ts`lines 31-32) and would report`.wgsl`files as unused; the shared eslint config lints`.ts`only. Composition (prelude + operator
+snippets) is string concatenation in`src/kernel/wgsl.ts`; the WGSL prelude carries
+`const INVALID*INDEX: u32 = 0xFFFFFFFFu;`and the`override USE_PERM: bool;`declaration. Editor
+highlighting comes from the`/* wgsl \_/`tag. If`.wgsl`files are ever wanted, a`scripts/gen-wgsl.js`that emits`src/wgsl/\*.wgsl.ts` with the auto-generated header (owner rule:
 "THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT src/wgsl/<name>.wgsl") is the
 compatible route; not needed for the first slices.
 
@@ -793,29 +807,29 @@ npm scaffold (git status: every file untracked). Nothing in it is imported by an
 file (the new package lives under `packages/webgpu-graph-algorithms/`; the root becomes a thin
 staging wrapper like it already is for graph-format / graph-io):
 
-| Path | Action | Reason |
-| --- | --- | --- |
-| `src/types/index.ts` | DELETE | `CSRGraph { numVertices, numEdges, rowPtr, colIdx, edgeWeights? }`, `EdgeListGraph`, `GraphAlgorithm<TInput,TOutput>` with `initialize/execute/dispose`, `ShortestPathResult.parents: Int32Array`: every one is superseded by `GraphSnapshot`, the plain-async-function convention and `Uint32Array` + `INVALID_INDEX` (design 14.5 lines 4219-4223 say to delete `CSRGraph` / `EdgeListGraph`; 10.1 line 2352 renames the fields). `GPUConfig` / `PageRankResult` / `ConnectedComponentsResult` are redefined in the new `src/types/`. |
-| `src/index.ts` | DELETE (rewrite) | exports `version` and `export * from "./types"`; the new barrel uses explicit named exports (graph-format rule, `src/index.ts` lines 4-6). |
-| `src/{algorithms,core,formats,utils}/` | DELETE | empty directories; the new layout is `device/ memory/ kernel/ wgsl/ primitives/ algorithms/ layouts/`. "formats" is graph-format's job. |
-| `test/setup/browser.ts`, `test/setup/webgpu-global.ts` | DELETE (replace) | `requestAdapterInfo()` is removed from the API (report line 232 recommends `adapter.info`); the console output uses a non-ASCII check mark (`webgpu-global.ts` lines 58, 61: forbidden by the ASCII rule); the throw-on-missing-WebGPU intent is kept in the new `test/setup/gpu.ts`. |
-| `test/setup/node.ts` | DELETE | a `console.log` placeholder. |
-| `test/helpers/webgpu.ts`, `test/helpers/test-utils.ts` | DELETE (fold in) | `createBuffer` via `mappedAtCreation` and `readBuffer` returning `Float32Array` are less general than the graph-format `upload` / `readback` helpers (section 6); `expectFloatArraysEqual` is replaced by a tolerance matcher in `test/helpers/oracle.ts`. `withTestDevice` (fresh device per test) is a useful pattern to keep in `test/helpers/device.ts`. |
-| `test/browser/webgpu-check.test.ts` | MOVE + harden | becomes the first browser smoke test; add `expect(adapter.info.vendor)` / `isFallbackAdapter === false` under `REQUIRE_GPU=1` (report recommendation 3). |
-| `test/browser/webgpu.test.ts` | DELETE | a doubling-shader demo that the walking-skeleton test supersedes. |
-| `test/unit/index.test.ts` | DELETE | asserts `version === "0.1.0"`; the new `test/index.test.ts` pins the export list instead. |
-| `vitest.config.ts` | DELETE (rewrite) | browser-only, SwiftShader flags, Vitest 2.1 shapes (`name: "chromium"`, top-level `launch` rejected -- report line 106-109). Section 4.5 replaces it. |
-| `vite.config.ts` | DELETE | dev server with dotenv / HTTPS / `examples/` opener; the packages use the programmatic `scripts/build-bundle.js` and no dev server (`packages/README.md` line 173: "vite.shared.config.ts (no dev server)"). Any demo page belongs in graphty-element stories, not here. |
-| `tsconfig.json` | DELETE (rewrite) | `noUncheckedIndexedAccess: true` and `exactOptionalPropertyTypes: true` contradict design 14.5; `jsx`, `allowImportingTsExtensions`, `moduleDetection`, `importsNotUsedAsValues` are foreign to the package convention. |
-| `eslint.config.js` | DELETE | `@stylistic` formatting rules and `naming-convention` conflict with the monorepo flat config (`packages/eslint.config.js`: "ERROR PREVENTION, not stylistic rules", formatting by Prettier). The package is linted by `packages/eslint.config.js` like its siblings. |
-| `knip.json`, `.husky/`, `package-lock.json`, `.env`, `.env.example`, `.github/workflows/test.yml`, `.vscode/`, `dist/`, `examples/` | DELETE | npm + husky + dotenv tooling of the scaffold; the staging root has "no Nx, husky, commitlint or release tooling" (README.md line 179); the workflow installs Mesa/Xvfb and runs on GitHub-hosted runners without a GPU (the plan's CI note replaces it); `examples/{data}` is an empty template artifact. |
-| `package.json` (root) | REWRITE as a thin staging root or DELETE | the real package.json is `packages/webgpu-graph-algorithms/package.json`; `packages/package.json` is already the pnpm workspace root (lines 1-45). Keep a root README pointing at `packages/`. |
-| `STRATEGY.md`, `IMPLEMENTATION_CHECKLIST.md` | DELETE or move to `tmp/legacy/` | stale, pre-design, mention CPU / WebGL fallbacks that the project rule forbids. |
-| `README.md` (root) | REWRITE | one screen: what the repo stages, pointer to `packages/README.md` and the plan. |
-| `HEADLESS_GPU_REPORT.md` | KEEP (move under `packages/webgpu-graph-algorithms/docs/` or reference from CLAUDE.md) | the verified recipe for the real GPU under headless Chromium; design 14.5 line 4215 cites it by name. |
-| `CLAUDE.md` (root, one line: no fallbacks) | KEEP | still the project rule; the package CLAUDE.md repeats it. |
-| `.gitignore` (root) | REWRITE | keep `node_modules`, `dist`, `coverage`, `tmp/` (currently NOT ignored at the root -- `tmp/` holds this plan; decide whether the plan directory is committed), `*.tsbuildinfo`, drop the `*.test.js` / `.env` lines. |
-| `packages/**` | KEEP untouched | graph-format and graph-io are done and audited. |
+| Path                                                                                                                                | Action                                                                                 | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/types/index.ts`                                                                                                                | DELETE                                                                                 | `CSRGraph { numVertices, numEdges, rowPtr, colIdx, edgeWeights? }`, `EdgeListGraph`, `GraphAlgorithm<TInput,TOutput>` with `initialize/execute/dispose`, `ShortestPathResult.parents: Int32Array`: every one is superseded by `GraphSnapshot`, the plain-async-function convention and `Uint32Array` + `INVALID_INDEX` (design 14.5 lines 4219-4223 say to delete `CSRGraph` / `EdgeListGraph`; 10.1 line 2352 renames the fields). `GPUConfig` / `PageRankResult` / `ConnectedComponentsResult` are redefined in the new `src/types/`. |
+| `src/index.ts`                                                                                                                      | DELETE (rewrite)                                                                       | exports `version` and `export * from "./types"`; the new barrel uses explicit named exports (graph-format rule, `src/index.ts` lines 4-6).                                                                                                                                                                                                                                                                                                                                                                                              |
+| `src/{algorithms,core,formats,utils}/`                                                                                              | DELETE                                                                                 | empty directories; the new layout is `device/ memory/ kernel/ wgsl/ primitives/ algorithms/ layouts/`. "formats" is graph-format's job.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `test/setup/browser.ts`, `test/setup/webgpu-global.ts`                                                                              | DELETE (replace)                                                                       | `requestAdapterInfo()` is removed from the API (report line 232 recommends `adapter.info`); the console output uses a non-ASCII check mark (`webgpu-global.ts` lines 58, 61: forbidden by the ASCII rule); the throw-on-missing-WebGPU intent is kept in the new `test/setup/gpu.ts`.                                                                                                                                                                                                                                                   |
+| `test/setup/node.ts`                                                                                                                | DELETE                                                                                 | a `console.log` placeholder.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `test/helpers/webgpu.ts`, `test/helpers/test-utils.ts`                                                                              | DELETE (fold in)                                                                       | `createBuffer` via `mappedAtCreation` and `readBuffer` returning `Float32Array` are less general than the graph-format `upload` / `readback` helpers (section 6); `expectFloatArraysEqual` is replaced by a tolerance matcher in `test/helpers/oracle.ts`. `withTestDevice` (fresh device per test) is a useful pattern to keep in `test/helpers/device.ts`.                                                                                                                                                                            |
+| `test/browser/webgpu-check.test.ts`                                                                                                 | MOVE + harden                                                                          | becomes the first browser smoke test; add `expect(adapter.info.vendor)` / `isFallbackAdapter === false` under `REQUIRE_GPU=1` (report recommendation 3).                                                                                                                                                                                                                                                                                                                                                                                |
+| `test/browser/webgpu.test.ts`                                                                                                       | DELETE                                                                                 | a doubling-shader demo that the walking-skeleton test supersedes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `test/unit/index.test.ts`                                                                                                           | DELETE                                                                                 | asserts `version === "0.1.0"`; the new `test/index.test.ts` pins the export list instead.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `vitest.config.ts`                                                                                                                  | DELETE (rewrite)                                                                       | browser-only, SwiftShader flags, Vitest 2.1 shapes (`name: "chromium"`, top-level `launch` rejected -- report line 106-109). Section 4.5 replaces it.                                                                                                                                                                                                                                                                                                                                                                                   |
+| `vite.config.ts`                                                                                                                    | DELETE                                                                                 | dev server with dotenv / HTTPS / `examples/` opener; the packages use the programmatic `scripts/build-bundle.js` and no dev server (`packages/README.md` line 173: "vite.shared.config.ts (no dev server)"). Any demo page belongs in graphty-element stories, not here.                                                                                                                                                                                                                                                                |
+| `tsconfig.json`                                                                                                                     | DELETE (rewrite)                                                                       | `noUncheckedIndexedAccess: true` and `exactOptionalPropertyTypes: true` contradict design 14.5; `jsx`, `allowImportingTsExtensions`, `moduleDetection`, `importsNotUsedAsValues` are foreign to the package convention.                                                                                                                                                                                                                                                                                                                 |
+| `eslint.config.js`                                                                                                                  | DELETE                                                                                 | `@stylistic` formatting rules and `naming-convention` conflict with the monorepo flat config (`packages/eslint.config.js`: "ERROR PREVENTION, not stylistic rules", formatting by Prettier). The package is linted by `packages/eslint.config.js` like its siblings.                                                                                                                                                                                                                                                                    |
+| `knip.json`, `.husky/`, `package-lock.json`, `.env`, `.env.example`, `.github/workflows/test.yml`, `.vscode/`, `dist/`, `examples/` | DELETE                                                                                 | npm + husky + dotenv tooling of the scaffold; the staging root has "no Nx, husky, commitlint or release tooling" (README.md line 179); the workflow installs Mesa/Xvfb and runs on GitHub-hosted runners without a GPU (the plan's CI note replaces it); `examples/{data}` is an empty template artifact.                                                                                                                                                                                                                               |
+| `package.json` (root)                                                                                                               | REWRITE as a thin staging root or DELETE                                               | the real package.json is `packages/webgpu-graph-algorithms/package.json`; `packages/package.json` is already the pnpm workspace root (lines 1-45). Keep a root README pointing at `packages/`.                                                                                                                                                                                                                                                                                                                                          |
+| `STRATEGY.md`, `IMPLEMENTATION_CHECKLIST.md`                                                                                        | DELETE or move to `tmp/legacy/`                                                        | stale, pre-design, mention CPU / WebGL fallbacks that the project rule forbids.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `README.md` (root)                                                                                                                  | REWRITE                                                                                | one screen: what the repo stages, pointer to `packages/README.md` and the plan.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `HEADLESS_GPU_REPORT.md`                                                                                                            | KEEP (move under `packages/webgpu-graph-algorithms/docs/` or reference from CLAUDE.md) | the verified recipe for the real GPU under headless Chromium; design 14.5 line 4215 cites it by name.                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `CLAUDE.md` (root, one line: no fallbacks)                                                                                          | KEEP                                                                                   | still the project rule; the package CLAUDE.md repeats it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `.gitignore` (root)                                                                                                                 | REWRITE                                                                                | keep `node_modules`, `dist`, `coverage`, `tmp/` (currently NOT ignored at the root -- `tmp/` holds this plan; decide whether the plan directory is committed), `*.tsbuildinfo`, drop the `*.test.js` / `.env` lines.                                                                                                                                                                                                                                                                                                                    |
+| `packages/**`                                                                                                                       | KEEP untouched                                                                         | graph-format and graph-io are done and audited.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ---
 
@@ -828,17 +842,17 @@ module through the tsconfig `include` of `../graph-format/src/**`: `packages/gra
 line 7; benchmarks were re-implemented: `packages/graph-io/benchmarks/measure.ts`). COPY the small
 pure helpers below into `test/helpers/` and `benchmarks/`, keeping a comment naming the origin.
 
-| Asset | Where | What to reuse |
-| --- | --- | --- |
-| Device acquisition, `requireGpu(t)`, `upload()`, `outputBuffer()`, `readback()` (copy-before-unmap), `dispatch()` (bind-group layout from `Binding[]`, `getCompilationInfo()` errors surfaced as failures, `pushErrorScope("validation")`, the 65,535 dispatch assertion), `u32Uniform()` (16-byte padded) | `packages/graph-format/test/audit/gpu-upload.test.ts` lines 26-198 | Becomes `test/setup/gpu.ts` + `test/helpers/device.ts`. The `dispatch()` helper is the seed of the package's own `Kernel` class but stays a test-side copy. |
-| `randomEdges(n, m, seed)` LCG with no self-loops, `directedGraph()` (n=4096, m=50000, weights 1..7, `cost` edge column), `undirectedGraph()` | same file lines 200-251 | `test/helpers/graphs.ts`. |
-| `randomEdges(nodeCount, edgeCount, seed)` (G(n, m) WITH self-loops and parallels, integer weights 1..10), `stringIds`, `sparseNumericIds`, `makeRandom(seed)` xorshift32 | `packages/graph-format/benchmarks/datasets.ts` lines 1-88, `harness.ts` lines 239-249 | `benchmarks/datasets.ts`. Seeded, identical across hosts. |
+| Asset                                                                                                                                                                                                                                                                                                                                                                 | Where                                                                                                                  | What to reuse                                                                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Device acquisition, `requireGpu(t)`, `upload()`, `outputBuffer()`, `readback()` (copy-before-unmap), `dispatch()` (bind-group layout from `Binding[]`, `getCompilationInfo()` errors surfaced as failures, `pushErrorScope("validation")`, the 65,535 dispatch assertion), `u32Uniform()` (16-byte padded)                                                            | `packages/graph-format/test/audit/gpu-upload.test.ts` lines 26-198                                                     | Becomes `test/setup/gpu.ts` + `test/helpers/device.ts`. The `dispatch()` helper is the seed of the package's own `Kernel` class but stays a test-side copy.                                                                                                                                                                                                           |
+| `randomEdges(n, m, seed)` LCG with no self-loops, `directedGraph()` (n=4096, m=50000, weights 1..7, `cost` edge column), `undirectedGraph()`                                                                                                                                                                                                                          | same file lines 200-251                                                                                                | `test/helpers/graphs.ts`.                                                                                                                                                                                                                                                                                                                                             |
+| `randomEdges(nodeCount, edgeCount, seed)` (G(n, m) WITH self-loops and parallels, integer weights 1..10), `stringIds`, `sparseNumericIds`, `makeRandom(seed)` xorshift32                                                                                                                                                                                              | `packages/graph-format/benchmarks/datasets.ts` lines 1-88, `harness.ts` lines 239-249                                  | `benchmarks/datasets.ts`. Seeded, identical across hosts.                                                                                                                                                                                                                                                                                                             |
 | `bench(group, name, { setup, run }, { runs, items, unit })` -> `BenchResult { group, name, medianMs, minMs, maxMs, runs, memoryDeltaBytes, rate, rateUnit }`, `printTable`, `appendSession` -> `benchmarks/results/<host>-node<version>.json` (array of sessions with `date`, `host`, `node`, `cpu`, `exposeGc`, `results`), `run.ts` group selection and `--no-save` | `packages/graph-format/benchmarks/harness.ts` lines 16-249, `run.ts` lines 1-45, `results/dev.ato.ms-node22.22.1.json` | `benchmarks/harness.ts`: `run` becomes `async` (GPU work awaits readback) and a `gpu` field (adapter vendor / architecture / device, requested limits) is added to the session record so results from the RTX 4070 SUPER, a CI runner and a browser are distinguishable. Keep the same JSON shape otherwise so a future merge-benchmarks tool can read both packages. |
-| `KARATE_EDGES` (78 edges), `gridEdges(w, h)`, `EdgeSpec` | `packages/graph-format/test/helpers/parts.ts` lines 26-31, 369-467 | `test/helpers/graphs.ts` (pure data; NOT `makeSnapshot` / `makeParts`, which import `src/types/internal.ts`). Zachary's karate club is the canonical small oracle graph for BFS / CC / betweenness / Louvain checks. |
-| `assertInvariants(snapshot)` | `test/helpers/invariants.ts` line 300 | do not copy; the GPU package never constructs snapshots except through public factories, and `snapshot.validate()` is the public equivalent. |
-| `ModelGraph`, `arbScenario` (fast-check) | `test/helpers/model-graph.ts`, `random-ops.ts` | builder-specific; not needed. |
-| Legacy `Graph` class copy | `test/helpers/legacy-graph.ts` | not needed; the GPU package's oracles are the CPU `@graphty/algorithms` results (differential tests, design 16) or hand-written O(n + m) references in `test/helpers/oracle.ts`. |
-| Fixture container | `test/fixtures/rich-v1.gsnp` | a small `fromBytes` fixture with columns of every dtype; copy for the "adopted container uploads from file bytes at `arena.byteOffset !== 0`" case. |
+| `KARATE_EDGES` (78 edges), `gridEdges(w, h)`, `EdgeSpec`                                                                                                                                                                                                                                                                                                              | `packages/graph-format/test/helpers/parts.ts` lines 26-31, 369-467                                                     | `test/helpers/graphs.ts` (pure data; NOT `makeSnapshot` / `makeParts`, which import `src/types/internal.ts`). Zachary's karate club is the canonical small oracle graph for BFS / CC / betweenness / Louvain checks.                                                                                                                                                  |
+| `assertInvariants(snapshot)`                                                                                                                                                                                                                                                                                                                                          | `test/helpers/invariants.ts` line 300                                                                                  | do not copy; the GPU package never constructs snapshots except through public factories, and `snapshot.validate()` is the public equivalent.                                                                                                                                                                                                                          |
+| `ModelGraph`, `arbScenario` (fast-check)                                                                                                                                                                                                                                                                                                                              | `test/helpers/model-graph.ts`, `random-ops.ts`                                                                         | builder-specific; not needed.                                                                                                                                                                                                                                                                                                                                         |
+| Legacy `Graph` class copy                                                                                                                                                                                                                                                                                                                                             | `test/helpers/legacy-graph.ts`                                                                                         | not needed; the GPU package's oracles are the CPU `@graphty/algorithms` results (differential tests, design 16) or hand-written O(n + m) references in `test/helpers/oracle.ts`.                                                                                                                                                                                      |
+| Fixture container                                                                                                                                                                                                                                                                                                                                                     | `test/fixtures/rich-v1.gsnp`                                                                                           | a small `fromBytes` fixture with columns of every dtype; copy for the "adopted container uploads from file bytes at `arena.byteOffset !== 0`" case.                                                                                                                                                                                                                   |
 
 Assertions worth carrying over verbatim from `gpu-upload.test.ts` into the walking-skeleton test:
 the device accepts 256-byte offsets (`256 % minStorageBufferOffsetAlignment === 0`) and the default

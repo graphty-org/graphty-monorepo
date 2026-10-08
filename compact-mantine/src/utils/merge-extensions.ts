@@ -25,11 +25,8 @@ type NoOverlap<T, U> = keyof T & keyof U extends never ? U : never;
  * );
  * ```
  */
-export function mergeExtensions<A extends object, B extends object>(
-    a: A,
-    b: NoOverlap<A, B>,
-): A & B {
-    return { ...a, ...b } as A & B;
+export function mergeExtensions<A extends object, B extends object>(a: A, b: NoOverlap<A, B>): A & B {
+    return { ...a, ...b };
 }
 
 /**
@@ -39,12 +36,12 @@ export function mergeExtensions<A extends object, B extends object>(
  * @param c - Third extension object (must not overlap with a or b)
  * @returns Merged object containing all properties from all inputs
  */
-export function mergeExtensions3<
-    A extends object,
-    B extends object,
-    C extends object,
->(a: A, b: NoOverlap<A, B>, c: NoOverlap<A & B, C>): A & B & C {
-    return { ...a, ...b, ...c } as A & B & C;
+export function mergeExtensions3<A extends object, B extends object, C extends object>(
+    a: A,
+    b: NoOverlap<A, B>,
+    c: NoOverlap<A & B, C>,
+): A & B & C {
+    return { ...a, ...b, ...c };
 }
 
 /**
@@ -56,17 +53,11 @@ export function mergeExtensions3<
  * @param d - Fourth extension object (must not overlap with a, b, or c)
  * @returns Merged object containing all properties from all inputs
  */
-export function mergeExtensions4<
-    A extends object,
-    B extends object,
-    C extends object,
-    D extends object,
->(
+export function mergeExtensions4<A extends object, B extends object, C extends object, D extends object>(
     a: A,
     b: NoOverlap<A, B>,
     c: NoOverlap<A & B, C>,
     d: NoOverlap<A & B & C, D>,
 ): A & B & C & D {
-    return { ...a, ...b, ...c, ...d } as A & B & C & D;
+    return { ...a, ...b, ...c, ...d };
 }
-

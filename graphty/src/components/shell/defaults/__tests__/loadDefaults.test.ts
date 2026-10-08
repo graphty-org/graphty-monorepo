@@ -222,9 +222,9 @@ describe("labelCountFor, with the reader's settings", () => {
     });
 
     it("holds the reader's budget to the Performance ceiling above the threshold", () => {
-        expect(
-            labelCountFor(LARGE_GRAPH_NODE_THRESHOLD + 1, { topDegreeLabelsOn: true, labelCount: 50 }),
-        ).toBe(PERFORMANCE_LABEL_COUNT);
+        expect(labelCountFor(LARGE_GRAPH_NODE_THRESHOLD + 1, { topDegreeLabelsOn: true, labelCount: 50 })).toBe(
+            PERFORMANCE_LABEL_COUNT,
+        );
     });
 
     it("rounds a fractional budget rather than passing it on", () => {

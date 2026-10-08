@@ -1051,7 +1051,7 @@ class Move implements Command {
             // With an open transaction's writes in the live state, only a move that cancels the
             // transaction first is one the model can check.
             const kind = this.kind === "restore" ? "restore" : this.kind;
-            const decided = predict(model as Model, kind, this.pick);
+            const decided = predict(model, kind, this.pick);
             return model.tx !== null && decided.cancel.includes(model.tx.item) && decided.to === model.position;
         }
 
@@ -2310,7 +2310,7 @@ export async function undoAllRedoAll(model: Model, real: Real): Promise<void> {
     }
 
     // Pending work cancelled by the restore below never records; what finishes first does.
-    for (let release = new Release(0); model.pending.some((item) => item.release !== null); ) {
+    for (let release = new Release(0); model.pending.some((item) => item.release !== null);) {
         await release.run(model, real);
     }
 

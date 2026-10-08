@@ -127,7 +127,6 @@ describe("sampleData command", () => {
             // Add a node with a very long string value
             const nodes = Array.from(dataManager.nodes.values());
             if (nodes[0]) {
-                 
                 (nodes[0].data as any).longDescription = "x".repeat(500);
             }
 

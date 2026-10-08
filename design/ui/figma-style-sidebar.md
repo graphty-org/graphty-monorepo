@@ -253,15 +253,16 @@ Top-level accordion container that groups related ControlGroups. Used to organiz
 - Expanded state reveals all child ControlGroups
 
 **Props:**
-| Prop | Type | Description |
-|------|------|-------------|
-| `name` | `string` | Section title (sentence case, not uppercase) |
-| `icon` | `ReactNode` | Optional icon displayed before title |
-| `actions` | `ReactNode` | Optional action buttons for header |
-| `children` | `ReactNode` | ControlGroups within the section |
-| `defaultExpanded` | `boolean` | Initial expanded state (default: true) |
-| `expanded` | `boolean` | Controlled expanded state |
-| `onExpandedChange` | `(expanded: boolean) => void` | Callback when expanded state changes |
+
+| Prop               | Type                          | Description                                  |
+| ------------------ | ----------------------------- | -------------------------------------------- |
+| `name`             | `string`                      | Section title (sentence case, not uppercase) |
+| `icon`             | `ReactNode`                   | Optional icon displayed before title         |
+| `actions`          | `ReactNode`                   | Optional action buttons for header           |
+| `children`         | `ReactNode`                   | ControlGroups within the section             |
+| `defaultExpanded`  | `boolean`                     | Initial expanded state (default: true)       |
+| `expanded`         | `boolean`                     | Controlled expanded state                    |
+| `onExpandedChange` | `(expanded: boolean) => void` | Callback when expanded state changes         |
 
 **Structure:**
 
@@ -274,13 +275,14 @@ Top-level accordion container that groups related ControlGroups. Used to organiz
 Container for a section of related controls.
 
 **Props:**
-| Prop | Type | Description |
-|------|------|-------------|
-| `name` | `string` | Section header text (displayed uppercase) |
-| `actions` | `ReactNode` | Optional action buttons for header |
-| `children` | `ReactNode` | Controls within the group |
-| `collapsible` | `boolean` | Whether section can be collapsed |
-| `defaultExpanded` | `boolean` | Initial expanded state |
+
+| Prop              | Type        | Description                               |
+| ----------------- | ----------- | ----------------------------------------- |
+| `name`            | `string`    | Section header text (displayed uppercase) |
+| `actions`         | `ReactNode` | Optional action buttons for header        |
+| `children`        | `ReactNode` | Controls within the group                 |
+| `collapsible`     | `boolean`   | Whether section can be collapsed          |
+| `defaultExpanded` | `boolean`   | Initial expanded state                    |
 
 **Structure:**
 
@@ -294,42 +296,45 @@ Container for a section of related controls.
 Row displaying a property with color/value and actions.
 
 **Props:**
-| Prop | Type | Description |
-|------|------|-------------|
-| `color` | `string` | Hex color value |
-| `opacity` | `number` | Opacity 0-100 |
-| `selected` | `boolean` | Whether row is selected |
-| `visible` | `boolean` | Visibility state |
-| `onColorChange` | `(color: string) => void` | Color change handler |
-| `onOpacityChange` | `(opacity: number) => void` | Opacity change handler |
-| `onVisibilityToggle` | `() => void` | Toggle visibility |
-| `onRemove` | `() => void` | Remove this property |
+
+| Prop                 | Type                        | Description             |
+| -------------------- | --------------------------- | ----------------------- |
+| `color`              | `string`                    | Hex color value         |
+| `opacity`            | `number`                    | Opacity 0-100           |
+| `selected`           | `boolean`                   | Whether row is selected |
+| `visible`            | `boolean`                   | Visibility state        |
+| `onColorChange`      | `(color: string) => void`   | Color change handler    |
+| `onOpacityChange`    | `(opacity: number) => void` | Opacity change handler  |
+| `onVisibilityToggle` | `() => void`                | Toggle visibility       |
+| `onRemove`           | `() => void`                | Remove this property    |
 
 #### 3. DimensionInputPair
 
 Paired width/height inputs with optional constraint lock.
 
 **Props:**
-| Prop | Type | Description |
-|------|------|-------------|
-| `width` | `number` | Width value |
-| `height` | `number` | Height value |
-| `locked` | `boolean` | Whether proportions are constrained |
-| `onWidthChange` | `(w: number) => void` | Width change handler |
-| `onHeightChange` | `(h: number) => void` | Height change handler |
-| `onLockToggle` | `() => void` | Toggle constraint |
+
+| Prop             | Type                  | Description                         |
+| ---------------- | --------------------- | ----------------------------------- |
+| `width`          | `number`              | Width value                         |
+| `height`         | `number`              | Height value                        |
+| `locked`         | `boolean`             | Whether proportions are constrained |
+| `onWidthChange`  | `(w: number) => void` | Width change handler                |
+| `onHeightChange` | `(h: number) => void` | Height change handler               |
+| `onLockToggle`   | `() => void`          | Toggle constraint                   |
 
 #### 4. IconInput
 
 Input with icon prefix inside the field.
 
 **Props:**
-| Prop | Type | Description |
-|------|------|-------------|
-| `icon` | `ReactNode` | Icon component |
-| `value` | `string \| number` | Input value |
-| `suffix` | `string` | Optional suffix (e.g., "%") |
-| `onChange` | `(value: string) => void` | Change handler |
+
+| Prop       | Type                      | Description                 |
+| ---------- | ------------------------- | --------------------------- |
+| `icon`     | `ReactNode`               | Icon component              |
+| `value`    | `string \| number`        | Input value                 |
+| `suffix`   | `string`                  | Optional suffix (e.g., "%") |
+| `onChange` | `(value: string) => void` | Change handler              |
 
 ---
 

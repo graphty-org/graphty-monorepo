@@ -114,19 +114,13 @@ export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[] = [
         name: "bins",
         plainName: "Equal Ranges",
         domainKind: "numeric",
-        options: [
-            binCount("Groups", "How many equally wide ranges to cut the values into.", 5),
-            REVERSE,
-        ],
+        options: [binCount("Groups", "How many equally wide ranges to cut the values into.", 5), REVERSE],
     },
     {
         name: "quantile",
         plainName: "Equal Counts",
         domainKind: "numeric",
-        options: [
-            binCount("Groups", "How many groups of equal size to sort the values into.", 4),
-            REVERSE,
-        ],
+        options: [binCount("Groups", "How many groups of equal size to sort the values into.", 4), REVERSE],
     },
     {
         name: "ordinal",

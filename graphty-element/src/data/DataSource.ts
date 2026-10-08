@@ -21,7 +21,7 @@ import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
 import { ErrorAggregator } from "./ErrorAggregator.js";
-import { columnsMapping, importWhole, toRecords } from "./graph-io-import.js";
+import { columnsMapping, emptyLoad, importWhole, toRecords } from "./graph-io-import.js";
 import { type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
 /** What every reader is configured with, whatever its format. */
@@ -487,7 +487,7 @@ export abstract class DataSource {
      * the file to a graph-io importer calls {@link getInput} instead, so the importer can read
      * an encoding declaration too.
      * @returns The text.
-     * @throws A `GraphtyError` with `E_PARSE_FAILED` when the bytes cannot be decoded.
+     * @throws A `GraphtyError` with `E_PARSE_FAILED` when the bytes cannot be decoded, `E_EMPTY_LOAD` when there are none.
      */
     protected async getContent(): Promise<string> {
         const input = await this.getInput();
@@ -498,6 +498,11 @@ export abstract class DataSource {
         try {
             return await readText(input, new ImportReportBuilder(this.type, 0));
         } catch (error) {
+            const empty = emptyLoad(error, this.type);
+            if (empty !== null) {
+                throw empty;
+            }
+
             // Bytes that are not text in any encoding the decoder could settle on (invalid UTF-8
             // after valid non-ASCII UTF-8): the file cannot be read, and the caller is told so
             // with a code, not graph-io's bare ImportError.

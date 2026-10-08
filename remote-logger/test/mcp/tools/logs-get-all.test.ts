@@ -2,12 +2,9 @@
  * Tests for the logs_get_all MCP tool.
  */
 
-import { beforeEach,describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-    logsGetAllHandler,
-    logsGetAllTool,
-} from "../../../src/mcp/tools/logs-get-all.js";
+import { logsGetAllHandler, logsGetAllTool } from "../../../src/mcp/tools/logs-get-all.js";
 import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_get_all tool", () => {
@@ -23,9 +20,7 @@ describe("logs_get_all tool", () => {
             { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Session 1 log 1" },
             { time: "2024-01-15T10:01:00Z", level: "INFO", message: "Session 1 log 2" },
         ]);
-        storage.addLogs("session-2", [
-            { time: "2024-01-15T10:02:00Z", level: "ERROR", message: "Session 2 log 1" },
-        ]);
+        storage.addLogs("session-2", [{ time: "2024-01-15T10:02:00Z", level: "ERROR", message: "Session 2 log 1" }]);
 
         const result = await logsGetAllHandler(storage, {});
 
@@ -39,12 +34,12 @@ describe("logs_get_all tool", () => {
 
     it("filters by projectMarker", async () => {
         // Add logs to sessions with different markers
-        storage.addLogs("session-1", [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Project A log" },
-        ], { projectMarker: "project-a" });
-        storage.addLogs("session-2", [
-            { time: "2024-01-15T10:01:00Z", level: "INFO", message: "Project B log" },
-        ], { projectMarker: "project-b" });
+        storage.addLogs("session-1", [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Project A log" }], {
+            projectMarker: "project-a",
+        });
+        storage.addLogs("session-2", [{ time: "2024-01-15T10:01:00Z", level: "INFO", message: "Project B log" }], {
+            projectMarker: "project-b",
+        });
 
         const result = await logsGetAllHandler(storage, {
             projectMarker: "project-a",

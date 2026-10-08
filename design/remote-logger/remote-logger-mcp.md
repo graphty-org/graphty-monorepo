@@ -9,14 +9,18 @@
 ## Requirements
 
 ### Current State
+
 The existing remote logging server accepts connections from web browsers on devices where logs are hard to access (iPad, iPhone, Meta Quest). Claude Code currently:
+
 1. Starts the server manually to read output and logs
 2. Views different sessions from different clients
 3. Risks port conflicts when multiple git worktrees need separate servers
 4. Has potential for cross-talk between sessions from different projects
 
 ### Desired State
+
 Convert the logging server to an MCP server that:
+
 1. Runs as a single persistent service
 2. Exposes current endpoints as MCP tools
 3. Enables project/worktree differentiation through markers
@@ -27,6 +31,7 @@ Convert the logging server to an MCP server that:
 Based on research from the official MCP documentation:
 
 ### Tool Design Principles
+
 1. **Clear, Specific Names**: Use verb-noun format (e.g., `get_logs`, `clear_logs`)
 2. **Comprehensive Descriptions**: Each tool must explain what it does, when to use it, and what it returns
 3. **Strict Input Schemas**: Use JSON Schema with required fields and descriptions for each parameter
@@ -34,6 +39,7 @@ Based on research from the official MCP documentation:
 5. **Single Responsibility**: Each tool does one thing well
 
 ### Security Considerations
+
 - Validate all inputs
 - Implement rate limiting
 - Sanitize outputs
@@ -305,17 +311,17 @@ Based on research from the official MCP documentation:
 
 ### Tools Recommendation Summary
 
-| Tool | Maps To | Recommendation |
-|------|---------|----------------|
-| `logs_receive` | POST /log | **Keep** - Core functionality |
-| `logs_get_all` | GET /logs | **Keep** - Useful for full history |
-| `logs_get_recent` | GET /logs/recent | **Keep & Enhance** - Add filters |
-| `logs_get_errors` | GET /logs/errors | **Keep** - Common debugging need |
-| `logs_clear` | POST /logs/clear | **Keep** - Add confirmation |
-| `logs_list_sessions` | NEW | **Add** - Essential for multi-project |
-| `logs_health` | GET /health | **Keep** - Server monitoring |
-| `logs_search` | NEW | **Add** - Powerful debugging aid |
-| `logs_get_file_path` | NEW | **Add** - File-based access for Grep/Read |
+| Tool                 | Maps To          | Recommendation                            |
+| -------------------- | ---------------- | ----------------------------------------- |
+| `logs_receive`       | POST /log        | **Keep** - Core functionality             |
+| `logs_get_all`       | GET /logs        | **Keep** - Useful for full history        |
+| `logs_get_recent`    | GET /logs/recent | **Keep & Enhance** - Add filters          |
+| `logs_get_errors`    | GET /logs/errors | **Keep** - Common debugging need          |
+| `logs_clear`         | POST /logs/clear | **Keep** - Add confirmation               |
+| `logs_list_sessions` | NEW              | **Add** - Essential for multi-project     |
+| `logs_health`        | GET /health      | **Keep** - Server monitoring              |
+| `logs_search`        | NEW              | **Add** - Powerful debugging aid          |
+| `logs_get_file_path` | NEW              | **Add** - File-based access for Grep/Read |
 
 ### JSONL File Streaming
 
@@ -348,21 +354,23 @@ One JSON object per line, streamed in real-time:
 Claude Code can access logs via:
 
 1. **MCP Tools** - Structured queries with filtering
-   ```
-   logs_get_recent({ workingDirectory: "/path/to/.worktrees/remote-logging", count: 50 })
-   ```
+
+    ```
+    logs_get_recent({ workingDirectory: "/path/to/.worktrees/remote-logging", count: 50 })
+    ```
 
 2. **File Tools** - Grep/Read on JSONL for flexible searching
-   ```
-   # Get file path first
-   logs_get_file_path({ workingDirectory: "/path/to/.worktrees/remote-logging" })
-   # Returns: { path: "/tmp/remote-logger/remote-logging/logs.jsonl" }
 
-   # Then use native tools
-   Grep: pattern='"level":"ERROR"' path="/tmp/remote-logger/remote-logging/logs.jsonl"
-   Grep: pattern='Connection failed' path="/tmp/remote-logger/remote-logging/logs.jsonl"
-   Read: file_path="/tmp/remote-logger/remote-logging/logs.jsonl" offset=-100
-   ```
+    ```
+    # Get file path first
+    logs_get_file_path({ workingDirectory: "/path/to/.worktrees/remote-logging" })
+    # Returns: { path: "/tmp/remote-logger/remote-logging/logs.jsonl" }
+
+    # Then use native tools
+    Grep: pattern='"level":"ERROR"' path="/tmp/remote-logger/remote-logging/logs.jsonl"
+    Grep: pattern='Connection failed' path="/tmp/remote-logger/remote-logging/logs.jsonl"
+    Read: file_path="/tmp/remote-logger/remote-logging/logs.jsonl" offset=-100
+    ```
 
 #### Benefits
 
@@ -377,6 +385,7 @@ Claude Code can access logs via:
 #### The Correlation Problem
 
 With multiple Claude Code instances in different git worktrees, we need **automatic correlation** so that:
+
 - Browser clients automatically tag logs with their project identity
 - Claude Code automatically queries logs for "its" project
 - No human intervention or memory required
@@ -385,11 +394,11 @@ With multiple Claude Code instances in different git worktrees, we need **automa
 
 The key insight is that both sides can derive a marker from the **git worktree path**:
 
-| Side | How It Knows the Path | Derived Marker |
-|------|----------------------|----------------|
-| Browser (via Vite) | `process.cwd()` at build time | Injected via `__PROJECT_MARKER__` |
-| Claude Code | Current working directory | Passed to MCP tools |
-| MCP Server | Extracts from path | `path.basename()` or worktree name |
+| Side               | How It Knows the Path         | Derived Marker                     |
+| ------------------ | ----------------------------- | ---------------------------------- |
+| Browser (via Vite) | `process.cwd()` at build time | Injected via `__PROJECT_MARKER__`  |
+| Claude Code        | Current working directory     | Passed to MCP tools                |
+| MCP Server         | Extracts from path            | `path.basename()` or worktree name |
 
 #### Browser Client: Vite Auto-Injection
 
@@ -400,33 +409,33 @@ The shared Vite config automatically injects the project marker:
 import path from "path";
 
 export function createViteConfig(options) {
-  const worktreePath = process.cwd();
+    const worktreePath = process.cwd();
 
-  // Extract marker from path, e.g.:
-  // /home/user/graphty-monorepo/.worktrees/remote-logging → "remote-logging"
-  // /home/user/graphty-monorepo → "graphty-monorepo" (main worktree)
-  const autoMarker = extractWorktreeMarker(worktreePath);
+    // Extract marker from path, e.g.:
+    // /home/user/graphty-monorepo/.worktrees/remote-logging → "remote-logging"
+    // /home/user/graphty-monorepo → "graphty-monorepo" (main worktree)
+    const autoMarker = extractWorktreeMarker(worktreePath);
 
-  return defineConfig({
-    define: {
-      '__REMOTE_LOG_PROJECT_MARKER__': JSON.stringify(
-        process.env.REMOTE_LOG_MARKER ||  // Explicit override
-        autoMarker ||                       // Auto-detected
-        'default'
-      ),
-      '__REMOTE_LOG_WORKTREE_PATH__': JSON.stringify(worktreePath)
-    }
-  });
+    return defineConfig({
+        define: {
+            __REMOTE_LOG_PROJECT_MARKER__: JSON.stringify(
+                process.env.REMOTE_LOG_MARKER || // Explicit override
+                    autoMarker || // Auto-detected
+                    "default",
+            ),
+            __REMOTE_LOG_WORKTREE_PATH__: JSON.stringify(worktreePath),
+        },
+    });
 }
 
 function extractWorktreeMarker(cwd: string): string {
-  // Check if in .worktrees directory
-  const worktreeMatch = cwd.match(/\.worktrees[\/\\]([^\/\\]+)/);
-  if (worktreeMatch) {
-    return worktreeMatch[1]; // e.g., "remote-logging"
-  }
-  // Fall back to directory name
-  return path.basename(cwd);
+    // Check if in .worktrees directory
+    const worktreeMatch = cwd.match(/\.worktrees[\/\\]([^\/\\]+)/);
+    if (worktreeMatch) {
+        return worktreeMatch[1]; // e.g., "remote-logging"
+    }
+    // Fall back to directory name
+    return path.basename(cwd);
 }
 ```
 
@@ -435,17 +444,15 @@ function extractWorktreeMarker(cwd: string): string {
 ```typescript
 // RemoteLogClient.ts
 export class RemoteLogClient {
-  constructor(options: RemoteLogClientOptions) {
-    // Auto-detect project marker (zero config needed)
-    this.projectMarker = options.projectMarker
-      ?? (typeof __REMOTE_LOG_PROJECT_MARKER__ !== 'undefined'
-          ? __REMOTE_LOG_PROJECT_MARKER__
-          : undefined);
+    constructor(options: RemoteLogClientOptions) {
+        // Auto-detect project marker (zero config needed)
+        this.projectMarker =
+            options.projectMarker ??
+            (typeof __REMOTE_LOG_PROJECT_MARKER__ !== "undefined" ? __REMOTE_LOG_PROJECT_MARKER__ : undefined);
 
-    this.worktreePath = typeof __REMOTE_LOG_WORKTREE_PATH__ !== 'undefined'
-      ? __REMOTE_LOG_WORKTREE_PATH__
-      : undefined;
-  }
+        this.worktreePath =
+            typeof __REMOTE_LOG_WORKTREE_PATH__ !== "undefined" ? __REMOTE_LOG_WORKTREE_PATH__ : undefined;
+    }
 }
 ```
 
@@ -473,21 +480,19 @@ MCP tools accept working directory for automatic filtering:
 ```typescript
 // mcp-server/marker-utils.ts
 export function extractMarkerFromPath(cwd: string): string {
-  // .worktrees/remote-logging → "remote-logging"
-  const worktreeMatch = cwd.match(/\.worktrees[\/\\]([^\/\\]+)/);
-  if (worktreeMatch) return worktreeMatch[1];
+    // .worktrees/remote-logging → "remote-logging"
+    const worktreeMatch = cwd.match(/\.worktrees[\/\\]([^\/\\]+)/);
+    if (worktreeMatch) return worktreeMatch[1];
 
-  // Regular directory → basename
-  return path.basename(cwd);
+    // Regular directory → basename
+    return path.basename(cwd);
 }
 
 // In tool handler
 async function handleLogsGetRecent(args: { workingDirectory?: string }) {
-  const marker = args.workingDirectory
-    ? extractMarkerFromPath(args.workingDirectory)
-    : undefined;
+    const marker = args.workingDirectory ? extractMarkerFromPath(args.workingDirectory) : undefined;
 
-  return queryLogs({ projectMarker: marker });
+    return queryLogs({ projectMarker: marker });
 }
 ```
 
@@ -508,10 +513,10 @@ Sessions also store extra context for debugging correlation issues:
 ```typescript
 interface SessionMetadata {
     sessionId: string;
-    projectMarker: string;           // Derived or explicit
-    worktreePath?: string;           // Full path if available
-    pageUrl?: string;                // Browser URL
-    userAgent?: string;              // Browser info
+    projectMarker: string; // Derived or explicit
+    worktreePath?: string; // Full path if available
+    pageUrl?: string; // Browser URL
+    userAgent?: string; // Browser info
     firstLogTime: string;
     lastLogTime: string;
     logCount: number;
@@ -522,10 +527,12 @@ interface SessionMetadata {
 #### Example: Zero-Config Workflow
 
 **Setup** (one-time):
+
 1. Add shared Vite config to monorepo (already done)
 2. MCP server registered in Claude Code config
 
 **Runtime** (automatic):
+
 ```
 1. Developer runs `pnpm dev:graphty-element` in remote-logging worktree
 2. Vite injects __REMOTE_LOG_PROJECT_MARKER__ = "remote-logging"
@@ -573,10 +580,13 @@ interface SessionMetadata {
 }
 
 // Sessions stored with full metadata
-const sessions = new Map<string, {
-    metadata: SessionMetadata;
-    logs: LogEntry[];
-}>();
+const sessions = new Map<
+    string,
+    {
+        metadata: SessionMetadata;
+        logs: LogEntry[];
+    }
+>();
 ```
 
 ### Technical Architecture
@@ -584,24 +594,24 @@ const sessions = new Map<string, {
 #### Components
 
 1. **MCP Server Core** (`src/mcp-server/mcp-server.ts`)
-   - Implements MCP protocol using `@modelcontextprotocol/sdk`
-   - Registers all tools with schemas
-   - Handles tool execution
-   - Manages STDIO transport
+    - Implements MCP protocol using `@modelcontextprotocol/sdk`
+    - Registers all tools with schemas
+    - Handles tool execution
+    - Manages STDIO transport
 
 2. **Log Storage** (`src/mcp-server/log-storage.ts`)
-   - In-memory storage with session metadata
-   - Project marker indexing
-   - Query methods for filtering/searching
+    - In-memory storage with session metadata
+    - Project marker indexing
+    - Query methods for filtering/searching
 
 3. **HTTP Bridge** (`src/mcp-server/http-bridge.ts`) - Optional
-   - Maintains HTTP endpoints for browser clients
-   - Forwards logs to MCP storage
-   - Required because browsers can't speak MCP directly
+    - Maintains HTTP endpoints for browser clients
+    - Forwards logs to MCP storage
+    - Required because browsers can't speak MCP directly
 
 4. **Existing Components** (modified)
-   - `RemoteLogClient.ts` - Add projectMarker option
-   - `log-server.ts` - Refactor to use shared storage
+    - `RemoteLogClient.ts` - Add projectMarker option
+    - `log-server.ts` - Refactor to use shared storage
 
 #### Data Flow
 
@@ -632,29 +642,29 @@ Both interfaces share the same log storage backend.
 ### Implementation Approach
 
 1. **Phase 1: Core MCP Server**
-   - Create `@modelcontextprotocol/sdk` based server
-   - Implement all 8 tools with shared in-memory storage
-   - Add STDIO transport for Claude Code
+    - Create `@modelcontextprotocol/sdk` based server
+    - Implement all 8 tools with shared in-memory storage
+    - Add STDIO transport for Claude Code
 
 2. **Phase 2: Project Marker System**
-   - Update `SessionMetadata` interface
-   - Add marker extraction/detection logic
-   - Add `projectMarker` option to RemoteLogClient
+    - Update `SessionMetadata` interface
+    - Add marker extraction/detection logic
+    - Add `projectMarker` option to RemoteLogClient
 
 3. **Phase 3: HTTP Bridge Integration**
-   - Refactor existing HTTP server to use shared storage
-   - Ensure both MCP and HTTP interfaces work simultaneously
-   - Single process handles both
+    - Refactor existing HTTP server to use shared storage
+    - Ensure both MCP and HTTP interfaces work simultaneously
+    - Single process handles both
 
 4. **Phase 4: Enhanced Features**
-   - Implement `logs_search` with regex support
-   - Add log level filtering
-   - Add time-based filtering
+    - Implement `logs_search` with regex support
+    - Add log level filtering
+    - Add time-based filtering
 
 5. **Phase 5: Testing & Documentation**
-   - Unit tests for MCP tools
-   - Integration tests for HTTP+MCP
-   - Update README with MCP usage
+    - Unit tests for MCP tools
+    - Integration tests for HTTP+MCP
+    - Update README with MCP usage
 
 ### User Interface/API
 
@@ -664,12 +674,12 @@ Add to `~/.config/claude-code/mcp.json` or project-specific config:
 
 ```json
 {
-  "mcpServers": {
-    "remote-logger": {
-      "command": "npx",
-      "args": ["@graphty/remote-logger", "--mcp"]
+    "mcpServers": {
+        "remote-logger": {
+            "command": "npx",
+            "args": ["@graphty/remote-logger", "--mcp"]
+        }
     }
-  }
 }
 ```
 
@@ -694,7 +704,7 @@ import { RemoteLogClient } from "@graphty/remote-logger";
 const logger = new RemoteLogClient({
     url: "http://localhost:9080",
     sessionPrefix: "my-app",
-    projectMarker: "remote-logging"  // NEW
+    projectMarker: "remote-logging", // NEW
 });
 
 logger.log("INFO", "Application started");
@@ -771,26 +781,26 @@ logger.log("INFO", "Application started");
 Based on discussion:
 
 1. **Project Marker Source**: ✅ Multiple options with fallback chain
-   - Auto-detect from git worktree path (primary)
-   - Environment variable `REMOTE_LOG_MARKER` (override)
-   - Explicit parameter (final override)
-   - This prevents confusion from accidental conflicts
+    - Auto-detect from git worktree path (primary)
+    - Environment variable `REMOTE_LOG_MARKER` (override)
+    - Explicit parameter (final override)
+    - This prevents confusion from accidental conflicts
 
 2. **Log Retention**: ✅ Time-based, configurable
-   - Delete logs after X days (configurable)
-   - Default: 7 days (suggested)
-   - Configurable via MCP server config or environment variable
+    - Delete logs after X days (configurable)
+    - Default: 7 days (suggested)
+    - Configurable via MCP server config or environment variable
 
 3. **HTTP Port**: ✅ Configurable
-   - Default: 9080 (existing)
-   - Configurable via `--port` flag or config
+    - Default: 9080 (existing)
+    - Configurable via `--port` flag or config
 
 4. **Startup Mode**: ✅ Dual mode
-   - Always run both HTTP (for browsers) and MCP (for Claude Code)
-   - Required since browsers cannot speak MCP protocol
+    - Always run both HTTP (for browsers) and MCP (for Claude Code)
+    - Required since browsers cannot speak MCP protocol
 
 5. **Authentication**: ✅ No auth required
-   - Local development tool, no auth needed
+    - Local development tool, no auth needed
 
 ## Implementation Estimate
 

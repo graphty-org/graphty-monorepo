@@ -1,9 +1,9 @@
 import { type F64, type GraphSnapshot, type NodeSet, resolveNodeSet } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { np } from "../utils/numpy";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
-import { groupsOfColumn } from "./multipartite";
+import type { LayoutResult } from "../positions.js";
+import { np } from "../utils/numpy.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { groupsOfColumn } from "./multipartite.js";
 
 /** Options of the index-based shell layout. */
 export interface ShellLayoutOptions extends CommonLayoutOptions {

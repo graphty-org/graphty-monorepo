@@ -31,7 +31,14 @@ import { PANEL_INK, ProseBlock } from "@graphty/compact-mantine";
 import React from "react";
 
 import { CANVAS_TOOLBAR_Z_INDEX, LEGEND_MIN_HEIGHT, LEGEND_WIDTH, OVERLAY_INSET } from "../constants";
-import { CANVAS_LEADING, CANVAS_METRICS, CANVAS_SPACE, CANVAS_TYPE, type LegendChannelId, OVERLAY_REFLOW_TRANSITION_MS } from "./canvasLayout";
+import {
+    CANVAS_LEADING,
+    CANVAS_METRICS,
+    CANVAS_SPACE,
+    CANVAS_TYPE,
+    type LegendChannelId,
+    OVERLAY_REFLOW_TRANSITION_MS,
+} from "./canvasLayout";
 import { capLegendCategories, orderLegendChannels } from "./legendChannels";
 
 /**
@@ -382,9 +389,7 @@ export function Legend(props: LegendProps): React.JSX.Element | null {
                             )}
 
                             {channel.categories === undefined || channel.categories.length === 0 ? null : (
-                                <div
-                                    style={{ display: "flex", flexDirection: "column", gap: CANVAS_SPACE.TIGHT }}
-                                >
+                                <div style={{ display: "flex", flexDirection: "column", gap: CANVAS_SPACE.TIGHT }}>
                                     {capLegendCategories(channel.categories).map((category) => (
                                         <CategoryRow key={category.id} colors={[category.color]}>
                                             {category.label}

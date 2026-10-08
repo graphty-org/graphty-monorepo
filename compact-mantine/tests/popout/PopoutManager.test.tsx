@@ -234,9 +234,7 @@ describe("PopoutManager z-index", () => {
         const panels = screen.getAllByRole("dialog");
         expect(panels).toHaveLength(3);
 
-        const grandparentPanel = panels.find((p) =>
-            p.querySelector('[data-testid="grandparent-content"]'),
-        );
+        const grandparentPanel = panels.find((p) => p.querySelector('[data-testid="grandparent-content"]'));
         const parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
         const childPanel = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
 
@@ -288,9 +286,7 @@ describe("PopoutManager z-index", () => {
         });
 
         // Close Child panel
-        const childPanel = screen
-            .getAllByRole("dialog")
-            .find((p) => p.querySelector('[data-testid="child-content"]'));
+        const childPanel = screen.getAllByRole("dialog").find((p) => p.querySelector('[data-testid="child-content"]'));
         const closeButton = childPanel?.querySelector('[aria-label="Close panel"]') as HTMLElement;
         await user.click(closeButton);
 
@@ -310,9 +306,7 @@ describe("PopoutManager z-index", () => {
         const parentPanel = panels.find((p) => p.querySelector('[data-testid="parent-content"]'));
         const reopenedChild = panels.find((p) => p.querySelector('[data-testid="child-content"]'));
 
-        expect(parseInt(reopenedChild!.style.zIndex, 10)).toBeGreaterThan(
-            parseInt(parentPanel!.style.zIndex, 10),
-        );
+        expect(parseInt(reopenedChild!.style.zIndex, 10)).toBeGreaterThan(parseInt(parentPanel!.style.zIndex, 10));
     });
 });
 
@@ -531,9 +525,7 @@ describe("PopoutManager hierarchy", () => {
         expect(screen.getAllByRole("dialog")).toHaveLength(2);
 
         // Child panel should have a data-parent-id attribute linking to parent
-        const childPanel = screen.getAllByRole("dialog").find((p) =>
-            p.querySelector('[data-testid="child-content"]'),
-        );
+        const childPanel = screen.getAllByRole("dialog").find((p) => p.querySelector('[data-testid="child-content"]'));
         expect(childPanel).toBeDefined();
         expect(childPanel).toHaveAttribute("data-parent-id");
     });
@@ -579,9 +571,9 @@ describe("PopoutManager hierarchy", () => {
         expect(screen.getAllByRole("dialog")).toHaveLength(2);
 
         // Close the parent panel using the close button
-        const parentPanel = screen.getAllByRole("dialog").find((p) =>
-            p.querySelector('[data-testid="parent-content"]'),
-        );
+        const parentPanel = screen
+            .getAllByRole("dialog")
+            .find((p) => p.querySelector('[data-testid="parent-content"]'));
         const closeButton = parentPanel?.querySelector('[aria-label="Close panel"]') as HTMLElement;
         await user.click(closeButton);
 

@@ -210,10 +210,7 @@ export class SchemaExtractor {
         let schemaInferrer = inferSchema(firstItem) as unknown as SchemaInferrerLike;
 
         for (const item of restItems) {
-            schemaInferrer = inferSchema(
-                item,
-                schemaInferrer as Parameters<typeof inferSchema>[1],
-            ) as unknown as SchemaInferrerLike;
+            schemaInferrer = inferSchema(item, schemaInferrer as Parameters<typeof inferSchema>[1]);
         }
 
         const inferredSchema = schemaInferrer.toSnapshot();

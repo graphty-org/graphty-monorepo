@@ -16,13 +16,13 @@ Probe facts established (Dawn webgpu@0.4.0, both adapters unless stated):
 - maint-sync-probe.mjs (NVIDIA): adapter `maxComputeWorkgroupsPerDimension` 65535,
   raised device still 65535; a TS `constants` key the composed WGSL does not declare
   (`LINLOG`, or misspelled `USE_PREM`) is `GPUPipelineError: Pipeline overridable
-  constant ... not found`; an override declared in the prelude but never referenced
+constant ... not found`; an override declared in the prelude but never referenced
   is accepted when set.
 - uncaptured-order-probe.mjs (NVIDIA and llvmpipe): both `uncapturederror` events are
   counted BEFORE `queue.submit()` returns (`submitted@0.03; events so far: 2`);
   `adapter.requestDevice()` a second time -> `OperationError: adapter is "consumed"`.
 - nodom-verify/core3.ts: with `lib: ["ES2020"]` + `@webgpu/types` + `skipLibCheck:
-  true`, `queue.writeBuffer(b, 0, "not a buffer")` and `writeBuffer(b, 0, 42)` COMPILE
+true`, `queue.writeBuffer(b, 0, "not a buffer")` and `writeBuffer(b, 0, 42)` COMPILE
   (exit 0); with `lib: ["ES2020","DOM"]` both are TS2345. Reason: `BufferSource` is a
   DOM-lib type; without it `@webgpu/types` only type-checks because `skipLibCheck`
   hides 8+ unresolved names (`BufferSource`, `AddEventListenerOptions`,
@@ -32,6 +32,7 @@ Probe facts established (Dawn webgpu@0.4.0, both adapters unless stated):
 ## Verdicts
 
 ### MAINT-1 -- confirmed, major
+
 Plan 767-775 (`WgslModuleSpec` has no bindings), 1097-1099 (`Kernel` takes a separate
 `BindingSpec`), 1438-1445 (eight hand-written `@group/@binding` lines) are as cited.
 D20 (194) and 5.3 (1140-1147) generate uniform structs "so the two cannot disagree";
@@ -55,6 +56,7 @@ the WGSL text is the acceptable alternative if the owner prefers WGSL as the sou
 either way there must be ONE source.)
 
 ### MAINT-2 -- downgraded to minor
+
 Line citations are wrong: 1183 / 1198 are in 5.5 / 5.6; the snippet-taking primitives
 are at 1251 (`segmentedReduce ... value snippet`) and 1256 (`advance ... functor: {
 visit: snippet, filter: snippet }`). The substance holds: 773 substitutes snippets at
@@ -71,6 +73,7 @@ primitive's functor signature (6 rows 3 and 8); optionally have the compilation-
 formatter subtract the prelude line count.
 
 ### MAINT-3 -- downgraded to minor
+
 1381 (`state` = 128 + k x 32 with named fields, read by every kernel and copied to
 staging), 1659 (`S.trace[...]`), 1847, 2727 and 1134-1147 (UniformBlock is uniform-only)
 are as cited. But the scope is ONE struct, not "every host-visible block": `partials`
@@ -82,6 +85,7 @@ Fix (narrowed): give `UniformBlock` a `{ layout: "uniform" | "storage" }` mode a
 through it; one host->kernel->host round-trip test for `state` on both runtimes.
 
 ### MAINT-4 -- confirmed, major
+
 543 states the rule; 306-308 (create() builds `PipelineCache`, `BufferPool`,
 `Readback`, `GraphResidency`, `Profiler`), 496 / 535 (`device/calibrate.ts` runs the
 exact-tile kernel and the grid build, 329-333), 608-609 (`accelerator()` and
@@ -98,6 +102,7 @@ in `src/layouts/calibrate.ts`; update 2.2 step 6, 3.1, 3.2, 3.3, 9.5, 9.6; add t
 import-boundary lint zones to 3.2.
 
 ### MAINT-5 -- downgraded to minor
+
 563, 1824-1849, 1893-1922, 689-691 are as cited. The template-method shape ("subclasses
 supply the per-iteration kernel sequence") is a legitimate design, and the FR
 differences (per-batch temperature slots, a different reheat, no K4) fit hooks. What is
@@ -109,6 +114,7 @@ buffers(n), overrides(), recordIteration(batch, slot, tier), paramsFor(i), onReh
 by inheritance or composition is left to implementation. Update the 3.2 class list.
 
 ### MAINT-6 -- downgraded to minor
+
 The touch-point count is real (490, 495, 499-503, 704-716, 721-727, 2713, 2282-2314,
 2401-2409 all verified) and `packages/graph-io/CLAUDE.md` lines 126-159 does carry an
 "Adding a format" recipe the plan's package never specifies. The one enforceable gap:
@@ -122,6 +128,7 @@ bind-group-budget test and `PipelineCache.warm()`; add "Adding an algorithm / ke
 layout model" recipes to the package CLAUDE.md content list (see MAINT-19).
 
 ### MAINT-7 -- confirmed, major (fix revised)
+
 668-670, 2533 ("replace the structural mirrors with `import type` from the real
 packages (devDependencies)") and 2541-2545 ("declares NO peer on algorithms / layout")
 contradict each other: `tsc -p tsconfig.build.json` (declaration: true, no bundling --
@@ -138,6 +145,7 @@ and `@graphty/layout` as optional peerDependencies (types) and switch to `import
 Reword 2533 and P10 (3169) accordingly.
 
 ### MAINT-8 -- downgraded to minor
+
 Verified: 2818-2822 copies the `algorithms/vitest.config.ts` pattern (lines 62-72 set
 `thresholds: undefined` whenever `--project=` is present or COVERAGE_DIR is set); 2950
 and 3077 run `--project=node --coverage` on every lane; the staging repo has no merge
@@ -151,6 +159,7 @@ project with --coverage"; note that the monorepo pattern does not enforce thresh
 either.
 
 ### MAINT-9 -- downgraded to minor
+
 "Two described owners" is a misreading: 561 says `CommandBatch` "carries" (a borrowed
 slot), 973 says `Readback` "owns a ring" -- consistent. The per-call choreography
 (Lease + CommandBatch + UniformRing + Readback + signal checks) is a stated pattern
@@ -164,6 +173,7 @@ discarded or aborted); a run-scope helper bundling Lease / CommandBatch / Unifor
 an optional implementation convenience.
 
 ### MAINT-10 -- confirmed, minor
+
 494, 782, 786, 1115-1121, 1080 vs 1729 / 1752 all verified. The mixed use in 5.2
 (device limit for the 1D test, literal 65535 for the 2D split) is internally
 consistent (the spec minimum is 65535 and the probe shows the 4070 cannot raise it), so
@@ -175,6 +185,7 @@ prelude; grep test; drop `maxComputeWorkgroupsPerDimension` from `RaisableLimit`
 the raised value in both places; `dim` is a uniform, delete `DIM` from 5.1).
 
 ### MAINT-11 -- confirmed, minor (fix narrowed)
+
 Verified: 535-541 vs 886 / 3159 (module labels vs function names), 555 (`DispatchPlanner`
 in the CLASS list but "pure functions"), no `Profiler` row in 546-564 although 607 types
 `ctx.profiler: Profiler`, 689 `ForceAtlas2Params` vs `ForceAtlas2Options` everywhere
@@ -186,6 +197,7 @@ Fix: one name per thing; add `Profiler` to the class list; declare the three typ
 3.3; `ForceAtlas2Options`; `Extract<ViewName, ...>` for `view()`.
 
 ### MAINT-12 -- refuted
+
 The nodom probe compiles, but only because `skipLibCheck: true` hides that
 `@webgpu/types` 0.1.72 depends on DOM-lib names. Verifier probe
 `probes/nodom-verify/core3.ts`: with `lib: ["ES2020"]`, `queue.writeBuffer(b, 0, "not a
@@ -201,6 +213,7 @@ Recommended one-line addition to 3.1: "DOM lib stays because `@webgpu/types` nam
 `skipLibCheck`" so a future maintainer does not "fix" it.
 
 ### MAINT-13 -- downgraded to minor
+
 1127 reads `caps.software` for the grid-stride group default; 336-338 and 1597 / 1613
 promise only that the REPULSION `"auto"` crossover never depends on it -- the promises
 are scoped, so this is not a contradiction. The branch is a documented, unit-tested
@@ -214,6 +227,7 @@ decision), and let tests override it through `GpuContextOptions` tuning if they 
 fixed dispatch shape.
 
 ### MAINT-14 -- confirmed, minor (fix narrowed)
+
 Verified: env block in 2889-2898, 2944-2948 and 3093-3097 (the two YAMLs exist at
 different times, so this is not permanent triplication); results paths 2622
 `<host>-node<version>.json` vs 2664 `<runner-class>.json` vs 2999-3000 `bench/results.json`
@@ -233,6 +247,7 @@ run the twin for every kernel that has one (a `variants` axis in 11.3) in the sa
 process; `.js` for scripts (package `"type": "module"`).
 
 ### MAINT-15 -- downgraded to minor
+
 506, 538, 1241-1243, 2529, 2705, 3161, 3173-3179 verified: P7-P9-P11 may precede P10, so
 oracles for the whole algorithm list can be written before W1 and "switched" away at
 W1 (2533). But the fix "order P10 before P8/P9/P11" makes GPU work wait on three
@@ -246,6 +261,7 @@ state that the FA2 / FR oracles are the SPEC of L1 (3161) and are moved, not cop
 into `layout/` if L1 wants them.
 
 ### MAINT-16 -- confirmed, minor
+
 692-697 (GpuLayoutTuning carries settleThreshold, settleWindow, iterationsPerStep,
 maxInFlight), 2344-2349 (layout-owned ForceAtlas2Options carries the first three),
 1757-1758 (7.14 lists them under "new" GPU rows), 2352-2357 (`LayoutAccelerator.
@@ -257,6 +273,7 @@ Fix: as proposed (layout-owned options carry all four, the CPU simulation ignore
 "layout-owned option (L1)").
 
 ### MAINT-17 -- downgraded to minor (fix narrowed)
+
 Verified: 606 (`residency: GraphResidency` public), 588, 657, 643, 1350-1351, 1915-1922;
 `packages/graph-format/tsconfig.build.json` has `stripInternal: true`,
 `packages/graph-io/tsconfig.build.json` does not. Real inconsistency: `precision: "f32"`
@@ -270,6 +287,7 @@ Fix (narrowed): decide `precision` once (on `GpuScoresResult` or nowhere) and al
 move `degree` to `test/` or document it as a public diagnostic.
 
 ### MAINT-18 -- confirmed, minor (fix revised)
+
 Design 4239-4240 reads "graphty-element injects it as `runAlgorithm(snapshot, {
 accelerator: gpu })`"; the plan's own 1.3 row (164) quotes that spelling as honoured
 by section 9, while 9.2 / 9.4 (2313, 2404-2406) use `accelerated(acc).pageRank(s)`.
@@ -287,6 +305,7 @@ concrete form of the design's `runAlgorithm(snapshot, { accelerator })` sketch
 from both paths.
 
 ### MAINT-19 -- confirmed, minor (fix narrowed)
+
 Verified: 410, 2670, 3158, 3228, 3249 defer to a package CLAUDE.md whose contents are
 never listed, while `packages/graph-io/CLAUDE.md` (Package Structure / Adding a format /
 House Style / Distribution) is the sibling model. The split of 7.2 / 7.14 / 10.4 / 12.4
@@ -297,6 +316,7 @@ spelling, the verified platform facts of R-22, the "Adding a ..." recipes of MAI
 in Q-18 say that "Review notes" and graft markers are dropped on acceptance.
 
 ### MAINT-20 -- confirmed, minor (fix narrowed)
+
 Probe re-run on both adapters reproduces both facts. Note the plan never says "once
 per worker" (no such text; 505 says "acquire() per project") and never claims adapter
 reuse -- but 2.2's `options.adapter -> requestDevice` path plus a harness returning `{
@@ -315,6 +335,7 @@ delivery (browsers); the browser project drains pending errors in `afterEach`.
 ## Missed defects (same lens)
 
 ### MAINT-M1 -- minor -- error contract contradiction
+
 Section 1.4 D12 (line 186) / 3.3 (593-599): "The package throws its own
 `WebGpuGraphError` (never `GraphFormatError`)". Section 4.3 (941-943): `column()` calls
 `table.gpuView(name)` which "throws `E_GPU_INELIGIBLE` from the format ...; the GPU
@@ -326,6 +347,7 @@ to "never throws `GraphFormatError` for its OWN conditions; errors from snapshot
 column accessors propagate unchanged" and list the pass-through codes in 5.7.
 
 ### MAINT-M2 -- minor -- GPU-only layout tuning has no path through the accelerator
+
 3.3 line 608: `accelerator(): GpuAccelerator // one per context, cached` (no options);
 713: `forceAtlas2(o?: ForceAtlas2Options)` "accepts the CPU option type"; 9.2 line
 2323-2324: "GPU-only tuning goes through the GPU package's own factory options, never
@@ -341,6 +363,7 @@ it creates; the app passes the calibration result there; document in 9.4 / 9.5 t
 per-simulation GPU tuning through the element is not available in v1.
 
 ### MAINT-M3 -- minor -- the env-var reader list is wrong
+
 2.3 (349-350): env vars "are read ONLY by the test setup (`test/setup/gpu.ts`, ...),
 never by `src/`"; 12.2 (2886-2887): "read only by `test/setup/gpu.ts` and the vitest
 config"; 12.3 (3010-3011): `scripts/gpu-report.mjs` "exits non-zero when
@@ -351,6 +374,7 @@ Fix: list the three readers in 12.2 and factor the policy parser
 module both `test/setup/gpu.ts` and `scripts/gpu-report` import.
 
 ### MAINT-M4 -- minor -- the browser entry cannot satisfy the stated lint rule
+
 2.4 (365-368): "`src/` contains ... no reference to `navigator`. A lint rule
 (`no-restricted-globals` ...) enforces" it. 2.1 (232) and 2.3 (342-343): `./browser` =
 `src/browser/index.ts` "uses `globalThis.navigator.gpu`". The rule as stated fails on
@@ -360,6 +384,7 @@ Fix: state the rule as "`src/**` except `src/browser/**`" (an eslint `files` /
 in `src/` outside itself (`no-restricted-imports` from `src/index.ts` and `src/node/`).
 
 ### MAINT-M5 -- minor -- two root barrels, two sibling conventions
+
 3.1 (490 tree): a root `webgpu-graph-algorithms.ts` (graph-format's convention:
 `packages/graph-format/graph-format.ts` = `export * from "./src/index.js"`) AND
 `src/index.ts` "the only public barrel", while the package "mirrors `packages/graph-io`
@@ -371,6 +396,7 @@ Fix: drop the root `.ts`; `scripts/entries.js` = `{ "webgpu-graph-algorithms":
 `test/build-output.test.ts` checking `package.json` exports against it as graph-io does.
 
 ### MAINT-M6 -- minor -- one non-generic `GpuLayoutSimulation` for two models
+
 3.3 (677-691): `stats: LayoutStats` carries FA2-only fields (`swing`, `traction`,
 `speedEfficiency`, `trace` of the same) and `setParams(patch: Partial<ForceAtlas2Params
 | FruchtermanReingoldParams>)` on the SAME interface returned by `createFruchterman

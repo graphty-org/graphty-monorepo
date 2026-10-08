@@ -1728,16 +1728,7 @@ interface TransactionOptions {
 }
 
 type ProjectSlice =
-    | "graph"
-    | "config"
-    | "layout"
-    | "pins"
-    | "arrangement"
-    | "runs"
-    | "styles"
-    | "visibility"
-    | "sets"
-    | "views";
+    "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views";
 
 type HistoryStepId = string & { readonly __brand: "HistoryStepId" };
 type PendingId = string & { readonly __brand: "PendingId" };

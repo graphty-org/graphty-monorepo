@@ -357,7 +357,7 @@ export function priceGraph(options: PriceOptions): SampleGraph {
             continue;
         }
         const total = arcs + attractiveness * t;
-        for (let found = 0; found < m; ) {
+        for (let found = 0; found < m;) {
             const x = stream.nextFloat() * total;
             const v = x < arcs ? out.dst[stream.nextBelow(arcs)] : stream.nextBelow(t);
             if (citedBy[v] !== t) {

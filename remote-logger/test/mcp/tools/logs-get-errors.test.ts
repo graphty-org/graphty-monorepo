@@ -2,12 +2,9 @@
  * Tests for the logs_get_errors MCP tool.
  */
 
-import { beforeEach,describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-    logsGetErrorsHandler,
-    logsGetErrorsTool,
-} from "../../../src/mcp/tools/logs-get-errors.js";
+import { logsGetErrorsHandler, logsGetErrorsTool } from "../../../src/mcp/tools/logs-get-errors.js";
 import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_get_errors tool", () => {
@@ -34,12 +31,12 @@ describe("logs_get_errors tool", () => {
     });
 
     it("filters by projectMarker", async () => {
-        storage.addLogs("session-1", [
-            { time: "2024-01-15T10:00:00Z", level: "ERROR", message: "Project A error" },
-        ], { projectMarker: "project-a" });
-        storage.addLogs("session-2", [
-            { time: "2024-01-15T10:01:00Z", level: "ERROR", message: "Project B error" },
-        ], { projectMarker: "project-b" });
+        storage.addLogs("session-1", [{ time: "2024-01-15T10:00:00Z", level: "ERROR", message: "Project A error" }], {
+            projectMarker: "project-a",
+        });
+        storage.addLogs("session-2", [{ time: "2024-01-15T10:01:00Z", level: "ERROR", message: "Project B error" }], {
+            projectMarker: "project-b",
+        });
 
         const result = await logsGetErrorsHandler(storage, {
             projectMarker: "project-a",

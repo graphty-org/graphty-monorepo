@@ -219,7 +219,13 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
                 const cls = adapterClass(ctx.caps);
                 for (const member of [GRID_NOISE_FIXTURES.exactRmsSe, GRID_NOISE_FIXTURES.exactP99Se]) {
                     writeNoiseFixture(member.kernel, member.fixture, cls, sampleNodes(a.total.grid, n), "f32");
-                    writeNoiseFixture(member.kernel, member.fixture, ORACLE_F64_CLASS, sampleNodes(a.total.exact, n), "f32");
+                    writeNoiseFixture(
+                        member.kernel,
+                        member.fixture,
+                        ORACLE_F64_CLASS,
+                        sampleNodes(a.total.exact, n),
+                        "f32",
+                    );
                 }
             } finally {
                 ctx.release(s);

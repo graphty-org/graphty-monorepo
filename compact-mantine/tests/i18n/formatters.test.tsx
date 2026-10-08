@@ -115,11 +115,7 @@ describe("useCollator", () => {
         });
         const names = ["item 10", "item 9", "Item 2"];
 
-        expect([...names].sort((a, b) => result.current.compare(a, b))).toStrictEqual([
-            "Item 2",
-            "item 9",
-            "item 10",
-        ]);
+        expect([...names].sort((a, b) => result.current.compare(a, b))).toStrictEqual(["Item 2", "item 9", "item 10"]);
     });
 
     it("sorts accented words beside their unaccented spelling", () => {

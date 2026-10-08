@@ -1,0 +1,17 @@
+{
+  format: 'neo4j',
+  confidence: 0.9325,
+  content: 0.95,
+  extension: true,
+  mimeType: false,
+  dialect: null
+}
+{
+  format: 'gexf',
+  confidence: 0.3,
+  content: 0,
+  extension: true,
+  mimeType: false,
+  dialect: null
+}
+cytoscape

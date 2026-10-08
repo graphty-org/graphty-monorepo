@@ -14,60 +14,60 @@ icons only, plain ASCII, real copy from the cat social network dataset
 
 theme.ts dark palette (index: value):
 
-| dark[] | hex | Mantine dark-mode role |
-|---|---|---|
-| 0 | `#d5d7da` | text (`--mantine-color-text`) |
-| 1 | `#a3a8b1` | secondary body text |
-| 2 | `#7a828e` | dimmed (`--mantine-color-dimmed`) |
-| 3 | `#5f6873` | disabled text, placeholder |
-| 4 | `#48525c` | default border (`--mantine-color-default-border`) |
-| 5 | `#374047` | default hover (`--mantine-color-default-hover`) |
-| 6 | `#2a3035` | default surface, input background (`--mantine-color-default`) |
-| 7 | `#1f2428` | body (`--mantine-color-body`) |
-| 8 | `#161b22` | deep background |
-| 9 | `#0d1117` | deepest |
+| dark[] | hex       | Mantine dark-mode role                                        |
+| ------ | --------- | ------------------------------------------------------------- |
+| 0      | `#d5d7da` | text (`--mantine-color-text`)                                 |
+| 1      | `#a3a8b1` | secondary body text                                           |
+| 2      | `#7a828e` | dimmed (`--mantine-color-dimmed`)                             |
+| 3      | `#5f6873` | disabled text, placeholder                                    |
+| 4      | `#48525c` | default border (`--mantine-color-default-border`)             |
+| 5      | `#374047` | default hover (`--mantine-color-default-hover`)               |
+| 6      | `#2a3035` | default surface, input background (`--mantine-color-default`) |
+| 7      | `#1f2428` | body (`--mantine-color-body`)                                 |
+| 8      | `#161b22` | deep background                                               |
+| 9      | `#0d1117` | deepest                                                       |
 
 ### Backgrounds
 
-| Token | Value | Where |
-|---|---|---|
-| app / canvas background | `#161b22` | root artboard background and the graph canvas (dark[8]; artboard brief root). **chosen** for canvas: the current app paints the canvas with body `#1f2428`; the skeleton uses `#161b22` so panels read as raised surfaces |
-| panel background | `#1f2428` | rail, activity panel, inspector, top bar, status bar, cards' parent (Mantine body; LeftSidebar/RightSidebar/TopMenuBar use `--mantine-color-body`) |
-| input background | `#2a3035` | compact TextInput, NumberInput, Select, search pill, tab row track (theme.ts `--input-bg: var(--mantine-color-default)`) |
-| raised surface | `#374047` | RightSidebar header, unselected layer rows, control hover (dark[5]) |
-| row hover | `#2a3035` | list rows, algorithm cards, rail items on hover. **chosen** (dark[6] on a `#1f2428` panel) |
-| control hover | `#374047` | icon buttons, subtle buttons, inputs on hover (dark[5]) |
-| selected row | `#28364e` | selected list row / active tab / active rail item background. **chosen**: accent at 20% over `#1f2428`. Pair with a 1px `#4a7ee8` border when the row is a card; the existing LeftSidebar uses Mantine `blue-9` bg + `blue-7` border for this |
-| highlight flash | `#4a7ee8` 1px border + `#28364e` bg | the 2-second highlight after an Insights card click |
-| card background | `#2a3035` | algorithm cards, insight cards, result cards. **chosen** |
-| card border | `#374047` | 1px. **chosen** |
-| overlay scrim | `rgba(13, 17, 23, 0.6)` | behind Settings overlay and command palette. **chosen** (dark[9] at 60%) |
-| tooltip / popover background | `#2a3035` | with 1px `#48525c` border. **chosen** (Mantine dark tooltip is `dark-4` filled; this keeps contrast with the text) |
-| kbd chip background | `#374047` | keyboard shortcut chips (Cmd K). **chosen** |
+| Token                        | Value                               | Where                                                                                                                                                                                                                                         |
+| ---------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| app / canvas background      | `#161b22`                           | root artboard background and the graph canvas (dark[8]; artboard brief root). **chosen** for canvas: the current app paints the canvas with body `#1f2428`; the skeleton uses `#161b22` so panels read as raised surfaces                     |
+| panel background             | `#1f2428`                           | rail, activity panel, inspector, top bar, status bar, cards' parent (Mantine body; LeftSidebar/RightSidebar/TopMenuBar use `--mantine-color-body`)                                                                                            |
+| input background             | `#2a3035`                           | compact TextInput, NumberInput, Select, search pill, tab row track (theme.ts `--input-bg: var(--mantine-color-default)`)                                                                                                                      |
+| raised surface               | `#374047`                           | RightSidebar header, unselected layer rows, control hover (dark[5])                                                                                                                                                                           |
+| row hover                    | `#2a3035`                           | list rows, algorithm cards, rail items on hover. **chosen** (dark[6] on a `#1f2428` panel)                                                                                                                                                    |
+| control hover                | `#374047`                           | icon buttons, subtle buttons, inputs on hover (dark[5])                                                                                                                                                                                       |
+| selected row                 | `#28364e`                           | selected list row / active tab / active rail item background. **chosen**: accent at 20% over `#1f2428`. Pair with a 1px `#4a7ee8` border when the row is a card; the existing LeftSidebar uses Mantine `blue-9` bg + `blue-7` border for this |
+| highlight flash              | `#4a7ee8` 1px border + `#28364e` bg | the 2-second highlight after an Insights card click                                                                                                                                                                                           |
+| card background              | `#2a3035`                           | algorithm cards, insight cards, result cards. **chosen**                                                                                                                                                                                      |
+| card border                  | `#374047`                           | 1px. **chosen**                                                                                                                                                                                                                               |
+| overlay scrim                | `rgba(13, 17, 23, 0.6)`             | behind Settings overlay and command palette. **chosen** (dark[9] at 60%)                                                                                                                                                                      |
+| tooltip / popover background | `#2a3035`                           | with 1px `#48525c` border. **chosen** (Mantine dark tooltip is `dark-4` filled; this keeps contrast with the text)                                                                                                                            |
+| kbd chip background          | `#374047`                           | keyboard shortcut chips (Cmd K). **chosen**                                                                                                                                                                                                   |
 
 ### Text
 
-| Token | Value |
-|---|---|
-| text primary | `#d5d7da` |
-| text secondary (body copy in cards, readings) | `#a3a8b1` |
-| text dimmed (labels, section sub-headers, status bar, technical names) | `#7a828e` |
-| text disabled / placeholder | `#5f6873` |
-| text on accent | `#ffffff` |
-| link | `#5b8ff9`, hover `#75a5f9` (artboard brief) |
+| Token                                                                  | Value                                       |
+| ---------------------------------------------------------------------- | ------------------------------------------- |
+| text primary                                                           | `#d5d7da`                                   |
+| text secondary (body copy in cards, readings)                          | `#a3a8b1`                                   |
+| text dimmed (labels, section sub-headers, status bar, technical names) | `#7a828e`                                   |
+| text disabled / placeholder                                            | `#5f6873`                                   |
+| text on accent                                                         | `#ffffff`                                   |
+| link                                                                   | `#5b8ff9`, hover `#75a5f9` (artboard brief) |
 
 ### Accent
 
 theme.ts does not override Mantine `blue`, so per the brief the accent is the
 designloom primary:
 
-| Token | Value |
-|---|---|
-| accent (primary button, checked checkbox, switch on, active rail bar, focus ring, selected borders) | `#4a7ee8` |
-| accent hover | `#5b8ff9` |
-| accent pressed | `#3a6dd7` |
-| accent tint (selected bg) | `#28364e` **chosen** |
-| accent 40% tint for progress track fills / badges | `#2a5cc6` |
+| Token                                                                                               | Value                |
+| --------------------------------------------------------------------------------------------------- | -------------------- |
+| accent (primary button, checked checkbox, switch on, active rail bar, focus ring, selected borders) | `#4a7ee8`            |
+| accent hover                                                                                        | `#5b8ff9`            |
+| accent pressed                                                                                      | `#3a6dd7`            |
+| accent tint (selected bg)                                                                           | `#28364e` **chosen** |
+| accent 40% tint for progress track fills / badges                                                   | `#2a5cc6`            |
 
 For reference only: the running app currently renders Mantine's default blue
 (`blue-5 #339af0`, filled buttons `blue-8 #1971c2` in dark mode). Do not use
@@ -75,23 +75,23 @@ those in the mockups; use `#4a7ee8`.
 
 ### Status colors (designloom)
 
-| Token | Value |
-|---|---|
+| Token                              | Value     |
+| ---------------------------------- | --------- |
 | success (layout settled, AI ready) | `#61d095` |
-| warning (validation issues) | `#f7b731` |
-| info | `#33bfd7` |
-| danger (remove, errors) | `#eb4949` |
+| warning (validation issues)        | `#f7b731` |
+| info                               | `#33bfd7` |
+| danger (remove, errors)            | `#eb4949` |
 
 ### Borders and dividers
 
-| Token | Value |
-|---|---|
-| panel edge borders (rail right, panel right, inspector left, top bar bottom, status bar top) | `1px solid #48525c` |
-| section divider (ControlSection uses Mantine `gray.7`) | `1px solid #495057` |
-| subtle divider inside cards / between list rows | `1px solid #374047` **chosen** |
-| input border | none (theme.ts `--input-bd: none`) |
-| input focus | `1px solid #5b8ff9` (designloom focus_ring) |
-| overlay shadow (iPad panel and inspector overlays, command palette, popovers) | `0 8px 24px rgba(0, 0, 0, 0.45)` **chosen** |
+| Token                                                                                        | Value                                       |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| panel edge borders (rail right, panel right, inspector left, top bar bottom, status bar top) | `1px solid #48525c`                         |
+| section divider (ControlSection uses Mantine `gray.7`)                                       | `1px solid #495057`                         |
+| subtle divider inside cards / between list rows                                              | `1px solid #374047` **chosen**              |
+| input border                                                                                 | none (theme.ts `--input-bd: none`)          |
+| input focus                                                                                  | `1px solid #5b8ff9` (designloom focus_ring) |
+| overlay shadow (iPad panel and inspector overlays, command palette, popovers)                | `0 8px 24px rgba(0, 0, 0, 0.45)` **chosen** |
 
 Some of the roles above are painted differently by `compact-mantine`, the
 shipped component library, and deliberately so. Keep drawing these values;
@@ -113,69 +113,69 @@ NOT uppercase section headers (ControlSection renders `Text size="xs" fw={500}`
 in sentence case; the older figma-style-sidebar.md uppercase idea was not
 implemented). No letter-spacing anywhere.
 
-| Role | Size | Weight | Color | Line height | Source |
-|---|---|---|---|---|---|
-| badge text | 9px | 500 | on badge | 1 | theme.ts Badge compact `--badge-fz: 9px` |
-| pill / segmented control text | 10px | 400 | `#d5d7da` | 1 | theme.ts Pill `10px`, SegmentedControl `10px` |
-| control label (above an input) | 11px | 400 | `#7a828e` | 1.2 | theme.ts compact label, `marginBottom: 1` |
-| input value | 11px | 400 | `#d5d7da` | 24px box | theme.ts `--input-fz: 11px` |
-| checkbox / switch label | 11px | 400 | `#d5d7da` | 1.2 | theme.ts, CompactCheckbox |
-| button text (compact) | 11px | 500 | varies | 24px box | theme.ts Button compact |
-| stat row label / value | 11px | 400 / 500 | `#7a828e` / `#d5d7da` | 1.2 | **chosen** (the library draws the pair with `DataRow`, at its own metrics) |
-| rail label, status bar, tooltip, kbd chip, technical name | 11px | 400 | `#7a828e` | 1.2 | **chosen** |
-| section header (ControlSection) | 12px | 500 | `#d5d7da` | 1.2 | ControlSection `Text size="xs" fw={500}` |
-| sub-group header (ControlSubGroup) | 12px | 400 | `#7a828e` | 1.2 | ControlSubGroup |
-| body / paragraph, list row text, card title, panel title | 12px | 400 (titles 500) | `#d5d7da` | 1.4 | RightSidebar header `12px fw 500`, Text xs |
-| plain-language reading in inspector | 12px | 400 | `#a3a8b1` | 1.5 | **chosen** |
-| top bar dataset name | 13px | 500 | `#d5d7da` | 1.2 | **chosen** |
-| dialog / large panel title (LeftSidebar "Layers") | 14px | 500 | `#d5d7da` | 1.2 | LeftSidebar `Text size="sm" fw={500}` |
-| welcome heading | 20px | 600 | `#d5d7da` | 1.25 | **chosen** (designloom 2xl) |
+| Role                                                      | Size | Weight           | Color                 | Line height | Source                                                                     |
+| --------------------------------------------------------- | ---- | ---------------- | --------------------- | ----------- | -------------------------------------------------------------------------- |
+| badge text                                                | 9px  | 500              | on badge              | 1           | theme.ts Badge compact `--badge-fz: 9px`                                   |
+| pill / segmented control text                             | 10px | 400              | `#d5d7da`             | 1           | theme.ts Pill `10px`, SegmentedControl `10px`                              |
+| control label (above an input)                            | 11px | 400              | `#7a828e`             | 1.2         | theme.ts compact label, `marginBottom: 1`                                  |
+| input value                                               | 11px | 400              | `#d5d7da`             | 24px box    | theme.ts `--input-fz: 11px`                                                |
+| checkbox / switch label                                   | 11px | 400              | `#d5d7da`             | 1.2         | theme.ts, CompactCheckbox                                                  |
+| button text (compact)                                     | 11px | 500              | varies                | 24px box    | theme.ts Button compact                                                    |
+| stat row label / value                                    | 11px | 400 / 500        | `#7a828e` / `#d5d7da` | 1.2         | **chosen** (the library draws the pair with `DataRow`, at its own metrics) |
+| rail label, status bar, tooltip, kbd chip, technical name | 11px | 400              | `#7a828e`             | 1.2         | **chosen**                                                                 |
+| section header (ControlSection)                           | 12px | 500              | `#d5d7da`             | 1.2         | ControlSection `Text size="xs" fw={500}`                                   |
+| sub-group header (ControlSubGroup)                        | 12px | 400              | `#7a828e`             | 1.2         | ControlSubGroup                                                            |
+| body / paragraph, list row text, card title, panel title  | 12px | 400 (titles 500) | `#d5d7da`             | 1.4         | RightSidebar header `12px fw 500`, Text xs                                 |
+| plain-language reading in inspector                       | 12px | 400              | `#a3a8b1`             | 1.5         | **chosen**                                                                 |
+| top bar dataset name                                      | 13px | 500              | `#d5d7da`             | 1.2         | **chosen**                                                                 |
+| dialog / large panel title (LeftSidebar "Layers")         | 14px | 500              | `#d5d7da`             | 1.2         | LeftSidebar `Text size="sm" fw={500}`                                      |
+| welcome heading                                           | 20px | 600              | `#d5d7da`             | 1.25        | **chosen** (designloom 2xl)                                                |
 
 ## 3. Sizes
 
 ### Shell (spec section 5.1; these are frozen)
 
-| Region | Size |
-|---|---|
-| activity rail | width 48px, full height between top of frame and status bar |
-| top bar | height 40px, spans everything right of the rail |
-| activity panel | width 280px |
-| inspector | width 280px (spec; the superseded RightSidebar was 260px -- use 280. That component was deleted 2026-09-12; 280 remains the value) |
-| status bar | height 24px, spans the full 1440px width |
-| canvas at 1440x900 | 832px wide by 836px tall |
-| canvas at 1180x820 (iPad, no docked panels) | 1132px wide by 756px tall |
-| insights strip | absolute, top 12px, centered in the canvas, max-width 720px, cards 160px wide, 8px gap |
-| minimap | absolute, bottom 12px, left 12px, 160px by 100px |
-| legend | absolute, bottom 12px, right 12px, width 160px, min-height 80px |
-| welcome block | centered in canvas, max-width 600px |
-| command palette | 560px wide, top 120px, centered over the whole frame |
-| Settings overlay | one frozen rect (R2-N08): the scrim covers the body row right of the rail and below the top bar, the panel is inset 12px on all four sides, so at 1440x900 the panel is 60,52, 1368px by 812px. 8px radius, `#1f2428` on a 1px `#48525c` border, `0 8px 24px rgba(0, 0, 0, 0.45)`. 36px title row, left nav 200px. Every Settings section draws this same rect, so nothing moves when the user changes section. The title row's right cluster is, in order, the `Back to the assistant` 11px `#5b8ff9` text action (Settings only, where the AI panel sent the user), a 12px gap, then the tail every Settings board shares: `Changes save automatically` at 11px `#7a828e`, an 8px gap and the 24px Close X. No bordered button sits in this header |
+| Region                                      | Size                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| activity rail                               | width 48px, full height between top of frame and status bar                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| top bar                                     | height 40px, spans everything right of the rail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| activity panel                              | width 280px                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| inspector                                   | width 280px (spec; the superseded RightSidebar was 260px -- use 280. That component was deleted 2026-09-12; 280 remains the value)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| status bar                                  | height 24px, spans the full 1440px width                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| canvas at 1440x900                          | 832px wide by 836px tall                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| canvas at 1180x820 (iPad, no docked panels) | 1132px wide by 756px tall                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| insights strip                              | absolute, top 12px, centered in the canvas, max-width 720px, cards 160px wide, 8px gap                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| minimap                                     | absolute, bottom 12px, left 12px, 160px by 100px                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| legend                                      | absolute, bottom 12px, right 12px, width 160px, min-height 80px                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| welcome block                               | centered in canvas, max-width 600px                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| command palette                             | 560px wide, top 120px, centered over the whole frame                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Settings overlay                            | one frozen rect (R2-N08): the scrim covers the body row right of the rail and below the top bar, the panel is inset 12px on all four sides, so at 1440x900 the panel is 60,52, 1368px by 812px. 8px radius, `#1f2428` on a 1px `#48525c` border, `0 8px 24px rgba(0, 0, 0, 0.45)`. 36px title row, left nav 200px. Every Settings section draws this same rect, so nothing moves when the user changes section. The title row's right cluster is, in order, the `Back to the assistant` 11px `#5b8ff9` text action (Settings only, where the AI panel sent the user), a 12px gap, then the tail every Settings board shares: `Changes save automatically` at 11px `#7a828e`, an 8px gap and the 24px Close X. No bordered button sits in this header |
 
 ### Controls (theme.ts compact size unless noted)
 
-| Control | Size |
-|---|---|
-| text / number / select input | height 24px, padding 0 8px, font 11px, radius 4px, no border |
-| button (compact) | height 24px, padding 0 8px, font 11px, radius 4px |
-| icon button (ActionIcon compact) | 24px by 24px hit area, icon 14px (12px for chevrons and X) |
-| checkbox | 16px by 16px, radius 2px, 4px gap to label |
-| switch | 28px by 16px track, 12px thumb, 2px inset |
-| slider | 4px track, 12px thumb |
-| badge (compact) | height 14px, font 9px, padding 0 4px, radius 7px |
-| pill (compact) | height 16px, font 10px, padding 0 6px, radius 8px |
+| Control                           | Size                                                          |
+| --------------------------------- | ------------------------------------------------------------- |
+| text / number / select input      | height 24px, padding 0 8px, font 11px, radius 4px, no border  |
+| button (compact)                  | height 24px, padding 0 8px, font 11px, radius 4px             |
+| icon button (ActionIcon compact)  | 24px by 24px hit area, icon 14px (12px for chevrons and X)    |
+| checkbox                          | 16px by 16px, radius 2px, 4px gap to label                    |
+| switch                            | 28px by 16px track, 12px thumb, 2px inset                     |
+| slider                            | 4px track, 12px thumb                                         |
+| badge (compact)                   | height 14px, font 9px, padding 0 4px, radius 7px              |
+| pill (compact)                    | height 16px, font 10px, padding 0 6px, radius 8px             |
 | chip (filter chip, insights chip) | height 20px, font 11px, padding 0 8px, radius 10px **chosen** |
-| color swatch | 14px, radius 2px, 1px border `#48525c` |
-| section header row | 32px tall (8px vertical padding on a 16px line) |
-| sub-group header row | 24px tall |
-| stat row | 22px tall (4px vertical padding) |
-| list row | 28px tall, padding 0 8px, radius 4px **chosen** |
-| layer row (existing) | 26px tall, padding 4px 6px, radius 4px, 1px border |
-| card | padding 8px 10px, radius 4px, 1px border |
-| rail item | 48px wide by 44px tall: 16px icon, 2px gap, 11px label |
-| panel title row | 36px tall, padding 0 16px, 1px bottom border |
-| tab row | 24px tall track, 22px tall tabs |
-| progress bar | 4px tall, radius 2px |
-| tooltip | padding 4px 8px, radius 4px, font 11px |
+| color swatch                      | 14px, radius 2px, 1px border `#48525c`                        |
+| section header row                | 32px tall (8px vertical padding on a 16px line)               |
+| sub-group header row              | 24px tall                                                     |
+| stat row                          | 22px tall (4px vertical padding)                              |
+| list row                          | 28px tall, padding 0 8px, radius 4px **chosen**               |
+| layer row (existing)              | 26px tall, padding 4px 6px, radius 4px, 1px border            |
+| card                              | padding 8px 10px, radius 4px, 1px border                      |
+| rail item                         | 48px wide by 44px tall: 16px icon, 2px gap, 11px label        |
+| panel title row                   | 36px tall, padding 0 16px, 1px bottom border                  |
+| tab row                           | 24px tall track, 22px tall tabs                               |
+| progress bar                      | 4px tall, radius 2px                                          |
+| tooltip                           | padding 4px 8px, radius 4px, font 11px                        |
 
 ### Icons
 
@@ -188,12 +188,12 @@ parent (`#7a828e` dimmed by default, `#d5d7da` when active).
 
 ### Radii
 
-| Use | Value |
-|---|---|
+| Use                                                                   | Value                           |
+| --------------------------------------------------------------------- | ------------------------------- |
 | inputs, buttons, icon buttons, rows, cards, tooltips, minimap, legend | 4px (Mantine default radius sm) |
-| checkbox, swatch | 2px |
-| floating toolbar, command palette, Settings overlay panel | 8px |
-| pills, chips, badges, progress bars | fully round (half the height) |
+| checkbox, swatch                                                      | 2px                             |
+| floating toolbar, command palette, Settings overlay panel             | 8px                             |
+| pills, chips, badges, progress bars                                   | fully round (half the height)   |
 
 ### Spacing
 
@@ -216,17 +216,30 @@ configured-values dot. Open state uses chevron-down; closed uses chevron-right.
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px;">
-      <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Parameters</span>
-      <div style="width: 6px; height: 6px; border-radius: 50%; background: #4a7ee8;"></div>
+    <div style="height: 1px; background: #495057;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div
+                style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Parameters</span>
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: #4a7ee8;"></div>
+        </div>
+        <div style="display: flex; gap: 4px;"></div>
     </div>
-    <div style="display: flex; gap: 4px;"></div>
-  </div>
 </div>
 ```
 
@@ -236,10 +249,23 @@ Sub-group header (ControlSubGroup, lighter): 24px row, 10px chevron, 12px dimmed
 
 ```html
 <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
-  <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-  </div>
-  <span style="font-size: 12px; line-height: 1.2; color: #7a828e;">Advanced</span>
+    <div
+        style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+    >
+        <svg
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="6,4 10,8 6,12"></polyline>
+        </svg>
+    </div>
+    <span style="font-size: 12px; line-height: 1.2; color: #7a828e;">Advanced</span>
 </div>
 ```
 
@@ -247,8 +273,12 @@ Sub-group header (ControlSubGroup, lighter): 24px row, 10px chevron, 12px dimmed
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 1px;">
-  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Label text</span>
-  <div style="display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">Mr_Whiskers</div>
+    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Label text</span>
+    <div
+        style="display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;"
+    >
+        Mr_Whiskers
+    </div>
 </div>
 ```
 
@@ -258,11 +288,24 @@ Placeholder state: text color `#5f6873`. Focused state: add `box-shadow: 0 0 0 1
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 1px;">
-  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Layout</span>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
-    <span>Force-directed</span>
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-  </div>
+    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Layout</span>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;"
+    >
+        <span>Force-directed</span>
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="#7a828e"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="4,6 8,10 12,6"></polyline>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -270,13 +313,31 @@ Placeholder state: text color `#5f6873`. Focused state: add `box-shadow: 0 0 0 1
 
 ```html
 <div style="display: flex; align-items: flex-end; gap: 4px;">
-  <div style="display: flex; flex-direction: column; gap: 1px; flex: 1;">
-    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Depth</span>
-    <div style="display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">2</div>
-  </div>
-  <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-  </div>
+    <div style="display: flex; flex-direction: column; gap: 1px; flex: 1;">
+        <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Depth</span>
+        <div
+            style="display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;"
+        >
+            2
+        </div>
+    </div>
+    <div
+        style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+    >
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <line x1="4" y1="4" x2="12" y2="12"></line>
+            <line x1="12" y1="4" x2="4" y2="12"></line>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -286,10 +347,23 @@ Two inputs side by side: wrap both in `display: flex; gap: 8px;` and give each c
 
 ```html
 <div style="display: flex; align-items: center; gap: 4px; height: 20px; cursor: pointer;">
-  <div style="width: 16px; height: 16px; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
-  </div>
-  <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Show labels</span>
+    <div
+        style="width: 16px; height: 16px; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;"
+    >
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="#ffffff"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>
+        </svg>
+    </div>
+    <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Show labels</span>
 </div>
 ```
 
@@ -299,10 +373,14 @@ Unchecked box: `<div style="width: 16px; height: 16px; border-radius: 2px; backg
 
 ```html
 <div style="display: flex; align-items: center; gap: 6px; height: 20px; cursor: pointer;">
-  <div style="width: 28px; height: 16px; border-radius: 8px; background: #4a7ee8; position: relative; box-sizing: border-box;">
-    <div style="position: absolute; top: 2px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"></div>
-  </div>
-  <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Animate transitions</span>
+    <div
+        style="width: 28px; height: 16px; border-radius: 8px; background: #4a7ee8; position: relative; box-sizing: border-box;"
+    >
+        <div
+            style="position: absolute; top: 2px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"
+        ></div>
+    </div>
+    <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Animate transitions</span>
 </div>
 ```
 
@@ -311,7 +389,11 @@ Off state: track `background: #48525c;`, thumb `left: 2px;`.
 ### Primary button (compact, filled)
 
 ```html
-<div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run</div>
+<div
+    style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+>
+    Run
+</div>
 ```
 
 Hover `#5b8ff9`, pressed `#3a6dd7`, disabled `background: #374047; color: #5f6873;`.
@@ -319,7 +401,11 @@ Hover `#5b8ff9`, pressed `#3a6dd7`, disabled `background: #374047; color: #5f687
 ### Subtle button (compact, text only)
 
 ```html
-<div style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">More</div>
+<div
+    style="display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+>
+    More
+</div>
 ```
 
 Hover: `background: #374047; color: #d5d7da;`. Outline variant (secondary actions like "Encode as style" when not primary): `background: transparent; border: 1px solid #48525c; color: #d5d7da;`.
@@ -327,8 +413,25 @@ Hover: `background: #374047; color: #d5d7da;`. Outline variant (secondary action
 ### Icon button (24 by 24 hit area)
 
 ```html
-<div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path><circle cx="8" cy="8" r="4.75"></circle></svg>
+<div
+    style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+>
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <circle cx="8" cy="8" r="2.25"></circle>
+        <path
+            d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+        ></path>
+        <circle cx="8" cy="8" r="4.75"></circle>
+    </svg>
 </div>
 ```
 
@@ -339,9 +442,23 @@ Hover: `background: #374047; color: #d5d7da;`. Active/toggled: `background: #283
 Filter chip (removable) and insights chip share this shape. 20px tall, 11px text.
 
 ```html
-<div style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px 0 8px; border-radius: 10px; background: #2a3035; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; line-height: 1; box-sizing: border-box;">
-  <span>breed = tabby</span>
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
+<div
+    style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px 0 8px; border-radius: 10px; background: #2a3035; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; line-height: 1; box-sizing: border-box;"
+>
+    <span>breed = tabby</span>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="#7a828e"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <line x1="4" y1="4" x2="12" y2="12"></line>
+        <line x1="12" y1="4" x2="4" y2="12"></line>
+    </svg>
 </div>
 ```
 
@@ -354,19 +471,40 @@ Plain-language name first, technical name second in dimmed text, one-line
 description, action row.
 
 ```html
-<div style="display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
-  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
-    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Find groups</span>
-    <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">Communities (Louvain)</span>
-  </div>
-  <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Cluster cats that interact with each other more than with the rest.</span>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-    <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; color: #7a828e;">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-      <span style="font-size: 11px; line-height: 1.2;">Parameters</span>
+<div
+    style="display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;"
+>
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+        <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Find groups</span>
+        <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;"
+            >Communities (Louvain)</span
+        >
     </div>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run</div>
-  </div>
+    <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;"
+        >Cluster cats that interact with each other more than with the rest.</span
+    >
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; color: #7a828e;">
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <polyline points="6,4 10,8 6,12"></polyline>
+            </svg>
+            <span style="font-size: 11px; line-height: 1.2;">Parameters</span>
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+        >
+            Run
+        </div>
+    </div>
 </div>
 ```
 
@@ -387,9 +525,19 @@ Subtle divider inside cards or between list rows: `background: #374047;`. Vertic
 Track on `#2a3035`, active tab raised to `#374047` with primary text, inactive dimmed. Used for Nodes / Edges in data preview, Provider tabs, and Settings sections when horizontal.
 
 ```html
-<div style="display: flex; gap: 2px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
-  <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Nodes</div>
-  <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Edges</div>
+<div
+    style="display: flex; gap: 2px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;"
+>
+    <div
+        style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;"
+    >
+        Nodes
+    </div>
+    <div
+        style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;"
+    >
+        Edges
+    </div>
 </div>
 ```
 
@@ -399,18 +547,24 @@ Track on `#2a3035`, active tab raised to `#374047` with primary text, inactive d
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 1px;">
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span>Mr_Whiskers</span>
-    <span style="font-size: 11px; color: #7a828e;">4 links</span>
-  </div>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #2a3035; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span>Chonky_Boy</span>
-    <span style="font-size: 11px; color: #7a828e;">3 links</span>
-  </div>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #28364e; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span>Mrs_Henderson</span>
-    <span style="font-size: 11px; color: #7a828e;">4 links</span>
-  </div>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span>Mr_Whiskers</span>
+        <span style="font-size: 11px; color: #7a828e;">4 links</span>
+    </div>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #2a3035; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span>Chonky_Boy</span>
+        <span style="font-size: 11px; color: #7a828e;">3 links</span>
+    </div>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #28364e; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span>Mrs_Henderson</span>
+        <span style="font-size: 11px; color: #7a828e;">4 links</span>
+    </div>
 </div>
 ```
 
@@ -419,7 +573,11 @@ The first row is the resting state, the second is hover, the third is selected.
 ### Badge (compact, 14px)
 
 ```html
-<div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #2a5cc6; color: #ffffff; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Done</div>
+<div
+    style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #2a5cc6; color: #ffffff; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;"
+>
+    Done
+</div>
 ```
 
 Variants: neutral `background: #374047; color: #d5d7da;`; success `background: #61d095; color: #0d1117;`; warning `background: #f7b731; color: #0d1117;`; danger `background: #eb4949; color: #ffffff;`. Badges are the one place uppercase is used.
@@ -428,13 +586,13 @@ Variants: neutral `background: #374047; color: #d5d7da;`; success `background: #
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 4px;">
-  <div style="display: flex; justify-content: space-between; font-size: 11px; line-height: 1.2; color: #7a828e;">
-    <span>Running Communities (Louvain)</span>
-    <span>64%</span>
-  </div>
-  <div style="height: 4px; border-radius: 2px; background: #374047; overflow: hidden;">
-    <div style="width: 64%; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
-  </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; line-height: 1.2; color: #7a828e;">
+        <span>Running Communities (Louvain)</span>
+        <span>64%</span>
+    </div>
+    <div style="height: 4px; border-radius: 2px; background: #374047; overflow: hidden;">
+        <div style="width: 64%; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
+    </div>
 </div>
 ```
 
@@ -443,9 +601,11 @@ Status bar variant (progressive loading): 4px bar, 120px wide, inline in the sta
 ### Tooltip bubble
 
 ```html
-<div style="display: inline-flex; flex-direction: column; gap: 2px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; max-width: 220px;">
-  <span>Finds the nodes that sit on the most shortest paths.</span>
-  <span style="color: #5b8ff9;">Learn more</span>
+<div
+    style="display: inline-flex; flex-direction: column; gap: 2px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; max-width: 220px;"
+>
+    <span>Finds the nodes that sit on the most shortest paths.</span>
+    <span style="color: #5b8ff9;">Learn more</span>
 </div>
 ```
 
@@ -454,34 +614,38 @@ Disabled-rail tooltip text: "Load data first".
 ### Keyboard chip (used in the cmd-K pill and shortcuts list)
 
 ```html
-<div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #374047; color: #a3a8b1; font-size: 10px; line-height: 1; box-sizing: border-box;">Cmd K</div>
+<div
+    style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #374047; color: #a3a8b1; font-size: 10px; line-height: 1; box-sizing: border-box;"
+>
+    Cmd K
+</div>
 ```
 
 ## 5. Rail icons (16px grid)
 
 Use these exact paths so every artboard's rail matches SHELL-SKELETON.html.
 
-| Activity | SVG inner markup |
-|---|---|
-| Data (database) | `<ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path>` |
-| Explore (compass) | `<circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon>` |
-| Analyze (bar chart) | `<line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line>` |
-| Style (paintbrush) | `<path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path>` |
-| Present (presentation screen) | `<rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line>` |
-| AI (sparkles) | `<path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path>` |
-| Settings (gear) | `<circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path>` |
-| Help (circle question) | `<circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line>` |
+| Activity                      | SVG inner markup                                                                                                                                                                                           |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Data (database)               | `<ellipse cx="8" cy="4" rx="5.5" ry="2"></ellipse><path d="M2.5 4v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4"></path><path d="M2.5 8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2"></path>`                                      |
+| Explore (compass)             | `<circle cx="8" cy="8" r="6.5"></circle><polygon points="10.5,5.5 9,9 5.5,10.5 7,7"></polygon>`                                                                                                            |
+| Analyze (bar chart)           | `<line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line>`                                                                 |
+| Style (paintbrush)            | `<path d="M13.5 2.5l-6 6"></path><path d="M7.5 8.5c-1.5 0-2.5 1-2.5 2.5s-1 2-2.5 2c1.5 1 4.5 1 5.5-1 .5-1 .5-2-.5-3.5z"></path>`                                                                           |
+| Present (presentation screen) | `<rect x="2" y="3" width="12" height="8" rx="1"></rect><line x1="8" y1="11" x2="8" y2="14"></line><line x1="5.5" y1="14" x2="10.5" y2="14"></line>`                                                        |
+| AI (sparkles)                 | `<path d="M7 3l1.3 3.7L12 8l-3.7 1.3L7 13l-1.3-3.7L2 8l3.7-1.3z"></path><path d="M13 2v2.5M11.75 3.25h2.5"></path>`                                                                                        |
+| Settings (gear)               | `<circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path>` |
+| Help (circle question)        | `<circle cx="8" cy="8" r="6.5"></circle><path d="M6 6.3a2 2 0 0 1 3.9.5c0 1.3-1.9 1.6-1.9 2.7"></path><line x1="8" y1="11.75" x2="8" y2="12.25"></line>`                                                   |
 
 Other shell icons: undo `<path d="M4 6h6.5a3 3 0 0 1 0 6H7"></path><polyline points="6.5,3.5 4,6 6.5,8.5"></polyline>`; redo `<path d="M12 6H5.5a3 3 0 0 0 0 6H9"></path><polyline points="9.5,3.5 12,6 9.5,8.5"></polyline>`; search `<circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line>`; export/download `<path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path>`; share `<circle cx="12" cy="3.5" r="1.75"></circle><circle cx="4" cy="8" r="1.75"></circle><circle cx="12" cy="12.5" r="1.75"></circle><line x1="5.6" y1="7.1" x2="10.4" y2="4.4"></line><line x1="5.6" y1="8.9" x2="10.4" y2="11.6"></line>`; inspector toggle (panel-right) `<rect x="2" y="2.5" width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line>`; X `<line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line>`; plus `<line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line>`; check `<polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>`.
 
 ## 6. Rail states
 
-| State | Icon and label color | Background | Left bar |
-|---|---|---|---|
-| resting | `#7a828e` | transparent | none |
-| hover | `#d5d7da` | `#2a3035` | none |
-| active | `#d5d7da` | `#28364e` | 2px `#4a7ee8`, full item height, on the left edge |
-| disabled (Empty state) | `#5f6873` | transparent | none; tooltip "Load data first" |
+| State                  | Icon and label color | Background  | Left bar                                          |
+| ---------------------- | -------------------- | ----------- | ------------------------------------------------- |
+| resting                | `#7a828e`            | transparent | none                                              |
+| hover                  | `#d5d7da`            | `#2a3035`   | none                                              |
+| active                 | `#d5d7da`            | `#28364e`   | 2px `#4a7ee8`, full item height, on the left edge |
+| disabled (Empty state) | `#5f6873`            | transparent | none; tooltip "Load data first"                   |
 
 ## 7. Dataset facts for copy
 
@@ -503,16 +667,16 @@ Reading (12px/400, `#a3a8b1`, line-height 1.5):
 
 Counts section (header `Counts`, 22px stat rows, label `#7a828e`, value 11px/500 `#d5d7da`):
 
-| Label | Value |
-|---|---|
-| Nodes | 20 |
-| Edges | 29 |
-| Direction | Undirected |
-| Weighted | Yes (value) |
-| How tightly linked (density) | 0.153 |
-| Average links per node | 2.9 |
-| Connected parts (components) | 1 |
-| Longest shortest path (diameter) | 5 |
+| Label                            | Value       |
+| -------------------------------- | ----------- |
+| Nodes                            | 20          |
+| Edges                            | 29          |
+| Direction                        | Undirected  |
+| Weighted                         | Yes (value) |
+| How tightly linked (density)     | 0.153       |
+| Average links per node           | 2.9         |
+| Connected parts (components)     | 1           |
+| Longest shortest path (diameter) | 5           |
 
 `Self-loops` and `Parallel edges` rows appear only when non-zero; this dataset
 has 0 of each, so they are omitted. Weighted reads `No` for a graph with no
@@ -531,22 +695,22 @@ Attributes: two tier 2 sections, `Node attributes` (dimmed count `8`) and
 `Edge attributes` (dimmed count `3`). Collapsed on first load; when open, 22px
 rows with the name in `#d5d7da` and a typed range in `#7a828e`:
 
-| Node attribute | Range |
-|---|---|
-| group | number, 8 values |
-| weightLbs | number, 4 to 165 |
-| personality | text, 20 values |
-| indoorOutdoor | text, 7 values |
-| ageYears | number, 0.5 to 68 |
-| breed | text, 17 values |
-| favoriteSpot | text, 20 values |
-| huntingSkill | number, 0 to 10 |
+| Node attribute | Range             |
+| -------------- | ----------------- |
+| group          | number, 8 values  |
+| weightLbs      | number, 4 to 165  |
+| personality    | text, 20 values   |
+| indoorOutdoor  | text, 7 values    |
+| ageYears       | number, 0.5 to 68 |
+| breed          | text, 17 values   |
+| favoriteSpot   | text, 20 values   |
+| huntingSkill   | number, 0 to 10   |
 
-| Edge attribute | Range |
-|---|---|
-| value | number, 1 to 10 |
-| relationship | text, 18 values |
-| interactionType | text, 7 values |
+| Edge attribute  | Range           |
+| --------------- | --------------- |
+| value           | number, 1 to 10 |
+| relationship    | text, 18 values |
+| interactionType | text, 7 values  |
 
 Legend size label: `Size: most connected (degree)`; color label when nothing
 is encoded: `Color: not encoded`.
@@ -589,16 +753,24 @@ row label in a list, or after a control label. The control it tags is drawn
 in its normal enabled state; the tag is the only difference.
 
 ```html
-<div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+<div
+    style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+>
+    Coming
+</div>
 ```
 
 Card title row with the tag:
 
 ```html
 <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
-  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Core layers</span>
-  <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">k-core decomposition</span>
-  <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Core layers</span>
+    <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">k-core decomposition</span>
+    <div
+        style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+    >
+        Coming
+    </div>
 </div>
 ```
 
@@ -610,9 +782,28 @@ option is the default and the link continues past it. Used under Run on a
 card, under Import, under Expand neighbors, in the Import options dialog.
 
 ```html
-<div style="display: flex; align-items: flex-start; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; font-size: 11px; line-height: 1.4; color: #a3a8b1;">
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f7b731" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto; margin-top: 1px;"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
-  <span>Above the render ceiling: drawing everything may be slow or run out of memory (estimated 2.4 GB). <span style="color: #5b8ff9; cursor: pointer;">Continue anyway</span></span>
+<div
+    style="display: flex; align-items: flex-start; gap: 6px; padding: 6px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; font-size: 11px; line-height: 1.4; color: #a3a8b1;"
+>
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="#f7b731"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        style="flex: 0 0 auto; margin-top: 1px;"
+    >
+        <path d="M8 2.5l6 11H2z"></path>
+        <line x1="8" y1="6.5" x2="8" y2="9.5"></line>
+        <line x1="8" y1="11.5" x2="8" y2="11.75"></line>
+    </svg>
+    <span
+        >Above the render ceiling: drawing everything may be slow or run out of memory (estimated 2.4 GB).
+        <span style="color: #5b8ff9; cursor: pointer;">Continue anyway</span></span
+    >
 </div>
 ```
 
@@ -635,22 +826,56 @@ The root artboard div needs `position: relative` for the scrim to anchor.
 The canvas under the scrim keeps its cluster, minimap and legend.
 
 ```html
-<div style="position: absolute; left: 0; top: 0; width: 1440px; height: 900px; display: flex; align-items: center; justify-content: center; background: rgba(13, 17, 23, 0.6); z-index: 20;">
-  <div style="width: 720px; max-height: 760px; display: flex; flex-direction: column; border-radius: 8px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden;">
-    <div style="flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;">
-      <span style="font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Import options</span>
-      <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-      </div>
+<div
+    style="position: absolute; left: 0; top: 0; width: 1440px; height: 900px; display: flex; align-items: center; justify-content: center; background: rgba(13, 17, 23, 0.6); z-index: 20;"
+>
+    <div
+        style="width: 720px; max-height: 760px; display: flex; flex-direction: column; border-radius: 8px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden;"
+    >
+        <div
+            style="flex: 0 0 40px; height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 16px; border-bottom: 1px solid #48525c; box-sizing: border-box;"
+        >
+            <span style="font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Import options</span>
+            <div
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="4" y1="4" x2="12" y2="12"></line>
+                    <line x1="12" y1="4" x2="4" y2="12"></line>
+                </svg>
+            </div>
+        </div>
+        <div
+            style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: hidden; box-sizing: border-box;"
+        >
+            <span style="font-size: 12px; line-height: 1.4; color: #a3a8b1;"
+                >200 nodes, 612 edges, directed, weighted by amount, timed by ts, 5 repeated pairs, 2 self-loops.</span
+            >
+        </div>
+        <div
+            style="flex: 0 0 48px; height: 48px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 16px; border-top: 1px solid #48525c; box-sizing: border-box;"
+        >
+            <div
+                style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+            >
+                Cancel
+            </div>
+            <div
+                style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+            >
+                Import
+            </div>
+        </div>
     </div>
-    <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: hidden; box-sizing: border-box;">
-      <span style="font-size: 12px; line-height: 1.4; color: #a3a8b1;">200 nodes, 612 edges, directed, weighted by amount, timed by ts, 5 repeated pairs, 2 self-loops.</span>
-    </div>
-    <div style="flex: 0 0 48px; height: 48px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 0 16px; border-top: 1px solid #48525c; box-sizing: border-box;">
-      <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Cancel</div>
-      <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Import</div>
-    </div>
-  </div>
 </div>
 ```
 
@@ -661,7 +886,11 @@ the secondary and primary buttons on the right.
 ### Key chip (5.6, 11px mono, bordered)
 
 ```html
-<div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Shift+0</div>
+<div
+    style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+>
+    Shift+0
+</div>
 ```
 
 Inside a tooltip the chip sits at the end of the sentence with a 6px gap.
@@ -674,23 +903,84 @@ right-aligned key chip; 1px dividers between groups; a check mark replaces
 the icon on a toggled row. Anchored below its trigger with a 4px gap.
 
 ```html
-<div style="position: absolute; left: 12px; bottom: 148px; width: 200px; display: flex; flex-direction: column; gap: 1px; padding: 4px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 15;">
-  <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline></svg>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Reset view</span>
-    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Shift+0</div>
-  </div>
-  <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect><line x1="2.5" y1="6" x2="13.5" y2="6"></line></svg>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Top</span>
-    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">7</div>
-  </div>
-  <div style="height: 1px; background: #48525c; margin: 3px 0;"></div>
-  <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4a7ee8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Show minimap</span>
-    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">M</div>
-  </div>
+<div
+    style="position: absolute; left: 12px; bottom: 148px; width: 200px; display: flex; flex-direction: column; gap: 1px; padding: 4px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 15;"
+>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="#7a828e"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path>
+            <polyline points="2.5,2.5 2.5,6 6,6"></polyline>
+        </svg>
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Reset view</span
+        >
+        <div
+            style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >
+            Shift+0
+        </div>
+    </div>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="#7a828e"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <rect x="2.5" y="2.5" width="11" height="11" rx="1.5"></rect>
+            <line x1="2.5" y1="6" x2="13.5" y2="6"></line>
+        </svg>
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Top</span
+        >
+        <div
+            style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >
+            7
+        </div>
+    </div>
+    <div style="height: 1px; background: #48525c; margin: 3px 0;"></div>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="#4a7ee8"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>
+        </svg>
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Show minimap</span
+        >
+        <div
+            style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >
+            M
+        </div>
+    </div>
 </div>
 ```
 
@@ -714,19 +1004,41 @@ Remove selected `Delete`. Empty canvas: Fit `0`, Reset view `Shift+0`,
 Select all visible `Cmd+A`, Paste data `Cmd+V`, Switch to 2D `5`.
 
 ```html
-<div style="position: absolute; left: 412px; top: 318px; width: 220px; display: flex; flex-direction: column; gap: 1px; padding: 4px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 15;">
-  <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Expand neighbors</span>
-    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">E</div>
-  </div>
-  <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Add a note</span>
-    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">N</div>
-  </div>
-  <div style="height: 1px; background: #48525c; margin: 3px 0;"></div>
-  <div style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Copy id</span>
-  </div>
+<div
+    style="position: absolute; left: 412px; top: 318px; width: 220px; display: flex; flex-direction: column; gap: 1px; padding: 4px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 15;"
+>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Expand neighbors</span
+        >
+        <div
+            style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >
+            E
+        </div>
+    </div>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Add a note</span
+        >
+        <div
+            style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+        >
+            N
+        </div>
+    </div>
+    <div style="height: 1px; background: #48525c; margin: 3px 0;"></div>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Copy id</span
+        >
+    </div>
 </div>
 ```
 
@@ -745,71 +1057,274 @@ canvas exactly; on a narrower canvas (Compare split) fold Columns, Add
 column and Top N by each metric into one "More" menu.
 
 ```html
-<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 260px; display: flex; flex-direction: column; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; overflow: hidden; z-index: 5;">
-  <div style="flex: 0 0 28px; height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-bottom: 1px solid #374047; box-sizing: border-box;">
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <div style="display: flex; gap: 2px; height: 22px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
-        <div style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Nodes</div>
-        <div style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Edges</div>
-      </div>
-      <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Showing 120 of 200 nodes</span>
-      <div style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px 0 8px; border-radius: 10px; background: #2a3035; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; line-height: 1; box-sizing: border-box;">
-        <span>Sorted by betweenness, high to low</span>
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-      </div>
+<div
+    style="position: absolute; left: 0; right: 0; bottom: 0; height: 260px; display: flex; flex-direction: column; background: #1f2428; border-top: 1px solid #48525c; box-sizing: border-box; overflow: hidden; z-index: 5;"
+>
+    <div
+        style="flex: 0 0 28px; height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-bottom: 1px solid #374047; box-sizing: border-box;"
+    >
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <div
+                style="display: flex; gap: 2px; height: 22px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;"
+            >
+                <div
+                    style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;"
+                >
+                    Nodes
+                </div>
+                <div
+                    style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;"
+                >
+                    Edges
+                </div>
+            </div>
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Showing 120 of 200 nodes</span>
+            <div
+                style="display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 6px 0 8px; border-radius: 10px; background: #2a3035; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; line-height: 1; box-sizing: border-box;"
+            >
+                <span>Sorted by betweenness, high to low</span>
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#7a828e"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="4" y1="4" x2="12" y2="12"></line>
+                    <line x1="12" y1="4" x2="4" y2="12"></line>
+                </svg>
+            </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div
+                style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+            >
+                Shift+T
+            </div>
+            <div
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="4" y1="4" x2="12" y2="12"></line>
+                    <line x1="12" y1="4" x2="4" y2="12"></line>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 4px;">
-      <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">Shift+T</div>
-      <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-      </div>
+    <div
+        style="flex: 0 0 28px; height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #374047; box-sizing: border-box;"
+    >
+        <div
+            style="width: 120px; flex: 0 0 120px; height: 22px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 4px; background: #2a3035; font-size: 11px; color: #5f6873; white-space: nowrap; overflow: hidden; box-sizing: border-box;"
+        >
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="#7a828e"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <circle cx="7" cy="7" r="4.5"></circle>
+                <line x1="10.5" y1="10.5" x2="14" y2="14"></line>
+            </svg>
+            <span>Search columns</span>
+        </div>
+        <div
+            style="display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 4px; background: #2a3035; font-size: 11px; color: #d5d7da; white-space: nowrap; box-sizing: border-box;"
+        >
+            <span style="color: #7a828e;">Show</span><span>Selected</span>
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="#7a828e"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <polyline points="4,6 8,10 12,6"></polyline>
+            </svg>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; height: 20px; cursor: pointer;">
+            <div
+                style="width: 28px; height: 16px; border-radius: 8px; background: #4a7ee8; position: relative; box-sizing: border-box;"
+            >
+                <div
+                    style="position: absolute; top: 2px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"
+                ></div>
+            </div>
+            <span style="font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;"
+                >Rows with issues</span
+            >
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;"
+        >
+            Columns
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;"
+        >
+            Add column
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;"
+        >
+            Top N by each metric
+        </div>
+        <div style="flex: 1 1 auto;"></div>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;"
+        >
+            Export this table
+        </div>
     </div>
-  </div>
-  <div style="flex: 0 0 28px; height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #374047; box-sizing: border-box;">
-    <div style="width: 120px; flex: 0 0 120px; height: 22px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 4px; background: #2a3035; font-size: 11px; color: #5f6873; white-space: nowrap; overflow: hidden; box-sizing: border-box;">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line></svg>
-      <span>Search columns</span>
+    <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden;">
+        <div
+            style="flex: 0 0 24px; height: 24px; display: grid; grid-template-columns: 32px 160px 100px 120px 120px minmax(0, 1fr); align-items: center; padding: 0 12px; background: #2a3035; border-bottom: 1px solid #48525c; font-size: 11px; font-weight: 500; color: #7a828e; box-sizing: border-box;"
+        >
+            <div
+                style="width: 16px; height: 16px; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"
+            ></div>
+            <div style="display: flex; align-items: center; gap: 4px; padding-right: 8px;">
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M3 4h10M8 4v9"></path></svg
+                ><span>id</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px; padding-right: 8px;">
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M3 4h10M8 4v9"></path></svg
+                ><span>type</span>
+            </div>
+            <div
+                style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding-right: 8px; color: #d5d7da;"
+            >
+                <span>betweenness</span
+                ><svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding-right: 8px;">
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg
+                ><span>degree</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <rect x="2.5" y="3.5" width="11" height="10" rx="1.5"></rect>
+                    <line x1="2.5" y1="7" x2="13.5" y2="7"></line>
+                    <line x1="5.5" y1="2" x2="5.5" y2="5"></line>
+                    <line x1="10.5" y1="2" x2="10.5" y2="5"></line></svg
+                ><span>opened</span>
+            </div>
+        </div>
+        <div
+            style="display: grid; grid-template-columns: 32px 160px 100px 120px 120px minmax(0, 1fr); align-items: center; height: 24px; padding: 0 12px; background: #28364e; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;"
+        >
+            <div
+                style="width: 16px; height: 16px; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#ffffff"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>
+                </svg>
+            </div>
+            <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                acct-4471
+            </div>
+            <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                account
+            </div>
+            <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">0.41</div>
+            <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">44</div>
+            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-03-18</div>
+        </div>
+        <div
+            style="display: grid; grid-template-columns: 32px 160px 100px 120px 120px minmax(0, 1fr); align-items: center; height: 24px; padding: 0 12px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;"
+        >
+            <div
+                style="width: 16px; height: 16px; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"
+            ></div>
+            <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                dev-19c2
+            </div>
+            <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                device
+            </div>
+            <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">0.33</div>
+            <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">40</div>
+            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-02-02</div>
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 8px; border-radius: 4px; background: #2a3035; font-size: 11px; color: #d5d7da; white-space: nowrap; box-sizing: border-box;">
-      <span style="color: #7a828e;">Show</span><span>Selected</span>
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-    </div>
-    <div style="display: flex; align-items: center; gap: 6px; height: 20px; cursor: pointer;">
-      <div style="width: 28px; height: 16px; border-radius: 8px; background: #4a7ee8; position: relative; box-sizing: border-box;"><div style="position: absolute; top: 2px; left: 14px; width: 12px; height: 12px; border-radius: 50%; background: #ffffff;"></div></div>
-      <span style="font-size: 11px; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Rows with issues</span>
-    </div>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;">Columns</div>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;">Add column</div>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer;">Top N by each metric</div>
-    <div style="flex: 1 1 auto;"></div>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 22px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; box-sizing: border-box;">Export this table</div>
-  </div>
-  <div style="flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden;">
-    <div style="flex: 0 0 24px; height: 24px; display: grid; grid-template-columns: 32px 160px 100px 120px 120px minmax(0, 1fr); align-items: center; padding: 0 12px; background: #2a3035; border-bottom: 1px solid #48525c; font-size: 11px; font-weight: 500; color: #7a828e; box-sizing: border-box;">
-      <div style="width: 16px; height: 16px; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"></div>
-      <div style="display: flex; align-items: center; gap: 4px; padding-right: 8px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M8 4v9"></path></svg><span>id</span></div>
-      <div style="display: flex; align-items: center; gap: 4px; padding-right: 8px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M8 4v9"></path></svg><span>type</span></div>
-      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding-right: 8px; color: #d5d7da;"><span>betweenness</span><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg></div>
-      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding-right: 8px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path></svg><span>degree</span></div>
-      <div style="display: flex; align-items: center; gap: 4px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5"></rect><line x1="2.5" y1="7" x2="13.5" y2="7"></line><line x1="5.5" y1="2" x2="5.5" y2="5"></line><line x1="10.5" y1="2" x2="10.5" y2="5"></line></svg><span>opened</span></div>
-    </div>
-    <div style="display: grid; grid-template-columns: 32px 160px 100px 120px 120px minmax(0, 1fr); align-items: center; height: 24px; padding: 0 12px; background: #28364e; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-      <div style="width: 16px; height: 16px; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg></div>
-      <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">acct-4471</div>
-      <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">account</div>
-      <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">0.41</div>
-      <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">44</div>
-      <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-03-18</div>
-    </div>
-    <div style="display: grid; grid-template-columns: 32px 160px 100px 120px 120px minmax(0, 1fr); align-items: center; height: 24px; padding: 0 12px; border-bottom: 1px solid #374047; font-size: 11px; color: #d5d7da; box-sizing: border-box; cursor: pointer;">
-      <div style="width: 16px; height: 16px; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"></div>
-      <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">dev-19c2</div>
-      <div style="padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">device</div>
-      <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">0.33</div>
-      <div style="padding-right: 8px; text-align: right; font-variant-numeric: tabular-nums;">40</div>
-      <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">2026-02-02</div>
-    </div>
-  </div>
 </div>
 ```
 
@@ -821,32 +1336,42 @@ to high). An offending cell (Show rows from a validation issue) gets
 Graph / Table control at the canvas top center while the drawer is open:
 
 ```html
-<div style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box; z-index: 6;">
-  <div style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Graph</div>
-  <div style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;">Table</div>
+<div
+    style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box; z-index: 6;"
+>
+    <div
+        style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;"
+    >
+        Graph
+    </div>
+    <div
+        style="display: flex; align-items: center; justify-content: center; height: 20px; padding: 0 10px; border-radius: 3px; color: #7a828e; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer;"
+    >
+        Table
+    </div>
 </div>
 ```
 
 ### Data table cell set
 
-| Cell | Style |
-|---|---|
-| text | `font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px;` |
-| number | text style plus `text-align: right; font-variant-numeric: tabular-nums;` (3 significant digits, scientific below 1e-3; hover shows the stored value) |
-| id (read-only) | text style in `#a3a8b1` |
-| missing | `Not set` in `#5f6873; font-style: italic;` |
-| list | 16px pills (section 4 Mantine compact Pill) in a `display: flex; gap: 4px;` row |
-| computed | number style plus the 9px neutral badge `fx` before the value |
+| Cell           | Style                                                                                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| text           | `font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 8px;`                               |
+| number         | text style plus `text-align: right; font-variant-numeric: tabular-nums;` (3 significant digits, scientific below 1e-3; hover shows the stored value) |
+| id (read-only) | text style in `#a3a8b1`                                                                                                                              |
+| missing        | `Not set` in `#5f6873; font-style: italic;`                                                                                                          |
+| list           | 16px pills (section 4 Mantine compact Pill) in a `display: flex; gap: 4px;` row                                                                      |
+| computed       | number style plus the 9px neutral badge `fx` before the value                                                                                        |
 
 Type icons in headers, 12px, `stroke="currentColor"`:
 
-| Type | Inner SVG |
-|---|---|
-| Text | `<path d="M3 4h10M8 4v9"></path>` |
-| Whole number, Decimal | `<path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path>` |
-| Yes/No | `<polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>` |
-| Date-time | `<rect x="2.5" y="3.5" width="11" height="10" rx="1.5"></rect><line x1="2.5" y1="7" x2="13.5" y2="7"></line><line x1="5.5" y1="2" x2="5.5" y2="5"></line><line x1="10.5" y1="2" x2="10.5" y2="5"></line>` |
-| List of text | `<line x1="5.5" y1="4" x2="13.5" y2="4"></line><line x1="5.5" y1="8" x2="13.5" y2="8"></line><line x1="5.5" y1="12" x2="13.5" y2="12"></line><circle cx="3" cy="4" r="0.5"></circle><circle cx="3" cy="8" r="0.5"></circle><circle cx="3" cy="12" r="0.5"></circle>` |
+| Type                  | Inner SVG                                                                                                                                                                                                                                                            |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Text                  | `<path d="M3 4h10M8 4v9"></path>`                                                                                                                                                                                                                                    |
+| Whole number, Decimal | `<path d="M6 2.5l-1.5 11M11.5 2.5l-1.5 11M3 6h10.5M2.5 10h10.5"></path>`                                                                                                                                                                                             |
+| Yes/No                | `<polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>`                                                                                                                                                                                                             |
+| Date-time             | `<rect x="2.5" y="3.5" width="11" height="10" rx="1.5"></rect><line x1="2.5" y1="7" x2="13.5" y2="7"></line><line x1="5.5" y1="2" x2="5.5" y2="5"></line><line x1="10.5" y1="2" x2="10.5" y2="5"></line>`                                                            |
+| List of text          | `<line x1="5.5" y1="4" x2="13.5" y2="4"></line><line x1="5.5" y1="8" x2="13.5" y2="8"></line><line x1="5.5" y1="12" x2="13.5" y2="12"></line><circle cx="3" cy="4" r="0.5"></circle><circle cx="3" cy="8" r="0.5"></circle><circle cx="3" cy="12" r="0.5"></circle>` |
 
 ### Note marker badge (5.7)
 
@@ -855,13 +1380,22 @@ A 14px filled circle with a 9px count, tinted by the note color, with a
 blue `#4a7ee8` (default), yellow `#f7b731`, green `#61d095`, teal
 `#33bfd7`, red `#eb4949`, gray `#a3a8b1`. Count text is `#0d1117` on
 yellow, green, teal and gray and `#ffffff` on blue and red. Placed at a
-node's top-right (node center + radius * 0.7 on both axes) or at an edge
+node's top-right (node center + radius \* 0.7 on both axes) or at an edge
 midpoint. Inside the canvas SVG:
 
 ```html
 <g transform="translate(431, 286)">
-  <circle r="7" fill="#f7b731" stroke="#161b22" stroke-width="1.5"></circle>
-  <text x="0" y="3" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="9" font-weight="500" fill="#0d1117">2</text>
+    <circle r="7" fill="#f7b731" stroke="#161b22" stroke-width="1.5"></circle>
+    <text
+        x="0"
+        y="3"
+        text-anchor="middle"
+        font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="9"
+        font-weight="500"
+        fill="#0d1117"
+        >2</text
+    >
 </g>
 ```
 
@@ -870,8 +1404,8 @@ four-point sparkle instead of the count:
 
 ```html
 <g transform="translate(431, 286)">
-  <circle r="7" fill="#4a7ee8" stroke="#161b22" stroke-width="1.5"></circle>
-  <path d="M0 -4.5L1.2 -1.2L4.5 0L1.2 1.2L0 4.5L-1.2 1.2L-4.5 0L-1.2 -1.2Z" fill="#ffffff"></path>
+    <circle r="7" fill="#4a7ee8" stroke="#161b22" stroke-width="1.5"></circle>
+    <path d="M0 -4.5L1.2 -1.2L4.5 0L1.2 1.2L0 4.5L-1.2 1.2L-4.5 0L-1.2 -1.2Z" fill="#ffffff"></path>
 </g>
 ```
 
@@ -881,7 +1415,11 @@ pill on the canvas reading `12 notes` (section 4 Mantine compact Pill with
 inspector Notes header and the Explore Notes rows:
 
 ```html
-<div style="display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: #f7b731; color: #0d1117; font-size: 9px; font-weight: 500; line-height: 1;">2</div>
+<div
+    style="display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: #f7b731; color: #0d1117; font-size: 9px; font-weight: 500; line-height: 1;"
+>
+    2
+</div>
 ```
 
 Done notes never draw markers. The hover card (newest note and "N more")
@@ -894,22 +1432,38 @@ tag chips and the Done checkbox on the last line. Hover shows Edit and
 Delete as subtle buttons at the right of the first line.
 
 ```html
-<div style="display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
-  <div style="display: flex; align-items: center; gap: 6px;">
-    <div style="width: 8px; height: 8px; border-radius: 50%; background: #f7b731;"></div>
-    <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da;">You</span>
-    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">2 h ago</span>
-    <div style="flex: 1 1 auto;"></div>
-    <div style="display: flex; align-items: center; gap: 4px; height: 20px; cursor: pointer;">
-      <div style="width: 16px; height: 16px; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"></div>
-      <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Done</span>
+<div
+    style="display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;"
+>
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <div style="width: 8px; height: 8px; border-radius: 50%; background: #f7b731;"></div>
+        <span style="font-size: 11px; font-weight: 500; line-height: 1.2; color: #d5d7da;">You</span>
+        <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">2 h ago</span>
+        <div style="flex: 1 1 auto;"></div>
+        <div style="display: flex; align-items: center; gap: 4px; height: 20px; cursor: pointer;">
+            <div
+                style="width: 16px; height: 16px; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"
+            ></div>
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Done</span>
+        </div>
     </div>
-  </div>
-  <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">Money-mule pattern: 14 inbound transfers under 1,000 then one outbound to merch-88 within 3 h. Check the device link.</span>
-  <div style="display: flex; align-items: center; gap: 4px;">
-    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">mule</div>
-    <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;">evidence</div>
-  </div>
+    <span
+        style="font-size: 11px; line-height: 1.4; color: #a3a8b1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;"
+        >Money-mule pattern: 14 inbound transfers under 1,000 then one outbound to merch-88 within 3 h. Check the device
+        link.</span
+    >
+    <div style="display: flex; align-items: center; gap: 4px;">
+        <div
+            style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;"
+        >
+            mule
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; line-height: 1; box-sizing: border-box;"
+        >
+            evidence
+        </div>
+    </div>
 </div>
 ```
 
@@ -920,7 +1474,11 @@ card): target label 12px, then author and relative time 11px dimmed, then
 the first line of text; hover shows Done and Delete. Inspector input:
 
 ```html
-<div style="display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #5f6873; box-sizing: border-box;">Add a note...</div>
+<div
+    style="display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #5f6873; box-sizing: border-box;"
+>
+    Add a note...
+</div>
 ```
 
 Focused it grows to a 64px text area with `box-shadow: 0 0 0 1px #5b8ff9`
@@ -937,41 +1495,55 @@ more than three orders of magnitude; the caption names the scale.
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 4px;">
-  <div style="display: flex; justify-content: space-between; font-size: 11px; line-height: 1.2; color: #7a828e;">
-    <span>amount, log scale</span>
-    <span>about 412k would match</span>
-  </div>
-  <div style="position: relative; height: 56px;">
-    <svg width="100%" height="40" viewBox="0 0 247 40" preserveAspectRatio="none" style="position: absolute; left: 0; top: 0; display: block;">
-      <rect x="0" y="34" width="11" height="6" fill="#374047"></rect>
-      <rect x="13" y="28" width="11" height="12" fill="#374047"></rect>
-      <rect x="26" y="18" width="11" height="22" fill="#374047"></rect>
-      <rect x="39" y="6" width="11" height="34" fill="#374047"></rect>
-      <rect x="52" y="2" width="11" height="38" fill="#2a5cc6"></rect>
-      <rect x="65" y="8" width="11" height="32" fill="#2a5cc6"></rect>
-      <rect x="78" y="14" width="11" height="26" fill="#2a5cc6"></rect>
-      <rect x="91" y="12" width="11" height="28" fill="#2a5cc6"></rect>
-      <rect x="104" y="20" width="11" height="20" fill="#2a5cc6"></rect>
-      <rect x="117" y="24" width="11" height="16" fill="#2a5cc6"></rect>
-      <rect x="130" y="26" width="11" height="14" fill="#2a5cc6"></rect>
-      <rect x="143" y="30" width="11" height="10" fill="#2a5cc6"></rect>
-      <rect x="156" y="31" width="11" height="9" fill="#2a5cc6"></rect>
-      <rect x="169" y="34" width="11" height="6" fill="#374047"></rect>
-      <rect x="182" y="36" width="11" height="4" fill="#374047"></rect>
-      <rect x="195" y="37" width="11" height="3" fill="#374047"></rect>
-      <rect x="208" y="38" width="11" height="2" fill="#374047"></rect>
-      <rect x="221" y="39" width="11" height="1" fill="#374047"></rect>
-      <rect x="234" y="39" width="11" height="1" fill="#374047"></rect>
-    </svg>
-    <div style="position: absolute; left: 0; right: 0; top: 46px; height: 4px; border-radius: 2px; background: #374047;"></div>
-    <div style="position: absolute; left: 21%; width: 47%; top: 46px; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
-    <div style="position: absolute; left: calc(21% - 6px); top: 42px; width: 12px; height: 12px; border-radius: 50%; background: #d5d7da; border: 2px solid #4a7ee8; box-sizing: border-box; cursor: pointer;"></div>
-    <div style="position: absolute; left: calc(68% - 6px); top: 42px; width: 12px; height: 12px; border-radius: 50%; background: #d5d7da; border: 2px solid #4a7ee8; box-sizing: border-box; cursor: pointer;"></div>
-  </div>
-  <div style="display: flex; justify-content: space-between; font-size: 11px; line-height: 1.2; color: #d5d7da;">
-    <span>250</span>
-    <span>12,000</span>
-  </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; line-height: 1.2; color: #7a828e;">
+        <span>amount, log scale</span>
+        <span>about 412k would match</span>
+    </div>
+    <div style="position: relative; height: 56px;">
+        <svg
+            width="100%"
+            height="40"
+            viewBox="0 0 247 40"
+            preserveAspectRatio="none"
+            style="position: absolute; left: 0; top: 0; display: block;"
+        >
+            <rect x="0" y="34" width="11" height="6" fill="#374047"></rect>
+            <rect x="13" y="28" width="11" height="12" fill="#374047"></rect>
+            <rect x="26" y="18" width="11" height="22" fill="#374047"></rect>
+            <rect x="39" y="6" width="11" height="34" fill="#374047"></rect>
+            <rect x="52" y="2" width="11" height="38" fill="#2a5cc6"></rect>
+            <rect x="65" y="8" width="11" height="32" fill="#2a5cc6"></rect>
+            <rect x="78" y="14" width="11" height="26" fill="#2a5cc6"></rect>
+            <rect x="91" y="12" width="11" height="28" fill="#2a5cc6"></rect>
+            <rect x="104" y="20" width="11" height="20" fill="#2a5cc6"></rect>
+            <rect x="117" y="24" width="11" height="16" fill="#2a5cc6"></rect>
+            <rect x="130" y="26" width="11" height="14" fill="#2a5cc6"></rect>
+            <rect x="143" y="30" width="11" height="10" fill="#2a5cc6"></rect>
+            <rect x="156" y="31" width="11" height="9" fill="#2a5cc6"></rect>
+            <rect x="169" y="34" width="11" height="6" fill="#374047"></rect>
+            <rect x="182" y="36" width="11" height="4" fill="#374047"></rect>
+            <rect x="195" y="37" width="11" height="3" fill="#374047"></rect>
+            <rect x="208" y="38" width="11" height="2" fill="#374047"></rect>
+            <rect x="221" y="39" width="11" height="1" fill="#374047"></rect>
+            <rect x="234" y="39" width="11" height="1" fill="#374047"></rect>
+        </svg>
+        <div
+            style="position: absolute; left: 0; right: 0; top: 46px; height: 4px; border-radius: 2px; background: #374047;"
+        ></div>
+        <div
+            style="position: absolute; left: 21%; width: 47%; top: 46px; height: 4px; border-radius: 2px; background: #4a7ee8;"
+        ></div>
+        <div
+            style="position: absolute; left: calc(21% - 6px); top: 42px; width: 12px; height: 12px; border-radius: 50%; background: #d5d7da; border: 2px solid #4a7ee8; box-sizing: border-box; cursor: pointer;"
+        ></div>
+        <div
+            style="position: absolute; left: calc(68% - 6px); top: 42px; width: 12px; height: 12px; border-radius: 50%; background: #d5d7da; border: 2px solid #4a7ee8; box-sizing: border-box; cursor: pointer;"
+        ></div>
+    </div>
+    <div style="display: flex; justify-content: space-between; font-size: 11px; line-height: 1.2; color: #d5d7da;">
+        <span>250</span>
+        <span>12,000</span>
+    </div>
 </div>
 ```
 
@@ -988,18 +1560,26 @@ on the midpoint, three ticks with labels, the palette name and the
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 4px;">
-  <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Color: fold change <span style="color: #7a828e;">(logFC)</span></span>
-  <div style="height: 8px; border-radius: 2px; background: linear-gradient(90deg, #2c6fd6 0%, #8fb4ec 25%, #e6e6e6 50%, #f2b077 75%, #e0641e 100%);"></div>
-  <div style="position: relative; height: 12px; font-size: 10px; line-height: 1; color: #7a828e;">
-    <span style="position: absolute; left: 0;">-4.2</span>
-    <span style="position: absolute; left: 50%; transform: translateX(-50%);">0</span>
-    <span style="position: absolute; right: 0;">3.8</span>
-  </div>
-  <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">Blue-Orange, midpoint 0, clamped at 2nd and 98th</span>
-  <div style="display: flex; align-items: center; gap: 6px;">
-    <div style="width: 14px; height: 14px; border-radius: 2px; background: #7a828e; border: 1px solid #48525c; box-sizing: border-box;"></div>
-    <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">not measured (12 nodes)</span>
-  </div>
+    <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;"
+        >Color: fold change <span style="color: #7a828e;">(logFC)</span></span
+    >
+    <div
+        style="height: 8px; border-radius: 2px; background: linear-gradient(90deg, #2c6fd6 0%, #8fb4ec 25%, #e6e6e6 50%, #f2b077 75%, #e0641e 100%);"
+    ></div>
+    <div style="position: relative; height: 12px; font-size: 10px; line-height: 1; color: #7a828e;">
+        <span style="position: absolute; left: 0;">-4.2</span>
+        <span style="position: absolute; left: 50%; transform: translateX(-50%);">0</span>
+        <span style="position: absolute; right: 0;">3.8</span>
+    </div>
+    <span style="font-size: 10px; line-height: 1.2; color: #7a828e;"
+        >Blue-Orange, midpoint 0, clamped at 2nd and 98th</span
+    >
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <div
+            style="width: 14px; height: 14px; border-radius: 2px; background: #7a828e; border: 1px solid #48525c; box-sizing: border-box;"
+        ></div>
+        <span style="font-size: 10px; line-height: 1.2; color: #7a828e;">not measured (12 nodes)</span>
+    </div>
 </div>
 ```
 
@@ -1013,34 +1593,72 @@ copy links, then the shape body, then the action row. Both muted lines
 stay visible when the reading collapses.
 
 ```html
-<div style="display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;">
-  <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
-    <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Bridges</span>
-      <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;">Betweenness centrality</span>
+<div
+    style="display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 4px; background: #2a3035; border: 1px solid #374047; box-sizing: border-box;"
+>
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: baseline; gap: 6px; min-width: 0;">
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Bridges</span>
+            <span style="font-size: 11px; line-height: 1.2; color: #7a828e; white-space: nowrap;"
+                >Betweenness centrality</span
+            >
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #2a5cc6; color: #ffffff; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;"
+        >
+            Done
+        </div>
     </div>
-    <div style="display: inline-flex; align-items: center; height: 14px; padding: 0 4px; border-radius: 7px; background: #2a5cc6; color: #ffffff; font-size: 9px; font-weight: 500; line-height: 1; text-transform: uppercase; box-sizing: border-box;">Done</div>
-  </div>
-  <span style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">acct-4471 is the main bridge. It sits on 41% of the shortest paths between other nodes. <span style="color: #5b8ff9; cursor: pointer;">Simulate removing acct-4471</span> to see what breaks.</span>
-  <span style="font-size: 11px; line-height: 1.4; color: #7a828e;">Exact. Directed, weighted by amount as strength. Computed on all 200 nodes.</span>
-  <div style="display: flex; flex-direction: column; gap: 2px;">
-    <span style="font-size: 11px; line-height: 1.4; color: #7a828e;">Betweenness, normalized, endpoints excluded. Weight: amount (strength). Direction: followed. Scope: visible, 200 of 200 nodes. 2026-09-04 14:12, 38 ms, algorithms 1.4.0</span>
-    <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; line-height: 1.2; color: #5b8ff9;">
-      <span style="cursor: pointer;">Copy as JSON</span>
-      <span style="cursor: pointer;">Copy as command</span>
-      <span style="cursor: pointer;">Copy methods text</span>
+    <span style="font-size: 12px; line-height: 1.5; color: #a3a8b1;"
+        >acct-4471 is the main bridge. It sits on 41% of the shortest paths between other nodes.
+        <span style="color: #5b8ff9; cursor: pointer;">Simulate removing acct-4471</span> to see what breaks.</span
+    >
+    <span style="font-size: 11px; line-height: 1.4; color: #7a828e;"
+        >Exact. Directed, weighted by amount as strength. Computed on all 200 nodes.</span
+    >
+    <div style="display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 11px; line-height: 1.4; color: #7a828e;"
+            >Betweenness, normalized, endpoints excluded. Weight: amount (strength). Direction: followed. Scope:
+            visible, 200 of 200 nodes. 2026-09-04 14:12, 38 ms, algorithms 1.4.0</span
+        >
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; line-height: 1.2; color: #5b8ff9;">
+            <span style="cursor: pointer;">Copy as JSON</span>
+            <span style="cursor: pointer;">Copy as command</span>
+            <span style="cursor: pointer;">Copy methods text</span>
+        </div>
     </div>
-  </div>
-  <div style="display: flex; flex-direction: column; gap: 1px;">
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>1. acct-4471</span><span style="color: #7a828e; font-variant-numeric: tabular-nums;">0.41</span></div>
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>2. dev-19c2</span><span style="color: #7a828e; font-variant-numeric: tabular-nums;">0.33</span></div>
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"><span>3. ph-2076</span><span style="color: #7a828e; font-variant-numeric: tabular-nums;">0.29</span></div>
-    <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; padding: 4px 8px; cursor: pointer;">See all 200 ranked</span>
-  </div>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run again with changes</div>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Encode as style</div>
-  </div>
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+        <div
+            style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+        >
+            <span>1. acct-4471</span><span style="color: #7a828e; font-variant-numeric: tabular-nums;">0.41</span>
+        </div>
+        <div
+            style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+        >
+            <span>2. dev-19c2</span><span style="color: #7a828e; font-variant-numeric: tabular-nums;">0.33</span>
+        </div>
+        <div
+            style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+        >
+            <span>3. ph-2076</span><span style="color: #7a828e; font-variant-numeric: tabular-nums;">0.29</span>
+        </div>
+        <span style="font-size: 11px; line-height: 1.2; color: #5b8ff9; padding: 4px 8px; cursor: pointer;"
+            >See all 200 ranked</span
+        >
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+        >
+            Run again with changes
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+        >
+            Encode as style
+        </div>
+    </div>
 </div>
 ```
 
@@ -1062,15 +1680,17 @@ time and Cancel on one line, a 4px bar under it.
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 4px;">
-  <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; line-height: 1.2; color: #a3a8b1;">
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Computing Bridges (betweenness)...</span>
-    <span style="font-variant-numeric: tabular-nums;">42%</span>
-    <span style="color: #7a828e; font-variant-numeric: tabular-nums;">1.8 s</span>
-    <span style="color: #5b8ff9; cursor: pointer;">Cancel</span>
-  </div>
-  <div style="height: 4px; border-radius: 2px; background: #374047; overflow: hidden;">
-    <div style="width: 42%; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
-  </div>
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 11px; line-height: 1.2; color: #a3a8b1;">
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Computing Bridges (betweenness)...</span
+        >
+        <span style="font-variant-numeric: tabular-nums;">42%</span>
+        <span style="color: #7a828e; font-variant-numeric: tabular-nums;">1.8 s</span>
+        <span style="color: #5b8ff9; cursor: pointer;">Cancel</span>
+    </div>
+    <div style="height: 4px; border-radius: 2px; background: #374047; overflow: hidden;">
+        <div style="width: 42%; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
+    </div>
 </div>
 ```
 
@@ -1091,15 +1711,35 @@ Settings overlay content column (560px or wider), not a 280px panel. Grouped und
 5.6 group names. One row in the recording state.
 
 ```html
-<div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 72px; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-bottom: 1px solid #374047; font-size: 12px; color: #d5d7da; box-sizing: border-box;">
-  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Zoom to selection</span>
-  <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box; justify-self: start;">F</div>
-  <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Rebind</div>
+<div
+    style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 72px; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-bottom: 1px solid #374047; font-size: 12px; color: #d5d7da; box-sizing: border-box;"
+>
+    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Zoom to selection</span>
+    <div
+        style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box; justify-self: start;"
+    >
+        F
+    </div>
+    <div
+        style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+    >
+        Rebind
+    </div>
 </div>
-<div style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 72px; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-bottom: 1px solid #374047; background: #28364e; font-size: 12px; color: #d5d7da; box-sizing: border-box;">
-  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Toggle inspector</span>
-  <div style="display: flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 4px; background: #2a3035; box-shadow: 0 0 0 1px #5b8ff9; font-size: 11px; color: #5f6873; box-sizing: border-box;">Press keys...</div>
-  <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Cancel</div>
+<div
+    style="display: grid; grid-template-columns: minmax(0, 1fr) 120px 72px; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-bottom: 1px solid #374047; background: #28364e; font-size: 12px; color: #d5d7da; box-sizing: border-box;"
+>
+    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Toggle inspector</span>
+    <div
+        style="display: flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 4px; background: #2a3035; box-shadow: 0 0 0 1px #5b8ff9; font-size: 11px; color: #5f6873; box-sizing: border-box;"
+    >
+        Press keys...
+    </div>
+    <div
+        style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+    >
+        Cancel
+    </div>
 </div>
 ```
 
@@ -1119,7 +1759,11 @@ Warning color, 9px, reads the number of validation issue types, `99+`
 above 99.
 
 ```html
-<div style="position: absolute; top: 2px; right: 4px; display: inline-flex; align-items: center; justify-content: center; min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px; background: #f7b731; color: #0d1117; font-size: 9px; font-weight: 500; line-height: 1; box-sizing: border-box;">3</div>
+<div
+    style="position: absolute; top: 2px; right: 4px; display: inline-flex; align-items: center; justify-content: center; min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px; background: #f7b731; color: #0d1117; font-size: 9px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+>
+    3
+</div>
 ```
 
 ### Status bar chips (5.1)
@@ -1130,11 +1774,44 @@ the Performance mode chip carries a bolt. Every chip except the mode chip
 is clickable and opens its home.
 
 ```html
-<div style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">3D</div>
-<div style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">VR<span style="color: #5b8ff9; cursor: pointer;">Exit</span></div>
-<div style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"><div style="width: 6px; height: 6px; border-radius: 50%; background: #f7b731;"></div>3 issue types (214k)</div>
-<div style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"><div style="width: 8px; height: 8px; border-radius: 50%; background: #4a7ee8;"></div>5 notes</div>
-<div style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="#f7b731" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 1.5L3 9h4.5L7 14.5 13 7H8.5z"></path></svg>Performance mode: sample 50k, labels off, hover off</div>
+<div
+    style="display: inline-flex; align-items: center; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+>
+    3D
+</div>
+<div
+    style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+>
+    VR<span style="color: #5b8ff9; cursor: pointer;">Exit</span>
+</div>
+<div
+    style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+>
+    <div style="width: 6px; height: 6px; border-radius: 50%; background: #f7b731;"></div>
+    3 issue types (214k)
+</div>
+<div
+    style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+>
+    <div style="width: 8px; height: 8px; border-radius: 50%; background: #4a7ee8;"></div>
+    5 notes
+</div>
+<div
+    style="display: inline-flex; align-items: center; gap: 4px; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #d5d7da; font-size: 10px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+>
+    <svg
+        width="10"
+        height="10"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="#f7b731"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="M9 1.5L3 9h4.5L7 14.5 13 7H8.5z"></path></svg
+    >Performance mode: sample 50k, labels off, hover off
+</div>
 ```
 
 Copy rules: the issues chip reads `N issue types (total)`; the notes chip
@@ -1149,11 +1826,11 @@ mode, subset.
 Graph summary readings (inspector, nothing selected). Plain name first;
 both names always rendered.
 
-| Dataset | Reading | Counts rows |
-|---|---|---|
-| cat-social-network.json (20 nodes, 29 edges, undirected, weight `value`) | `17 cats, 1 dog and 2 humans, connected by 29 relationships. Everyone is connected to everyone else through at most 5 steps.` | Nodes 20; Edges 29; Direction Undirected; Weighted Yes (value); Average links per node 2.9; How tightly linked (density) 0.153; Connected parts (components) 1 (largest holds 100%); Isolated nodes 0 |
-| fraud-ring-synthetic.json (200 nodes, 612 edges, directed, weight `amount`, time `ts`) | `96 accounts, 48 devices and 34 phone numbers, and 1 other type, connected by 612 transactions. One connected part holds all 200 nodes.` | Nodes 200; Edges 612; Direction Directed (from file); Weighted Yes (amount, as strength); Timed Yes (ts); Average links per node 6.1; How tightly linked (density) 0.031; Connected parts (components) 1 (largest holds 100%); Isolated nodes 0; Self-loops 2; Parallel edges 5 (combined at import) |
-| security-events-41k.csv (41,200 nodes, 212,000 edges, directed; the iPad hub-node artboard) | `28,400 processes, 9,100 hosts and 3,200 users, and 2 other types, connected by 212,000 events. One connected part holds 91% of nodes; 3,412 small parts (mostly single nodes) hold the rest.` | Nodes 41,200; Edges 212,000; Direction Directed (column); Weighted No; Average links per node 10.3; How tightly linked (density) 1 in 8,000 possible links exist (1.2e-4); Connected parts (components) 3,412 (largest holds 91%); Isolated nodes 2,980 |
+| Dataset                                                                                     | Reading                                                                                                                                                                                        | Counts rows                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| cat-social-network.json (20 nodes, 29 edges, undirected, weight `value`)                    | `17 cats, 1 dog and 2 humans, connected by 29 relationships. Everyone is connected to everyone else through at most 5 steps.`                                                                  | Nodes 20; Edges 29; Direction Undirected; Weighted Yes (value); Average links per node 2.9; How tightly linked (density) 0.153; Connected parts (components) 1 (largest holds 100%); Isolated nodes 0                                                                                                |
+| fraud-ring-synthetic.json (200 nodes, 612 edges, directed, weight `amount`, time `ts`)      | `96 accounts, 48 devices and 34 phone numbers, and 1 other type, connected by 612 transactions. One connected part holds all 200 nodes.`                                                       | Nodes 200; Edges 612; Direction Directed (from file); Weighted Yes (amount, as strength); Timed Yes (ts); Average links per node 6.1; How tightly linked (density) 0.031; Connected parts (components) 1 (largest holds 100%); Isolated nodes 0; Self-loops 2; Parallel edges 5 (combined at import) |
+| security-events-41k.csv (41,200 nodes, 212,000 edges, directed; the iPad hub-node artboard) | `28,400 processes, 9,100 hosts and 3,200 users, and 2 other types, connected by 212,000 events. One connected part holds 91% of nodes; 3,412 small parts (mostly single nodes) hold the rest.` | Nodes 41,200; Edges 212,000; Direction Directed (column); Weighted No; Average links per node 10.3; How tightly linked (density) 1 in 8,000 possible links exist (1.2e-4); Connected parts (components) 3,412 (largest holds 91%); Isolated nodes 2,980                                              |
 
 Under a filter or time window the reading opens `Showing 120 of 200
 nodes.` and every count reads visible of total; under a subset it opens
@@ -1163,71 +1840,71 @@ Compact numbers above 99,999 (`412k`, `1.0M`); thousands separators below.
 Algorithm names (6.3 table, verbatim; plain first, technical in muted text
 or parentheses):
 
-| Plain | Technical |
-|---|---|
-| Groups | Communities (Louvain) |
-| Groups | Communities (Leiden) |
-| Groups | Communities (Label propagation) |
-| Groups | Communities (Girvan-Newman) |
-| Tight clusters | Markov clustering (MCL) |
-| Connected parts | Components |
-| Following direction, Ignoring direction | Strongly, weakly connected components |
-| Core layers | k-core decomposition |
-| Tight-knit neighborhoods | Clustering coefficient |
-| Most connected | Degree centrality |
-| Incoming, Outgoing, Both | In-degree, out-degree, total degree |
-| Average links per node | Mean degree |
-| Influence | PageRank |
-| Attenuated influence | Katz centrality |
-| Hubs and authorities | HITS |
-| Closest to everyone | Closeness centrality |
-| Well-connected neighbors | Eigenvector centrality |
-| Bridges | Betweenness centrality |
-| Bridge edges | Edge betweenness |
-| What breaks if removed | Removal impact analysis |
-| Bottleneck capacity | Max flow, Min cut |
-| Backbone | Minimum spanning tree (Kruskal, Prim) |
-| Best pairing | Bipartite matching |
-| Farthest apart | Eccentricity, diameter (Floyd-Warshall) |
-| Find a path | Shortest path (BFS, Dijkstra when weighted, Bellman-Ford with negative weights) |
-| Distance from here | BFS levels |
-| Walk from here | Depth-first search |
-| Every route | All simple paths |
-| Unusual nodes | Anomaly detection |
-| Likely missing links | Link prediction |
-| Which categories stand out | Category table (term enrichment table) |
-| Custom score | Computed attribute |
-| Find a pattern | Subgraph search |
-| Around the selection | Ego network |
-| Step through time | Temporal navigation |
-| How tightly linked | Density |
-| Compare | Comparison view |
-| Data table | Node and edge table |
-| Add attributes from a table | Table join |
-| Map identifiers | Identifier mapping |
-| Close dataset | New session |
-| Notes | Annotations |
-| Case note | Graph-level annotation |
-| Done | Resolved |
-| Callouts | Visual annotations (text, arrows, shapes) |
-| Arrangement | Layout |
-| Force directed | ngraph |
-| Layers from a root | bfs |
-| Rings around a node | radial (ego-centric) |
-| Layered | sugiyama |
-| Circle | circular |
-| Shells | shell |
-| Layers by attribute | multipartite |
-| Two sides | bipartite |
-| From file | fixed |
-| Edge length | springLength |
-| Pull to center | gravity |
-| Stiffness | springCoefficient |
-| Damping | dragCoefficient, velocityDecay |
-| Speed vs accuracy | theta |
-| Spread | scalingFactor |
-| Iterations | maxIter, iterations |
-| Random seed | seed |
+| Plain                                   | Technical                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------- |
+| Groups                                  | Communities (Louvain)                                                           |
+| Groups                                  | Communities (Leiden)                                                            |
+| Groups                                  | Communities (Label propagation)                                                 |
+| Groups                                  | Communities (Girvan-Newman)                                                     |
+| Tight clusters                          | Markov clustering (MCL)                                                         |
+| Connected parts                         | Components                                                                      |
+| Following direction, Ignoring direction | Strongly, weakly connected components                                           |
+| Core layers                             | k-core decomposition                                                            |
+| Tight-knit neighborhoods                | Clustering coefficient                                                          |
+| Most connected                          | Degree centrality                                                               |
+| Incoming, Outgoing, Both                | In-degree, out-degree, total degree                                             |
+| Average links per node                  | Mean degree                                                                     |
+| Influence                               | PageRank                                                                        |
+| Attenuated influence                    | Katz centrality                                                                 |
+| Hubs and authorities                    | HITS                                                                            |
+| Closest to everyone                     | Closeness centrality                                                            |
+| Well-connected neighbors                | Eigenvector centrality                                                          |
+| Bridges                                 | Betweenness centrality                                                          |
+| Bridge edges                            | Edge betweenness                                                                |
+| What breaks if removed                  | Removal impact analysis                                                         |
+| Bottleneck capacity                     | Max flow, Min cut                                                               |
+| Backbone                                | Minimum spanning tree (Kruskal, Prim)                                           |
+| Best pairing                            | Bipartite matching                                                              |
+| Farthest apart                          | Eccentricity, diameter (Floyd-Warshall)                                         |
+| Find a path                             | Shortest path (BFS, Dijkstra when weighted, Bellman-Ford with negative weights) |
+| Distance from here                      | BFS levels                                                                      |
+| Walk from here                          | Depth-first search                                                              |
+| Every route                             | All simple paths                                                                |
+| Unusual nodes                           | Anomaly detection                                                               |
+| Likely missing links                    | Link prediction                                                                 |
+| Which categories stand out              | Category table (term enrichment table)                                          |
+| Custom score                            | Computed attribute                                                              |
+| Find a pattern                          | Subgraph search                                                                 |
+| Around the selection                    | Ego network                                                                     |
+| Step through time                       | Temporal navigation                                                             |
+| How tightly linked                      | Density                                                                         |
+| Compare                                 | Comparison view                                                                 |
+| Data table                              | Node and edge table                                                             |
+| Add attributes from a table             | Table join                                                                      |
+| Map identifiers                         | Identifier mapping                                                              |
+| Close dataset                           | New session                                                                     |
+| Notes                                   | Annotations                                                                     |
+| Case note                               | Graph-level annotation                                                          |
+| Done                                    | Resolved                                                                        |
+| Callouts                                | Visual annotations (text, arrows, shapes)                                       |
+| Arrangement                             | Layout                                                                          |
+| Force directed                          | ngraph                                                                          |
+| Layers from a root                      | bfs                                                                             |
+| Rings around a node                     | radial (ego-centric)                                                            |
+| Layered                                 | sugiyama                                                                        |
+| Circle                                  | circular                                                                        |
+| Shells                                  | shell                                                                           |
+| Layers by attribute                     | multipartite                                                                    |
+| Two sides                               | bipartite                                                                       |
+| From file                               | fixed                                                                           |
+| Edge length                             | springLength                                                                    |
+| Pull to center                          | gravity                                                                         |
+| Stiffness                               | springCoefficient                                                               |
+| Damping                                 | dragCoefficient, velocityDecay                                                  |
+| Speed vs accuracy                       | theta                                                                           |
+| Spread                                  | scalingFactor                                                                   |
+| Iterations                              | maxIter, iterations                                                             |
+| Random seed                             | seed                                                                            |
 
 Retired and renamed strings: "Reach" (reserved word, never a plain name);
 "Followers, Following, Both" (now Incoming, Outgoing, Both); "Annotation
@@ -1292,16 +1969,46 @@ so no row grows; artboards draw the 14px box only.
 Resting:
 
 ```html
-<div style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+<div
+    style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"
+>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <circle cx="8" cy="8" r="6.5"></circle>
+        <line x1="8" y1="7" x2="8" y2="11.5"></line>
+        <line x1="8" y1="4.5" x2="8" y2="4.75"></line>
+    </svg>
 </div>
 ```
 
 Hovered, focused or open (the only difference is the colour):
 
 ```html
-<div style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #d5d7da; cursor: default;">
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
+<div
+    style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #d5d7da; cursor: default;"
+>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <circle cx="8" cy="8" r="6.5"></circle>
+        <line x1="8" y1="7" x2="8" y2="11.5"></line>
+        <line x1="8" y1="4.5" x2="8" y2="4.75"></line>
+    </svg>
 </div>
 ```
 
@@ -1311,9 +2018,11 @@ more" link, then the binding as a key chip when one exists. Nothing inside is a
 control except that link.
 
 ```html
-<div style="position: absolute; left: 0; top: 20px; width: 250px; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; z-index: 15;">
-  <span>Nodes with well-linked neighbors: a node scores high when the nodes pointing at it score high.</span>
-  <span style="color: #5b8ff9; cursor: pointer;">Learn more</span>
+<div
+    style="position: absolute; left: 0; top: 20px; width: 250px; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; box-sizing: border-box; z-index: 15;"
+>
+    <span>Nodes with well-linked neighbors: a node scores high when the nodes pointing at it score high.</span>
+    <span style="color: #5b8ff9; cursor: pointer;">Learn more</span>
 </div>
 ```
 
@@ -1322,10 +2031,25 @@ never between the two names):
 
 ```html
 <div style="display: flex; align-items: center; gap: 4px; height: 22px;">
-  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Large-graph threshold</span>
-  <div style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
-  </div>
+    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Large-graph threshold</span>
+    <div
+        style="width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; color: #a3a8b1; cursor: default;"
+    >
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <circle cx="8" cy="8" r="6.5"></circle>
+            <line x1="8" y1="7" x2="8" y2="11.5"></line>
+            <line x1="8" y1="4.5" x2="8" y2="4.75"></line>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -1343,16 +2067,46 @@ key chip; the glyph is aria-hidden.
 Default:
 
 ```html
-<div title="Copy as TSV" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: transparent; color: #7a828e; cursor: pointer; flex: 0 0 auto;">
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+<div
+    title="Copy as TSV"
+    style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: transparent; color: #7a828e; cursor: pointer; flex: 0 0 auto;"
+>
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect>
+        <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path>
+    </svg>
 </div>
 ```
 
 Hover:
 
 ```html
-<div title="Copy as TSV" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #374047; color: #d5d7da; cursor: pointer; flex: 0 0 auto;">
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
+<div
+    title="Copy as TSV"
+    style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #374047; color: #d5d7da; cursor: pointer; flex: 0 0 auto;"
+>
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect>
+        <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path>
+    </svg>
 </div>
 ```
 
@@ -1360,8 +2114,23 @@ Active or toggled on (`aria-pressed="true"`; a toggle keeps one name and never
 changes it with state):
 
 ```html
-<div title="Link views" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer; flex: 0 0 auto;">
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-.75.75"></path><path d="M9.5 6.5a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l.75-.75"></path></svg>
+<div
+    title="Link views"
+    style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #28364e; color: #4a7ee8; cursor: pointer; flex: 0 0 auto;"
+>
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <path d="M6.5 9.5a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-.75.75"></path>
+        <path d="M9.5 6.5a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l.75-.75"></path>
+    </svg>
 </div>
 ```
 
@@ -1370,9 +2139,15 @@ then the key chip. 150ms delay. Never suppressed in Performance mode, which
 governs canvas elements only.
 
 ```html
-<div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; max-width: 220px;">
-  <span>Zoom to selection</span>
-  <div style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;">F</div>
+<div
+    style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 11px; line-height: 1.4; color: #d5d7da; max-width: 220px;"
+>
+    <span>Zoom to selection</span>
+    <div
+        style="display: inline-flex; align-items: center; height: 16px; padding: 0 4px; border-radius: 3px; background: #2a3035; border: 1px solid #48525c; color: #a3a8b1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; box-sizing: border-box;"
+    >
+        F
+    </div>
 </div>
 ```
 
@@ -1395,26 +2170,86 @@ Hovered (the state to draw when the artboard shows the group):
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px;">
-      <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">All statistics</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div
+                style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">All statistics</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div
+                title="Recompute"
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path>
+                    <polyline points="2.5,2.5 2.5,6 6,6"></polyline>
+                </svg>
+            </div>
+            <div
+                title="Export CSV"
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M8 2v8"></path>
+                    <polyline points="5,7.5 8,10.5 11,7.5"></polyline>
+                    <path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path>
+                </svg>
+            </div>
+            <div
+                title="More"
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <circle cx="8" cy="3.5" r="0.75"></circle>
+                    <circle cx="8" cy="8" r="0.75"></circle>
+                    <circle cx="8" cy="12.5" r="0.75"></circle>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 4px;">
-      <div title="Recompute" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline></svg>
-      </div>
-      <div title="Export CSV" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8"></path><polyline points="5,7.5 8,10.5 11,7.5"></polyline><path d="M2.5 12.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1"></path></svg>
-      </div>
-      <div title="More" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
-      </div>
-    </div>
-  </div>
 </div>
 ```
 
@@ -1422,19 +2257,67 @@ Row form (three icons maximum, always in the order edit, visibility, delete, so
 position teaches the verb):
 
 ```html
-<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #2a3035; color: #d5d7da; font-size: 12px; line-height: 1.2; box-sizing: border-box;">
-  <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Mule candidates</span>
-  <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-    <div title="Edit" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path><line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line></svg>
+<div
+    style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; background: #2a3035; color: #d5d7da; font-size: 12px; line-height: 1.2; box-sizing: border-box;"
+>
+    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+        >Mule candidates</span
+    >
+    <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+        <div
+            title="Edit"
+            style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path>
+                <line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line>
+            </svg>
+        </div>
+        <div
+            title="Show on canvas"
+            style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"></path>
+                <circle cx="8" cy="8" r="2"></circle>
+            </svg>
+        </div>
+        <div
+            title="Delete"
+            style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; margin-left: 4px; color: #7a828e; cursor: pointer;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M3 4.5h10M6.5 4.5v-2h3v2M4 4.5l.8 9h6.4l.8-9"></path>
+            </svg>
+        </div>
     </div>
-    <div title="Show on canvas" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"></path><circle cx="8" cy="8" r="2"></circle></svg>
-    </div>
-    <div title="Delete" style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; margin-left: 4px; color: #7a828e; cursor: pointer;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h10M6.5 4.5v-2h3v2M4 4.5l.8 9h6.4l.8-9"></path></svg>
-    </div>
-  </div>
 </div>
 ```
 
@@ -1460,23 +2343,63 @@ chip.
 Right, resting:
 
 ```html
-<div title="Zoom to selection (F)" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-  <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg>
-  </span>
-  <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Zoom to selection</span>
+<div
+    title="Zoom to selection (F)"
+    style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+>
+    <span
+        style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M2.5 6V2.5H6"></path>
+            <path d="M10 2.5h3.5V6"></path>
+            <path d="M13.5 10v3.5H10"></path>
+            <path d="M6 13.5H2.5V10"></path>
+            <circle cx="8" cy="8" r="2"></circle>
+        </svg>
+    </span>
+    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+        >Zoom to selection</span
+    >
 </div>
 ```
 
 With the trailing data slot (a count, a target or a Coming tag -- never a key):
 
 ```html
-<div title="Save as subgraph (Shift+S)" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-  <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h8a1 1 0 0 1 1 1v10l-5-3-5 3v-10a1 1 0 0 1 1-1z"></path></svg>
-  </span>
-  <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Save as subgraph</span>
-  <span style="flex: 0 0 auto; font-size: 11px; font-weight: 400; color: #7a828e;">new layer</span>
+<div
+    title="Save as subgraph (Shift+S)"
+    style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: #374047; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+>
+    <span
+        style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M4 2.5h8a1 1 0 0 1 1 1v10l-5-3-5 3v-10a1 1 0 0 1 1-1z"></path>
+        </svg>
+    </span>
+    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+        >Save as subgraph</span
+    >
+    <span style="flex: 0 0 auto; font-size: 11px; font-weight: 400; color: #7a828e;">new layer</span>
 </div>
 ```
 
@@ -1504,11 +2427,26 @@ Under 2 s -- nothing at all; the action row is Parameters and Run:
 
 ```html
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-  <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; color: #7a828e;">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-    <span style="font-size: 11px; line-height: 1.2;">Parameters</span>
-  </div>
-  <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run</div>
+    <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; color: #7a828e;">
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="6,4 10,8 6,12"></polyline>
+        </svg>
+        <span style="font-size: 11px; line-height: 1.2;">Parameters</span>
+    </div>
+    <div
+        style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+    >
+        Run
+    </div>
 </div>
 ```
 
@@ -1516,27 +2454,50 @@ From 2 s to the ask limit -- an 11px dimmed estimate immediately left of Run:
 
 ```html
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-  <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; color: #7a828e;">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-    <span style="font-size: 11px; line-height: 1.2;">Parameters</span>
-  </div>
-  <div style="display: flex; align-items: center; gap: 8px;">
-    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">about 5 s</span>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run</div>
-  </div>
+    <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer; color: #7a828e;">
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="6,4 10,8 6,12"></polyline>
+        </svg>
+        <span style="font-size: 11px; line-height: 1.2;">Parameters</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">about 5 s</span>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+        >
+            Run
+        </div>
+    </div>
 </div>
 ```
 
 Above the ask limit -- the estimate moves onto the button and Run confirms once:
 
 ```html
-<div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run (about 40 s)</div>
+<div
+    style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+>
+    Run (about 40 s)
+</div>
 ```
 
 Above the warn limit -- the section 9 warning line, then the outline button:
 
 ```html
-<div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #f7b731; color: #f7b731; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run anyway (about 3 h)</div>
+<div
+    style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #f7b731; color: #f7b731; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+>
+    Run anyway (about 3 h)
+</div>
 ```
 
 The List view row carries the same estimate in the same words, so List is not
@@ -1554,16 +2515,33 @@ Date and time -- window size with a unit select, step in days:
 
 ```html
 <div style="display: flex; gap: 8px;">
-  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;">
-    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Window size</span>
-    <div style="display: flex; align-items: center; gap: 4px;">
-      <div style="flex: 1; min-width: 0; display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">30</div>
-      <div style="flex: 0 0 76px; display: flex; align-items: center; justify-content: space-between; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">
-        <span>days</span>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;">
+        <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Window size</span>
+        <div style="display: flex; align-items: center; gap: 4px;">
+            <div
+                style="flex: 1; min-width: 0; display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;"
+            >
+                30
+            </div>
+            <div
+                style="flex: 0 0 76px; display: flex; align-items: center; justify-content: space-between; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;"
+            >
+                <span>days</span>
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#7a828e"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+        </div>
     </div>
-  </div>
 </div>
 ```
 
@@ -1572,11 +2550,15 @@ a static unit label instead of the select:
 
 ```html
 <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;">
-  <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Window size</span>
-  <div style="display: flex; align-items: center; gap: 6px;">
-    <div style="flex: 1; min-width: 0; display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;">50</div>
-    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">steps</span>
-  </div>
+    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Window size</span>
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <div
+            style="flex: 1; min-width: 0; display: flex; align-items: center; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; font-size: 11px; color: #d5d7da; box-sizing: border-box;"
+        >
+            50
+        </div>
+        <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">steps</span>
+    </div>
 </div>
 ```
 
@@ -1587,16 +2569,16 @@ same string:
 <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Viewing: steps 1,200 to 1,250</span>
 ```
 
-| Surface | Date and time | Number, unit "step" | Ordered category, unit "release" |
-|---|---|---|---|
-| Window size | `30` + unit select (`days`) | `50` + static `steps` | `3` + static `releases` |
-| Step | `7` + unit select (`days`) | `10` + static `steps` | `1` + static `release` |
-| Readout, status bar | `Viewing: 2026-01-05 to 2026-02-04` | `Viewing: steps 1,200 to 1,250` | `Viewing: v1.2 to v1.4` |
-| Cumulative | `Viewing: up to 2026-02-04` | `Viewing: up to step 1,250` | `Viewing: up to v1.4` |
-| Filter chip | `Time: 2026-01-05 to 2026-02-04` | `Time: steps 1,200 to 1,250` | `Time: v1.2 to v1.4` |
-| Track ticks | `2026-01  2026-02  2026-03` | `1,000  1,200  1,400` | `v1.0  v1.2  v1.4` (evenly spaced) |
-| Step tooltip | `Step forward 7 days (.)` | `Step forward 10 steps (.)` | `Step forward 1 release (.)` |
-| Playback speed | `1x (one window per second)` | same | same |
+| Surface             | Date and time                       | Number, unit "step"             | Ordered category, unit "release"   |
+| ------------------- | ----------------------------------- | ------------------------------- | ---------------------------------- |
+| Window size         | `30` + unit select (`days`)         | `50` + static `steps`           | `3` + static `releases`            |
+| Step                | `7` + unit select (`days`)          | `10` + static `steps`           | `1` + static `release`             |
+| Readout, status bar | `Viewing: 2026-01-05 to 2026-02-04` | `Viewing: steps 1,200 to 1,250` | `Viewing: v1.2 to v1.4`            |
+| Cumulative          | `Viewing: up to 2026-02-04`         | `Viewing: up to step 1,250`     | `Viewing: up to v1.4`              |
+| Filter chip         | `Time: 2026-01-05 to 2026-02-04`    | `Time: steps 1,200 to 1,250`    | `Time: v1.2 to v1.4`               |
+| Track ticks         | `2026-01  2026-02  2026-03`         | `1,000  1,200  1,400`           | `v1.0  v1.2  v1.4` (evenly spaced) |
+| Step tooltip        | `Step forward 7 days (.)`           | `Step forward 10 steps (.)`     | `Step forward 1 release (.)`       |
+| Playback speed      | `1x (one window per second)`        | same                            | same                               |
 
 Playback speed never reads "one step per second": there, "step" means a
 playback tick and collides with the data unit. Ordered category has no
@@ -1615,26 +2597,69 @@ trimmed.
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 4px;">
-  <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">How much this machine can draw</span>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-    <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Detected: about 180,000 nodes on this machine.</span>
-    <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-      <div title="Recalibrate" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-        <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline></svg>
-        </span>
-        <span>Recalibrate</span>
-      </div>
-      <div title="Change the detected values" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-        <span style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path><line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line></svg>
-        </span>
-        <span>Change</span>
-      </div>
+    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;"
+        >How much this machine can draw</span
+    >
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da;"
+            >Detected: about 180,000 nodes on this machine.</span
+        >
+        <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+            <div
+                title="Recalibrate"
+                style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+            >
+                <span
+                    style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"
+                >
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path>
+                        <polyline points="2.5,2.5 2.5,6 6,6"></polyline>
+                    </svg>
+                </span>
+                <span>Recalibrate</span>
+            </div>
+            <div
+                title="Change the detected values"
+                style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+            >
+                <span
+                    style="flex: 0 0 auto; width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"
+                >
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path>
+                        <line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line>
+                    </svg>
+                </span>
+                <span>Change</span>
+            </div>
+        </div>
     </div>
-  </div>
-  <span style="font-size: 11px; line-height: 1.4; color: #7a828e;">Measured 4 Sep 18:02 on Apple M2 Pro, 8 cores, 8 GB.</span>
-  <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;">Above about 18,000 nodes graphty switches to Performance mode. Above about 180,000 it loads a subset and warns; Import everything anyway always stays.</span>
+    <span style="font-size: 11px; line-height: 1.4; color: #7a828e;"
+        >Measured 4 Sep 18:02 on Apple M2 Pro, 8 cores, 8 GB.</span
+    >
+    <span style="font-size: 11px; line-height: 1.4; color: #a3a8b1;"
+        >Above about 18,000 nodes graphty switches to Performance mode. Above about 180,000 it loads a subset and warns;
+        Import everything anyway always stays.</span
+    >
 </div>
 ```
 
@@ -1647,11 +2672,15 @@ Measuring state -- Recalibrate becomes a progress row:
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px;">
-  <div style="flex: 1; min-width: 0; height: 4px; border-radius: 2px; background: #374047; overflow: hidden;">
-    <div style="width: 40%; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
-  </div>
-  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Measuring... 2 s</span>
-  <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Cancel</div>
+    <div style="flex: 1; min-width: 0; height: 4px; border-radius: 2px; background: #374047; overflow: hidden;">
+        <div style="width: 40%; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
+    </div>
+    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1.2; color: #7a828e;">Measuring... 2 s</span>
+    <div
+        style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; border: 1px solid #48525c; color: #d5d7da; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+    >
+        Cancel
+    </div>
 </div>
 ```
 
@@ -1660,13 +2689,17 @@ the detected values, and the block is stamped, with the detected line kept
 underneath as the reference:
 
 ```html
-<span style="font-size: 11px; line-height: 1.4; color: #7a828e;">Set by you. <span style="color: #5b8ff9; cursor: pointer;">Use detected values</span></span>
+<span style="font-size: 11px; line-height: 1.4; color: #7a828e;"
+    >Set by you. <span style="color: #5b8ff9; cursor: pointer;">Use detected values</span></span
+>
 ```
 
 Failure -- the info tone, never a warning, never a modal, never a blocked start:
 
 ```html
-<span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Could not measure this machine. Using safe defaults: about 200,000 nodes.</span>
+<span style="font-size: 13px; font-weight: 500; line-height: 1.2; color: #d5d7da;"
+    >Could not measure this machine. Using safe defaults: about 200,000 nodes.</span
+>
 ```
 
 with the two actions reading `Try again` and `Change`, and every estimate
@@ -1682,26 +2715,68 @@ glyph, the plain name, the technical name dimmed, and a trailing hint that is
 load-bearing: a not-run row never looks like a plain attribute.
 
 ```html
-<div style="width: 200px; display: flex; flex-direction: column; gap: 1px; padding: 4px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box;">
-  <span style="padding: 4px 8px 2px; font-size: 11px; line-height: 1.2; color: #7a828e;">Metrics</span>
-  <div style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Most connected <span style="color: #7a828e;">degree</span></span>
-    <span style="flex: 0 0 auto; color: #7a828e;">1 to 4</span>
-  </div>
-  <div style="height: 1px; background: #374047; margin: 3px 0;"></div>
-  <div title="Runs Betweenness centrality with its defaults, then sizes by it" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="flex: 0 0 auto; width: 12px; height: 12px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,3 13,8 5,13"></polygon></svg>
-    </span>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Bridges <span style="color: #7a828e;">betweenness</span></span>
-    <span style="flex: 0 0 auto; color: #7a828e;">not run</span>
-  </div>
-  <div title="Hubs and authorities needs a directed graph" style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 3px; color: #5f6873; font-size: 11px; line-height: 1.2; cursor: default; box-sizing: border-box;">
-    <span style="flex: 0 0 auto; width: 12px; height: 12px; display: inline-flex; align-items: center; justify-content: center;">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5,3 13,8 5,13"></polygon></svg>
-    </span>
-    <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Hubs and authorities <span style="color: #7a828e;">HITS</span></span>
-  </div>
+<div
+    style="width: 200px; display: flex; flex-direction: column; gap: 1px; padding: 4px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box;"
+>
+    <span style="padding: 4px 8px 2px; font-size: 11px; line-height: 1.2; color: #7a828e;">Metrics</span>
+    <div
+        style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 3px; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Most connected <span style="color: #7a828e;">degree</span></span
+        >
+        <span style="flex: 0 0 auto; color: #7a828e;">1 to 4</span>
+    </div>
+    <div style="height: 1px; background: #374047; margin: 3px 0;"></div>
+    <div
+        title="Runs Betweenness centrality with its defaults, then sizes by it"
+        style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 3px; background: #374047; color: #d5d7da; font-size: 11px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span
+            style="flex: 0 0 auto; width: 12px; height: 12px; display: inline-flex; align-items: center; justify-content: center; color: #7a828e;"
+        >
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <polygon points="5,3 13,8 5,13"></polygon>
+            </svg>
+        </span>
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Bridges <span style="color: #7a828e;">betweenness</span></span
+        >
+        <span style="flex: 0 0 auto; color: #7a828e;">not run</span>
+    </div>
+    <div
+        title="Hubs and authorities needs a directed graph"
+        style="display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 3px; color: #5f6873; font-size: 11px; line-height: 1.2; cursor: default; box-sizing: border-box;"
+    >
+        <span
+            style="flex: 0 0 auto; width: 12px; height: 12px; display: inline-flex; align-items: center; justify-content: center;"
+        >
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <polygon points="5,3 13,8 5,13"></polygon>
+            </svg>
+        </span>
+        <span style="flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >Hubs and authorities <span style="color: #7a828e;">HITS</span></span
+        >
+    </div>
 </div>
 ```
 
@@ -1710,10 +2785,20 @@ picking the row does not run; the row shows an inline confirm below the select,
 where Cancel restores the previous attribute:
 
 ```html
-<div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; font-size: 11px; line-height: 1.4; color: #a3a8b1; box-sizing: border-box;">
-  <span style="flex: 1 1 0; min-width: 0;">Bridges takes about 40 s on this graph.</span>
-  <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run and use it</div>
-  <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Cancel</div>
+<div
+    style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; background: #2a3035; border: 1px solid #48525c; font-size: 11px; line-height: 1.4; color: #a3a8b1; box-sizing: border-box;"
+>
+    <span style="flex: 1 1 0; min-width: 0;">Bridges takes about 40 s on this graph.</span>
+    <div
+        style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+    >
+        Run and use it
+    </div>
+    <div
+        style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: transparent; color: #a3a8b1; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+    >
+        Cancel
+    </div>
 </div>
 ```
 
@@ -1722,7 +2807,9 @@ Palette select is already filled with the type default and editable, and the
 helper line is mirrored in the status bar:
 
 ```html
-<span style="font-size: 11px; line-height: 1.4; color: #7a828e;">Computing Bridges (betweenness)... 42% <span style="color: #5b8ff9; cursor: pointer;">Cancel</span></span>
+<span style="font-size: 11px; line-height: 1.4; color: #7a828e;"
+    >Computing Bridges (betweenness)... 42% <span style="color: #5b8ff9; cursor: pointer;">Cancel</span></span
+>
 ```
 
 On completion the helper line becomes the ordinary domain sentence
@@ -1737,41 +2824,41 @@ metrics are not listed at all.
 
 Copy these verbatim.
 
-| Where | String |
-|---|---|
-| Import title row | `Import options` then dimmed `<file>, <size> -- <entry clause>` |
-| Import entry clauses (six, fixed) | `delimited file`, `guessed column`, `parse error`, `second file, data already loaded`, `above the large-graph threshold`, `always show import options is on` |
-| Import summary, small file | `200 nodes, 612 edges, directed, weighted by amount, timed by ts` |
-| Import summary, large file | `Estimated 1.0M nodes, 10M edges (from the first 256 KB).` |
-| Import grid footer | `First 5 of 617 rows. Click a header to change a column.` |
-| Import guessed line | `1 column was guessed.  Review` / `Nothing was guessed.` |
-| Import large-file warning | `Too big to draw everything at once: about 2.4 GB of memory. Busiest nodes is selected below, so the graph opens smoothly and the whole file still loads. Import everything anyway` |
-| Load toast | `Loaded 200 nodes and 612 edges in 1 s. Mapped amount to weight, ts to time.  Details` |
-| Estimate wording | `about 5 s`, `Run (about 40 s)`, `Run anyway (about 3 h)`; one significant figure; the words about, s, min, h; never a tilde |
-| Collapsed group header tooltip | `4 questions in this group` |
-| Coming group note | `Dimmed rows are not built yet.` |
-| Settings > Appearance switch | `Show help text in place`, default off, sub-line `Off keeps every explanation one hover or tap away on the i.` |
-| Settings > Performance toggle | `Show config keys`, default off |
-| Machine calibration | `Detected: about 180,000 nodes on this machine.` / `Measured 4 Sep 18:02 on Apple M2 Pro, 8 cores, 8 GB.` / `Recalibrate` / `Change` / `Measuring... 2 s  Cancel` / `Set by you.  Use detected values` / `Could not measure this machine. Using safe defaults: about 200,000 nodes.  Try again  Change` |
-| Status bar layout chip | `Force directed - settled` / `Force directed - step 120 of 1,000, Stop` / `Positions from file` / `Quick grid (Performance mode)` |
-| Status bar issues chip | `4 data issues`, tooltip `4 issue types, 27 issues` |
-| Status bar Performance chip | `Performance mode: labels 20`, with the full rule list in its tooltip |
-| Notes section header | `Notes 2` (never `Notes Annotations`); legend row `Open notes` |
-| Row that opens a dialog | a trailing ellipsis on the label (`More...`), never the words `Opens a dialog` |
-| Style, run-and-apply | `not run` / `Bridges takes about 40 s on this graph.  Run and use it  Cancel` / `Computing Bridges (betweenness)... 42%  Cancel` / `Ran Bridges (betweenness) and encoded it as node size` |
-| Style, applied encoding | `Encoded as node color` with `Change encoding` beside it |
-| Table join match helper | `Best match: preferredName, 92%.` / `No column in the graph matches these values. Try Map identifiers.` |
-| Attribute row menu, first three items | `Color by this`, `Size by this`, `Filter by this` |
-| Merge toast | `Merged 2 nodes into acct-4471.` then two links, `Undo` and `Review conflicts` |
-| Insights strip dismissal toast | `Suggestions hidden on every dataset.  Undo` |
-| Help menu | `Keyboard shortcuts`, `Show suggestions`, `More suggestions (2)`, `Already run (1)`, `Documentation`, `Send feedback` |
-| Data table drawer hint bar | `6 rows with issues in opened. Double-click a cell to fix it, Esc cancels. Or use Auto-fix in the validation report.` |
-| Auto-fix toast | `Set 14 edge weights to 1. Undo` |
-| XR return | `Back from VR` with `2 notes, 1 run (Find groups), 12 nodes expanded, 3 selected` |
-| XR history group | `VR session 14:21 - 14:39`, child rows marked `by voice, in VR` |
-| XR note marks | `Dictated` chip; `Flagged in VR 14:32` in the placeholder colour |
-| XR refusals | `About 40 s -- run this at the desk` / `52 attributes -- read them at the desk` / `Reduced detail to keep the view smooth` |
-| Narrow the view card | `Filter by type, attribute, or a result you have already run.` |
+| Where                                 | String                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Import title row                      | `Import options` then dimmed `<file>, <size> -- <entry clause>`                                                                                                                                                                                                                                         |
+| Import entry clauses (six, fixed)     | `delimited file`, `guessed column`, `parse error`, `second file, data already loaded`, `above the large-graph threshold`, `always show import options is on`                                                                                                                                            |
+| Import summary, small file            | `200 nodes, 612 edges, directed, weighted by amount, timed by ts`                                                                                                                                                                                                                                       |
+| Import summary, large file            | `Estimated 1.0M nodes, 10M edges (from the first 256 KB).`                                                                                                                                                                                                                                              |
+| Import grid footer                    | `First 5 of 617 rows. Click a header to change a column.`                                                                                                                                                                                                                                               |
+| Import guessed line                   | `1 column was guessed.  Review` / `Nothing was guessed.`                                                                                                                                                                                                                                                |
+| Import large-file warning             | `Too big to draw everything at once: about 2.4 GB of memory. Busiest nodes is selected below, so the graph opens smoothly and the whole file still loads. Import everything anyway`                                                                                                                     |
+| Load toast                            | `Loaded 200 nodes and 612 edges in 1 s. Mapped amount to weight, ts to time.  Details`                                                                                                                                                                                                                  |
+| Estimate wording                      | `about 5 s`, `Run (about 40 s)`, `Run anyway (about 3 h)`; one significant figure; the words about, s, min, h; never a tilde                                                                                                                                                                            |
+| Collapsed group header tooltip        | `4 questions in this group`                                                                                                                                                                                                                                                                             |
+| Coming group note                     | `Dimmed rows are not built yet.`                                                                                                                                                                                                                                                                        |
+| Settings > Appearance switch          | `Show help text in place`, default off, sub-line `Off keeps every explanation one hover or tap away on the i.`                                                                                                                                                                                          |
+| Settings > Performance toggle         | `Show config keys`, default off                                                                                                                                                                                                                                                                         |
+| Machine calibration                   | `Detected: about 180,000 nodes on this machine.` / `Measured 4 Sep 18:02 on Apple M2 Pro, 8 cores, 8 GB.` / `Recalibrate` / `Change` / `Measuring... 2 s  Cancel` / `Set by you.  Use detected values` / `Could not measure this machine. Using safe defaults: about 200,000 nodes.  Try again  Change` |
+| Status bar layout chip                | `Force directed - settled` / `Force directed - step 120 of 1,000, Stop` / `Positions from file` / `Quick grid (Performance mode)`                                                                                                                                                                       |
+| Status bar issues chip                | `4 data issues`, tooltip `4 issue types, 27 issues`                                                                                                                                                                                                                                                     |
+| Status bar Performance chip           | `Performance mode: labels 20`, with the full rule list in its tooltip                                                                                                                                                                                                                                   |
+| Notes section header                  | `Notes 2` (never `Notes Annotations`); legend row `Open notes`                                                                                                                                                                                                                                          |
+| Row that opens a dialog               | a trailing ellipsis on the label (`More...`), never the words `Opens a dialog`                                                                                                                                                                                                                          |
+| Style, run-and-apply                  | `not run` / `Bridges takes about 40 s on this graph.  Run and use it  Cancel` / `Computing Bridges (betweenness)... 42%  Cancel` / `Ran Bridges (betweenness) and encoded it as node size`                                                                                                              |
+| Style, applied encoding               | `Encoded as node color` with `Change encoding` beside it                                                                                                                                                                                                                                                |
+| Table join match helper               | `Best match: preferredName, 92%.` / `No column in the graph matches these values. Try Map identifiers.`                                                                                                                                                                                                 |
+| Attribute row menu, first three items | `Color by this`, `Size by this`, `Filter by this`                                                                                                                                                                                                                                                       |
+| Merge toast                           | `Merged 2 nodes into acct-4471.` then two links, `Undo` and `Review conflicts`                                                                                                                                                                                                                          |
+| Insights strip dismissal toast        | `Suggestions hidden on every dataset.  Undo`                                                                                                                                                                                                                                                            |
+| Help menu                             | `Keyboard shortcuts`, `Show suggestions`, `More suggestions (2)`, `Already run (1)`, `Documentation`, `Send feedback`                                                                                                                                                                                   |
+| Data table drawer hint bar            | `6 rows with issues in opened. Double-click a cell to fix it, Esc cancels. Or use Auto-fix in the validation report.`                                                                                                                                                                                   |
+| Auto-fix toast                        | `Set 14 edge weights to 1. Undo`                                                                                                                                                                                                                                                                        |
+| XR return                             | `Back from VR` with `2 notes, 1 run (Find groups), 12 nodes expanded, 3 selected`                                                                                                                                                                                                                       |
+| XR history group                      | `VR session 14:21 - 14:39`, child rows marked `by voice, in VR`                                                                                                                                                                                                                                         |
+| XR note marks                         | `Dictated` chip; `Flagged in VR 14:32` in the placeholder colour                                                                                                                                                                                                                                        |
+| XR refusals                           | `About 40 s -- run this at the desk` / `52 attributes -- read them at the desk` / `Reduced detail to keep the view smooth`                                                                                                                                                                              |
+| Narrow the view card                  | `Filter by type, attribute, or a result you have already run.`                                                                                                                                                                                                                                          |
 
 Retired by this revision: every cost-class word as label text (`heavy`,
 `iterative`, `sampled`, `instant`, `cubic`, `unbounded`, `windowed`);
@@ -1880,18 +2967,18 @@ One identity, for both the 280px activity panel and the 280px inspector:
 pad    field  gut  field   gap  trail  pad
 ```
 
-| Name | Value |
-|---|---|
-| content band | x 16 to x 272, 256px wide |
-| body span (control that leaves a trailing slot) | 224px |
-| pair | 108 + 8 + 108 |
-| triple (segmented) | 72 + 4 + 72 + 4 + 72 |
-| trailing slot | 24px at x 248..272 |
-| control height | 24px |
-| row pitch | 32px (24px control, 8px between) |
-| toggle pitch | 24px |
-| data row pitch | 28px |
-| section rhythm | 1px divider / 32px header / 32n content / 8px pad |
+| Name                                            | Value                                             |
+| ----------------------------------------------- | ------------------------------------------------- |
+| content band                                    | x 16 to x 272, 256px wide                         |
+| body span (control that leaves a trailing slot) | 224px                                             |
+| pair                                            | 108 + 8 + 108                                     |
+| triple (segmented)                              | 72 + 4 + 72 + 4 + 72                              |
+| trailing slot                                   | 24px at x 248..272                                |
+| control height                                  | 24px                                              |
+| row pitch                                       | 32px (24px control, 8px between)                  |
+| toggle pitch                                    | 24px                                              |
+| data row pitch                                  | 28px                                              |
+| section rhythm                                  | 1px divider / 32px header / 32n content / 8px pad |
 
 Panel padding is therefore `0 8px 8px 16px`, not the symmetric `8px 16px 16px`
 of section 3. The right side is 8px because the trailing slot is an icon button
@@ -1908,12 +2995,32 @@ popover instead. Every field carries a `title` equal to the word the glyph
 replaced.
 
 ```html
-<div style="display: flex; align-items: center; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;" title="Smallest node size">
-  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle></svg>
-  </div>
-  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">1.0</span>
-  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">links</span>
+<div
+    style="display: flex; align-items: center; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+    title="Smallest node size"
+>
+    <div
+        style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <circle cx="5" cy="11" r="2.5"></circle>
+            <circle cx="10.5" cy="6.5" r="4"></circle>
+        </svg>
+    </div>
+    <span
+        style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+        >1.0</span
+    >
+    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">links</span>
 </div>
 ```
 
@@ -1928,16 +3035,16 @@ effect: add a 4px `#4a7ee8` square in the slot's lower-left corner.
 from `REGISTER-1.5.md` once appended there. Nothing outside this list may be
 drawn in a field slot; a concept with no entry keeps its word.
 
-| Slot label | 14px inner SVG |
-|---|---|
-| size, smallest | `<circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle>` |
-| width | `<line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline>` |
-| opacity | `<circle cx="8" cy="8" r="5.5"></circle><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none"></path>` |
-| attribute binding | `<path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z"></path><circle cx="5.5" cy="5.5" r="0.75"></circle>` |
-| scale, square root | `<path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>` |
-| scale, linear | `<line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>` |
-| scale, log | `<path d="M2.5 13.5C8 13.5 11.5 11 13.5 2.5"></path>` |
-| colour | the 14px swatch itself, no SVG |
+| Slot label         | 14px inner SVG                                                                                                                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| size, smallest     | `<circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle>`                                                                  |
+| width              | `<line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline>` |
+| opacity            | `<circle cx="8" cy="8" r="5.5"></circle><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none"></path>`                               |
+| attribute binding  | `<path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z"></path><circle cx="5.5" cy="5.5" r="0.75"></circle>`                                       |
+| scale, square root | `<path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>`                                                                                                    |
+| scale, linear      | `<line x1="2.5" y1="13.5" x2="13.5" y2="2.5"></line>`                                                                                                 |
+| scale, log         | `<path d="M2.5 13.5C8 13.5 11.5 11 13.5 2.5"></path>`                                                                                                 |
+| colour             | the 14px swatch itself, no SVG                                                                                                                        |
 
 Letters are allowed in the slot in place of a glyph, at 11px `#7a828e`, from
 this closed set only: `N` nodes, `E` edges, `W` weight, `D` depth, `K` k.
@@ -1953,21 +3060,76 @@ Pair, with a reset in the trailing slot:
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-  <div style="display: flex; align-items: center; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;" title="Smallest node size">
-    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle></svg>
+    <div
+        style="display: flex; align-items: center; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+        title="Smallest node size"
+    >
+        <div
+            style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <circle cx="5" cy="11" r="2.5"></circle>
+                <circle cx="10.5" cy="6.5" r="4"></circle>
+            </svg>
+        </div>
+        <span
+            style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >1.0</span
+        >
     </div>
-    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">1.0</span>
-  </div>
-  <div style="display: flex; align-items: center; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;" title="Largest node size">
-    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="4.5" cy="11.5" r="1.75"></circle><circle cx="10" cy="6" r="5"></circle></svg>
+    <div
+        style="display: flex; align-items: center; width: 108px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+        title="Largest node size"
+    >
+        <div
+            style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <circle cx="4.5" cy="11.5" r="1.75"></circle>
+                <circle cx="10" cy="6" r="5"></circle>
+            </svg>
+        </div>
+        <span
+            style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >2.0</span
+        >
     </div>
-    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">2.0</span>
-  </div>
-  <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Clear">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-  </div>
+    <div
+        style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        title="Clear"
+    >
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <line x1="4" y1="4" x2="12" y2="12"></line>
+            <line x1="12" y1="4" x2="4" y2="12"></line>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -1977,16 +3139,64 @@ domain and the scale.
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-  <div style="display: flex; align-items: center; gap: 4px; width: 224px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;" title="Size by attribute">
-    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" fill="currentColor" stroke="none"></path><circle cx="5.5" cy="5.5" r="0.75" fill="#2a3035" stroke="none"></circle></svg>
+    <div
+        style="display: flex; align-items: center; gap: 4px; width: 224px; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+        title="Size by attribute"
+    >
+        <div
+            style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" fill="currentColor" stroke="none"></path>
+                <circle cx="5.5" cy="5.5" r="0.75" fill="#2a3035" stroke="none"></circle>
+            </svg>
+        </div>
+        <span
+            style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >Age</span
+        >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="#7a828e"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="flex: 0 0 auto;"
+        >
+            <polyline points="4,6 8,10 12,6"></polyline>
+        </svg>
     </div>
-    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Age</span>
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
-  </div>
-  <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Range and scale">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="12" x2="13.5" y2="12"></line><line x1="4.5" y1="12" x2="4.5" y2="9"></line><line x1="11.5" y1="12" x2="11.5" y2="5"></line></svg>
-  </div>
+    <div
+        style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        title="Range and scale"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <line x1="2.5" y1="12" x2="13.5" y2="12"></line>
+            <line x1="4.5" y1="12" x2="4.5" y2="9"></line>
+            <line x1="11.5" y1="12" x2="11.5" y2="5"></line>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -2002,22 +3212,47 @@ unrelated values.
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-  <div style="display: flex; align-items: center; width: 224px; height: 24px; background: #2a3035; border-radius: 4px; box-sizing: border-box; overflow: hidden;" title="Node color and opacity">
-    <div style="display: flex; align-items: center; flex: 1; min-width: 0; height: 24px; padding: 0 8px;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;">
-        <div style="width: 14px; height: 14px; border-radius: 2px; background: #4a7ee8; border: 1px solid #48525c; box-sizing: border-box;"></div>
-      </div>
-      <span style="flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">4A7EE8</span>
+    <div
+        style="display: flex; align-items: center; width: 224px; height: 24px; background: #2a3035; border-radius: 4px; box-sizing: border-box; overflow: hidden;"
+        title="Node color and opacity"
+    >
+        <div style="display: flex; align-items: center; flex: 1; min-width: 0; height: 24px; padding: 0 8px;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center;"
+            >
+                <div
+                    style="width: 14px; height: 14px; border-radius: 2px; background: #4a7ee8; border: 1px solid #48525c; box-sizing: border-box;"
+                ></div>
+            </div>
+            <span
+                style="flex: 1; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                >4A7EE8</span
+            >
+        </div>
+        <div style="width: 1px; height: 24px; flex: 0 0 auto; background: #1f2428;"></div>
+        <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto; height: 24px; padding: 0 8px;">
+            <span style="font-size: 11px; line-height: 1; color: #d5d7da;">100</span>
+            <span style="font-size: 11px; line-height: 1; color: #7a828e;">%</span>
+        </div>
     </div>
-    <div style="width: 1px; height: 24px; flex: 0 0 auto; background: #1f2428;"></div>
-    <div style="display: flex; align-items: center; gap: 2px; flex: 0 0 auto; height: 24px; padding: 0 8px;">
-      <span style="font-size: 11px; line-height: 1; color: #d5d7da;">100</span>
-      <span style="font-size: 11px; line-height: 1; color: #7a828e;">%</span>
+    <div
+        style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        title="Show on canvas"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"></path>
+            <circle cx="8" cy="8" r="2"></circle>
+        </svg>
     </div>
-  </div>
-  <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Show on canvas">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8s-2.5 4.5-6.5 4.5S1.5 8 1.5 8z"></path><circle cx="8" cy="8" r="2"></circle></svg>
-  </div>
 </div>
 ```
 
@@ -2029,17 +3264,62 @@ instead of words -- do not invent a second component.
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-  <div style="display: flex; gap: 2px; width: 108px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer;" title="Box">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="10" height="10" rx="1"></rect></svg>
+    <div
+        style="display: flex; gap: 2px; width: 108px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;"
+    >
+        <div
+            style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer;"
+            title="Box"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <rect x="3" y="3" width="10" height="10" rx="1"></rect>
+            </svg>
+        </div>
+        <div
+            style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;"
+            title="Sphere"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <circle cx="8" cy="8" r="5"></circle>
+                <ellipse cx="8" cy="8" rx="2.25" ry="5"></ellipse>
+            </svg>
+        </div>
+        <div
+            style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;"
+            title="Disc"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <ellipse cx="8" cy="8" rx="5.5" ry="2.75"></ellipse>
+            </svg>
+        </div>
     </div>
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;" title="Sphere">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5"></circle><ellipse cx="8" cy="8" rx="2.25" ry="5"></ellipse></svg>
-    </div>
-    <div style="flex: 1; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;" title="Disc">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="8" cy="8" rx="5.5" ry="2.75"></ellipse></svg>
-    </div>
-  </div>
 </div>
 ```
 
@@ -2048,17 +3328,77 @@ scale names, method names. The glyph is on every button, the word only on the
 active one. One row, current choice named, alternatives learnable by clicking.
 
 ```html
-<div style="display: flex; gap: 2px; width: 224px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
-  <div style="flex: 2 1 0; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer; box-sizing: border-box;" title="Force directed">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><circle cx="4" cy="5" r="1.75"></circle><circle cx="12" cy="4.5" r="1.75"></circle><circle cx="7.5" cy="12" r="1.75"></circle><line x1="5.7" y1="4.9" x2="10.3" y2="4.6"></line><line x1="4.6" y1="6.6" x2="6.9" y2="10.3"></line><line x1="11.2" y1="6" x2="8.3" y2="10.4"></line></svg>
-    <span style="font-size: 11px; font-weight: 500; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Force directed</span>
-  </div>
-  <div style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;" title="Hierarchical">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="1.5"></circle><circle cx="4" cy="12" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle><path d="M8 5v2.5H4.5v3M8 7.5h3.5v3"></path></svg>
-  </div>
-  <div style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;" title="Radial">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="1.5"></circle><circle cx="8" cy="8" r="5.5" stroke-dasharray="2 2"></circle><circle cx="13" cy="8" r="1"></circle><circle cx="4.4" cy="4.9" r="1"></circle><circle cx="5.4" cy="12" r="1"></circle></svg>
-  </div>
+<div
+    style="display: flex; gap: 2px; width: 224px; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;"
+>
+    <div
+        style="flex: 2 1 0; display: flex; align-items: center; justify-content: center; gap: 4px; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer; box-sizing: border-box;"
+        title="Force directed"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="flex: 0 0 auto;"
+        >
+            <circle cx="4" cy="5" r="1.75"></circle>
+            <circle cx="12" cy="4.5" r="1.75"></circle>
+            <circle cx="7.5" cy="12" r="1.75"></circle>
+            <line x1="5.7" y1="4.9" x2="10.3" y2="4.6"></line>
+            <line x1="4.6" y1="6.6" x2="6.9" y2="10.3"></line>
+            <line x1="11.2" y1="6" x2="8.3" y2="10.4"></line>
+        </svg>
+        <span
+            style="font-size: 11px; font-weight: 500; line-height: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >Force directed</span
+        >
+    </div>
+    <div
+        style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;"
+        title="Hierarchical"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <circle cx="8" cy="3.5" r="1.5"></circle>
+            <circle cx="4" cy="12" r="1.5"></circle>
+            <circle cx="12" cy="12" r="1.5"></circle>
+            <path d="M8 5v2.5H4.5v3M8 7.5h3.5v3"></path>
+        </svg>
+    </div>
+    <div
+        style="flex: 1 1 0; display: flex; align-items: center; justify-content: center; height: 22px; border-radius: 3px; color: #7a828e; cursor: pointer;"
+        title="Radial"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <circle cx="8" cy="8" r="1.5"></circle>
+            <circle cx="8" cy="8" r="5.5" stroke-dasharray="2 2"></circle>
+            <circle cx="13" cy="8" r="1"></circle>
+            <circle cx="4.4" cy="4.9" r="1"></circle>
+            <circle cx="5.4" cy="12" r="1"></circle>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -2075,12 +3415,28 @@ glyph, which opens the RT-3 group of three.
 
 ```html
 <div style="display: flex; align-items: center; gap: 4px; height: 32px;">
-  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">45</span>
-  <div style="flex: 1; min-width: 120px; height: 14px; background: #7a828e; clip-path: polygon(0 100%, 100% 0, 100% 100%);"></div>
-  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">68</span>
-  <div style="width: 24px; height: 24px; flex: 0 0 auto; margin-left: 4px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Square root scale">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path></svg>
-  </div>
+    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">45</span>
+    <div
+        style="flex: 1; min-width: 120px; height: 14px; background: #7a828e; clip-path: polygon(0 100%, 100% 0, 100% 100%);"
+    ></div>
+    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">68</span>
+    <div
+        style="width: 24px; height: 24px; flex: 0 0 auto; margin-left: 4px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        title="Square root scale"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M2.5 13.5C4.5 5 8 2.5 13.5 2.5"></path>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -2101,16 +3457,31 @@ never alone -- a lone boolean becomes the trailing slot of the row it modifies.
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
-    <div style="width: 16px; height: 16px; flex: 0 0 auto; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
+    <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
+        <div
+            style="width: 16px; height: 16px; flex: 0 0 auto; border-radius: 2px; background: #4a7ee8; display: flex; align-items: center; justify-content: center; box-sizing: border-box;"
+        >
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="#ffffff"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>
+            </svg>
+        </div>
+        <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Labels</span>
     </div>
-    <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Labels</span>
-  </div>
-  <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
-    <div style="width: 16px; height: 16px; flex: 0 0 auto; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"></div>
-    <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Transitions</span>
-  </div>
+    <div style="display: flex; align-items: center; gap: 4px; height: 24px; cursor: pointer;">
+        <div
+            style="width: 16px; height: 16px; flex: 0 0 auto; border-radius: 2px; background: #2a3035; border: 1px solid #48525c; box-sizing: border-box;"
+        ></div>
+        <span style="font-size: 11px; line-height: 1.2; color: #d5d7da;">Transitions</span>
+    </div>
 </div>
 ```
 
@@ -2123,22 +3494,30 @@ header, never on the rows.
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 1px;">
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; box-sizing: border-box;">
-    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Most connected</span>
-    <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">links</span>
-  </div>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Mr_Whiskers</span>
-    <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">4</span>
-  </div>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Mrs_Henderson</span>
-    <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">4</span>
-  </div>
-  <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;">
-    <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Chonky_Boy</span>
-    <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">3</span>
-  </div>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 20px; padding: 0 8px; box-sizing: border-box;"
+    >
+        <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">Most connected</span>
+        <span style="font-size: 11px; line-height: 1.2; color: #7a828e;">links</span>
+    </div>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Mr_Whiskers</span>
+        <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">4</span>
+    </div>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Mrs_Henderson</span>
+        <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">4</span>
+    </div>
+    <div
+        style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 28px; padding: 0 8px; border-radius: 4px; color: #d5d7da; font-size: 12px; line-height: 1.2; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Chonky_Boy</span>
+        <span style="flex: 0 0 auto; font-size: 11px; color: #7a828e;">3</span>
+    </div>
 </div>
 ```
 
@@ -2154,16 +3533,52 @@ label ending in `anyway`, every destructive verb.
 
 ```html
 <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 32px;">
-  <span style="min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">20 nodes</span>
-  <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
-    <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Parameters">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+    <span
+        style="min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+        >20 nodes</span
+    >
+    <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto;">
+        <div
+            style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            title="Parameters"
+        >
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <polyline points="6,4 10,8 6,12"></polyline>
+            </svg>
+        </div>
+        <div
+            style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            title="Copy reading"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect>
+                <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path>
+            </svg>
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;"
+        >
+            Run
+        </div>
     </div>
-    <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Copy reading">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="1"></rect><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"></path></svg>
-    </div>
-    <div style="display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: 4px; background: #4a7ee8; color: #ffffff; font-size: 11px; font-weight: 500; line-height: 1; cursor: pointer; box-sizing: border-box;">Run</div>
-  </div>
 </div>
 ```
 
@@ -2177,20 +3592,48 @@ Live section:
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Size</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Size</span>
+        </div>
+        <div style="display: flex; gap: 4px; flex: 0 0 auto;">
+            <div
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+                title="Recompute"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path>
+                    <polyline points="2.5,2.5 2.5,6 6,6"></polyline>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div style="display: flex; gap: 4px; flex: 0 0 auto;">
-      <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Recompute">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9"></path><polyline points="2.5,2.5 2.5,6 6,6"></polyline></svg>
-      </div>
-    </div>
-  </div>
 </div>
 ```
 
@@ -2201,16 +3644,31 @@ not done yet.
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e;">Edge properties</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <div style="width: 16px; height: 16px; flex: 0 0 auto;"></div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #7a828e;">Edge properties</span>
+        </div>
+        <div
+            style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            title="Add an edge style layer"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <line x1="8" y1="3" x2="8" y2="13"></line>
+                <line x1="3" y1="8" x2="13" y2="8"></line>
+            </svg>
+        </div>
     </div>
-    <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Add an edge style layer">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
-    </div>
-  </div>
 </div>
 ```
 
@@ -2232,16 +3690,16 @@ dev 0.62`:
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 2px; height: 64px;">
-  <div style="display: flex; align-items: flex-end; gap: 2px; height: 42px;">
-    <div style="flex: 1; height: 18px; background: #48525c; border-radius: 1px;" title="2 links: 5 nodes"></div>
-    <div style="flex: 1; height: 42px; background: #4a7ee8; border-radius: 1px;" title="3 links: 12 nodes"></div>
-    <div style="flex: 1; height: 11px; background: #48525c; border-radius: 1px;" title="4 links: 3 nodes"></div>
-  </div>
-  <div style="height: 1px; background: #48525c;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 13px;">
-    <span style="font-size: 11px; line-height: 1; color: #7a828e;">2</span>
-    <span style="font-size: 11px; line-height: 1; color: #7a828e;">4</span>
-  </div>
+    <div style="display: flex; align-items: flex-end; gap: 2px; height: 42px;">
+        <div style="flex: 1; height: 18px; background: #48525c; border-radius: 1px;" title="2 links: 5 nodes"></div>
+        <div style="flex: 1; height: 42px; background: #4a7ee8; border-radius: 1px;" title="3 links: 12 nodes"></div>
+        <div style="flex: 1; height: 11px; background: #48525c; border-radius: 1px;" title="4 links: 3 nodes"></div>
+    </div>
+    <div style="height: 1px; background: #48525c;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 13px;">
+        <span style="font-size: 11px; line-height: 1; color: #7a828e;">2</span>
+        <span style="font-size: 11px; line-height: 1; color: #7a828e;">4</span>
+    </div>
 </div>
 ```
 
@@ -2250,12 +3708,24 @@ One-pitch micro-bar, carrying a percentile where `0.31, 98th percentile` and
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-  <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Bridges</span>
-  <div style="flex: 0 0 64px; height: 4px; border-radius: 2px; background: #374047; position: relative;" title="98th percentile">
-    <div style="position: absolute; left: 0; top: 0; width: 98%; height: 4px; border-radius: 2px; background: #4a7ee8;"></div>
-  </div>
-  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #d5d7da;">0.31</span>
-  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #a3a8b1; font-size: 9px; font-weight: 500; line-height: 1; box-sizing: border-box;">#6</div>
+    <span
+        style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+        >Bridges</span
+    >
+    <div
+        style="flex: 0 0 64px; height: 4px; border-radius: 2px; background: #374047; position: relative;"
+        title="98th percentile"
+    >
+        <div
+            style="position: absolute; left: 0; top: 0; width: 98%; height: 4px; border-radius: 2px; background: #4a7ee8;"
+        ></div>
+    </div>
+    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #d5d7da;">0.31</span>
+    <div
+        style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 14px; padding: 0 4px; border-radius: 7px; background: #374047; color: #a3a8b1; font-size: 9px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+    >
+        #6
+    </div>
 </div>
 ```
 
@@ -2273,7 +3743,10 @@ The reading -- on screen, in full, never behind a circle, at any density, width
 or Settings value. Two sentences and 220 characters, maximum.
 
 ```html
-<div style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">17 cats, 1 dog and 2 humans, connected by 29 relationships. Everyone is connected to everyone else through at most 5 steps.</div>
+<div style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">
+    17 cats, 1 dog and 2 humans, connected by 29 relationships. Everyone is connected to everyone else through at most 5
+    steps.
+</div>
 ```
 
 The departure line -- **drawn only when there is a departure**. An exact,
@@ -2283,10 +3756,27 @@ panel header already states.
 
 ```html
 <div style="display: flex; align-items: flex-start; gap: 4px;">
-  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
-  </div>
-  <span style="font-size: 11px; line-height: 1.4; color: #d5d7da;">Approximate (sample of 200). Largest connected part only, 188 of 200 nodes.</span>
+    <div
+        style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M8 2.5l6 11H2z"></path>
+            <line x1="8" y1="6.5" x2="8" y2="9.5"></line>
+            <line x1="8" y1="11.5" x2="8" y2="11.75"></line>
+        </svg>
+    </div>
+    <span style="font-size: 11px; line-height: 1.4; color: #d5d7da;"
+        >Approximate (sample of 200). Largest connected part only, 188 of 200 nodes.</span
+    >
 </div>
 ```
 
@@ -2296,10 +3786,27 @@ library version, and the weight and direction treatment.
 
 ```html
 <div style="display: flex; align-items: center; gap: 4px; height: 20px;">
-  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Louvain, resolution 1.0, seed 42</span>
-  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;" title="Details">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-  </div>
+    <span
+        style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+        >Louvain, resolution 1.0, seed 42</span
+    >
+    <div
+        style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;"
+        title="Details"
+    >
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="6,4 10,8 6,12"></polyline>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -2315,13 +3822,29 @@ labelled control with the glyph kept in the field:
 
 ```html
 <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-  <span style="flex: 0 0 76px; font-size: 11px; line-height: 1.2; color: #7a828e;">Smallest</span>
-  <div style="display: flex; align-items: center; flex: 1; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
-    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="11" r="2.5"></circle><circle cx="10.5" cy="6.5" r="4"></circle></svg>
+    <span style="flex: 0 0 76px; font-size: 11px; line-height: 1.2; color: #7a828e;">Smallest</span>
+    <div
+        style="display: flex; align-items: center; flex: 1; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+    >
+        <div
+            style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <circle cx="5" cy="11" r="2.5"></circle>
+                <circle cx="10.5" cy="6.5" r="4"></circle>
+            </svg>
+        </div>
+        <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da;">1.0</span>
     </div>
-    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da;">1.0</span>
-  </div>
 </div>
 ```
 
@@ -2357,7 +3880,7 @@ Overrides of earlier sections:
   existing 12px disclosure caret and 24px close X, and the toolbar reuses the
   five zoom and view glyphs already registered.
 - REGISTER-1.5 section 1.1: the settings glyph's object form `Time slider
-  settings (T)` loses its key chip and becomes `Time slider settings`. 5.6 binds
+settings (T)` loses its key chip and becomes `Time slider settings`. 5.6 binds
   `T` to toggling the slider, and a control may not print a binding it does not
   own.
 - Section 9 "Modal dialog frame": unchanged, and now explicitly the tier **3b**
@@ -2388,40 +3911,114 @@ The 360 form, anchored to the Data panel's Validation report stub, drawn with tw
 body rows of real copy:
 
 ```html
-<div style="position: absolute; left: 336px; top: 148px; width: 360px; max-height: 640px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden; z-index: 8;">
-  <div style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; flex: 0 0 auto; box-sizing: border-box;">
-    <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Validation report</span>
-    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Re-ran after step 2</span>
-    <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Pin this open">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line></svg>
-    </div>
-    <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Close (Esc)">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-    </div>
-  </div>
-  <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px; box-sizing: border-box;">
-    <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 0;">
-      <div style="display: flex; align-items: flex-start; gap: 4px;">
-        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
+<div
+    style="position: absolute; left: 336px; top: 148px; width: 360px; max-height: 640px; display: flex; flex-direction: column; background: #1f2428; border: 1px solid #48525c; border-radius: 4px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; overflow: hidden; z-index: 8;"
+>
+    <div
+        style="display: flex; align-items: center; gap: 4px; height: 32px; padding: 0 4px 0 12px; flex: 0 0 auto; box-sizing: border-box;"
+    >
+        <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;"
+            >Validation report</span
+        >
+        <span
+            style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >Re-ran after step 2</span
+        >
+        <div
+            style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            title="Pin this open"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path>
+                <line x1="8" y1="8.5" x2="8" y2="13.5"></line>
+            </svg>
         </div>
-        <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.4; color: #d5d7da;">14 edges have no amount. Analyze uses weight 1. Median is 240.</span>
-      </div>
-      <div style="font-size: 11px; line-height: 1.4; color: #7a828e; padding-left: 20px;">acct-41 to acct-88, acct-88 to acct-130, acct-130 to acct-204  <span style="color: #5b8ff9; cursor: pointer;">Show more</span></div>
-      <div style="display: flex; align-items: center; gap: 8px; padding-left: 20px;">
-        <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
-        <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Auto-fix</span>
-        <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Ignore</span>
-      </div>
+        <div
+            style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            title="Close (Esc)"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <line x1="4" y1="4" x2="12" y2="12"></line>
+                <line x1="12" y1="4" x2="4" y2="12"></line>
+            </svg>
+        </div>
     </div>
-    <div style="height: 1px; background: #495057;"></div>
-    <div style="display: flex; align-items: center; gap: 4px; height: 28px;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
-      </div>
-      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e;">8 mixed-form ids. Fixed by step 2</span>
+    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px; box-sizing: border-box;">
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 0;">
+            <div style="display: flex; align-items: flex-start; gap: 4px;">
+                <div
+                    style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;"
+                >
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M8 2.5l6 11H2z"></path>
+                        <line x1="8" y1="6.5" x2="8" y2="9.5"></line>
+                        <line x1="8" y1="11.5" x2="8" y2="11.75"></line>
+                    </svg>
+                </div>
+                <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.4; color: #d5d7da;"
+                    >14 edges have no amount. Analyze uses weight 1. Median is 240.</span
+                >
+            </div>
+            <div style="font-size: 11px; line-height: 1.4; color: #7a828e; padding-left: 20px;">
+                acct-41 to acct-88, acct-88 to acct-130, acct-130 to acct-204
+                <span style="color: #5b8ff9; cursor: pointer;">Show more</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; padding-left: 20px;">
+                <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
+                <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Auto-fix</span>
+                <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Ignore</span>
+            </div>
+        </div>
+        <div style="height: 1px; background: #495057;"></div>
+        <div style="display: flex; align-items: center; gap: 4px; height: 28px;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>
+                </svg>
+            </div>
+            <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e;"
+                >8 mixed-form ids. Fixed by step 2</span
+            >
+        </div>
     </div>
-  </div>
 </div>
 ```
 
@@ -2440,21 +4037,52 @@ with the mark:
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div title="Validation report. 4 types" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div
+        title="Validation report. 4 types"
+        style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;"
+    >
+        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="6,4 10,8 6,12"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto; padding-right: 8px;">
+            <div
+                style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #f7b731;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M8 2.5l6 11H2z"></path>
+                    <line x1="8" y1="6.5" x2="8" y2="9.5"></line>
+                    <line x1="8" y1="11.5" x2="8" y2="11.75"></line>
+                </svg>
+            </div>
+            <span style="font-size: 11px; line-height: 1; color: #7a828e; white-space: nowrap;">4 types</span>
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 4px; flex: 0 0 auto; padding-right: 8px;">
-      <div style="width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; color: #f7b731;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
-      </div>
-      <span style="font-size: 11px; line-height: 1; color: #7a828e; white-space: nowrap;">4 types</span>
-    </div>
-  </div>
 </div>
 ```
 
@@ -2471,48 +4099,170 @@ obligation applied to the gear rather than to the header (14.1, A6).
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;" title="Collapse Validation report">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+        <div
+            style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;"
+            title="Collapse Validation report"
+        >
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Validation report</span>
+        </div>
+        <div
+            title="Validation report detail. 1 more issue, 3 info, re-ran after step 2"
+            style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <circle cx="8" cy="8" r="2.25"></circle>
+                <circle cx="8" cy="8" r="4.75"></circle>
+                <path
+                    d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+                ></path>
+            </svg>
+        </div>
     </div>
-    <div title="Validation report detail. 1 more issue, 3 info, re-ran after step 2" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
-    </div>
-  </div>
 
-  <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
-    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="14 edges have no amount. Analyze uses weight 1. Median is 240.">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
-      </div>
-      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">No amount, 14 edges</span>
-      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Auto-fix</span>
+    <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+        <div
+            style="display: flex; align-items: center; gap: 4px; height: 28px;"
+            title="14 edges have no amount. Analyze uses weight 1. Median is 240."
+        >
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M8 2.5l6 11H2z"></path>
+                    <line x1="8" y1="6.5" x2="8" y2="9.5"></line>
+                    <line x1="8" y1="11.5" x2="8" y2="11.75"></line>
+                </svg>
+            </div>
+            <span
+                style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                >No amount, 14 edges</span
+            >
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;"
+                >Auto-fix</span
+            >
+        </div>
+        <div
+            style="display: flex; align-items: center; gap: 4px; height: 28px;"
+            title="6 opened values are not dates. The time slider skips them."
+        >
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M8 2.5l6 11H2z"></path>
+                    <line x1="8" y1="6.5" x2="8" y2="9.5"></line>
+                    <line x1="8" y1="11.5" x2="8" y2="11.75"></line>
+                </svg>
+            </div>
+            <span
+                style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                >Not dates, 6 opened values</span
+            >
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;"
+                >Show rows</span
+            >
+        </div>
+        <div
+            style="display: flex; align-items: center; gap: 4px; height: 28px;"
+            title="5 repeated pairs. 617 rows collapsed into 612 edges, weights summed."
+        >
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <path d="M8 2.5l6 11H2z"></path>
+                    <line x1="8" y1="6.5" x2="8" y2="9.5"></line>
+                    <line x1="8" y1="11.5" x2="8" y2="11.75"></line>
+                </svg>
+            </div>
+            <span
+                style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                >Repeated pairs, 5</span
+            >
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;"
+                >Show rows</span
+            >
+        </div>
+        <div
+            style="display: flex; align-items: center; gap: 4px; height: 28px;"
+            title="8 mixed-form ids were made consistent by cleaning step 2."
+        >
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>
+                </svg>
+            </div>
+            <span
+                style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                >8 mixed-form ids. Fixed by step 2</span
+            >
+        </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="6 opened values are not dates. The time slider skips them.">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
-      </div>
-      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Not dates, 6 opened values</span>
-      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="5 repeated pairs. 617 rows collapsed into 612 edges, weights summed.">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #f7b731;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5l6 11H2z"></path><line x1="8" y1="6.5" x2="8" y2="9.5"></line><line x1="8" y1="11.5" x2="8" y2="11.75"></line></svg>
-      </div>
-      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Repeated pairs, 5</span>
-      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Show rows</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 4px; height: 28px;" title="8 mixed-form ids were made consistent by cleaning step 2.">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
-      </div>
-      <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">8 mixed-form ids. Fixed by step 2</span>
-    </div>
-  </div>
 </div>
 ```
 
@@ -2536,32 +4286,142 @@ Derived width, desktop: `3 + 60 + 12 + (28*4 + 2*3) + 12 + 36 + 3 + 2 borders =
 segmented to 68 and Views to 40, giving `274` at height 40; nothing else changes.
 
 ```html
-<div style="position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; height: 36px; padding: 3px; border-radius: 7px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 6;">
-  <div style="display: flex; align-items: center; width: 60px; height: 28px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
-    <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e; cursor: pointer;">2D</div>
-    <div style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; font-size: 11px; font-weight: 500; line-height: 1; color: #d5d7da; cursor: pointer;">3D</div>
-  </div>
-  <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
-  <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom out (-)">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
-  </div>
-  <div style="width: 2px;"></div>
-  <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom in (=)">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14" y2="14"></line><line x1="7" y1="5" x2="7" y2="9"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg>
-  </div>
-  <div style="width: 2px;"></div>
-  <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Zoom to fit (0)">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path></svg>
-  </div>
-  <div style="width: 2px;"></div>
-  <div style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;" title="Zoom to selection (F). Select something first">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6V2.5H6"></path><path d="M10 2.5h3.5V6"></path><path d="M13.5 10v3.5H10"></path><path d="M6 13.5H2.5V10"></path><circle cx="8" cy="8" r="2"></circle></svg>
-  </div>
-  <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;"><div style="width: 1px; height: 16px; background: #48525c;"></div></div>
-  <div style="display: flex; align-items: center; justify-content: center; gap: 2px; width: 36px; height: 28px; border-radius: 4px; color: #a3a8b1; cursor: pointer;" title="Views">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path><path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path></svg>
-    <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,10 8,5 13,10"></polyline></svg>
-  </div>
+<div
+    style="position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: inline-flex; align-items: center; height: 36px; padding: 3px; border-radius: 7px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); box-sizing: border-box; z-index: 6;"
+>
+    <div
+        style="display: flex; align-items: center; width: 60px; height: 28px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;"
+    >
+        <div
+            style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; font-size: 11px; font-weight: 500; line-height: 1; color: #7a828e; cursor: pointer;"
+        >
+            2D
+        </div>
+        <div
+            style="flex: 1; height: 26px; display: flex; align-items: center; justify-content: center; border-radius: 3px; background: #374047; font-size: 11px; font-weight: 500; line-height: 1; color: #d5d7da; cursor: pointer;"
+        >
+            3D
+        </div>
+    </div>
+    <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 1px; height: 16px; background: #48525c;"></div>
+    </div>
+    <div
+        style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;"
+        title="Zoom out (-)"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <circle cx="7" cy="7" r="4.5"></circle>
+            <line x1="10.5" y1="10.5" x2="14" y2="14"></line>
+            <line x1="5" y1="7" x2="9" y2="7"></line>
+        </svg>
+    </div>
+    <div style="width: 2px;"></div>
+    <div
+        style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;"
+        title="Zoom in (=)"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <circle cx="7" cy="7" r="4.5"></circle>
+            <line x1="10.5" y1="10.5" x2="14" y2="14"></line>
+            <line x1="7" y1="5" x2="7" y2="9"></line>
+            <line x1="5" y1="7" x2="9" y2="7"></line>
+        </svg>
+    </div>
+    <div style="width: 2px;"></div>
+    <div
+        style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #a3a8b1; cursor: pointer;"
+        title="Zoom to fit (0)"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M2.5 6V2.5H6"></path>
+            <path d="M10 2.5h3.5V6"></path>
+            <path d="M13.5 10v3.5H10"></path>
+            <path d="M6 13.5H2.5V10"></path>
+        </svg>
+    </div>
+    <div style="width: 2px;"></div>
+    <div
+        style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #5f6873; cursor: default;"
+        title="Zoom to selection (F). Select something first"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M2.5 6V2.5H6"></path>
+            <path d="M10 2.5h3.5V6"></path>
+            <path d="M13.5 10v3.5H10"></path>
+            <path d="M6 13.5H2.5V10"></path>
+            <circle cx="8" cy="8" r="2"></circle>
+        </svg>
+    </div>
+    <div style="width: 12px; height: 28px; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 1px; height: 16px; background: #48525c;"></div>
+    </div>
+    <div
+        style="display: flex; align-items: center; justify-content: center; gap: 2px; width: 36px; height: 28px; border-radius: 4px; color: #a3a8b1; cursor: pointer;"
+        title="Views"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M8 2l5.5 3v6L8 14l-5.5-3V5z"></path>
+            <path d="M8 8l5.5-3M8 8v6M8 8L2.5 5"></path>
+        </svg>
+        <svg
+            width="8"
+            height="8"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="3,10 8,5 13,10"></polyline>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -2592,26 +4452,86 @@ section overflow, never in the panel header:
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Styles</span>
-      <div style="width: 14px; height: 14px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: pointer;" title="Saved in this browser on this computer. Export a file to move it.">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8" y1="4.5" x2="8" y2="4.75"></line></svg>
-      </div>
+    <div style="height: 1px; background: #495057;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
+        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Styles</span>
+            <div
+                style="width: 14px; height: 14px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #a3a8b1; cursor: pointer;"
+                title="Saved in this browser on this computer. Export a file to move it."
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <circle cx="8" cy="8" r="6.5"></circle>
+                    <line x1="8" y1="7" x2="8" y2="11.5"></line>
+                    <line x1="8" y1="4.5" x2="8" y2="4.75"></line>
+                </svg>
+            </div>
+        </div>
+        <div style="display: flex; gap: 4px; flex: 0 0 auto;">
+            <div
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+                title="More"
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <circle cx="8" cy="3.5" r="0.75"></circle>
+                    <circle cx="8" cy="8" r="0.75"></circle>
+                    <circle cx="8" cy="12.5" r="0.75"></circle>
+                </svg>
+            </div>
+            <div
+                style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+                title="Save as style..."
+            >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <line x1="8" y1="3" x2="8" y2="13"></line>
+                    <line x1="3" y1="8" x2="13" y2="8"></line>
+                </svg>
+            </div>
+        </div>
     </div>
-    <div style="display: flex; gap: 4px; flex: 0 0 auto;">
-      <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="More">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="3.5" r="0.75"></circle><circle cx="8" cy="8" r="0.75"></circle><circle cx="8" cy="12.5" r="0.75"></circle></svg>
-      </div>
-      <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Save as style...">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="3" x2="8" y2="13"></line><line x1="3" y1="8" x2="13" y2="8"></line></svg>
-      </div>
-    </div>
-  </div>
 </div>
 ```
 
@@ -2624,24 +4544,69 @@ own saved names.
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; background: #28364e; box-sizing: border-box;">
-    <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Publication style</span>
-    <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Rename">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path><line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line></svg>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; background: #28364e; box-sizing: border-box;"
+    >
+        <span
+            style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >Publication style</span
+        >
+        <div
+            style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            title="Rename"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z"></path>
+                <line x1="9.6" y1="3.9" x2="12.1" y2="6.4"></line>
+            </svg>
+        </div>
+        <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+        <div
+            style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+            title="Delete"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <path d="M3 4.5h10M6.5 4.5v-2h3v2M4 4.5l.8 9h6.4l.8-9"></path>
+            </svg>
+        </div>
     </div>
-    <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
-    <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Delete">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5h10M6.5 4.5v-2h3v2M4 4.5l.8 9h6.4l.8-9"></path></svg>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; box-sizing: border-box;"
+    >
+        <span
+            style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >Colorblind safe</span
+        >
+        <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">built-in</span>
     </div>
-  </div>
-  <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; box-sizing: border-box;">
-    <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Colorblind safe</span>
-    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">built-in</span>
-  </div>
-  <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; box-sizing: border-box;" title="Saved for cats-social. Open that dataset to apply it.">
-    <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #5f6873; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Cat clusters</span>
-    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5f6873;">2 Sep</span>
-  </div>
+    <div
+        style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; box-sizing: border-box;"
+        title="Saved for cats-social. Open that dataset to apply it."
+    >
+        <span
+            style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #5f6873; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >Cat clusters</span
+        >
+        <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #5f6873;">2 Sep</span>
+    </div>
 </div>
 ```
 
@@ -2650,7 +4615,9 @@ field. It is floor item 4 -- what a control will do before it does it -- and not
 an eighth floor item; the floor is seven and stays seven:
 
 ```html
-<div style="font-size: 11px; line-height: 1.4; color: #7a828e;">Saved in this browser on this computer. Export a file to move it.</div>
+<div style="font-size: 11px; line-height: 1.4; color: #7a828e;">
+    Saved in this browser on this computer. Export a file to move it.
+</div>
 ```
 
 `Save as <kind>...` always creates. Replacing is `Update from current` on a named
@@ -2674,12 +4641,34 @@ The title row, 720px dialog frame, drawn in the state that opened over a
 delimited file with one guessed type column:
 
 ```html
-<div style="display: flex; align-items: baseline; gap: 8px; height: 36px; padding: 0 12px 0 20px; box-sizing: border-box;">
-  <span style="flex: 0 0 auto; font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da;">Import options</span>
-  <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">fraud-ring-synthetic.csv, 38 KB -- guessed column</span>
-  <div style="width: 24px; height: 24px; flex: 0 0 auto; align-self: center; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Close (Esc)">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="4" x2="12" y2="12"></line><line x1="12" y1="4" x2="4" y2="12"></line></svg>
-  </div>
+<div
+    style="display: flex; align-items: baseline; gap: 8px; height: 36px; padding: 0 12px 0 20px; box-sizing: border-box;"
+>
+    <span style="flex: 0 0 auto; font-size: 14px; font-weight: 500; line-height: 1.2; color: #d5d7da;"
+        >Import options</span
+    >
+    <span
+        style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.2; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+        >fraud-ring-synthetic.csv, 38 KB -- guessed column</span
+    >
+    <div
+        style="width: 24px; height: 24px; flex: 0 0 auto; align-self: center; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        title="Close (Esc)"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <line x1="4" y1="4" x2="12" y2="12"></line>
+            <line x1="12" y1="4" x2="4" y2="12"></line>
+        </svg>
+    </div>
 </div>
 ```
 
@@ -2693,15 +4682,51 @@ mapping` in its place, so the choice is reversible in both directions without a
 confirm:
 
 ```html
-<div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px 0 20px; box-sizing: border-box;">
-  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline></svg>
-  </div>
-  <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Recognized a STRING export -- 12 columns mapped, combined_score as weight, 1 saved filter installed</span>
-  <div style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;" title="Details">
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-  </div>
-  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 24px; padding: 0 8px; border-radius: 4px; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Map it myself</div>
+<div
+    style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 12px 0 20px; box-sizing: border-box;"
+>
+    <div
+        style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #61d095;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="3.5,8.5 6.5,11.5 12.5,5"></polyline>
+        </svg>
+    </div>
+    <span
+        style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+        >Recognized a STRING export -- 12 columns mapped, combined_score as weight, 1 saved filter installed</span
+    >
+    <div
+        style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer;"
+        title="Details"
+    >
+        <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <polyline points="6,4 10,8 6,12"></polyline>
+        </svg>
+    </div>
+    <div
+        style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 24px; padding: 0 8px; border-radius: 4px; font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;"
+    >
+        Map it myself
+    </div>
 </div>
 ```
 
@@ -2714,12 +4739,33 @@ in place of the match count**. State reports resident under RT-7's hover split,
 so Stale, Running and Failed draw without hover.
 
 ```html
-<div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; background: #28364e; box-sizing: border-box;">
-  <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;" title="From Groups (Markov clustering). Open the result">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="13.5" x2="3" y2="8"></line><line x1="8" y1="13.5" x2="8" y2="2.5"></line><line x1="13" y1="13.5" x2="13" y2="6"></line></svg>
-  </div>
-  <span style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Groups (granularity 2.5)</span>
-  <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">6</span>
+<div
+    style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px 0 16px; background: #28364e; box-sizing: border-box;"
+>
+    <div
+        style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+        title="From Groups (Markov clustering). Open the result"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <line x1="3" y1="13.5" x2="3" y2="8"></line>
+            <line x1="8" y1="13.5" x2="8" y2="2.5"></line>
+            <line x1="13" y1="13.5" x2="13" y2="6"></line>
+        </svg>
+    </div>
+    <span
+        style="flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+        >Groups (granularity 2.5)</span
+    >
+    <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e;">6</span>
 </div>
 ```
 
@@ -2739,21 +4785,46 @@ visible graph.
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 8px 16px;">
-  <div style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">6 groups found. The largest has 118 members. Colors show groups.</div>
-  <div style="display: flex; align-items: center; gap: 4px; height: 20px;">
-    <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">MCL, granularity 2.5</span>
-    <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;" title="Details">
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
+    <div style="font-size: 12px; line-height: 1.5; color: #a3a8b1;">
+        6 groups found. The largest has 118 members. Colors show groups.
     </div>
-  </div>
-  <div style="display: flex; align-items: center; gap: 8px; height: 24px;">
-    <div style="display: flex; align-items: center; flex: 1; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
-      <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: ew-resize;">Granularity</span>
-      <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; text-align: right;">2.5</span>
+    <div style="display: flex; align-items: center; gap: 4px; height: 20px;">
+        <span
+            style="flex: 1; min-width: 0; font-size: 11px; line-height: 1.4; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+            >MCL, granularity 2.5</span
+        >
+        <div
+            style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: pointer;"
+            title="Details"
+        >
+            <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <polyline points="6,4 10,8 6,12"></polyline>
+            </svg>
+        </div>
     </div>
-    <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
-  </div>
-  <div style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Open result</div>
+    <div style="display: flex; align-items: center; gap: 8px; height: 24px;">
+        <div
+            style="display: flex; align-items: center; flex: 1; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+        >
+            <span style="flex: 0 0 auto; font-size: 11px; line-height: 1; color: #7a828e; cursor: ew-resize;"
+                >Granularity</span
+            >
+            <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; text-align: right;"
+                >2.5</span
+            >
+        </div>
+        <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
+    </div>
+    <div style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Open result</div>
 </div>
 ```
 
@@ -2770,11 +4841,13 @@ before it has been run:
 
 ```html
 <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 8px 8px 16px;">
-  <div style="font-size: 11px; line-height: 1.4; color: #d5d7da;">Granularity 3.0 takes about 8 s. Colors still show granularity 2.5.</div>
-  <div style="display: flex; align-items: center; gap: 8px;">
-    <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Run and use it</span>
-    <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Cancel</span>
-  </div>
+    <div style="font-size: 11px; line-height: 1.4; color: #d5d7da;">
+        Granularity 3.0 takes about 8 s. Colors still show granularity 2.5.
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Run and use it</span>
+        <span style="font-size: 11px; line-height: 1; color: #5b8ff9; cursor: pointer;">Cancel</span>
+    </div>
 </div>
 ```
 
@@ -2878,13 +4951,21 @@ word (91.5 / 78.6 / 47), ink and cursor mark the two that are unshipped, and the
 section header's one Coming tag still covers them.
 
 ```html
-<div style="display: flex; gap: 2px; flex: 1 1 0; min-width: 0; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;">
-  <div title="Force directed (ngraph)" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
-    <span style="font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap;">Force directed</span>
-  </div>
-  <div title="Hierarchical (sugiyama). Coming" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; color: #5f6873; cursor: default; box-sizing: border-box;">
-    <span style="font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap;">Hierarchical</span>
-  </div>
+<div
+    style="display: flex; gap: 2px; flex: 1 1 0; min-width: 0; height: 24px; padding: 1px; border-radius: 4px; background: #2a3035; box-sizing: border-box;"
+>
+    <div
+        title="Force directed (ngraph)"
+        style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; background: #374047; color: #d5d7da; cursor: pointer; box-sizing: border-box;"
+    >
+        <span style="font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap;">Force directed</span>
+    </div>
+    <div
+        title="Hierarchical (sugiyama). Coming"
+        style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center; min-width: 0; height: 22px; padding: 0 6px; border-radius: 3px; color: #5f6873; cursor: default; box-sizing: border-box;"
+    >
+        <span style="font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap;">Hierarchical</span>
+    </div>
 </div>
 ```
 
@@ -2899,11 +4980,34 @@ gives is the line count, never a fact (FLOOR-1.9 rule 1).
 
 ```html
 <div style="display: flex; align-items: center; gap: 4px; height: 24px;">
-  <div title="Select neighbors (Shift+E). Not built yet" style="display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; height: 24px; padding: 0 6px; border-radius: 4px; color: #5f6873; cursor: default; box-sizing: border-box;">
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><circle cx="5.5" cy="8" r="2.25"></circle><circle cx="12.5" cy="4.5" r="1.5"></circle><circle cx="12.5" cy="11.5" r="1.5"></circle><line x1="7.6" y1="7" x2="11" y2="5.3"></line><line x1="7.6" y1="9" x2="11" y2="10.7"></line></svg>
-    <span style="font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap;">Select neighbors</span>
-  </div>
-  <div style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;">Coming</div>
+    <div
+        title="Select neighbors (Shift+E). Not built yet"
+        style="display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; height: 24px; padding: 0 6px; border-radius: 4px; color: #5f6873; cursor: default; box-sizing: border-box;"
+    >
+        <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="flex: 0 0 auto;"
+        >
+            <circle cx="5.5" cy="8" r="2.25"></circle>
+            <circle cx="12.5" cy="4.5" r="1.5"></circle>
+            <circle cx="12.5" cy="11.5" r="1.5"></circle>
+            <line x1="7.6" y1="7" x2="11" y2="5.3"></line>
+            <line x1="7.6" y1="9" x2="11" y2="10.7"></line>
+        </svg>
+        <span style="font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap;">Select neighbors</span>
+    </div>
+    <div
+        style="display: inline-flex; align-items: center; flex: 0 0 auto; height: 16px; padding: 0 6px; border-radius: 8px; background: #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1; box-sizing: border-box;"
+    >
+        Coming
+    </div>
 </div>
 ```
 
@@ -2945,13 +5049,47 @@ it renders at every density. Two spellings of the same 24px trailing slot.
 
 ```html
 <!-- everything behind it is at its default -->
-<div title="Image export options" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"></path></svg>
+<div
+    title="Image export options"
+    style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;"
+>
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <circle cx="8" cy="8" r="2.25"></circle>
+        <path
+            d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"
+        ></path>
+    </svg>
 </div>
 
 <!-- something behind it deviates -->
-<div title="Image export options. 2 options changed" style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;">
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"></path></svg>
+<div
+    title="Image export options. 2 options changed"
+    style="display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 4px; color: #d5d7da; cursor: pointer; box-sizing: border-box;"
+>
+    <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+    >
+        <circle cx="8" cy="8" r="2.25"></circle>
+        <path
+            d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"
+        ></path>
+    </svg>
 </div>
 ```
 
@@ -2965,16 +5103,37 @@ name. Closed, with its mark:
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div title="Styles. Publication" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Styles</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div
+        title="Styles. Publication"
+        style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;"
+    >
+        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="6,4 10,8 6,12"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;"
+                >Styles</span
+            >
+        </div>
+        <span
+            style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;"
+            >Publication</span
+        >
     </div>
-    <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;">Publication</span>
-  </div>
 </div>
 ```
 
@@ -2998,7 +5157,9 @@ out of the region (14.3 replaces it there).
 ```html
 <!-- activity-panel pop-out: caret on the LEFT edge, pointing back at the panel -->
 <div style="position: absolute; left: -6px; top: 16px; width: 6px; height: 12px; overflow: hidden;">
-  <div style="position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"></div>
+    <div
+        style="position: absolute; left: 3px; top: 1px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-bottom: 1px solid #48525c; box-sizing: border-box;"
+    ></div>
 </div>
 ```
 
@@ -3009,7 +5170,9 @@ line, because nothing aligns meaningfully to a 14px control. That is the
 ```html
 <!-- 250px info bubble under a 14px info circle: 8px caret centred on the circle -->
 <div style="position: absolute; left: 7px; top: -8px; width: 16px; height: 8px; overflow: hidden;">
-  <div style="position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-top: 1px solid #48525c; box-sizing: border-box;"></div>
+    <div
+        style="position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; transform: rotate(45deg); background: #1f2428; border-left: 1px solid #48525c; border-top: 1px solid #48525c; box-sizing: border-box;"
+    ></div>
 </div>
 ```
 
@@ -3022,9 +5185,27 @@ strip in its header naming the opener with a chevron that scrolls it back
 the region changes activity.
 
 ```html
-<div style="display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px 0 12px; border-bottom: 1px solid #374047; background: #232a2f; box-sizing: border-box;">
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="10,3.5 5,8 10,12.5"></polyline></svg>
-  <span title="Scroll back to Validation report" style="flex: 1 1 auto; min-width: 0; font-size: 10px; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;">Validation report</span>
+<div
+    style="display: flex; align-items: center; gap: 6px; height: 20px; padding: 0 8px 0 12px; border-bottom: 1px solid #374047; background: #232a2f; box-sizing: border-box;"
+>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="#7a828e"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        style="flex: 0 0 auto;"
+    >
+        <polyline points="10,3.5 5,8 10,12.5"></polyline>
+    </svg>
+    <span
+        title="Scroll back to Validation report"
+        style="flex: 1 1 auto; min-width: 0; font-size: 10px; color: #7a828e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;"
+        >Validation report</span
+    >
 </div>
 ```
 
@@ -3038,12 +5219,24 @@ a dismissible warning about spending forty seconds is not a warning. Escape
 cancels and returns focus to the opener.
 
 ```html
-<div style="position: absolute; width: 280px; padding: 10px 12px; border-radius: 6px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0,0,0,0.45); box-sizing: border-box;">
-  <div style="font-size: 11px; line-height: 1.5; color: #d5d7da;">Bridges takes about 40 s on 318 nodes. Colors still show granularity 2.5.</div>
-  <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 10px;">
-    <div style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; cursor: pointer; box-sizing: border-box;">Cancel</div>
-    <div style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 4px; background: #3d6fd4; color: #ffffff; font-size: 11px; font-weight: 500; cursor: pointer; box-sizing: border-box;">Run and use it</div>
-  </div>
+<div
+    style="position: absolute; width: 280px; padding: 10px 12px; border-radius: 6px; background: #1f2428; border: 1px solid #48525c; box-shadow: 0 8px 24px rgba(0,0,0,0.45); box-sizing: border-box;"
+>
+    <div style="font-size: 11px; line-height: 1.5; color: #d5d7da;">
+        Bridges takes about 40 s on 318 nodes. Colors still show granularity 2.5.
+    </div>
+    <div style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 10px;">
+        <div
+            style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 4px; color: #a3a8b1; font-size: 11px; font-weight: 500; cursor: pointer; box-sizing: border-box;"
+        >
+            Cancel
+        </div>
+        <div
+            style="display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 4px; background: #3d6fd4; color: #ffffff; font-size: 11px; font-weight: 500; cursor: pointer; box-sizing: border-box;"
+        >
+            Run and use it
+        </div>
+    </div>
 </div>
 ```
 
@@ -3071,14 +5264,24 @@ printed, its Okabe-Ito and product ramps, its clamp line and its
 ```html
 <!-- categorical row, canvas form: swatch and label only -->
 <div style="display: flex; align-items: center; gap: 6px; height: 14px;">
-  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#4a7ee8"></circle></svg>
-  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Accounts</span>
+    <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;">
+        <circle cx="5" cy="5" r="5" fill="#4a7ee8"></circle>
+    </svg>
+    <span
+        style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+        >Accounts</span
+    >
 </div>
 
 <!-- the Other row carries the coverage footer; clicking it opens the groups table -->
 <div title="Open the groups table" style="display: flex; align-items: center; gap: 6px; height: 14px; cursor: pointer;">
-  <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;"><circle cx="5" cy="5" r="5" fill="#6b7480"></circle></svg>
-  <span style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Other <span style="color: #7a828e;">(3,388 groups, 43% of nodes)</span></span>
+    <svg width="10" height="10" viewBox="0 0 10 10" style="flex: 0 0 auto;">
+        <circle cx="5" cy="5" r="5" fill="#6b7480"></circle>
+    </svg>
+    <span
+        style="flex: 1 1 auto; min-width: 0; font-size: 11px; color: #d5d7da; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+        >Other <span style="color: #7a828e;">(3,388 groups, 43% of nodes)</span></span
+    >
 </div>
 ```
 
@@ -3124,9 +5327,25 @@ when it is not, and in the off case the Image options gear draws primary
 (14.1).
 
 ```html
-<div style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: rgba(31,36,40,0.92); border: 1px solid #374047; box-sizing: border-box;">
-  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><rect x="2.5" y="3.5" width="11" height="9" rx="1"></rect></svg>
-  <span style="font-size: 11px; color: #a3a8b1; white-space: nowrap;">Export frame: current view, 832 x 836, about 20 nodes in frame; legend: 2 channels</span>
+<div
+    style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 12px; background: rgba(31,36,40,0.92); border: 1px solid #374047; box-sizing: border-box;"
+>
+    <svg
+        width="12"
+        height="12"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="#7a828e"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        style="flex: 0 0 auto;"
+    >
+        <rect x="2.5" y="3.5" width="11" height="9" rx="1"></rect>
+    </svg>
+    <span style="font-size: 11px; color: #a3a8b1; white-space: nowrap;"
+        >Export frame: current view, 832 x 836, about 20 nodes in frame; legend: 2 channels</span
+    >
 </div>
 ```
 
@@ -3204,52 +5423,169 @@ brackets, pointing outward). Every field keeps a `title` equal to the word its
 glyph replaced.
 
 The rows keep an empty 24px trailing slot so the grid holds: `16 + 108 + 8 + 108
-+ 8 + 24 + 8 = 280`. The section rhythm is the usual `1px divider / 32px header /
-32n content / 8px pad`, so three rows is `1 + 32 + 96 + 8 = 137` px.
+
+- 8 + 24 + 8 = 280`. The section rhythm is the usual `1px divider / 32px header /
+  32n content / 8px pad`, so three rows is `1 + 32 + 96 + 8 = 137` px.
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;" title="Collapse Parameters">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Parameters</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div style="display: flex; align-items: center; justify-content: space-between; height: 32px;">
+        <div
+            style="display: flex; align-items: center; gap: 4px; min-width: 0; cursor: pointer;"
+            title="Collapse Parameters"
+        >
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;"
+                >Parameters</span
+            >
+        </div>
+        <div
+            title="Layout parameters"
+            style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;"
+        >
+            <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            >
+                <circle cx="8" cy="8" r="2.25"></circle>
+                <circle cx="8" cy="8" r="4.75"></circle>
+                <path
+                    d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+                ></path>
+            </svg>
+        </div>
     </div>
-    <div title="Layout parameters" style="width: 24px; height: 24px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #7a828e; cursor: pointer; box-sizing: border-box;">
-      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.25"></circle><circle cx="8" cy="8" r="4.75"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"></path></svg>
-    </div>
-  </div>
 
-  <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
-    <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-      <div title="Edge length: 30" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
-        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="2.5" y1="8" x2="13.5" y2="8"></line><polyline points="5,5.5 2.5,8 5,10.5"></polyline><polyline points="11,5.5 13.5,8 11,10.5"></polyline></svg>
+    <div style="display: flex; flex-direction: column; padding-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+            <div
+                title="Edge length: 30"
+                style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+            >
+                <div
+                    style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;"
+                >
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <line x1="2.5" y1="8" x2="13.5" y2="8"></line>
+                        <polyline points="5,5.5 2.5,8 5,10.5"></polyline>
+                        <polyline points="11,5.5 13.5,8 11,10.5"></polyline>
+                    </svg>
+                </div>
+                <span
+                    style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                    >30</span
+                >
+            </div>
+            <div
+                title="Pull to centre: -1.2"
+                style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;"
+            >
+                <div
+                    style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;"
+                >
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <circle cx="8" cy="8" r="1.5"></circle>
+                        <polyline points="6,3 8,5 10,3"></polyline>
+                        <polyline points="6,13 8,11 10,13"></polyline>
+                        <polyline points="3,6 5,8 3,10"></polyline>
+                        <polyline points="13,6 11,8 13,10"></polyline>
+                    </svg>
+                </div>
+                <span
+                    style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                    >-1.2</span
+                >
+            </div>
+            <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
         </div>
-        <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">30</span>
-      </div>
-      <div title="Pull to centre: -1.2" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box;">
-        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e; cursor: ew-resize;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="1.5"></circle><polyline points="6,3 8,5 10,3"></polyline><polyline points="6,13 8,11 10,13"></polyline><polyline points="3,6 5,8 3,10"></polyline><polyline points="13,6 11,8 13,10"></polyline></svg>
-        </div>
-        <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">-1.2</span>
-      </div>
-      <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
-    </div>
 
-    <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
-      <div title="Edge weight attribute" style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;">
-        <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z" fill="currentColor" stroke="none"></path><circle cx="5.5" cy="5.5" r="0.75" fill="#2a3035" stroke="none"></circle></svg>
+        <div style="display: flex; align-items: center; gap: 8px; height: 32px;">
+            <div
+                title="Edge weight attribute"
+                style="display: flex; align-items: center; gap: 4px; flex: 1 1 0; min-width: 0; height: 24px; padding: 0 8px; background: #2a3035; border-radius: 4px; box-sizing: border-box; cursor: pointer;"
+            >
+                <div
+                    style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+                >
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M2.5 7.2V3.5a1 1 0 0 1 1-1h3.7l6.3 6.3-4.7 4.7z"
+                            fill="currentColor"
+                            stroke="none"
+                        ></path>
+                        <circle cx="5.5" cy="5.5" r="0.75" fill="#2a3035" stroke="none"></circle>
+                    </svg>
+                </div>
+                <span
+                    style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"
+                    >value</span
+                >
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#7a828e"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: 0 0 auto;"
+                >
+                    <polyline points="4,6 8,10 12,6"></polyline>
+                </svg>
+            </div>
+            <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
         </div>
-        <span style="flex: 1; min-width: 0; font-size: 11px; line-height: 1; color: #d5d7da; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">value</span>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#7a828e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 auto;"><polyline points="4,6 8,10 12,6"></polyline></svg>
-      </div>
-      <div style="width: 24px; height: 24px; flex: 0 0 auto;"></div>
     </div>
-  </div>
 </div>
 ```
 
@@ -3271,16 +5607,37 @@ name.
 
 ```html
 <div style="display: flex; flex-direction: column;">
-  <div style="height: 1px; background: #495057;"></div>
-  <div title="Parameters. Force directed (ngraph) - settled" style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;">
-    <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
-      <div style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6,4 10,8 6,12"></polyline></svg>
-      </div>
-      <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;">Parameters</span>
+    <div style="height: 1px; background: #495057;"></div>
+    <div
+        title="Parameters. Force directed (ngraph) - settled"
+        style="display: flex; align-items: center; justify-content: space-between; height: 32px; cursor: pointer;"
+    >
+        <div style="display: flex; align-items: center; gap: 4px; min-width: 0;">
+            <div
+                style="width: 16px; height: 16px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #7a828e;"
+            >
+                <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <polyline points="6,4 10,8 6,12"></polyline>
+                </svg>
+            </div>
+            <span style="font-size: 12px; font-weight: 500; line-height: 1.2; color: #d5d7da; white-space: nowrap;"
+                >Parameters</span
+            >
+        </div>
+        <span
+            style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;"
+            >Force directed - settled</span
+        >
     </div>
-    <span style="flex: 0 1 auto; min-width: 0; font-size: 11px; line-height: 1; color: #7a828e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px;">Force directed - settled</span>
-  </div>
 </div>
 ```
 
@@ -3293,12 +5650,13 @@ it stays in the slot beside the gear.
 
 ## 16. The contrast divergence: where the shipped library deliberately differs
 
-Owned by `CONTRAST-DIVERGENCE.md`. **The palette in section 1 is what the
+Owned by `CONTRAST-DIVERGENCE.md`. \*\*The palette in section 1 is what the
 artboards paint, and it is not to be reconciled with `compact-mantine`. The
 library's `PANEL_INK` is what ships, and it is not to be reconciled with section
+
 1. Five colour roles disagree on purpose; every other colour is the same colour
-in both, and a sixth disagreement is a bug in one of them, not a sixth
-divergence.**
+   in both, and a sixth disagreement is a bug in one of them, not a sixth
+   divergence.\*\*
 
 `compact-mantine` was made WCAG 2.2 AA compliant in a hardening pass and the
 boards were not. Both artefacts stand. On the colour a shipped control paints,
@@ -3313,12 +5671,12 @@ remaining failures are in `CONTRAST-DIVERGENCE.md`; nothing below restates them.
 Mockup ratios are dark-scheme, the only scheme the boards draw. Library ratios
 name their scheme.
 
-| Role | What a board paints | What the library ships | Why |
-|---|---|---|---|
-| selected ground | `#374047` on a `#2a3035` track, or `#28364e` on the `#1f2428` panel, contents in the primary ink `#d5d7da`. No separate on-selected ink exists. Segment vs track = **1.26:1**, row vs panel = **1.29:1** | Three tokens. `RAISED` keeps `#374047` for chips and tracks; `SELECTED` inverts to `#a3a8b1` dark / `#495057` light at **5.59:1** / 7.35:1 against the track; `ON_SELECTED` punches the label out in `#1f2428` / `#ffffff` at 6.56:1 / 8.18:1 | 1.4.11 asks 3:1 of the boundary that shows a control's state. The library resolves in two schemes and a selected patch can only separate by inverting; the boards draw one scheme and have no such obligation |
-| the ink ladder | Four live ranks -- `#d5d7da`, `#a3a8b1`, `#7a828e`, `#5f6873` -- with the fourth doing both the disabled and the placeholder job. On a field: 9.26:1, 5.59:1, **3.44:1**, **2.36:1** | Two live ranks. `VALUE` `#d5d7da` / `#000000`; `CHROME`, `PROSE` and `PLACEHOLDER` all `#a3a8b1` / `#495057` at 5.59:1 / 7.35:1 on a field. `#7a828e` survives as `BORDER` and `DIVIDER` only; `#5f6873` survives as an exempt `DISABLED` | 1.4.3 asks 4.5:1 of text and gives placeholder text no exemption, so nothing dimmer than `#a3a8b1` can sit in a `#2a3035` field. `#7a828e` stayed in the palette by changing clause: as a border it answers to 1.4.11's 3:1 |
-| the field boundary | A borderless fill, `#2a3035` on `#1f2428` at **1.17:1**, with a line only on focus (`box-shadow: 0 0 0 1px #5b8ff9`) | The same value. `SURFACE` is `#2a3035` in dark, still **1.17:1** -- recorded as failing rather than fixed. Only the mechanism changed: `--input-bd` is `transparent`, not `none`, so the focus border can paint | 1.4.11's 3:1, refused by arithmetic: a fill bright enough to clear it leaves no room for an ink dimmer than white inside it. Do not add a resting border to a board -- the compliant hairline exists and the library declines it, because it would drop the focus indicator from 4.46:1 to 1.30:1 |
-| borders and dividers | A panel edge at `#48525c` and a section divider at `#495057` (section 1, *Borders and dividers*), measuring **1.97:1** and **1.91:1** on the `#1f2428` panel | One token for both. `BORDER` and `DIVIDER` are the identical light-dark(gray-6, dark-2) -> `#868e96` light / `#7a828e` dark, **3.32:1** / **4.03:1** on the panel | 1.4.11's 3:1 for a shape that carries meaning. The token that paints a seam also paints a chart bar and the chart baseline, so the seam's weight is set by the bar. `panel.ts:218-226` records the lift from `#48525c` by name. Keep drawing `#48525c` and `#495057`: at this register a seam is found, not seen |
+| Role                 | What a board paints                                                                                                                                                                                      | What the library ships                                                                                                                                                                                                                        | Why                                                                                                                                                                                                                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| selected ground      | `#374047` on a `#2a3035` track, or `#28364e` on the `#1f2428` panel, contents in the primary ink `#d5d7da`. No separate on-selected ink exists. Segment vs track = **1.26:1**, row vs panel = **1.29:1** | Three tokens. `RAISED` keeps `#374047` for chips and tracks; `SELECTED` inverts to `#a3a8b1` dark / `#495057` light at **5.59:1** / 7.35:1 against the track; `ON_SELECTED` punches the label out in `#1f2428` / `#ffffff` at 6.56:1 / 8.18:1 | 1.4.11 asks 3:1 of the boundary that shows a control's state. The library resolves in two schemes and a selected patch can only separate by inverting; the boards draw one scheme and have no such obligation                                                                                                    |
+| the ink ladder       | Four live ranks -- `#d5d7da`, `#a3a8b1`, `#7a828e`, `#5f6873` -- with the fourth doing both the disabled and the placeholder job. On a field: 9.26:1, 5.59:1, **3.44:1**, **2.36:1**                     | Two live ranks. `VALUE` `#d5d7da` / `#000000`; `CHROME`, `PROSE` and `PLACEHOLDER` all `#a3a8b1` / `#495057` at 5.59:1 / 7.35:1 on a field. `#7a828e` survives as `BORDER` and `DIVIDER` only; `#5f6873` survives as an exempt `DISABLED`     | 1.4.3 asks 4.5:1 of text and gives placeholder text no exemption, so nothing dimmer than `#a3a8b1` can sit in a `#2a3035` field. `#7a828e` stayed in the palette by changing clause: as a border it answers to 1.4.11's 3:1                                                                                      |
+| the field boundary   | A borderless fill, `#2a3035` on `#1f2428` at **1.17:1**, with a line only on focus (`box-shadow: 0 0 0 1px #5b8ff9`)                                                                                     | The same value. `SURFACE` is `#2a3035` in dark, still **1.17:1** -- recorded as failing rather than fixed. Only the mechanism changed: `--input-bd` is `transparent`, not `none`, so the focus border can paint                               | 1.4.11's 3:1, refused by arithmetic: a fill bright enough to clear it leaves no room for an ink dimmer than white inside it. Do not add a resting border to a board -- the compliant hairline exists and the library declines it, because it would drop the focus indicator from 4.46:1 to 1.30:1                |
+| borders and dividers | A panel edge at `#48525c` and a section divider at `#495057` (section 1, _Borders and dividers_), measuring **1.97:1** and **1.91:1** on the `#1f2428` panel                                             | One token for both. `BORDER` and `DIVIDER` are the identical light-dark(gray-6, dark-2) -> `#868e96` light / `#7a828e` dark, **3.32:1** / **4.03:1** on the panel                                                                             | 1.4.11's 3:1 for a shape that carries meaning. The token that paints a seam also paints a chart bar and the chart baseline, so the seam's weight is set by the bar. `panel.ts:218-226` records the lift from `#48525c` by name. Keep drawing `#48525c` and `#495057`: at this register a seam is found, not seen |
 
 ### 16.2 The accent is a fifth, and a different kind
 

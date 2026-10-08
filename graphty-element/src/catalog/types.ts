@@ -50,6 +50,15 @@ export type NodeId = string | number;
 /** The identity of an edge. */
 export type EdgeId = string;
 
+/**
+ * What `element.elementAt(point)` finds under a point: a node or an edge, by id.
+ *
+ * Only nodes are found today. The edge case is declared so code that switches on `kind` already
+ * handles it, and edges can be returned later without a breaking change.
+ */
+export type ElementAtResult =
+    { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
+
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
 
@@ -127,6 +136,11 @@ export const KNOWN_ALGORITHMS = [
     "prim",
     "bipartite-matching",
     "link-prediction",
+    "markov-clustering",
+    "spectral-clustering",
+    "hierarchical-clustering",
+    "astar",
+    "edge-betweenness",
 ] as const;
 
 /**
@@ -551,7 +565,7 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
  * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one dark grey (#505050). The legend lists the
+ *   first, and every remaining group is painted one mid grey (#686868). The legend lists the
  *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
@@ -872,6 +886,25 @@ export interface FunctionDescriptor {
 // Attributes, metrics and validation
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * What a column does for the graph, beyond holding values: the node ids were read from it
+ * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
+ * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
+ * (`"edgeId"`).
+ *
+ * OPEN UNION: roles may be added in a minor release; handle unknown roles.
+ */
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+
+/**
+ * One thing that reads a column: a style layer whose selector or bindings read it, or a finished
+ * run that weighed its edges by it.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type AttributeUse =
+    { readonly kind: "layer"; readonly id: LayerId } | { readonly kind: "run"; readonly id: RunId };
+
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
     /** The column's key, `data.<name>`, with the name unquoted; see {@link Path}. Quote it with `quotePath` before using it inside an expression. */
@@ -900,6 +933,26 @@ export interface AttributeDescriptor {
     sampleValues: readonly unknown[];
     /** Set when the attribute came from a run. */
     runId?: RunId;
+    /**
+     * What the column does for the graph: the roles it plays, read from the data configuration
+     * (`data.knownFields`) and the last load. Absent when it plays none. A column named with
+     * spaces (`shared chapters`) is matched by its literal name.
+     *
+     * ```ts
+     * const key = session.data.attributes().find((a) => a.roles?.includes("key")); // the node ids
+     * ```
+     */
+    roles?: readonly AttributeRole[];
+    /**
+     * What reads the column now: each style layer that selects or paints by it, in stack order,
+     * then each run that weighed its edges by it. Absent when nothing does. Together with `roles`
+     * this is "the attributes in use":
+     *
+     * ```ts
+     * const inUse = session.data.attributes().filter((a) => a.roles !== undefined || a.usedBy !== undefined);
+     * ```
+     */
+    usedBy?: readonly AttributeUse[];
 }
 
 /**
@@ -971,10 +1024,11 @@ export type SelectionDirection = "in" | "out" | "all";
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
- * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `member`
- * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
- * `clipped` (`"visible"` is); `item` and `threshold` speak the half or halves their field lives
- * on; every other leaf speaks nodes. A group with no members constrains nothing.
+ * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
+ * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
+ * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
+ * or halves their field lives on; every other leaf speaks nodes. A group with no members
+ * constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
@@ -990,6 +1044,20 @@ export type RuleTree =
       }
     | { readonly kind: "component"; readonly id: number }
     | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
+    /**
+     * The nodes with no edge to another node: each is a component of its own, so these are exactly
+     * the nodes `data.statistics().components.isolatedCount` counts. A node whose only edges are
+     * self-loops is one. Speaks nodes.
+     */
+    | { readonly kind: "isolated" }
+    /** The edges whose two ends are the same node: `statistics().selfLoopCount` of them. Speaks edges. */
+    | { readonly kind: "self-loop" }
+    /**
+     * The edges beyond the first between one pair of nodes, in the graph's edge order: exactly the
+     * edges `statistics().repeatedEdgeCount` counts. On an undirected graph `a`-`b` and `b`-`a` are
+     * one pair; on a directed graph they are two. Speaks edges.
+     */
+    | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
@@ -1212,7 +1280,7 @@ export type PathKind = "simple" | "trail" | "walk" | "cycle";
 /**
  * The catalogue: everything the element can offer, as data.
  *
- * `session.catalog` implements every method here except the six named in
+ * `session.catalog` implements every method here except the ones named in
  * {@link DeprecatedCatalogMethod}, which nothing implements yet.
  */
 export interface CatalogApi {
@@ -1251,9 +1319,16 @@ export interface CatalogApi {
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
-     * The options for one algorithm or layout, with data-dependent bounds resolved.
-     * @deprecated Not implemented; `algorithms()` and `layouts()` carry the static option
-     * descriptors. Removed at the next major release unless it is implemented first (issue #336).
+     * The options for one algorithm or layout, with data-dependent bounds resolved for a scope.
+     *
+     * A bound written as an {@link OptionBound} reference (or as the bare reference string) comes
+     * back as the number measured over the scope, and a "node-id" or "node-set" option comes back
+     * with `values`: one choice per node in the scope, its value and label the node id as a
+     * string. Every other field is the static descriptor's.
+     * @param key - An algorithm key, looked for first, or a layout id.
+     * @param scope - What to measure; the session's default run scope when absent.
+     * @returns The options, in declaration order.
+     * @throws `E_UNKNOWN_ALGORITHM` when no algorithm or layout is registered under `key`.
      */
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
 }
@@ -1264,13 +1339,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod =
-    | "themes"
-    | "functions"
-    | "timeAttributes"
-    | "applicable"
-    | "validate"
-    | "optionsFor";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
 
 // ---------------------------------------------------------------------------------------------
 // Guards

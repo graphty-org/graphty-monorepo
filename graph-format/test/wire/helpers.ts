@@ -41,14 +41,24 @@ function sameNumbers(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
     return true;
 }
 
+/**
+ * expect(actual, where).toBe(expected), calling expect() only when the values differ. The wire fuzz
+ * oracle compares thousands of snapshots, and an expect() call costs far more than the comparison.
+ */
+function expectSame(actual: unknown, expected: unknown, where?: string): void {
+    if (!Object.is(actual, expected)) {
+        expect(actual, where).toBe(expected);
+    }
+}
+
 /** Assert two columns are equal: meta, length, validity, nullCount and every value. */
 function expectColumnsEqual(a: Column, b: Column, where: string): void {
     expect(b.meta, `${where}.meta`).toEqual(a.meta);
-    expect(b.length, `${where}.length`).toBe(a.length);
-    expect(b.nullCount, `${where}.nullCount`).toBe(a.nullCount);
-    expect(b.validity === null, `${where}.validity presence`).toBe(a.validity === null);
+    expectSame(b.length, a.length, `${where}.length`);
+    expectSame(b.nullCount, a.nullCount, `${where}.nullCount`);
+    expectSame(b.validity === null, a.validity === null, `${where}.validity presence`);
     if (a.validity !== null && b.validity !== null) {
-        expect(sameNumbers(a.validity, b.validity), `${where}.validity`).toBe(true);
+        expectSame(sameNumbers(a.validity, b.validity), true, `${where}.validity`);
     }
     switch (a.dtype) {
         case "f32":
@@ -56,34 +66,34 @@ function expectColumnsEqual(a: Column, b: Column, where: string): void {
         case "i32":
         case "u32":
         case "u8":
-            expect(b.dtype).toBe(a.dtype);
-            expect(sameNumbers(a.data, (b as typeof a).data), `${where}.data`).toBe(true);
+            expectSame(b.dtype, a.dtype);
+            expectSame(sameNumbers(a.data, (b as typeof a).data), true, `${where}.data`);
             break;
         case "bool":
-            expect(b.dtype).toBe("bool");
-            expect(sameNumbers(a.data, (b as typeof a).data), `${where}.data`).toBe(true);
+            expectSame(b.dtype, "bool");
+            expectSame(sameNumbers(a.data, (b as typeof a).data), true, `${where}.data`);
             break;
         case "dict": {
-            expect(b.dtype).toBe("dict");
+            expectSame(b.dtype, "dict");
             const bd = b as typeof a;
-            expect(sameNumbers(a.codes, bd.codes), `${where}.codes`).toBe(true);
+            expectSame(sameNumbers(a.codes, bd.codes), true, `${where}.codes`);
             expect(bd.dictionary, `${where}.dictionary`).toEqual(a.dictionary);
             break;
         }
         case "string": {
-            expect(b.dtype).toBe("string");
+            expectSame(b.dtype, "string");
             expect((b as typeof a).decodeAll(), `${where}.strings`).toEqual(a.decodeAll());
             break;
         }
         case "list": {
-            expect(b.dtype).toBe("list");
+            expectSame(b.dtype, "list");
             const bl = b as typeof a;
-            expect(sameNumbers(a.offsets, bl.offsets), `${where}.offsets`).toBe(true);
+            expectSame(sameNumbers(a.offsets, bl.offsets), true, `${where}.offsets`);
             expectColumnsEqual(a.child, bl.child, `${where}.child`);
             break;
         }
         case "json": {
-            expect(b.dtype).toBe("json");
+            expectSame(b.dtype, "json");
             expect((b as typeof a).values, `${where}.values`).toEqual(a.values);
             break;
         }
@@ -91,15 +101,16 @@ function expectColumnsEqual(a: Column, b: Column, where: string): void {
             throw new Error("unknown dtype");
     }
     for (let row = 0; row < a.length; row++) {
-        expect(b.isSet(row), `${where}.isSet(${row})`).toBe(a.isSet(row));
+        expectSame(b.isSet(row), a.isSet(row), `${where}.isSet(${row})`);
         const va = a.value(row);
         const vb = b.value(row);
         if (ArrayBuffer.isView(va)) {
-            expect(
+            expectSame(
                 sameNumbers(va as unknown as ArrayLike<number>, vb as ArrayLike<number>),
+                true,
                 `${where}.value(${row})`,
-            ).toBe(true);
-        } else {
+            );
+        } else if (!Object.is(va, vb)) {
             expect(vb, `${where}.value(${row})`).toEqual(va);
         }
     }
@@ -107,8 +118,8 @@ function expectColumnsEqual(a: Column, b: Column, where: string): void {
 
 /** Assert two tables hold equal columns in the same order. */
 function expectTablesEqual(a: AttributeTable, b: AttributeTable, where: string): void {
-    expect(b.domain, `${where}.domain`).toBe(a.domain);
-    expect(b.rowCount, `${where}.rowCount`).toBe(a.rowCount);
+    expectSame(b.domain, a.domain, `${where}.domain`);
+    expectSame(b.rowCount, a.rowCount, `${where}.rowCount`);
     expect(b.names(), `${where}.names`).toEqual(a.names());
     for (const name of a.names()) {
         expectColumnsEqual(a.require(name), b.require(name), `${where}.${name}`);
@@ -117,15 +128,15 @@ function expectTablesEqual(a: AttributeTable, b: AttributeTable, where: string):
 
 /** Assert two snapshots are equal in everything the wire carries. */
 export function expectSnapshotsEqual(a: GraphSnapshot, b: GraphSnapshot): void {
-    expect(equalsTopology(a, b), "topology").toBe(true);
+    expectSame(equalsTopology(a, b), true, "topology");
     expect(b.flags).toEqual(a.flags);
-    expect(b.label).toBe(a.label);
-    expect(b.selfLoopCount).toBe(a.selfLoopCount);
-    expect(b.ids.kind).toBe(a.ids.kind);
-    expect(b.ids.offset).toBe(a.ids.offset);
+    expectSame(b.label, a.label);
+    expectSame(b.selfLoopCount, a.selfLoopCount);
+    expectSame(b.ids.kind, a.ids.kind);
+    expectSame(b.ids.offset, a.ids.offset);
     expect(b.ids.toArray()).toEqual(a.ids.toArray());
     for (let i = 0; i < a.nodeCount; i++) {
-        expect(b.ids.indexOf(a.ids.idOf(i))).toBe(i);
+        expectSame(b.ids.indexOf(a.ids.idOf(i)), i);
     }
     expectTablesEqual(a.nodes, b.nodes, "nodes");
     expectTablesEqual(a.edges, b.edges, "edges");

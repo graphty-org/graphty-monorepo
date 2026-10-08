@@ -312,7 +312,7 @@ describe("the revision moves by the delta", () => {
             },
             { name: "A" },
         );
-        void sets.get(id)?.revision;
+        const _revision = sets.get(id)?.revision;
         sets.removeMembers(id, { nodes: ["a"] });
         sets.addMembers(id, { edges: [edge("c", "d", "z"), { source: "d", target: "c", ordinal: 1, among: 3 }] });
         sets.removeMembers(id, {
@@ -353,7 +353,7 @@ describe("unknown top-level fields", () => {
         const definition = { kind: "plugin:ring", centre: "a", radius: 2 };
         plant(store, loadRecord({ id: "set_ring", name: "Ring", order: 1, definition, createdFrom: { kind: "user" } }));
         sets.rename("set_ring", "Ring 2");
-        assert.deepStrictEqual(sets.get("set_ring")?.definition as unknown, definition);
+        assert.deepStrictEqual<unknown>(sets.get("set_ring")?.definition, definition);
         assert.match(sets.get("set_ring")?.revision ?? "", /^r1:/);
         sets.remove("set_ring");
         assert.isUndefined(sets.get("set_ring"));

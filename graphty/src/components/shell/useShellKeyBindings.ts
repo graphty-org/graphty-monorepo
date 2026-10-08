@@ -14,7 +14,13 @@
 
 import { useEffect, useRef } from "react";
 
-import { DISPATCHER_KEY_BINDINGS, ESCAPE_LADDER, type EscapeRungId, matchesChord,type ShellCommandId } from "./bindings";
+import {
+    DISPATCHER_KEY_BINDINGS,
+    ESCAPE_LADDER,
+    type EscapeRungId,
+    matchesChord,
+    type ShellCommandId,
+} from "./bindings";
 
 /**
  * What a binding does. The event is passed through so a held binding can tell its
@@ -150,7 +156,7 @@ export function useShellKeyBindings(options: UseShellKeyBindingsOptions): void {
         }
 
         const dispatch = (event: KeyboardEvent, phase: "keydown" | "keyup"): void => {
-            const {current} = optionsRef;
+            const { current } = optionsRef;
 
             if (current.enabled === false || event.isComposing || event.defaultPrevented) {
                 return;

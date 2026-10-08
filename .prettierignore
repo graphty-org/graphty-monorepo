@@ -9,6 +9,13 @@ storybook-static/
 # Generated files
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
 */api/*.api.md
+# graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
+# compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
+graphty-element/jsx.ts
+# Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
+# nothing formats them. Prettier would also rewrite the commit subjects they quote (A* -> A\*,
+# __proto__ -> **proto**), and a release pull request must never fail CI on its own changelogs.
+**/CHANGELOG.md
 *.min.js
 *.bundle.js
 
@@ -60,3 +67,12 @@ visual-review/trusted/vendor/
 # the frozen design record the framework cites.
 design/ui/framework/
 design/ui/object-first-ux/
+
+# Prettier's markdown output for these files is not a fixed point: it re-indents fenced code
+# inside lists (or flips escapes) on every pass, so `prettier --check` can never pass on them.
+/design/rendering/edge-styles-implementation-plan.md
+/design/ui/mockups/system/ARTBOARD-CHANGES-1.7.md
+/design/ui/mockups/system/ARTBOARD-CHANGES-1.8.md
+/design/webgpu/webgpu-acceleration-plan.md
+/graphty/docs/decisions/G12.md
+/webgpu-graph-algorithms/docs/research/draft-B.md

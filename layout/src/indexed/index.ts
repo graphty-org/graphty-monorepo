@@ -7,21 +7,21 @@
  * @module
  */
 
-export type { ArfOptions } from "./arf";
-export { arf } from "./arf";
-export { bfs, type BfsLayoutOptions } from "./bfs";
-export { bipartite, type BipartiteLayoutOptions } from "./bipartite";
-export { circular } from "./circular";
-export type { CommonLayoutOptions } from "./common";
-export type { IndexedForceAtlas2Options, IndexedFruchtermanReingoldOptions } from "./force";
-export { forceAtlas2, fruchtermanReingold } from "./force";
-export { grid, type GridLayoutOptions } from "./grid";
-export type { KamadaKawaiOptions } from "./kamada-kawai";
-export { kamadaKawai } from "./kamada-kawai";
-export { type LayerAlign, multipartite, type MultipartiteLayoutOptions } from "./multipartite";
-export { planar } from "./planar";
-export { radial, type RadialLayoutOptions } from "./radial";
-export { random } from "./random";
-export { shell, type ShellLayoutOptions } from "./shell";
-export { spectral } from "./spectral";
-export { spiral, type SpiralLayoutOptions } from "./spiral";
+export type { ArfOptions } from "./arf.js";
+export { arf } from "./arf.js";
+export { bfs, type BfsLayoutOptions } from "./bfs.js";
+export { bipartite, type BipartiteLayoutOptions } from "./bipartite.js";
+export { circular } from "./circular.js";
+export type { CommonLayoutOptions } from "./common.js";
+export type { IndexedForceAtlas2Options, IndexedFruchtermanReingoldOptions } from "./force.js";
+export { forceAtlas2, fruchtermanReingold } from "./force.js";
+export { grid, type GridLayoutOptions } from "./grid.js";
+export type { KamadaKawaiOptions } from "./kamada-kawai.js";
+export { kamadaKawai } from "./kamada-kawai.js";
+export { type LayerAlign, multipartite, type MultipartiteLayoutOptions } from "./multipartite.js";
+export { planar } from "./planar.js";
+export { radial, type RadialLayoutOptions } from "./radial.js";
+export { random } from "./random.js";
+export { shell, type ShellLayoutOptions } from "./shell.js";
+export { spectral } from "./spectral.js";
+export { spiral, type SpiralLayoutOptions } from "./spiral.js";

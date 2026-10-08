@@ -55,7 +55,11 @@ const immediate = { kind: "immediate" } as const;
 
 const setStyles: UndoableDefinition<SetStyles> = {
     op: "fake.styles",
-    undo: { kind: "undoable", label: (c) => `Styled ${c.name}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Styled ${c.name}`,
+    },
     moves: false,
     keys: () => ["styles"],
     lane: immediate,
@@ -67,7 +71,12 @@ const setStyles: UndoableDefinition<SetStyles> = {
 
 const setConfig: UndoableDefinition<SetConfig> = {
     op: "fake.config",
-    undo: { kind: "undoable", label: (c) => `Set ${c.key}`, coalesce: (c) => `config:${c.key}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Set ${c.key}`,
+        coalesce: (c) => `config:${c.key}`,
+    },
     moves: false,
     keys: (c) => [`config/${c.key}`],
     lane: immediate,
@@ -78,7 +87,11 @@ const setConfig: UndoableDefinition<SetConfig> = {
 
 const failAfterWrite: UndoableDefinition<FailAfterWrite> = {
     op: "fake.fail-after-write",
-    undo: { kind: "undoable", label: () => "Fails late" },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: () => "Fails late",
+    },
     moves: false,
     keys: (c) => [`config/${c.key}`],
     lane: immediate,
@@ -90,7 +103,11 @@ const failAfterWrite: UndoableDefinition<FailAfterWrite> = {
 
 const failBeforeWrite: UndoableDefinition<FailBeforeWrite> = {
     op: "fake.fail-before-write",
-    undo: { kind: "undoable", label: () => "Fails early" },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: () => "Fails early",
+    },
     moves: false,
     keys: () => [],
     lane: immediate,
@@ -184,7 +201,11 @@ interface AddEdge {
 /** A run: queued, and writes its entry only after its computation (the gate). */
 const run: UndoableDefinition<Run> = {
     op: "fake.run",
-    undo: { kind: "undoable", label: (c) => `Ran ${c.id}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Ran ${c.id}`,
+    },
     moves: false,
     keys: (c) => [`runs/${c.id}`],
     lane: { kind: "queued", category: "algorithm-run" },
@@ -202,7 +223,11 @@ const run: UndoableDefinition<Run> = {
  */
 const load: UndoableDefinition<Import> = {
     op: "fake.import",
-    undo: { kind: "undoable", label: (c) => `Loaded ${c.name}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Loaded ${c.name}`,
+    },
     moves: false,
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add", coalesce: (c) => (c.element === true ? "element-source" : null) },
@@ -217,7 +242,11 @@ const load: UndoableDefinition<Import> = {
 /** Adds one node: immediate, holds its id. `config/node/<id>` stands in for the row. */
 const addNode: UndoableDefinition<AddNode> = {
     op: "fake.add-node",
-    undo: { kind: "undoable", label: (c) => `Added ${c.id}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Added ${c.id}`,
+    },
     moves: false,
     keys: (c) => [`graph/${c.id}`],
     lane: { kind: "immediate" },
@@ -229,7 +258,11 @@ const addNode: UndoableDefinition<AddNode> = {
 /** Pins one node: immediate, needs the node's id and holds its pin. */
 const pin: UndoableDefinition<Pin> = {
     op: "fake.pin",
-    undo: { kind: "undoable", label: (c) => `Pinned ${c.id}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Pinned ${c.id}`,
+    },
     moves: false,
     keys: (c) => [`graph/${c.id}`, `pins/${c.id}`],
     lane: { kind: "immediate" },
@@ -241,7 +274,11 @@ const pin: UndoableDefinition<Pin> = {
 /** Adds one edge: queued, holds both endpoints. */
 const addEdge: UndoableDefinition<AddEdge> = {
     op: "fake.add-edge",
-    undo: { kind: "undoable", label: (c) => `Added ${c.source}-${c.target}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Added ${c.source}-${c.target}`,
+    },
     moves: false,
     keys: (c) => [`graph/${c.source}`, `graph/${c.target}`],
     lane: { kind: "queued", category: "data-add" },
@@ -253,16 +290,7 @@ const addEdge: UndoableDefinition<AddEdge> = {
 
 /** Every fake command. */
 export type FakeCommand =
-    | SetStyles
-    | SetConfig
-    | FailAfterWrite
-    | FailBeforeWrite
-    | Select
-    | Run
-    | Import
-    | AddNode
-    | Pin
-    | AddEdge;
+    SetStyles | SetConfig | FailAfterWrite | FailBeforeWrite | Select | Run | Import | AddNode | Pin | AddEdge;
 
 /** One slot on the fake queue. */
 interface FakeSlot {

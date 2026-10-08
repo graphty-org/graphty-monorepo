@@ -1262,11 +1262,11 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
             test: BFS_TEST,
         },
         {
-            // the in-degree is summed instead of the out-degree: caught on a DIRECTED fixture (the path built from
-            // vertex 0, whose in-degree 0 differs from its out-degree 1), where unvisitedDegreeSum misses the model
-            name: "in-degree-summed",
-            find: "select(0u, outDegree[v], unv)",
-            replace: "select(0u, inDegree[v], unv)",
+            // the unvisited vertices are counted instead of their in-degrees summed (issue #1358): unvisitedDegreeSum
+            // misses the model on rmat14, whose degrees vary
+            name: "vertices-counted-not-in-degrees",
+            find: "select(0u, inDegree[v], unv)",
+            replace: "select(0u, 1u, unv)",
             minFactor: 10,
             test: BFS_TEST,
         },
@@ -1276,20 +1276,37 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
     // because the direction is a cost choice, never a correctness one -- the counters are the only witness
     "bfs-next-degree": Object.freeze([
         {
-            // the sum never lands: m_f reads 0 at every boundary, so the default rule never enters bottom-up and
-            // unvisitedDegreeSum never falls between rebuilds (rmat14 at the production cadence switches twice)
+            // the sum never lands: m_f reads 0 at every boundary, so the default rule never enters bottom-up
+            // (rmat14 at the production cadence switches twice)
             name: "sum-dropped",
-            find: "if (lid.x == 0u) { atomicAdd(&counters[25], total); }",
-            replace: "if (lid.x == 0u) { atomicAdd(&counters[25], 0u); }",
+            find: "atomicAdd(&counters[25], total);",
+            replace: "atomicAdd(&counters[25], 0u);",
             minFactor: 10,
             test: BFS_TEST,
         },
         {
-            // the entries are counted instead of their degrees summed: m_f is |F| and unvisitedDegreeSum falls by the
-            // frontier's SIZE at every boundary after the first of a submit
+            // the entries are counted instead of their degrees summed: m_f is |F|, so the switch comes late or never
             name: "entries-counted-not-degrees",
-            find: "sum = sum + outDegree[frontier[i]];",
+            find: "sum = sum + outDegree[v];",
             replace: "sum = sum + 1u;",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // issue #1358: the claimed vertices' in-arcs never leave unvisitedDegreeSum, which stays at the rebuild's
+            // sum between rebuilds (the per-submit words of rmat14 and the directed path miss the model)
+            name: "in-sum-dropped",
+            find: "atomicSub(&counters[6], inTotal);",
+            replace: "atomicSub(&counters[6], 0u);",
+            minFactor: 10,
+            test: BFS_TEST,
+        },
+        {
+            // issue #1358: the out-degrees are subtracted instead of the in-degrees: on the directed path from vertex
+            // 0 the last vertex has an in-arc and no out-arc, so the word ends one above the model's
+            name: "out-degree-subtracted",
+            find: "inSum = inSum + inDegree[v];",
+            replace: "inSum = inSum + outDegree[v];",
             minFactor: 10,
             test: BFS_TEST,
         },
@@ -1942,8 +1959,16 @@ export const SABOTAGE: Readonly<Partial<Record<KernelId, readonly Mutation[]>>> 
         {
             // ties go to the HIGHEST key: plausible, reproducible and wrong -- the tie rows catch it
             name: "tie-to-highest",
-            find: "return sum > bestSum || (sum == bestSum && key < bestKey0);",
-            replace: "return sum > bestSum || (sum == bestSum && key > bestKey0 && bestKey0 != INVALID_INDEX);",
+            find: "(key == own || key < bestKey0)",
+            replace: "(key == own || (key > bestKey0 && bestKey0 != INVALID_INDEX))",
+            minFactor: 10,
+            test: GROUP_TEST,
+        },
+        {
+            // the row's own key no longer wins a tie: label propagation would leave a label that ties for the lead
+            name: "own-key-not-first",
+            find: "bestKey0 != own && (key == own || key < bestKey0)",
+            replace: "key < bestKey0",
             minFactor: 10,
             test: GROUP_TEST,
         },

@@ -31,7 +31,7 @@ import { INVALID_INDEX } from "@graphty/graph-format";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
-import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import type { NodeStyleConfig } from "../../src/config";
 import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
@@ -173,6 +173,27 @@ describe("a pin outlives the engine that was told about it", () => {
         // Held where the reader put it, on the plane a 2D engine draws: a Z carried into 2D is
         // hidden by the camera but not by the node's edges, which then run past it.
         assert.deepStrictEqual(harness.coordsOf(pinned), { ...held, z: 0 });
+    });
+
+    it("puts an unpinned node on the plane in 2D under a layout that echoes stored positions", async () => {
+        // `fixed` writes every placed row back unchanged, Z included, whatever dimension it is
+        // built for, so the switch itself has to flatten what the engine published -- the rule a
+        // pinned node already gets, for every node. Issue #1341.
+        harness = createHarness();
+        const lifted = harness.add("a");
+        harness.add("b");
+
+        const fixed = { id: "fixed", engine: "fixed", options: {}, dimension: "3d" } as const;
+        await layoutManagerInternals.apply(harness.layoutManager, fixed, { restoring: false });
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.setNodePosition(engine, lifted, { x: 1, y: 2, z: 5 });
+        assert.deepStrictEqual(harness.coordsOf(lifted), { x: 1, y: 2, z: 5 }, "placed off the plane in 3D");
+
+        await layoutManagerInternals.apply(harness.layoutManager, { ...fixed, dimension: "2d" }, { restoring: false });
+
+        assert.isFalse(lifted.isPinned());
+        assert.deepStrictEqual(harness.coordsOf(lifted), { x: 1, y: 2, z: 0 }, "X and Y kept, Z on the plane");
     });
 
     it("keeps the pin when the layout slice names a new layout", async () => {
@@ -319,9 +340,15 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("a");
         await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
 
-        const orphan = new Node(harness.context, "orphan", NODE_PAINT, { id: "orphan" } as unknown as AdHocData, {
-            pinOnDrag: true,
-        });
+        const orphan = new Node(
+            harness.context,
+            "orphan",
+            NODE_PAINT,
+            { id: "orphan" },
+            {
+                pinOnDrag: true,
+            },
+        );
 
         orphan.pin();
         assert.isFalse(orphan.isPinned(), "a node with no row in the graph cannot be pinned");

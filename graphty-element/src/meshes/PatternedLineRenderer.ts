@@ -5,7 +5,7 @@
  * - Static utility class for creating pattern geometries
  * - ALL geometries MUST use XZ plane (Y=0) for proper billboarding
  * - Uses FilledArrowRenderer shader for tangent billboarding
- * - Batched camera updates for performance
+ * - Every element is a slot in a batch shared by every element of its shape (issue #444)
  * @remarks
  * This implements Phases 1-4 of design/rendering/mesh-based-patterned-lines.md. That
  * document is a DESIGN NOTE, not a generator input: nothing in tools/ or
@@ -20,8 +20,9 @@
  * - Phase 4: Connected patterns (sinewave, zigzag) with seamless connection
  */
 
-import { Mesh, Scene, ShaderMaterial, Vector3, VertexData } from "@babylonjs/core";
+import { Mesh, type Scene, type Vector3, VertexData } from "@babylonjs/core";
 
+import type { ArrowCap } from "./ArrowCapBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import { MaterialHelper } from "./MaterialHelper";
 import { PatternedLineMesh } from "./PatternedLineMesh";
@@ -113,19 +114,6 @@ export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class PatternedLineRenderer {
     /**
-     * Stop a pattern material receiving per-frame camera updates.
-     *
-     * Every pattern element owns its own `ShaderMaterial`, built by
-     * `FilledArrowRenderer.applyShader`, which registers it in that renderer's per-scene camera
-     * walk (see `PerSceneMaterials`). Disposing the material ends the registration on its own;
-     * `PatternedLineMesh` calls this as well, eagerly, before it disposes one.
-     * @param material - The ShaderMaterial to stop tracking; passing an untracked material is a no-op
-     */
-    static releaseMaterial(material: ShaderMaterial): void {
-        FilledArrowRenderer.releaseMaterial(material);
-    }
-
-    /**
      * Create a PatternedLineMesh instance
      * Note: start/end are already adjusted by Edge.transformArrowCap() for node surfaces and arrows
      * @param pattern - The pattern type to render
@@ -192,101 +180,92 @@ export class PatternedLineRenderer {
     }
 
     /**
-     * Create a single pattern mesh with appropriate geometry and shader
-     * Phase 3: Now accepts shapeType parameter for alternating patterns and is2DMode flag
+     * Draw one pattern element as a slot in the batch every element of its shape shares.
+     *
+     * A SLOT, NOT A MESH (issue #444). Every element -- each dash of a dashed line, each segment
+     * of a zigzag -- used to be a `Mesh` with a material of its own, so a single dashed edge was
+     * tens of scene objects. It is now a slot in an `ArrowCapBatch`, the batch arrow caps are
+     * drawn from, because an element is drawn exactly the way a cap is: in 3D by the same
+     * billboard shader, with its direction, size and colour per instance; in 2D by a
+     * StandardMaterial that holds the colour, turned into the XY plane and along its line by its slot.
+     *
+     * WHAT A BATCH IS KEYED BY is whatever the batch's mesh or material holds rather than a slot:
+     * the shape, the opacity, in 2D the colour, and for a connected pattern the width, because
+     * its segment geometry is built to it rather than scaled.
      * @param pattern - The pattern type to render
      * @param width - Line width
      * @param color - Line color
      * @param opacity - Line opacity (0-1)
      * @param scene - Babylon.js scene
      * @param shapeType - Optional specific shape type for alternating patterns
-     * @param segmentLength - Optional segment length for connected patterns (for exact fit per edge)
-     * @param is2DMode - Optional flag to apply 2D materials instead of 3D shader (default false)
-     * @returns The created pattern mesh
+     * @param is2DMode - Draw flat in the XY plane with a StandardMaterial rather than billboarded
+     * @returns The element; place it with `ArrowCap.place`
      */
-    static createPatternMesh(
+    static createPatternElement(
         pattern: PatternType,
         width: number,
         color: string,
         opacity: number,
         scene: Scene,
         shapeType?: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment",
-        segmentLength?: number,
         is2DMode?: boolean,
-    ): Mesh {
+    ): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[pattern];
+        const shape = shapeType ?? this.getDefaultShapeType(pattern);
 
-        // For connected patterns (zigzag, sinewave), create pre-scaled geometry
-        // Segment length can be adjusted per edge for exact fit
-        if (patternDef.connected) {
-            const geometry = this.createConnectedSegmentGeometry(pattern, width, segmentLength);
-            const meshName = `pattern-${pattern}`;
-            const mesh = new Mesh(meshName, scene);
-            geometry.applyToMesh(mesh);
-
-            // Apply material based on mode
-            if (is2DMode) {
-                MaterialHelper.apply2DMaterial(mesh, color, opacity, scene);
-
-                // Compute normals from geometry for proper lighting and backface culling
-                // This is more efficient than computing at creation time since we only
-                // compute once for 2D mode rather than for all modes
-                const positions = mesh.getVerticesData("position");
-                const indices = mesh.getIndices();
-                if (positions && indices && !mesh.getVerticesData("normal")) {
-                    const normals: number[] = [];
-                    VertexData.ComputeNormals(positions, indices, normals);
-                    mesh.setVerticesData("normal", normals);
-                }
-            } else {
-                // Use shader size=1.0 since geometry is already at correct scale
-                FilledArrowRenderer.applyShader(mesh, { size: 1.0, color, opacity }, scene);
+        // A connected pattern's geometry is pre-scaled to the width (its amplitude and thickness
+        // follow the width, its length does not), so it is drawn at scale 1 and the width is part
+        // of its key. A discrete shape is one normalized geometry drawn at a per-slot scale.
+        const scale = patternDef.connected ? 1 : width / this.getGeometryDiameter(pattern, shapeType);
+        const builtWidth = patternDef.connected ? String(width) : "";
+        const geometry = (): VertexData => {
+            if (patternDef.connected) {
+                return this.createConnectedSegmentGeometry(pattern, width);
             }
 
-            return mesh;
-        }
-
-        // For discrete patterns, use standard scaling approach
-        // Get geometry for pattern type
-        // Phase 3: Use shapeType if provided, otherwise derive from pattern
-        const geometry = shapeType ? this.getGeometryForShapeType(shapeType) : this.getGeometryForPattern(pattern);
-
-        // Create mesh from geometry
+            return shapeType ? this.getGeometryForShapeType(shapeType) : this.getGeometryForPattern(pattern);
+        };
         const meshName = shapeType ? `pattern-${pattern}-${shapeType}` : `pattern-${pattern}`;
-        const mesh = new Mesh(meshName, scene);
-        geometry.applyToMesh(mesh);
 
-        // Apply material based on mode
         if (is2DMode) {
-            // 2D mode: Use StandardMaterial with flat shading
-            MaterialHelper.apply2DMaterial(mesh, color, opacity, scene);
+            return FilledArrowRenderer.capOf(
+                scene,
+                `2d|pattern-${pattern}|${shape}|${builtWidth}|${color}|${String(opacity)}`,
+                () => {
+                    const mesh = new Mesh(meshName, scene);
+                    geometry().applyToMesh(mesh);
+                    MaterialHelper.apply2DMaterial(mesh, color, opacity, scene);
 
-            // Scale mesh to desired size (same calculation as shader does in 3D)
-            const geometryDiameter = this.getGeometryDiameter(pattern, shapeType);
-            const scale = width / geometryDiameter;
-            mesh.scaling.set(scale, scale, scale);
+                    const positions = mesh.getVerticesData("position");
+                    const indices = mesh.getIndices();
+                    if (positions && indices) {
+                        const normals: number[] = [];
+                        VertexData.ComputeNormals(positions, indices, normals);
+                        mesh.setVerticesData("normal", normals);
+                    }
 
-            // Compute normals from geometry for proper lighting and backface culling
-            // This is more efficient than computing at creation time since we only
-            // compute once for 2D mode rather than for all modes
-            const positions = mesh.getVerticesData("position");
-            const indices = mesh.getIndices();
-            if (positions && indices && !mesh.getVerticesData("normal")) {
-                const normals: number[] = [];
-                VertexData.ComputeNormals(positions, indices, normals);
-                mesh.setVerticesData("normal", normals);
-            }
-        } else {
-            // 3D mode: Apply FilledArrowRenderer shader
-            // Calculate shader size to achieve desired visual width (perpendicular to line)
-            // For geometries with perpendicular diameter D, shader size = desiredWidth / D
-            const geometryDiameter = this.getGeometryDiameter(pattern, shapeType);
-            const size = width / geometryDiameter;
-
-            FilledArrowRenderer.applyShader(mesh, { size, color, opacity }, scene);
+                    return mesh;
+                },
+                { scale, billboard: false },
+            );
         }
 
-        return mesh;
+        const element = FilledArrowRenderer.capOf(
+            scene,
+            `3d|pattern-${pattern}|${shape}|${builtWidth}|${String(opacity)}`,
+            () => {
+                const mesh = new Mesh(meshName, scene);
+                geometry().applyToMesh(mesh);
+                // The shader sets the batch's visibility to the opacity, which is what puts a
+                // translucent line in the alpha-blended queue, as it does an arrow cap (issue #619).
+                return FilledArrowRenderer.applyInstancedShader(mesh, opacity, scene);
+            },
+            { scale, billboard: true },
+        );
+
+        element.setAppearance(scale, color);
+
+        return element;
     }
 
     /**
@@ -335,7 +314,7 @@ export class PatternedLineRenderer {
                 return this.createDiamondGeometry();
             case "dash-dot":
                 // Phase 3: For dash-dot, default to box (first shape)
-                // Actual alternation is handled via shapeType parameter in createPatternMesh
+                // Actual alternation is handled via the shapeType parameter of createPatternElement
                 return this.createBoxGeometry(3.0);
             case "sinewave":
                 return this.createSinewaveSegmentGeometry();

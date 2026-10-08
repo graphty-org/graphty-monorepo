@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { NAMED_GRAPH_NAMES, namedGraph,type NamedGraphName } from "../../src/generators/named.js";
+import { NAMED_GRAPH_NAMES, namedGraph, type NamedGraphName } from "../../src/generators/named.js";
 import { componentCount, degrees, expectSimple, graphHash } from "../helpers/graph.js";
 
 /** Invariants computed with networkx 3.1: [nodes, edges, triangles, min degree, max degree]. */

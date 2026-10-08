@@ -35,7 +35,7 @@ describe("smartOverflow", () => {
                 _badgeType: "count",
                 smartOverflow: true,
                 maxNumber: 99,
-            } as RichTextLabelOptions),
+            }),
             "99+",
         );
     });

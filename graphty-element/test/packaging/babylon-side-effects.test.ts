@@ -35,6 +35,11 @@ const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AUGMENTATIONS = [
     { module: "@babylonjs/core/Meshes/instancedMesh", members: ["createInstance"], receiver: /./ },
     {
+        module: "@babylonjs/core/Meshes/thinInstanceMesh",
+        members: ["thinInstanceSetBuffer", "thinInstanceBufferUpdated", "thinInstanceSetMatrixAt"],
+        receiver: /./,
+    },
+    {
         module: "@babylonjs/core/Culling/ray",
         members: ["pick", "pickWithRay", "multiPick", "multiPickWithRay", "createPickingRay", "createPickingRayToRef"],
         receiver: /scene$/i,

@@ -21,7 +21,7 @@ import {
     Tabs,
     Tooltip,
 } from "@mantine/core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
 import { AlignmentMatrix } from "../../src/components/selection/AlignmentMatrix";
@@ -686,27 +686,31 @@ describe.skipIf(!available)("AlignmentMatrix (5.7)", () => {
             </Tooltip.Group>,
         );
         const tips = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>(".mantine-Tooltip-tooltip")];
-        const until = async (ok: () => boolean, timeout: number): Promise<void> => {
-            const start = performance.now();
-            while (!ok()) {
-                if (performance.now() - start > timeout) {
+        // vi.waitFor polls on the real clock; the tooltip delays run on a fake setTimeout, so the
+        // hand-off is checked by the delay Mantine asks for, not by how long a busy machine took.
+        const until = (ok: () => boolean): Promise<void> =>
+            vi.waitFor(() => {
+                if (!ok()) {
                     throw new Error("timed out");
                 }
-                await new Promise((r) => setTimeout(r, 10));
-            }
-        };
-        const center = part(container, 'input[value="middle-center"]');
-        await drive(center, "focus");
-        await until(() => tips().length === 1, 2000);
-        expect(tips()[0].textContent).toBe("Align center");
-        expect(document.activeElement).toBe(center);
-        expect(center.getAttribute("aria-describedby")).toBe(tips()[0].id);
+            });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            const center = part(container, 'input[value="middle-center"]');
+            await drive(center, "focus");
+            await until(() => tips().length === 1);
+            expect(tips()[0].textContent).toBe("Align center");
+            expect(document.activeElement).toBe(center);
+            expect(center.getAttribute("aria-describedby")).toBe(tips()[0].id);
 
-        const t0 = performance.now();
-        await userEvent.hover(part(container, 'input[value="top-left"]'));
-        await until(() => tips().length === 1 && tips()[0].textContent === "Align top left", 1000);
-        expect(performance.now() - t0).toBeLessThan(250);
-        expect(document.activeElement).toBe(center);
+            // instant: the group's 1 ms warm delay, not the 1000 ms cold one
+            await userEvent.hover(part(container, 'input[value="top-left"]'));
+            vi.advanceTimersByTime(1);
+            await until(() => tips().length === 1 && tips()[0].textContent === "Align top left");
+            expect(document.activeElement).toBe(center);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
 

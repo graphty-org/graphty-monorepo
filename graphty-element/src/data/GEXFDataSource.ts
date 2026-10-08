@@ -56,11 +56,7 @@ function countEdgeDirections(snapshot: GraphSnapshot): { directed: number; undir
     const mutual = snapshot.edges.byRole("mutual");
     const pair = snapshot.edges.byRole("pair");
     const counts = { directed: 0, undirected: 0 };
-    if (directed === null) {
-        return counts;
-    }
-
-    for (let e = 0; e < snapshot.edgeCount; e++) {
+    for (let e = 0; directed !== null && e < snapshot.edgeCount; e++) {
         if (pair?.isSet(e) && (pair.value(e) as number) < e) {
             continue;
         }

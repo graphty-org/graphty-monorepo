@@ -75,7 +75,7 @@ describe.each(HOSTED_DATASETS.map((meta) => [meta.name, meta] as const))("hosted
  */
 async function loadLocal(name: string): Promise<GraphSnapshot> {
     const bytes = readFileSync(path.join(publicData, `${name}.gsnp.gz`));
-    return fetchDataset(name, { fetch: (() => Promise.resolve(new Response(bytes))) as typeof fetch });
+    return fetchDataset(name, { fetch: () => Promise.resolve(new Response(bytes)) });
 }
 
 describe("hosted file contents", () => {

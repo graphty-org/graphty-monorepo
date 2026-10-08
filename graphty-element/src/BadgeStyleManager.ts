@@ -155,8 +155,8 @@ export const BadgeStyleManager = {
     },
 
     applySmartOverflow(options: RichTextLabelOptions, userOptions: RichTextLabelOptions): void {
-        if (options.smartOverflow && !isNaN(Number(userOptions.text))) {
-            const num = parseInt(userOptions.text ?? "0");
+        if (options.smartOverflow && !Number.isNaN(Number(userOptions.text))) {
+            const num = Number.parseInt(userOptions.text ?? "0");
             const maxNumber = options.maxNumber ?? 999;
             const overflowSuffix = options.overflowSuffix ?? "+";
 

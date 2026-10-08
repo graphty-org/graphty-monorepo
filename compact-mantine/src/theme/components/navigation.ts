@@ -49,6 +49,14 @@ const TAB_DEFAULT_PROPS = {
  * Sizes travel through `vars` resolvers that read `props.size` (see ../styles/size-scale.ts);
  * colors, states and focus rings through the `cm-*` classNames and ../css/selection.css.ts.
  */
+/** The accessible names of Pagination's chevron controls. */
+const PAGINATION_CONTROL_LABELS = {
+    first: "First page",
+    previous: "Previous page",
+    next: "Next page",
+    last: "Last page",
+} as const;
+
 export const navigationComponentExtensions = {
     Anchor: Anchor.extend({
         defaultProps: {
@@ -75,6 +83,10 @@ export const navigationComponentExtensions = {
     Pagination: Pagination.extend({
         defaultProps: {
             size: "sm",
+            // Mantine draws the previous, next, first and last controls as bare chevrons with
+            // no text and no label, so each is a nameless button (axe: button-name). A caller's
+            // own getControlProps replaces these.
+            getControlProps: (control) => ({ "aria-label": PAGINATION_CONTROL_LABELS[control] }),
         },
         vars: (_theme, props) => ({
             root: compactVarsForSize(compactPaginationScale, props?.size),

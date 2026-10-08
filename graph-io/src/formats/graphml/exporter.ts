@@ -13,7 +13,7 @@
  * temporal roles, extension tables) plus the GraphML-specific ones (mutual edges written as
  * undirected, json columns without a yfiles origin written as JSON text, multi-parent columns,
  * containment order, ids that change type under the canonical rule, edge ids that read back as
- * strings, roles GraphML cannot express, yfiles values that are not serialisable trees).
+ * strings, roles GraphML cannot express, yfiles values that are not serializable trees).
  */
 
 import { type Column, GraphFormatError, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
@@ -33,6 +33,7 @@ import {
 import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
@@ -58,14 +59,21 @@ import {
 import { treeProblem, writeXmlTree } from "./tree.js";
 import { isGraphicsColumn, staleGraphicsRows } from "./yfiles.js";
 
-/** The format-specific options of the GraphML exporter. */
-export interface GraphmlExportOptions {
-    /** Indent nested elements (default true); false writes one element per line without indentation. */
+/**
+ * The format-specific options of the GraphML exporter.
+ * @category Built-in formats
+ */
+export interface GraphmlExportOptions extends CommonExportOptions {
+    /**
+     * Indent nested elements; false writes one element per line without indentation.
+     * @defaultValue true
+     */
     pretty?: boolean | undefined;
     /**
-     * The top-level `edgedefault`. By default the one the importer recorded in
-     * `meta.extra.graphml` (so a mixed file re-imports with the same edge layout), else the
-     * snapshot's direction, with the majority direction for a mixed snapshot.
+     * The `edgedefault` of the graph element. The default is the one a GraphML import read, so a
+     * file with both directions reads back with the same edges marked, else the graph's direction
+     * (for a graph with both, the direction most edges have).
+     * @defaultValue as read
      */
     edgedefault?: "directed" | "undirected" | undefined;
 }
@@ -326,7 +334,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, for
     if (idTypeChanges > 0) {
         note(
             GRAPHML_LOSS.ID_TEXT_TYPE,
-            `${idTypeChanges} node id(s) change type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers)`,
+            `${idTypeChanges} node id${plural(idTypeChanges)} ${agree(idTypeChanges, "changes", "change")} type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers)`,
             null,
             idTypeChanges,
         );
@@ -344,7 +352,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, for
     if (folding.mutualCount > 0) {
         note(
             GRAPHML_LOSS.MUTUAL_AS_UNDIRECTED,
-            `${folding.mutualCount} mutual pair(s) are written as undirected edges; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as undirected edges; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -363,7 +371,7 @@ function planExport(snapshot: GraphSnapshot, options: ResolvedExportOptions, for
     if (hierarchy.unreachable > 0) {
         note(
             GRAPHML_LOSS.PARENT_CYCLE,
-            `${hierarchy.unreachable} node(s) whose parent chain never reaches a root are written at the top level`,
+            `${hierarchy.unreachable} node${plural(hierarchy.unreachable)} whose parent chain never reaches a root ${agree(hierarchy.unreachable, "is", "are")} written at the top level`,
             hierarchy.parent?.meta.name ?? null,
             hierarchy.unreachable,
         );
@@ -520,7 +528,7 @@ function planWeight(
         if (plan.attrName === attrName) {
             note(
                 LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${plan.column.meta.name}" is written as a key titled "${attrName}", which the importer reads as THE weight (weightFrom); it reads back as the weight, not as a column`,
+                `edge column "${plan.column.meta.name}" is written as a key titled "${attrName}", which the importer reads as the edge weight (weightFrom); it reads back as the weight, not as a column`,
                 plan.column.meta.name,
                 plan.column.length - plan.column.nullCount,
             );
@@ -567,11 +575,16 @@ function planEdgeIds(snapshot: GraphSnapshot, column: Column, options: ResolvedE
         return;
     }
     if (options.sanitizeIds === "mangle") {
-        note(LOSS.ID_MANGLED, `${bad} edge id(s) outside the nmtoken charset are rewritten`, column.meta.name, bad);
+        note(
+            LOSS.ID_MANGLED,
+            `${bad} edge id${plural(bad)} outside the nmtoken charset ${agree(bad, "is", "are")} rewritten`,
+            column.meta.name,
+            bad,
+        );
     } else {
         note(
             LOSS.ID_CHARSET,
-            `${bad} edge id(s) outside the nmtoken charset; export() will throw unless sanitizeIds is "mangle"`,
+            `${bad} edge id${plural(bad)} outside the nmtoken charset; the save fails unless sanitizeIds is "mangle"`,
             column.meta.name,
             bad,
         );
@@ -661,7 +674,7 @@ function planTable(table: Iterable<Column>, domain: Domain, notes: LossNote[], n
             if (stale > 0) {
                 note(
                     GRAPHML_LOSS.YFILES_GRAPHICS_STALE,
-                    `${stale} value(s) of ${domain} column "${name}" differ from the yFiles tree it was read from; only the tree is written, so they are lost`,
+                    `${stale} value${plural(stale)} of ${domain} column "${name}" differ from the yFiles tree it was read from; only the tree is written, so they are lost`,
                     name,
                     stale,
                 );
@@ -707,7 +720,7 @@ function planTable(table: Iterable<Column>, domain: Domain, notes: LossNote[], n
             if (bad > 0) {
                 note(
                     GRAPHML_LOSS.YFILES_TREE,
-                    `${bad} value(s) of yfiles column "${name}" are not XML trees; export() will throw E_COLUMN_TYPE`,
+                    `${bad} value${plural(bad)} of yfiles column "${name}" ${agree(bad, "is", "are")} not XML trees; the save fails with E_COLUMN_TYPE`,
                     name,
                     bad,
                 );
@@ -819,6 +832,10 @@ function attrTypeFor(column: Column): string {
         case "u32":
             return columnMax(column) <= I32_MAX ? "int" : "long";
         case "string":
+            if (declared !== null && declared.trim().toLowerCase() === "long" && columnIntegerText(column)) {
+                // a long column read with long: "string" keeps its declared type, for other readers
+                return "long";
+            }
             if (declared !== null && TYPE_DTYPES[declared.trim().toLowerCase()] === undefined) {
                 // an unknown declared type kept as text (W_UNKNOWN_ATTR_TYPE on import) is restored as declared
                 return declared;
@@ -833,6 +850,21 @@ function attrTypeFor(column: Column): string {
             throw new GraphFormatError("E_UNSUPPORTED", `unknown dtype ${String(dtype)}`, { dtype });
         }
     }
+}
+
+/**
+ * Whether every set value of a string column is integer text, as a long column read with
+ * `long: "string"` holds.
+ * @param column - a string column
+ * @returns true when all set values are integer text
+ */
+function columnIntegerText(column: Column): boolean {
+    for (let r = 0; r < column.length; r++) {
+        if (column.isSet(r) && !/^[+-]?\d+$/.test(String(column.value(r)))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -888,7 +920,7 @@ function weightsIntegral(snapshot: GraphSnapshot, weights: ExplicitWeights): boo
 }
 
 /**
- * How many values of a yfiles column are not serialisable trees.
+ * How many values of a yfiles column are not serializable trees.
  * @param column - a json column
  * @returns the count
  */
@@ -1199,7 +1231,7 @@ function sanitizeEdgeIds(column: Column | null, mode: "error" | "mangle", edgeCo
     if (bad.length > 0 && mode === "error") {
         throw new GraphFormatError(
             "E_INVALID_ID",
-            `${bad.length} edge id(s) cannot be written as nmtoken (first: ${JSON.stringify(edgeIdText(column, bad[0]))} at edge ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
+            `${bad.length} edge id${plural(bad.length)} ${agree(bad.length, "is", "are")} not XML name tokens (first: ${JSON.stringify(edgeIdText(column, bad[0]))} at edge ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
             { reason: "charset", charset: "nmtoken", count: bad.length, edge: bad[0] },
         );
     }
@@ -1439,10 +1471,12 @@ function* writeNodeSubtree(
 }
 
 /**
- * The GraphML exporter (design section 8.5).
+ * The GraphML exporter.
+ * @category Built-in formats
  */
 export const graphmlExporter: GraphExporter<GraphmlExportOptions> = Object.freeze({
     format: FORMAT,
+    options: Object.freeze(["edgedefault", "pretty"]),
     capabilities: CAPABILITIES,
     /**
      * Pre-flight: every loss the export would incur.

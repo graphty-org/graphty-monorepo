@@ -13,7 +13,10 @@ import { type U32 } from "@graphty/graph-format";
  * @param flags - one word per entry, 0 or 1 (any non-zero keeps)
  * @returns `out` (exactly `count` words) and `count`
  */
-export function compactOracle(queue: ArrayLike<number>, flags: ArrayLike<number>): { readonly out: U32; readonly count: number } {
+export function compactOracle(
+    queue: ArrayLike<number>,
+    flags: ArrayLike<number>,
+): { readonly out: U32; readonly count: number } {
     if (flags.length !== queue.length) {
         throw new Error(`compactOracle: ${flags.length} flags for ${queue.length} entries`);
     }

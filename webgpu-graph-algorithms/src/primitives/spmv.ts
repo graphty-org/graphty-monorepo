@@ -79,6 +79,7 @@ class SpmvPullPlannerImpl implements SpmvPullPlanner {
     private readonly tiers: readonly TierDispatch[];
     private readonly perm: Binding | null;
     private readonly weights: Binding | null | undefined;
+    private readonly hasWeights: boolean;
     private dispatches = 0;
 
     /**
@@ -87,17 +88,20 @@ class SpmvPullPlannerImpl implements SpmvPullPlanner {
      * @param tiers - the compiled tiers in dispatch order (TIER 2, 1, 0; only the non-empty ones)
      * @param perm - the reverseDegreeOrder permutation binding (null: USE_PERM false, rows are node indices)
      * @param weights - the weights option the pipelines' HAS_WEIGHTS was derived from; record() binds the same way
+     * @param hasWeights - the HAS_WEIGHTS the pipelines were compiled with
      */
     constructor(
         scope: ReduceScope,
         tiers: readonly TierDispatch[],
         perm: Binding | null,
         weights: Binding | null | undefined,
+        hasWeights: boolean,
     ) {
         this.scope = scope;
         this.tiers = tiers;
         this.perm = perm;
         this.weights = weights;
+        this.hasWeights = hasWeights;
     }
 
     /**
@@ -125,6 +129,18 @@ class SpmvPullPlannerImpl implements SpmvPullPlanner {
         resources: SpmvResources,
         coefficients: SpmvCoefficients,
     ): void {
+        const { HAS_WEIGHTS } = graphOverrides(rev, this.perm, this.weights);
+        if (HAS_WEIGHTS !== this.hasWeights) {
+            throw new WebGpuGraphError(
+                "E_INVALID_ARGUMENT",
+                "spmvPull: the core's weights pattern differs from the one prepared",
+                {
+                    argument: "rev",
+                    value: HAS_WEIGHTS,
+                    expected: this.hasWeights,
+                },
+            );
+        }
         const n = rowCountOf(rev, "spmvPull");
         const wg = this.scope.workgroupSize;
         this.dispatches = 0;
@@ -211,5 +227,6 @@ export async function prepareSpmvPull(
         });
         compiled.push({ ...range, kernel: await scope.pipelines.kernel(spec) });
     }
-    return new SpmvPullPlannerImpl(scope, compiled, perm, options.weights);
+    const { HAS_WEIGHTS } = graphOverrides(rev, perm, options.weights);
+    return new SpmvPullPlannerImpl(scope, compiled, perm, options.weights, HAS_WEIGHTS);
 }

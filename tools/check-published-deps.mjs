@@ -7,7 +7,9 @@
  * reads the bare import specifiers of every shipped .js/.cjs/.mjs and .d.ts file, and fails on:
  *
  *   1. an import that is neither a dependency nor a peer dependency
- *      (node builtins and the package's own name are exempt);
+ *      (node builtins and the package's own name are exempt). In a .d.ts, an import of "x" is
+ *      also satisfied by a declared "@types/x" (or "@types/scope__x" for "@scope/x"), which is
+ *      where the types of a package such as `react` come from;
  *   2. a dependency or peer dependency that no shipped file imports. A `/// <reference types>`
  *      directive counts as an import, which is how a global-types package such as
  *      `@webgpu/types` earns its place;
@@ -123,8 +125,10 @@ function check(dir, packed, workspaceVersions) {
                 const spec = m[1];
                 if (spec.startsWith(".") || spec.startsWith("/") || /^[a-z]+:\/\//.test(spec)) continue;
                 if (builtins.has(spec) || builtins.has(packageName(spec)) || spec.startsWith("node:")) continue;
-                const name = packageName(spec);
+                let name = packageName(spec);
                 if (!VALID_NAME.test(name) || name === manifest.name) continue;
+                const types = `@types/${name.replace(/^@/, "").replace("/", "__")}`;
+                if (/\.d\.[cm]?ts$/.test(file) && !declared.has(name) && declared.has(types)) name = types;
                 if (!imported.has(name)) imported.set(name, file);
             }
         }

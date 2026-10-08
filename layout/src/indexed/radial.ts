@@ -1,9 +1,9 @@
 import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
-import { shellRows } from "./shell";
+import type { LayoutResult } from "../positions.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { type CommonLayoutOptions, planar, resolve, result } from "./common.js";
+import { shellRows } from "./shell.js";
 
 /** Options of the index-based radial layout. */
 export interface RadialLayoutOptions extends CommonLayoutOptions {
@@ -66,7 +66,7 @@ function radialRings(g: GraphSnapshot, root: number | null): number[][] {
     const visited = new Uint8Array(n);
     visited[root] = 1;
     const rings: number[][] = [[root]];
-    for (let ring = rings[0]; ring.length > 0; ) {
+    for (let ring = rings[0]; ring.length > 0;) {
         const next: number[] = [];
         for (const u of ring) {
             for (const v of neighboursByEdge(g, u)) {

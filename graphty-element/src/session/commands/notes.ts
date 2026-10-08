@@ -116,7 +116,7 @@ const noteAdd: UndoableDefinition<NoteAddCommand> = {
     lane: { kind: "immediate" },
     byReference: BY_REFERENCE,
     keys: () => ["notes"],
-    undo: { kind: "undoable", label: () => "Added note" },
+    undo: { kind: "undoable", label: () => "Added note", fact: () => ({ code: "note.add", params: {} }) },
     execute: (command, ctx) => {
         const now = Date.now();
         const id = mintNoteId(now);
@@ -134,7 +134,7 @@ const noteUpdate: UndoableDefinition<NoteUpdateCommand> = {
     lane: { kind: "immediate" },
     byReference: BY_REFERENCE,
     keys: (command) => [`notes/${command.id}`],
-    undo: { kind: "undoable", label: () => "Edited note" },
+    undo: { kind: "undoable", label: () => "Edited note", fact: () => ({ code: "note.update", params: {} }) },
     execute: (command, ctx) => {
         const entry = heldNote(ctx, command.id);
         const note = patchNote(entry.note, command.patch, noteTime(), contextOf(ctx));
@@ -154,7 +154,7 @@ const noteRemove: UndoableDefinition<NoteRemoveCommand> = {
     moves: false,
     lane: { kind: "immediate" },
     keys: (command) => [`notes/${command.id}`],
-    undo: { kind: "undoable", label: () => "Removed note" },
+    undo: { kind: "undoable", label: () => "Removed note", fact: () => ({ code: "note.remove", params: {} }) },
     execute: (command, ctx) => {
         heldNote(ctx, command.id);
         ctx.draft.notes.delete(command.id);
@@ -194,6 +194,7 @@ const noteMerge: UndoableDefinition<NoteMergeCommand> = {
             const name = sourceName(command);
             return name === undefined ? "Added notes" : `Added notes from ${name}`;
         },
+        fact: (command) => ({ code: "note.merge", params: { source: sourceName(command) ?? null } }),
     },
     execute: (command, ctx) => {
         const { onConflict = "keep-both", name } = command.options ?? {};

@@ -99,7 +99,7 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                     // Only the coded facts, one per column they name: the element writes no words.
                     setPreview({
                         lines,
-                        losses: result.losses.flatMap(({ code, params }) => {
+                        losses: result.losses.flatMap(({ code, params }): LossFacts[] => {
                             const count = typeof params.count === "number" ? params.count : null;
                             const columns = Array.isArray(params.columns) ? params.columns.map(String) : [];
                             return columns.length === 0

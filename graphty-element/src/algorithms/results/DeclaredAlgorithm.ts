@@ -237,6 +237,8 @@ export abstract class DeclaredAlgorithm<
                 measured: { nodes: input.nodeCount, edges: input.edgeCount },
                 graph: output.graph,
                 nodes: output.nodes,
+                // Read through the snapshot's own id index, rather than a copy, when the nodes match it.
+                snapshotIds: input.graph.ids,
                 edges: output.edges,
                 // An output written without `facts` (an extension's own literal) has none.
                 caveats: { facts: [], ...output.caveats, ...(weight === undefined ? {} : { weight }) },

@@ -1,3 +1,13 @@
+## 3.3.9 (2026-10-08)
+
+### 🩹 Fixes
+
+- **algorithms:** queue each node at most once in PriorityDeltaPageRank ([a7ae60535](https://github.com/graphty-org/graphty-monorepo/commit/a7ae60535))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.3.8 (2026-10-07)
 
 ### 🩹 Fixes

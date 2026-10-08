@@ -1,9 +1,15 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 import { ciJunitReporter } from "../vitest.ci-junit.mjs";
 import { aliases } from "./vite.aliases";
+
+const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** The tests that mount the real graphty-element, unmocked. */
 const REAL_ELEMENT_TESTS = "src/**/*.real-element.test.tsx";
@@ -66,6 +72,21 @@ export default defineConfig({
                     sequence: { groupOrder: 1 },
                     browser: chromium(),
                     setupFiles: "./src/test/setup.ts",
+                },
+            },
+            {
+                // Every story's play function, run as a test: a story that shows an interaction
+                // drives it, and a play that throws or asserts wrongly fails here rather than
+                // only inside the visual capture. Its own shard (tools/ci-test-matrix.mjs).
+                extends: true,
+                plugins: [storybookTest({ configDir: path.join(dirname, ".storybook") })],
+                test: {
+                    name: "storybook",
+                    // The size the visual capture draws every story at (visual-review captures a
+                    // 1200 x 900 viewport): the shell lays out differently in a narrow frame, and
+                    // the plays are written against the layout the reader and the capture see.
+                    browser: { ...chromium(), viewport: { width: 1200, height: 900 } },
+                    setupFiles: [".storybook/vitest.setup.ts"],
                 },
             },
             {

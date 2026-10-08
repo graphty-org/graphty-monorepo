@@ -57,7 +57,10 @@ async function loadRings(canvasElement: HTMLElement): Promise<GraphtyElement> {
  * @param name - the button's name.
  */
 async function press(canvasElement: HTMLElement, name: string): Promise<void> {
-    await userEvent.click(await within(canvasElement).findByRole("button", { name }));
+    // In the toolbar: the Graph place's "Analyze (Shift+A) to add results here" hint is a button
+    // named Analyze too.
+    const toolbar = await within(canvasElement).findByRole("toolbar", { name: "Canvas tools" });
+    await userEvent.click(await within(toolbar).findByRole("button", { name }));
 }
 
 /** The body, where popovers render. */

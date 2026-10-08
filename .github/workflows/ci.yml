@@ -490,6 +490,10 @@ jobs:
                   name: build-packages
                   path: .
 
+            - name: Note when lint starts
+              continue-on-error: true
+              run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
+
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
@@ -497,6 +501,20 @@ jobs:
             - name: Lint all (master, a manual dispatch or the merge queue)
               if: needs.packages.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
+
+            # Lint all took 3 to 5 minutes until a typescript-eslint update made one rule take 7 of them
+            # (2026-10-06, about 14 minutes in all), and nothing said so for two days. A run past the budget
+            # leaves a warning on the run; it never fails it, since a busy runner is not a defect.
+            - name: Warn when lint runs past its budget
+              continue-on-error: true
+              env:
+                  BUDGET_SECONDS: "420"
+              run: |
+                  took=$(( $(date +%s) - LINT_START ))
+                  echo "lint took ${took}s (budget ${BUDGET_SECONDS}s)"
+                  if (( took > BUDGET_SECONDS )); then
+                      echo "::warning title=Lint over its time budget::lint took ${took}s, over its ${BUDGET_SECONDS}s budget. Time it with TIMING=1 (eslint) to find the rule or check that grew."
+                  fi
 
             # A failure here settles "All Checks Pass" and "Queue Checks Pass": say so now, not when the
             # slowest job of the run ends (.github/actions/early-verdict).

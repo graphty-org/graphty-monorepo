@@ -21,6 +21,7 @@ import { type TestContext } from "vitest";
 import { allPairsCeiling, allPairsShortestPath, allPairsWithTuning } from "../../src/algorithms/all-pairs.js";
 import { type GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
+import { type GpuApspResult } from "../../src/types/all-pairs.js";
 import { allPairsReport, blockedF32, PARALLEL_EDGES } from "../helpers/all-pairs.js";
 import {
     completeEdges,
@@ -119,52 +120,81 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
         ctx.dispose();
     });
 
+    // One device run per fixture, shared by its two tests: the CPU references of a 900- or 1057-node matrix cost
+    // seconds each (tens of seconds under coverage on a loaded machine), so they are split across two tests, each
+    // with its own timeout, instead of summed into one (issue #1494).
+    const runs = new Map<
+        string,
+        Promise<{ s: GraphSnapshot; first: GpuApspResult["dist"]; second: GpuApspResult["dist"] }>
+    >();
+    const runOf = (
+        fixture: Fixture,
+    ): Promise<{ s: GraphSnapshot; first: GpuApspResult["dist"]; second: GpuApspResult["dist"] }> => {
+        let run = runs.get(fixture.name);
+        if (run === undefined) {
+            run = (async () => {
+                const s = snapshotOf(typeof fixture.edges === "function" ? fixture.edges(big()) : fixture.edges, {
+                    directed: fixture.directed,
+                    nodeCount: fixture.nodeCount,
+                    checksum: true,
+                });
+                try {
+                    const first = await allPairsShortestPath(ctx, s);
+                    const second = await allPairsShortestPath(ctx, s);
+                    expect(first.n).toBe(s.nodeCount);
+                    return { s, first: first.dist, second: second.dist };
+                } finally {
+                    ctx.release(s);
+                }
+            })();
+            runs.set(fixture.name, run);
+        }
+        return run;
+    };
+    const isWeighted = (s: GraphSnapshot): boolean => s.weights !== null && !s.flags.allWeightsOne;
+
     for (const fixture of FIXTURES) {
-        it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
+        it(`${fixture.name}: the matrix against the device's order of additions, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
-            const s = snapshotOf(typeof fixture.edges === "function" ? fixture.edges(big()) : fixture.edges, {
-                directed: fixture.directed,
-                nodeCount: fixture.nodeCount,
-                checksum: true,
-            });
+            const { s, first, second } = await runOf(fixture);
             const n = s.nodeCount;
-            const weighted = s.weights !== null && !s.flags.allWeightsOne;
-            try {
-                const first = await allPairsShortestPath(ctx, s);
-                const second = await allPairsShortestPath(ctx, s);
-                expect(first.n).toBe(n);
-                expect(first.dist.length).toBe(n * n);
-                expectBitwiseEqual(first.dist, second.dist, `${fixture.name}: dist run twice`);
-                if (weighted) {
-                    expect(Array.from(first.dist), `${fixture.name}: dist vs the blocked f32 reference`).toEqual(
-                        Array.from(blockedF32(s, true)),
-                    );
-                    const f64 = floydWarshallOracle(s, { weighted: true, precision: "f64" });
-                    const spread = relSpread(first.dist, f64);
-                    console.warn(`[all-pairs] ${fixture.name}: f32 vs the f64 textbook sweep, relative ${spread}`);
-                    expect(spread, `${fixture.name}: dist vs the f64 reference`).toBeLessThanOrEqual(WEIGHTED_REL);
-                    const cpu = cpuAllPairsShortestPath(s).dist;
-                    expect(relSpread(first.dist, cpu), `${fixture.name}: dist vs the CPU port`).toBeLessThanOrEqual(
-                        WEIGHTED_REL,
-                    );
-                } else {
-                    expect(Array.from(first.dist), `${fixture.name}: dist vs one BFS per source`).toEqual(
-                        Array.from(apspRowsOracle(s)),
-                    );
-                    expect(Array.from(first.dist), `${fixture.name}: dist vs the CPU port`).toEqual(
-                        Array.from(cpuAllPairsShortestPath(s).dist),
-                    );
-                }
-                expectMatrixTriangleInequality(first.dist, s, weighted, weighted ? WEIGHTED_REL : 0);
-                if (!s.directed) {
-                    expectSymmetric(first.dist, n);
-                }
-                for (let i = 0; i < n; i++) {
-                    expect(first.dist[i * n + i], `${fixture.name}: the diagonal at ${i}`).toBe(0);
-                }
-                s.validate({ checksum: true });
-            } finally {
-                ctx.release(s);
+            const weighted = isWeighted(s);
+            expect(first.length).toBe(n * n);
+            expectBitwiseEqual(first, second, `${fixture.name}: dist run twice`);
+            if (weighted) {
+                expect(Array.from(first), `${fixture.name}: dist vs the blocked f32 reference`).toEqual(
+                    Array.from(blockedF32(s, true)),
+                );
+            }
+            expectMatrixTriangleInequality(first, s, weighted, weighted ? WEIGHTED_REL : 0);
+            if (!s.directed) {
+                expectSymmetric(first, n);
+            }
+            for (let i = 0; i < n; i++) {
+                expect(first[i * n + i], `${fixture.name}: the diagonal at ${i}`).toBe(0);
+            }
+            s.validate({ checksum: true });
+        }, 120_000);
+
+        it(`${fixture.name}: the matrix against the independent references (the f64 sweep or one BFS per source, the CPU port)`, async (t: TestContext) => {
+            requireGpu(t);
+            const { s, first } = await runOf(fixture);
+            if (isWeighted(s)) {
+                const f64 = floydWarshallOracle(s, { weighted: true, precision: "f64" });
+                const spread = relSpread(first, f64);
+                console.warn(`[all-pairs] ${fixture.name}: f32 vs the f64 textbook sweep, relative ${spread}`);
+                expect(spread, `${fixture.name}: dist vs the f64 reference`).toBeLessThanOrEqual(WEIGHTED_REL);
+                const cpu = cpuAllPairsShortestPath(s).dist;
+                expect(relSpread(first, cpu), `${fixture.name}: dist vs the CPU port`).toBeLessThanOrEqual(
+                    WEIGHTED_REL,
+                );
+            } else {
+                expect(Array.from(first), `${fixture.name}: dist vs one BFS per source`).toEqual(
+                    Array.from(apspRowsOracle(s)),
+                );
+                expect(Array.from(first), `${fixture.name}: dist vs the CPU port`).toEqual(
+                    Array.from(cpuAllPairsShortestPath(s).dist),
+                );
             }
         }, 120_000);
     }

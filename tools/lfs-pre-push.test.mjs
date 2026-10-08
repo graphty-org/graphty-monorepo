@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
+import { isolatedGitEnv } from "./isolated-git-env.mjs";
+
 const SCRIPT = new URL("./lfs-pre-push.sh", import.meta.url).pathname;
 const hasLfs = spawnSync("git", ["lfs", "version"]).status === 0;
 
@@ -67,7 +69,8 @@ function run(cwd, args, env) {
 }
 
 // A repository with one commit holding an LFS pointer (its object in .git/lfs), a bare remote, and
-// a pre-push hook that runs `hook`. Global config is isolated so nothing outside the temp dir counts.
+// a pre-push hook that runs `hook`. isolatedGitEnv() keeps the developer's config and, under the
+// pre-push gate, the hook's GIT_DIR away from it.
 async function setup(lfsUrl, hook) {
     const dir = mkdtempSync(join(tmpdir(), "lfs-pre-push-"));
     const repo = join(dir, "repo");
@@ -75,21 +78,11 @@ async function setup(lfsUrl, hook) {
     mkdirSync(hooks);
     writeFileSync(join(hooks, "pre-push"), `#!/bin/sh\n${hook}\n`);
     chmodSync(join(hooks, "pre-push"), 0o755);
-    writeFileSync(join(dir, "gitconfig"), "");
-    const env = {
-        ...process.env,
-        HOME: dir,
-        GIT_CONFIG_GLOBAL: join(dir, "gitconfig"),
-        GIT_CONFIG_NOSYSTEM: "1",
-        GIT_TERMINAL_PROMPT: "0",
-    };
+    const env = { ...isolatedGitEnv(), HOME: dir, GIT_TERMINAL_PROMPT: "0" };
     const git = (...args) => spawnSync("git", args, { cwd: repo, env, encoding: "utf8" });
     spawnSync("git", ["init", "-q", "--bare", join(dir, "remote.git")], { env });
     spawnSync("git", ["init", "-q", "-b", "main", repo], { env });
     for (const [k, v] of [
-        ["user.name", "t"],
-        ["user.email", "t@example.com"],
-        ["commit.gpgsign", "false"],
         ["core.hooksPath", hooks],
         ["lfs.url", lfsUrl],
         // git-lfs turns the lock check on by itself only for github.com; turn it on here the same way.

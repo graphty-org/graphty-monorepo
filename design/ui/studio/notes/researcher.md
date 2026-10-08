@@ -10,27 +10,27 @@ made and evidence comes in.
 
 ## Top of mind
 
-- 2026-10-08 -- DRY RUN DONE on the study build 3dfe7daf9e45 (`tier2/rounds/r1d1/pilot/`, every
-  half but T21 A): every success path landed first try, no script, console or request errors, every
-  reference value held. So participants should NOT hit implementation faults on the success paths.
-  What they WILL meet are UX defects the pilots named (below) -- those are study findings to watch,
-  not blockers. The key now matches this build (criteria change log, same date).
-- 2026-10-08 -- Real defects the dry run found, worth fixing between rounds, not mid-round: Path
-  Method select blank after a run (T18, T20); Escape in the Weight list closes the whole Path
-  popover and clears From/To (T18 A); an off filter step edited and saved stays off with no sign
-  (T17); a green check on a table with a left-out row (T4); stray space "read ;" (T4 B, node table
-  only); "Add note N" tooltip covers the note just saved (T19); accepted rule and its "press Enter"
-  hint stay in the find box (T22); "Filter to neighbors" looks like plain text (T23, T12R); Hops 2
-  in discovery order on B; "Total distance" with no unit (T20 B); legend says "route" while
-  everything else says "path".
-- 2026-10-08 -- Tool defect: `real.mjs` setups leave the pointer where the last click landed, so
-  the first screen can show a hover the participant never made (T23 A, Sana row). The setup should
-  move the pointer off the page as it clears focus. The key tells graders to ignore it.
-- 2026-10-08 -- Watch items for graders on this build: T4's left-out row is now visible in the Data
-  page list ("1 row left out"), so its `false-done` trap is weaker; T17's Filters row carries no
-  count and no "off"; T20's "Capacity" choice is ungraded by rule (graded by end state); T20's
-  helper "such as a longer trail" may echo prompt B; T22 B's example 16 sits near the task's 10;
-  layout overlaps in the friends and Florentine drawings hide dots and labels.
+- 2026-10-08 -- SECOND DRY RUN DONE on the study build 909b19b578d4 (`tier2/rounds/r1d2/pilot/`,
+  all 20 halves incl. T21 A): every success path landed first try, no script, console or request
+  errors, every reference value held. Participants will NOT hit implementation faults on the
+  success paths. The key matches this build (criteria change log, same date).
+- 2026-10-08 -- What participants WILL meet are UX defects, now in the key as watch items: T4's
+  cut source counts, gray "1 row left out" row and the left-out line cut at "fro..."; T17 Save
+  step turning an off step on (ticking after it turns it off); T22 Escape in Selection actions
+  clearing the selection; T23 "Ava's 14 connections" at Hops 2 (reads as direct ties); T12R find
+  list showing 6 of 17 ties with no sign of more; T21 stale values at full contrast until Rerun.
+- 2026-10-08 -- Defects worth fixing between rounds, not mid-round: the T4 cuts above (counts
+  should win the width; the left-out line should wrap); T22 menu Escape propagating to the app's
+  clear-selection; "/" swallowed by a layer-list row; the Selection layer showing gold while ties
+  draw blue; T21 reset button landing under the pointer after Load; T20 Higher means inserted
+  above the role row (layout jump); T18 run icon disagreeing between inspector and tree; T23 chip
+  tooltip "Step on:" and Filters name cut before the hop count; edge actions button unlabeled.
+- 2026-10-08 -- Tool defects (engineer's): `real.mjs` resolves `setup:<file>` from the cwd and
+  throws an uncaught ENOENT instead of SETUP FAILED (tasks.md now says use an absolute path);
+  `session.json` "commit" is the worktree HEAD, not the build (grade by "buildStamp").
+- 2026-10-08 -- Watch items for graders on this build: T20's "Capacity" ungraded by rule; T20's
+  "such as a longer trail" may echo prompt B; T22 B's example 16 near the task's 10; layout
+  overlaps in friends, Florentine and trails drawings hide dots and labels.
 - 2026-10-08 -- ROUND 1 PLAN: `tier2/rounds/round-1/plan.md`, 56 sessions, roster's allocation
   (checked by `sessions.py`). T21 last of the core four, T19 after T4 (save-and-reopen waits on
   `--prove`). No saved-project starts. Grades record first move, doors, follow-up cost, T20 route,
@@ -96,38 +96,31 @@ reasons, in short:
 
 ## Decisions and reasons
 
-- 2026-10-08 (researcher, key matched to the dry-run pilots on 3dfe7daf9e45) -- Edited
-  `tier2/answers.md` from 19 pilot reports, logged in `criteria.md`, one note in `tasks.md` T20;
-  no bar, no prompt. Choices: (1) a header section for this build stating the cross-task changes
-  once (blue bands, From/To, focus moves on) instead of repeating them per task. (2) Out-of-date
-  watch notes deleted, not kept, when the screen no longer shows them (T19's three; T18's orange
-  path nodes): a stale watch note primes graders to see a problem. (3) T20 S: Made with has no
-  Weight select now, so pointing to the Path popover's "(farther, loaded)" box before the run
-  also counts -- it states the loaded meaning on screen; this widens where evidence may be found,
-  not what is required. (4) "Capacity" left ungraded by rule (graded by the end state) because no
-  pilot walked it; inventing an outcome would be guessing. (5) T12R's find-box list of ties graded
-  SD, the same as tier 1's "neighbors read from the ties". (6) T17's layout overlaps recorded as
-  the cause of a short dot count without changing the grade. (7) Defects that are not
-  key-relevant (stray space, Bellman Ford spelling, duplicate a11y names) stay in the pilot
-  reports and these notes, not in the key. Rejected: changing prompt B of T20 for the "longer
-  trail" echo -- the line appears only after the choice, so it cannot lead to it; recorded as a
-  possible echo instead.
+- 2026-10-08 (researcher, key matched to the second dry run on 909b19b578d4) -- Rewrote the
+  T17 to T12R sections and T4's entries of `tier2/answers.md` from 20 pilot reports; logged in
+  `criteria.md`; one `tasks.md` line (absolute setup paths). No bar, no prompt. Choices: (1) a
+  header section for the build stating cross-task changes once (focus on the inspector title, run
+  times, black path / one legend entry, the session commit field). (2) Where a new screen adds a
+  place to read the answer (T17 Filters row count, T22 result line and "Selected edges" table),
+  the key names it as a valid place, not a detour: the answer was on screen. (3) T17's follow-up
+  trap rewritten, not deleted: the old trap (an off step stays off) is gone, the new one (ticking
+  after Save turns it off) gives the same `read-wrong` for the same reason. (4) T22: Escape in
+  the Selection actions menu clearing the selection becomes `not-marked` unless redone (SD) --
+  graded by the end state, as every T22 route is. (5) T23's "connections" header at Hops 2 is a
+  recorded misreading, not a wrong count: the count is right for the task. (6) T12R: 6 from the
+  find list's visible ties is a wrong count -- tier 1's rule that a stated count must be right.
+  (7) Pucci removed from T23 B's left-out list: the sample has 15 families and the find box says
+  "No match"; the key was wrong, not the build. (8) T4: naming "p13 has no node row" is enough to
+  name the unmatched row, since the cut line still shows it. Rejected: retiring the gray "1 row
+  left out" as a `false-done` risk -- it is the screen's defect to measure, so it stays a watch
+  item.
 
-- 2026-10-08 (researcher, key matched to round 1 pilots) -- Edited `tier2/answers.md` (and one
-  description line of T12R in `tasks.md`) from 20 pilot reports on 16dcf3494700; no bar, no
-  prompt. Choices: (1) a header section names the round 1 build, the pilot folder, that `final/`
-  walks started unranked, and that screenshot numbers follow step grouping -- one rule instead of
-  re-citing every number. (2) T4's "Sources row says 1 row left out" rewritten: the row is on the
-  Data page and its text is cut before the count, so only the inspector shows it; a key claiming
-  a visible count would let graders mark a participant who missed it as careless. (3) The Made
-  with Weight select counts as pointing to Made with (T20): it is inside that section and states
-  the loaded meaning. (4) PageRank's missing count after a reopen is explicitly not `work-lost`:
-  run, colors, key and values return. (5) T23's off-canvas note deleted, not kept: the screens
-  show the drawing on the canvas, and a stale watch note primes graders. (6) T24 B point moved to
-  753,258 and the "find lists ties by name" route replaced by what exists (ties by value). (7)
-  T12R gets its own section in the tier 2 key rather than an edit to tier 1's key, which tier 1
-  rounds still grade with. Rejected: re-numbering every `final/` citation to round 1 screens (the
-  values agree; numbers drift with grouping).
+- 2026-10-08 (researcher, key matched to pilots on 16dcf3494700 and 3dfe7daf9e45, folded) -- A
+  header section per build states cross-task changes once; stale watch notes are deleted, not
+  kept (they prime graders); a citation moves to the newest pilot only where its screen matches;
+  untested choices (T20 "Capacity") graded by end state; T12R has its own section; the find
+  box's list of ties is SD; non-key defects stay in pilot reports. Rejected: changing T20 prompt
+  B for the "longer trail" echo (the line appears only after the choice).
 
 - 2026-10-08 (researcher, tier 2 criteria review, folded) -- Proposed 8 changes: bar 10 for the
   expert walkthrough and screenshot audit (two specialists or a measurement confirm; 0 sev 3+);
@@ -186,6 +179,12 @@ reasons, in short:
 - 2026-09-28 (owner) -- Simulated personas built from public sources, each checked by a skeptic.
 
 ## Tried: worked / did not work
+
+- 2026-10-08 (key vs second dry run) -- Worked: rewriting whole task sections from drafts and
+  splicing them with a script that asserts the section count, instead of 40 anchored edits;
+  wrapped lines in the Read view hid the two-space indent, so anchors copied from it failed --
+  grep the raw lines first. Looked at T17A 11.png and T4A 12.png myself before rewriting the two
+  grading changes. Not walked: T18 A's Ben-to-Nora chain, T20's "Capacity".
 
 - 2026-10-08 (key vs dry-run pilots) -- Worked: one python replace per entry with an assert on
   each anchor, then a grep for `rounds/r1/pilot` to find citations still pointing at the old

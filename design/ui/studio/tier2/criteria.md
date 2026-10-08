@@ -395,3 +395,31 @@ No round has run. The bars changed once before round 1, at the freeze (the first
   title after a run or a find pick, one Escape closing only an open list, a saved note taking
   focus with no tooltip over it, a shortest path saying which method it used, and setups handing
   over with the pointer off the page). `tool/real.mjs --prove` passed on it. No bar changed.
+- **2026-10-08, before round 1: the answer key matched to the second dry run.** Every task half,
+  T21 A included, was piloted on 909b19b578d4 from its start (`rounds/r1d2/pilot/`). Every success
+  path landed on the first try with no script errors, console errors or failed requests, and every
+  reference value held. `answers.md` now cites `rounds/r1d2/` and gives this build's screens where
+  they differ: a section on the build (focus on the inspector title after a find pick or a run,
+  run times shown, the path drawn black under one legend entry "On the path", and the sessions'
+  "commit" field naming the worktree, not the build); T4's warning triangle before Load (the green
+  check note deleted), the source row's cut counts, the gray "1 row left out" row, its own smaller
+  inspector, and the left-out line "Line 24: p13 has no node row; from ..." cut on screen; T17's
+  Filters row count ("20 to 19 nodes") as a third place to read the count, its "off" line, and
+  Save step on an off step now turning it on, so the follow-up's trap is ticking the box after
+  Save (which turns the step off); T18's Weight and Method wording, Escape closing only the open
+  list, the black path and its legend, and the follow-up runs told apart by time; T19's focus on
+  the inspector title and on the saved note's card, the new screenshot numbers, B's smaller
+  reframing and the unchanged "Local only" label; T20's role box moving to about 712,287 once
+  Weight is chosen, the interim "Weight: minutes" summary and the Overview off screen after the
+  run; T21 A's own screens, run times that change on Rerun, the menu opening with no item
+  highlighted, and the reset button under the pointer after Load; T22's result line under the box,
+  the "Selected edges" table, Escape in the Selection actions menu clearing the selection, "/"
+  not reaching the box from a layer row, and the Selection layer's gold color; T23's
+  "<name>'s <n> connections" header (and its misreading at Hops 2), alphabetical lists, the
+  chip's tooltip and the Filters list as the way back, and Pucci removed from B's left-out list
+  (the sample has 15 families); T24's drawn "Hana" label, yellow rings and B's screenshot numbers;
+  T12R's "Nodes" and "Edges" headings, focus on the title (a Tab to Degree), the "connections"
+  heading above the Hops switch, the outlined filter button, and the find list showing 6 of
+  Javert's 17 ties with no sign of more. `tasks.md`: setup files are passed by absolute path,
+  because `real.mjs` reads a relative path from the folder the command runs in. No bar and no
+  prompt changed.

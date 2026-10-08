@@ -29,7 +29,10 @@ changes:
 - **No keyboard-only, screen-reader or touch sessions** (owner, 2026-10-07). Participants use the
   pointer and the keyboard as they like.
 - **Starts.** _Empty_ = `--start <dir> empty`. _Setup_ = `--start <dir> setup:<file>` with a file
-  from `../rounds/tier-2/setups/`, which the participant never sees. No task starts from a saved
+  from `../rounds/tier-2/setups/`, which the participant never sees. `real.mjs` reads `<file>`
+  from the folder the command runs in, not from this folder, so pass the setup file's absolute
+  path (`/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier1/design/ui/studio/rounds/tier-2/setups/<name>.txt`);
+  a wrong path stops the start with a "no such file" error before any session begins. No task starts from a saved
   project file: reopening a saved project was measured in tier 1 (T14), and a setup reaches the
   same open work without depending on the project file format, which changes with the build.
   Every start but T4's and T20's reflects the earlier sessions every history shares: the file

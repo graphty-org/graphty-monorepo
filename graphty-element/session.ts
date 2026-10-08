@@ -169,7 +169,7 @@ export type { ReadonlyElementPositions } from "./src/session";
 // Which arrangement suits a graph
 // ---------------------------------------------------------------------------------------------
 
-export type { LayoutRecommendation, LayoutRecommendationOptions } from "./src/session";
+export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------

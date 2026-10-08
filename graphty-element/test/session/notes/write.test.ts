@@ -36,6 +36,40 @@ function refuses(session: GraphSession, write: () => unknown): Refusal {
 }
 
 /**
+ * Run some work and count the Map entries it walks (every iterator of every Map: spreads, for-of,
+ * keys, values, entries). A per-write scan over everything a session holds shows up here, whatever
+ * the machine's speed.
+ * @param work - The work.
+ * @returns How many entries were visited.
+ */
+async function mapEntriesVisited(work: () => Promise<unknown>): Promise<number> {
+    const proto = Map.prototype as unknown as Record<PropertyKey, (...args: unknown[]) => Iterator<unknown>>;
+    const names = [Symbol.iterator, "entries", "keys", "values"] as const;
+    const originals = names.map((name) => proto[name]);
+    let visited = 0;
+    names.forEach((name, at) => {
+        proto[name] = function (this: Map<unknown, unknown>, ...args: unknown[]) {
+            const it = originals[at].apply(this, args);
+            const next = it.next.bind(it);
+            it.next = (...rest: [] | [unknown]) => {
+                const step = next(...rest);
+                visited += step.done === true ? 0 : 1;
+                return step;
+            };
+            return it;
+        };
+    });
+    try {
+        await work();
+    } finally {
+        names.forEach((name, at) => {
+            proto[name] = originals[at];
+        });
+    }
+    return visited;
+}
+
+/**
  * The reason a refused `add` gives.
  * @param session - The session.
  * @param input - The input.
@@ -45,6 +79,12 @@ function addReason(session: GraphSession, input: unknown): [string, unknown] {
     const refusal = refuses(session, () => session.notes.add(input as NoteInput));
     return [refusal.code, refusal.details.reason];
 }
+
+/**
+ * Map entries one add may walk, whatever the session holds. Measured: 60,022 for 10,000 adds (about
+ * 6 each); the checkpoint that copied the whole draft walked 50,055,022.
+ */
+const PER_ADD = 20;
 
 describe("notes.add", () => {
     it("stores a frozen record with an id, a time and the text exactly, and lists it", () => {
@@ -305,9 +345,10 @@ describe("notes.add", () => {
         assert.deepEqual(session.notes.list(), []);
     });
 
-    // 10,000 adds in one transaction: 0.8-0.9 s alone (it was 7.5-12 s, almost all of it each
-    // member's checkpoint copying the whole draft, until checkpoints became a position in the
-    // draft's change list). An explicit 30 s limit, over thirty times that, for a busy machine.
+    // 10,000 adds in one transaction: 0.8-0.9 s alone. It was 7.5-12 s because each member's
+    // checkpoint copied the whole draft, so the n-th add walked n entries (50 million in all);
+    // checkpoints are now a position in the draft's change list. The test asserts that work, not
+    // a time: the entries walked per add stay constant. The 30 s limit is vitest's default.
     it("refuses a note larger than 256 KB saved, and a session past 10,000 notes", async () => {
         const { session } = notesHarness();
         const big = refuses(session, () =>
@@ -315,12 +356,15 @@ describe("notes.add", () => {
         );
         assert.deepEqual([big.code, big.details.reason], ["E_TOO_LARGE", "note-size"]);
 
-        await session.transaction("Many notes", (tx) => {
-            for (let i = 0; i < 10_000; i++) {
-                tx.notes.add({ text: String(i), targets: [{ graph: true }] });
-            }
-        });
+        const visited = await mapEntriesVisited(() =>
+            session.transaction("Many notes", (tx) => {
+                for (let i = 0; i < 10_000; i++) {
+                    tx.notes.add({ text: String(i), targets: [{ graph: true }] });
+                }
+            }),
+        );
         assert.strictEqual(session.notes.counts().notes, 10_000);
+        assert.isBelow(visited, 10_000 * PER_ADD, "an add walks entries in proportion to the notes held");
         const full = refuses(session, () => session.notes.add({ text: "one more", targets: [{ graph: true }] }));
         assert.deepEqual([full.code, full.details.reason], ["E_TOO_LARGE", "notes"]);
     }, 30_000);
